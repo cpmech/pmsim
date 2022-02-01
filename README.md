@@ -1,4 +1,6 @@
-# Porous media simulator using the Finite Element Method
+# Porous Media Simulator using the Finite Element Method
+
+🚧 Work in progress...
 
 This code implements simulator using the finite element method for the behavior of solids, structures, and porous media.
 
