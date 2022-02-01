@@ -1,7 +1,9 @@
 /// Defines a type alias for the error type as a static string
 pub type StrError = &'static str;
 
+mod boundary_condition;
 mod configuration;
+mod degrees_of_freedom;
 mod element;
 mod element_beam;
 mod element_porous;
@@ -19,7 +21,9 @@ mod model_stress_strain;
 mod model_van_genuchten;
 mod parameters;
 mod problem_type;
+pub use crate::boundary_condition::*;
 pub use crate::configuration::*;
+pub use crate::degrees_of_freedom::*;
 pub use crate::element::*;
 pub use crate::element_beam::*;
 pub use crate::element_porous::*;
