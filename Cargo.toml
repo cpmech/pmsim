@@ -8,7 +8,7 @@ homepage = "https://github.com/cpmech/pmsim"
 repository = "https://github.com/cpmech/pmsim"
 documentation = "https://docs.rs/pmsim"
 readme = "README.md"
-categories = ["mathematics", "science"]
+categories = ["mathematics", "science", "simulation"]
 keywords = ["mechanics", "fem"]
 
 [dependencies]
