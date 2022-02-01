@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, ParamBeam, StrError};
+use crate::{Element, EquationNumbers, ParamBeam, StrError};
 
 pub struct ElementBeam {}
 
@@ -12,7 +12,7 @@ impl ElementBeam {
 
 impl Element for ElementBeam {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut Vec<Vec<i32>>) -> usize {
+    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
     }
 

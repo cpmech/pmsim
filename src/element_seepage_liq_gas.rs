@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, ParamSeepageLiqGas, StrError};
+use crate::{Element, EquationNumbers, ParamSeepageLiqGas, StrError};
 
 pub struct ElementSeepageLiqGas {}
 
@@ -12,7 +12,7 @@ impl ElementSeepageLiqGas {
 
 impl Element for ElementSeepageLiqGas {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut Vec<Vec<i32>>) -> usize {
+    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
     }
 

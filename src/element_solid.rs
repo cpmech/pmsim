@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{new_stress_strain_model, Element, ModelStressStrain, ParamSolidMedium, StrError};
+use crate::{new_stress_strain_model, Element, EquationNumbers, ModelStressStrain, ParamSolidMedium, StrError};
 
 pub struct ElementSolid {
     model: Box<dyn ModelStressStrain>,
@@ -16,7 +16,7 @@ impl ElementSolid {
 
 impl Element for ElementSolid {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut Vec<Vec<i32>>) -> usize {
+    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
     }
 

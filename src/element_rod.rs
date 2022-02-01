@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, ParamRod, StrError};
+use crate::{Element, EquationNumbers, ParamRod, StrError};
 
 pub struct ElementRod {}
 
@@ -12,7 +12,7 @@ impl ElementRod {
 
 impl Element for ElementRod {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut Vec<Vec<i32>>) -> usize {
+    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
     }
 

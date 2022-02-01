@@ -1,6 +1,9 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{ParamBeam, ParamPorousMedium, ParamRod, ParamSeepage, ParamSeepageLiqGas, ParamSolidMedium, StrError};
+use crate::{
+    EquationNumbers, ParamBeam, ParamPorousMedium, ParamRod, ParamSeepage, ParamSeepageLiqGas, ParamSolidMedium,
+    StrError,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
@@ -15,7 +18,7 @@ pub enum ElementConfig {
 /// Defines a trait for (finite) elements
 pub trait Element {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut Vec<Vec<i32>>) -> usize;
+    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
 
     /// Computes the element RHS-vector
     fn compute_local_rhs_vector(&mut self) -> Result<(), StrError>;
@@ -37,7 +40,8 @@ mod tests {
 
     use crate::{
         detect_problem_type, Element, ElementBeam, ElementConfig, ElementPorous, ElementRod, ElementSeepage,
-        ElementSeepageLiqGas, ElementSolid, ParamBeam, ParamSolidMedium, ParamStressStrain, ProblemType, StrError,
+        ElementSeepageLiqGas, ElementSolid, EquationNumbers, ParamBeam, ParamSolidMedium, ParamStressStrain,
+        ProblemType, StrError,
     };
     use std::collections::HashMap;
 
@@ -115,7 +119,8 @@ mod tests {
             //
         }
 
-        let mut equation_numbers: Vec<Vec<i32>> = Vec::new();
+        let npoint = 10;
+        let mut equation_numbers = EquationNumbers::new(npoint);
 
         for element in elements {
             element.activate_equation_numbers(&mut equation_numbers);
