@@ -2,7 +2,18 @@
 name = "pmsim"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
+description = "Porous media simulator"
+homepage = "https://github.com/cpmech/pmsim"
+repository = "https://github.com/cpmech/pmsim"
+documentation = "https://docs.rs/pmsim"
+readme = "README.md"
+categories = ["mathematics", "science"]
+keywords = ["mechanics", "fem"]
 
 [dependencies]
+gemlab = { path = "../gemlab", version = "0.1" }
+russell_chk = "0.2"
+russell_lab = { path = "../russell/russell_lab", version = "0.2" }
+russell_sparse = { path = "../russell/russell_sparse", version = "0.2" }
+russell_tensor = { path = "../russell/russell_tensor", version = "0.1" }
