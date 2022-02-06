@@ -164,6 +164,8 @@ impl<'a> ConfigSim<'a> {
                 Some(p) => {
                     if p != ProblemType::SolidMech && p != ProblemType::PorousMediaMech {
                         return Err("element configuration is not allowed for SolidMech or PorousMediaMech problem");
+                    } else {
+                        self.problem_type = Some(ProblemType::PorousMediaMech); // override SolidMech, eventually
                     }
                 }
                 None => self.problem_type = Some(ProblemType::PorousMediaMech),
@@ -180,7 +182,8 @@ impl<'a> ConfigSim<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        BcPoint, ConfigSim, Dof, ElementConfig, FnSpaceTime, Nbc, ParamSolidMedium, ParamStressStrain, StrError,
+        params_example_porous_medium, BcPoint, ConfigSim, Dof, ElementConfig, FnSpaceTime, Nbc, ParamSolidMedium,
+        ParamStressStrain, ProblemType, StrError,
     };
     use gemlab::mesh::{At, Mesh};
 
@@ -216,7 +219,7 @@ mod tests {
 
         let gravity = 10.0; // m/s²
 
-        let params = ParamSolidMedium {
+        let params_1 = ParamSolidMedium {
             gravity,
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::LinearElastic {
@@ -225,7 +228,13 @@ mod tests {
             },
         };
 
-        config.elements(1, ElementConfig::Solid(params))?;
+        let params_2 = params_example_porous_medium(gravity, 0.3, 1e-2);
+
+        config.elements(1, ElementConfig::Solid(params_1))?;
+        assert_eq!(config.problem_type, Some(ProblemType::SolidMech));
+
+        config.elements(2, ElementConfig::Porous(params_2))?;
+        assert_eq!(config.problem_type, Some(ProblemType::PorousMediaMech));
 
         Ok(())
     }
