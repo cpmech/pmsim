@@ -182,8 +182,8 @@ impl<'a> ConfigSim<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        params_example_porous_medium, BcPoint, ConfigSim, Dof, ElementConfig, FnSpaceTime, Nbc, ParamSolidMedium,
-        ParamStressStrain, ProblemType, StrError,
+        BcPoint, ConfigSim, Dof, ElementConfig, FnSpaceTime, Nbc, ParamSolidMedium, ParamStressStrain, ProblemType,
+        Samples, StrError,
     };
     use gemlab::mesh::{At, Mesh};
 
@@ -228,7 +228,7 @@ mod tests {
             },
         };
 
-        let params_2 = params_example_porous_medium(gravity, 0.3, 1e-2);
+        let params_2 = Samples::params_porous_medium(gravity, 0.3, 1e-2);
 
         config.elements(1, ElementConfig::Solid(params_1))?;
         assert_eq!(config.problem_type, Some(ProblemType::SolidMech));
