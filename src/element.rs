@@ -1,5 +1,3 @@
-#![allow(dead_code, unused_mut, unused_variables)]
-
 use crate::{
     EquationNumbers, ParamBeam, ParamPorousMedium, ParamRod, ParamSeepage, ParamSeepageLiqGas, ParamSolidMedium,
     StrError,
@@ -13,6 +11,15 @@ pub enum ElementConfig {
     Porous(ParamPorousMedium),
     Rod(ParamRod),
     Beam(ParamBeam),
+}
+
+/// Defines the problem type
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ProblemType {
+    Seepage,
+    SeepageLiqGas,
+    SolidMech,
+    PorousMediaMech,
 }
 
 /// Defines a trait for (finite) elements
@@ -37,15 +44,10 @@ pub trait Element {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        detect_problem_type, Element, ElementBeam, ElementConfig, ElementPorous, ElementRod, ElementSeepage,
-        ElementSeepageLiqGas, ElementSolid, EquationNumbers, ParamBeam, ParamSolidMedium, ParamStressStrain,
-        ProblemType, StrError,
-    };
-    use std::collections::HashMap;
+    use crate::{ElementConfig, ParamBeam, ParamSolidMedium, ParamStressStrain};
 
     #[test]
-    fn simulation() -> Result<(), StrError> {
+    fn config_works() {
         let gravity = 10.0; // m/s2
 
         let m1 = ParamSolidMedium {
@@ -87,44 +89,5 @@ mod tests {
         println!("c1 = {:?}\n", c1);
         println!("c2 = {:?}\n", c2);
         println!("c3 = {:?}\n", c3);
-
-        let mut elements: Vec<Box<dyn Element>> = Vec::new();
-
-        let problem_type = detect_problem_type(vec![c1, c2])?;
-        println!("problem type = {:?}\n", problem_type);
-
-        let mut configurations: HashMap<usize, ElementConfig> = HashMap::new();
-        configurations.insert(1, c1);
-        configurations.insert(2, c2);
-        configurations.insert(3, c3);
-
-        let mesh_cell_and_attributes = [(0, 1), (1, 1), (2, 2), (3, 3)];
-
-        for (cell_id, attribute) in mesh_cell_and_attributes {
-            match configurations.get(&attribute) {
-                Some(config) => match config {
-                    ElementConfig::Seepage(params) => elements.push(Box::new(ElementSeepage::new(params))),
-                    ElementConfig::SeepageLiqGas(params) => elements.push(Box::new(ElementSeepageLiqGas::new(params))),
-                    ElementConfig::Solid(params) => elements.push(Box::new(ElementSolid::new(params))),
-                    ElementConfig::Porous(params) => elements.push(Box::new(ElementPorous::new(params))),
-                    ElementConfig::Rod(params) => elements.push(Box::new(ElementRod::new(params))),
-                    ElementConfig::Beam(params) => elements.push(Box::new(ElementBeam::new(params))),
-                },
-                None => panic!("cannot find attribute"),
-            }
-        }
-
-        if problem_type == ProblemType::PorousMediaMech {
-            //
-        }
-
-        let npoint = 10;
-        let mut equation_numbers = EquationNumbers::new(npoint);
-
-        for element in elements {
-            element.activate_equation_numbers(&mut equation_numbers);
-        }
-
-        Ok(())
     }
 }
