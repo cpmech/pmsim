@@ -23,7 +23,7 @@ pub struct ConfigSim<'a> {
     pub(crate) elements: HashMap<CellAttributeId, ElementConfig>,
 
     /// Problem type
-    pub(crate) problem_type: ProblemType,
+    pub(crate) problem_type: Option<ProblemType>,
 }
 
 impl<'a> ConfigSim<'a> {
@@ -36,7 +36,7 @@ impl<'a> ConfigSim<'a> {
             natural_bcs_face: HashMap::new(),
             point_bcs: HashMap::new(),
             elements: HashMap::new(),
-            problem_type: ProblemType::SolidMech,
+            problem_type: None,
         }
     }
 
@@ -120,62 +120,57 @@ impl<'a> ConfigSim<'a> {
     }
 
     /// Sets configurations for a group of elements
+    ///
+    /// # Note
+    ///
+    /// SolidMech problem type allows the following configurations:
+    /// * ElementConfig::Solid
+    /// * ElementConfig::Rod
+    /// * ElementConfig::Beam
+    ///
+    /// PorousMediaMech problem type allows the following configurations:
+    /// * ElementConfig::Porous
+    /// * ElementConfig::Solid
+    /// * ElementConfig::Rod
+    /// * ElementConfig::Beam
     pub fn elements(&mut self, attribute_id: CellAttributeId, config: ElementConfig) -> Result<&mut Self, StrError> {
-        let mut has_seepage = false;
-        let mut has_seepage_liq_gas = false;
-        let mut has_solid = false;
-        let mut has_porous = false;
-        let mut has_rod = false;
-        let mut has_beam = false;
-
-        let mut configs: Vec<_> = self.elements.values().collect();
-        configs.push(&config);
-        for config in configs {
-            match config {
-                ElementConfig::Seepage(_) => has_seepage = true,
-                ElementConfig::SeepageLiqGas(_) => has_seepage_liq_gas = true,
-                ElementConfig::Solid(_) => has_solid = true,
-                ElementConfig::Porous(_) => has_porous = true,
-                ElementConfig::Rod(_) => has_rod = true,
-                ElementConfig::Beam(_) => has_beam = true,
-            }
-        }
-
-        let problem_type: ProblemType;
-
-        if has_porous {
-            problem_type = ProblemType::PorousMediaMech;
-            if has_seepage {
-                return Err("cannot mix seepage and porous problems");
-            }
-            if has_seepage_liq_gas {
-                return Err("cannot mix seepage-liq-gas and porous problems");
-            }
-        } else {
-            if has_solid || has_rod || has_beam {
-                problem_type = ProblemType::SolidMech;
-                if has_seepage {
-                    return Err("cannot mix seepage and solid mech problems");
-                }
-                if has_seepage_liq_gas {
-                    return Err("cannot mix seepage-liq-gas and solid mech problems");
-                }
-            } else {
-                if has_seepage_liq_gas {
-                    problem_type = ProblemType::SeepageLiqGas;
-                    if has_seepage {
-                        return Err("cannot mix seepage-liq-gas and seepage problems");
+        // handle problem type
+        match config {
+            ElementConfig::Seepage(_) => match self.problem_type {
+                Some(p) => {
+                    if p != ProblemType::Seepage {
+                        return Err("element configuration is not allowed for Seepage problem");
                     }
-                } else if has_seepage {
-                    problem_type = ProblemType::Seepage;
-                } else {
-                    return Err("problem type is undefined");
                 }
-            }
-        }
-
+                None => self.problem_type = Some(ProblemType::Seepage),
+            },
+            ElementConfig::SeepageLiqGas(_) => match self.problem_type {
+                Some(p) => {
+                    if p != ProblemType::SeepageLiqGas {
+                        return Err("element configuration is not allowed for SeepageLiqGas problem");
+                    }
+                }
+                None => self.problem_type = Some(ProblemType::Seepage),
+            },
+            ElementConfig::Solid(_) | ElementConfig::Rod(_) | ElementConfig::Beam(_) => match self.problem_type {
+                Some(p) => {
+                    if p != ProblemType::SolidMech && p != ProblemType::PorousMediaMech {
+                        return Err("element configuration is not allowed for SolidMech or PorousMediaMech problem");
+                    }
+                }
+                None => self.problem_type = Some(ProblemType::SolidMech),
+            },
+            ElementConfig::Porous(_) => match self.problem_type {
+                Some(p) => {
+                    if p != ProblemType::SolidMech && p != ProblemType::PorousMediaMech {
+                        return Err("element configuration is not allowed for SolidMech or PorousMediaMech problem");
+                    }
+                }
+                None => self.problem_type = Some(ProblemType::PorousMediaMech),
+            },
+        };
+        // store element config
         self.elements.insert(attribute_id, config);
-        self.problem_type = problem_type;
         Ok(self)
     }
 }

@@ -3,17 +3,31 @@ use crate::{
     StrError,
 };
 
+/// Holds element configuration and material parameters
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
     Seepage(ParamSeepage),
     SeepageLiqGas(ParamSeepageLiqGas),
     Solid(ParamSolidMedium),
-    Porous(ParamPorousMedium),
     Rod(ParamRod),
     Beam(ParamBeam),
+    Porous(ParamPorousMedium),
 }
 
 /// Defines the problem type
+///
+/// # Note
+///
+/// SolidMech problem type allows the following configurations:
+/// * ElementConfig::Solid
+/// * ElementConfig::Rod
+/// * ElementConfig::Beam
+///
+/// PorousMediaMech problem type allows the following configurations:
+/// * ElementConfig::Porous
+/// * ElementConfig::Solid
+/// * ElementConfig::Rod
+/// * ElementConfig::Beam
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ProblemType {
     Seepage,
