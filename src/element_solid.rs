@@ -1,20 +1,30 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{new_stress_strain_model, Element, EquationNumbers, ModelStressStrain, ParamSolidMedium, StrError};
+use crate::{new_stress_strain_model, Dof, Element, EquationNumbers, ModelStressStrain, ParamSolidMedium, StrError};
+use gemlab::mesh::Cell;
 
-pub struct ElementSolid {
+pub struct ElementSolid<'a> {
+    cell: &'a Cell,
+    dofs: Vec<Dof>,
     model: Box<dyn ModelStressStrain>,
 }
 
-impl ElementSolid {
-    pub fn new(params: &ParamSolidMedium) -> Self {
-        ElementSolid {
+impl<'a> ElementSolid<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamSolidMedium) -> Result<Self, StrError> {
+        let dofs = match cell.shape.space_ndim {
+            2 => vec![Dof::Ux, Dof::Uy],
+            3 => vec![Dof::Ux, Dof::Uy, Dof::Uz],
+            _ => return Err("space_ndim is invalid for ElementSolid"),
+        };
+        Ok(ElementSolid {
+            cell,
+            dofs,
             model: new_stress_strain_model(&params.stress_strain),
-        }
+        })
     }
 }
 
-impl Element for ElementSolid {
+impl Element for ElementSolid<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

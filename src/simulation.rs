@@ -16,7 +16,7 @@ pub struct Simulation<'a> {
     config: &'a ConfigSim<'a>,
 
     /// All elements
-    elements: Vec<Box<dyn Element>>,
+    elements: Vec<Box<dyn Element + 'a>>,
 
     /// Equation numbers table
     equation_numbers: EquationNumbers,
@@ -46,7 +46,7 @@ impl<'a> Simulation<'a> {
                 Some(config) => match config {
                     ElementConfig::Seepage(params) => Box::new(ElementSeepage::new(params)),
                     ElementConfig::SeepageLiqGas(params) => Box::new(ElementSeepageLiqGas::new(params)),
-                    ElementConfig::Solid(params) => Box::new(ElementSolid::new(params)),
+                    ElementConfig::Solid(params) => Box::new(ElementSolid::new(cell, params)?),
                     ElementConfig::Porous(params) => Box::new(ElementPorous::new(params)),
                     ElementConfig::Rod(params) => Box::new(ElementRod::new(params)),
                     ElementConfig::Beam(params) => Box::new(ElementBeam::new(params)),
@@ -84,10 +84,21 @@ impl<'a> Simulation<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::StrError;
+    use crate::{ConfigSim, ElementConfig, Samples, Simulation, StrError};
+    use gemlab::mesh::Mesh;
 
     #[test]
     fn new_works() -> Result<(), StrError> {
+        let mut mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
+        let mut config = ConfigSim::new(&mesh);
+
+        let gravity = 10.0; // m/s²
+        let params_1 = Samples::params_solid_medium(gravity);
+        let params_2 = Samples::params_porous_medium(gravity, 0.3, 1e-2);
+        config.elements(1, ElementConfig::Solid(params_1))?;
+        config.elements(2, ElementConfig::Porous(params_2))?;
+
+        let sim = Simulation::new(&mesh, &config)?;
         Ok(())
     }
 }

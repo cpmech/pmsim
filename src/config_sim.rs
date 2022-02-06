@@ -181,10 +181,7 @@ impl<'a> ConfigSim<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        BcPoint, ConfigSim, Dof, ElementConfig, FnSpaceTime, Nbc, ParamSolidMedium, ParamStressStrain, ProblemType,
-        Samples, StrError,
-    };
+    use crate::{BcPoint, ConfigSim, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, Samples, StrError};
     use gemlab::mesh::{At, Mesh};
 
     #[test]
@@ -218,16 +215,7 @@ mod tests {
             .bc_point(&corner, &[BcPoint::Fy], f_fy)?;
 
         let gravity = 10.0; // m/s²
-
-        let params_1 = ParamSolidMedium {
-            gravity,
-            density: 2.7, // Mg/m²
-            stress_strain: ParamStressStrain::LinearElastic {
-                young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
-            },
-        };
-
+        let params_1 = Samples::params_solid_medium(gravity);
         let params_2 = Samples::params_porous_medium(gravity, 0.3, 1e-2);
 
         config.elements(1, ElementConfig::Solid(params_1))?;

@@ -113,6 +113,8 @@ pub struct ParamSeepageLiqGas {
 pub struct ParamSolidMedium {
     pub gravity: f64, // g
     pub density: f64, // rho
+    pub thickness: f64,
+    pub plane_stress: bool,
     pub stress_strain: ParamStressStrain,
 }
 
@@ -136,6 +138,8 @@ mod tests {
         let p = ParamSolidMedium {
             gravity,
             density: 2.7, // Mg/m2
+            thickness: 1.0,
+            plane_stress: false,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]

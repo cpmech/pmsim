@@ -62,11 +62,13 @@ mod tests {
 
     #[test]
     fn config_works() {
-        let gravity = 10.0; // m/s2
+        let gravity = 10.0; // m/s²
 
         let m1 = ParamSolidMedium {
             gravity,
             density: 2.7, // Mg/m2
+            thickness: 1.0,
+            plane_stress: false,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
@@ -76,6 +78,8 @@ mod tests {
         let m2 = ParamSolidMedium {
             gravity,
             density: 2.7, // Mg/m2
+            thickness: 1.0,
+            plane_stress: false,
             stress_strain: ParamStressStrain::DruckerPrager {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
