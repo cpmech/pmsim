@@ -2,7 +2,7 @@
 pub type StrError = &'static str;
 
 mod boundary_condition;
-mod configuration;
+mod config_sim;
 mod element;
 mod element_beam;
 mod element_porous;
@@ -23,7 +23,7 @@ mod parameters;
 mod problem_type;
 mod simulation;
 pub use crate::boundary_condition::*;
-pub use crate::configuration::*;
+pub use crate::config_sim::*;
 pub use crate::element::*;
 pub use crate::element_beam::*;
 pub use crate::element_porous::*;
