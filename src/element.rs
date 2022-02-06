@@ -37,7 +37,6 @@ pub trait Element {
 
 #[cfg(test)]
 mod tests {
-
     use crate::{
         detect_problem_type, Element, ElementBeam, ElementConfig, ElementPorous, ElementRod, ElementSeepage,
         ElementSeepageLiqGas, ElementSolid, EquationNumbers, ParamBeam, ParamSolidMedium, ParamStressStrain,
