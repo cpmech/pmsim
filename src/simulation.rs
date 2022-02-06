@@ -36,7 +36,7 @@ impl<'a> Simulation<'a> {
         // elements and equation numbers
         let npoint = mesh.points.len();
         let mut elements = Vec::<Box<dyn Element>>::new();
-        let mut equations = EquationNumbers::new(npoint);
+        let mut equation_numbers = EquationNumbers::new(npoint);
 
         // loop over all cells
         let mut nnz_max = 0;
@@ -55,21 +55,21 @@ impl<'a> Simulation<'a> {
             };
 
             // set DOFs and estimate of the max number of non-zeros in the K-matrix
-            nnz_max += element.activate_equation_numbers(&mut equations);
+            nnz_max += element.activate_equation_numbers(&mut equation_numbers);
 
             // add element to array
             elements.push(element);
         }
 
         // number of equations
-        let neq = equations.get_number_of_equations();
+        let neq = equation_numbers.get_number_of_equations();
 
         // results
         Ok(Simulation {
             mesh,
             config,
             elements,
-            equation_numbers: equations,
+            equation_numbers,
             system_kk: SparseTriplet::new(neq, neq, nnz_max, Symmetry::No)?,
             system_xx: Vector::new(neq),
             system_rhs: Vector::new(neq),
