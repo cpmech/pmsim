@@ -4,14 +4,10 @@ use crate::{
     ConfigSim, Element, ElementBeam, ElementConfig, ElementPorous, ElementRod, ElementSeepage, ElementSeepageLiqGas,
     ElementSolid, EquationNumbers, StrError,
 };
-use gemlab::mesh::Mesh;
 use russell_lab::Vector;
 use russell_sparse::{SparseTriplet, Symmetry};
 
 pub struct Simulation<'a> {
-    /// Access to mesh
-    mesh: &'a Mesh,
-
     /// Access to configuration
     config: &'a ConfigSim<'a>,
 
@@ -32,17 +28,17 @@ pub struct Simulation<'a> {
 }
 
 impl<'a> Simulation<'a> {
-    pub fn new(mesh: &'a Mesh, config: &'a ConfigSim) -> Result<Self, StrError> {
+    pub fn new(config: &'a ConfigSim) -> Result<Self, StrError> {
         // elements and equation numbers
-        let npoint = mesh.points.len();
+        let npoint = config.mesh.points.len();
         let mut elements = Vec::<Box<dyn Element>>::new();
         let mut equation_numbers = EquationNumbers::new(npoint);
 
         // loop over all cells
         let mut nnz_max = 0;
-        for cell in &mesh.cells {
+        for cell in &config.mesh.cells {
             // allocate element
-            let element: Box<dyn Element> = match config.elements.get(&cell.attribute_id) {
+            let element: Box<dyn Element> = match config.element_configs.get(&cell.attribute_id) {
                 Some(config) => match config {
                     ElementConfig::Seepage(params) => Box::new(ElementSeepage::new(params)),
                     ElementConfig::SeepageLiqGas(params) => Box::new(ElementSeepageLiqGas::new(params)),
@@ -66,7 +62,6 @@ impl<'a> Simulation<'a> {
 
         // results
         Ok(Simulation {
-            mesh,
             config,
             elements,
             equation_numbers,
@@ -98,7 +93,7 @@ mod tests {
         config.elements(1, ElementConfig::Solid(params_1))?;
         config.elements(2, ElementConfig::Porous(params_2))?;
 
-        let sim = Simulation::new(&mesh, &config)?;
+        let sim = Simulation::new(&config)?;
         Ok(())
     }
 }

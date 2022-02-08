@@ -70,8 +70,9 @@ impl<'a> Element for ElementSolid<'a> {
     fn compute_local_rhs_vector(&mut self) -> Result<(), StrError> {
         let fn_sig = ElementSolid::calc_sig;
         let mut sig_aux = Tensor2::new(true, self.two_dim);
-        self.shape
-            .integ_vec_d_tg(&mut self.rhs, fn_sig, &mut sig_aux, self.thickness)
+        // self.shape
+        // .integ_vec_d_tg(&mut self.rhs, fn_sig, &mut sig_aux, self.thickness)
+        Ok(())
     }
 
     /// Computes the element K-matrix

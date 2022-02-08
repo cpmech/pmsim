@@ -5,7 +5,7 @@ use std::collections::HashMap;
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct ConfigSim<'a> {
     /// Access to mesh
-    mesh: &'a Mesh,
+    pub(crate) mesh: &'a Mesh,
 
     /// Essential boundary conditions
     pub(crate) essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
@@ -20,7 +20,7 @@ pub struct ConfigSim<'a> {
     pub(crate) point_bcs: HashMap<(PointId, BcPoint), FnSpaceTime>,
 
     /// Elements configuration
-    pub(crate) elements: HashMap<CellAttributeId, ElementConfig>,
+    pub(crate) element_configs: HashMap<CellAttributeId, ElementConfig>,
 
     /// Problem type
     pub(crate) problem_type: Option<ProblemType>,
@@ -35,12 +35,12 @@ impl<'a> ConfigSim<'a> {
             natural_bcs_edge: HashMap::new(),
             natural_bcs_face: HashMap::new(),
             point_bcs: HashMap::new(),
-            elements: HashMap::new(),
+            element_configs: HashMap::new(),
             problem_type: None,
         }
     }
 
-    /// Sets essential boundary conditions (EBC) for a set of points
+    /// Sets essential boundary conditions (EBC) for a group of points
     pub fn ebc(&mut self, point_ids: &[PointId], dofs: &[Dof], f: FnSpaceTime) -> Result<&mut Self, StrError> {
         for point_id in point_ids {
             if !self.mesh.boundary_points.contains(point_id) {
@@ -53,7 +53,7 @@ impl<'a> ConfigSim<'a> {
         Ok(self)
     }
 
-    /// Sets essential boundary conditions (EBC) for a set of points along specified edges
+    /// Sets essential boundary conditions (EBC) for a group of points along specified edges
     pub fn ebc_edges(&mut self, edge_keys: &[EdgeKey], dofs: &[Dof], f: FnSpaceTime) -> Result<&mut Self, StrError> {
         for edge_key in edge_keys {
             let edge = match self.mesh.boundary_edges.get(edge_key) {
@@ -65,7 +65,7 @@ impl<'a> ConfigSim<'a> {
         Ok(self)
     }
 
-    /// Sets essential boundary conditions (EBC) for a set of points on specified faces
+    /// Sets essential boundary conditions (EBC) for a group of points on specified faces
     pub fn ebc_faces(&mut self, face_keys: &[FaceKey], dofs: &[Dof], f: FnSpaceTime) -> Result<&mut Self, StrError> {
         for face_key in face_keys {
             let face = match self.mesh.boundary_faces.get(face_key) {
@@ -77,7 +77,7 @@ impl<'a> ConfigSim<'a> {
         Ok(self)
     }
 
-    /// Sets natural boundary conditions (NBC) for a set of edges
+    /// Sets natural boundary conditions (NBC) for a group of edges
     pub fn nbc_edges(&mut self, edge_keys: &[EdgeKey], nbcs: &[Nbc], f: FnSpaceTime) -> Result<&mut Self, StrError> {
         for edge_key in edge_keys {
             if !self.mesh.boundary_edges.contains_key(edge_key) {
@@ -93,7 +93,7 @@ impl<'a> ConfigSim<'a> {
         Ok(self)
     }
 
-    /// Sets natural boundary conditions (NBC) for a set of faces
+    /// Sets natural boundary conditions (NBC) for a group of faces
     pub fn nbc_faces(&mut self, face_keys: &[FaceKey], nbcs: &[Nbc], f: FnSpaceTime) -> Result<&mut Self, StrError> {
         for face_key in face_keys {
             if !self.mesh.boundary_faces.contains_key(face_key) {
@@ -106,7 +106,7 @@ impl<'a> ConfigSim<'a> {
         Ok(self)
     }
 
-    /// Sets point boundary conditions for a set of points
+    /// Sets point boundary conditions for a group of points
     pub fn bc_point(&mut self, point_ids: &[PointId], bcs: &[BcPoint], f: FnSpaceTime) -> Result<&mut Self, StrError> {
         for point_id in point_ids {
             if !self.mesh.boundary_points.contains(point_id) {
@@ -172,7 +172,7 @@ impl<'a> ConfigSim<'a> {
             },
         };
         // store element config
-        self.elements.insert(attribute_id, config);
+        self.element_configs.insert(attribute_id, config);
         Ok(self)
     }
 }
