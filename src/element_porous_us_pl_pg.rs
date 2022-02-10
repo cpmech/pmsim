@@ -3,17 +3,18 @@
 use crate::*;
 use gemlab::mesh::Cell;
 
-pub struct ElementSeepage<'a> {
+/// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
+pub struct ElementPorousUsPlPg<'a> {
     cell: &'a Cell, // geometry: mesh cell
 }
 
-impl<'a> ElementSeepage<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamSeepageL, nip: Nip) -> Self {
-        ElementSeepage { cell }
+impl<'a> ElementPorousUsPlPg<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamPorousL, nip: Nip) -> Self {
+        ElementPorousUsPlPg { cell }
     }
 }
 
-impl Element for ElementSeepage<'_> {
+impl Element for ElementPorousUsPlPg<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

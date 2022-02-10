@@ -3,17 +3,18 @@
 use crate::*;
 use gemlab::mesh::Cell;
 
-pub struct ElementSeepageLiqGas<'a> {
+/// Implements the pl-pg (liquid pressure, gas pressure) element for seepage simulations
+pub struct ElementSeepagePlPg<'a> {
     cell: &'a Cell, // geometry: mesh cell
 }
 
-impl<'a> ElementSeepageLiqGas<'a> {
+impl<'a> ElementSeepagePlPg<'a> {
     pub fn new(cell: &'a Cell, params: &ParamSeepageLG, nip: Nip) -> Self {
-        ElementSeepageLiqGas { cell }
+        ElementSeepagePlPg { cell }
     }
 }
 
-impl Element for ElementSeepageLiqGas<'_> {
+impl Element for ElementSeepagePlPg<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

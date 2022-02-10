@@ -36,10 +36,10 @@ impl<'a> Simulation<'a> {
             // allocate element
             let element: Box<dyn Element> = match config.element_configs.get(&cell.attribute_id) {
                 Some(config) => match config {
-                    Seepage(params, nip) => Box::new(ElementSeepage::new(cell, params, *nip)),
-                    SeepageLiqGas(params, nip) => Box::new(ElementSeepageLiqGas::new(cell, params, *nip)),
+                    Seepage(params, nip) => Box::new(ElementSeepagePl::new(cell, params, *nip)),
+                    SeepageLiqGas(params, nip) => Box::new(ElementSeepagePlPg::new(cell, params, *nip)),
                     Solid(params, nip) => Box::new(ElementSolid::new(cell, params, *nip, plane_stress, thickness)?),
-                    Porous(params, nip) => Box::new(ElementPorous::new(cell, params, *nip)),
+                    Porous(params, nip) => Box::new(ElementPorousUsPl::new(cell, params, *nip)),
                     Rod(params) => Box::new(ElementRod::new(cell, params)),
                     Beam(params) => Box::new(ElementBeam::new(cell, params)),
                 },
