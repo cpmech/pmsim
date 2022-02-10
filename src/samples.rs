@@ -7,12 +7,10 @@ pub struct Samples;
 
 impl Samples {
     /// Returns example parameters for a solid medium
-    pub fn params_solid_medium(gravity: f64) -> ParamSolidMedium {
+    pub fn params_solid_medium() -> ParamSolidMedium {
         ParamSolidMedium {
-            gravity,
             density: 2.7, // Mg/m²
-            thickness: 1.0,
-            plane_stress: false,
+            nip: None,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
@@ -21,14 +19,12 @@ impl Samples {
     }
 
     /// Returns example parameters for a porous medium
-    pub fn params_porous_medium(gravity: f64, porosity: f64, k_iso: f64) -> ParamPorousMedium {
+    pub fn params_porous_medium(porosity: f64, k_iso: f64) -> ParamPorousMedium {
         ParamPorousMedium {
             porosity,
             solid: ParamSolidMedium {
-                gravity,
                 density: 2.7, // Mg/m³
-                thickness: 1.0,
-                plane_stress: false,
+                nip: None,
                 stress_strain: ParamStressStrain::LinearElastic {
                     young: 10_000.0, // kPa
                     poisson: 0.2,    // [-]
@@ -36,7 +32,6 @@ impl Samples {
             },
             seepage: ParamSeepageLiqGas {
                 liquid: ParamSeepage {
-                    gravity,
                     density: 1.0, // Mg/m³
                     compressibility: ParamCompressibility {
                         value: 4.53e-7, // Mg/(m³ kPa)
@@ -53,7 +48,6 @@ impl Samples {
                     },
                 },
                 gas: ParamSeepage {
-                    gravity,
                     density: 0.0012, // Mg/m³
                     compressibility: ParamCompressibility {
                         value: 1.17e-5, // Mg/(m³ kPa)

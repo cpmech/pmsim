@@ -1,7 +1,6 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamRod {
     LinearElastic {
-        gravity: f64, // g
         density: f64, // density
         young: f64,   // Young's modulus E
         area: f64,    // cross-sectional area A
@@ -11,7 +10,6 @@ pub enum ParamRod {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamBeam {
     EulerBernoulli {
-        gravity: f64, // g
         density: f64, // density
         young: f64,   // Young's modulus E
         shear: f64,   // shear modulus G
@@ -96,7 +94,6 @@ pub struct ParamCompressibility {
 
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSeepage {
-    pub gravity: f64,
     pub density: f64,
     pub compressibility: ParamCompressibility,
     pub conductivity: ParamConductivity,
@@ -111,10 +108,8 @@ pub struct ParamSeepageLiqGas {
 
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSolidMedium {
-    pub gravity: f64, // g
     pub density: f64, // rho
-    pub thickness: f64,
-    pub plane_stress: bool,
+    pub nip: Option<usize>,
     pub stress_strain: ParamStressStrain,
 }
 
@@ -133,13 +128,9 @@ mod tests {
 
     #[test]
     fn instantiate_example() {
-        let gravity = 10.0; // m/s2
-
         let p = ParamSolidMedium {
-            gravity,
             density: 2.7, // Mg/m2
-            thickness: 1.0,
-            plane_stress: false,
+            nip: None,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
@@ -154,7 +145,7 @@ mod tests {
             }
         );
 
-        let p = Samples::params_porous_medium(gravity, 0.3, 1e-2);
+        let p = Samples::params_porous_medium(0.3, 1e-2);
 
         assert_eq!(
             p.seepage.retention,

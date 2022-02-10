@@ -16,23 +16,23 @@ impl Element for ElementBeam {
         0
     }
 
-    /// Computes the element RHS-vector
-    fn compute_local_rhs_vector(&mut self) -> Result<(), StrError> {
+    /// Computes the element Y-vector
+    fn compute_local_yy_vector(&mut self) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element K-matrix
-    fn compute_local_k_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
+    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Assembles local right-hand side (RHS) vector into global RHS-vector
-    fn assemble_rhs_vector(&self, rhs: &mut Vec<f64>) -> Result<(), StrError> {
+    /// Assembles the local Y-vector into the global Y-vector
+    fn assemble_yy_vector(&self, yy: &mut Vec<f64>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_k_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError> {
+    fn assemble_kk_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError> {
         Ok(())
     }
 }

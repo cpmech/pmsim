@@ -1,56 +1,68 @@
-#![allow(dead_code, unused_mut, unused_variables)]
+#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{new_stress_strain_model, Dof, Element, EquationNumbers, ModelStressStrain, ParamSolidMedium, StrError};
-use gemlab::{mesh::Cell, shapes::Shape};
-use russell_lab::{Matrix, Vector};
+use crate::{
+    new_stress_strain_model, Dof, Element, EquationNumbers, ModelStressStrain, ParamSolidMedium, StateStress, StrError,
+};
+use gemlab::mesh::Cell;
+use gemlab::shapes::{IntegGDG, IntegTG, Shape, ShapeState};
+use russell_lab::{copy_matrix, copy_vector, Matrix, Vector};
 use russell_tensor::{Tensor2, Tensor4};
 
+// Implements a finite element for solid mechanics problems
 pub struct ElementSolid<'a> {
-    // constants
-    two_dim: bool,
-    thickness: f64,
+    // cell and shape
+    cell: &'a Cell,         // geometry: mesh cell
+    shape_vars: ShapeState, // state variables for numerical integration
 
-    /// Cell instance
-    cell: &'a Cell,
+    // params
+    model: Box<dyn ModelStressStrain>, // material model
+    thickness: f64,                    // thickness
 
-    /// Shape instance
-    shape: Shape,
-
-    /// Degrees-of-freedom per node
-    dofs: Vec<Dof>,
-
-    /// Stress-strain model
-    model: Box<dyn ModelStressStrain>,
-
-    /// Local RHS-vector (neq)
-    rhs: Vector,
-
-    /// Local K-matrix (neq,neq)
-    kk: Matrix,
+    // system
+    dofs: Vec<Dof>, // degrees-of-freedom per node
+    yy: Vector,     // local Y-vector (neq)
+    kk: Matrix,     // local K-matrix (neq,neq)
 }
 
 impl<'a> ElementSolid<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamSolidMedium) -> Result<Self, StrError> {
+    pub fn new(
+        cell: &'a Cell,
+        params: &ParamSolidMedium,
+        plane_stress: bool,
+        thickness: f64,
+    ) -> Result<Self, StrError> {
+        // cell and shape
+        let mut shape_vars = ShapeState::new(&cell.shape);
+        if let Some(nip) = params.nip {
+            shape_vars.select_int_points(nip, false, false)?;
+        }
+
+        // model
+        let two_dim = cell.shape.space_ndim == 2;
+        let model = new_stress_strain_model(&params.stress_strain, two_dim, plane_stress);
+
+        // integration points data
+        let space_ndim = cell.shape.space_ndim;
+        let nip = shape_vars.ip_data.len();
+
+        // system
         let dofs = match cell.shape.space_ndim {
             2 => vec![Dof::Ux, Dof::Uy],
             3 => vec![Dof::Ux, Dof::Uy, Dof::Uz],
             _ => return Err("space_ndim is invalid for ElementSolid"),
         };
         let neq = cell.shape.nnode * dofs.len();
+
+        // element instance
         Ok(ElementSolid {
-            two_dim: cell.shape.space_ndim == 2,
-            thickness: params.thickness,
             cell,
-            shape: Shape::new(cell.shape.space_ndim, cell.shape.geo_ndim, cell.shape.nnode)?,
+            shape_vars,
+            model,
+            thickness,
             dofs,
-            model: new_stress_strain_model(&params.stress_strain),
-            rhs: Vector::new(neq),
+            yy: Vector::new(neq),
             kk: Matrix::new(neq, neq),
         })
-    }
-
-    pub fn calc_sig(sig: &mut Tensor2, _: usize) {
-        // todo
     }
 }
 
@@ -66,28 +78,23 @@ impl<'a> Element for ElementSolid<'a> {
         nrow * ncol
     }
 
-    /// Computes the element RHS-vector
-    fn compute_local_rhs_vector(&mut self) -> Result<(), StrError> {
-        let fn_sig = ElementSolid::calc_sig;
-        let mut sig_aux = Tensor2::new(true, self.two_dim);
-        // self.shape
-        // .integ_vec_d_tg(&mut self.rhs, fn_sig, &mut sig_aux, self.thickness)
+    /// Computes the element Y-vector
+    fn compute_local_yy_vector(&mut self) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element K-matrix
-    fn compute_local_k_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
-        // let d = &mut Tensor4::new(true, self.cell.shape.space_ndim == 2);
+    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Assembles local right-hand side (RHS) vector into global RHS-vector
-    fn assemble_rhs_vector(&self, rhs: &mut Vec<f64>) -> Result<(), StrError> {
+    /// Assembles the local Y-vector into the global Y-vector
+    fn assemble_yy_vector(&self, yy: &mut Vec<f64>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_k_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError> {
+    fn assemble_kk_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError> {
         Ok(())
     }
 }

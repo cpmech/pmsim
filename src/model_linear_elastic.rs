@@ -1,29 +1,22 @@
-use crate::{ModelStressStrain, StrError};
+use crate::{ModelStressStrain, StateStress, StrError};
+use russell_lab::copy_matrix;
+use russell_tensor::{LinElasticity, Tensor4};
 
 pub struct ModelLinearElastic {
-    young: f64,   // Young's modulus
-    poisson: f64, // Poisson's coefficient
-
-    // modulus
-    dd: Vec<Vec<f64>>,
+    lin_elast: LinElasticity,
 }
 
 impl ModelLinearElastic {
-    pub fn new(young: f64, poisson: f64) -> Self {
+    pub fn new(young: f64, poisson: f64, two_dim: bool, plane_stress: bool) -> Self {
         ModelLinearElastic {
-            young,
-            poisson,
-            dd: Vec::new(),
+            lin_elast: LinElasticity::new(young, poisson, two_dim, plane_stress),
         }
     }
 }
 
 impl ModelStressStrain for ModelLinearElastic {
-    fn consistent_modulus(&mut self) -> Result<&Vec<Vec<f64>>, StrError> {
-        println!(
-            "ModelLinearElastic: young={}, poisson={}",
-            self.young, self.poisson
-        );
-        Ok(&self.dd)
+    fn consistent_modulus(&self, dd: &mut Tensor4, _: &StateStress) -> Result<(), StrError> {
+        let dd_ela = self.lin_elast.get_modulus();
+        copy_matrix(&mut dd.mat, &dd_ela.mat)
     }
 }

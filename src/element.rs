@@ -37,21 +37,42 @@ pub enum ProblemType {
 }
 
 /// Defines a trait for (finite) elements
+///
+/// The resulting linear system is:
+///
+/// ```text
+/// [K] {δX} = -{Y}
+///
+/// or
+///
+/// [K] {X_bar} = {Y}
+///
+/// where
+///
+/// {X_bar} = -{δX}
+/// ```
+///
+/// Since we can't use capital letters as code variables, then we consider the following convention:
+///
+/// ```text
+/// yy := {Y}
+/// kk := {K}
+/// ```
 pub trait Element {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
 
-    /// Computes the element RHS-vector
-    fn compute_local_rhs_vector(&mut self) -> Result<(), StrError>;
+    /// Computes the element Y-vector
+    fn compute_local_yy_vector(&mut self) -> Result<(), StrError>;
 
     /// Computes the element K-matrix
-    fn compute_local_k_matrix(&mut self, first_iteration: bool) -> Result<(), StrError>;
+    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError>;
 
-    /// Assembles local right-hand side (RHS) vector into global RHS-vector
-    fn assemble_rhs_vector(&self, rhs: &mut Vec<f64>) -> Result<(), StrError>;
+    /// Assembles the local Y-vector into the global Y-vector
+    fn assemble_yy_vector(&self, yy: &mut Vec<f64>) -> Result<(), StrError>;
 
     /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_k_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError>;
+    fn assemble_kk_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,13 +83,9 @@ mod tests {
 
     #[test]
     fn config_works() {
-        let gravity = 10.0; // m/s²
-
         let m1 = ParamSolidMedium {
-            gravity,
             density: 2.7, // Mg/m2
-            thickness: 1.0,
-            plane_stress: false,
+            nip: None,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
@@ -76,10 +93,8 @@ mod tests {
         };
 
         let m2 = ParamSolidMedium {
-            gravity,
             density: 2.7, // Mg/m2
-            thickness: 1.0,
-            plane_stress: false,
+            nip: None,
             stress_strain: ParamStressStrain::DruckerPrager {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
@@ -90,7 +105,6 @@ mod tests {
         };
 
         let m3 = ParamBeam::EulerBernoulli {
-            gravity,
             area: 1.0,
             density: 2.7,
             ii_11: 1.0,

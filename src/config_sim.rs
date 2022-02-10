@@ -1,6 +1,31 @@
+#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
+
 use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, StrError};
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
 use std::collections::HashMap;
+
+/// Holds initialization data
+pub struct InitializationData {
+    /// At-rest earth pressure coefficient K0 = σₕ'/σᵥ' to compute horizontal effective stress (σₕ') from vertical effective stress (σᵥ')
+    kk0: Option<f64>,
+
+    /// Poisson's coefficient ν to estimate the at-rest earth pressure coefficient K0 = ν/(1-ν) = σₕ'/σᵥ' and then compute horizontal effective stress (σₕ') from vertical effective stress (σᵥ')
+    nu: Option<f64>,
+}
+
+pub enum IniOption {
+    /// Geostatic initial state
+    Geostatic,
+
+    /// Self-weight initial state
+    SelfWeight,
+
+    /// Initial isotropic stress state where the parameter is σ_iso = σ_xx = σ_yy = σ_zz
+    IsotropicStress(f64),
+
+    /// Zero initial state
+    Zero,
+}
 
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct ConfigSim<'a> {
@@ -24,6 +49,21 @@ pub struct ConfigSim<'a> {
 
     /// Problem type
     pub(crate) problem_type: Option<ProblemType>,
+
+    /// Gravity acceleration
+    pub(crate) gravity: f64,
+
+    /// Thickness for plane-stress or 1.0 otherwise
+    pub(crate) thickness: f64,
+
+    /// 2D flag (space_ndim == 2)
+    pub(crate) two_dim: bool,
+
+    /// 2D plane-stress problem, otherwise plane-strain in 2D
+    pub(crate) plane_stress: bool,
+
+    /// Option to initialize stress state
+    pub(crate) ini_option: IniOption,
 }
 
 impl<'a> ConfigSim<'a> {
@@ -37,6 +77,11 @@ impl<'a> ConfigSim<'a> {
             point_bcs: HashMap::new(),
             element_configs: HashMap::new(),
             problem_type: None,
+            gravity: 0.0,
+            thickness: 1.0,
+            two_dim: mesh.space_ndim == 2,
+            plane_stress: false,
+            ini_option: IniOption::Zero,
         }
     }
 
@@ -175,6 +220,61 @@ impl<'a> ConfigSim<'a> {
         self.element_configs.insert(attribute_id, config);
         Ok(self)
     }
+
+    /// Sets the gravity acceleration
+    pub fn set_gravity(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value < 0.0 {
+            return Err("gravity value must be greater than or equal to zero");
+        }
+        self.gravity = value;
+        Ok(self)
+    }
+
+    /// Sets the thickness for plane-stress
+    pub fn set_thickness(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value <= 0.0 {
+            return Err("thickness value must be greater than zero");
+        }
+        self.thickness = value;
+        Ok(self)
+    }
+
+    /// Sets a 2D plane-stress problem, otherwise plane-strain in 2D
+    ///
+    /// # Note
+    ///
+    /// If flag=false (plane-strain), this function will set the thickness to 1.0.
+    pub fn set_plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+        match self.ini_option {
+            IniOption::Geostatic => return Err("cannot set plane_stress with Geostatic ini_option"),
+            IniOption::IsotropicStress(_) => return Err("cannot set plane_stress with IsotropicStress ini_option"),
+            _ => (),
+        }
+        self.plane_stress = flag;
+        if !self.plane_stress {
+            self.thickness = 1.0;
+        }
+        Ok(self)
+    }
+
+    /// Sets option to initialize (stress) state
+    pub fn set_ini_option(&mut self, option: IniOption) -> Result<&mut Self, StrError> {
+        match option {
+            IniOption::Geostatic => {
+                if self.plane_stress {
+                    return Err("cannot set Geostatic ini_option with plane_stress");
+                }
+            }
+            IniOption::IsotropicStress(_) => {
+                if self.plane_stress {
+                    return Err("cannot set IsotropicStress ini_option with plane_stress");
+                }
+            }
+            _ => (),
+        }
+        self.ini_option = option;
+        Ok(self)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -214,15 +314,16 @@ mod tests {
             .nbc_edges(&top, &[Nbc::Qn], f_qn)?
             .bc_point(&corner, &[BcPoint::Fy], f_fy)?;
 
-        let gravity = 10.0; // m/s²
-        let params_1 = Samples::params_solid_medium(gravity);
-        let params_2 = Samples::params_porous_medium(gravity, 0.3, 1e-2);
+        let params_1 = Samples::params_solid_medium();
+        let params_2 = Samples::params_porous_medium(0.3, 1e-2);
 
         config.elements(1, ElementConfig::Solid(params_1))?;
         assert_eq!(config.problem_type, Some(ProblemType::SolidMech));
 
         config.elements(2, ElementConfig::Porous(params_2))?;
         assert_eq!(config.problem_type, Some(ProblemType::PorousMediaMech));
+
+        config.set_gravity(10.0)?; // m/s²
 
         Ok(())
     }
