@@ -1,16 +1,19 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
 use crate::{Element, EquationNumbers, ParamBeam, StrError};
+use gemlab::mesh::Cell;
 
-pub struct ElementBeam {}
+pub struct ElementBeam<'a> {
+    cell: &'a Cell, // geometry: mesh cell
+}
 
-impl ElementBeam {
-    pub fn new(params: &ParamBeam) -> Self {
-        ElementBeam {}
+impl<'a> ElementBeam<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamBeam) -> Self {
+        ElementBeam { cell }
     }
 }
 
-impl Element for ElementBeam {
+impl Element for ElementBeam<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

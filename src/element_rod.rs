@@ -1,16 +1,19 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
 use crate::{Element, EquationNumbers, ParamRod, StrError};
+use gemlab::mesh::Cell;
 
-pub struct ElementRod {}
+pub struct ElementRod<'a> {
+    cell: &'a Cell, // geometry: mesh cell
+}
 
-impl ElementRod {
-    pub fn new(params: &ParamRod) -> Self {
-        ElementRod {}
+impl<'a> ElementRod<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamRod) -> Self {
+        ElementRod { cell }
     }
 }
 
-impl Element for ElementRod {
+impl Element for ElementRod<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

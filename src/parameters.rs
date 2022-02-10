@@ -109,7 +109,6 @@ pub struct ParamSeepageLiqGas {
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSolidMedium {
     pub density: f64, // rho
-    pub nip: Option<usize>,
     pub stress_strain: ParamStressStrain,
 }
 
@@ -130,7 +129,6 @@ mod tests {
     fn instantiate_example() {
         let p = ParamSolidMedium {
             density: 2.7, // Mg/m2
-            nip: None,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]

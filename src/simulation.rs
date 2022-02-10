@@ -1,9 +1,7 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{
-    ConfigSim, Element, ElementBeam, ElementConfig, ElementPorous, ElementRod, ElementSeepage, ElementSeepageLiqGas,
-    ElementSolid, EquationNumbers, ProblemType, StateGeostatic, StateSimulation, StrError,
-};
+use crate::ElementConfig::*;
+use crate::*;
 use russell_lab::Vector;
 use russell_sparse::{SparseTriplet, Symmetry};
 
@@ -38,12 +36,12 @@ impl<'a> Simulation<'a> {
             // allocate element
             let element: Box<dyn Element> = match config.element_configs.get(&cell.attribute_id) {
                 Some(config) => match config {
-                    ElementConfig::Seepage(params) => Box::new(ElementSeepage::new(params)),
-                    ElementConfig::SeepageLiqGas(params) => Box::new(ElementSeepageLiqGas::new(params)),
-                    ElementConfig::Solid(params) => Box::new(ElementSolid::new(cell, params, plane_stress, thickness)?),
-                    ElementConfig::Porous(params) => Box::new(ElementPorous::new(params)),
-                    ElementConfig::Rod(params) => Box::new(ElementRod::new(params)),
-                    ElementConfig::Beam(params) => Box::new(ElementBeam::new(params)),
+                    Seepage(params, nip) => Box::new(ElementSeepage::new(cell, params, *nip)),
+                    SeepageLiqGas(params, nip) => Box::new(ElementSeepageLiqGas::new(cell, params, *nip)),
+                    Solid(params, nip) => Box::new(ElementSolid::new(cell, params, *nip, plane_stress, thickness)?),
+                    Porous(params, nip) => Box::new(ElementPorous::new(cell, params, *nip)),
+                    Rod(params) => Box::new(ElementRod::new(cell, params)),
+                    Beam(params) => Box::new(ElementBeam::new(cell, params)),
                 },
                 None => panic!("cannot find cell (element) attribute"),
             };
@@ -90,8 +88,8 @@ mod tests {
 
         let params_1 = Samples::params_solid_medium();
         let params_2 = Samples::params_porous_medium(0.3, 1e-2);
-        config.elements(1, ElementConfig::Solid(params_1))?;
-        config.elements(2, ElementConfig::Porous(params_2))?;
+        config.elements(1, ElementConfig::Solid(params_1, None))?;
+        config.elements(2, ElementConfig::Porous(params_2, None))?;
 
         config.set_gravity(10.0)?; // m/s²
 

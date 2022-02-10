@@ -1,16 +1,19 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ParamSeepage, StrError};
+use crate::*;
+use gemlab::mesh::Cell;
 
-pub struct ElementSeepage {}
+pub struct ElementSeepage<'a> {
+    cell: &'a Cell, // geometry: mesh cell
+}
 
-impl ElementSeepage {
-    pub fn new(params: &ParamSeepage) -> Self {
-        ElementSeepage {}
+impl<'a> ElementSeepage<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamSeepage, nip: Nip) -> Self {
+        ElementSeepage { cell }
     }
 }
 
-impl Element for ElementSeepage {
+impl Element for ElementSeepage<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

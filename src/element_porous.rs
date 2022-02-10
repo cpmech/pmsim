@@ -1,16 +1,19 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ParamPorousMedium, StrError};
+use crate::*;
+use gemlab::mesh::Cell;
 
-pub struct ElementPorous {}
+pub struct ElementPorous<'a> {
+    cell: &'a Cell, // geometry: mesh cell
+}
 
-impl ElementPorous {
-    pub fn new(params: &ParamPorousMedium) -> Self {
-        ElementPorous {}
+impl<'a> ElementPorous<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamPorousMedium, nip: Nip) -> Self {
+        ElementPorous { cell }
     }
 }
 
-impl Element for ElementPorous {
+impl Element for ElementPorous<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

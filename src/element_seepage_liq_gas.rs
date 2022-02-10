@@ -1,16 +1,19 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ParamSeepageLiqGas, StrError};
+use crate::*;
+use gemlab::mesh::Cell;
 
-pub struct ElementSeepageLiqGas {}
+pub struct ElementSeepageLiqGas<'a> {
+    cell: &'a Cell, // geometry: mesh cell
+}
 
-impl ElementSeepageLiqGas {
-    pub fn new(params: &ParamSeepageLiqGas) -> Self {
-        ElementSeepageLiqGas {}
+impl<'a> ElementSeepageLiqGas<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamSeepageLiqGas, nip: Nip) -> Self {
+        ElementSeepageLiqGas { cell }
     }
 }
 
-impl Element for ElementSeepageLiqGas {
+impl Element for ElementSeepageLiqGas<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

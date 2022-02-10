@@ -3,15 +3,18 @@ use crate::{
     StrError,
 };
 
+/// Number of integration points. None means that a default is selected
+pub type Nip = Option<usize>;
+
 /// Holds element configuration and material parameters
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
-    Seepage(ParamSeepage),
-    SeepageLiqGas(ParamSeepageLiqGas),
-    Solid(ParamSolidMedium),
+    Seepage(ParamSeepage, Nip),
+    SeepageLiqGas(ParamSeepageLiqGas, Nip),
+    Solid(ParamSolidMedium, Nip),
     Rod(ParamRod),
     Beam(ParamBeam),
-    Porous(ParamPorousMedium),
+    Porous(ParamPorousMedium, Nip),
 }
 
 /// Defines the problem type
@@ -85,7 +88,6 @@ mod tests {
     fn config_works() {
         let m1 = ParamSolidMedium {
             density: 2.7, // Mg/m2
-            nip: None,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
@@ -94,7 +96,6 @@ mod tests {
 
         let m2 = ParamSolidMedium {
             density: 2.7, // Mg/m2
-            nip: None,
             stress_strain: ParamStressStrain::DruckerPrager {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
@@ -114,8 +115,8 @@ mod tests {
             young: 1000.0,
         };
 
-        let c1 = ElementConfig::Solid(m1);
-        let c2 = ElementConfig::Solid(m2);
+        let c1 = ElementConfig::Solid(m1, None);
+        let c2 = ElementConfig::Solid(m2, None);
         let c3 = ElementConfig::Beam(m3);
 
         println!("c1 = {:?}\n", c1);

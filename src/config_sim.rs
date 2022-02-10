@@ -181,7 +181,7 @@ impl<'a> ConfigSim<'a> {
     pub fn elements(&mut self, attribute_id: CellAttributeId, config: ElementConfig) -> Result<&mut Self, StrError> {
         // handle problem type
         match config {
-            ElementConfig::Seepage(_) => match self.problem_type {
+            ElementConfig::Seepage(..) => match self.problem_type {
                 Some(p) => {
                     if p != ProblemType::Seepage {
                         return Err("element configuration is not allowed for Seepage problem");
@@ -189,7 +189,7 @@ impl<'a> ConfigSim<'a> {
                 }
                 None => self.problem_type = Some(ProblemType::Seepage),
             },
-            ElementConfig::SeepageLiqGas(_) => match self.problem_type {
+            ElementConfig::SeepageLiqGas(..) => match self.problem_type {
                 Some(p) => {
                     if p != ProblemType::SeepageLiqGas {
                         return Err("element configuration is not allowed for SeepageLiqGas problem");
@@ -197,7 +197,7 @@ impl<'a> ConfigSim<'a> {
                 }
                 None => self.problem_type = Some(ProblemType::Seepage),
             },
-            ElementConfig::Solid(_) | ElementConfig::Rod(_) | ElementConfig::Beam(_) => match self.problem_type {
+            ElementConfig::Solid(..) | ElementConfig::Rod(..) | ElementConfig::Beam(..) => match self.problem_type {
                 Some(p) => {
                     if p != ProblemType::SolidMech && p != ProblemType::PorousMediaMech {
                         return Err("element configuration is not allowed for SolidMech or PorousMediaMech problem");
@@ -205,7 +205,7 @@ impl<'a> ConfigSim<'a> {
                 }
                 None => self.problem_type = Some(ProblemType::SolidMech),
             },
-            ElementConfig::Porous(_) => match self.problem_type {
+            ElementConfig::Porous(..) => match self.problem_type {
                 Some(p) => {
                     if p != ProblemType::SolidMech && p != ProblemType::PorousMediaMech {
                         return Err("element configuration is not allowed for SolidMech or PorousMediaMech problem");
@@ -317,10 +317,10 @@ mod tests {
         let params_1 = Samples::params_solid_medium();
         let params_2 = Samples::params_porous_medium(0.3, 1e-2);
 
-        config.elements(1, ElementConfig::Solid(params_1))?;
+        config.elements(1, ElementConfig::Solid(params_1, None))?;
         assert_eq!(config.problem_type, Some(ProblemType::SolidMech));
 
-        config.elements(2, ElementConfig::Porous(params_2))?;
+        config.elements(2, ElementConfig::Porous(params_2, None))?;
         assert_eq!(config.problem_type, Some(ProblemType::PorousMediaMech));
 
         config.set_gravity(10.0)?; // m/s²

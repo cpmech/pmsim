@@ -10,7 +10,6 @@ impl Samples {
     pub fn params_solid_medium() -> ParamSolidMedium {
         ParamSolidMedium {
             density: 2.7, // Mg/m²
-            nip: None,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
@@ -24,7 +23,6 @@ impl Samples {
             porosity,
             solid: ParamSolidMedium {
                 density: 2.7, // Mg/m³
-                nip: None,
                 stress_strain: ParamStressStrain::LinearElastic {
                     young: 10_000.0, // kPa
                     poisson: 0.2,    // [-]

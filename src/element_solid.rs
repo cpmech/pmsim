@@ -1,8 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{
-    new_stress_strain_model, Dof, Element, EquationNumbers, ModelStressStrain, ParamSolidMedium, StateStress, StrError,
-};
+use crate::*;
 use gemlab::mesh::Cell;
 use gemlab::shapes::{IntegGDG, IntegTG, Shape, ShapeState};
 use russell_lab::{copy_matrix, copy_vector, Matrix, Vector};
@@ -28,13 +26,14 @@ impl<'a> ElementSolid<'a> {
     pub fn new(
         cell: &'a Cell,
         params: &ParamSolidMedium,
+        nip: Nip,
         plane_stress: bool,
         thickness: f64,
     ) -> Result<Self, StrError> {
         // cell and shape
         let mut shape_vars = ShapeState::new(&cell.shape);
-        if let Some(nip) = params.nip {
-            shape_vars.select_int_points(nip, false, false)?;
+        if let Some(n) = nip {
+            shape_vars.select_int_points(n)?;
         }
 
         // model
@@ -66,7 +65,7 @@ impl<'a> ElementSolid<'a> {
     }
 }
 
-impl<'a> Element for ElementSolid<'a> {
+impl Element for ElementSolid<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         for point_id in &self.cell.points {
