@@ -5,15 +5,15 @@ use russell_lab::Vector;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct StateSimulation {
+pub struct SimState {
     pub system_xx: Vector,                    // (neq)
     pub system_yy: Vector,                    // (neq)
     pub states_stress: Vec<Vec<StateStress>>, // (nele,nip_e)
 }
 
-impl StateSimulation {
+impl SimState {
     pub fn new(space_ndim: usize, neq: usize) -> Self {
-        StateSimulation {
+        SimState {
             system_xx: Vector::new(neq),
             system_yy: Vector::new(neq),
             states_stress: Vec::new(),

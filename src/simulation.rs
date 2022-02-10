@@ -7,7 +7,7 @@ use russell_sparse::{SparseTriplet, Symmetry};
 
 pub struct Simulation<'a> {
     /// Access to configuration
-    config: &'a ConfigSim<'a>,
+    config: &'a SimConfig<'a>,
 
     /// All elements
     elements: Vec<Box<dyn Element + 'a>>,
@@ -16,14 +16,14 @@ pub struct Simulation<'a> {
     equation_numbers: EquationNumbers,
 
     /// State variables
-    state_sim: StateSimulation,
+    state_sim: SimState,
 
     /// Global system Jacobian matrix
     system_kk: SparseTriplet,
 }
 
 impl<'a> Simulation<'a> {
-    pub fn new(config: &'a ConfigSim) -> Result<Self, StrError> {
+    pub fn new(config: &'a SimConfig) -> Result<Self, StrError> {
         // elements and equation numbers
         let npoint = config.mesh.points.len();
         let mut elements = Vec::<Box<dyn Element>>::new();
@@ -61,7 +61,7 @@ impl<'a> Simulation<'a> {
             config,
             elements,
             equation_numbers,
-            state_sim: StateSimulation::new(config.mesh.space_ndim, neq),
+            state_sim: SimState::new(config.mesh.space_ndim, neq),
             system_kk: SparseTriplet::new(neq, neq, nnz_max, Symmetry::No)?,
         };
 
@@ -78,13 +78,13 @@ impl<'a> Simulation<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ConfigSim, ElementConfig, Samples, Simulation, StrError};
+    use crate::{ElementConfig, Samples, SimConfig, Simulation, StrError};
     use gemlab::mesh::Mesh;
 
     #[test]
     fn new_works() -> Result<(), StrError> {
         let mut mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
-        let mut config = ConfigSim::new(&mesh);
+        let mut config = SimConfig::new(&mesh);
 
         let params_1 = Samples::params_solid_medium();
         let params_2 = Samples::params_porous_medium(0.3, 1e-2);

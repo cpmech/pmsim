@@ -28,7 +28,7 @@ pub enum IniOption {
 }
 
 /// Holds simulation configuration such as boundary conditions and element attributes
-pub struct ConfigSim<'a> {
+pub struct SimConfig<'a> {
     /// Access to mesh
     pub(crate) mesh: &'a Mesh,
 
@@ -66,10 +66,10 @@ pub struct ConfigSim<'a> {
     pub(crate) ini_option: IniOption,
 }
 
-impl<'a> ConfigSim<'a> {
+impl<'a> SimConfig<'a> {
     /// Allocates a new ConfigSim instance
     pub fn new(mesh: &'a Mesh) -> Self {
-        ConfigSim {
+        SimConfig {
             mesh,
             essential_bcs: HashMap::new(),
             natural_bcs_edge: HashMap::new(),
@@ -281,7 +281,7 @@ impl<'a> ConfigSim<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BcPoint, ConfigSim, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, Samples, StrError};
+    use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, Samples, SimConfig, StrError};
     use gemlab::mesh::{At, Mesh};
 
     #[test]
@@ -301,7 +301,7 @@ mod tests {
         let top = mesh.find_boundary_edges(At::Y(1.0))?;
         let corner = mesh.find_boundary_points(At::XY(2.0, 1.0))?;
 
-        let mut config = ConfigSim::new(&mesh);
+        let mut config = SimConfig::new(&mesh);
 
         let f_zero: FnSpaceTime = |_, _| 0.0;
         let f_qn: FnSpaceTime = |_, _| -1.0;
