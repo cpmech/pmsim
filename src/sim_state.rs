@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SimState {
-    pub system_xx: Vector,                    // (neq)
-    pub system_yy: Vector,                    // (neq)
-    pub states_stress: Vec<Vec<StateStress>>, // (nele,nip_e)
+    pub system_xx: Vector,               // (neq)
+    pub system_yy: Vector,               // (neq)
+    pub stresses: Vec<Vec<StateStress>>, // (nele, nip_ele)
 }
 
 impl SimState {
@@ -16,7 +16,7 @@ impl SimState {
         SimState {
             system_xx: Vector::new(neq),
             system_yy: Vector::new(neq),
-            states_stress: Vec::new(),
+            stresses: Vec::new(),
         }
     }
 

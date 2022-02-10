@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StateStress {
-    pub sig: Tensor2,  // (effective) stress
+    pub sig: Tensor2,  // stress
     pub ivs: Vec<f64>, // internal values
     pub aux: Vec<f64>, // auxiliary
 }
