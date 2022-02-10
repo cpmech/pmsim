@@ -181,39 +181,53 @@ impl<'a> SimConfig<'a> {
     pub fn elements(&mut self, attribute_id: CellAttributeId, config: ElementConfig) -> Result<&mut Self, StrError> {
         // handle problem type
         match config {
-            ElementConfig::Seepage(..) => match self.problem_type {
+            ElementConfig::Rod(..) | ElementConfig::Beam(..) | ElementConfig::Solid(..) => match self.problem_type {
                 Some(p) => {
-                    if p != ProblemType::Seepage {
-                        return Err("element configuration is not allowed for Seepage problem");
+                    if p == ProblemType::SeepageLiq || p == ProblemType::SeepageLiqGas {
+                        return Err("rod, beam, or solid config cannot be mixed with seepage configs");
                     }
                 }
-                None => self.problem_type = Some(ProblemType::Seepage),
+                None => self.problem_type = Some(ProblemType::Solid),
+            },
+            ElementConfig::SeepageLiq(..) => match self.problem_type {
+                Some(p) => {
+                    if p != ProblemType::SeepageLiq {
+                        return Err("seepage-liq config cannot be mixed with other configs");
+                    }
+                }
+                None => self.problem_type = Some(ProblemType::SeepageLiq),
             },
             ElementConfig::SeepageLiqGas(..) => match self.problem_type {
                 Some(p) => {
                     if p != ProblemType::SeepageLiqGas {
-                        return Err("element configuration is not allowed for SeepageLiqGas problem");
+                        return Err("seepage-liq-gas config cannot be mixed with other configs");
                     }
                 }
-                None => self.problem_type = Some(ProblemType::Seepage),
+                None => self.problem_type = Some(ProblemType::SeepageLiqGas),
             },
-            ElementConfig::Solid(..) | ElementConfig::Rod(..) | ElementConfig::Beam(..) => match self.problem_type {
+            ElementConfig::PorousSolLiq(..) => match self.problem_type {
                 Some(p) => {
-                    if p != ProblemType::SolidMech && p != ProblemType::PorousMediaMech {
-                        return Err("element configuration is not allowed for SolidMech or PorousMediaMech problem");
-                    }
-                }
-                None => self.problem_type = Some(ProblemType::SolidMech),
-            },
-            ElementConfig::Porous(..) => match self.problem_type {
-                Some(p) => {
-                    if p != ProblemType::SolidMech && p != ProblemType::PorousMediaMech {
-                        return Err("element configuration is not allowed for SolidMech or PorousMediaMech problem");
+                    if p == ProblemType::SeepageLiq || p == ProblemType::SeepageLiqGas {
+                        return Err("porous-sol-liq config cannot be mixed with seepage configs");
+                    } else if p == ProblemType::PorousSolLiqGas {
+                        return Err("porous-sol-liq config cannot be mixed with porous-sol-liq-gas configs");
                     } else {
-                        self.problem_type = Some(ProblemType::PorousMediaMech); // override SolidMech, eventually
+                        self.problem_type = Some(ProblemType::PorousSolLiq); // override Solid config, eventually
                     }
                 }
-                None => self.problem_type = Some(ProblemType::PorousMediaMech),
+                None => self.problem_type = Some(ProblemType::PorousSolLiq),
+            },
+            ElementConfig::PorousSolLiqGas(..) => match self.problem_type {
+                Some(p) => {
+                    if p == ProblemType::SeepageLiq || p == ProblemType::SeepageLiqGas {
+                        return Err("porous-sol-liq-gas config cannot be mixed with seepage configs");
+                    } else if p == ProblemType::PorousSolLiq {
+                        return Err("porous-sol-liq-gas config cannot be mixed with porous-sol-liq configs");
+                    } else {
+                        self.problem_type = Some(ProblemType::PorousSolLiqGas); // override Solid config, eventually
+                    }
+                }
+                None => self.problem_type = Some(ProblemType::PorousSolLiqGas),
             },
         };
         // store element config
@@ -318,10 +332,10 @@ mod tests {
         let params_2 = SampleParams::params_porous_sol_liq(0.3, 1e-2);
 
         config.elements(1, ElementConfig::Solid(params_1, None))?;
-        assert_eq!(config.problem_type, Some(ProblemType::SolidMech));
+        assert_eq!(config.problem_type, Some(ProblemType::Solid));
 
-        config.elements(2, ElementConfig::Porous(params_2, None))?;
-        assert_eq!(config.problem_type, Some(ProblemType::PorousMediaMech));
+        config.elements(2, ElementConfig::PorousSolLiq(params_2, None))?;
+        assert_eq!(config.problem_type, Some(ProblemType::PorousSolLiq));
 
         config.set_gravity(10.0)?; // m/s²
 

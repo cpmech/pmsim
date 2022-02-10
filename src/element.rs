@@ -6,34 +6,36 @@ pub type Nip = Option<usize>;
 /// Holds element configuration and material parameters
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
-    Seepage(ParamSeepageLiq, Nip),
-    SeepageLiqGas(ParamSeepageLiqGas, Nip),
-    Solid(ParamSolid, Nip),
     Rod(ParamRod),
     Beam(ParamBeam),
-    Porous(ParamPorousSolLiq, Nip),
+    Solid(ParamSolid, Nip),
+    SeepageLiq(ParamSeepageLiq, Nip),
+    SeepageLiqGas(ParamSeepageLiqGas, Nip),
+    PorousSolLiq(ParamPorousSolLiq, Nip),
+    PorousSolLiqGas(ParamPorousSolLiqGas, Nip),
 }
 
 /// Defines the problem type
 ///
 /// # Note
 ///
-/// SolidMech problem type allows the following configurations:
-/// * ElementConfig::Solid
+/// Solid problem type allows the following configurations:
 /// * ElementConfig::Rod
 /// * ElementConfig::Beam
+/// * ElementConfig::Solid
 ///
-/// PorousMediaMech problem type allows the following configurations:
-/// * ElementConfig::Porous
-/// * ElementConfig::Solid
+/// Porous mechanics problems type allows the following configurations:
 /// * ElementConfig::Rod
 /// * ElementConfig::Beam
+/// * ElementConfig::Solid
+/// * ElementConfig::Porous{SolLiq,SolLiqGas}
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ProblemType {
-    Seepage,
+    Solid,
+    SeepageLiq,
     SeepageLiqGas,
-    SolidMech,
-    PorousMediaMech,
+    PorousSolLiq,
+    PorousSolLiqGas,
 }
 
 /// Defines a trait for (finite) elements

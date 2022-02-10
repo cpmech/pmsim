@@ -35,6 +35,7 @@ pub use crate::degrees_of_freedom::*;
 pub use crate::element::*;
 pub use crate::element_beam::*;
 pub use crate::element_porous_us_pl::*;
+pub use crate::element_porous_us_pl_pg::*;
 pub use crate::element_rod::*;
 pub use crate::element_seepage_pl::*;
 pub use crate::element_seepage_pl_pg::*;

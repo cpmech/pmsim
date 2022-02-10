@@ -36,12 +36,13 @@ impl<'a> Simulation<'a> {
             // allocate element
             let element: Box<dyn Element> = match config.element_configs.get(&cell.attribute_id) {
                 Some(config) => match config {
-                    Seepage(params, nip) => Box::new(ElementSeepagePl::new(cell, params, *nip)),
-                    SeepageLiqGas(params, nip) => Box::new(ElementSeepagePlPg::new(cell, params, *nip)),
-                    Solid(params, nip) => Box::new(ElementSolid::new(cell, params, *nip, plane_stress, thickness)?),
-                    Porous(params, nip) => Box::new(ElementPorousUsPl::new(cell, params, *nip)),
                     Rod(params) => Box::new(ElementRod::new(cell, params)),
                     Beam(params) => Box::new(ElementBeam::new(cell, params)),
+                    Solid(params, nip) => Box::new(ElementSolid::new(cell, params, *nip, plane_stress, thickness)?),
+                    SeepageLiq(params, nip) => Box::new(ElementSeepagePl::new(cell, params, *nip)),
+                    SeepageLiqGas(params, nip) => Box::new(ElementSeepagePlPg::new(cell, params, *nip)),
+                    PorousSolLiq(params, nip) => Box::new(ElementPorousUsPl::new(cell, params, *nip)),
+                    PorousSolLiqGas(params, nip) => Box::new(ElementPorousUsPlPg::new(cell, params, *nip)),
                 },
                 None => panic!("cannot find cell (element) attribute"),
             };
@@ -89,7 +90,7 @@ mod tests {
         let params_1 = SampleParams::params_solid();
         let params_2 = SampleParams::params_porous_sol_liq(0.3, 1e-2);
         config.elements(1, ElementConfig::Solid(params_1, None))?;
-        config.elements(2, ElementConfig::Porous(params_2, None))?;
+        config.elements(2, ElementConfig::PorousSolLiq(params_2, None))?;
 
         config.set_gravity(10.0)?; // m/s²
 
