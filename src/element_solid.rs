@@ -25,7 +25,7 @@ pub struct ElementSolid<'a> {
 impl<'a> ElementSolid<'a> {
     pub fn new(
         cell: &'a Cell,
-        params: &ParamSolidMedium,
+        params: &ParamSolid,
         nip: Nip,
         plane_stress: bool,
         thickness: f64,

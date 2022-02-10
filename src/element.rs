@@ -1,7 +1,4 @@
-use crate::{
-    EquationNumbers, ParamBeam, ParamPorousMedium, ParamRod, ParamSeepage, ParamSeepageLiqGas, ParamSolidMedium,
-    StrError,
-};
+use crate::*;
 
 /// Number of integration points. None means that a default is selected
 pub type Nip = Option<usize>;
@@ -9,12 +6,12 @@ pub type Nip = Option<usize>;
 /// Holds element configuration and material parameters
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
-    Seepage(ParamSeepage, Nip),
-    SeepageLiqGas(ParamSeepageLiqGas, Nip),
-    Solid(ParamSolidMedium, Nip),
+    Seepage(ParamSeepageL, Nip),
+    SeepageLiqGas(ParamSeepageLG, Nip),
+    Solid(ParamSolid, Nip),
     Rod(ParamRod),
     Beam(ParamBeam),
-    Porous(ParamPorousMedium, Nip),
+    Porous(ParamPorousL, Nip),
 }
 
 /// Defines the problem type
@@ -82,11 +79,11 @@ pub trait Element {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ElementConfig, ParamBeam, ParamSolidMedium, ParamStressStrain};
+    use crate::{ElementConfig, ParamBeam, ParamSolid, ParamStressStrain};
 
     #[test]
     fn config_works() {
-        let m1 = ParamSolidMedium {
+        let m1 = ParamSolid {
             density: 2.7, // Mg/m2
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
@@ -94,7 +91,7 @@ mod tests {
             },
         };
 
-        let m2 = ParamSolidMedium {
+        let m2 = ParamSolid {
             density: 2.7, // Mg/m2
             stress_strain: ParamStressStrain::DruckerPrager {
                 young: 10_000.0, // kPa

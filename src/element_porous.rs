@@ -8,7 +8,7 @@ pub struct ElementPorous<'a> {
 }
 
 impl<'a> ElementPorous<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamPorousMedium, nip: Nip) -> Self {
+    pub fn new(cell: &'a Cell, params: &ParamPorousL, nip: Nip) -> Self {
         ElementPorous { cell }
     }
 }

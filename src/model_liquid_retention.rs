@@ -1,20 +1,14 @@
-use crate::{
-    ModelBrooksCorey, ModelPedrosoZhangEhlers, ModelVanGenuchten, ParamLiquidRetention, StrError,
-};
+use crate::{ModelBrooksCorey, ModelPedrosoZhangEhlers, ModelVanGenuchten, ParamLiqRet, StrError};
 
 pub trait ModelLiquidRetention {
     fn todo(&mut self) -> Result<(), StrError>;
 }
 
-pub fn new_model_liquid_retention(params: &ParamLiquidRetention) -> Box<dyn ModelLiquidRetention> {
+pub fn new_model_liquid_retention(params: &ParamLiqRet) -> Box<dyn ModelLiquidRetention> {
     match params {
-        &ParamLiquidRetention::BrooksCorey { lambda, sb, wr } => {
-            Box::new(ModelBrooksCorey::new(lambda, sb, wr))
-        }
-        &ParamLiquidRetention::VanGenuchten { alpha, m, n, wr } => {
-            Box::new(ModelVanGenuchten::new(alpha, m, n, wr))
-        }
-        &ParamLiquidRetention::PedrosoZhangEhlers {
+        &ParamLiqRet::BrooksCorey { lambda, sb, wr } => Box::new(ModelBrooksCorey::new(lambda, sb, wr)),
+        &ParamLiqRet::VanGenuchten { alpha, m, n, wr } => Box::new(ModelVanGenuchten::new(alpha, m, n, wr)),
+        &ParamLiqRet::PedrosoZhangEhlers {
             lambda_d,
             lambda_w,
             beta_d,

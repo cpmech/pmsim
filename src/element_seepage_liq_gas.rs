@@ -8,7 +8,7 @@ pub struct ElementSeepageLiqGas<'a> {
 }
 
 impl<'a> ElementSeepageLiqGas<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamSeepageLiqGas, nip: Nip) -> Self {
+    pub fn new(cell: &'a Cell, params: &ParamSeepageLG, nip: Nip) -> Self {
         ElementSeepageLiqGas { cell }
     }
 }

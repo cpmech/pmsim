@@ -281,7 +281,7 @@ impl<'a> SimConfig<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, Samples, SimConfig, StrError};
+    use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, SampleParams, SimConfig, StrError};
     use gemlab::mesh::{At, Mesh};
 
     #[test]
@@ -314,8 +314,8 @@ mod tests {
             .nbc_edges(&top, &[Nbc::Qn], f_qn)?
             .bc_point(&corner, &[BcPoint::Fy], f_fy)?;
 
-        let params_1 = Samples::params_solid_medium();
-        let params_2 = Samples::params_porous_medium(0.3, 1e-2);
+        let params_1 = SampleParams::params_solid();
+        let params_2 = SampleParams::params_porous_l(0.3, 1e-2);
 
         config.elements(1, ElementConfig::Solid(params_1, None))?;
         assert_eq!(config.problem_type, Some(ProblemType::SolidMech));

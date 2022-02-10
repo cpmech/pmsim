@@ -78,7 +78,7 @@ impl<'a> Simulation<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ElementConfig, Samples, SimConfig, Simulation, StrError};
+    use crate::{ElementConfig, SampleParams, SimConfig, Simulation, StrError};
     use gemlab::mesh::Mesh;
 
     #[test]
@@ -86,8 +86,8 @@ mod tests {
         let mut mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
         let mut config = SimConfig::new(&mesh);
 
-        let params_1 = Samples::params_solid_medium();
-        let params_2 = Samples::params_porous_medium(0.3, 1e-2);
+        let params_1 = SampleParams::params_solid();
+        let params_2 = SampleParams::params_porous_l(0.3, 1e-2);
         config.elements(1, ElementConfig::Solid(params_1, None))?;
         config.elements(2, ElementConfig::Porous(params_2, None))?;
 
