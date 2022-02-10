@@ -9,7 +9,7 @@ pub struct ElementSeepagePl<'a> {
 }
 
 impl<'a> ElementSeepagePl<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamSeepageL, nip: Nip) -> Self {
+    pub fn new(cell: &'a Cell, params: &ParamSeepageLiq, nip: Nip) -> Self {
         ElementSeepagePl { cell }
     }
 }

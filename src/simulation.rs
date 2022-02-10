@@ -87,7 +87,7 @@ mod tests {
         let mut config = SimConfig::new(&mesh);
 
         let params_1 = SampleParams::params_solid();
-        let params_2 = SampleParams::params_porous_l(0.3, 1e-2);
+        let params_2 = SampleParams::params_porous_sol_liq(0.3, 1e-2);
         config.elements(1, ElementConfig::Solid(params_1, None))?;
         config.elements(2, ElementConfig::Porous(params_2, None))?;
 

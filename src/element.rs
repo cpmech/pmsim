@@ -6,12 +6,12 @@ pub type Nip = Option<usize>;
 /// Holds element configuration and material parameters
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
-    Seepage(ParamSeepageL, Nip),
-    SeepageLiqGas(ParamSeepageLG, Nip),
+    Seepage(ParamSeepageLiq, Nip),
+    SeepageLiqGas(ParamSeepageLiqGas, Nip),
     Solid(ParamSolid, Nip),
     Rod(ParamRod),
     Beam(ParamBeam),
-    Porous(ParamPorousL, Nip),
+    Porous(ParamPorousSolLiq, Nip),
 }
 
 /// Defines the problem type

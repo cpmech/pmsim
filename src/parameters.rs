@@ -107,7 +107,7 @@ pub struct ParamComp {
 
 /// Parameters for seepage simulations with liquid only
 #[derive(Clone, Copy, Debug)]
-pub struct ParamSeepageL {
+pub struct ParamSeepageLiq {
     pub porosity: f64,          // porosity nf
     pub liq_density: f64,       // intrinsic (real) density
     pub liq_comp: ParamComp,    // compressibility Cl
@@ -117,7 +117,7 @@ pub struct ParamSeepageL {
 
 /// Parameters for seepage simulations with liquid and gas
 #[derive(Clone, Copy, Debug)]
-pub struct ParamSeepageLG {
+pub struct ParamSeepageLiqGas {
     pub porosity: f64,          // porosity nf
     pub liq_density: f64,       // intrinsic (real) density
     pub liq_comp: ParamComp,    // compressibility Cl
@@ -128,9 +128,9 @@ pub struct ParamSeepageLG {
     pub gas_cond: ParamCond,    // conductivity kg
 }
 
-/// Parameters for porous media mechanics simulations with liquid only
+/// Parameters for porous media mechanics simulations with solid-liquid
 #[derive(Clone, Copy, Debug)]
-pub struct ParamPorousL {
+pub struct ParamPorousSolLiq {
     pub porosity: f64,                    // porosity nf
     pub sol_density: f64,                 // intrinsic (real) density
     pub stress_strain: ParamStressStrain, // effective stress model
@@ -140,9 +140,9 @@ pub struct ParamPorousL {
     pub retention: ParamLiqRet,           // dsl/dpc
 }
 
-/// Parameters for porous media mechanics simulations with liquid and gas
+/// Parameters for porous media mechanics simulations with solid-liquid-gas
 #[derive(Clone, Copy, Debug)]
-pub struct ParamPorousLG {
+pub struct ParamPorousSolLiqGas {
     pub porosity: f64,                    // porosity nf
     pub sol_density: f64,                 // intrinsic (real) density
     pub stress_strain: ParamStressStrain, // effective stress model
@@ -169,9 +169,9 @@ impl SampleParams {
         }
     }
 
-    /// Returns example parameters for a porous medium with liquid only
-    pub fn params_porous_l(porosity: f64, k_iso: f64) -> ParamPorousL {
-        ParamPorousL {
+    /// Returns example parameters for a porous medium with solid-liquid
+    pub fn params_porous_sol_liq(porosity: f64, k_iso: f64) -> ParamPorousSolLiq {
+        ParamPorousSolLiq {
             porosity,
             sol_density: 2.7, // Mg/m³
             stress_strain: ParamStressStrain::LinearElastic {
@@ -208,8 +208,8 @@ impl SampleParams {
     }
 
     /// Returns example parameters for a porous medium with liquid and gas
-    pub fn params_porous_lg_medium(porosity: f64, k_iso: f64) -> ParamPorousLG {
-        ParamPorousLG {
+    pub fn params_porous_sol_liq_gas(porosity: f64, k_iso: f64) -> ParamPorousSolLiqGas {
+        ParamPorousSolLiqGas {
             porosity,
             sol_density: 2.7, // Mg/m³
             stress_strain: ParamStressStrain::LinearElastic {
