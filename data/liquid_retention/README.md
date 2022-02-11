@@ -12,9 +12,11 @@ The following reference presents a method to calibrate the material parameters a
   curves using genetic algorithms. Computers and Geotechnics, 38(3), 330-340,
   https://dx.doi.org/10.1016/j.compgeo.2010.12.004
 
-## References
+## Experimental data and references
 
 ### bc_silty_loam - Silty Loam data from Brooks & Corey paper
+
+![bc_silty_loam](https://github.com/cpmech/pmsim/raw/main/data/liquid_retention/bc_silty_loam.png)
 
 Data from:
 
@@ -25,11 +27,15 @@ Data from:
 
 ### f95_sand - F-95 Sand data from Muraleetharan et al. paper
 
+![f95_sand](https://github.com/cpmech/pmsim/raw/main/data/liquid_retention/f95_sand.png)
+
 * Muraleetharan KK, Liu C, Wei C, Kibbey TC, Chen L. An elastoplastic framework
   for coupling hydraulic and mechanical behavior of unsaturated soils. Int J Plasticity
   2009;25(3):473-90 doi:10.1016/j.ijplas.2008.04.001
 
 ### fx_sand_fig17 - Sand data from Fredlund & Xing paper
+
+![fx_sand_fig17](https://github.com/cpmech/pmsim/raw/main/data/liquid_retention/fx_sand_fig17.png)
 
 Data from:
 
@@ -38,11 +44,15 @@ Data from:
 
 ### glacial_till - Glacial Till data from Lu & Likos book
 
+![glacial_till](https://github.com/cpmech/pmsim/raw/main/data/liquid_retention/glacial_till.png)
+
 Data from:
 
 * Lu N, Likos WJ. Unsaturated soil mechanics. John Wiley and Sons, Inc.; 2004.
 
 ### hostun_sand.dat - Hostun Sand data from Lins et al. paper
+
+![hostun_sand](https://github.com/cpmech/pmsim/raw/main/data/liquid_retention/hostun_sand.png)
 
 * Lins Y, Zou Y, Schanz T. Physical modelling of SWCC in granular materials. In:
   Schanz T, editor. Theoretical and numerical unsaturated soil mechanics. Berlin,
