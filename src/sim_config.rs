@@ -329,13 +329,13 @@ mod tests {
             .bc_point(&corner, &[BcPoint::Fy], f_fy)?;
 
         let params_1 = SampleParams::params_solid();
-        let params_2 = SampleParams::params_porous_sol_liq(0.3, 1e-2);
+        let params_2 = SampleParams::params_porous_sol_liq_gas(0.3, 1e-2);
 
         config.elements(1, ElementConfig::Solid(params_1, None))?;
         assert_eq!(config.problem_type, Some(ProblemType::Solid));
 
-        config.elements(2, ElementConfig::PorousSolLiq(params_2, None))?;
-        assert_eq!(config.problem_type, Some(ProblemType::PorousSolLiq));
+        config.elements(2, ElementConfig::PorousSolLiqGas(params_2, None))?;
+        assert_eq!(config.problem_type, Some(ProblemType::PorousSolLiqGas));
 
         config.set_gravity(10.0)?; // m/s²
 

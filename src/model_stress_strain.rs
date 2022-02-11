@@ -38,9 +38,8 @@ pub fn new_stress_strain_model(
 
 #[cfg(test)]
 mod tests {
-    use russell_tensor::{Tensor2, Tensor4};
-
     use crate::{new_stress_strain_model, ParamStressStrain, StrError};
+    use russell_tensor::{Tensor2, Tensor4};
 
     #[test]
     fn new_model_works() -> Result<(), StrError> {

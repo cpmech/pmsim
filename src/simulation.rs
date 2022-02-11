@@ -33,18 +33,20 @@ impl<'a> Simulation<'a> {
         let (plane_stress, thickness) = (config.plane_stress, config.thickness);
         let mut nnz_max = 0;
         for cell in &config.mesh.cells {
+            // get element configuration
+            let element_config = match config.element_configs.get(&cell.attribute_id) {
+                Some(c) => c,
+                None => return Err("cannot find element configuration for a cell attribute id"),
+            };
             // allocate element
-            let element: Box<dyn Element> = match config.element_configs.get(&cell.attribute_id) {
-                Some(config) => match config {
-                    Rod(params) => Box::new(ElementRod::new(cell, params)),
-                    Beam(params) => Box::new(ElementBeam::new(cell, params)),
-                    Solid(params, nip) => Box::new(ElementSolid::new(cell, params, *nip, plane_stress, thickness)?),
-                    SeepageLiq(params, nip) => Box::new(ElementSeepagePl::new(cell, params, *nip)),
-                    SeepageLiqGas(params, nip) => Box::new(ElementSeepagePlPg::new(cell, params, *nip)),
-                    PorousSolLiq(params, nip) => Box::new(ElementPorousUsPl::new(cell, params, *nip)),
-                    PorousSolLiqGas(params, nip) => Box::new(ElementPorousUsPlPg::new(cell, params, *nip)),
-                },
-                None => panic!("cannot find cell (element) attribute"),
+            let element: Box<dyn Element> = match element_config {
+                Rod(params) => Box::new(ElementRod::new(cell, params)),
+                Beam(params) => Box::new(ElementBeam::new(cell, params)),
+                Solid(params, nip) => Box::new(ElementSolid::new(cell, params, *nip, plane_stress, thickness)?),
+                SeepageLiq(params, nip) => Box::new(ElementSeepagePl::new(cell, params, *nip)),
+                SeepageLiqGas(params, nip) => Box::new(ElementSeepagePlPg::new(cell, params, *nip)),
+                PorousSolLiq(params, nip) => Box::new(ElementPorousUsPl::new(cell, params, *nip)),
+                PorousSolLiqGas(params, nip) => Box::new(ElementPorousUsPlPg::new(cell, params, *nip)),
             };
 
             // set DOFs and estimate of the max number of non-zeros in the K-matrix
@@ -62,7 +64,7 @@ impl<'a> Simulation<'a> {
             config,
             elements,
             equation_numbers,
-            state_sim: SimState::new(config.mesh.space_ndim, neq),
+            state_sim: SimState::new(config, neq)?,
             system_kk: SparseTriplet::new(neq, neq, nnz_max, Symmetry::No)?,
         };
 
@@ -88,9 +90,9 @@ mod tests {
         let mut config = SimConfig::new(&mesh);
 
         let params_1 = SampleParams::params_solid();
-        let params_2 = SampleParams::params_porous_sol_liq(0.3, 1e-2);
+        let params_2 = SampleParams::params_porous_sol_liq_gas(0.3, 1e-2);
         config.elements(1, ElementConfig::Solid(params_1, None))?;
-        config.elements(2, ElementConfig::PorousSolLiq(params_2, None))?;
+        config.elements(2, ElementConfig::PorousSolLiqGas(params_2, None))?;
 
         config.set_gravity(10.0)?; // m/s²
 

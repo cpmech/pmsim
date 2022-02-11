@@ -1,7 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct StateSeepage {
+pub struct StateSeepageLiq {
+    ns0: f64,          // initial partial fraction of solids
+    sat_liq: f64,      // liquid saturation
+    real_rho_liq: f64, // real (intrinsic) density of liquid
+    delta_pc: f64,     // step increment of capillary pressure
+    wetting: bool,     // wetting flag
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct StateSeepageLiqGas {
     ns0: f64,          // initial partial fraction of solids
     sat_liq: f64,      // liquid saturation
     real_rho_liq: f64, // real (intrinsic) density of liquid
