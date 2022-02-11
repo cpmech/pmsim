@@ -7,7 +7,7 @@ pub struct ModelRealDensity {
 }
 
 impl ModelRealDensity {
-    fn new(params: &ParamRealDensity) -> Result<Self, StrError> {
+    pub fn new(params: &ParamRealDensity) -> Result<Self, StrError> {
         if params.cc <= 0.0 {
             return Err("compressibility constant must be greater than zero");
         }
@@ -31,9 +31,9 @@ impl ModelRealDensity {
     }
 
     /// Returns the intrinsic (real) density at given pressure elevation
-    fn density_at_elevation(&self, elevation: f64, height: f64, gravity: f64) -> Result<f64, StrError> {
+    pub fn density_at_elevation(&self, elevation: f64, height: f64, gravity: f64) -> Result<f64, StrError> {
         if elevation < 0.0 || elevation > height {
-            return Err("elevation must be in 0 ≤ elevation ≤ height");
+            return Err("elevation must be in 0 ≤ elevation ≤ height to calculate intrinsic density");
         }
         let rho = self.rho_ref * f64::exp(gravity * self.cc * (height - elevation));
         Ok(rho)
@@ -42,7 +42,7 @@ impl ModelRealDensity {
     /// Returns the pressure at given elevation
     pub fn pressure_at_elevation(&self, elevation: f64, height: f64, gravity: f64) -> Result<f64, StrError> {
         if elevation < 0.0 || elevation > height {
-            return Err("elevation must be in 0 ≤ elevation ≤ height");
+            return Err("elevation must be in 0 ≤ elevation ≤ height to calculate intrinsic density");
         }
         let p = self.p_ref + (self.rho_ref / self.cc) * (f64::exp(gravity * self.cc * (height - elevation)) - 1.0);
         Ok(p)
