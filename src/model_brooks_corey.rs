@@ -1,4 +1,4 @@
-use crate::{ModelLiquidRetention, StrError};
+use crate::{ModelLiquidRetentionTrait, StrError};
 
 pub struct ModelBrooksCorey {
     lambda: f64, // slope coefficient
@@ -8,17 +8,32 @@ pub struct ModelBrooksCorey {
 }
 
 impl ModelBrooksCorey {
-    pub fn new(lambda: f64, pc_ae: f64, sl_min: f64, sl_max: f64) -> Self {
-        ModelBrooksCorey {
+    pub fn new(lambda: f64, pc_ae: f64, sl_min: f64, sl_max: f64) -> Result<Self, StrError> {
+        // check saturation limits
+        if sl_max <= 0.0 || sl_max > 1.0 {
+            return Err("sl_max parameter for the Brooks-Corey retention model is invalid");
+        }
+        if sl_min <= 0.0 || sl_min >= sl_max {
+            return Err("sl_min parameter for the Brooks-Corey retention model is invalid");
+        }
+        // check parameters
+        if lambda <= 0.0 {
+            return Err("lambda parameter for the Brooks-Corey retention model is invalid");
+        }
+        if pc_ae <= 0.0 {
+            return Err("pc_ae parameter for the Brooks-Corey retention model is invalid");
+        }
+        // return model
+        Ok(ModelBrooksCorey {
             lambda,
             pc_ae,
             sl_min,
             sl_max,
-        }
+        })
     }
 }
 
-impl ModelLiquidRetention for ModelBrooksCorey {
+impl ModelLiquidRetentionTrait for ModelBrooksCorey {
     /// Returns the minimum saturation
     fn saturation_min(&self) -> f64 {
         self.sl_min

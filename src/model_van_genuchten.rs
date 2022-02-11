@@ -1,4 +1,4 @@
-use crate::{ModelLiquidRetention, StrError};
+use crate::{ModelLiquidRetentionTrait, StrError};
 
 pub struct ModelVanGenuchten {
     // parameters
@@ -14,14 +14,36 @@ pub struct ModelVanGenuchten {
 }
 
 impl ModelVanGenuchten {
-    pub fn new(alpha: f64, m: f64, n: f64, sl_min: f64, sl_max: f64, pc_min: f64) -> Self {
+    pub fn new(alpha: f64, m: f64, n: f64, sl_min: f64, sl_max: f64, pc_min: f64) -> Result<Self, StrError> {
+        // check saturation limits
+        if sl_max <= 0.0 || sl_max > 1.0 {
+            return Err("sl_max parameter for the van Genuchten retention model is invalid");
+        }
+        if sl_min <= 0.0 || sl_min >= sl_max {
+            return Err("sl_min parameter for the van Genuchten retention model is invalid");
+        }
+        // check parameters
+        if alpha <= 0.0 {
+            return Err("alpha parameter for the van Genuchten retention model is invalid");
+        }
+        if m <= 0.0 {
+            return Err("m parameter for the van Genuchten retention model is invalid");
+        }
+        if n <= 0.0 {
+            return Err("n parameter for the van Genuchten retention model is invalid");
+        }
+        if pc_min <= 0.0 {
+            return Err("pc_min parameter for the van Genuchten retention model is invalid");
+        }
+        // compute pc_max
         let pc_max = if sl_min > 0.0 {
             let k = (sl_max - sl_min) / sl_min;
             f64::powf((f64::powf(k, 1.0 / m) - 1.0) / f64::powf(alpha, n), 1.0 / n)
         } else {
             f64::MAX
         };
-        ModelVanGenuchten {
+        // return model
+        Ok(ModelVanGenuchten {
             alpha,
             m,
             n,
@@ -29,11 +51,11 @@ impl ModelVanGenuchten {
             sl_max,
             pc_min,
             pc_max,
-        }
+        })
     }
 }
 
-impl ModelLiquidRetention for ModelVanGenuchten {
+impl ModelLiquidRetentionTrait for ModelVanGenuchten {
     /// Returns the minimum saturation
     fn saturation_min(&self) -> f64 {
         self.sl_min

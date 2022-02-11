@@ -1,4 +1,4 @@
-use crate::{ModelLiquidRetention, StrError};
+use crate::{ModelLiquidRetentionTrait, StrError};
 
 pub struct ModelPedrosoZhangEhlers {
     // params
@@ -22,6 +22,7 @@ pub struct ModelPedrosoZhangEhlers {
 }
 
 impl ModelPedrosoZhangEhlers {
+    /// Returns a new instance of ModelPedrosoZhangEhlers
     pub fn new(
         with_hysteresis: bool,
         lambda_d: f64,
@@ -34,14 +35,56 @@ impl ModelPedrosoZhangEhlers {
         x_rw: f64,
         y_0: f64,
         y_r: f64,
-    ) -> Self {
+    ) -> Result<Self, StrError> {
+        // check saturation limits
+        if y_0 <= 0.0 || y_0 > 1.0 {
+            return Err("y_0 parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+        }
+        if y_r <= 0.0 || y_r >= y_0 {
+            return Err("y_r parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+        }
+        // check parameters for the drying path
+        if x_rd <= 0.0 {
+            return Err("x_rd parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+        }
+        if lambda_d <= 0.0 {
+            return Err("lambda_d parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+        }
+        if beta_d <= 0.0 {
+            return Err("beta_d parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+        }
+        if beta_2 <= 0.0 {
+            return Err("beta_2 parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+        }
+        // compute constants for the drying path
         let c1_d = beta_d * lambda_d;
         let c2_d = f64::exp(beta_d * y_r);
         let c3_d = f64::exp(beta_d * (y_0 + lambda_d * x_rd)) - c2_d * f64::exp(c1_d * x_rd);
-        let c1_w = -beta_w * lambda_w;
-        let c2_w = f64::exp(-beta_w * y_0);
-        let c3_w = f64::exp(-beta_w * lambda_w * x_rw) - c2_w * f64::exp(c1_w * x_rw);
-        ModelPedrosoZhangEhlers {
+        // handle hysteresis option
+        let (c1_w, c2_w, c3_w) = if with_hysteresis {
+            // check parameters for the wetting path
+            if lambda_w <= 0.0 {
+                return Err("lambda_w parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+            }
+            if beta_w <= 0.0 {
+                return Err("beta_w parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+            }
+            if beta_1 <= 0.0 {
+                return Err("beta_1 parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+            }
+            if x_rw <= 0.0 {
+                return Err("x_rw parameter for the Pedroso-Zhang-Ehlers retention model is invalid");
+            }
+            // compute constants for the wetting path
+            let c1_w = -beta_w * lambda_w;
+            let c2_w = f64::exp(-beta_w * y_0);
+            let c3_w = f64::exp(-beta_w * lambda_w * x_rw) - c2_w * f64::exp(c1_w * x_rw);
+            (c1_w, c2_w, c3_w)
+        } else {
+            (c1_d, c2_d, c3_d)
+        };
+        // return model
+        Ok(ModelPedrosoZhangEhlers {
             with_hysteresis,
             lambda_d,
             lambda_w,
@@ -57,7 +100,7 @@ impl ModelPedrosoZhangEhlers {
             c1_w,
             c2_w,
             c3_w,
-        }
+        })
     }
 
     /// Calculates lambda_bar for drying path
@@ -82,7 +125,7 @@ impl ModelPedrosoZhangEhlers {
     }
 }
 
-impl ModelLiquidRetention for ModelPedrosoZhangEhlers {
+impl ModelLiquidRetentionTrait for ModelPedrosoZhangEhlers {
     /// Returns the minimum saturation
     fn saturation_min(&self) -> f64 {
         self.y_r
