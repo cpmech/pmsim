@@ -1,0 +1,50 @@
+# Liquid retention experimental data
+
+The data is presented with the following variables:
+
+* `w` - water content
+* `s` - suction (corresponds to `pc`, capillary pressure, in the code)
+* `Sr` - water saturation (corresponds to `sl` in the code)
+
+The following reference presents a method to calibrate the material parameters and discusses all data:
+
+* Pedroso DM and Williams DJ (2011) Automatic Calibration of soil-water characteristic
+  curves using genetic algorithms. Computers and Geotechnics, 38(3), 330-340,
+  https://dx.doi.org/10.1016/j.compgeo.2010.12.004
+
+## References
+
+### bc_silty_loam - Silty Loam data from Brooks & Corey paper
+
+Data from:
+
+* Brooks RH, Corey AT. Hydraulic properties of porous media, colorado state
+  university hydrology paper no. 3, fort collins. Muskingum-Cunge Channel
+  Routing, Lecture Notes, Hydrologic Engineering Center, US Army Corps of
+  Engineers, vol. 32; 1964. p. 231-7.
+
+### f95_sand - F-95 Sand data from Muraleetharan et al. paper
+
+* Muraleetharan KK, Liu C, Wei C, Kibbey TC, Chen L. An elastoplastic framework
+  for coupling hydraulic and mechanical behavior of unsaturated soils. Int J Plasticity
+  2009;25(3):473-90 doi:10.1016/j.ijplas.2008.04.001
+
+### fx_sand_fig17 - Sand data from Fredlund & Xing paper
+
+Data from:
+
+* Fredlund DG, Xing A. Equations for the soil-water characteristic curve. Canadian
+  Geotechnical Journal 1994(31):521-32.
+
+### glacial_till - Glacial Till data from Lu & Likos book
+
+Data from:
+
+* Lu N, Likos WJ. Unsaturated soil mechanics. John Wiley and Sons, Inc.; 2004.
+
+### hostun_sand.dat - Hostun Sand data from Lins et al. paper
+
+* Lins Y, Zou Y, Schanz T. Physical modelling of SWCC in granular materials. In:
+  Schanz T, editor. Theoretical and numerical unsaturated soil mechanics. Berlin,
+  Weimar, Germany: Springer; 2007. p. 1–74.
+
