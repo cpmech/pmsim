@@ -34,14 +34,9 @@ impl ModelBrooksCorey {
 }
 
 impl ModelLiquidRetentionTrait for ModelBrooksCorey {
-    /// Returns the minimum saturation
-    fn saturation_min(&self) -> f64 {
-        self.sl_min
-    }
-
-    /// Returns the maximum saturation
-    fn saturation_max(&self) -> f64 {
-        self.sl_max
+    /// Returns the saturation limits (sl_min,sl_max)
+    fn saturation_limits(&self) -> (f64, f64) {
+        (self.sl_min, self.sl_max)
     }
 
     /// Calculates Cc(pc,sl) = ∂sl/∂pc

@@ -3,11 +3,8 @@ use russell_lab::Vector;
 
 /// Defines a trait for models for liquid retention in porous media
 pub trait ModelLiquidRetentionTrait {
-    /// Returns the minimum saturation
-    fn saturation_min(&self) -> f64;
-
-    /// Returns the maximum saturation
-    fn saturation_max(&self) -> f64;
+    /// Returns the saturation limits (sl_min,sl_max)
+    fn saturation_limits(&self) -> (f64, f64);
 
     /// Calculates Cc(pc,sl) = ∂sl/∂pc
     fn calc_cc(&self, pc: f64, sl: f64, wetting: bool) -> Result<f64, StrError>;
@@ -74,26 +71,28 @@ impl ModelLiquidRetention {
         })
     }
 
-    /// Returns the updated saturation for given Δpc
+    /// Returns the updated saturation sl_new for given (pc,sl) and Δpc = pc_new - pc
     ///
     /// See Algorithm 2 in the following reference:
     ///
     /// * Pedroso DM (2015) A consistent u-p formulation for porous media with hysteresis,
     ///   Int. J. for Numerical Methods in Engineering, 101:606-634, DOI: 10.1002/nme.4808
     pub fn update_saturation(&self, pc: f64, sl: f64, delta_pc: f64) -> Result<f64, StrError> {
+        // constants
+        let (sl_min, sl_max) = self.model.saturation_limits();
         // wetting flag
         let wetting = delta_pc < 0.0;
         // forward Euler update
         let f_a = self.model.calc_cc(pc, sl, wetting)?;
-        let sl_fe = sl + delta_pc * f_a;
+        let sl_fe = f64::min(f64::max(sl + delta_pc * f_a, sl_min), sl_max);
         // modified Euler update
         let pc_new = pc + delta_pc;
         let f_b = self.model.calc_cc(pc_new, sl_fe, wetting)?;
-        let mut sl_new = sl + 0.5 * delta_pc * (f_a + f_b);
+        let mut sl_new = f64::min(f64::max(sl + 0.5 * delta_pc * (f_a + f_b), sl_min), sl_max);
         let mut converged = false;
         for _ in 0..self.update_nit_max {
-            let f = self.model.calc_cc(pc_new, sl_new, wetting)?;
-            let r = sl_new - sl - delta_pc * f;
+            let cc = self.model.calc_cc(pc_new, sl_new, wetting)?;
+            let r = sl_new - sl - delta_pc * cc;
             if f64::abs(r) <= self.update_tolerance {
                 converged = true;
                 break;
@@ -122,8 +121,8 @@ impl ModelLiquidRetention {
         let all_pc = Vector::linspace(pc_start, pc_stop, npoint)?;
         let mut all_sl = Vector::new(npoint);
         all_sl[0] = sl_start;
-        for i in 1..npoint {
-            all_sl[i] = self.update_saturation(all_pc[i], all_sl[i], all_pc[i] - all_pc[i - 1])?;
+        for i in 0..npoint - 1 {
+            all_sl[i + 1] = self.update_saturation(all_pc[i], all_sl[i], all_pc[i + 1] - all_pc[i])?;
         }
         Ok((all_pc, all_sl))
     }

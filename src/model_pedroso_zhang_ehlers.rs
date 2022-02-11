@@ -174,14 +174,9 @@ impl ModelPedrosoZhangEhlers {
 }
 
 impl ModelLiquidRetentionTrait for ModelPedrosoZhangEhlers {
-    /// Returns the minimum saturation
-    fn saturation_min(&self) -> f64 {
-        self.y_r
-    }
-
-    /// Returns the maximum saturation
-    fn saturation_max(&self) -> f64 {
-        self.y_0
+    /// Returns the saturation limits (sl_min,sl_max)
+    fn saturation_limits(&self) -> (f64, f64) {
+        (self.y_r, self.y_0)
     }
 
     /// Calculates Cc(pc,sl) = ∂sl/∂pc
