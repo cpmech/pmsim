@@ -8,7 +8,7 @@ pub struct EquationNumbers {
     /// Total number of equations
     count: i32,
 
-    /// Equation numbers matrix [point][dof]
+    /// Equation numbers matrix (npoint,ndof)
     numbers: GenericMatrix<i32>,
 }
 

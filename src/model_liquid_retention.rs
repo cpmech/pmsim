@@ -1,4 +1,4 @@
-use crate::{ModelBrooksCorey, ModelPedrosoZhangEhlers, ModelVanGenuchten, ParamLiqRetention, StrError};
+use crate::{ModelBrooksCorey, ModelPedrosoWilliams, ModelVanGenuchten, ParamLiqRetention, StrError};
 use russell_lab::Vector;
 
 /// Defines a trait for models for liquid retention in porous media
@@ -38,7 +38,7 @@ impl ModelLiquidRetention {
                 sl_max,
                 pc_min,
             } => Box::new(ModelVanGenuchten::new(alpha, m, n, sl_min, sl_max, pc_min)?),
-            &ParamLiqRetention::PedrosoZhangEhlers {
+            &ParamLiqRetention::PedrosoWilliams {
                 with_hysteresis,
                 lambda_d,
                 lambda_w,
@@ -50,7 +50,7 @@ impl ModelLiquidRetention {
                 x_rw,
                 y_0,
                 y_r,
-            } => Box::new(ModelPedrosoZhangEhlers::new(
+            } => Box::new(ModelPedrosoWilliams::new(
                 with_hysteresis,
                 lambda_d,
                 lambda_w,

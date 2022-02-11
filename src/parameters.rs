@@ -62,7 +62,7 @@ pub enum ParamLiqRetention {
         sl_max: f64, // maximum sl
         pc_min: f64, // pc limit to consider zero slope
     },
-    PedrosoZhangEhlers {
+    PedrosoWilliams {
         with_hysteresis: bool,
         lambda_d: f64,
         lambda_w: f64,
@@ -208,7 +208,7 @@ impl SampleParams {
                 alpha: 0.01,
                 beta: 10.0,
             },
-            retention_liquid: ParamLiqRetention::PedrosoZhangEhlers {
+            retention_liquid: ParamLiqRetention::PedrosoWilliams {
                 with_hysteresis: true,
                 lambda_d: 3.0,
                 lambda_w: 3.0,

@@ -1,6 +1,6 @@
 use plotpy::{Curve, Plot};
 use pmsim::{
-    ModelLiquidRetention, ParamLiqRetention::BrooksCorey, ParamLiqRetention::PedrosoZhangEhlers,
+    ModelLiquidRetention, ParamLiqRetention::BrooksCorey, ParamLiqRetention::PedrosoWilliams,
     ParamLiqRetention::VanGenuchten, StrError,
 };
 use std::path::Path;
@@ -26,7 +26,7 @@ fn main() -> Result<(), StrError> {
         sl_max,
         pc_min: 0.0,
     })?;
-    let pw = ModelLiquidRetention::new(&PedrosoZhangEhlers {
+    let pw = ModelLiquidRetention::new(&PedrosoWilliams {
         with_hysteresis: true,
         lambda_d: 3.0,
         lambda_w: 3.0,

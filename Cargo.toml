@@ -14,7 +14,7 @@ keywords = ["mechanics", "fem"]
 [dependencies]
 gemlab = { path = "../gemlab", version = "0.1" }
 plotpy = { path = "../plotpy", version = "0.2" }
-russell_chk = "0.2"
+russell_chk = "0.2.1"
 russell_lab = { path = "../russell/russell_lab", version = "0.2" }
 russell_sparse = { path = "../russell/russell_sparse", version = "0.2" }
 russell_tensor = { path = "../russell/russell_tensor", version = "0.1" }
