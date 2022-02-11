@@ -66,8 +66,8 @@ impl ModelLiquidRetention {
         };
         Ok(ModelLiquidRetention {
             model,
-            update_nit_max: 10,
-            update_tolerance: 1.0e-9,
+            update_nit_max: 12,
+            update_tolerance: 1.0e-6,
         })
     }
 
