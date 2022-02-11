@@ -2,7 +2,6 @@
 
 The data is presented with the following variables:
 
-* `w` - water content
 * `s` - suction (corresponds to `pc`, capillary pressure, in the code)
 * `Sr` - water saturation (corresponds to `sl` in the code)
 
@@ -20,18 +19,10 @@ The following reference presents a method to calibrate the material parameters a
 
 Data from:
 
-* Brooks RH, Corey AT. Hydraulic properties of porous media, colorado state
-  university hydrology paper no. 3, fort collins. Muskingum-Cunge Channel
+* Brooks RH, Corey AT. Hydraulic properties of porous media, Colorado State
+  University hydrology Paper no. 3, Fort Collins. Muskingum-Cunge Channel
   Routing, Lecture Notes, Hydrologic Engineering Center, US Army Corps of
   Engineers, vol. 32; 1964. p. 231-7.
-
-### f95_sand - F-95 Sand data from Muraleetharan et al. paper
-
-![f95_sand](https://github.com/cpmech/pmsim/raw/main/data/liquid_retention/f95_sand.png)
-
-* Muraleetharan KK, Liu C, Wei C, Kibbey TC, Chen L. An elastoplastic framework
-  for coupling hydraulic and mechanical behavior of unsaturated soils. Int J Plasticity
-  2009;25(3):473-90 doi:10.1016/j.ijplas.2008.04.001
 
 ### fx_sand_fig17 - Sand data from Fredlund & Xing paper
 
@@ -41,14 +32,6 @@ Data from:
 
 * Fredlund DG, Xing A. Equations for the soil-water characteristic curve. Canadian
   Geotechnical Journal 1994(31):521-32.
-
-### glacial_till - Glacial Till data from Lu & Likos book
-
-![glacial_till](https://github.com/cpmech/pmsim/raw/main/data/liquid_retention/glacial_till.png)
-
-Data from:
-
-* Lu N, Likos WJ. Unsaturated soil mechanics. John Wiley and Sons, Inc.; 2004.
 
 ### hostun_sand.dat - Hostun Sand data from Lins et al. paper
 
