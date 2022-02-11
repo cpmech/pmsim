@@ -1,19 +1,20 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ParamRod, StrError};
+use crate::*;
 use gemlab::mesh::Cell;
 
-pub struct ElementRod<'a> {
+/// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
+pub struct ElementPorousUsPlPg<'a> {
     cell: &'a Cell, // geometry: mesh cell
 }
 
-impl<'a> ElementRod<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamRod) -> Self {
-        ElementRod { cell }
+impl<'a> ElementPorousUsPlPg<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamPorousSolLiqGas, nip: Nip) -> Self {
+        ElementPorousUsPlPg { cell }
     }
 }
 
-impl Element for ElementRod<'_> {
+impl Element for ElementPorousUsPlPg<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0

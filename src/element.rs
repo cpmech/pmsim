@@ -1,52 +1,91 @@
-#![allow(dead_code, unused_mut, unused_variables)]
+use crate::*;
 
-use crate::{ParamBeam, ParamPorousMedium, ParamRod, ParamSeepage, ParamSeepageLiqGas, ParamSolidMedium, StrError};
+/// Number of integration points. None means that a default is selected
+pub type Nip = Option<usize>;
 
+/// Holds element configuration and material parameters
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
-    Seepage(ParamSeepage),
-    SeepageLiqGas(ParamSeepageLiqGas),
-    Solid(ParamSolidMedium),
-    Porous(ParamPorousMedium),
     Rod(ParamRod),
     Beam(ParamBeam),
+    Solid(ParamSolid, Nip),
+    SeepageLiq(ParamSeepageLiq, Nip),
+    SeepageLiqGas(ParamSeepageLiqGas, Nip),
+    PorousSolLiq(ParamPorousSolLiq, Nip),
+    PorousSolLiqGas(ParamPorousSolLiqGas, Nip),
+}
+
+/// Defines the problem type
+///
+/// # Note
+///
+/// Solid problem type allows the following configurations:
+/// * ElementConfig::Rod
+/// * ElementConfig::Beam
+/// * ElementConfig::Solid
+///
+/// Porous mechanics problems type allows the following configurations:
+/// * ElementConfig::Rod
+/// * ElementConfig::Beam
+/// * ElementConfig::Solid
+/// * ElementConfig::Porous{SolLiq,SolLiqGas}
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ProblemType {
+    Solid,
+    SeepageLiq,
+    SeepageLiqGas,
+    PorousSolLiq,
+    PorousSolLiqGas,
 }
 
 /// Defines a trait for (finite) elements
+///
+/// The resulting linear system is:
+///
+/// ```text
+/// [K] {δX} = -{Y}
+///
+/// or
+///
+/// [K] {X_bar} = {Y}
+///
+/// where
+///
+/// {X_bar} = -{δX}
+/// ```
+///
+/// Since we can't use capital letters as code variables, then we consider the following convention:
+///
+/// ```text
+/// yy := {Y}
+/// kk := {K}
+/// ```
 pub trait Element {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut Vec<Vec<i32>>) -> usize;
+    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
 
-    /// Computes the element RHS-vector
-    fn compute_local_rhs_vector(&mut self) -> Result<(), StrError>;
+    /// Computes the element Y-vector
+    fn compute_local_yy_vector(&mut self) -> Result<(), StrError>;
 
     /// Computes the element K-matrix
-    fn compute_local_k_matrix(&mut self, first_iteration: bool) -> Result<(), StrError>;
+    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError>;
 
-    /// Assembles local right-hand side (RHS) vector into global RHS-vector
-    fn assemble_rhs_vector(&self, rhs: &mut Vec<f64>) -> Result<(), StrError>;
+    /// Assembles the local Y-vector into the global Y-vector
+    fn assemble_yy_vector(&self, yy: &mut Vec<f64>) -> Result<(), StrError>;
 
     /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_k_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError>;
+    fn assemble_kk_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-
-    use crate::{
-        detect_problem_type, Element, ElementBeam, ElementConfig, ElementPorous, ElementRod, ElementSeepage,
-        ElementSeepageLiqGas, ElementSolid, ParamBeam, ParamSolidMedium, ParamStressStrain, ProblemType, StrError,
-    };
-    use std::collections::HashMap;
+    use crate::{ElementConfig, ParamBeam, ParamSolid, ParamStressStrain};
 
     #[test]
-    fn simulation() -> Result<(), StrError> {
-        let gravity = 10.0; // m/s2
-
-        let m1 = ParamSolidMedium {
-            gravity,
+    fn config_works() {
+        let m1 = ParamSolid {
             density: 2.7, // Mg/m2
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
@@ -54,8 +93,7 @@ mod tests {
             },
         };
 
-        let m2 = ParamSolidMedium {
-            gravity,
+        let m2 = ParamSolid {
             density: 2.7, // Mg/m2
             stress_strain: ParamStressStrain::DruckerPrager {
                 young: 10_000.0, // kPa
@@ -67,7 +105,6 @@ mod tests {
         };
 
         let m3 = ParamBeam::EulerBernoulli {
-            gravity,
             area: 1.0,
             density: 2.7,
             ii_11: 1.0,
@@ -77,50 +114,12 @@ mod tests {
             young: 1000.0,
         };
 
-        let c1 = ElementConfig::Solid(m1);
-        let c2 = ElementConfig::Solid(m2);
+        let c1 = ElementConfig::Solid(m1, None);
+        let c2 = ElementConfig::Solid(m2, None);
         let c3 = ElementConfig::Beam(m3);
 
         println!("c1 = {:?}\n", c1);
         println!("c2 = {:?}\n", c2);
         println!("c3 = {:?}\n", c3);
-
-        let mut elements: Vec<Box<dyn Element>> = Vec::new();
-
-        let problem_type = detect_problem_type(vec![c1, c2])?;
-        println!("problem type = {:?}\n", problem_type);
-
-        let mut configurations: HashMap<usize, ElementConfig> = HashMap::new();
-        configurations.insert(1, c1);
-        configurations.insert(2, c2);
-        configurations.insert(3, c3);
-
-        let mesh_cell_and_attributes = [(0, 1), (1, 1), (2, 2), (3, 3)];
-
-        for (cell_id, attribute) in mesh_cell_and_attributes {
-            match configurations.get(&attribute) {
-                Some(config) => match config {
-                    ElementConfig::Seepage(params) => elements.push(Box::new(ElementSeepage::new(params))),
-                    ElementConfig::SeepageLiqGas(params) => elements.push(Box::new(ElementSeepageLiqGas::new(params))),
-                    ElementConfig::Solid(params) => elements.push(Box::new(ElementSolid::new(params))),
-                    ElementConfig::Porous(params) => elements.push(Box::new(ElementPorous::new(params))),
-                    ElementConfig::Rod(params) => elements.push(Box::new(ElementRod::new(params))),
-                    ElementConfig::Beam(params) => elements.push(Box::new(ElementBeam::new(params))),
-                },
-                None => panic!("cannot find attribute"),
-            }
-        }
-
-        if problem_type == ProblemType::PorousMediaMech {
-            //
-        }
-
-        let mut equation_numbers: Vec<Vec<i32>> = Vec::new();
-
-        for element in elements {
-            element.activate_equation_numbers(&mut equation_numbers);
-        }
-
-        Ok(())
     }
 }

@@ -1,13 +1,20 @@
-use crate::{ModelDruckerPrager, ModelLinearElastic, ParamStressStrain, StrError};
+#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
+
+use crate::{ModelDruckerPrager, ModelLinearElastic, ParamStressStrain, StateStress, StrError};
+use russell_tensor::Tensor4;
 
 pub trait ModelStressStrain {
-    fn consistent_modulus(&mut self) -> Result<&Vec<Vec<f64>>, StrError>;
+    fn consistent_modulus(&self, dd: &mut Tensor4, state: &StateStress) -> Result<(), StrError>;
 }
 
-pub fn new_stress_strain_model(params: &ParamStressStrain) -> Box<dyn ModelStressStrain> {
+pub fn new_stress_strain_model(
+    params: &ParamStressStrain,
+    two_dim: bool,
+    plane_stress: bool,
+) -> Box<dyn ModelStressStrain> {
     match params {
         &ParamStressStrain::LinearElastic { young, poisson } => {
-            Box::new(ModelLinearElastic::new(young, poisson))
+            Box::new(ModelLinearElastic::new(young, poisson, two_dim, plane_stress))
         }
         &ParamStressStrain::DruckerPrager {
             young,
@@ -15,7 +22,15 @@ pub fn new_stress_strain_model(params: &ParamStressStrain) -> Box<dyn ModelStres
             c,
             phi,
             hh,
-        } => Box::new(ModelDruckerPrager::new(young, poisson, c, phi, hh)),
+        } => Box::new(ModelDruckerPrager::new(
+            young,
+            poisson,
+            c,
+            phi,
+            hh,
+            two_dim,
+            plane_stress,
+        )),
     }
 }
 
@@ -24,6 +39,7 @@ pub fn new_stress_strain_model(params: &ParamStressStrain) -> Box<dyn ModelStres
 #[cfg(test)]
 mod tests {
     use crate::{new_stress_strain_model, ParamStressStrain, StrError};
+    use russell_tensor::{Tensor2, Tensor4};
 
     #[test]
     fn new_model_works() -> Result<(), StrError> {
@@ -40,15 +56,9 @@ mod tests {
             hh: 0.0,         // kPa
         };
 
-        let mut m1 = new_stress_strain_model(&p1);
+        let mut m1 = new_stress_strain_model(&p1, true, false);
+        let mut m2 = new_stress_strain_model(&p2, true, false);
 
-        let mut m2 = new_stress_strain_model(&p2);
-
-        let dd = m1.consistent_modulus()?;
-        println!("dd = {:?}", dd);
-
-        let dd = m2.consistent_modulus()?;
-        println!("dd = {:?}", dd);
         Ok(())
     }
 }

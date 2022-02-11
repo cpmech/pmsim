@@ -1,19 +1,20 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ParamRod, StrError};
+use crate::*;
 use gemlab::mesh::Cell;
 
-pub struct ElementRod<'a> {
+/// Implements the pl (liquid pressure) element for seepage simulations
+pub struct ElementSeepagePl<'a> {
     cell: &'a Cell, // geometry: mesh cell
 }
 
-impl<'a> ElementRod<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamRod) -> Self {
-        ElementRod { cell }
+impl<'a> ElementSeepagePl<'a> {
+    pub fn new(cell: &'a Cell, params: &ParamSeepageLiq, nip: Nip) -> Self {
+        ElementSeepagePl { cell }
     }
 }
 
-impl Element for ElementRod<'_> {
+impl Element for ElementSeepagePl<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
