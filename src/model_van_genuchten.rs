@@ -1,24 +1,57 @@
 use crate::{ModelLiquidRetention, StrError};
 
 pub struct ModelVanGenuchten {
-    alpha: f64,
-    m: f64,
-    n: f64,
-    wr: f64,
+    // parameters
+    alpha: f64,  // α parameter
+    m: f64,      // m parameter
+    n: f64,      // n parameter
+    sl_min: f64, // minimum sl
+    sl_max: f64, // maximum sl
+    pc_min: f64, // pc limit to consider zero slope
+
+    // constant
+    pc_max: f64, // pc limit corresponding to sl_min
 }
 
 impl ModelVanGenuchten {
-    pub fn new(alpha: f64, m: f64, n: f64, wr: f64) -> Self {
-        ModelVanGenuchten { alpha, m, n, wr }
+    pub fn new(alpha: f64, m: f64, n: f64, sl_min: f64, sl_max: f64, pc_min: f64) -> Self {
+        let pc_max = if sl_min > 0.0 {
+            let k = (sl_max - sl_min) / sl_min;
+            f64::powf((f64::powf(k, 1.0 / m) - 1.0) / f64::powf(alpha, n), 1.0 / n)
+        } else {
+            f64::MAX
+        };
+        ModelVanGenuchten {
+            alpha,
+            m,
+            n,
+            sl_min,
+            sl_max,
+            pc_min,
+            pc_max,
+        }
     }
 }
 
 impl ModelLiquidRetention for ModelVanGenuchten {
-    fn todo(&mut self) -> Result<(), StrError> {
-        println!(
-            "ModelVanGenuchten: alpha={}, m={}, n={}, wr={}",
-            self.alpha, self.m, self.n, self.wr
-        );
-        Ok(())
+    /// Returns the minimum saturation
+    fn saturation_min(&self) -> f64 {
+        self.sl_min
+    }
+
+    /// Returns the maximum saturation
+    fn saturation_max(&self) -> f64 {
+        self.sl_max
+    }
+
+    /// Calculates Cc(pc,sl) = ∂sl/∂pc
+    fn calc_cc(&self, pc: f64, _sl: f64, _wetting: bool) -> Result<f64, StrError> {
+        if pc <= self.pc_min || pc >= self.pc_max {
+            return Ok(0.0);
+        }
+        let c = f64::powf(self.alpha * pc, self.n);
+        let fac = self.sl_max - self.sl_min;
+        let cc = -fac * c * f64::powf(c + 1.0, -self.m - 1.0) * self.m * self.n / pc;
+        Ok(cc)
     }
 }

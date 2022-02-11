@@ -49,17 +49,21 @@ pub struct ParamSolid {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamLiqRetention {
     BrooksCorey {
-        lambda: f64,
-        sb: f64,
-        wr: f64,
+        lambda: f64, // slope coefficient
+        pc_ae: f64,  // air-entry pressure
+        sl_min: f64, // residual (minimum) saturation
+        sl_max: f64, // maximum saturation
     },
     VanGenuchten {
-        alpha: f64,
-        m: f64,
-        n: f64,
-        wr: f64,
+        alpha: f64,  // α parameter
+        m: f64,      // m parameter
+        n: f64,      // n parameter
+        sl_min: f64, // minimum sl
+        sl_max: f64, // maximum sl
+        pc_min: f64, // pc limit to consider zero slope
     },
     PedrosoZhangEhlers {
+        with_hysteresis: bool,
         lambda_d: f64,
         lambda_w: f64,
         beta_d: f64,
@@ -205,6 +209,7 @@ impl SampleParams {
                 beta: 10.0,
             },
             retention_liquid: ParamLiqRetention::PedrosoZhangEhlers {
+                with_hysteresis: true,
                 lambda_d: 3.0,
                 lambda_w: 3.0,
                 beta_d: 6.0,

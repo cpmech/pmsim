@@ -1,20 +1,29 @@
 use crate::{ModelLiquidRetention, StrError};
 
 pub struct ModelPedrosoZhangEhlers {
+    // params
+    with_hysteresis: bool,
     lambda_d: f64,
     lambda_w: f64,
     beta_d: f64,
     beta_w: f64,
     beta_1: f64,
     beta_2: f64,
-    x_rd: f64,
-    x_rw: f64,
     y_0: f64,
     y_r: f64,
+
+    // constants
+    c1_d: f64,
+    c2_d: f64,
+    c3_d: f64,
+    c1_w: f64,
+    c2_w: f64,
+    c3_w: f64,
 }
 
 impl ModelPedrosoZhangEhlers {
     pub fn new(
+        with_hysteresis: bool,
         lambda_d: f64,
         lambda_w: f64,
         beta_d: f64,
@@ -26,35 +35,82 @@ impl ModelPedrosoZhangEhlers {
         y_0: f64,
         y_r: f64,
     ) -> Self {
+        let c1_d = beta_d * lambda_d;
+        let c2_d = f64::exp(beta_d * y_r);
+        let c3_d = f64::exp(beta_d * (y_0 + lambda_d * x_rd)) - c2_d * f64::exp(c1_d * x_rd);
+        let c1_w = -beta_w * lambda_w;
+        let c2_w = f64::exp(-beta_w * y_0);
+        let c3_w = f64::exp(-beta_w * lambda_w * x_rw) - c2_w * f64::exp(c1_w * x_rw);
         ModelPedrosoZhangEhlers {
+            with_hysteresis,
             lambda_d,
             lambda_w,
             beta_d,
             beta_w,
             beta_1,
             beta_2,
-            x_rd,
-            x_rw,
             y_0,
             y_r,
+            c1_d,
+            c2_d,
+            c3_d,
+            c1_w,
+            c2_w,
+            c3_w,
         }
+    }
+
+    /// Calculates lambda_bar for drying path
+    fn lambda_bar_drying_path(&self, x: f64, y: f64) -> f64 {
+        let dd_d = f64::max(y - self.y_r, 0.0);
+        let lambda_d_bar = (1.0 - f64::exp(-self.beta_d * dd_d)) * self.lambda_d;
+        let y_d = -self.lambda_d * x + f64::ln(self.c3_d + self.c2_d * f64::exp(self.c1_d * x)) / self.beta_d;
+        let dd = f64::max(y_d - y, 0.0);
+        let beta_2_bar = self.beta_2 * f64::sqrt(f64::max(y, 0.0));
+        let lambda_bar = lambda_d_bar * f64::exp(-beta_2_bar * dd);
+        lambda_bar
+    }
+
+    /// Calculates lambda_bar for wetting path
+    fn lambda_bar_wetting_path(&self, x: f64, y: f64) -> f64 {
+        let dd_w = f64::max(self.y_0 - y, 0.0);
+        let lambda_w_bar = (1.0 - f64::exp(-self.beta_w * dd_w)) * self.lambda_w;
+        let y_w = -self.lambda_w * x - f64::ln(self.c3_w + self.c2_w * f64::exp(self.c1_w * x)) / self.beta_w;
+        let dd = f64::max(y - y_w, 0.0);
+        let lambda_bar = lambda_w_bar * f64::exp(-self.beta_1 * dd);
+        lambda_bar
     }
 }
 
 impl ModelLiquidRetention for ModelPedrosoZhangEhlers {
-    fn todo(&mut self) -> Result<(), StrError> {
-        println!("ModelPedrosoZhangEhlers: lambda_d={}, lambda_w={}, beta_d={}, beta_w={}, beta_1={}, beta_2={}, x_rd={}, x_rw={}, y_0={}, y_r={}",
-            self.lambda_d,
-            self.lambda_w,
-            self.beta_d,
-            self.beta_w,
-            self.beta_1,
-            self.beta_2,
-            self.x_rd,
-            self.x_rw,
-            self.y_0,
-            self.y_r,
-    );
-        Ok(())
+    /// Returns the minimum saturation
+    fn saturation_min(&self) -> f64 {
+        self.y_r
+    }
+
+    /// Returns the maximum saturation
+    fn saturation_max(&self) -> f64 {
+        self.y_0
+    }
+
+    /// Calculates Cc(pc,sl) = ∂sl/∂pc
+    fn calc_cc(&self, pc: f64, sl: f64, wetting: bool) -> Result<f64, StrError> {
+        if pc <= 0.0 {
+            return Ok(0.0);
+        }
+        if sl < self.y_r {
+            return Err("sl cannot be smaller than y_r");
+        }
+        if sl > self.y_0 {
+            return Err("sl cannot be greater than y_0");
+        }
+        let x = f64::ln(1.0 + pc);
+        let lambda_bar = if wetting && self.with_hysteresis {
+            self.lambda_bar_wetting_path(x, sl)
+        } else {
+            self.lambda_bar_drying_path(x, sl)
+        };
+        let cc = -lambda_bar / (1.0 + pc);
+        Ok(cc)
     }
 }
