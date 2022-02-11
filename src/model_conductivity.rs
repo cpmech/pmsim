@@ -1,15 +1,16 @@
-use russell_tensor::Tensor2;
-
 use crate::{ParamConductivity, StrError};
+use russell_tensor::Tensor2;
 
 pub struct ModelConductivity {
     // for constant, linear or pedroso-zhang-ehlers models
     kk_sat: Tensor2,
+
+    // for constant model
     is_constant: bool,
 
     // for linear model
-    lambda: f64,
     is_linear: bool,
+    lambda: f64,
 
     // for pedroso-zhang-ehlers model
     lambda_0: f64,
@@ -25,13 +26,10 @@ pub struct ModelConductivity {
 impl ModelConductivity {
     pub fn new(params: &ParamConductivity, two_dim: bool) -> Result<Self, StrError> {
         let mut model = ModelConductivity {
-            // for constant, linear or pedroso-zhang-ehlers models
             kk_sat: Tensor2::new(true, two_dim),
             is_constant: false,
-            // for linear model
-            lambda: 0.0,
             is_linear: false,
-            // for pedroso-zhang-ehlers model
+            lambda: 0.0,
             lambda_0: 0.0,
             lambda_1: 0.0,
             alpha: 0.0,
@@ -41,24 +39,18 @@ impl ModelConductivity {
             c2: 0.0,
             c3: 0.0,
         };
-
-        match params {
+        let (kx, ky, kz) = match params {
             &ParamConductivity::Constant { kx, ky, kz } => {
-                model.kk_sat.sym_set(0, 0, kx);
-                model.kk_sat.sym_set(1, 1, ky);
-                if !two_dim {
-                    model.kk_sat.sym_set(2, 2, kz);
-                }
                 model.is_constant = true;
+                (kx, ky, kz)
             }
             &ParamConductivity::Linear { kx, ky, kz, lambda } => {
-                model.kk_sat.sym_set(0, 0, kx);
-                model.kk_sat.sym_set(1, 1, ky);
-                if !two_dim {
-                    model.kk_sat.sym_set(2, 2, kz);
+                if lambda < 1.0 {
+                    return Err("lambda must be greater than or equal to 1.0 for linear model");
                 }
-                model.lambda = lambda;
                 model.is_linear = true;
+                model.lambda = lambda;
+                (kx, ky, kz)
             }
             &ParamConductivity::PedrosoZhangEhlers {
                 kx,
@@ -69,11 +61,6 @@ impl ModelConductivity {
                 alpha,
                 beta,
             } => {
-                model.kk_sat.sym_set(0, 0, kx);
-                model.kk_sat.sym_set(1, 1, ky);
-                if !two_dim {
-                    model.kk_sat.sym_set(2, 2, kz);
-                }
                 let b = if lambda_1 < lambda_0 { 1.0 } else { -1.0 };
                 model.lambda_0 = lambda_0;
                 model.lambda_1 = lambda_1;
@@ -83,11 +70,23 @@ impl ModelConductivity {
                 model.c1 = beta * b * (lambda_1 - lambda_0);
                 model.c2 = f64::exp(beta * b * alpha);
                 model.c3 = f64::exp(beta * b * (1.0 - lambda_0)) - model.c2 * f64::exp(model.c1);
+                (kx, ky, kz)
             }
         };
-
-        // todo: check parameters
-
+        if kx < 0.0 {
+            return Err("kx must be greater than zero");
+        }
+        if ky < 0.0 {
+            return Err("ky must be greater than zero");
+        }
+        model.kk_sat.sym_set(0, 0, kx);
+        model.kk_sat.sym_set(1, 1, ky);
+        if !two_dim {
+            if kz < 0.0 {
+                return Err("kz must be greater than zero");
+            }
+            model.kk_sat.sym_set(2, 2, kz);
+        }
         Ok(model)
     }
 
