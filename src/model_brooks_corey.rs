@@ -52,4 +52,9 @@ impl ModelLiquidRetentionTrait for ModelBrooksCorey {
         let cc = -(self.sl_max - self.sl_min) * self.lambda * f64::powf(self.pc_ae / pc, self.lambda) / pc;
         Ok(cc)
     }
+
+    /// Calculates J = dCc/dsl
+    fn calc_dcc_dsl(&self, _pc: f64, _sl: f64, _wetting: bool) -> Result<f64, StrError> {
+        Ok(0.0)
+    }
 }

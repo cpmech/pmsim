@@ -76,4 +76,9 @@ impl ModelLiquidRetentionTrait for ModelVanGenuchten {
         let cc = -fac * c * f64::powf(c + 1.0, -self.m - 1.0) * self.m * self.n / pc;
         Ok(cc)
     }
+
+    /// Calculates J = dCc/dsl
+    fn calc_dcc_dsl(&self, _pc: f64, _sl: f64, _wetting: bool) -> Result<f64, StrError> {
+        Ok(0.0)
+    }
 }
