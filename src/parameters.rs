@@ -47,7 +47,7 @@ pub struct ParamSolid {
 
 /// Parameters for liquid-retention models
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ParamLiqRetention {
+pub enum ParamLiquidRetention {
     BrooksCorey {
         lambda: f64, // slope coefficient
         pc_ae: f64,  // air-entry pressure
@@ -117,7 +117,7 @@ pub struct ParamSeepageLiq {
     pub porosity_initial: f64,                  // initial porosity nf₀
     pub density_liquid: ParamRealDensity,       // intrinsic (real) density of liquid
     pub conductivity_liquid: ParamConductivity, // liquid conductivity kl
-    pub retention_liquid: ParamLiqRetention,    // liquid retention model Cc = dsl/dpc
+    pub retention_liquid: ParamLiquidRetention, // liquid retention model Cc = dsl/dpc
 }
 
 /// Parameters for seepage simulations with liquid and gas
@@ -128,7 +128,7 @@ pub struct ParamSeepageLiqGas {
     pub density_gas: ParamRealDensity,          // intrinsic (real) density of gas
     pub conductivity_liquid: ParamConductivity, // liquid conductivity kl
     pub conductivity_gas: ParamConductivity,    // gas conductivity kg
-    pub retention_liquid: ParamLiqRetention,    // liquid retention model Cc = dsl/dpc
+    pub retention_liquid: ParamLiquidRetention, // liquid retention model Cc = dsl/dpc
 }
 
 /// Parameters for porous media mechanics simulations with solid-liquid
@@ -139,7 +139,7 @@ pub struct ParamPorousSolLiq {
     pub density_solid: f64,                     // intrinsic (real) density of solids
     pub density_liquid: ParamRealDensity,       // intrinsic (real) density of liquid
     pub conductivity_liquid: ParamConductivity, // liquid conductivity kl
-    pub retention_liquid: ParamLiqRetention,    // liquid retention model Cc = dsl/dpc
+    pub retention_liquid: ParamLiquidRetention, // liquid retention model Cc = dsl/dpc
 }
 
 /// Parameters for porous media mechanics simulations with solid-liquid-gas
@@ -152,7 +152,7 @@ pub struct ParamPorousSolLiqGas {
     pub density_gas: ParamRealDensity,          // intrinsic (real) density of gas
     pub conductivity_liquid: ParamConductivity, // liquid conductivity kl
     pub conductivity_gas: ParamConductivity,    // gas conductivity kg
-    pub retention_liquid: ParamLiqRetention,    // liquid retention model Cc = dsl/dpc
+    pub retention_liquid: ParamLiquidRetention, // liquid retention model Cc = dsl/dpc
 }
 
 pub struct SampleParams;
@@ -208,7 +208,7 @@ impl SampleParams {
                 alpha: 0.01,
                 beta: 10.0,
             },
-            retention_liquid: ParamLiqRetention::PedrosoWilliams {
+            retention_liquid: ParamLiquidRetention::PedrosoWilliams {
                 with_hysteresis: true,
                 lambda_d: 3.0,
                 lambda_w: 3.0,

@@ -9,13 +9,13 @@ fn main() -> Result<(), StrError> {
     let (sl_min, sl_max) = (0.005, 0.95);
 
     // models
-    let bc = ModelLiquidRetention::new(&ParamLiqRetention::BrooksCorey {
+    let bc = ModelLiquidRetention::new(&ParamLiquidRetention::BrooksCorey {
         lambda: 3.0,
         pc_ae: 4.0,
         sl_min,
         sl_max,
     })?;
-    let vg = ModelLiquidRetention::new(&ParamLiqRetention::VanGenuchten {
+    let vg = ModelLiquidRetention::new(&ParamLiquidRetention::VanGenuchten {
         alpha: 0.15,
         m: 0.5,
         n: 10.0,
@@ -23,7 +23,7 @@ fn main() -> Result<(), StrError> {
         sl_max,
         pc_min: 0.0,
     })?;
-    let pw = ModelLiquidRetention::new(&ParamLiqRetention::PedrosoWilliams {
+    let pw = ModelLiquidRetention::new(&ParamLiquidRetention::PedrosoWilliams {
         with_hysteresis: true,
         lambda_d: 3.0,
         lambda_w: 3.0,

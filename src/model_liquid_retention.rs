@@ -1,4 +1,4 @@
-use crate::{ModelBrooksCorey, ModelPedrosoWilliams, ModelVanGenuchten, ParamLiqRetention, StrError};
+use crate::{ModelBrooksCorey, ModelPedrosoWilliams, ModelVanGenuchten, ParamLiquidRetention, StrError};
 use russell_lab::Vector;
 
 /// Defines a trait for models for liquid retention in porous media
@@ -22,15 +22,15 @@ pub struct ModelLiquidRetention {
 
 impl ModelLiquidRetention {
     /// Returns a new instance of ModelLiquidRetention
-    pub fn new(params: &ParamLiqRetention) -> Result<Self, StrError> {
+    pub fn new(params: &ParamLiquidRetention) -> Result<Self, StrError> {
         let model: Box<dyn ModelLiquidRetentionTrait> = match params {
-            &ParamLiqRetention::BrooksCorey {
+            &ParamLiquidRetention::BrooksCorey {
                 lambda,
                 pc_ae,
                 sl_min,
                 sl_max,
             } => Box::new(ModelBrooksCorey::new(lambda, pc_ae, sl_min, sl_max)?),
-            &ParamLiqRetention::VanGenuchten {
+            &ParamLiquidRetention::VanGenuchten {
                 alpha,
                 m,
                 n,
@@ -38,7 +38,7 @@ impl ModelLiquidRetention {
                 sl_max,
                 pc_min,
             } => Box::new(ModelVanGenuchten::new(alpha, m, n, sl_min, sl_max, pc_min)?),
-            &ParamLiqRetention::PedrosoWilliams {
+            &ParamLiquidRetention::PedrosoWilliams {
                 with_hysteresis,
                 lambda_d,
                 lambda_w,
