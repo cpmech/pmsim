@@ -27,7 +27,7 @@ impl SimState {
                 Rod(..) => (),
                 Beam(..) => (),
                 Solid(params, nip) => {
-                    let model = new_stress_strain_model(&params.stress_strain, config.two_dim, config.plane_stress);
+                    let model = ModelStressStrain::new(&params.stress_strain, config.two_dim, config.plane_stress)?;
                 }
                 SeepageLiq(params, nip) => (),
                 SeepageLiqGas(params, nip) => (),

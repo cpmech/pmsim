@@ -13,8 +13,8 @@ pub struct ElementSolid<'a> {
     shape_vars: ShapeState, // state variables for numerical integration
 
     // params
-    model: Box<dyn ModelStressStrainTrait>, // material model
-    thickness: f64,                         // thickness
+    model: ModelStressStrain, // material model
+    thickness: f64,           // thickness
 
     // system
     dofs: Vec<Dof>, // degrees-of-freedom per node
@@ -38,7 +38,7 @@ impl<'a> ElementSolid<'a> {
 
         // model
         let two_dim = cell.shape.space_ndim == 2;
-        let model = new_stress_strain_model(&params.stress_strain, two_dim, plane_stress);
+        let model = ModelStressStrain::new(&params.stress_strain, two_dim, plane_stress)?;
 
         // integration points data
         let space_ndim = cell.shape.space_ndim;
