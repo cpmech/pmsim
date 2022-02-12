@@ -5,12 +5,17 @@ use gemlab::mesh::Cell;
 
 /// Implements the pl-pg (liquid pressure, gas pressure) element for seepage simulations
 pub struct ElementSeepagePlPg<'a> {
-    cell: &'a Cell, // geometry: mesh cell
+    cell: &'a Cell,            // geometry: mesh cell
+    model: ModelSeepageLiqGas, // material model
 }
 
 impl<'a> ElementSeepagePlPg<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamSeepageLiqGas, nip: Nip) -> Self {
-        ElementSeepagePlPg { cell }
+    pub fn new(cell: &'a Cell, params: &ParamSeepageLiqGas, nip: Nip) -> Result<Self, StrError> {
+        let two_dim = cell.shape.space_ndim == 2;
+        Ok(ElementSeepagePlPg {
+            cell,
+            model: ModelSeepageLiqGas::new(params, two_dim)?,
+        })
     }
 }
 

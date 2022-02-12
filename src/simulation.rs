@@ -40,13 +40,13 @@ impl<'a> Simulation<'a> {
             };
             // allocate element
             let element: Box<dyn Element> = match element_config {
-                Rod(params) => Box::new(ElementRod::new(cell, params)),
-                Beam(params) => Box::new(ElementBeam::new(cell, params)),
+                Rod(params) => Box::new(ElementRod::new(cell, params)?),
+                Beam(params) => Box::new(ElementBeam::new(cell, params)?),
                 Solid(params, nip) => Box::new(ElementSolid::new(cell, params, *nip, plane_stress, thickness)?),
-                SeepageLiq(params, nip) => Box::new(ElementSeepagePl::new(cell, params, *nip)),
-                SeepageLiqGas(params, nip) => Box::new(ElementSeepagePlPg::new(cell, params, *nip)),
-                PorousSolLiq(params, nip) => Box::new(ElementPorousUsPl::new(cell, params, *nip)),
-                PorousSolLiqGas(params, nip) => Box::new(ElementPorousUsPlPg::new(cell, params, *nip)),
+                SeepageLiq(params, nip) => Box::new(ElementSeepagePl::new(cell, params, *nip)?),
+                SeepageLiqGas(params, nip) => Box::new(ElementSeepagePlPg::new(cell, params, *nip)?),
+                PorousSolLiq(params, nip) => Box::new(ElementPorousUsPl::new(cell, params, *nip)?),
+                PorousSolLiqGas(params, nip) => Box::new(ElementPorousUsPlPg::new(cell, params, *nip)?),
             };
 
             // set DOFs and estimate of the max number of non-zeros in the K-matrix

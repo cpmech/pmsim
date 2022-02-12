@@ -24,11 +24,11 @@ pub struct ModelPorousSolLiqGas {
 }
 
 impl ModelPorousSolLiq {
-    pub fn new(params: &ParamPorousSolLiq, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
+    pub fn new(params: &ParamPorousSolLiq, two_dim: bool) -> Result<Self, StrError> {
         let model = ModelPorousSolLiq {
             porosity_initial: params.porosity_initial,
             density_solid: params.density_solid,
-            model_stress_strain: ModelStressStrain::new(&params.stress_strain, two_dim, plane_stress)?,
+            model_stress_strain: ModelStressStrain::new(&params.stress_strain, two_dim, false)?,
             model_density_liquid: ModelRealDensity::new(&params.density_liquid)?,
             model_conductivity_liquid: ModelConductivity::new(&params.conductivity_liquid, two_dim)?,
             model_retention_liquid: ModelLiquidRetention::new(&params.retention_liquid)?,
@@ -38,11 +38,11 @@ impl ModelPorousSolLiq {
 }
 
 impl ModelPorousSolLiqGas {
-    pub fn new(params: &ParamPorousSolLiqGas, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
+    pub fn new(params: &ParamPorousSolLiqGas, two_dim: bool) -> Result<Self, StrError> {
         let model = ModelPorousSolLiqGas {
             porosity_initial: params.porosity_initial,
             density_solid: params.density_solid,
-            model_stress_strain: ModelStressStrain::new(&params.stress_strain, two_dim, plane_stress)?,
+            model_stress_strain: ModelStressStrain::new(&params.stress_strain, two_dim, false)?,
             model_density_liquid: ModelRealDensity::new(&params.density_liquid)?,
             model_density_gas: ModelRealDensity::new(&params.density_gas)?,
             model_conductivity_liquid: ModelConductivity::new(&params.conductivity_liquid, two_dim)?,

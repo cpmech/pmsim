@@ -8,8 +8,8 @@ pub struct ElementRod<'a> {
 }
 
 impl<'a> ElementRod<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamRod) -> Self {
-        ElementRod { cell }
+    pub fn new(cell: &'a Cell, params: &ParamRod) -> Result<Self, StrError> {
+        Ok(ElementRod { cell })
     }
 }
 

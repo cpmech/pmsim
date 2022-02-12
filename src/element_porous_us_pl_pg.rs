@@ -5,12 +5,17 @@ use gemlab::mesh::Cell;
 
 /// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
 pub struct ElementPorousUsPlPg<'a> {
-    cell: &'a Cell, // geometry: mesh cell
+    cell: &'a Cell,              // geometry: mesh cell
+    model: ModelPorousSolLiqGas, // material model
 }
 
 impl<'a> ElementPorousUsPlPg<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamPorousSolLiqGas, nip: Nip) -> Self {
-        ElementPorousUsPlPg { cell }
+    pub fn new(cell: &'a Cell, params: &ParamPorousSolLiqGas, nip: Nip) -> Result<Self, StrError> {
+        let two_dim = cell.shape.space_ndim == 2;
+        Ok(ElementPorousUsPlPg {
+            cell,
+            model: ModelPorousSolLiqGas::new(params, two_dim)?,
+        })
     }
 }
 

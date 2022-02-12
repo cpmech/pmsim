@@ -8,8 +8,8 @@ pub struct ElementBeam<'a> {
 }
 
 impl<'a> ElementBeam<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamBeam) -> Self {
-        ElementBeam { cell }
+    pub fn new(cell: &'a Cell, params: &ParamBeam) -> Result<Self, StrError> {
+        Ok(ElementBeam { cell })
     }
 }
 
