@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{ModelStressStrain, StateStress, StrError};
+use crate::{ModelStressStrainTrait, StateStress, StrError};
 use russell_lab::copy_matrix;
 use russell_tensor::{LinElasticity, Tensor4};
 
@@ -23,7 +23,7 @@ impl ModelDruckerPrager {
     }
 }
 
-impl ModelStressStrain for ModelDruckerPrager {
+impl ModelStressStrainTrait for ModelDruckerPrager {
     fn consistent_modulus(&self, dd: &mut Tensor4, _: &StateStress) -> Result<(), StrError> {
         let dd_ela = self.lin_elast.get_modulus();
         copy_matrix(&mut dd.mat, &dd_ela.mat)

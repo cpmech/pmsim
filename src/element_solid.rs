@@ -13,8 +13,8 @@ pub struct ElementSolid<'a> {
     shape_vars: ShapeState, // state variables for numerical integration
 
     // params
-    model: Box<dyn ModelStressStrain>, // material model
-    thickness: f64,                    // thickness
+    model: Box<dyn ModelStressStrainTrait>, // material model
+    thickness: f64,                         // thickness
 
     // system
     dofs: Vec<Dof>, // degrees-of-freedom per node
