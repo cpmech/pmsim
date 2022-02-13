@@ -1,4 +1,5 @@
-use crate::{SimConfig, StrError};
+use crate::{SimConfig, StateStress, StrError};
+use russell_lab::Vector;
 
 // /// Holds initialization data
 // pub struct InitializationData {
@@ -34,6 +35,10 @@ impl<'a> SimStateInitializer<'a> {
         // };
 
         Ok(SimStateInitializer { config })
+    }
+
+    pub fn calc_stress(&self, state: &mut StateStress, ip_coords: &Vector) -> Result<(), StrError> {
+        Ok(())
     }
 }
 

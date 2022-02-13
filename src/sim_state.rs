@@ -43,7 +43,7 @@ impl StateSeepage {
 }
 
 impl StateStress {
-    pub fn new(two_dim: bool, n_internal_values: usize) -> Self {
+    pub fn new(n_internal_values: usize, two_dim: bool) -> Self {
         StateStress {
             stress: Tensor2::new(true, two_dim),
             internal_values: vec![0.0; n_internal_values],
@@ -66,17 +66,17 @@ impl StateIntegPoints {
         }
     }
 
-    pub fn new_stress_only(n_integ_point: usize, two_dim: bool, n_internal_values: usize) -> Self {
+    pub fn new_stress_only(n_integ_point: usize, n_internal_values: usize, two_dim: bool) -> Self {
         StateIntegPoints {
             seepage: Vec::new(),
-            stress: vec![StateStress::new(two_dim, n_internal_values); n_integ_point],
+            stress: vec![StateStress::new(n_internal_values, two_dim); n_integ_point],
         }
     }
 
-    pub fn new_seepage_and_stress(n_integ_point: usize, two_dim: bool, n_internal_values: usize) -> Self {
+    pub fn new_seepage_and_stress(n_integ_point: usize, n_internal_values: usize, two_dim: bool) -> Self {
         StateIntegPoints {
             seepage: vec![StateSeepage::new(); n_integ_point],
-            stress: vec![StateStress::new(two_dim, n_internal_values); n_integ_point],
+            stress: vec![StateStress::new(n_internal_values, two_dim); n_integ_point],
         }
     }
 }

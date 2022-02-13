@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ParamBeam, StateIntegPoints, StrError};
+use crate::{Element, EquationNumbers, ParamBeam, SimStateInitializer, StateIntegPoints, StrError};
 use gemlab::mesh::Cell;
 
 pub struct ElementBeam<'a> {
@@ -20,8 +20,8 @@ impl Element for ElementBeam<'_> {
     }
 
     /// Allocates empty integration points states
-    fn new_integ_points_states(&self) -> StateIntegPoints {
-        StateIntegPoints::new_empty()
+    fn new_integ_points_states(&self, _initializer: &SimStateInitializer) -> Result<StateIntegPoints, StrError> {
+        Ok(StateIntegPoints::new_empty())
     }
 
     /// Computes the element Y-vector

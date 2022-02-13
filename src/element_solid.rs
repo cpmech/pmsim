@@ -1,16 +1,20 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, StateIntegPoints, StateStress, StrError};
+use crate::{
+    Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, SimStateInitializer, StateIntegPoints, StateStress,
+    StrError,
+};
 use gemlab::mesh::Cell;
 use gemlab::shapes::{IntegGDG, IntegTG, Shape, ShapeState};
 use russell_lab::{copy_matrix, copy_vector, Matrix, Vector};
 use russell_tensor::{Tensor2, Tensor4};
+use std::cell::RefCell;
 
 // Implements a finite element for solid mechanics problems
 pub struct ElementSolid<'a> {
     // cell and shape
-    cell: &'a Cell,         // geometry: mesh cell
-    shape_vars: ShapeState, // state variables for numerical integration
+    cell: &'a Cell,                  // geometry: mesh cell
+    shape_vars: RefCell<ShapeState>, // state variables for numerical integration
 
     // params
     model: ModelStressStrain, // material model
@@ -51,7 +55,7 @@ impl<'a> ElementSolid<'a> {
         // element instance
         Ok(ElementSolid {
             cell,
-            shape_vars,
+            shape_vars: RefCell::new(shape_vars),
             model,
             thickness,
             dofs,
@@ -74,11 +78,20 @@ impl Element for ElementSolid<'_> {
     }
 
     /// Allocates empty integration points states
-    fn new_integ_points_states(&self) -> StateIntegPoints {
-        let n_integ_point = self.shape_vars.integ_point_constants.len();
-        let two_dim = self.cell.shape.space_ndim == 2;
+    fn new_integ_points_states(&self, initializer: &SimStateInitializer) -> Result<StateIntegPoints, StrError> {
+        let n_integ_point = self.shape_vars.borrow().integ_point_constants.len();
         let n_internal_values = self.model.n_internal_values();
-        StateIntegPoints::new_stress_only(n_integ_point, two_dim, n_internal_values)
+        let two_dim = self.cell.shape.space_ndim == 2;
+        let mut states = StateIntegPoints::new_stress_only(n_integ_point, n_internal_values, two_dim);
+        let all_ip_coords = self
+            .cell
+            .shape
+            .calc_integ_points_coords(&mut self.shape_vars.borrow_mut())?;
+        for index_ip in 0..n_integ_point {
+            initializer.calc_stress(&mut states.stress[index_ip], &all_ip_coords[index_ip])?;
+            self.model.initialize_internal_values(&mut states.stress[index_ip])?;
+        }
+        Ok(states)
     }
 
     /// Computes the element Y-vector

@@ -38,6 +38,10 @@ impl ModelStressStrain {
     pub fn n_internal_values(&self) -> usize {
         self.model.n_internal_values()
     }
+
+    pub fn initialize_internal_values(&self, _state: &mut StateStress) -> Result<(), StrError> {
+        Ok(())
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

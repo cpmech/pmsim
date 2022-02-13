@@ -1,6 +1,9 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ModelPorousSolLiqGas, ParamPorousSolLiqGas, StateIntegPoints, StrError};
+use crate::{
+    Element, EquationNumbers, ModelPorousSolLiqGas, ParamPorousSolLiqGas, SimStateInitializer, StateIntegPoints,
+    StrError,
+};
 use gemlab::mesh::Cell;
 
 /// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
@@ -26,8 +29,8 @@ impl Element for ElementPorousUsPlPg<'_> {
     }
 
     /// Allocates empty integration points states
-    fn new_integ_points_states(&self) -> StateIntegPoints {
-        StateIntegPoints::new_empty()
+    fn new_integ_points_states(&self, _initializer: &SimStateInitializer) -> Result<StateIntegPoints, StrError> {
+        Ok(StateIntegPoints::new_empty())
     }
 
     /// Computes the element Y-vector

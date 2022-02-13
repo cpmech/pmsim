@@ -29,7 +29,7 @@ impl<'a> Simulation<'a> {
         let mut elements = Vec::<Box<dyn Element>>::new();
         let mut equation_numbers = EquationNumbers::new(npoint);
         let mut sim_state = SimState::new_empty();
-        let sim_state_initializer = SimStateInitializer::new(&config)?;
+        let initializer = SimStateInitializer::new(&config)?;
 
         // loop over all cells and allocate elements
         let (plane_stress, thickness) = (config.plane_stress, config.thickness);
@@ -76,7 +76,7 @@ impl<'a> Simulation<'a> {
             nnz_max += element.activate_equation_numbers(&mut equation_numbers);
 
             // allocate integ points states
-            let states = element.new_integ_points_states();
+            let states = element.new_integ_points_states(&initializer)?;
             sim_state.integ_points.push(states);
 
             // add element to array
