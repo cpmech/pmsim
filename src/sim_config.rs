@@ -1,31 +1,8 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, StrError};
+use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, IniOption, Nbc, ProblemType, StrError};
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
 use std::collections::HashMap;
-
-/// Holds initialization data
-pub struct InitializationData {
-    /// At-rest earth pressure coefficient K0 = σₕ'/σᵥ' to compute horizontal effective stress (σₕ') from vertical effective stress (σᵥ')
-    kk0: Option<f64>,
-
-    /// Poisson's coefficient ν to estimate the at-rest earth pressure coefficient K0 = ν/(1-ν) = σₕ'/σᵥ' and then compute horizontal effective stress (σₕ') from vertical effective stress (σᵥ')
-    nu: Option<f64>,
-}
-
-pub enum IniOption {
-    /// Geostatic initial state
-    Geostatic,
-
-    /// Self-weight initial state
-    SelfWeight,
-
-    /// Initial isotropic stress state where the parameter is σ_iso = σ_xx = σ_yy = σ_zz
-    IsotropicStress(f64),
-
-    /// Zero initial state
-    Zero,
-}
 
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct SimConfig<'a> {

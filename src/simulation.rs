@@ -29,6 +29,7 @@ impl<'a> Simulation<'a> {
         let mut elements = Vec::<Box<dyn Element>>::new();
         let mut equation_numbers = EquationNumbers::new(npoint);
         let mut sim_state = SimState::new_empty();
+        let sim_state_initializer = SimStateInitializer::new(&config)?;
 
         // loop over all cells and allocate elements
         let (plane_stress, thickness) = (config.plane_stress, config.thickness);
@@ -75,8 +76,8 @@ impl<'a> Simulation<'a> {
             nnz_max += element.activate_equation_numbers(&mut equation_numbers);
 
             // allocate integ points states
-            let integ_points_states = element.new_integ_points_states();
-            sim_state.integ_points.push(integ_points_states);
+            let states = element.new_integ_points_states();
+            sim_state.integ_points.push(states);
 
             // add element to array
             elements.push(element);
@@ -88,25 +89,6 @@ impl<'a> Simulation<'a> {
         // allocate system arrays
         sim_state.system_xx = Vector::new(neq);
         sim_state.system_yy = Vector::new(neq);
-
-        // initialize state
-        match config.ini_option {
-            IniOption::Geostatic => {
-                let geostatics = Geostatics::new(config)?;
-                for point in &config.mesh.points {
-                    if let Some(eq) = equation_numbers.get_option_equation_number(point.id, Dof::Pl) {
-                        sim_state.system_xx[eq] = geostatics.calc_liquid_pressure(&point.coords)?;
-                    }
-                }
-            }
-            IniOption::SelfWeight => {
-                // todo
-            }
-            IniOption::IsotropicStress(..) => {
-                // todo
-            }
-            IniOption::Zero => (),
-        }
 
         // simulation data
         let mut simulation = Simulation {
