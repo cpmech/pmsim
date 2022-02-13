@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::*;
+use crate::{Element, EquationNumbers, ModelSeepageLiq, Nip, ParamSeepageLiq, StateIntegPoints, StrError};
 use gemlab::mesh::Cell;
 
 /// Implements the pl (liquid pressure) element for seepage simulations
@@ -10,7 +10,7 @@ pub struct ElementSeepagePl<'a> {
 }
 
 impl<'a> ElementSeepagePl<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamSeepageLiq, nip: Nip) -> Result<Self, StrError> {
+    pub fn new(cell: &'a Cell, params: &ParamSeepageLiq, n_integ_point: Nip) -> Result<Self, StrError> {
         let two_dim = cell.shape.space_ndim == 2;
         Ok(ElementSeepagePl {
             cell,
@@ -23,6 +23,11 @@ impl Element for ElementSeepagePl<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
+    }
+
+    /// Allocates empty integration points states
+    fn new_integ_points_states(&self) -> StateIntegPoints {
+        StateIntegPoints::new_empty()
     }
 
     /// Computes the element Y-vector

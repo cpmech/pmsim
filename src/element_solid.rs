@@ -1,6 +1,8 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::*;
+use crate::{
+    Dof, Element, EquationNumbers, ModelStressStrain, Nip, ParamSolid, StateIntegPoints, StateStress, StrError,
+};
 use gemlab::mesh::Cell;
 use gemlab::shapes::{IntegGDG, IntegTG, Shape, ShapeState};
 use russell_lab::{copy_matrix, copy_vector, Matrix, Vector};
@@ -26,23 +28,19 @@ impl<'a> ElementSolid<'a> {
     pub fn new(
         cell: &'a Cell,
         params: &ParamSolid,
-        nip: Nip,
+        n_integ_point: Nip,
         plane_stress: bool,
         thickness: f64,
     ) -> Result<Self, StrError> {
         // cell and shape
         let mut shape_vars = ShapeState::new(&cell.shape);
-        if let Some(n) = nip {
-            shape_vars.select_int_points(n)?;
+        if let Some(n) = n_integ_point {
+            shape_vars.select_integ_points(n)?;
         }
 
         // model
         let two_dim = cell.shape.space_ndim == 2;
         let model = ModelStressStrain::new(&params.stress_strain, two_dim, plane_stress)?;
-
-        // integration points data
-        let space_ndim = cell.shape.space_ndim;
-        let nip = shape_vars.ip_data.len();
 
         // system
         let dofs = match cell.shape.space_ndim {
@@ -75,6 +73,14 @@ impl Element for ElementSolid<'_> {
         }
         let (nrow, ncol) = self.kk.dims();
         nrow * ncol
+    }
+
+    /// Allocates empty integration points states
+    fn new_integ_points_states(&self) -> StateIntegPoints {
+        let n_integ_point = self.shape_vars.integ_point_constants.len();
+        let two_dim = self.cell.shape.space_ndim == 2;
+        let n_internal_values = self.model.n_internal_values();
+        StateIntegPoints::new_stress_only(n_integ_point, two_dim, n_internal_values)
     }
 
     /// Computes the element Y-vector

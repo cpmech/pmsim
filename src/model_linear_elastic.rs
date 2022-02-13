@@ -21,7 +21,11 @@ impl ModelLinearElastic {
 }
 
 impl ModelStressStrainTrait for ModelLinearElastic {
-    fn consistent_modulus(&self, dd: &mut Tensor4, _: &StateStress) -> Result<(), StrError> {
+    fn n_internal_values(&self) -> usize {
+        0
+    }
+
+    fn consistent_modulus(&self, dd: &mut Tensor4, _state: &StateStress) -> Result<(), StrError> {
         let dd_ela = self.lin_elast.get_modulus();
         copy_matrix(&mut dd.mat, &dd_ela.mat)
     }

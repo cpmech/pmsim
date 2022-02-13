@@ -47,7 +47,15 @@ impl ModelDruckerPrager {
 }
 
 impl ModelStressStrainTrait for ModelDruckerPrager {
-    fn consistent_modulus(&self, dd: &mut Tensor4, _: &StateStress) -> Result<(), StrError> {
+    fn n_internal_values(&self) -> usize {
+        // alpha       α: internal variables of rate type
+        // dd_gamma    Δγ: increment of Lagrange multiplier
+        // loading     (bool) unloading flag
+        // apex_return (bool) return-to-apex flag
+        4
+    }
+
+    fn consistent_modulus(&self, dd: &mut Tensor4, _state: &StateStress) -> Result<(), StrError> {
         let dd_ela = self.lin_elast.get_modulus();
         copy_matrix(&mut dd.mat, &dd_ela.mat)
     }

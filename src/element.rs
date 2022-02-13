@@ -64,6 +64,9 @@ pub trait Element {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
 
+    /// Allocates empty integration points states
+    fn new_integ_points_states(&self) -> StateIntegPoints;
+
     /// Computes the element Y-vector
     fn compute_local_yy_vector(&mut self) -> Result<(), StrError>;
 

@@ -1,9 +1,8 @@
-#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
-
 use crate::{ModelDruckerPrager, ModelLinearElastic, ParamStressStrain, StateStress, StrError};
 use russell_tensor::Tensor4;
 
 pub trait ModelStressStrainTrait {
+    fn n_internal_values(&self) -> usize;
     fn consistent_modulus(&self, dd: &mut Tensor4, state: &StateStress) -> Result<(), StrError>;
 }
 
@@ -35,6 +34,10 @@ impl ModelStressStrain {
         };
         Ok(ModelStressStrain { model })
     }
+
+    pub fn n_internal_values(&self) -> usize {
+        self.model.n_internal_values()
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +45,6 @@ impl ModelStressStrain {
 #[cfg(test)]
 mod tests {
     use crate::{ModelStressStrain, ParamStressStrain, StrError};
-    use russell_tensor::{Tensor2, Tensor4};
 
     #[test]
     fn new_works() -> Result<(), StrError> {
@@ -59,8 +61,8 @@ mod tests {
             hh: 0.0,         // kPa
         };
 
-        let mut m1 = ModelStressStrain::new(&p1, true, false)?;
-        let mut m2 = ModelStressStrain::new(&p2, true, false)?;
+        let mut _m1 = ModelStressStrain::new(&p1, true, false)?;
+        let mut _m2 = ModelStressStrain::new(&p2, true, false)?;
 
         Ok(())
     }

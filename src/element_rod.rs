@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ParamRod, StrError};
+use crate::{Element, EquationNumbers, ParamRod, StateIntegPoints, StrError};
 use gemlab::mesh::Cell;
 
 pub struct ElementRod<'a> {
@@ -17,6 +17,11 @@ impl Element for ElementRod<'_> {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
+    }
+
+    /// Allocates empty integration points states
+    fn new_integ_points_states(&self) -> StateIntegPoints {
+        StateIntegPoints::new_empty()
     }
 
     /// Computes the element Y-vector
