@@ -44,6 +44,14 @@ impl EquationNumbers {
         }
         Ok(self.numbers[point_id][dof as usize] as usize)
     }
+
+    /// Returns the equation number corresponding to a point-DOF pair
+    pub fn get_option_equation_number(&self, point_id: PointId, dof: Dof) -> Option<usize> {
+        if self.numbers[point_id][dof as usize] < 0 {
+            return None;
+        }
+        Some(self.numbers[point_id][dof as usize] as usize)
+    }
 }
 
 impl fmt::Display for EquationNumbers {

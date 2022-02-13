@@ -8,20 +8,24 @@ struct GeoLayer {
 }
 
 /// Implements geostatic stress state calculator
-pub struct StateGeostatic<'a> {
+pub struct Geostatics<'a> {
     /// Access to configuration
     config: &'a SimConfig<'a>,
 }
 
-impl<'a> StateGeostatic<'a> {
+impl<'a> Geostatics<'a> {
     /// Returns a new StateGeostatic instance
     ///
     /// # Note
     ///
     /// * The datum is at y=0.0 (2D) or z=0.0 (3D)
     /// * The water table is at y=y_max (2D) or z=z_max (3D), thus only fully water-saturated states are considered
-    pub fn new(config: &'a SimConfig<'a>) -> Self {
-        StateGeostatic { config }
+    pub fn new(config: &'a SimConfig<'a>) -> Result<Self, StrError> {
+        Ok(Geostatics { config })
+    }
+
+    pub fn calc_liquid_pressure(&self, coords: &[f64]) -> Result<f64, StrError> {
+        Ok(0.0)
     }
 
     /// Calculates effective stresses, liquid pressure, and gas pressure

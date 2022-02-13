@@ -85,9 +85,28 @@ impl<'a> Simulation<'a> {
         // number of equations
         let neq = equation_numbers.get_number_of_equations();
 
-        // update system arrays
+        // allocate system arrays
         sim_state.system_xx = Vector::new(neq);
         sim_state.system_yy = Vector::new(neq);
+
+        // initialize state
+        match config.ini_option {
+            IniOption::Geostatic => {
+                let geostatics = Geostatics::new(config)?;
+                for point in &config.mesh.points {
+                    if let Some(eq) = equation_numbers.get_option_equation_number(point.id, Dof::Pl) {
+                        sim_state.system_xx[eq] = geostatics.calc_liquid_pressure(&point.coords)?;
+                    }
+                }
+            }
+            IniOption::SelfWeight => {
+                // todo
+            }
+            IniOption::IsotropicStress(..) => {
+                // todo
+            }
+            IniOption::Zero => (),
+        }
 
         // simulation data
         let mut simulation = Simulation {
