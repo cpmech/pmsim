@@ -1,8 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{
-    Dof, Element, EquationNumbers, ModelStressStrain, Nip, ParamSolid, StateIntegPoints, StateStress, StrError,
-};
+use crate::{Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, StateIntegPoints, StateStress, StrError};
 use gemlab::mesh::Cell;
 use gemlab::shapes::{IntegGDG, IntegTG, Shape, ShapeState};
 use russell_lab::{copy_matrix, copy_vector, Matrix, Vector};
@@ -28,7 +26,7 @@ impl<'a> ElementSolid<'a> {
     pub fn new(
         cell: &'a Cell,
         params: &ParamSolid,
-        n_integ_point: Nip,
+        n_integ_point: Option<usize>,
         plane_stress: bool,
         thickness: f64,
     ) -> Result<Self, StrError> {

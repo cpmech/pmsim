@@ -1,18 +1,15 @@
 use crate::*;
 
-/// Number of integration points. None means that a default is selected
-pub type Nip = Option<usize>;
-
-/// Holds element configuration and material parameters
+/// Holds element configuration, material parameters, and number of integration points
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
     Rod(ParamRod),
     Beam(ParamBeam),
-    Solid(ParamSolid, Nip),
-    SeepageLiq(ParamSeepageLiq, Nip),
-    SeepageLiqGas(ParamSeepageLiqGas, Nip),
-    PorousSolLiq(ParamPorousSolLiq, Nip),
-    PorousSolLiqGas(ParamPorousSolLiqGas, Nip),
+    Solid(ParamSolid, Option<usize>),
+    SeepageLiq(ParamSeepageLiq, Option<usize>),
+    SeepageLiqGas(ParamSeepageLiqGas, Option<usize>),
+    PorousSolLiq(ParamPorousSolLiq, Option<usize>),
+    PorousSolLiqGas(ParamPorousSolLiqGas, Option<usize>),
 }
 
 /// Defines the problem type

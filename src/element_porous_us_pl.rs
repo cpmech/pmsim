@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ModelPorousSolLiq, Nip, ParamPorousSolLiq, StateIntegPoints, StrError};
+use crate::{Element, EquationNumbers, ModelPorousSolLiq, ParamPorousSolLiq, StateIntegPoints, StrError};
 use gemlab::mesh::Cell;
 
 /// Implements the us-pl (solid displacement, liquid pressure) element for porous media mechanics
@@ -10,7 +10,7 @@ pub struct ElementPorousUsPl<'a> {
 }
 
 impl<'a> ElementPorousUsPl<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamPorousSolLiq, n_integ_point: Nip) -> Result<Self, StrError> {
+    pub fn new(cell: &'a Cell, params: &ParamPorousSolLiq, n_integ_point: Option<usize>) -> Result<Self, StrError> {
         let two_dim = cell.shape.space_ndim == 2;
         Ok(ElementPorousUsPl {
             cell,
