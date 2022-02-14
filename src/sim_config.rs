@@ -237,8 +237,8 @@ impl<'a> SimConfig<'a> {
     /// If flag=false (plane-strain), this function will set the thickness to 1.0.
     pub fn set_plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
         match self.ini_option {
-            IniOption::Geostatic => return Err("cannot set plane_stress with Geostatic ini_option"),
-            IniOption::IsotropicStress(_) => return Err("cannot set plane_stress with IsotropicStress ini_option"),
+            IniOption::Geostatic(..) => return Err("cannot set plane_stress with Geostatic ini_option"),
+            IniOption::IsotropicStress(..) => return Err("cannot set plane_stress with IsotropicStress ini_option"),
             _ => (),
         }
         self.plane_stress = flag;
@@ -251,12 +251,12 @@ impl<'a> SimConfig<'a> {
     /// Sets option to initialize (stress) state
     pub fn set_ini_option(&mut self, option: IniOption) -> Result<&mut Self, StrError> {
         match option {
-            IniOption::Geostatic => {
+            IniOption::Geostatic(..) => {
                 if self.plane_stress {
                     return Err("cannot set Geostatic ini_option with plane_stress");
                 }
             }
-            IniOption::IsotropicStress(_) => {
+            IniOption::IsotropicStress(..) => {
                 if self.plane_stress {
                     return Err("cannot set IsotropicStress ini_option with plane_stress");
                 }

@@ -1,4 +1,4 @@
-use crate::{SimConfig, StateStress, StrError};
+use crate::{ModelRealDensity, ParamRealDensity, SimConfig, StateStress, StrError};
 use russell_lab::Vector;
 
 // /// Holds initialization data
@@ -11,8 +11,14 @@ use russell_lab::Vector;
 // }
 
 pub enum IniOption {
-    /// Geostatic initial state
-    Geostatic,
+    /// Geostatic initial state where the parameter is the density of water
+    ///
+    /// # Note
+    ///
+    /// * The datum is at y=0.0 (2D) or z=0.0 (3D)
+    /// * The water table is at y=y_max (2D) or z=z_max (3D),
+    ///   thus only fully water-saturated states are considered
+    Geostatic(ParamRealDensity),
 
     /// Initial isotropic stress state where the parameter is σ_iso = σ_xx = σ_yy = σ_zz
     IsotropicStress(f64),
@@ -22,22 +28,37 @@ pub enum IniOption {
 }
 
 pub struct SimStateInitializer<'a> {
-    /// Access to configuration
-    config: &'a SimConfig<'a>,
+    config: &'a SimConfig<'a>, // Access to configuration
+    model_water: Option<ModelRealDensity>,
 }
 
 impl<'a> SimStateInitializer<'a> {
     pub fn new(config: &'a SimConfig<'a>) -> Result<Self, StrError> {
-        // let initializer = match config.ini_option {
-        //     IniOption::Geostatic => Geostatics::new(config)?,
-        //     IniOption::IsotropicStress(..) => (),
-        //     IniOption::Zero => (),
-        // };
-
-        Ok(SimStateInitializer { config })
+        let model_water = match &config.ini_option {
+            IniOption::Geostatic(params) => Some(ModelRealDensity::new(params)?),
+            _ => None,
+        };
+        Ok(SimStateInitializer { config, model_water })
     }
 
-    pub fn calc_stress(&self, state: &mut StateStress, ip_coords: &Vector) -> Result<(), StrError> {
+    pub fn initialize_stress(&self, state: &mut StateStress, ip_coords: &Vector) -> Result<(), StrError> {
+        match self.config.ini_option {
+            IniOption::Geostatic(..) => {
+                if let Some(model_water) = &self.model_water {
+                    let space_ndim = self.config.mesh.space_ndim;
+                    let elevation = ip_coords[space_ndim - 1];
+                    let height = self.config.mesh.max[space_ndim - 1];
+                    let gravity = self.config.gravity;
+                    let pl = model_water.pressure_at_elevation(elevation, height, gravity)?;
+                }
+            }
+            IniOption::IsotropicStress(value) => {
+                state.stress.sym_set(0, 0, value);
+                state.stress.sym_set(1, 1, value);
+                state.stress.sym_set(2, 2, value);
+            }
+            IniOption::Zero => (),
+        };
         Ok(())
     }
 }

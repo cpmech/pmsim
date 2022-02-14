@@ -88,7 +88,7 @@ impl Element for ElementSolid<'_> {
             .shape
             .calc_integ_points_coords(&mut self.shape_vars.borrow_mut())?;
         for index_ip in 0..n_integ_point {
-            initializer.calc_stress(&mut states.stress[index_ip], &all_ip_coords[index_ip])?;
+            initializer.initialize_stress(&mut states.stress[index_ip], &all_ip_coords[index_ip])?;
             self.model.initialize_internal_values(&mut states.stress[index_ip])?;
         }
         Ok(states)
