@@ -41,7 +41,7 @@ impl<'a> Simulation<'a> {
                 None => return Err("cannot find element configuration for a cell attribute id"),
             };
 
-            // allocate shape
+            // allocate shape (=> move to Element)
             let shape = config.mesh.alloc_shape_cell(cell.id)?;
 
             // allocate element
