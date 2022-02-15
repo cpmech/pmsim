@@ -59,16 +59,16 @@ pub enum ProblemType {
 /// ```
 pub trait Element {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
+    fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
 
-    /// Allocates empty integration points states
-    fn new_integ_points_states(&self, initializer: &SimStateInitializer) -> Result<StateIntegPoints, StrError>;
+    /// Allocates and initializes the element's state at all integration points
+    fn alloc_state(&self, initializer: &SimStateInitializer) -> Result<StateElement, StrError>;
 
     /// Computes the element Y-vector
-    fn compute_local_yy_vector(&mut self) -> Result<(), StrError>;
+    fn calc_local_yy_vector(&mut self) -> Result<(), StrError>;
 
     /// Computes the element K-matrix
-    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError>;
+    fn calc_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError>;
 
     /// Assembles the local Y-vector into the global Y-vector
     fn assemble_yy_vector(&self, yy: &mut Vec<f64>) -> Result<(), StrError>;

@@ -1,8 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{
-    Element, EquationNumbers, ModelSeepageLiq, ParamSeepageLiq, SimStateInitializer, StateIntegPoints, StrError,
-};
+use crate::{Element, EquationNumbers, ModelSeepageLiq, ParamSeepageLiq, SimStateInitializer, StateElement, StrError};
 use gemlab::shapes::Shape;
 
 /// Implements the pl (liquid pressure) element for seepage simulations
@@ -23,22 +21,22 @@ impl ElementSeepagePl {
 
 impl Element for ElementSeepagePl {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
+    fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
     }
 
-    /// Allocates empty integration points states
-    fn new_integ_points_states(&self, _initializer: &SimStateInitializer) -> Result<StateIntegPoints, StrError> {
-        Ok(StateIntegPoints::new_empty())
+    /// Allocates and initializes the element's state at all integration points
+    fn alloc_state(&self, _initializer: &SimStateInitializer) -> Result<StateElement, StrError> {
+        Ok(StateElement::new_empty())
     }
 
     /// Computes the element Y-vector
-    fn compute_local_yy_vector(&mut self) -> Result<(), StrError> {
+    fn calc_local_yy_vector(&mut self) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element K-matrix
-    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 

@@ -18,16 +18,16 @@ pub struct StateStress {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct StateIntegPoints {
+pub struct StateElement {
     pub seepage: Vec<StateSeepage>, // (n_integ_point)
     pub stress: Vec<StateStress>,   // (n_integ_point)
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SimState {
-    pub integ_points: Vec<StateIntegPoints>, // (nele)
-    pub system_xx: Vector,                   // (neq)
-    pub system_yy: Vector,                   // (neq)
+    pub elements: Vec<StateElement>, // (nele)
+    pub system_xx: Vector,           // (neq)
+    pub system_yy: Vector,           // (neq)
 }
 
 impl StateSeepage {
@@ -51,30 +51,30 @@ impl StateStress {
     }
 }
 
-impl StateIntegPoints {
+impl StateElement {
     pub fn new_empty() -> Self {
-        StateIntegPoints {
+        StateElement {
             seepage: Vec::new(),
             stress: Vec::new(),
         }
     }
 
     pub fn new_seepage_only(n_integ_point: usize) -> Self {
-        StateIntegPoints {
+        StateElement {
             seepage: vec![StateSeepage::new(); n_integ_point],
             stress: Vec::new(),
         }
     }
 
     pub fn new_stress_only(n_integ_point: usize, n_internal_values: usize, two_dim: bool) -> Self {
-        StateIntegPoints {
+        StateElement {
             seepage: Vec::new(),
             stress: vec![StateStress::new(n_internal_values, two_dim); n_integ_point],
         }
     }
 
     pub fn new_seepage_and_stress(n_integ_point: usize, n_internal_values: usize, two_dim: bool) -> Self {
-        StateIntegPoints {
+        StateElement {
             seepage: vec![StateSeepage::new(); n_integ_point],
             stress: vec![StateStress::new(n_internal_values, two_dim); n_integ_point],
         }
@@ -84,7 +84,7 @@ impl StateIntegPoints {
 impl SimState {
     pub fn new_empty() -> Self {
         SimState {
-            integ_points: Vec::new(),
+            elements: Vec::new(),
             system_xx: Vector::new(0),
             system_yy: Vector::new(0),
         }

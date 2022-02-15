@@ -76,12 +76,12 @@ impl<'a> Simulation<'a> {
                 }
             };
 
-            // set DOFs and estimate of the max number of non-zeros in the K-matrix
-            nnz_max += element.activate_equation_numbers(&mut equation_numbers);
+            // set DOFs and estimate the max number of non-zeros in the K-matrix
+            nnz_max += element.set_equation_numbers(&mut equation_numbers);
 
             // allocate integ points states
-            let states = element.new_integ_points_states(&initializer)?;
-            sim_state.integ_points.push(states);
+            let states = element.alloc_state(&initializer)?;
+            sim_state.elements.push(states);
 
             // add element to array
             elements.push(element);

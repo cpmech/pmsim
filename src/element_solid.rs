@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
 use crate::{
-    Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, SimStateInitializer, StateIntegPoints, StateStress,
+    Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, SimStateInitializer, StateElement, StateStress,
     StrError,
 };
 use gemlab::mesh::Cell;
@@ -65,7 +65,7 @@ impl ElementSolid {
 
 impl Element for ElementSolid {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
+    fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         for point_id in &self.shape.borrow().point_ids {
             for dof in &self.dofs {
                 equation_numbers.activate_equation(*point_id, *dof);
@@ -75,13 +75,13 @@ impl Element for ElementSolid {
         nrow * ncol
     }
 
-    /// Allocates empty integration points states
-    fn new_integ_points_states(&self, initializer: &SimStateInitializer) -> Result<StateIntegPoints, StrError> {
+    /// Allocates and initializes the element's state at all integration points
+    fn alloc_state(&self, initializer: &SimStateInitializer) -> Result<StateElement, StrError> {
         let mut shape = self.shape.borrow_mut();
         let n_integ_point = shape.integ_points.len();
         let n_internal_values = self.model.n_internal_values();
         let two_dim = shape.space_ndim == 2;
-        let mut states = StateIntegPoints::new_stress_only(n_integ_point, n_internal_values, two_dim);
+        let mut states = StateElement::new_stress_only(n_integ_point, n_internal_values, two_dim);
         let all_ip_coords = shape.calc_integ_points_coords()?;
         for index_ip in 0..n_integ_point {
             initializer.initialize_stress(&mut states.stress[index_ip], &all_ip_coords[index_ip])?;
@@ -91,12 +91,12 @@ impl Element for ElementSolid {
     }
 
     /// Computes the element Y-vector
-    fn compute_local_yy_vector(&mut self) -> Result<(), StrError> {
+    fn calc_local_yy_vector(&mut self) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element K-matrix
-    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 
