@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
 use crate::{ModelRealDensity, SimConfig, StrError};
-use gemlab::mesh::{CellAttributeId, PointId};
+use gemlab::mesh::{At, CellAttributeId, PointId};
 use russell_tensor::Tensor2;
 
 /// Holds information about a porous layer to be used in geostatics computations
@@ -102,6 +102,9 @@ impl<'a> Geostatics<'a> {
     /// * The datum is at y=0.0 (2D) or z=0.0 (3D)
     /// * The water table is at y=y_max (2D) or z=z_max (3D), thus only fully water-saturated states are considered
     pub fn new(config: &'a SimConfig<'a>) -> Result<Self, StrError> {
+        // find column of points near the origin
+        let point_ids = config.mesh.find_boundary_points(At::X(config.mesh.min[0]))?;
+
         Ok(Geostatics { config })
     }
 

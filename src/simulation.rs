@@ -40,34 +40,38 @@ impl<'a> Simulation<'a> {
                 Some(c) => c,
                 None => return Err("cannot find element configuration for a cell attribute id"),
             };
+
+            // allocate shape
+            let shape = config.mesh.alloc_shape_cell(cell.id)?;
+
             // allocate element
             let element: Box<dyn Element> = match element_config {
                 Rod(params) => {
-                    let ele = ElementRod::new(cell, params)?;
+                    let ele = ElementRod::new(shape, params)?;
                     Box::new(ele)
                 }
                 Beam(params) => {
-                    let ele = ElementBeam::new(cell, params)?;
+                    let ele = ElementBeam::new(shape, params)?;
                     Box::new(ele)
                 }
                 Solid(params, n_integ_point) => {
-                    let ele = ElementSolid::new(cell, params, *n_integ_point, plane_stress, thickness)?;
+                    let ele = ElementSolid::new(shape, params, *n_integ_point, plane_stress, thickness)?;
                     Box::new(ele)
                 }
                 SeepageLiq(params, n_integ_point) => {
-                    let ele = ElementSeepagePl::new(cell, params, *n_integ_point)?;
+                    let ele = ElementSeepagePl::new(shape, params, *n_integ_point)?;
                     Box::new(ele)
                 }
                 SeepageLiqGas(params, n_integ_point) => {
-                    let ele = ElementSeepagePlPg::new(cell, params, *n_integ_point)?;
+                    let ele = ElementSeepagePlPg::new(shape, params, *n_integ_point)?;
                     Box::new(ele)
                 }
                 PorousSolLiq(params, n_integ_point) => {
-                    let ele = ElementPorousUsPl::new(cell, params, *n_integ_point)?;
+                    let ele = ElementPorousUsPl::new(shape, params, *n_integ_point)?;
                     Box::new(ele)
                 }
                 PorousSolLiqGas(params, n_integ_point) => {
-                    let ele = ElementPorousUsPlPg::new(cell, params, *n_integ_point)?;
+                    let ele = ElementPorousUsPlPg::new(shape, params, *n_integ_point)?;
                     Box::new(ele)
                 }
             };

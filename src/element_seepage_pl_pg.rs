@@ -3,25 +3,25 @@
 use crate::{
     Element, EquationNumbers, ModelSeepageLiqGas, ParamSeepageLiqGas, SimStateInitializer, StateIntegPoints, StrError,
 };
-use gemlab::mesh::Cell;
+use gemlab::shapes::Shape;
 
 /// Implements the pl-pg (liquid pressure, gas pressure) element for seepage simulations
-pub struct ElementSeepagePlPg<'a> {
-    cell: &'a Cell,            // geometry: mesh cell
+pub struct ElementSeepagePlPg {
+    shape: Shape,
     model: ModelSeepageLiqGas, // material model
 }
 
-impl<'a> ElementSeepagePlPg<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamSeepageLiqGas, n_integ_point: Option<usize>) -> Result<Self, StrError> {
-        let two_dim = cell.shape.space_ndim == 2;
+impl ElementSeepagePlPg {
+    pub fn new(shape: Shape, params: &ParamSeepageLiqGas, n_integ_point: Option<usize>) -> Result<Self, StrError> {
+        let two_dim = shape.space_ndim == 2;
         Ok(ElementSeepagePlPg {
-            cell,
+            shape,
             model: ModelSeepageLiqGas::new(params, two_dim)?,
         })
     }
 }
 
-impl Element for ElementSeepagePlPg<'_> {
+impl Element for ElementSeepagePlPg {
     /// Activates an equation number, if not set yet
     fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
