@@ -181,13 +181,16 @@ impl Geostatics {
             return Err("geostatics initialization requires space_ndim = 2 or 3");
         }
 
-        // compute overburden stress
-        // let mut cumulated_overburden = 0.0;
-        // for (attribute_id, limits) in layers_top_to_bottom {
-        //     let element_config = config.element_configs.get(attribute_id).unwrap();
-        // }
-
+        // find layers
         let layers_top_to_bottom = find_layers_top_to_bottom(config)?;
+
+        // compute overburden stress
+        let mut cumulated_overburden = 0.0;
+        for (attribute_id, limits) in &layers_top_to_bottom {
+            let element_config = config.element_configs.get(attribute_id).unwrap();
+            println!("{:?}", element_config);
+            // TODO
+        }
 
         Ok(Geostatics {})
     }
@@ -214,31 +217,6 @@ mod tests {
 
     #[test]
     fn find_layers_top_to_bottom_works() -> Result<(), StrError> {
-        //
-        // 3.1  14---------15
-        //       |  [11]333 |
-        // 3.0  10---------11---------12--------------------13
-        //       |        .' '.        |                     |
-        //       | [8]  .'     '.  [9] |                     |
-        //       | 222.'         '.222 |        [10]         |  L
-        //       |  .'             '.  |         222         |  A
-        //       |.'                 '.|                     |  Y
-        // 2.0   7         [5]         8---------------------9  E
-        //       |'.       222       .'|                     |  R
-        //       |  '.             .'  |                     | 222
-        //       | [4]'.         .'[6] |         [7]         |
-        //       | 222  '.     .'  222 |         222         |
-        //       |        '. .'        |                     |
-        // 1.0   3----------4----------5---------------------6  <-- layer separation
-        //       |        .' '.        |                     |  L
-        //       | [0]  .'     '.  [2] |                     |  A
-        //       | 111.'   [1]   '.111 |         [3]         |  Y
-        //       |  .'     111     '.  |         111         |  E
-        //       |.'                 '.|                     |  R
-        // 0.0   0---------------------1---------------------2 111
-        //
-        //      0.0        1.0        2.0                   4.0
-        //
         let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
         let p111 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
@@ -251,6 +229,34 @@ mod tests {
         let layers = find_layers_top_to_bottom(&config)?;
         assert_eq!(layers[0], (222, (1.0, 3.0)));
         assert_eq!(layers[1], (111, (0.0, 1.0)));
+
+        let mut mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
+        let mut config = SimConfig::new(&mesh);
+        let p1 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
+        let p2 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
+        let p3 = SampleParams::params_solid();
+        config.elements(1, ElementConfig::PorousSolLiqGas(p1, None))?;
+        config.elements(2, ElementConfig::PorousSolLiqGas(p2, None))?;
+        config.elements(3, ElementConfig::Solid(p3, None))?;
+        config.set_gravity(10.0)?; // m/s²
+        let layers = find_layers_top_to_bottom(&config)?;
+        assert_eq!(layers[0], (2, (1.0, 3.0)));
+        assert_eq!(layers[1], (1, (0.0, 1.0)));
+        Ok(())
+    }
+
+    #[test]
+    fn new_works() -> Result<(), StrError> {
+        let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
+        let mut config = SimConfig::new(&mesh);
+        let p111 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
+        let p222 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
+        let p333 = SampleParams::params_solid();
+        config.elements(111, ElementConfig::PorousSolLiqGas(p111, None))?;
+        config.elements(222, ElementConfig::PorousSolLiqGas(p222, None))?;
+        config.elements(333, ElementConfig::Solid(p333, None))?;
+        config.set_gravity(10.0)?; // m/s²
+        Geostatics::new(&config)?;
         Ok(())
     }
 }
