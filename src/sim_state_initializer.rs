@@ -1,4 +1,6 @@
-use crate::{ModelRealDensity, ParamRealDensity, SimConfig, StateStress, StrError};
+#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
+
+use crate::{Geostatics, SimConfig, StateStress, StrError};
 use russell_lab::Vector;
 
 // /// Holds initialization data
@@ -11,37 +13,39 @@ use russell_lab::Vector;
 // }
 
 pub enum IniOption {
-    /// Geostatic initial state where the parameter is the density of water
+    /// Geostatic initial state
     ///
     /// # Note
     ///
     /// * The datum is at y=0.0 (2D) or z=0.0 (3D)
-    /// * The water table is at y=y_max (2D) or z=z_max (3D),
-    ///   thus only fully water-saturated states are considered
-    Geostatic(ParamRealDensity),
+    /// * The water table is at y=y_max (2D) or z=z_max (3D), thus only fully water-saturated states are considered
+    Geostatic,
 
-    /// Initial isotropic stress state where the parameter is σ_iso = σ_xx = σ_yy = σ_zz
-    IsotropicStress(f64),
+    /// Initial isotropic stress state with σ_xx = σ_yy = σ_zz = value
+    IsotropicStress,
 
     /// Zero initial state
     Zero,
 }
 
-pub struct SimStateInitializer<'a> {
-    config: &'a SimConfig<'a>, // Access to configuration
-    model_water: Option<ModelRealDensity>,
+pub struct SimStateInitializer {
+    // config: &'a SimConfig<'a>, // Access to configuration
+    geostatics: Option<Geostatics>,
+    // model_water: Option<ModelRealDensity>,
 }
 
-impl<'a> SimStateInitializer<'a> {
-    pub fn new(config: &'a SimConfig<'a>) -> Result<Self, StrError> {
-        let model_water = match &config.ini_option {
-            IniOption::Geostatic(params) => Some(ModelRealDensity::new(params)?),
-            _ => None,
-        };
-        Ok(SimStateInitializer { config, model_water })
+impl SimStateInitializer {
+    pub fn new(config: &SimConfig) -> Result<Self, StrError> {
+        // let model_water = match &config.ini_option {
+        //     IniOption::Geostatic(params) => Some(ModelRealDensity::new(params)?),
+        //     _ => None,
+        // };
+        // Ok(SimStateInitializer { config, model_water })
+        Err("")
     }
 
     pub fn initialize_stress(&self, state: &mut StateStress, ip_coords: &Vector) -> Result<(), StrError> {
+        /*
         match self.config.ini_option {
             IniOption::Geostatic(..) => {
                 if let Some(model_water) = &self.model_water {
@@ -59,6 +63,7 @@ impl<'a> SimStateInitializer<'a> {
             }
             IniOption::Zero => (),
         };
+        */
         Ok(())
     }
 }

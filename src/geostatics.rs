@@ -32,8 +32,8 @@ struct PorousLayer {
     rho_s_real_0: f64, // (rhoS0) initial density of solids
 
     // parameters: total stress analysis
-    totRho: f64,     // density for total stress analyses
-    totStress: bool, // total stress analysis
+    tot_rho: f64,     // density for total stress analyses
+    tot_stress: bool, // total stress analysis
 
     // additional data
     kk0: f64, // coefficient to multiply effective vertical stresses and obtain horizontal effective stresses
@@ -71,8 +71,8 @@ impl PorousLayer {
 
     // Calculates the porous medium partial density (rho_mixture) and total vertical stress (sigma_v_total)
     pub fn calc_mixture_density_and_total_vertical_stress(&self, elevation: f64) -> Result<(f64, f64), StrError> {
-        let rho_mixture = if self.totStress {
-            self.totRho
+        let rho_mixture = if self.tot_stress {
+            self.tot_rho
         } else {
             let (rho_l_real, pl) = self.calc_liquid_density_and_pressure(elevation)?;
             let (rho_g_real, pg) = self.calc_gas_density_and_pressure(elevation)?;
@@ -89,33 +89,69 @@ impl PorousLayer {
 }
 
 /// Implements geostatic stress state calculator
-pub struct Geostatics<'a> {
-    /// Access to configuration
-    config: &'a SimConfig<'a>,
+pub struct Geostatics {
+    // Access to configuration
+// config: &'a SimConfig<'a>,
 }
 
-impl<'a> Geostatics<'a> {
+impl Geostatics {
     /// Returns a new StateGeostatic instance
     ///
     /// # Note
     ///
+    /// * Geostatics initialization requires a rectangular (parallepiped) mesh
+    /// * The edges or faces at the minimum coordinates forming a vertical column are used to determine the layers
     /// * The datum is at y=0.0 (2D) or z=0.0 (3D)
     /// * The water table is at y=y_max (2D) or z=z_max (3D), thus only fully water-saturated states are considered
-    pub fn new(config: &'a SimConfig<'a>) -> Result<Self, StrError> {
+    pub fn new(config: &SimConfig) -> Result<Self, StrError> {
         // find column of points near the origin
-        let point_ids = config.mesh.find_boundary_points(At::X(config.mesh.min[0]))?;
+        // let point_ids = config.mesh.find_boundary_points(At::X(config.mesh.min[0]))?;
+        let mesh = config.mesh;
+        let space_ndim = mesh.space_ndim;
+        if space_ndim == 2 {
+            let edge_keys = mesh.find_boundary_edges(At::X(mesh.min[0]))?;
+            if edge_keys.len() < 1 {
+                return Err("cannot find at least one vertical edge at x_min");
+            }
+            for edge_key in &edge_keys {
+                let edge = mesh.boundary_edges.get(edge_key).unwrap();
+                println!("{:?}", edge);
+            }
+        }
 
-        Ok(Geostatics { config })
+        // Ok(Geostatics { config })
+        Ok(Geostatics {})
     }
 
-    pub fn calc_liquid_pressure(&self, coords: &[f64]) -> Result<f64, StrError> {
-        Ok(0.0)
-    }
+    // pub fn calc_liquid_pressure(&self, coords: &[f64]) -> Result<f64, StrError> {
+    //     Ok(0.0)
+    // }
 
-    /// Calculates effective stresses, liquid pressure, and gas pressure
-    pub fn calc_stress(&self, _elevation: f64) -> Result<(Tensor2, f64, f64), StrError> {
-        let stress_effective = Tensor2::new(true, self.config.two_dim);
-        let (p_l, p_g) = (0.0, 0.0);
-        Ok((stress_effective, p_l, p_g))
+    // Calculates effective stresses, liquid pressure, and gas pressure
+    // pub fn calc_stress(&self, _elevation: f64) -> Result<(Tensor2, f64, f64), StrError> {
+    //     let stress_effective = Tensor2::new(true, self.config.two_dim);
+    //     let (p_l, p_g) = (0.0, 0.0);
+    //     Ok((stress_effective, p_l, p_g))
+    // }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::Geostatics;
+    use crate::{ElementConfig, SampleParams, SimConfig, StrError};
+    use gemlab::mesh::Mesh;
+
+    #[test]
+    fn new_works() -> Result<(), StrError> {
+        let mut mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
+        let mut config = SimConfig::new(&mesh);
+        let params = SampleParams::params_porous_sol_liq_gas(0.3, 1e-2);
+        config.elements(1, ElementConfig::PorousSolLiqGas(params, None))?;
+        config.elements(2, ElementConfig::PorousSolLiqGas(params, None))?;
+        config.set_gravity(10.0)?; // m/s²
+        Geostatics::new(&config)?;
+        Ok(())
     }
 }
