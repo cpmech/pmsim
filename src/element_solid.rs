@@ -78,16 +78,16 @@ impl Element for ElementSolid {
     /// Allocates and initializes the element's state at all integration points
     fn alloc_state(&self, initializer: &SimStateInitializer) -> Result<StateElement, StrError> {
         let mut shape = self.shape.borrow_mut();
+        let all_ip_coords = shape.calc_integ_points_coords()?;
         let n_integ_point = shape.integ_points.len();
         let n_internal_values = self.model.n_internal_values();
         let two_dim = shape.space_ndim == 2;
-        let mut states = StateElement::new_stress_only(n_integ_point, n_internal_values, two_dim);
-        let all_ip_coords = shape.calc_integ_points_coords()?;
+        let mut state = StateElement::new_stress_only(n_integ_point, n_internal_values, two_dim);
         for index_ip in 0..n_integ_point {
-            initializer.initialize_stress(&mut states.stress[index_ip], &all_ip_coords[index_ip])?;
-            self.model.initialize_internal_values(&mut states.stress[index_ip])?;
+            initializer.initialize_stress(&mut state.stress[index_ip], &all_ip_coords[index_ip])?;
+            self.model.initialize_internal_values(&mut state.stress[index_ip])?;
         }
-        Ok(states)
+        Ok(state)
     }
 
     /// Computes the element Y-vector
