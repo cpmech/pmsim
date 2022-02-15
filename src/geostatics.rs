@@ -1,8 +1,9 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
 use crate::{ModelRealDensity, SimConfig, StrError};
-use gemlab::mesh::{At, CellAttributeId, PointId};
+use gemlab::mesh::{At, CellAttributeId, CellId, PointId};
 use russell_tensor::Tensor2;
+use std::collections::{HashMap, HashSet};
 
 /// Holds information about a porous layer to be used in geostatics computations
 ///
@@ -104,10 +105,15 @@ impl Geostatics {
     /// * The datum is at y=0.0 (2D) or z=0.0 (3D)
     /// * The water table is at y=y_max (2D) or z=z_max (3D), thus only fully water-saturated states are considered
     pub fn new(config: &SimConfig) -> Result<Self, StrError> {
-        // find column of points near the origin
-        // let point_ids = config.mesh.find_boundary_points(At::X(config.mesh.min[0]))?;
+        // check
         let mesh = config.mesh;
         let space_ndim = mesh.space_ndim;
+        if space_ndim < 2 || space_ndim > 3 {
+            return Err("geostatics initialization requires space_ndim = 2 or 3");
+        }
+
+        // find cells near x_min
+        let mut cells_near_x_min: HashSet<CellId> = HashSet::new();
         if space_ndim == 2 {
             let edge_keys = mesh.find_boundary_edges(At::X(mesh.min[0]))?;
             if edge_keys.len() < 1 {
@@ -115,9 +121,51 @@ impl Geostatics {
             }
             for edge_key in &edge_keys {
                 let edge = mesh.boundary_edges.get(edge_key).unwrap();
-                println!("{:?}", edge);
+                for cell_id in &edge.shared_by_2d_cells {
+                    cells_near_x_min.insert(*cell_id);
+                }
+            }
+        } else {
+            let face_keys = mesh.find_boundary_faces(At::X(mesh.min[0]))?;
+            if face_keys.len() < 1 {
+                return Err("cannot find at least one vertical face at x_min");
+            }
+            for face_key in &face_keys {
+                let face = mesh.boundary_faces.get(face_key).unwrap();
+                for cell_id in &face.shared_by_cells {
+                    cells_near_x_min.insert(*cell_id);
+                }
             }
         }
+
+        // find layers
+        #[derive(Debug)]
+        struct MinMaxElevation(f64, f64);
+        let mut layers: HashMap<CellAttributeId, MinMaxElevation> = HashMap::new();
+        for cell_id in &cells_near_x_min {
+            let cell = &mesh.cells[*cell_id];
+            let attribute_id = cell.attribute_id;
+            println!(">>>>>>>>>>>. {}", attribute_id);
+            let element_config = config
+                .element_configs
+                .get(&attribute_id)
+                .ok_or("cannot find CellAttributeId in SimConfig")?;
+            let shape = mesh.alloc_shape_cell(*cell_id)?;
+            match layers.get_mut(&attribute_id) {
+                Some(limits) => {
+                    limits.0 = f64::min(limits.0, shape.min_coords[space_ndim - 1]);
+                    limits.1 = f64::max(limits.1, shape.max_coords[space_ndim - 1]);
+                }
+                None => {
+                    layers.insert(
+                        attribute_id,
+                        MinMaxElevation(shape.min_coords[space_ndim - 1], shape.max_coords[space_ndim - 1]),
+                    );
+                }
+            };
+        }
+
+        println!("{:?}", layers);
 
         // Ok(Geostatics { config })
         Ok(Geostatics {})
@@ -145,11 +193,35 @@ mod tests {
 
     #[test]
     fn new_works() -> Result<(), StrError> {
-        let mut mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
+        //
+        // 3.0  10---------11---------12--------------------13
+        //       |        .' '.        |                     |
+        //       | [8]  .'     '.  [9] |                     |
+        //       | (2).'         '.(2) |        [10]         |  L
+        //       |  .'             '.  |         (2)         |  A
+        //       |.'                 '.|                     |  Y
+        // 2.0   7         [5]         8---------------------9  E
+        //       |'.       (2)       .'|                     |  R
+        //       |  '.             .'  |                     |  2
+        //       | [4]'.         .'[6] |         [7]         |
+        //       | (2)  '.     .'  (2) |         (2)         |
+        //       |        '. .'        |                     |
+        // 1.0   3----------4----------5---------------------6  <-- layer separation
+        //       |        .' '.        |                     |  L
+        //       | [0]  .'     '.  [2] |                     |  A
+        //       | (1).'   [1]   '.(1) |         [3]         |  Y
+        //       |  .'     (1)     '.  |         (1)         |  E
+        //       |.'                 '.|                     |  R
+        // 0.0   0---------------------1---------------------2  1
+        //
+        //      0.0        1.0        2.0                   4.0
+        //
+        let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
-        let params = SampleParams::params_porous_sol_liq_gas(0.3, 1e-2);
-        config.elements(1, ElementConfig::PorousSolLiqGas(params, None))?;
-        config.elements(2, ElementConfig::PorousSolLiqGas(params, None))?;
+        let params_1 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
+        let params_2 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
+        config.elements(1, ElementConfig::PorousSolLiqGas(params_1, None))?;
+        config.elements(2, ElementConfig::PorousSolLiqGas(params_2, None))?;
         config.set_gravity(10.0)?; // m/s²
         Geostatics::new(&config)?;
         Ok(())
