@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{ElementConfig, ModelRealDensity, SimConfig, StrError};
+use crate::{ElementConfig, ModelPorousSolLiq, ModelPorousSolLiqGas, ModelRealDensity, SimConfig, StrError};
 use gemlab::mesh::{At, CellAttributeId, CellId, PointId};
 use russell_tensor::Tensor2;
 use std::collections::{HashMap, HashSet};
@@ -133,7 +133,7 @@ fn find_layers_top_to_bottom(config: &SimConfig) -> Result<Vec<LayerLimits>, Str
             .element_configs
             .get(&attribute_id)
             .ok_or("cannot find CellAttributeId in SimConfig")?;
-        match &element_config {
+        match element_config {
             ElementConfig::PorousSolLiq(..) | ElementConfig::PorousSolLiqGas(..) => (),
             _ => continue, // skip other elements
         }
@@ -185,10 +185,19 @@ impl Geostatics {
         let layers_top_to_bottom = find_layers_top_to_bottom(config)?;
 
         // compute overburden stress
-        let mut cumulated_overburden = 0.0;
+        let two_dim = space_ndim == 2;
+        let mut cumulated_overburden_stress = 0.0;
         for (attribute_id, limits) in &layers_top_to_bottom {
             let element_config = config.element_configs.get(attribute_id).unwrap();
-            println!("{:?}", element_config);
+            match element_config {
+                ElementConfig::PorousSolLiq(params, _) => {
+                    let model = ModelPorousSolLiq::new(params, two_dim)?;
+                }
+                ElementConfig::PorousSolLiqGas(params, _) => {
+                    let model = ModelPorousSolLiqGas::new(params, two_dim)?;
+                }
+                _ => (),
+            }
             // TODO
         }
 

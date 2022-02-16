@@ -71,6 +71,11 @@ impl ModelLiquidRetention {
         })
     }
 
+    /// Returns the maximum liquid saturation
+    pub fn get_sl_max(&self) -> f64 {
+        self.model.saturation_limits().1
+    }
+
     /// Returns the updated saturation sl_new for given (pc,sl) and Δpc = pc_new - pc
     ///
     /// See Algorithm 2 in the following reference:
