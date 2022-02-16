@@ -222,10 +222,11 @@ mod tests {
         let p111 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
         let p222 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
         let p333 = SampleParams::params_solid();
-        config.elements(111, ElementConfig::PorousSolLiqGas(p111, None))?;
-        config.elements(222, ElementConfig::PorousSolLiqGas(p222, None))?;
-        config.elements(333, ElementConfig::Solid(p333, None))?;
-        config.set_gravity(10.0)?; // m/s²
+        config
+            .elements(111, ElementConfig::PorousSolLiqGas(p111, None))?
+            .elements(222, ElementConfig::PorousSolLiqGas(p222, None))?
+            .elements(333, ElementConfig::Solid(p333, None))?
+            .set_gravity(10.0)?; // m/s²
         let layers = find_layers_top_to_bottom(&config)?;
         assert_eq!(layers[0], (222, (1.0, 3.0)));
         assert_eq!(layers[1], (111, (0.0, 1.0)));
@@ -235,10 +236,11 @@ mod tests {
         let p1 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
         let p2 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
         let p3 = SampleParams::params_solid();
-        config.elements(1, ElementConfig::PorousSolLiqGas(p1, None))?;
-        config.elements(2, ElementConfig::PorousSolLiqGas(p2, None))?;
-        config.elements(3, ElementConfig::Solid(p3, None))?;
-        config.set_gravity(10.0)?; // m/s²
+        config
+            .elements(1, ElementConfig::PorousSolLiqGas(p1, None))?
+            .elements(2, ElementConfig::PorousSolLiqGas(p2, None))?
+            .elements(3, ElementConfig::Solid(p3, None))?
+            .set_gravity(10.0)?; // m/s²
         let layers = find_layers_top_to_bottom(&config)?;
         assert_eq!(layers[0], (2, (1.0, 3.0)));
         assert_eq!(layers[1], (1, (0.0, 1.0)));
@@ -252,10 +254,11 @@ mod tests {
         let p111 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
         let p222 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
         let p333 = SampleParams::params_solid();
-        config.elements(111, ElementConfig::PorousSolLiqGas(p111, None))?;
-        config.elements(222, ElementConfig::PorousSolLiqGas(p222, None))?;
-        config.elements(333, ElementConfig::Solid(p333, None))?;
-        config.set_gravity(10.0)?; // m/s²
+        config
+            .elements(111, ElementConfig::PorousSolLiqGas(p111, None))?
+            .elements(222, ElementConfig::PorousSolLiqGas(p222, None))?
+            .elements(333, ElementConfig::Solid(p333, None))?
+            .set_gravity(10.0)?; // m/s²
         Geostatics::new(&config)?;
         Ok(())
     }
