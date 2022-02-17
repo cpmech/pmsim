@@ -1,32 +1,44 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::*;
-use gemlab::mesh::Cell;
+use crate::{
+    Element, EquationNumbers, ModelPorousSolLiqGas, ParamPorousSolLiqGas, SimStateInitializer, StateElement, StrError,
+};
+use gemlab::shapes::Shape;
 
 /// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
-pub struct ElementPorousUsPlPg<'a> {
-    cell: &'a Cell, // geometry: mesh cell
+pub struct ElementPorousUsPlPg {
+    shape: Shape,
+    model: ModelPorousSolLiqGas, // material model
 }
 
-impl<'a> ElementPorousUsPlPg<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamPorousSolLiqGas, nip: Nip) -> Self {
-        ElementPorousUsPlPg { cell }
+impl ElementPorousUsPlPg {
+    pub fn new(shape: Shape, params: &ParamPorousSolLiqGas, n_integ_point: Option<usize>) -> Result<Self, StrError> {
+        let two_dim = shape.space_ndim == 2;
+        Ok(ElementPorousUsPlPg {
+            shape,
+            model: ModelPorousSolLiqGas::new(params, two_dim)?,
+        })
     }
 }
 
-impl Element for ElementPorousUsPlPg<'_> {
+impl Element for ElementPorousUsPlPg {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
+    fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
     }
 
+    /// Allocates and initializes the element's state at all integration points
+    fn alloc_state(&self, _initializer: &SimStateInitializer) -> Result<StateElement, StrError> {
+        Ok(StateElement::new_empty())
+    }
+
     /// Computes the element Y-vector
-    fn compute_local_yy_vector(&mut self) -> Result<(), StrError> {
+    fn calc_local_yy_vector(&mut self) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element K-matrix
-    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 

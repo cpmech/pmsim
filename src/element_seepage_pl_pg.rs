@@ -1,32 +1,44 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::*;
-use gemlab::mesh::Cell;
+use crate::{
+    Element, EquationNumbers, ModelSeepageLiqGas, ParamSeepageLiqGas, SimStateInitializer, StateElement, StrError,
+};
+use gemlab::shapes::Shape;
 
 /// Implements the pl-pg (liquid pressure, gas pressure) element for seepage simulations
-pub struct ElementSeepagePlPg<'a> {
-    cell: &'a Cell, // geometry: mesh cell
+pub struct ElementSeepagePlPg {
+    shape: Shape,
+    model: ModelSeepageLiqGas, // material model
 }
 
-impl<'a> ElementSeepagePlPg<'a> {
-    pub fn new(cell: &'a Cell, params: &ParamSeepageLiqGas, nip: Nip) -> Self {
-        ElementSeepagePlPg { cell }
+impl ElementSeepagePlPg {
+    pub fn new(shape: Shape, params: &ParamSeepageLiqGas, n_integ_point: Option<usize>) -> Result<Self, StrError> {
+        let two_dim = shape.space_ndim == 2;
+        Ok(ElementSeepagePlPg {
+            shape,
+            model: ModelSeepageLiqGas::new(params, two_dim)?,
+        })
     }
 }
 
-impl Element for ElementSeepagePlPg<'_> {
+impl Element for ElementSeepagePlPg {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
+    fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         0
     }
 
+    /// Allocates and initializes the element's state at all integration points
+    fn alloc_state(&self, _initializer: &SimStateInitializer) -> Result<StateElement, StrError> {
+        Ok(StateElement::new_empty())
+    }
+
     /// Computes the element Y-vector
-    fn compute_local_yy_vector(&mut self) -> Result<(), StrError> {
+    fn calc_local_yy_vector(&mut self) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element K-matrix
-    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 

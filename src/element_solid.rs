@@ -1,20 +1,23 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::*;
+use crate::{
+    Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, SimStateInitializer, StateElement, StateStress,
+    StrError,
+};
 use gemlab::mesh::Cell;
-use gemlab::shapes::{IntegGDG, IntegTG, Shape, ShapeState};
+use gemlab::shapes::{IntegGDG, IntegTG, Shape};
 use russell_lab::{copy_matrix, copy_vector, Matrix, Vector};
 use russell_tensor::{Tensor2, Tensor4};
+use std::cell::RefCell;
 
 // Implements a finite element for solid mechanics problems
-pub struct ElementSolid<'a> {
-    // cell and shape
-    cell: &'a Cell,         // geometry: mesh cell
-    shape_vars: ShapeState, // state variables for numerical integration
+pub struct ElementSolid {
+    // shape with point ids and integration functions
+    shape: RefCell<Shape>,
 
     // params
-    model: Box<dyn ModelStressStrain>, // material model
-    thickness: f64,                    // thickness
+    model: ModelStressStrain, // material model
+    thickness: f64,           // thickness
 
     // system
     dofs: Vec<Dof>, // degrees-of-freedom per node
@@ -22,40 +25,35 @@ pub struct ElementSolid<'a> {
     kk: Matrix,     // local K-matrix (neq,neq)
 }
 
-impl<'a> ElementSolid<'a> {
+impl ElementSolid {
     pub fn new(
-        cell: &'a Cell,
+        shape: Shape,
         params: &ParamSolid,
-        nip: Nip,
+        n_integ_point: Option<usize>,
         plane_stress: bool,
         thickness: f64,
     ) -> Result<Self, StrError> {
-        // cell and shape
-        let mut shape_vars = ShapeState::new(&cell.shape);
-        if let Some(n) = nip {
-            shape_vars.select_int_points(n)?;
-        }
-
         // model
-        let two_dim = cell.shape.space_ndim == 2;
-        let model = new_stress_strain_model(&params.stress_strain, two_dim, plane_stress);
-
-        // integration points data
-        let space_ndim = cell.shape.space_ndim;
-        let nip = shape_vars.ip_data.len();
+        let two_dim = shape.space_ndim == 2;
+        let model = ModelStressStrain::new(&params.stress_strain, two_dim, plane_stress)?;
 
         // system
-        let dofs = match cell.shape.space_ndim {
+        let dofs = match shape.space_ndim {
             2 => vec![Dof::Ux, Dof::Uy],
             3 => vec![Dof::Ux, Dof::Uy, Dof::Uz],
             _ => return Err("space_ndim is invalid for ElementSolid"),
         };
-        let neq = cell.shape.nnode * dofs.len();
+        let neq = shape.nnode * dofs.len();
+
+        // set integration points constants
+        let shape = RefCell::new(shape);
+        if let Some(n) = n_integ_point {
+            shape.borrow_mut().select_integ_points(n)?;
+        }
 
         // element instance
         Ok(ElementSolid {
-            cell,
-            shape_vars,
+            shape,
             model,
             thickness,
             dofs,
@@ -65,10 +63,10 @@ impl<'a> ElementSolid<'a> {
     }
 }
 
-impl Element for ElementSolid<'_> {
+impl Element for ElementSolid {
     /// Activates an equation number, if not set yet
-    fn activate_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
-        for point_id in &self.cell.points {
+    fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
+        for point_id in &self.shape.borrow().point_ids {
             for dof in &self.dofs {
                 equation_numbers.activate_equation(*point_id, *dof);
             }
@@ -77,13 +75,28 @@ impl Element for ElementSolid<'_> {
         nrow * ncol
     }
 
+    /// Allocates and initializes the element's state at all integration points
+    fn alloc_state(&self, initializer: &SimStateInitializer) -> Result<StateElement, StrError> {
+        let mut shape = self.shape.borrow_mut();
+        let all_ip_coords = shape.calc_integ_points_coords()?;
+        let n_integ_point = shape.integ_points.len();
+        let n_internal_values = self.model.n_internal_values();
+        let two_dim = shape.space_ndim == 2;
+        let mut state = StateElement::new_stress_only(n_integ_point, n_internal_values, two_dim);
+        for index_ip in 0..n_integ_point {
+            initializer.initialize_stress(&mut state.stress[index_ip], &all_ip_coords[index_ip])?;
+            self.model.initialize_internal_values(&mut state.stress[index_ip])?;
+        }
+        Ok(state)
+    }
+
     /// Computes the element Y-vector
-    fn compute_local_yy_vector(&mut self) -> Result<(), StrError> {
+    fn calc_local_yy_vector(&mut self) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element K-matrix
-    fn compute_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 

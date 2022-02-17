@@ -1,6 +1,6 @@
 use crate::{Dof, StrError, NDOF_PER_NODE_TOTAL};
 use gemlab::mesh::PointId;
-use russell_lab::GenericMatrix;
+use russell_lab::NumMatrix;
 use std::fmt;
 
 /// Holds equation numbers (DOF numbers)
@@ -9,7 +9,7 @@ pub struct EquationNumbers {
     count: i32,
 
     /// Equation numbers matrix (npoint,ndof)
-    numbers: GenericMatrix<i32>,
+    numbers: NumMatrix<i32>,
 }
 
 impl EquationNumbers {
@@ -17,7 +17,7 @@ impl EquationNumbers {
     pub fn new(npoint: usize) -> Self {
         EquationNumbers {
             count: 0,
-            numbers: GenericMatrix::filled(npoint, NDOF_PER_NODE_TOTAL, -1),
+            numbers: NumMatrix::filled(npoint, NDOF_PER_NODE_TOTAL, -1),
         }
     }
 
@@ -43,6 +43,14 @@ impl EquationNumbers {
             return Err("equation number has not been set");
         }
         Ok(self.numbers[point_id][dof as usize] as usize)
+    }
+
+    /// Returns the equation number corresponding to a point-DOF pair
+    pub fn get_option_equation_number(&self, point_id: PointId, dof: Dof) -> Option<usize> {
+        if self.numbers[point_id][dof as usize] < 0 {
+            return None;
+        }
+        Some(self.numbers[point_id][dof as usize] as usize)
     }
 }
 
