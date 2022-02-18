@@ -261,6 +261,15 @@ impl<'a> SimConfig<'a> {
         self.ini_option = option;
         Ok(self)
     }
+
+    /// Returns an ElementConfig
+    pub(crate) fn get_element_config(&self, attribute_id: CellAttributeId) -> Result<&ElementConfig, StrError> {
+        let res = self
+            .element_configs
+            .get(&attribute_id)
+            .ok_or("cell attribute id has not been set in SimConfig")?;
+        Ok(res)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
