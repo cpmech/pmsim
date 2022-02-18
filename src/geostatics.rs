@@ -12,7 +12,7 @@ type MinMaxElevation = (f64, f64);
 type LayerLimits = (CellAttributeId, MinMaxElevation);
 
 /// Holds essential information about a porous layer which corresponds to a CellAttributeId
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct PorousLayer {
     pub id: CellAttributeId, // identification number
     pub z_min: f64,          // minimum elevation (y in 2D or z in 3D)
@@ -29,7 +29,7 @@ pub struct PorousLayer {
 ///   with all cells in the same layer having the same CellAttributeId
 #[derive(Clone, Debug)]
 pub struct PorousLayers {
-    pub top_down_layers: Vec<PorousLayer>, // layers sorted from top to down
+    pub top_down: Vec<PorousLayer>, // layers sorted from top to down
 }
 
 impl PorousLayers {
@@ -103,21 +103,22 @@ impl PorousLayers {
         }
 
         // convert map to vec and sort
-        let mut top_down_layers: Vec<_> = layers.keys().map(|k| *layers.get(k).unwrap()).collect();
-        top_down_layers.sort_by(|a, b| b.z_min.partial_cmp(&a.z_min).unwrap());
-        if top_down_layers.len() < 1 {
+        let mut top_down: Vec<_> = layers.keys().map(|k| *layers.get(k).unwrap()).collect();
+        top_down.sort_by(|a, b| b.z_min.partial_cmp(&a.z_min).unwrap());
+        if top_down.len() < 1 {
             return Err("at least one layer (CellAttributeId) is required");
         }
 
-        // total height of the set of layers
-        let height = top_down_layers.first().unwrap().z_max - top_down_layers.last().unwrap().z_min;
+        // total height of the full set of layers
+        let height = top_down.first().unwrap().z_max - top_down.last().unwrap().z_min;
         assert!(height > 0.0);
 
         // compute overburden stress
         let gravity = config.gravity;
         let two_dim = space_ndim == 2;
         let mut cumulated_overburden_stress = 0.0;
-        for layer in &top_down_layers {
+        for layer in &mut top_down {
+            layer.overburden = cumulated_overburden_stress; // the first layer at the top has zero overburden
             let thickness = layer.z_max - layer.z_min;
             assert!(thickness > 0.0);
             let base_elevation = layer.z_min;
@@ -147,7 +148,7 @@ impl PorousLayers {
         }
 
         // done
-        Ok(PorousLayers { top_down_layers })
+        Ok(PorousLayers { top_down })
     }
 }
 
@@ -167,22 +168,14 @@ impl Geostatics {
     /// * The datum is at y=y_min (2D) or z=z_min (3D)
     /// * The water table is at y=y_max (2D) or z=z_max (3D), thus only fully water-saturated (with sl_max) states are considered
     pub fn new(config: &SimConfig) -> Result<Self, StrError> {
-        // check
         let mesh = config.mesh;
         let space_ndim = mesh.space_ndim;
         if space_ndim < 2 || space_ndim > 3 {
             return Err("geostatics initialization requires space_ndim = 2 or 3");
         }
-
-        // find layers
-        let layers = PorousLayers::new(config)?;
-
-        // height of domain (rectangle in 2D or parallepiped in 3D)
-        let height = 0.0; // TODO
-
-        // compute overburden stress
-
-        Ok(Geostatics {})
+        Ok(Geostatics {
+            layers: PorousLayers::new(config)?,
+        })
     }
 
     // pub fn calc_liquid_pressure(&self, coords: &[f64]) -> Result<f64, StrError> {
@@ -201,12 +194,12 @@ impl Geostatics {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_layers_top_to_bottom, Geostatics};
+    use super::{Geostatics, PorousLayers};
     use crate::{ElementConfig, SampleParams, SimConfig, StrError};
     use gemlab::mesh::Mesh;
 
     #[test]
-    fn find_layers_top_to_bottom_works() -> Result<(), StrError> {
+    fn porous_layers_new_works() -> Result<(), StrError> {
         let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
         let p111 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
@@ -217,10 +210,10 @@ mod tests {
             .elements(222, ElementConfig::PorousSolLiqGas(p222, None))?
             .elements(333, ElementConfig::Solid(p333, None))?
             .set_gravity(10.0)?; // m/s²
-        let layers = find_layers_top_to_bottom(&config)?;
-        let p = layers.len() - 1;
-        assert_eq!(layers[0], (222, (1.0, 3.0)));
-        assert_eq!(layers[1], (111, (0.0, 1.0)));
+        let layers = PorousLayers::new(&config)?;
+        assert_eq!(layers.top_down.len(), 2);
+        // assert_eq!(layers., (222, (1.0, 3.0)));
+        // assert_eq!(layers[1], (111, (0.0, 1.0)));
         // assert_eq!(mesh.max[1] - mesh.min[1], layers[0].1 .1 - layers[p].1 .0);
 
         let mut mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
@@ -233,14 +226,15 @@ mod tests {
             .elements(2, ElementConfig::PorousSolLiqGas(p2, None))?
             .elements(3, ElementConfig::Solid(p3, None))?
             .set_gravity(10.0)?; // m/s²
-        let layers = find_layers_top_to_bottom(&config)?;
-        assert_eq!(layers[0], (2, (1.0, 3.0)));
-        assert_eq!(layers[1], (1, (0.0, 1.0)));
+        let layers = PorousLayers::new(&config)?;
+        assert_eq!(layers.top_down.len(), 2);
+        // assert_eq!(layers[0], (2, (1.0, 3.0)));
+        // assert_eq!(layers[1], (1, (0.0, 1.0)));
         Ok(())
     }
 
     #[test]
-    fn new_works() -> Result<(), StrError> {
+    fn geostatics_new_works() -> Result<(), StrError> {
         let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
         let p111 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
