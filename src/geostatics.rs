@@ -195,11 +195,13 @@ impl Geostatics {
 #[cfg(test)]
 mod tests {
     use super::{Geostatics, PorousLayers};
-    use crate::{ElementConfig, ParamPorousSolLiqGas, ParamSolid, SampleParams, SimConfig, StrError};
+    use crate::{
+        ElementConfig, ParamPorousSolLiq, ParamPorousSolLiqGas, ParamSolid, SampleParams, SimConfig, StrError,
+    };
     use gemlab::mesh::Mesh;
     use russell_chk::assert_approx_eq;
 
-    // Returns the parameters of a two-layers column for testing
+    // Returns the parameters of a two-layer column with solid-liquid-gas
     fn two_layers_slg(height: f64, z_middle: f64) -> (ParamSolid, ParamPorousSolLiqGas, ParamPorousSolLiqGas, f64) {
         // parameters
         let footing = SampleParams::params_solid();
@@ -209,7 +211,7 @@ mod tests {
         let g = 10.0; // gravity
         let sl_max = 0.95; // max liquid saturation
         let hh = height; // height of porous column
-        let z = z_middle; // at bottom of upper layer
+        let z = z_middle; // at the middle of upper layer
         let nf0 = upper.porosity_initial;
         let rho_ss = upper.density_solid;
         // liquid
@@ -218,27 +220,56 @@ mod tests {
         let cc_l = upper.density_liquid.cc;
         let pl_mid = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
         let rho_l_mid = rho_l_ref + cc_l * (pl_mid - pl_ref);
-        // println!("pl_bottom = {}, rho_l_bottom = {}", pl_bottom, rho_l_bottom);
+        println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
         assert_approx_eq!(pl_mid, 2.0 * g * 1.0, 1e-4);
         assert_approx_eq!(rho_l_mid, 1.0, 1e-5);
         // gas
         let rho_g_ref = upper.density_gas.rho_ref;
         let pg_ref = upper.density_gas.p_ref;
         let cc_g = upper.density_gas.cc;
-        let pg_bottom = pg_ref + (rho_g_ref / cc_g) * (f64::exp(g * cc_g * (hh - z)) - 1.0);
-        let rho_g_bottom = rho_g_ref + cc_g * (pg_bottom - pg_ref);
-        // println!("pg_bottom = {}, rho_g_bottom = {}", pg_bottom, rho_g_bottom);
-        assert_approx_eq!(pg_bottom, 2.0 * g * 0.0012, 1e-5);
-        assert_approx_eq!(rho_g_bottom, 0.0012, 1e-6);
+        let pg_mid = pg_ref + (rho_g_ref / cc_g) * (f64::exp(g * cc_g * (hh - z)) - 1.0);
+        let rho_g_mid = rho_g_ref + cc_g * (pg_mid - pg_ref);
+        println!("pg_mid = {}, rho_g_mid = {}", pg_mid, rho_g_mid);
+        assert_approx_eq!(pg_mid, 2.0 * g * 0.0012, 1e-5);
+        assert_approx_eq!(rho_g_mid, 0.0012, 1e-6);
         // mixture
-        let rho_mid = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_mid + nf0 * (1.0 - sl_max) * rho_g_bottom;
-        // println!("rho_bottom = {}", rho_bottom);
+        let rho_mid = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_mid + nf0 * (1.0 - sl_max) * rho_g_mid;
+        println!("rho_mid = {}", rho_mid);
+        // done
+        (footing, upper, lower, rho_mid)
+    }
+    // Returns the parameters of a two-layer column with solid-liquid
+    fn two_layers_sl(height: f64, z_middle: f64) -> (ParamSolid, ParamPorousSolLiq, ParamPorousSolLiq, f64) {
+        // parameters
+        let footing = SampleParams::params_solid();
+        let upper = SampleParams::params_porous_sol_liq(0.4, 1e-2);
+        let lower = SampleParams::params_porous_sol_liq(0.2, 1e-2);
+        // constants
+        let g = 10.0; // gravity
+        let sl_max = 0.95; // max liquid saturation
+        let hh = height; // height of porous column
+        let z = z_middle; // at the middle of upper layer
+        let nf0 = upper.porosity_initial;
+        let rho_ss = upper.density_solid;
+        // liquid
+        let rho_l_ref = upper.density_liquid.rho_ref;
+        let pl_ref = upper.density_liquid.p_ref;
+        let cc_l = upper.density_liquid.cc;
+        let pl_mid = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
+        let rho_l_mid = rho_l_ref + cc_l * (pl_mid - pl_ref);
+        println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
+        assert_approx_eq!(pl_mid, 2.0 * g * 1.0, 1e-4);
+        assert_approx_eq!(rho_l_mid, 1.0, 1e-5);
+        // mixture
+        let rho_mid = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_mid;
+        println!("rho_mid = {}", rho_mid);
         // done
         (footing, upper, lower, rho_mid)
     }
 
     #[test]
     fn porous_layers_new_works() -> Result<(), StrError> {
+        // solid-liquid-gas
         let (footing, upper, lower, rho_mid) = two_layers_slg(3.0, 1.0);
         let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
@@ -261,14 +292,16 @@ mod tests {
         assert_eq!(bottom.z_max, 1.0);
         assert_approx_eq!(bottom.overburden, 2.0 * 10.0 * rho_mid, 1e-15);
 
+        // solid-liquid
+        let (footing, upper, lower, rho_mid) = two_layers_sl(3.0, 1.0);
         let mut mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
-        let p1 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
-        let p2 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
+        let p1 = SampleParams::params_porous_sol_liq(0.2, 1e-2);
+        let p2 = SampleParams::params_porous_sol_liq(0.4, 1e-2);
         let p3 = SampleParams::params_solid();
         config
-            .elements(1, ElementConfig::PorousSolLiqGas(lower, None))?
-            .elements(2, ElementConfig::PorousSolLiqGas(upper, None))?
+            .elements(1, ElementConfig::PorousSolLiq(lower, None))?
+            .elements(2, ElementConfig::PorousSolLiq(upper, None))?
             .elements(3, ElementConfig::Solid(footing, None))?
             .set_gravity(10.0)?; // m/s²
         let layers = PorousLayers::new(&config)?;
