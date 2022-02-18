@@ -1,5 +1,3 @@
-#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
-
 use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, IniOption, Nbc, ProblemType, StrError};
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
 use std::collections::HashMap;
@@ -33,14 +31,14 @@ pub struct SimConfig<'a> {
     /// Thickness for plane-stress or 1.0 otherwise
     pub(crate) thickness: f64,
 
-    /// 2D flag (space_ndim == 2)
-    pub(crate) two_dim: bool,
-
     /// 2D plane-stress problem, otherwise plane-strain in 2D
     pub(crate) plane_stress: bool,
 
     /// Option to initialize stress state
     pub(crate) ini_option: IniOption,
+
+    with_pl_only: bool,   // with liquid pressure only
+    with_pl_and_pg: bool, // with liquid and gas pressures
 }
 
 impl<'a> SimConfig<'a> {
@@ -56,9 +54,10 @@ impl<'a> SimConfig<'a> {
             problem_type: None,
             gravity: 0.0,
             thickness: 1.0,
-            two_dim: mesh.space_ndim == 2,
             plane_stress: false,
             ini_option: IniOption::Zero,
+            with_pl_only: false,
+            with_pl_and_pg: false,
         }
     }
 
@@ -157,34 +156,52 @@ impl<'a> SimConfig<'a> {
     /// * ElementConfig::Porous
     pub fn elements(&mut self, attribute_id: CellAttributeId, config: ElementConfig) -> Result<&mut Self, StrError> {
         // handle problem type
+        let (mut set_liq, mut set_liq_and_gas) = (false, false);
         match config {
             ElementConfig::Rod(..) | ElementConfig::Beam(..) | ElementConfig::Solid(..) => match self.problem_type {
                 Some(p) => {
                     if p == ProblemType::Seepage {
                         return Err("rod, beam, or solid config cannot be mixed with seepage configs");
                     }
+                    // ok if Porous was set already
                 }
                 None => self.problem_type = Some(ProblemType::Solid),
             },
-            ElementConfig::Porous(..) => match self.problem_type {
-                Some(p) => {
-                    if p == ProblemType::Seepage {
-                        return Err("porous config cannot be mixed with seepage configs");
-                    } else {
-                        self.problem_type = Some(ProblemType::Porous); // override Solid config, eventually
-                    }
+            ElementConfig::Porous(params, _) => {
+                match params.density_gas {
+                    Some(_) => set_liq_and_gas = true,
+                    None => set_liq = true,
                 }
-                None => self.problem_type = Some(ProblemType::Porous),
-            },
-            ElementConfig::Seepage(..) => match self.problem_type {
-                Some(p) => {
-                    if p != ProblemType::Seepage {
-                        return Err("seepage config cannot be mixed with other configs");
+                match self.problem_type {
+                    Some(p) => {
+                        if p == ProblemType::Seepage {
+                            return Err("porous config cannot be mixed with seepage configs");
+                        } else {
+                            self.problem_type = Some(ProblemType::Porous); // override Solid config, eventually
+                        }
                     }
+                    None => self.problem_type = Some(ProblemType::Porous),
                 }
-                None => self.problem_type = Some(ProblemType::Seepage),
-            },
+            }
+            ElementConfig::Seepage(params, _) => {
+                match params.density_gas {
+                    Some(_) => set_liq_and_gas = true,
+                    None => set_liq = true,
+                }
+                match self.problem_type {
+                    Some(p) => {
+                        if p != ProblemType::Seepage {
+                            return Err("seepage config cannot be mixed with other configs");
+                        }
+                    }
+                    None => self.problem_type = Some(ProblemType::Seepage),
+                }
+            }
         };
+        // check
+        if (set_liq && self.with_pl_and_pg) || (set_liq_and_gas && self.with_pl_only) {
+            return Err("cannot mix configurations with liquid-only and liquid-and-gas");
+        }
         // store element config
         self.element_configs.insert(attribute_id, config);
         Ok(self)
@@ -262,7 +279,7 @@ mod tests {
         //  |        |        |
         //  0--------1--------4
         //
-        let mut mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
+        let mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
 
         let origin = mesh.find_boundary_points(At::XY(0.0, 0.0))?;
         let bottom = mesh.find_boundary_edges(At::Y(0.0))?;
