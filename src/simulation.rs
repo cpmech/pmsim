@@ -58,20 +58,12 @@ impl<'a> Simulation<'a> {
                     let ele = ElementSolid::new(shape, params, *n_integ_point, plane_stress, thickness)?;
                     Box::new(ele)
                 }
-                SeepageLiq(params, n_integ_point) => {
-                    let ele = ElementSeepagePl::new(shape, params, *n_integ_point)?;
-                    Box::new(ele)
-                }
-                SeepageLiqGas(params, n_integ_point) => {
-                    let ele = ElementSeepagePlPg::new(shape, params, *n_integ_point)?;
-                    Box::new(ele)
-                }
-                PorousSolLiq(params, n_integ_point) => {
-                    let ele = ElementPorousUsPl::new(shape, params, *n_integ_point)?;
-                    Box::new(ele)
-                }
-                PorousSolLiqGas(params, n_integ_point) => {
+                Porous(params, n_integ_point) => {
                     let ele = ElementPorousUsPlPg::new(shape, params, *n_integ_point)?;
+                    Box::new(ele)
+                }
+                Seepage(params, n_integ_point) => {
+                    let ele = ElementSeepagePlPg::new(shape, params, *n_integ_point)?;
                     Box::new(ele)
                 }
             };
@@ -124,7 +116,7 @@ mod tests {
         let params_1 = SampleParams::params_solid();
         let params_2 = SampleParams::params_porous_sol_liq_gas(0.3, 1e-2);
         config.elements(1, ElementConfig::Solid(params_1, None))?;
-        config.elements(2, ElementConfig::PorousSolLiqGas(params_2, None))?;
+        config.elements(2, ElementConfig::Porous(params_2, None))?;
 
         config.set_gravity(10.0)?; // m/s²
 

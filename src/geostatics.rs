@@ -1,4 +1,4 @@
-use crate::{ElementConfig, ModelPorousSolLiq, ModelPorousSolLiqGas, SimConfig, StrError};
+use crate::{ElementConfig, ModelPorous, SimConfig, StrError};
 use gemlab::mesh::{At, CellAttributeId, CellId};
 use std::collections::{HashMap, HashSet};
 
@@ -70,7 +70,7 @@ impl PorousLayers {
                 .get(&attribute_id)
                 .ok_or("cannot find CellAttributeId in SimConfig")?;
             match element_config {
-                ElementConfig::PorousSolLiq(..) | ElementConfig::PorousSolLiqGas(..) => (),
+                ElementConfig::Porous(..) => (),
                 _ => continue, // skip other elements
             }
             let shape = mesh.alloc_shape_cell(*cell_id)?;
@@ -115,22 +115,9 @@ impl PorousLayers {
             let base_elevation = layer.z_min;
             let element_config = config.element_configs.get(&layer.id).unwrap();
             let rho_ini = match element_config {
-                ElementConfig::PorousSolLiq(params, _) => {
-                    let porous = ModelPorousSolLiq::new(params, two_dim)?;
-                    let pl = porous
-                        .model_density_liquid
-                        .pressure_at_elevation(base_elevation, height, gravity)?;
-                    porous.calc_rho_ini(pl)?
-                }
-                ElementConfig::PorousSolLiqGas(params, _) => {
-                    let porous = ModelPorousSolLiqGas::new(params, two_dim)?;
-                    let pl = porous
-                        .model_density_liquid
-                        .pressure_at_elevation(base_elevation, height, gravity)?;
-                    let pg = porous
-                        .model_density_gas
-                        .pressure_at_elevation(base_elevation, height, gravity)?;
-                    porous.calc_rho_ini(pl, pg)?
+                ElementConfig::Porous(params, _) => {
+                    let model = ModelPorous::new(params, two_dim)?;
+                    model.calc_rho_ini(base_elevation, height, gravity)?
                 }
                 _ => panic!("INTERNAL ERROR: only porous models should be in the layers vector"),
             };
@@ -186,14 +173,12 @@ impl Geostatics {
 #[cfg(test)]
 mod tests {
     use super::{Geostatics, PorousLayers};
-    use crate::{
-        ElementConfig, ParamPorousSolLiq, ParamPorousSolLiqGas, ParamSolid, SampleParams, SimConfig, StrError,
-    };
+    use crate::{ElementConfig, ParamPorous, ParamSolid, SampleParams, SimConfig, StrError};
     use gemlab::mesh::Mesh;
     use russell_chk::assert_approx_eq;
 
     // Returns the parameters of a two-layer column with solid-liquid-gas
-    fn two_layers_slg(height: f64, z_middle: f64) -> (ParamSolid, ParamPorousSolLiqGas, ParamPorousSolLiqGas, f64) {
+    fn two_layers_slg(height: f64, z_middle: f64) -> (ParamSolid, ParamPorous, ParamPorous, f64) {
         // parameters
         let footing = SampleParams::params_solid();
         let upper = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
@@ -215,9 +200,10 @@ mod tests {
         assert_approx_eq!(pl_mid, 2.0 * g * 1.0, 1e-4);
         assert_approx_eq!(rho_l_mid, 1.0, 1e-5);
         // gas
-        let rho_g_ref = upper.density_gas.rho_ref;
-        let pg_ref = upper.density_gas.p_ref;
-        let cc_g = upper.density_gas.cc;
+        let (rho_g_ref, pg_ref, cc_g) = match upper.density_gas {
+            Some(m) => (m.rho_ref, m.p_ref, m.cc),
+            None => (0.0, 0.0, 0.0),
+        };
         let pg_mid = pg_ref + (rho_g_ref / cc_g) * (f64::exp(g * cc_g * (hh - z)) - 1.0);
         let rho_g_mid = rho_g_ref + cc_g * (pg_mid - pg_ref);
         // println!("pg_mid = {}, rho_g_mid = {}", pg_mid, rho_g_mid);
@@ -231,7 +217,7 @@ mod tests {
     }
 
     // Returns the parameters of a two-layer column with solid-liquid
-    fn two_layers_sl(height: f64, z_middle: f64) -> (ParamSolid, ParamPorousSolLiq, ParamPorousSolLiq, f64) {
+    fn two_layers_sl(height: f64, z_middle: f64) -> (ParamSolid, ParamPorous, ParamPorous, f64) {
         // parameters
         let footing = SampleParams::params_solid();
         let upper = SampleParams::params_porous_sol_liq(0.4, 1e-2);
@@ -260,10 +246,7 @@ mod tests {
     }
 
     // Returns the parameters of a two-layer column with solid-liquid (nearly incompressible liquid)
-    fn two_layers_sl_incompressible(
-        height: f64,
-        z_middle: f64,
-    ) -> (ParamSolid, ParamPorousSolLiq, ParamPorousSolLiq, f64) {
+    fn two_layers_sl_incompressible(height: f64, z_middle: f64) -> (ParamSolid, ParamPorous, ParamPorous, f64) {
         // parameters
         let footing = SampleParams::params_solid();
         let upper = SampleParams::params_porous_sol_liq_incompressible(0.4, 1e-2);
@@ -298,8 +281,8 @@ mod tests {
         let mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
         config
-            .elements(111, ElementConfig::PorousSolLiqGas(lower, None))?
-            .elements(222, ElementConfig::PorousSolLiqGas(upper, None))?
+            .elements(111, ElementConfig::Porous(lower, None))?
+            .elements(222, ElementConfig::Porous(upper, None))?
             .elements(333, ElementConfig::Solid(footing, None))?
             .set_gravity(10.0)?; // m/s²
 
@@ -321,8 +304,8 @@ mod tests {
         let mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
         config
-            .elements(1, ElementConfig::PorousSolLiq(lower, None))?
-            .elements(2, ElementConfig::PorousSolLiq(upper, None))?
+            .elements(1, ElementConfig::Porous(lower, None))?
+            .elements(2, ElementConfig::Porous(upper, None))?
             .elements(3, ElementConfig::Solid(footing, None))?
             .set_gravity(10.0)?; // m/s²
         let layers = PorousLayers::new(&config)?;
@@ -351,8 +334,8 @@ mod tests {
         let mesh = Mesh::from_text_file("./data/meshes/column_two_layers_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
         config
-            .elements(1, ElementConfig::PorousSolLiq(lower, None))?
-            .elements(2, ElementConfig::PorousSolLiq(upper, None))?
+            .elements(1, ElementConfig::Porous(lower, None))?
+            .elements(2, ElementConfig::Porous(upper, None))?
             .elements(3, ElementConfig::Solid(footing, None))?
             .set_gravity(10.0)?; // m/s²
         let geo = Geostatics::new(&config)?;

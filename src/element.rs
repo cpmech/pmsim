@@ -6,10 +6,8 @@ pub enum ElementConfig {
     Rod(ParamRod),
     Beam(ParamBeam),
     Solid(ParamSolid, Option<usize>),
-    SeepageLiq(ParamSeepageLiq, Option<usize>),
-    SeepageLiqGas(ParamSeepageLiqGas, Option<usize>),
-    PorousSolLiq(ParamPorousSolLiq, Option<usize>),
-    PorousSolLiqGas(ParamPorousSolLiqGas, Option<usize>),
+    Porous(ParamPorous, Option<usize>),
+    Seepage(ParamSeepage, Option<usize>),
 }
 
 /// Defines the problem type
@@ -25,14 +23,12 @@ pub enum ElementConfig {
 /// * ElementConfig::Rod
 /// * ElementConfig::Beam
 /// * ElementConfig::Solid
-/// * ElementConfig::Porous{SolLiq,SolLiqGas}
+/// * ElementConfig::Porous
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ProblemType {
     Solid,
-    SeepageLiq,
-    SeepageLiqGas,
-    PorousSolLiq,
-    PorousSolLiqGas,
+    Porous,
+    Seepage,
 }
 
 /// Defines a trait for (finite) elements

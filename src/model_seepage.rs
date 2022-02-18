@@ -1,43 +1,40 @@
-use crate::{ModelConductivity, ModelLiquidRetention, ModelRealDensity, ParamSeepageLiq, ParamSeepageLiqGas, StrError};
+use crate::{ModelConductivity, ModelLiquidRetention, ModelRealDensity, ParamSeepage, StrError};
 
-pub struct ModelSeepageLiq {
-    pub porosity_initial: f64,
-    pub model_density_liquid: ModelRealDensity,
-    pub model_conductivity_liquid: ModelConductivity,
-    pub model_retention_liquid: ModelLiquidRetention,
+pub struct ModelSeepage {
+    pub retention_liquid: ModelLiquidRetention,
+    pub conductivity_liquid: ModelConductivity,
+    pub density_liquid: ModelRealDensity,
+    pub conductivity_gas: Option<ModelConductivity>,
+    pub density_gas: Option<ModelRealDensity>,
+
+    pub nf_ini: f64, // initial porosity
+    pub sl_max: f64, // maximum liquid saturation
 }
 
-pub struct ModelSeepageLiqGas {
-    pub porosity_initial: f64,
-    pub model_density_liquid: ModelRealDensity,
-    pub model_density_gas: ModelRealDensity,
-    pub model_conductivity_liquid: ModelConductivity,
-    pub model_conductivity_gas: ModelConductivity,
-    pub model_retention_liquid: ModelLiquidRetention,
-}
-
-impl ModelSeepageLiq {
-    pub fn new(params: &ParamSeepageLiq, two_dim: bool) -> Result<Self, StrError> {
-        let model = ModelSeepageLiq {
-            porosity_initial: params.porosity_initial,
-            model_density_liquid: ModelRealDensity::new(&params.density_liquid)?,
-            model_conductivity_liquid: ModelConductivity::new(&params.conductivity_liquid, two_dim)?,
-            model_retention_liquid: ModelLiquidRetention::new(&params.retention_liquid)?,
+impl ModelSeepage {
+    pub fn new(params: &ParamSeepage, two_dim: bool) -> Result<Self, StrError> {
+        let retention_liquid = ModelLiquidRetention::new(&params.retention_liquid)?;
+        let sl_max = retention_liquid.get_sl_max();
+        let model = ModelSeepage {
+            retention_liquid,
+            conductivity_liquid: ModelConductivity::new(&params.conductivity_liquid, two_dim)?,
+            density_liquid: ModelRealDensity::new(&params.density_liquid)?,
+            conductivity_gas: match params.conductivity_gas {
+                Some(v) => Some(ModelConductivity::new(&v, two_dim)?),
+                None => None,
+            },
+            density_gas: match params.density_gas {
+                Some(v) => Some(ModelRealDensity::new(&v)?),
+                None => None,
+            },
+            nf_ini: params.porosity_initial,
+            sl_max,
         };
-        Ok(model)
-    }
-}
-
-impl ModelSeepageLiqGas {
-    pub fn new(params: &ParamSeepageLiqGas, two_dim: bool) -> Result<Self, StrError> {
-        let model = ModelSeepageLiqGas {
-            porosity_initial: params.porosity_initial,
-            model_density_liquid: ModelRealDensity::new(&params.density_liquid)?,
-            model_density_gas: ModelRealDensity::new(&params.density_gas)?,
-            model_conductivity_liquid: ModelConductivity::new(&params.conductivity_liquid, two_dim)?,
-            model_conductivity_gas: ModelConductivity::new(&params.conductivity_gas, two_dim)?,
-            model_retention_liquid: ModelLiquidRetention::new(&params.retention_liquid)?,
-        };
+        if let Some(_) = model.density_gas {
+            if model.sl_max >= 1.0 {
+                return Err("with the gas phase, the maximum liquid saturation must be smaller than 1.0");
+            }
+        }
         Ok(model)
     }
 }

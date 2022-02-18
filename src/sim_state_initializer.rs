@@ -41,7 +41,7 @@ impl SimStateInitializer {
         //     _ => None,
         // };
         // Ok(SimStateInitializer { config, model_water })
-        Err("")
+        Err("TODO")
     }
 
     pub fn initialize_stress(&self, state: &mut StateStress, ip_coords: &Vector) -> Result<(), StrError> {

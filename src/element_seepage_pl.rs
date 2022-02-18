@@ -1,20 +1,20 @@
 #![allow(dead_code, unused_mut, unused_variables)]
 
-use crate::{Element, EquationNumbers, ModelSeepageLiq, ParamSeepageLiq, SimStateInitializer, StateElement, StrError};
+use crate::{Element, EquationNumbers, ModelSeepage, ParamSeepage, SimStateInitializer, StateElement, StrError};
 use gemlab::shapes::Shape;
 
 /// Implements the pl (liquid pressure) element for seepage simulations
 pub struct ElementSeepagePl {
     shape: Shape,
-    model: ModelSeepageLiq, // material model
+    model: ModelSeepage, // material model
 }
 
 impl ElementSeepagePl {
-    pub fn new(shape: Shape, params: &ParamSeepageLiq, n_integ_point: Option<usize>) -> Result<Self, StrError> {
+    pub fn new(shape: Shape, params: &ParamSeepage, n_integ_point: Option<usize>) -> Result<Self, StrError> {
         let two_dim = shape.space_ndim == 2;
         Ok(ElementSeepagePl {
             shape,
-            model: ModelSeepageLiq::new(params, two_dim)?,
+            model: ModelSeepage::new(params, two_dim)?,
         })
     }
 }
