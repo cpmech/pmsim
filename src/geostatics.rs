@@ -10,12 +10,13 @@ struct LayerInfo {
     z_max: f64,          // maximum elevation (y in 2D or z in 3D)
 }
 
-/// Holds data corresponding to a porous layer connected to a CellAttributeId
+/// Holds data for a porous layer corresponding to a CellAttributeId
 struct PorousLayer {
-    z_min: f64,         // minimum elevation (y in 2D or z in 3D)
-    z_max: f64,         // maximum elevation (y in 2D or z in 3D)
-    overburden: f64,    // vertical stress (total, **not** effective) at the top (z_max) of the layer
-    model: ModelPorous, // material models
+    id: CellAttributeId, // identification number = CellAttributeId
+    z_min: f64,          // minimum elevation (y in 2D or z in 3D)
+    z_max: f64,          // maximum elevation (y in 2D or z in 3D)
+    overburden: f64,     // vertical stress (total, **not** effective) at the top (z_max) of the layer
+    model: ModelPorous,  // material models
 }
 
 /// Implements geostatics for a rectangular (2D) or parallepiped (3D) mesh
@@ -36,7 +37,7 @@ pub struct Geostatics {
 }
 
 impl Geostatics {
-    /// Returns a new instance of Geostatics
+    /// Returns a new instance of Geostatics with layers computed and models allocated
     pub fn new(config: &SimConfig) -> Result<Self, StrError> {
         // mesh and space_ndim
         let mesh = config.mesh;
@@ -73,7 +74,7 @@ impl Geostatics {
             }
         }
 
-        // find porous layers (unsorted)
+        // collect attribute ids and z_min/z_max of layers
         let mut infos: HashMap<CellAttributeId, LayerInfo> = HashMap::new();
         for cell_id in &cells_near_x_min {
             let cell = &mesh.cells[*cell_id];
@@ -110,15 +111,16 @@ impl Geostatics {
 
         // allocate vector of porous layers
         let mut layers: Vec<PorousLayer> = Vec::new();
-        for layer in &top_down {
-            let element_config = config.get_element_config(layer.id)?;
+        for info in &top_down {
+            let element_config = config.get_element_config(info.id)?;
             let model = match element_config {
                 ElementConfig::Porous(params, _) => ModelPorous::new(params, two_dim)?,
-                _ => panic!("INTERNAL ERROR: element_config is missing"), // not supposed to happen due to previous loop
+                _ => panic!("INTERNAL ERROR: element_config is missing"), // not supposed to happen
             };
             layers.push(PorousLayer {
-                z_min: layer.z_min,
-                z_max: layer.z_max,
+                id: info.id,
+                z_min: info.z_min,
+                z_max: info.z_max,
                 overburden: 0.0,
                 model,
             })
@@ -135,8 +137,7 @@ impl Geostatics {
             layer.overburden = cumulated_overburden_stress; // the first layer at the top has zero overburden
             let thickness = layer.z_max - layer.z_min;
             assert!(thickness > 0.0);
-            let elevation = layer.z_min;
-            let rho_ini = layer.model.calc_rho_ini(elevation, height, gravity)?;
+            let rho_ini = layer.model.calc_rho_ini(layer.z_min, height, gravity)?;
             let delta_sigma_v = rho_ini * config.gravity * thickness;
             cumulated_overburden_stress += delta_sigma_v;
         }
