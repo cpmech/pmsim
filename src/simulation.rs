@@ -1,10 +1,8 @@
-#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
-
-use crate::ElementConfig::*;
-use crate::*;
+use crate::{alloc_element, Element, EquationNumbers, SimConfig, SimState, SimStateInitializer, StrError};
 use russell_lab::Vector;
 use russell_sparse::{SparseTriplet, Symmetry};
 
+#[allow(dead_code)]
 pub struct Simulation<'a> {
     /// Access to configuration
     config: &'a SimConfig<'a>,
@@ -32,41 +30,10 @@ impl<'a> Simulation<'a> {
         let initializer = SimStateInitializer::new(&config)?;
 
         // loop over all cells and allocate elements
-        let (plane_stress, thickness) = (config.plane_stress, config.thickness);
         let mut nnz_max = 0;
         for cell in &config.mesh.cells {
-            // get element configuration
-            let element_config = match config.element_configs.get(&cell.attribute_id) {
-                Some(c) => c,
-                None => return Err("cannot find element configuration for a cell attribute id"),
-            };
-
-            // allocate shape (=> move to Element)
-            let shape = config.mesh.alloc_shape_cell(cell.id)?;
-
             // allocate element
-            let element: Box<dyn Element> = match element_config {
-                Rod(params) => {
-                    let ele = ElementRod::new(shape, params)?;
-                    Box::new(ele)
-                }
-                Beam(params) => {
-                    let ele = ElementBeam::new(shape, params)?;
-                    Box::new(ele)
-                }
-                Solid(params, n_integ_point) => {
-                    let ele = ElementSolid::new(shape, params, *n_integ_point, plane_stress, thickness)?;
-                    Box::new(ele)
-                }
-                Porous(params, n_integ_point) => {
-                    let ele = ElementPorousUsPlPg::new(shape, params, *n_integ_point)?;
-                    Box::new(ele)
-                }
-                Seepage(params, n_integ_point) => {
-                    let ele = ElementSeepagePlPg::new(shape, params, *n_integ_point)?;
-                    Box::new(ele)
-                }
-            };
+            let element = alloc_element(config, cell.id)?;
 
             // set DOFs and estimate the max number of non-zeros in the K-matrix
             nnz_max += element.set_equation_numbers(&mut equation_numbers);
@@ -86,19 +53,18 @@ impl<'a> Simulation<'a> {
         sim_state.system_xx = Vector::new(neq);
         sim_state.system_yy = Vector::new(neq);
 
-        // simulation data
-        let mut simulation = Simulation {
+        // done
+        Ok(Simulation {
             config,
             elements,
             equation_numbers,
             sim_state,
             system_kk: SparseTriplet::new(neq, neq, nnz_max, Symmetry::No)?,
-        };
-        Ok(simulation)
+        })
     }
 
-    /// Applies boundary condition at time t
-    fn apply_bcs(&self, t: f64) {}
+    // Applies boundary condition at time t
+    // fn apply_bcs(&self, t: f64) {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +76,7 @@ mod tests {
 
     #[test]
     fn new_works() -> Result<(), StrError> {
-        let mut mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
+        let mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
         let mut config = SimConfig::new(&mesh);
 
         let params_1 = SampleParams::params_solid();
@@ -121,6 +87,7 @@ mod tests {
         config.set_gravity(10.0)?; // m/s²
 
         let sim = Simulation::new(&config)?;
+        assert_eq!(sim.elements.len(), 2);
         Ok(())
     }
 }

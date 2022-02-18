@@ -1,12 +1,26 @@
-use crate::*;
+use crate::{
+    ElementBeam, ElementPorousUsPl, ElementPorousUsPlPg, ElementRod, ElementSeepagePl, ElementSeepagePlPg,
+    ElementSolid, EquationNumbers, ParamBeam, ParamPorous, ParamRod, ParamSeepage, ParamSolid, SimConfig,
+    SimStateInitializer, StateElement, StrError,
+};
+use gemlab::mesh::CellId;
 
 /// Holds element configuration, material parameters, and number of integration points
 #[derive(Clone, Copy, Debug)]
 pub enum ElementConfig {
+    /// Configuration for Rod element
     Rod(ParamRod),
+
+    /// Configuration for Beam element
     Beam(ParamBeam),
+
+    /// Configuration for Solid element with (param, n_integ_point)
     Solid(ParamSolid, Option<usize>),
+
+    /// Configuration for Porous element with (param, n_integ_point)
     Porous(ParamPorous, Option<usize>),
+
+    /// Configuration for Seepage element with (param, n_integ_point)
     Seepage(ParamSeepage, Option<usize>),
 }
 
@@ -71,6 +85,54 @@ pub trait Element {
 
     /// Assembles the local K-matrix into the global K-matrix
     fn assemble_kk_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError>;
+}
+
+/// Allocates an instance of Element
+pub fn alloc_element(config: &SimConfig, cell_id: CellId) -> Result<Box<dyn Element>, StrError> {
+    if cell_id >= config.mesh.cells.len() {
+        return Err("cell_id is out-of-bounds");
+    }
+    let cell = &config.mesh.cells[cell_id];
+    let element_config = match config.element_configs.get(&cell.attribute_id) {
+        Some(v) => v,
+        None => return Err("cannot find element configuration for a cell attribute id"),
+    };
+    let shape = config.mesh.alloc_shape_cell(cell_id)?; // moving to Element
+    match element_config {
+        ElementConfig::Rod(params) => {
+            let ele = ElementRod::new(shape, params)?;
+            Ok(Box::new(ele))
+        }
+        ElementConfig::Beam(params) => {
+            let ele = ElementBeam::new(shape, params)?;
+            Ok(Box::new(ele))
+        }
+        ElementConfig::Solid(params, n_integ_point) => {
+            let ele = ElementSolid::new(shape, params, *n_integ_point, config.plane_stress, config.thickness)?;
+            Ok(Box::new(ele))
+        }
+        ElementConfig::Porous(params, n_integ_point) => match params.density_gas {
+            Some(_) => {
+                let ele = ElementPorousUsPlPg::new(shape, params, *n_integ_point)?;
+                Ok(Box::new(ele))
+            }
+            None => {
+                let ele = ElementPorousUsPl::new(shape, params, *n_integ_point)?;
+                Ok(Box::new(ele))
+            }
+        },
+        ElementConfig::Seepage(params, n_integ_point) => match params.density_gas {
+            Some(_) => {
+                let ele = ElementSeepagePlPg::new(shape, params, *n_integ_point)?;
+                Ok(Box::new(ele))
+            }
+            None => {
+                // has_pl = true;
+                let ele = ElementSeepagePl::new(shape, params, *n_integ_point)?;
+                Ok(Box::new(ele))
+            }
+        },
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
