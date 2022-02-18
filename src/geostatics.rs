@@ -195,22 +195,59 @@ impl Geostatics {
 #[cfg(test)]
 mod tests {
     use super::{Geostatics, PorousLayers};
-    use crate::{ElementConfig, SampleParams, SimConfig, StrError};
+    use crate::{ElementConfig, ParamPorousSolLiqGas, ParamSolid, SampleParams, SimConfig, StrError};
     use gemlab::mesh::Mesh;
     use russell_chk::assert_approx_eq;
 
+    // Returns the parameters of a two-layers column for testing
+    fn two_layers_slg(height: f64, z_middle: f64) -> (ParamSolid, ParamPorousSolLiqGas, ParamPorousSolLiqGas, f64) {
+        // parameters
+        let footing = SampleParams::params_solid();
+        let upper = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
+        let lower = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
+        // constants
+        let g = 10.0; // gravity
+        let sl_max = 0.95; // max liquid saturation
+        let hh = height; // height of porous column
+        let z = z_middle; // at bottom of upper layer
+        let nf0 = upper.porosity_initial;
+        let rho_ss = upper.density_solid;
+        // liquid
+        let rho_l_ref = upper.density_liquid.rho_ref;
+        let pl_ref = upper.density_liquid.p_ref;
+        let cc_l = upper.density_liquid.cc;
+        let pl_mid = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
+        let rho_l_mid = rho_l_ref + cc_l * (pl_mid - pl_ref);
+        // println!("pl_bottom = {}, rho_l_bottom = {}", pl_bottom, rho_l_bottom);
+        assert_approx_eq!(pl_mid, 2.0 * g * 1.0, 1e-4);
+        assert_approx_eq!(rho_l_mid, 1.0, 1e-5);
+        // gas
+        let rho_g_ref = upper.density_gas.rho_ref;
+        let pg_ref = upper.density_gas.p_ref;
+        let cc_g = upper.density_gas.cc;
+        let pg_bottom = pg_ref + (rho_g_ref / cc_g) * (f64::exp(g * cc_g * (hh - z)) - 1.0);
+        let rho_g_bottom = rho_g_ref + cc_g * (pg_bottom - pg_ref);
+        // println!("pg_bottom = {}, rho_g_bottom = {}", pg_bottom, rho_g_bottom);
+        assert_approx_eq!(pg_bottom, 2.0 * g * 0.0012, 1e-5);
+        assert_approx_eq!(rho_g_bottom, 0.0012, 1e-6);
+        // mixture
+        let rho_mid = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_mid + nf0 * (1.0 - sl_max) * rho_g_bottom;
+        // println!("rho_bottom = {}", rho_bottom);
+        // done
+        (footing, upper, lower, rho_mid)
+    }
+
     #[test]
     fn porous_layers_new_works() -> Result<(), StrError> {
+        let (footing, upper, lower, rho_mid) = two_layers_slg(3.0, 1.0);
         let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
-        let p111 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
-        let p222 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
-        let p333 = SampleParams::params_solid();
         config
-            .elements(111, ElementConfig::PorousSolLiqGas(p111, None))?
-            .elements(222, ElementConfig::PorousSolLiqGas(p222, None))?
-            .elements(333, ElementConfig::Solid(p333, None))?
+            .elements(111, ElementConfig::PorousSolLiqGas(lower, None))?
+            .elements(222, ElementConfig::PorousSolLiqGas(upper, None))?
+            .elements(333, ElementConfig::Solid(footing, None))?
             .set_gravity(10.0)?; // m/s²
+
         let layers = PorousLayers::new(&config)?;
         assert_eq!(layers.top_down.len(), 2);
         let top = &layers.top_down[0];
@@ -222,35 +259,7 @@ mod tests {
         assert_eq!(bottom.id, 111);
         assert_eq!(bottom.z_min, 0.0);
         assert_eq!(bottom.z_max, 1.0);
-        // constants
-        let g = config.gravity;
-        let hh = 3.0; // height of porous column
-        let z = 1.0; // bottom of top layer
-        let nf0 = p222.porosity_initial;
-        let rho_ss = p222.density_solid;
-        let sl_max = 0.95;
-        // liquid
-        let rho_l_ref = p222.density_liquid.rho_ref;
-        let pl_ref = p222.density_liquid.p_ref;
-        let cc_l = p222.density_liquid.cc;
-        let pl_bottom = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
-        let rho_l_bottom = rho_l_ref + cc_l * (pl_bottom - pl_ref);
-        // println!("pl_bottom = {}, rho_l_bottom = {}", pl_bottom, rho_l_bottom);
-        assert_approx_eq!(pl_bottom, 2.0 * g * 1.0, 1e-4);
-        assert_approx_eq!(rho_l_bottom, 1.0, 1e-5);
-        // gas
-        let rho_g_ref = p222.density_gas.rho_ref;
-        let pg_ref = p222.density_gas.p_ref;
-        let cc_g = p222.density_gas.cc;
-        let pg_bottom = pg_ref + (rho_g_ref / cc_g) * (f64::exp(g * cc_g * (hh - z)) - 1.0);
-        let rho_g_bottom = rho_g_ref + cc_g * (pg_bottom - pg_ref);
-        // println!("pg_bottom = {}, rho_g_bottom = {}", pg_bottom, rho_g_bottom);
-        assert_approx_eq!(pg_bottom, 2.0 * g * 0.0012, 1e-5);
-        assert_approx_eq!(rho_g_bottom, 0.0012, 1e-6);
-        // mixture
-        let rho_bottom = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_bottom + nf0 * (1.0 - sl_max) * rho_g_bottom;
-        // println!("rho_bottom = {}", rho_bottom);
-        assert_approx_eq!(bottom.overburden, 2.0 * g * rho_bottom, 1e-15);
+        assert_approx_eq!(bottom.overburden, 2.0 * 10.0 * rho_mid, 1e-15);
 
         let mut mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
@@ -258,14 +267,22 @@ mod tests {
         let p2 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
         let p3 = SampleParams::params_solid();
         config
-            .elements(1, ElementConfig::PorousSolLiqGas(p1, None))?
-            .elements(2, ElementConfig::PorousSolLiqGas(p2, None))?
-            .elements(3, ElementConfig::Solid(p3, None))?
+            .elements(1, ElementConfig::PorousSolLiqGas(lower, None))?
+            .elements(2, ElementConfig::PorousSolLiqGas(upper, None))?
+            .elements(3, ElementConfig::Solid(footing, None))?
             .set_gravity(10.0)?; // m/s²
         let layers = PorousLayers::new(&config)?;
         assert_eq!(layers.top_down.len(), 2);
-        // assert_eq!(layers[0], (2, (1.0, 3.0)));
-        // assert_eq!(layers[1], (1, (0.0, 1.0)));
+        let top = &layers.top_down[0];
+        assert_eq!(top.id, 2);
+        assert_eq!(top.z_min, 1.0);
+        assert_eq!(top.z_max, 3.0);
+        assert_eq!(top.overburden, 0.0);
+        let bottom = &layers.top_down[1];
+        assert_eq!(bottom.id, 1);
+        assert_eq!(bottom.z_min, 0.0);
+        assert_eq!(bottom.z_max, 1.0);
+        assert_approx_eq!(bottom.overburden, 2.0 * 10.0 * rho_mid, 1e-15);
         Ok(())
     }
 
