@@ -1,15 +1,6 @@
-#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
-
-use crate::{ElementConfig, ModelPorousSolLiq, ModelPorousSolLiqGas, ModelRealDensity, SimConfig, StrError};
-use gemlab::mesh::{At, CellAttributeId, CellId, PointId};
-use russell_tensor::Tensor2;
+use crate::{ElementConfig, ModelPorousSolLiq, ModelPorousSolLiqGas, SimConfig, StrError};
+use gemlab::mesh::{At, CellAttributeId, CellId};
 use std::collections::{HashMap, HashSet};
-
-/// Holds (y_min,y_max) for 2D or (z_min,z_max) for 3D
-type MinMaxElevation = (f64, f64);
-
-/// Holds the (attribute,limits) pair for a layer
-type LayerLimits = (CellAttributeId, MinMaxElevation);
 
 /// Holds essential information about a porous layer which corresponds to a CellAttributeId
 #[derive(Clone, Copy, Debug)]
@@ -238,6 +229,7 @@ mod tests {
         // done
         (footing, upper, lower, rho_mid)
     }
+
     // Returns the parameters of a two-layer column with solid-liquid
     fn two_layers_sl(height: f64, z_middle: f64) -> (ParamSolid, ParamPorousSolLiq, ParamPorousSolLiq, f64) {
         // parameters
@@ -246,7 +238,39 @@ mod tests {
         let lower = SampleParams::params_porous_sol_liq(0.2, 1e-2);
         // constants
         let g = 10.0; // gravity
-        let sl_max = 0.95; // max liquid saturation
+        let sl_max = 1.0; // max liquid saturation
+        let hh = height; // height of porous column
+        let z = z_middle; // at the middle of upper layer
+        let nf0 = upper.porosity_initial;
+        let rho_ss = upper.density_solid;
+        // liquid
+        let rho_l_ref = upper.density_liquid.rho_ref;
+        let pl_ref = upper.density_liquid.p_ref;
+        let cc_l = upper.density_liquid.cc;
+        let pl_mid = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
+        let rho_l_mid = rho_l_ref + cc_l * (pl_mid - pl_ref);
+        println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
+        assert_approx_eq!(pl_mid, 2.0 * g * 1.0, 1e-4);
+        assert_approx_eq!(rho_l_mid, 1.0, 1e-5);
+        // mixture
+        let rho_mid = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_mid;
+        println!("rho_mid = {}", rho_mid);
+        // done
+        (footing, upper, lower, rho_mid)
+    }
+
+    // Returns the parameters of a two-layer column with solid-liquid (nearly incompressible liquid)
+    fn two_layers_sl_incompressible(
+        height: f64,
+        z_middle: f64,
+    ) -> (ParamSolid, ParamPorousSolLiq, ParamPorousSolLiq, f64) {
+        // parameters
+        let footing = SampleParams::params_solid();
+        let upper = SampleParams::params_porous_sol_liq_incompressible(0.4, 1e-2);
+        let lower = SampleParams::params_porous_sol_liq_incompressible(0.2, 1e-2);
+        // constants
+        let g = 10.0; // gravity
+        let sl_max = 1.0; // max liquid saturation
         let hh = height; // height of porous column
         let z = z_middle; // at the middle of upper layer
         let nf0 = upper.porosity_initial;
@@ -271,7 +295,7 @@ mod tests {
     fn porous_layers_new_works() -> Result<(), StrError> {
         // solid-liquid-gas
         let (footing, upper, lower, rho_mid) = two_layers_slg(3.0, 1.0);
-        let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
+        let mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
         config
             .elements(111, ElementConfig::PorousSolLiqGas(lower, None))?
@@ -294,11 +318,8 @@ mod tests {
 
         // solid-liquid
         let (footing, upper, lower, rho_mid) = two_layers_sl(3.0, 1.0);
-        let mut mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
+        let mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
-        let p1 = SampleParams::params_porous_sol_liq(0.2, 1e-2);
-        let p2 = SampleParams::params_porous_sol_liq(0.4, 1e-2);
-        let p3 = SampleParams::params_solid();
         config
             .elements(1, ElementConfig::PorousSolLiq(lower, None))?
             .elements(2, ElementConfig::PorousSolLiq(upper, None))?
@@ -321,17 +342,26 @@ mod tests {
 
     #[test]
     fn geostatics_new_works() -> Result<(), StrError> {
-        let mut mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
+        let (footing, upper, lower, rho_mid) = two_layers_sl_incompressible(3.0, 1.0);
+        let mesh = Mesh::from_text_file("./data/meshes/column_two_layers_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
-        let p111 = SampleParams::params_porous_sol_liq_gas(0.2, 1e-2);
-        let p222 = SampleParams::params_porous_sol_liq_gas(0.4, 1e-2);
-        let p333 = SampleParams::params_solid();
         config
-            .elements(111, ElementConfig::PorousSolLiqGas(p111, None))?
-            .elements(222, ElementConfig::PorousSolLiqGas(p222, None))?
-            .elements(333, ElementConfig::Solid(p333, None))?
+            .elements(1, ElementConfig::PorousSolLiq(lower, None))?
+            .elements(2, ElementConfig::PorousSolLiq(upper, None))?
+            .elements(3, ElementConfig::Solid(footing, None))?
             .set_gravity(10.0)?; // m/s²
-        Geostatics::new(&config)?;
+        let geo = Geostatics::new(&config)?;
+        assert_eq!(geo.layers.top_down.len(), 2);
+        let top = &geo.layers.top_down[0];
+        assert_eq!(top.id, 2);
+        assert_eq!(top.z_min, 1.0);
+        assert_eq!(top.z_max, 3.0);
+        assert_eq!(top.overburden, 0.0);
+        let bottom = &geo.layers.top_down[1];
+        assert_eq!(bottom.id, 1);
+        assert_eq!(bottom.z_min, 0.0);
+        assert_eq!(bottom.z_max, 1.0);
+        assert_approx_eq!(bottom.overburden, 2.0 * 10.0 * rho_mid, 1e-15);
         Ok(())
     }
 }
