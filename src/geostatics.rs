@@ -211,7 +211,7 @@ mod tests {
         let cc_l = upper.density_liquid.cc;
         let pl_mid = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
         let rho_l_mid = rho_l_ref + cc_l * (pl_mid - pl_ref);
-        println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
+        // println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
         assert_approx_eq!(pl_mid, 2.0 * g * 1.0, 1e-4);
         assert_approx_eq!(rho_l_mid, 1.0, 1e-5);
         // gas
@@ -220,12 +220,12 @@ mod tests {
         let cc_g = upper.density_gas.cc;
         let pg_mid = pg_ref + (rho_g_ref / cc_g) * (f64::exp(g * cc_g * (hh - z)) - 1.0);
         let rho_g_mid = rho_g_ref + cc_g * (pg_mid - pg_ref);
-        println!("pg_mid = {}, rho_g_mid = {}", pg_mid, rho_g_mid);
+        // println!("pg_mid = {}, rho_g_mid = {}", pg_mid, rho_g_mid);
         assert_approx_eq!(pg_mid, 2.0 * g * 0.0012, 1e-5);
         assert_approx_eq!(rho_g_mid, 0.0012, 1e-6);
         // mixture
         let rho_mid = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_mid + nf0 * (1.0 - sl_max) * rho_g_mid;
-        println!("rho_mid = {}", rho_mid);
+        // println!("rho_mid = {}", rho_mid);
         // done
         (footing, upper, lower, rho_mid)
     }
@@ -249,12 +249,12 @@ mod tests {
         let cc_l = upper.density_liquid.cc;
         let pl_mid = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
         let rho_l_mid = rho_l_ref + cc_l * (pl_mid - pl_ref);
-        println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
+        // println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
         assert_approx_eq!(pl_mid, 2.0 * g * 1.0, 1e-4);
         assert_approx_eq!(rho_l_mid, 1.0, 1e-5);
         // mixture
         let rho_mid = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_mid;
-        println!("rho_mid = {}", rho_mid);
+        // println!("rho_mid = {}", rho_mid);
         // done
         (footing, upper, lower, rho_mid)
     }
@@ -281,12 +281,12 @@ mod tests {
         let cc_l = upper.density_liquid.cc;
         let pl_mid = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
         let rho_l_mid = rho_l_ref + cc_l * (pl_mid - pl_ref);
-        println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
+        // println!("pl_mid = {}, rho_l_mid = {}", pl_mid, rho_l_mid);
         assert_approx_eq!(pl_mid, 2.0 * g * 1.0, 1e-4);
         assert_approx_eq!(rho_l_mid, 1.0, 1e-5);
         // mixture
         let rho_mid = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_mid;
-        println!("rho_mid = {}", rho_mid);
+        // println!("rho_mid = {}", rho_mid);
         // done
         (footing, upper, lower, rho_mid)
     }
@@ -336,6 +336,11 @@ mod tests {
         assert_eq!(bottom.id, 1);
         assert_eq!(bottom.z_min, 0.0);
         assert_eq!(bottom.z_max, 1.0);
+        let gg_s = 2.7;
+        let nf = 0.4;
+        let e = nf / (1.0 - nf);
+        // println!("rho = (Gs+e)/(1+e) = {}", (gg_s + e) / (1.0 + e));
+        assert_approx_eq!(rho_mid, (gg_s + e) / (1.0 + e), 1e-5);
         assert_approx_eq!(bottom.overburden, 2.0 * 10.0 * rho_mid, 1e-15);
         Ok(())
     }
@@ -361,6 +366,11 @@ mod tests {
         assert_eq!(bottom.id, 1);
         assert_eq!(bottom.z_min, 0.0);
         assert_eq!(bottom.z_max, 1.0);
+        let gg_s = 2.7;
+        let nf = 0.4;
+        let e = nf / (1.0 - nf);
+        // println!("rho = (Gs+e)/(1+e) = {}", (gg_s + e) / (1.0 + e));
+        assert_approx_eq!(rho_mid, (gg_s + e) / (1.0 + e), 1e-10);
         assert_approx_eq!(bottom.overburden, 2.0 * 10.0 * rho_mid, 1e-15);
         Ok(())
     }
