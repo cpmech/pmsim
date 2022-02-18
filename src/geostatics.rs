@@ -197,6 +197,7 @@ mod tests {
     use super::{Geostatics, PorousLayers};
     use crate::{ElementConfig, SampleParams, SimConfig, StrError};
     use gemlab::mesh::Mesh;
+    use russell_chk::assert_approx_eq;
 
     #[test]
     fn porous_layers_new_works() -> Result<(), StrError> {
@@ -212,9 +213,44 @@ mod tests {
             .set_gravity(10.0)?; // m/s²
         let layers = PorousLayers::new(&config)?;
         assert_eq!(layers.top_down.len(), 2);
-        // assert_eq!(layers., (222, (1.0, 3.0)));
-        // assert_eq!(layers[1], (111, (0.0, 1.0)));
-        // assert_eq!(mesh.max[1] - mesh.min[1], layers[0].1 .1 - layers[p].1 .0);
+        let top = &layers.top_down[0];
+        assert_eq!(top.id, 222);
+        assert_eq!(top.z_min, 1.0);
+        assert_eq!(top.z_max, 3.0);
+        assert_eq!(top.overburden, 0.0);
+        let bottom = &layers.top_down[1];
+        assert_eq!(bottom.id, 111);
+        assert_eq!(bottom.z_min, 0.0);
+        assert_eq!(bottom.z_max, 1.0);
+        // constants
+        let g = config.gravity;
+        let hh = 3.0; // height of porous column
+        let z = 1.0; // bottom of top layer
+        let nf0 = p222.porosity_initial;
+        let rho_ss = p222.density_solid;
+        let sl_max = 0.95;
+        // liquid
+        let rho_l_ref = p222.density_liquid.rho_ref;
+        let pl_ref = p222.density_liquid.p_ref;
+        let cc_l = p222.density_liquid.cc;
+        let pl_bottom = pl_ref + (rho_l_ref / cc_l) * (f64::exp(g * cc_l * (hh - z)) - 1.0);
+        let rho_l_bottom = rho_l_ref + cc_l * (pl_bottom - pl_ref);
+        // println!("pl_bottom = {}, rho_l_bottom = {}", pl_bottom, rho_l_bottom);
+        assert_approx_eq!(pl_bottom, 2.0 * g * 1.0, 1e-4);
+        assert_approx_eq!(rho_l_bottom, 1.0, 1e-5);
+        // gas
+        let rho_g_ref = p222.density_gas.rho_ref;
+        let pg_ref = p222.density_gas.p_ref;
+        let cc_g = p222.density_gas.cc;
+        let pg_bottom = pg_ref + (rho_g_ref / cc_g) * (f64::exp(g * cc_g * (hh - z)) - 1.0);
+        let rho_g_bottom = rho_g_ref + cc_g * (pg_bottom - pg_ref);
+        // println!("pg_bottom = {}, rho_g_bottom = {}", pg_bottom, rho_g_bottom);
+        assert_approx_eq!(pg_bottom, 2.0 * g * 0.0012, 1e-5);
+        assert_approx_eq!(rho_g_bottom, 0.0012, 1e-6);
+        // mixture
+        let rho_bottom = (1.0 - nf0) * rho_ss + nf0 * sl_max * rho_l_bottom + nf0 * (1.0 - sl_max) * rho_g_bottom;
+        // println!("rho_bottom = {}", rho_bottom);
+        assert_approx_eq!(bottom.overburden, 2.0 * g * rho_bottom, 1e-15);
 
         let mut mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
         let mut config = SimConfig::new(&mesh);
