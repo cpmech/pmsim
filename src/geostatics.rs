@@ -1,6 +1,5 @@
 use crate::{ElementConfig, ModelPorous, SimConfig, StrError};
 use gemlab::mesh::{At, CellAttributeId, CellId};
-use russell_lab::Vector;
 use russell_tensor::Tensor2;
 use std::collections::{HashMap, HashSet};
 
@@ -198,20 +197,13 @@ impl Geostatics {
         Err("elevation is outside the porous region limits")
     }
 
-    /// Calculates effective stress at the integration point coordinates of an element
+    /// Calculates effective stress at given elevation (e.g., integration point)
     ///
     /// Note: negative stress component means compression according to continuum/solid mechanics
-    pub fn calc_effective_stress(&self, attribute_id: CellAttributeId, coords: &Vector) -> Result<Tensor2, StrError> {
-        if coords.dim() != self.space_ndim {
-            return Err("coords.dim() must be equal to space_ndim");
-        }
+    pub fn calc_effective_stress(&self, elevation: f64) -> Result<Tensor2, StrError> {
         let (symmetric, two_dim) = (true, self.space_ndim == 2);
-        let elevation = coords[self.space_ndim - 1];
         for layer in &self.layers {
             if elevation >= layer.z_min && elevation <= layer.z_max {
-                if attribute_id != layer.attribute_id {
-                    return Err("mesh may not have horizontal layers because a cell is at the wrong layer");
-                }
                 let pl = layer.model.calc_pl(elevation, self.height, self.gravity)?;
                 let rho_ini = layer.model.calc_rho_ini(elevation, self.height, self.gravity)?;
                 let sigma_v_total = layer.overburden + rho_ini * self.gravity * (layer.z_max - elevation);
@@ -227,6 +219,16 @@ impl Geostatics {
                 stress.vec[1] = sig_y;
                 stress.vec[2] = sig_z;
                 return Ok(stress);
+            }
+        }
+        Err("elevation is outside the porous region limits")
+    }
+
+    /// Finds the cell attribute id of the layer containing a given elevation
+    pub fn find_attribute_id(&self, elevation: f64) -> Result<CellAttributeId, StrError> {
+        for layer in &self.layers {
+            if elevation >= layer.z_min && elevation <= layer.z_max {
+                return Ok(layer.attribute_id);
             }
         }
         Err("elevation is outside the porous region limits")
