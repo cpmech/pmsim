@@ -13,7 +13,7 @@ pub trait ModelLiquidRetentionTrait {
     fn calc_dcc_dsl(&self, pc: f64, sl: f64, wetting: bool) -> Result<f64, StrError>;
 }
 
-/// Generalizes a model for liquid retention in porous media
+/// Implements a model for liquid retention in porous media
 pub struct ModelLiquidRetention {
     pub model: Box<dyn ModelLiquidRetentionTrait>,
     update_nit_max: usize, // max number of iterations for the update_saturation function
@@ -21,7 +21,7 @@ pub struct ModelLiquidRetention {
 }
 
 impl ModelLiquidRetention {
-    /// Returns a new instance of ModelLiquidRetention
+    /// Allocates a new instance
     pub fn new(params: &ParamLiquidRetention) -> Result<Self, StrError> {
         let model: Box<dyn ModelLiquidRetentionTrait> = match params {
             &ParamLiquidRetention::BrooksCorey {

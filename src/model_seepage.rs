@@ -1,5 +1,6 @@
 use crate::{ModelConductivity, ModelLiquidRetention, ModelRealDensity, ParamSeepage, StrError};
 
+/// Implements a set of models for seepage in porous media
 pub struct ModelSeepage {
     pub retention_liquid: ModelLiquidRetention,
     pub conductivity_liquid: ModelConductivity,

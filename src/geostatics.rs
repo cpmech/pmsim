@@ -59,7 +59,10 @@ pub struct Geostatics {
 }
 
 impl Geostatics {
-    /// Returns a new instance of Geostatics with layers computed and models allocated
+    /// Allocate a new instance
+    ///
+    /// Also discovers the layers from the Mesh, computes layers
+    /// limits and allocates models.
     pub fn new(config: &SimConfig) -> Result<Self, StrError> {
         // mesh and space_ndim
         let mesh = config.mesh;

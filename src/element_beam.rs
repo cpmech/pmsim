@@ -3,11 +3,13 @@
 use crate::{Element, EquationNumbers, ParamBeam, SimStateInitializer, StateElement, StrError};
 use gemlab::shapes::Shape;
 
+/// Implements a Beam element
 pub struct ElementBeam {
     shape: Shape,
 }
 
 impl ElementBeam {
+    /// Allocates a new instance
     pub fn new(shape: Shape, params: &ParamBeam) -> Result<Self, StrError> {
         Ok(ElementBeam { shape })
     }

@@ -1,5 +1,11 @@
 use crate::{ModelLiquidRetentionTrait, StrError};
 
+/// Implements the van Genuchten model for liquid retention
+///
+/// # Reference
+///
+/// * Pedroso DM and Williams DJ (2011) Automatic Calibration of soil-water characteristic
+///   curves using genetic algorithms. Computers and Geotechnics, 38(3), 330-340,
 pub struct ModelVanGenuchten {
     // parameters
     alpha: f64,  // α parameter
@@ -14,6 +20,7 @@ pub struct ModelVanGenuchten {
 }
 
 impl ModelVanGenuchten {
+    /// Allocates a new instance
     pub fn new(alpha: f64, m: f64, n: f64, sl_min: f64, sl_max: f64, pc_min: f64) -> Result<Self, StrError> {
         // check saturation limits
         if sl_max <= 0.0 || sl_max > 1.0 {

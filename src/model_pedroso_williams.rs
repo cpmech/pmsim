@@ -69,7 +69,7 @@ pub struct ModelPedrosoWilliams {
 }
 
 impl ModelPedrosoWilliams {
-    /// Returns a new instance of ModelPedrosoZhangEhlers
+    /// Allocate a new instance of ModelPedrosoWilliams
     pub fn new(
         with_hysteresis: bool,
         lambda_d: f64,

@@ -1,5 +1,13 @@
 use crate::{ParamRealDensity, StrError};
 
+/// Implements a model for fluid intrinsic density
+///
+/// # Reference
+///
+/// * Pedroso DM, Zhang Y, Ehlers W (2017) Solution of liquid-gas-solid coupled
+///   equations for porous media considering dynamics and hysteretic behavior,
+///   ASCE Journal of Engineering Mechanics, 143:6(04017021),
+///   <https://dx.doi.org/10.1061/(ASCE)EM.1943-7889.0001208>
 pub struct ModelRealDensity {
     cc: f64,      // compressibility C = dρReal/dp
     p_ref: f64,   // reference pressure p₀
@@ -7,6 +15,7 @@ pub struct ModelRealDensity {
 }
 
 impl ModelRealDensity {
+    /// Allocates a new instance
     pub fn new(params: &ParamRealDensity) -> Result<Self, StrError> {
         if params.cc <= 0.0 {
             return Err("compressibility constant must be greater than zero");

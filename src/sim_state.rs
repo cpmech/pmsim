@@ -2,6 +2,7 @@ use russell_lab::Vector;
 use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
 
+/// Holds seepage state variables for an integration point
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StateSeepage {
     pub ns0: f64,          // initial partial fraction of solids
@@ -11,18 +12,21 @@ pub struct StateSeepage {
     pub delta_pc: f64,     // step increment of capillary pressure
 }
 
+/// Holds stress state variables for an integration point
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StateStress {
     pub stress: Tensor2,           // (effective) stress
     pub internal_values: Vec<f64>, // internal values
 }
 
+/// Holds seepage and/or stress state variables for a set of integration points
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StateElement {
     pub seepage: Vec<StateSeepage>, // (n_integ_point)
     pub stress: Vec<StateStress>,   // (n_integ_point)
 }
 
+/// Holds all simulation state variables
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SimState {
     pub elements: Vec<StateElement>, // (nele)
@@ -31,6 +35,7 @@ pub struct SimState {
 }
 
 impl StateSeepage {
+    /// Allocates a new instance
     pub fn new() -> Self {
         StateSeepage {
             ns0: 0.0,
@@ -43,6 +48,7 @@ impl StateSeepage {
 }
 
 impl StateStress {
+    /// Allocates a new instance
     pub fn new(n_internal_values: usize, two_dim: bool) -> Self {
         StateStress {
             stress: Tensor2::new(true, two_dim),
@@ -52,6 +58,7 @@ impl StateStress {
 }
 
 impl StateElement {
+    /// Allocates a new instance with empty arrays
     pub fn new_empty() -> Self {
         StateElement {
             seepage: Vec::new(),
@@ -59,6 +66,7 @@ impl StateElement {
         }
     }
 
+    /// Allocates a new instance with non-empty seepage array and with empty stress array
     pub fn new_seepage_only(n_integ_point: usize) -> Self {
         StateElement {
             seepage: vec![StateSeepage::new(); n_integ_point],
@@ -66,6 +74,7 @@ impl StateElement {
         }
     }
 
+    /// Allocates a new instance with non-empty stress array and empty seepage array
     pub fn new_stress_only(n_integ_point: usize, n_internal_values: usize, two_dim: bool) -> Self {
         StateElement {
             seepage: Vec::new(),
@@ -73,6 +82,7 @@ impl StateElement {
         }
     }
 
+    /// Allocates a new instance with non-empty seepage and stress arrays
     pub fn new_seepage_and_stress(n_integ_point: usize, n_internal_values: usize, two_dim: bool) -> Self {
         StateElement {
             seepage: vec![StateSeepage::new(); n_integ_point],
@@ -82,6 +92,7 @@ impl StateElement {
 }
 
 impl SimState {
+    /// Allocate a new instance with empty arrays
     pub fn new_empty() -> Self {
         SimState {
             elements: Vec::new(),

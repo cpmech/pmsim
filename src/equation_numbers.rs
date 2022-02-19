@@ -13,7 +13,7 @@ pub struct EquationNumbers {
 }
 
 impl EquationNumbers {
-    /// Creates a new Equation Numbers object
+    /// Allocates a new instance
     pub fn new(npoint: usize) -> Self {
         EquationNumbers {
             count: 0,

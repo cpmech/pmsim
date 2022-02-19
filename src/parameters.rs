@@ -1,4 +1,4 @@
-/// Parameters for rods
+/// Holds parameters for rods
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamRod {
     LinearElastic {
@@ -8,7 +8,7 @@ pub enum ParamRod {
     },
 }
 
-/// Parameters for beams
+/// Holds parameters for beams
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamBeam {
     EulerBernoulli {
@@ -22,7 +22,7 @@ pub enum ParamBeam {
     },
 }
 
-/// Parameters for stress-strain relations (total or effective stress)
+/// Holds parameters for stress-strain relations (total or effective stress)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamStressStrain {
     LinearElastic {
@@ -38,14 +38,14 @@ pub enum ParamStressStrain {
     },
 }
 
-/// Parameters for solid medium
+/// Holds parameters for solid medium
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSolid {
     pub density: f64, // intrinsic (real) density
     pub stress_strain: ParamStressStrain,
 }
 
-/// Parameters for liquid-retention models
+/// Holds parameters for liquid-retention models
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamLiquidRetention {
     BrooksCorey {
@@ -77,7 +77,7 @@ pub enum ParamLiquidRetention {
     },
 }
 
-/// Parameters for liquid or gas conductivity
+/// Holds parameters for liquid or gas conductivity
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamConductivity {
     Constant {
@@ -102,7 +102,7 @@ pub enum ParamConductivity {
     },
 }
 
-/// Parameters for intrinsic (real) density
+/// Holds parameters for intrinsic (real) density
 #[derive(Clone, Copy, Debug)]
 pub struct ParamRealDensity {
     pub cc: f64,      // compressibility C = dρReal/dp
@@ -111,7 +111,7 @@ pub struct ParamRealDensity {
     pub tt_ref: f64,  // reference temperature T₀
 }
 
-/// Parameters for seepage simulations with liquid and optionally gas
+/// Holds parameters for seepage simulations with liquid and optionally gas
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSeepage {
     pub porosity_initial: f64,                       // initial porosity nf₀
@@ -122,7 +122,7 @@ pub struct ParamSeepage {
     pub density_gas: Option<ParamRealDensity>,       // intrinsic (real) density of gas
 }
 
-/// Parameters for porous media mechanics simulations with solid, liquid and optionally gas
+/// Holds parameters for porous media mechanics simulations with solid, liquid and optionally gas
 #[derive(Clone, Copy, Debug)]
 pub struct ParamPorous {
     /// At-rest earth pressure coefficient `K0 = σₕ'/σᵥ'` to compute initial
@@ -154,6 +154,7 @@ pub struct ParamPorous {
     pub density_gas: Option<ParamRealDensity>,
 }
 
+/// Holds some sample material parameters
 pub struct SampleParams;
 
 impl SampleParams {

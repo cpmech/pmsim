@@ -3,11 +3,13 @@
 use crate::{Element, EquationNumbers, ParamRod, SimStateInitializer, StateElement, StrError};
 use gemlab::shapes::Shape;
 
+/// Implements a Rod element
 pub struct ElementRod {
     shape: Shape,
 }
 
 impl ElementRod {
+    /// Allocates a new instance
     pub fn new(shape: Shape, params: &ParamRod) -> Result<Self, StrError> {
         Ok(ElementRod { shape })
     }

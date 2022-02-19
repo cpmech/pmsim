@@ -1,6 +1,14 @@
 use crate::{ParamConductivity, StrError};
 use russell_tensor::Tensor2;
 
+/// Implements a model for liquid conductivity within porous media
+///
+/// # Reference
+///
+/// * Pedroso DM, Zhang Y, Ehlers W (2017) Solution of liquid-gas-solid coupled
+///   equations for porous media considering dynamics and hysteretic behavior,
+///   ASCE Journal of Engineering Mechanics, 143:6(04017021),
+///   <https://dx.doi.org/10.1061/(ASCE)EM.1943-7889.0001208>
 pub struct ModelConductivity {
     // for constant, linear or pedroso-zhang-ehlers models
     kk_sat: Tensor2,
@@ -24,6 +32,7 @@ pub struct ModelConductivity {
 }
 
 impl ModelConductivity {
+    /// Allocates a new instance
     pub fn new(params: &ParamConductivity, two_dim: bool) -> Result<Self, StrError> {
         let mut model = ModelConductivity {
             kk_sat: Tensor2::new(true, two_dim),

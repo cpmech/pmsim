@@ -1,5 +1,11 @@
 use crate::{ModelLiquidRetentionTrait, StrError};
 
+/// Implements the Brooks-Corey model for liquid retention
+///
+/// # Reference
+///
+/// * Pedroso DM and Williams DJ (2011) Automatic Calibration of soil-water characteristic
+///   curves using genetic algorithms. Computers and Geotechnics, 38(3), 330-340,
 pub struct ModelBrooksCorey {
     lambda: f64, // slope coefficient
     pc_ae: f64,  // air-entry pressure
@@ -8,6 +14,7 @@ pub struct ModelBrooksCorey {
 }
 
 impl ModelBrooksCorey {
+    /// Allocates a new instance
     pub fn new(lambda: f64, pc_ae: f64, sl_min: f64, sl_max: f64) -> Result<Self, StrError> {
         // check saturation limits
         if sl_max <= 0.0 || sl_max > 1.0 {

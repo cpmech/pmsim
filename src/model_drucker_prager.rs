@@ -4,6 +4,7 @@ use crate::{ModelStressStrainTrait, StateStress, StrError};
 use russell_lab::copy_matrix;
 use russell_tensor::{LinElasticity, Tensor4};
 
+/// Implements the Drucker-Prager elastoplastic model
 pub struct ModelDruckerPrager {
     c: f64,   // apparent cohesion
     phi: f64, // friction angle
@@ -13,6 +14,7 @@ pub struct ModelDruckerPrager {
 }
 
 impl ModelDruckerPrager {
+    /// Allocates a new instance
     pub fn new(
         young: f64,
         poisson: f64,

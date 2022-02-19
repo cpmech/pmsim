@@ -2,11 +2,13 @@ use crate::{ModelStressStrainTrait, StateStress, StrError};
 use russell_lab::copy_matrix;
 use russell_tensor::{LinElasticity, Tensor4};
 
+/// Implements the generalized Hooke's linear elastic model
 pub struct ModelLinearElastic {
     lin_elast: LinElasticity,
 }
 
 impl ModelLinearElastic {
+    /// Allocates a new instance
     pub fn new(young: f64, poisson: f64, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
         if young < 0.0 {
             return Err("young parameter for the Drucker-Prager stress-strain model is invalid");

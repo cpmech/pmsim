@@ -10,6 +10,7 @@ pub struct ElementPorousUsPlPg {
 }
 
 impl ElementPorousUsPlPg {
+    /// Allocates a new instance
     pub fn new(shape: Shape, params: &ParamPorous, n_integ_point: Option<usize>) -> Result<Self, StrError> {
         let two_dim = shape.space_ndim == 2;
         Ok(ElementPorousUsPlPg {

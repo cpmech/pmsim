@@ -1,6 +1,6 @@
 use crate::{ModelConductivity, ModelLiquidRetention, ModelRealDensity, ModelStressStrain, ParamPorous, StrError};
 
-/// Implements a set of models for porous media with solid-liquid-gas with gas being optional
+/// Implements a set of models for the mechanics porous media
 ///
 /// The gas phase is optional. In this case the gas pressure and
 /// the intrinsic density of gas are assumed to be zero (atmospheric).
@@ -44,7 +44,7 @@ pub struct ModelPorous {
 }
 
 impl ModelPorous {
-    /// Allocates a new instance of ModelPorous
+    /// Allocates a new instance
     pub fn new(params: &ParamPorous, two_dim: bool) -> Result<Self, StrError> {
         let retention_liquid = ModelLiquidRetention::new(&params.retention_liquid)?;
         let sl_max = retention_liquid.get_sl_max();

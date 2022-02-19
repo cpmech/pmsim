@@ -2,6 +2,7 @@ use crate::{alloc_element, Element, EquationNumbers, SimConfig, SimState, SimSta
 use russell_lab::Vector;
 use russell_sparse::{SparseTriplet, Symmetry};
 
+/// Implements the finite element simulation
 #[allow(dead_code)]
 pub struct Simulation<'a> {
     /// Access to configuration
@@ -21,6 +22,7 @@ pub struct Simulation<'a> {
 }
 
 impl<'a> Simulation<'a> {
+    /// Allocates a new instance
     pub fn new(config: &'a SimConfig) -> Result<Self, StrError> {
         // elements, equation numbers, and states
         let npoint = config.mesh.points.len();

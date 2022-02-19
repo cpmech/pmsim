@@ -5,44 +5,44 @@ use std::collections::HashMap;
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct SimConfig<'a> {
     /// Access to mesh
-    pub(crate) mesh: &'a Mesh,
+    pub mesh: &'a Mesh,
 
     /// Essential boundary conditions
-    pub(crate) essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
+    pub essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
 
     /// Natural boundary conditions at edges
-    pub(crate) natural_bcs_edge: HashMap<(EdgeKey, Nbc), FnSpaceTime>,
+    pub natural_bcs_edge: HashMap<(EdgeKey, Nbc), FnSpaceTime>,
 
     /// Natural boundary conditions at faces
-    pub(crate) natural_bcs_face: HashMap<(FaceKey, Nbc), FnSpaceTime>,
+    pub natural_bcs_face: HashMap<(FaceKey, Nbc), FnSpaceTime>,
 
     /// Point boundary conditions (e.g., point loads)
-    pub(crate) point_bcs: HashMap<(PointId, BcPoint), FnSpaceTime>,
+    pub point_bcs: HashMap<(PointId, BcPoint), FnSpaceTime>,
 
     /// Elements configuration
-    pub(crate) element_configs: HashMap<CellAttributeId, ElementConfig>,
+    pub element_configs: HashMap<CellAttributeId, ElementConfig>,
 
     /// Problem type
-    pub(crate) problem_type: Option<ProblemType>,
+    pub problem_type: Option<ProblemType>,
 
     /// Gravity acceleration
-    pub(crate) gravity: f64,
+    pub gravity: f64,
 
     /// Thickness for plane-stress or 1.0 otherwise
-    pub(crate) thickness: f64,
+    pub thickness: f64,
 
     /// 2D plane-stress problem, otherwise plane-strain in 2D
-    pub(crate) plane_stress: bool,
+    pub plane_stress: bool,
 
     /// Option to initialize stress state
-    pub(crate) ini_option: IniOption,
+    pub ini_option: IniOption,
 
     with_pl_only: bool,   // with liquid pressure only
     with_pl_and_pg: bool, // with liquid and gas pressures
 }
 
 impl<'a> SimConfig<'a> {
-    /// Allocates a new ConfigSim instance
+    /// Allocates a new instance
     pub fn new(mesh: &'a Mesh) -> Self {
         SimConfig {
             mesh,
@@ -263,7 +263,7 @@ impl<'a> SimConfig<'a> {
     }
 
     /// Returns an ElementConfig
-    pub(crate) fn get_element_config(&self, attribute_id: CellAttributeId) -> Result<&ElementConfig, StrError> {
+    pub fn get_element_config(&self, attribute_id: CellAttributeId) -> Result<&ElementConfig, StrError> {
         let res = self
             .element_configs
             .get(&attribute_id)

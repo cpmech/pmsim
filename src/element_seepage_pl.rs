@@ -10,6 +10,7 @@ pub struct ElementSeepagePl {
 }
 
 impl ElementSeepagePl {
+    /// Allocates a new instance
     pub fn new(shape: Shape, params: &ParamSeepage, n_integ_point: Option<usize>) -> Result<Self, StrError> {
         let two_dim = shape.space_ndim == 2;
         Ok(ElementSeepagePl {

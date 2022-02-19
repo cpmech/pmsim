@@ -10,7 +10,7 @@ use russell_lab::{copy_matrix, copy_vector, Matrix, Vector};
 use russell_tensor::{Tensor2, Tensor4};
 use std::cell::RefCell;
 
-// Implements a finite element for solid mechanics problems
+/// Implements a finite element for solid mechanics problems
 pub struct ElementSolid {
     // shape with point ids and integration functions
     shape: RefCell<Shape>,
@@ -26,6 +26,7 @@ pub struct ElementSolid {
 }
 
 impl ElementSolid {
+    /// Allocates a new instance
     pub fn new(
         shape: Shape,
         params: &ParamSolid,

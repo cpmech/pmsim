@@ -1,16 +1,22 @@
 use crate::{ModelDruckerPrager, ModelLinearElastic, ParamStressStrain, StateStress, StrError};
 use russell_tensor::Tensor4;
 
+/// Defines a trait for stress-strain models
 pub trait ModelStressStrainTrait {
+    /// Returns the number of internal values
     fn n_internal_values(&self) -> usize;
+
+    /// Computes the consistent modulus dsig/deps
     fn consistent_modulus(&self, dd: &mut Tensor4, state: &StateStress) -> Result<(), StrError>;
 }
 
+/// Implements a model for stress-strain relations
 pub struct ModelStressStrain {
     pub model: Box<dyn ModelStressStrainTrait>,
 }
 
 impl ModelStressStrain {
+    /// Allocates a new instance
     pub fn new(params: &ParamStressStrain, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
         let model: Box<dyn ModelStressStrainTrait> = match params {
             &ParamStressStrain::LinearElastic { young, poisson } => {

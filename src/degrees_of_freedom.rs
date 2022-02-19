@@ -1,7 +1,7 @@
-/// Total number of available DOFs per node
-pub(crate) const NDOF_PER_NODE_TOTAL: usize = 10;
+/// Defines the total number of available DOFs per node
+pub const NDOF_PER_NODE_TOTAL: usize = 10;
 
-/// Defines degrees-of-freedom (DOF)
+/// Defines degrees-of-freedom (DOF) types
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Dof {
     /// Displacement along the first dimension
