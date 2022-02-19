@@ -125,14 +125,33 @@ pub struct ParamSeepage {
 /// Parameters for porous media mechanics simulations with solid, liquid and optionally gas
 #[derive(Clone, Copy, Debug)]
 pub struct ParamPorous {
-    pub porosity_initial: f64,                       // initial porosity nf₀
-    pub density_solid: f64,                          // intrinsic (real) density of solids
-    pub stress_strain: ParamStressStrain,            // effective stress model
-    pub retention_liquid: ParamLiquidRetention,      // liquid retention model Cc = dsl/dpc
-    pub conductivity_liquid: ParamConductivity,      // liquid conductivity kl
-    pub density_liquid: ParamRealDensity,            // intrinsic (real) density of liquid
-    pub conductivity_gas: Option<ParamConductivity>, // gas conductivity kg
-    pub density_gas: Option<ParamRealDensity>,       // intrinsic (real) density of gas
+    /// At-rest earth pressure coefficient `K0 = σₕ'/σᵥ'` to compute initial
+    /// horizontal effective stress (`σₕ'`) from vertical effective stress (`σᵥ'`)
+    pub earth_pres_coef_ini: f64,
+
+    /// Initial porosity: `nf_ini = nf₀`
+    pub porosity_initial: f64,
+
+    /// Intrinsic (real) density of solids: `rho_ss = ρS = ρS0` (constant/incompressible solids)
+    pub density_solid: f64,
+
+    /// Effective stress model
+    pub stress_strain: ParamStressStrain,
+
+    /// Liquid retention model: `Cc = dsl/dpc`
+    pub retention_liquid: ParamLiquidRetention,
+
+    /// Liquid conductivity: `kl`
+    pub conductivity_liquid: ParamConductivity,
+
+    /// Intrinsic (real) density of liquid: `rho_ll = ρL(pl)`
+    pub density_liquid: ParamRealDensity,
+
+    /// gas conductivity `kg`
+    pub conductivity_gas: Option<ParamConductivity>,
+
+    /// Intrinsic (real) density of gas: `rho_gg = ρG(pg)`
+    pub density_gas: Option<ParamRealDensity>,
 }
 
 pub struct SampleParams;
@@ -151,12 +170,14 @@ impl SampleParams {
 
     /// Returns example parameters for a porous medium with solid, liquid and gas
     pub fn params_porous_sol_liq_gas(porosity_initial: f64, k_iso: f64) -> ParamPorous {
+        let nu = 0.2;
+        let kk0 = nu / (1.0 - nu);
         ParamPorous {
             porosity_initial,
             density_solid: 2.7, // Mg/m³
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
+                poisson: nu,     // [-]
             },
             retention_liquid: ParamLiquidRetention::PedrosoWilliams {
                 with_hysteresis: true,
@@ -201,17 +222,20 @@ impl SampleParams {
                 rho_ref: 0.0012, // Mg/m³
                 tt_ref: 25.0,    // ℃
             }),
+            earth_pres_coef_ini: kk0,
         }
     }
 
     /// Returns example parameters for a porous medium with solid and liquid
     pub fn params_porous_sol_liq(porosity_initial: f64, k_iso: f64, incompressible_liq: bool) -> ParamPorous {
+        let nu = 0.2;
+        let kk0 = nu / (1.0 - nu);
         ParamPorous {
             porosity_initial,
             density_solid: 2.7, // Mg/m³
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
+                poisson: nu,     // [-]
             },
             retention_liquid: ParamLiquidRetention::PedrosoWilliams {
                 with_hysteresis: true,
@@ -243,6 +267,7 @@ impl SampleParams {
             },
             conductivity_gas: None,
             density_gas: None,
+            earth_pres_coef_ini: kk0,
         }
     }
 }

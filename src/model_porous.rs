@@ -40,6 +40,7 @@ pub struct ModelPorous {
     pub nf_ini: f64, // initial porosity
     pub rho_ss: f64, // initial and constant intrinsic (real) density of solids
     pub sl_max: f64, // maximum liquid saturation
+    pub kk0: f64,    // at-rest earth pressure coefficient `K0 = σₕ'/σᵥ'`
 }
 
 impl ModelPorous {
@@ -63,6 +64,7 @@ impl ModelPorous {
             nf_ini: params.porosity_initial,
             rho_ss: params.density_solid,
             sl_max,
+            kk0: params.earth_pres_coef_ini,
         };
         if let Some(_) = model.density_gas {
             if model.sl_max >= 1.0 {

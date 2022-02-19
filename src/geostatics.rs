@@ -1,5 +1,7 @@
 use crate::{ElementConfig, ModelPorous, SimConfig, StrError};
 use gemlab::mesh::{At, CellAttributeId, CellId};
+use russell_lab::Vector;
+use russell_tensor::Tensor2;
 use std::collections::{HashMap, HashSet};
 
 /// Holds essential information about a porous layer
@@ -12,11 +14,21 @@ struct LayerInfo {
 
 /// Holds data for a porous layer corresponding to a CellAttributeId
 struct PorousLayer {
-    id: CellAttributeId, // identification number = CellAttributeId
-    z_min: f64,          // minimum elevation (y in 2D or z in 3D)
-    z_max: f64,          // maximum elevation (y in 2D or z in 3D)
-    overburden: f64,     // vertical stress (total, **not** effective) at the top (z_max) of the layer
-    model: ModelPorous,  // material models
+    /// identification number = CellAttributeId
+    id: CellAttributeId,
+
+    /// minimum elevation (y in 2D or z in 3D)
+    z_min: f64,
+
+    /// maximum elevation (y in 2D or z in 3D)
+    z_max: f64,
+
+    /// total (**not** effective) vertical stress at the top (z_max) of the layer
+    /// positive values means compression (**soil** mechanics convention)
+    overburden: f64,
+
+    /// material models
+    model: ModelPorous,
 }
 
 /// Implements geostatics for a rectangular (2D) or parallepiped (3D) mesh
@@ -33,7 +45,17 @@ struct PorousLayer {
 /// * The water table is at y=y_max (2D) or z=z_max (3D),
 ///   thus only **fully liquid-saturated** (with sl_max) states are considered
 pub struct Geostatics {
-    layers: Vec<PorousLayer>, // layers sorted from top to bottom
+    /// number of dimensions
+    space_ndim: usize,
+
+    /// gravity constant
+    gravity: f64,
+
+    /// the height of the porous domain (column) = height of the whole set of layers
+    height: f64,
+
+    /// layers sorted from top to bottom
+    layers: Vec<PorousLayer>,
 }
 
 impl Geostatics {
@@ -143,19 +165,69 @@ impl Geostatics {
         }
 
         // done
-        Ok(Geostatics { layers })
+        Ok(Geostatics {
+            space_ndim,
+            gravity,
+            height,
+            layers,
+        })
     }
 
-    /*
+    /// Calculates liquid pressure at given elevation
     pub fn calc_pl(&self, elevation: f64) -> Result<f64, StrError> {
-        for layer in &self.layers.layers_top_down {
-            if elevation >= layer.z_min {
-                // found
+        for layer in &self.layers {
+            if elevation >= layer.z_min && elevation <= layer.z_max {
+                return layer.model.calc_pl(elevation, self.height, self.gravity);
             }
         }
-        Ok(0.0)
+        Err("elevation is outside the porous region limits")
     }
-    */
+
+    /// Calculates liquid and gas pressure at given elevation
+    pub fn calc_pl_and_pg(&self, elevation: f64) -> Result<(f64, f64), StrError> {
+        for layer in &self.layers {
+            if elevation >= layer.z_min && elevation <= layer.z_max {
+                let pl = layer.model.calc_pl(elevation, self.height, self.gravity)?;
+                let pg = layer.model.calc_pg(elevation, self.height, self.gravity)?;
+                return Ok((pl, pg));
+            }
+        }
+        Err("elevation is outside the porous region limits")
+    }
+
+    /// Calculates effective stress at the integration point coordinates of an element
+    ///
+    /// Note: negative stress component means compression according to continuum/solid mechanics
+    pub fn calc_effective_stress(&self, attribute_id: CellAttributeId, coords: &Vector) -> Result<Tensor2, StrError> {
+        if coords.dim() != self.space_ndim {
+            return Err("coords.dim() must be equal to space_ndim");
+        }
+        let (symmetric, two_dim) = (true, self.space_ndim == 2);
+        let elevation = coords[self.space_ndim - 1];
+        for layer in &self.layers {
+            if elevation >= layer.z_min && elevation <= layer.z_max {
+                if attribute_id != layer.id {
+                    return Err("mesh may not have horizontal layers because a cell is at the wrong layer");
+                }
+                let pl = layer.model.calc_pl(elevation, self.height, self.gravity)?;
+                let rho_ini = layer.model.calc_rho_ini(elevation, self.height, self.gravity)?;
+                let sigma_v_total = layer.overburden + rho_ini * self.gravity * (layer.z_max - elevation);
+                let sigma_v_effective = sigma_v_total - pl;
+                let sigma_h_effective = layer.model.kk0 * sigma_v_effective;
+                let (sig_x, sig_y, sig_z) = if two_dim {
+                    (-sigma_h_effective, -sigma_v_effective, -sigma_h_effective)
+                } else {
+                    (-sigma_h_effective, -sigma_h_effective, -sigma_v_effective)
+                };
+                let mut stress = Tensor2::new(symmetric, two_dim);
+                stress.vec[0] = sig_x;
+                stress.vec[1] = sig_y;
+                stress.vec[2] = sig_z;
+                return Ok(stress);
+            }
+        }
+        Err("elevation is outside the porous region limits")
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
