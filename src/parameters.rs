@@ -205,7 +205,7 @@ impl SampleParams {
     }
 
     /// Returns example parameters for a porous medium with solid and liquid
-    pub fn params_porous_sol_liq(porosity_initial: f64, k_iso: f64) -> ParamPorous {
+    pub fn params_porous_sol_liq(porosity_initial: f64, k_iso: f64, incompressible_liq: bool) -> ParamPorous {
         ParamPorous {
             porosity_initial,
             density_solid: 2.7, // Mg/m³
@@ -236,52 +236,10 @@ impl SampleParams {
                 beta: 10.0,
             },
             density_liquid: ParamRealDensity {
-                cc: 4.53e-7,  // Mg/(m³ kPa)
-                p_ref: 0.0,   // kPa
-                rho_ref: 1.0, // Mg/m³
-                tt_ref: 25.0, // ℃
-            },
-            conductivity_gas: None,
-            density_gas: None,
-        }
-    }
-
-    /// Returns example parameters for a porous medium with solid and liquid (nearly incompressible)
-    pub fn params_porous_sol_liq_incompressible(porosity_initial: f64, k_iso: f64) -> ParamPorous {
-        ParamPorous {
-            porosity_initial,
-            density_solid: 2.7, // Mg/m³
-            stress_strain: ParamStressStrain::LinearElastic {
-                young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
-            },
-            retention_liquid: ParamLiquidRetention::PedrosoWilliams {
-                with_hysteresis: true,
-                lambda_d: 3.0,
-                lambda_w: 3.0,
-                beta_d: 6.0,
-                beta_w: 6.0,
-                beta_1: 6.0,
-                beta_2: 6.0,
-                x_rd: 2.0,
-                x_rw: 2.0,
-                y_0: 1.0,
-                y_r: 0.005,
-            },
-            conductivity_liquid: ParamConductivity::PedrosoZhangEhlers {
-                kx: k_iso, // m/s
-                ky: k_iso, // m/s
-                kz: k_iso, // m/s
-                lambda_0: 0.001,
-                lambda_1: 1.2,
-                alpha: 0.01,
-                beta: 10.0,
-            },
-            density_liquid: ParamRealDensity {
-                cc: 1e-12,    // Mg/(m³ kPa)
-                p_ref: 0.0,   // kPa
-                rho_ref: 1.0, // Mg/m³
-                tt_ref: 25.0, // ℃
+                cc: if incompressible_liq { 1e-12 } else { 4.53e-7 }, // Mg/(m³ kPa)
+                p_ref: 0.0,                                           // kPa
+                rho_ref: 1.0,                                         // Mg/m³
+                tt_ref: 25.0,                                         // ℃
             },
             conductivity_gas: None,
             density_gas: None,
