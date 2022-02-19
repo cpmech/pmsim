@@ -7,28 +7,28 @@ use std::collections::{HashMap, HashSet};
 /// Holds essential information about a porous layer
 #[derive(Clone, Copy)]
 struct LayerInfo {
-    id: CellAttributeId, // identification number = CellAttributeId
-    z_min: f64,          // minimum elevation (y in 2D or z in 3D)
-    z_max: f64,          // maximum elevation (y in 2D or z in 3D)
+    attribute_id: CellAttributeId, // identification number = CellAttributeId
+    z_min: f64,                    // minimum elevation (y in 2D or z in 3D)
+    z_max: f64,                    // maximum elevation (y in 2D or z in 3D)
 }
 
 /// Holds data for a porous layer corresponding to a CellAttributeId
-struct PorousLayer {
+pub struct PorousLayer {
     /// identification number = CellAttributeId
-    id: CellAttributeId,
+    pub attribute_id: CellAttributeId,
 
     /// minimum elevation (y in 2D or z in 3D)
-    z_min: f64,
+    pub z_min: f64,
 
     /// maximum elevation (y in 2D or z in 3D)
-    z_max: f64,
+    pub z_max: f64,
 
     /// total (**not** effective) vertical stress at the top (z_max) of the layer
     /// positive values means compression (**soil** mechanics convention)
-    overburden: f64,
+    pub overburden: f64,
 
     /// material models
-    model: ModelPorous,
+    pub model: ModelPorous,
 }
 
 /// Implements geostatics for a rectangular (2D) or parallepiped (3D) mesh
@@ -46,16 +46,16 @@ struct PorousLayer {
 ///   thus only **fully liquid-saturated** (with sl_max) states are considered
 pub struct Geostatics {
     /// number of dimensions
-    space_ndim: usize,
+    pub space_ndim: usize,
 
     /// gravity constant
-    gravity: f64,
+    pub gravity: f64,
 
     /// the height of the porous domain (column) = height of the whole set of layers
-    height: f64,
+    pub height: f64,
 
     /// layers sorted from top to bottom
-    layers: Vec<PorousLayer>,
+    pub layers: Vec<PorousLayer>,
 }
 
 impl Geostatics {
@@ -118,7 +118,7 @@ impl Geostatics {
                     infos.insert(
                         cell.attribute_id,
                         LayerInfo {
-                            id: cell.attribute_id,
+                            attribute_id: cell.attribute_id,
                             z_min: shape.coords_min[space_ndim - 1],
                             z_max: shape.coords_max[space_ndim - 1],
                         },
@@ -137,13 +137,13 @@ impl Geostatics {
         // allocate vector of porous layers
         let mut layers: Vec<PorousLayer> = Vec::new();
         for info in &top_down {
-            let element_config = config.get_element_config(info.id)?;
+            let element_config = config.get_element_config(info.attribute_id)?;
             let model = match element_config {
                 ElementConfig::Porous(params, _) => ModelPorous::new(params, two_dim)?,
                 _ => panic!("INTERNAL ERROR: element_config is missing"), // not supposed to happen
             };
             layers.push(PorousLayer {
-                id: info.id,
+                attribute_id: info.attribute_id,
                 z_min: info.z_min,
                 z_max: info.z_max,
                 overburden: 0.0,
@@ -209,7 +209,7 @@ impl Geostatics {
         let elevation = coords[self.space_ndim - 1];
         for layer in &self.layers {
             if elevation >= layer.z_min && elevation <= layer.z_max {
-                if attribute_id != layer.id {
+                if attribute_id != layer.attribute_id {
                     return Err("mesh may not have horizontal layers because a cell is at the wrong layer");
                 }
                 let pl = layer.model.calc_pl(elevation, self.height, self.gravity)?;
