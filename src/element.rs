@@ -99,36 +99,48 @@ pub fn alloc_element(config: &SimConfig, cell_id: CellId) -> Result<Box<dyn Elem
     };
     let shape = config.mesh.alloc_shape_cell(cell_id)?; // moving to Element
     match element_config {
-        ElementConfig::Rod(params) => {
-            let ele = ElementRod::new(shape, params)?;
+        ElementConfig::Rod(param) => {
+            let ele = ElementRod::new(shape, param)?;
             Ok(Box::new(ele))
         }
-        ElementConfig::Beam(params) => {
-            let ele = ElementBeam::new(shape, params)?;
+        ElementConfig::Beam(param) => {
+            let ele = ElementBeam::new(shape, param)?;
             Ok(Box::new(ele))
         }
-        ElementConfig::Solid(params, n_integ_point) => {
-            let ele = ElementSolid::new(shape, params, *n_integ_point, config.plane_stress, config.thickness)?;
+        ElementConfig::Solid(param, n_integ_point) => {
+            let ele = ElementSolid::new(shape, param, *n_integ_point, config.plane_stress, config.thickness)?;
             Ok(Box::new(ele))
         }
-        ElementConfig::Porous(params, n_integ_point) => match params.density_gas {
+        ElementConfig::Porous(param_porous, n_integ_point) => match param_porous.conductivity_gas {
             Some(_) => {
-                let ele = ElementPorousUsPlPg::new(shape, params, *n_integ_point)?;
+                let param_fluids = match &config.param_fluids {
+                    Some(p) => p,
+                    None => return Err("param for fluids must be set first"),
+                };
+                match &param_fluids.density_gas {
+                    Some(_) => (),
+                    None => return Err("param for gas density must be set first"),
+                };
+                let ele = ElementPorousUsPlPg::new(shape, &param_fluids, &param_porous, *n_integ_point)?;
                 Ok(Box::new(ele))
             }
             None => {
-                let ele = ElementPorousUsPl::new(shape, params, *n_integ_point)?;
+                let param_fluids = match &config.param_fluids {
+                    Some(p) => p,
+                    None => return Err("param for fluids (liquid) must be set first"),
+                };
+                let ele = ElementPorousUsPl::new(shape, &param_fluids, param_porous, *n_integ_point)?;
                 Ok(Box::new(ele))
             }
         },
-        ElementConfig::Seepage(params, n_integ_point) => match params.density_gas {
+        ElementConfig::Seepage(param, n_integ_point) => match param.conductivity_gas {
             Some(_) => {
-                let ele = ElementSeepagePlPg::new(shape, params, *n_integ_point)?;
+                let ele = ElementSeepagePlPg::new(shape, param, *n_integ_point)?;
                 Ok(Box::new(ele))
             }
             None => {
                 // has_pl = true;
-                let ele = ElementSeepagePl::new(shape, params, *n_integ_point)?;
+                let ele = ElementSeepagePl::new(shape, param, *n_integ_point)?;
                 Ok(Box::new(ele))
             }
         },

@@ -16,17 +16,17 @@ pub struct ModelRealDensity {
 
 impl ModelRealDensity {
     /// Allocates a new instance
-    pub fn new(params: &ParamRealDensity) -> Result<Self, StrError> {
-        if params.cc <= 0.0 {
+    pub fn new(param: &ParamRealDensity) -> Result<Self, StrError> {
+        if param.cc <= 0.0 {
             return Err("compressibility constant must be greater than zero");
         }
-        if params.rho_ref <= 0.0 {
+        if param.rho_ref <= 0.0 {
             return Err("reference intrinsic density must be greater than zero");
         }
         Ok(ModelRealDensity {
-            cc: params.cc,
-            p_ref: params.p_ref,
-            rho_ref: params.rho_ref,
+            cc: param.cc,
+            p_ref: param.p_ref,
+            rho_ref: param.rho_ref,
         })
     }
 
@@ -44,7 +44,7 @@ impl ModelRealDensity {
         if elevation < 0.0 || elevation > height {
             return Err("elevation must be in 0 ≤ elevation ≤ height to calculate intrinsic density");
         }
-        let rho = self.rho_ref * f64::exp(gravity * self.cc * (height - elevation));
+        let rho = self.rho_ref * f64::exp(self.cc * (height - elevation) * gravity);
         Ok(rho)
     }
 
@@ -53,7 +53,29 @@ impl ModelRealDensity {
         if elevation < 0.0 || elevation > height {
             return Err("elevation must be in 0 ≤ elevation ≤ height to calculate intrinsic density");
         }
-        let p = self.p_ref + (self.rho_ref / self.cc) * (f64::exp(gravity * self.cc * (height - elevation)) - 1.0);
+        let p = self.p_ref + self.rho_ref * (f64::exp(self.cc * (height - elevation) * gravity) - 1.0) / self.cc;
         Ok(p)
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use crate::{ModelRealDensity, SampleParam, StrError};
+
+    #[test]
+    fn new_fails_on_wrong_input() -> Result<(), StrError> {
+        // TODO
+        Ok(())
+    }
+
+    #[test]
+    fn density_and_pressure_are_correct() -> Result<(), StrError> {
+        let param = SampleParam::param_density_water(true);
+        let model = ModelRealDensity::new(&param)?;
+        assert_eq!(model.density(0.0)?, model.rho_ref);
+        // TODO
+        Ok(())
     }
 }

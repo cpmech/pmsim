@@ -1,4 +1,4 @@
-use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, IniOption, Nbc, ProblemType, StrError};
+use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, IniOption, Nbc, ParamFluids, ProblemType, StrError};
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
 use std::collections::HashMap;
 
@@ -18,6 +18,9 @@ pub struct SimConfig<'a> {
 
     /// Point boundary conditions (e.g., point loads)
     pub point_bcs: HashMap<(PointId, BcPoint), FnSpaceTime>,
+
+    /// Parameters for fluids
+    pub param_fluids: Option<ParamFluids>,
 
     /// Elements configuration
     pub element_configs: HashMap<CellAttributeId, ElementConfig>,
@@ -50,6 +53,7 @@ impl<'a> SimConfig<'a> {
             natural_bcs_edge: HashMap::new(),
             natural_bcs_face: HashMap::new(),
             point_bcs: HashMap::new(),
+            param_fluids: None,
             element_configs: HashMap::new(),
             problem_type: None,
             gravity: 0.0,
@@ -140,6 +144,12 @@ impl<'a> SimConfig<'a> {
         Ok(self)
     }
 
+    /// Sets parameters for fluids
+    pub fn set_param_fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
+        self.param_fluids = Some(param_fluids);
+        Ok(self)
+    }
+
     /// Sets configurations for a group of elements
     ///
     /// # Note
@@ -167,8 +177,8 @@ impl<'a> SimConfig<'a> {
                 }
                 None => self.problem_type = Some(ProblemType::Solid),
             },
-            ElementConfig::Porous(params, _) => {
-                match params.density_gas {
+            ElementConfig::Porous(param, _) => {
+                match param.conductivity_gas {
                     Some(_) => set_liq_and_gas = true,
                     None => set_liq = true,
                 }
@@ -183,8 +193,8 @@ impl<'a> SimConfig<'a> {
                     None => self.problem_type = Some(ProblemType::Porous),
                 }
             }
-            ElementConfig::Seepage(params, _) => {
-                match params.density_gas {
+            ElementConfig::Seepage(param, _) => {
+                match param.conductivity_gas {
                     Some(_) => set_liq_and_gas = true,
                     None => set_liq = true,
                 }
@@ -276,7 +286,7 @@ impl<'a> SimConfig<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, SampleParams, SimConfig, StrError};
+    use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, SampleParam, SimConfig, StrError};
     use gemlab::mesh::{At, Mesh};
 
     #[test]
@@ -309,13 +319,13 @@ mod tests {
             .nbc_edges(&top, &[Nbc::Qn], f_qn)?
             .bc_point(&corner, &[BcPoint::Fy], f_fy)?;
 
-        let params_1 = SampleParams::params_solid();
-        let params_2 = SampleParams::params_porous_sol_liq_gas(0.3, 1e-2);
+        let param_1 = SampleParam::param_solid();
+        let param_2 = SampleParam::param_porous_sol_liq_gas(0.3, 1e-2);
 
-        config.elements(1, ElementConfig::Solid(params_1, None))?;
+        config.elements(1, ElementConfig::Solid(param_1, None))?;
         assert_eq!(config.problem_type, Some(ProblemType::Solid));
 
-        config.elements(2, ElementConfig::Porous(params_2, None))?;
+        config.elements(2, ElementConfig::Porous(param_2, None))?;
         assert_eq!(config.problem_type, Some(ProblemType::Porous));
 
         config.set_gravity(10.0)?; // m/s²

@@ -71,6 +71,12 @@ impl Geostatics {
             return Err("Geostatics requires space_ndim = 2 or 3");
         }
 
+        // param for fluids
+        let param_fluids = match &config.param_fluids {
+            Some(p) => p,
+            None => return Err("param for fluids must be set first"),
+        };
+
         // find cells near x_min
         let x_min = mesh.coords_min[0];
         let mut cells_near_x_min: HashSet<CellId> = HashSet::new();
@@ -138,7 +144,7 @@ impl Geostatics {
         for info in &top_down {
             let element_config = config.get_element_config(info.attribute_id)?;
             let model = match element_config {
-                ElementConfig::Porous(params, _) => ModelPorous::new(params, two_dim)?,
+                ElementConfig::Porous(param_porous, _) => ModelPorous::new(param_fluids, param_porous, two_dim)?,
                 _ => panic!("INTERNAL ERROR: element_config is missing"), // not supposed to happen
             };
             layers.push(PorousLayer {
@@ -161,7 +167,7 @@ impl Geostatics {
             layer.overburden = cumulated_overburden_stress; // the first layer at the top has zero overburden
             let thickness = layer.z_max - layer.z_min;
             assert!(thickness > 0.0);
-            let rho_ini = layer.model.calc_rho_ini(layer.z_min, height, gravity)?;
+            let rho_ini = 0.0; // TODO layer.model.calc_rho_ini(layer.z_min, height, gravity)?;
             let delta_sigma_v = rho_ini * config.gravity * thickness;
             cumulated_overburden_stress += delta_sigma_v;
         }
@@ -205,7 +211,7 @@ impl Geostatics {
         for layer in &self.layers {
             if elevation >= layer.z_min && elevation <= layer.z_max {
                 let pl = layer.model.calc_pl(elevation, self.height, self.gravity)?;
-                let rho_ini = layer.model.calc_rho_ini(elevation, self.height, self.gravity)?;
+                let rho_ini = 0.0; // TODO layer.model.calc_rho_ini(elevation, self.height, self.gravity)?;
                 let sigma_v_total = layer.overburden + rho_ini * self.gravity * (layer.z_max - elevation);
                 let sigma_v_effective = sigma_v_total - pl;
                 let sigma_h_effective = layer.model.kk0 * sigma_v_effective;
@@ -240,7 +246,7 @@ impl Geostatics {
 #[cfg(test)]
 mod tests {
     use super::Geostatics;
-    use crate::{ElementConfig, ParamPorous, ParamSolid, SampleParams, SimConfig, StrError};
+    use crate::{ElementConfig, ParamPorous, ParamSolid, SampleParam, SimConfig, StrError};
     use gemlab::mesh::Mesh;
     use russell_chk::assert_approx_eq;
 
@@ -301,16 +307,16 @@ mod tests {
         // println!();
 
         // parameters
-        let footing = SampleParams::params_solid();
+        let footing = SampleParam::param_solid();
         let (upper, lower) = if with_gas {
             (
-                SampleParams::params_porous_sol_liq_gas(nf0, 1e-2),
-                SampleParams::params_porous_sol_liq_gas(0.2, 1e-2),
+                SampleParam::param_porous_sol_liq_gas(nf0, 1e-2),
+                SampleParam::param_porous_sol_liq_gas(0.2, 1e-2),
             )
         } else {
             (
-                SampleParams::params_porous_sol_liq(nf0, 1e-2, incompressible_liq),
-                SampleParams::params_porous_sol_liq(0.2, 1e-2, incompressible_liq),
+                SampleParam::param_porous_sol_liq(nf0, 1e-2),
+                SampleParam::param_porous_sol_liq(0.2, 1e-2),
             )
         };
         (footing, upper, lower, sigma_v_mid)

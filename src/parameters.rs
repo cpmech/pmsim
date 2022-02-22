@@ -1,5 +1,5 @@
 /// Holds parameters for rods
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub enum ParamRod {
     LinearElastic {
         density: f64, // intrinsic (real) density
@@ -9,7 +9,7 @@ pub enum ParamRod {
 }
 
 /// Holds parameters for beams
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub enum ParamBeam {
     EulerBernoulli {
         density: f64, // intrinsic (real) density
@@ -23,7 +23,7 @@ pub enum ParamBeam {
 }
 
 /// Holds parameters for stress-strain relations (total or effective stress)
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub enum ParamStressStrain {
     LinearElastic {
         young: f64,   // Young's modulus
@@ -46,7 +46,7 @@ pub struct ParamSolid {
 }
 
 /// Holds parameters for liquid-retention models
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub enum ParamLiquidRetention {
     BrooksCorey {
         lambda: f64, // slope coefficient
@@ -78,7 +78,7 @@ pub enum ParamLiquidRetention {
 }
 
 /// Holds parameters for liquid or gas conductivity
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub enum ParamConductivity {
     Constant {
         kx: f64,
@@ -111,15 +111,11 @@ pub struct ParamRealDensity {
     pub tt_ref: f64,  // reference temperature T₀
 }
 
-/// Holds parameters for seepage simulations with liquid and optionally gas
+/// Holds parameters for fluids (liquid and gas)
 #[derive(Clone, Copy, Debug)]
-pub struct ParamSeepage {
-    pub porosity_initial: f64,                       // initial porosity nf₀
-    pub retention_liquid: ParamLiquidRetention,      // liquid retention model Cc = dsl/dpc
-    pub conductivity_liquid: ParamConductivity,      // liquid conductivity kl
-    pub density_liquid: ParamRealDensity,            // intrinsic (real) density of liquid
-    pub conductivity_gas: Option<ParamConductivity>, // gas conductivity kg
-    pub density_gas: Option<ParamRealDensity>,       // intrinsic (real) density of gas
+pub struct ParamFluids {
+    pub density_liquid: ParamRealDensity,
+    pub density_gas: Option<ParamRealDensity>,
 }
 
 /// Holds parameters for porous media mechanics simulations with solid, liquid and optionally gas
@@ -144,22 +140,62 @@ pub struct ParamPorous {
     /// Liquid conductivity: `kl`
     pub conductivity_liquid: ParamConductivity,
 
-    /// Intrinsic (real) density of liquid: `rho_ll = ρL(pl)`
-    pub density_liquid: ParamRealDensity,
-
     /// gas conductivity `kg`
     pub conductivity_gas: Option<ParamConductivity>,
+}
 
-    /// Intrinsic (real) density of gas: `rho_gg = ρG(pg)`
-    pub density_gas: Option<ParamRealDensity>,
+/// Holds parameters for seepage simulations with liquid and optionally gas
+#[derive(Clone, Copy, Debug)]
+pub struct ParamSeepage {
+    pub porosity_initial: f64,                       // initial porosity nf₀
+    pub retention_liquid: ParamLiquidRetention,      // liquid retention model Cc = dsl/dpc
+    pub conductivity_liquid: ParamConductivity,      // liquid conductivity kl
+    pub conductivity_gas: Option<ParamConductivity>, // gas conductivity kg
 }
 
 /// Holds some sample material parameters
-pub struct SampleParams;
+pub struct SampleParam;
 
-impl SampleParams {
+impl SampleParam {
+    /// Returns example parameters for the density of water (SI units)
+    pub fn param_density_water(incompressible: bool) -> ParamRealDensity {
+        let cc = if incompressible { 1e-12 } else { 4.53e-7 }; // Mg/(m³ kPa)
+        ParamRealDensity {
+            cc,           // Mg/(m³ kPa)
+            p_ref: 0.0,   // kPa
+            rho_ref: 1.0, // Mg/m³
+            tt_ref: 25.0, // ℃
+        }
+    }
+
+    /// Returns example parameters for the density of dry air (SI units)
+    pub fn param_density_dry_air() -> ParamRealDensity {
+        ParamRealDensity {
+            cc: 1.17e-5,     // Mg/(m³ kPa)
+            p_ref: 0.0,      // kPa
+            rho_ref: 0.0012, // Mg/m³
+            tt_ref: 25.0,    // ℃
+        }
+    }
+
+    /// Returns example parameters for water (SI units)
+    pub fn param_water(incompressible: bool) -> ParamFluids {
+        ParamFluids {
+            density_liquid: SampleParam::param_density_water(incompressible),
+            density_gas: None,
+        }
+    }
+
+    /// Returns example parameters for water and dry air (SI units)
+    pub fn param_water_and_dry_air(incompressible: bool) -> ParamFluids {
+        ParamFluids {
+            density_liquid: SampleParam::param_density_water(incompressible),
+            density_gas: Some(SampleParam::param_density_dry_air()),
+        }
+    }
+
     /// Returns example parameters for a solid medium
-    pub fn params_solid() -> ParamSolid {
+    pub fn param_solid() -> ParamSolid {
         ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::LinearElastic {
@@ -170,10 +206,11 @@ impl SampleParams {
     }
 
     /// Returns example parameters for a porous medium with solid, liquid and gas
-    pub fn params_porous_sol_liq_gas(porosity_initial: f64, k_iso: f64) -> ParamPorous {
+    pub fn param_porous_sol_liq_gas(porosity_initial: f64, k_iso: f64) -> ParamPorous {
         let nu = 0.2;
         let kk0 = nu / (1.0 - nu);
         ParamPorous {
+            earth_pres_coef_ini: kk0,
             porosity_initial,
             density_solid: 2.7, // Mg/m³
             stress_strain: ParamStressStrain::LinearElastic {
@@ -202,12 +239,6 @@ impl SampleParams {
                 alpha: 0.01,
                 beta: 10.0,
             },
-            density_liquid: ParamRealDensity {
-                cc: 4.53e-7,  // Mg/(m³ kPa)
-                p_ref: 0.0,   // kPa
-                rho_ref: 1.0, // Mg/m³
-                tt_ref: 25.0, // ℃
-            },
             conductivity_gas: Some(ParamConductivity::PedrosoZhangEhlers {
                 kx: k_iso, // m/s
                 ky: k_iso, // m/s
@@ -217,21 +248,15 @@ impl SampleParams {
                 alpha: 0.01,
                 beta: 10.0,
             }),
-            density_gas: Some(ParamRealDensity {
-                cc: 1.17e-5,     // Mg/(m³ kPa)
-                p_ref: 0.0,      // kPa
-                rho_ref: 0.0012, // Mg/m³
-                tt_ref: 25.0,    // ℃
-            }),
-            earth_pres_coef_ini: kk0,
         }
     }
 
     /// Returns example parameters for a porous medium with solid and liquid
-    pub fn params_porous_sol_liq(porosity_initial: f64, k_iso: f64, incompressible_liq: bool) -> ParamPorous {
+    pub fn param_porous_sol_liq(porosity_initial: f64, k_iso: f64) -> ParamPorous {
         let nu = 0.2;
         let kk0 = nu / (1.0 - nu);
         ParamPorous {
+            earth_pres_coef_ini: kk0,
             porosity_initial,
             density_solid: 2.7, // Mg/m³
             stress_strain: ParamStressStrain::LinearElastic {
@@ -260,15 +285,7 @@ impl SampleParams {
                 alpha: 0.01,
                 beta: 10.0,
             },
-            density_liquid: ParamRealDensity {
-                cc: if incompressible_liq { 1e-12 } else { 4.53e-7 }, // Mg/(m³ kPa)
-                p_ref: 0.0,                                           // kPa
-                rho_ref: 1.0,                                         // Mg/m³
-                tt_ref: 25.0,                                         // ℃
-            },
             conductivity_gas: None,
-            density_gas: None,
-            earth_pres_coef_ini: kk0,
         }
     }
 }

@@ -1,4 +1,6 @@
-use crate::{ModelConductivity, ModelLiquidRetention, ModelRealDensity, ModelStressStrain, ParamPorous, StrError};
+use crate::{
+    ModelConductivity, ModelLiquidRetention, ModelRealDensity, ModelStressStrain, ParamFluids, ParamPorous, StrError,
+};
 
 /// Implements a set of models for the mechanics porous media
 ///
@@ -30,41 +32,59 @@ use crate::{ModelConductivity, ModelLiquidRetention, ModelRealDensity, ModelStre
 /// * `rho_ini` -- `ρ0 = (1-nf0)・ρS0 + nf0・sl_max・ρL(pl) + nf0・(1-sl_max)・ρG(pg)`
 ///   is the initial partial density of the (liquid-saturated) mixture
 pub struct ModelPorous {
-    pub stress_strain: ModelStressStrain,
-    pub retention_liquid: ModelLiquidRetention,
-    pub conductivity_liquid: ModelConductivity,
+    /// Model for the intrinsic (real) density of liquid
     pub density_liquid: ModelRealDensity,
-    pub conductivity_gas: Option<ModelConductivity>,
+
+    /// Optional model for the intrinsic (real) density of gas
     pub density_gas: Option<ModelRealDensity>,
 
-    pub nf_ini: f64, // initial porosity
-    pub rho_ss: f64, // initial and constant intrinsic (real) density of solids
-    pub sl_max: f64, // maximum liquid saturation
-    pub kk0: f64,    // at-rest earth pressure coefficient `K0 = σₕ'/σᵥ'`
+    /// Model for the stress-strain relation
+    pub stress_strain: ModelStressStrain,
+
+    /// Model for the liquid retention behavior
+    pub retention_liquid: ModelLiquidRetention,
+
+    /// Model for the liquid conductivity
+    pub conductivity_liquid: ModelConductivity,
+
+    /// Model for the gas conductivity
+    pub conductivity_gas: Option<ModelConductivity>,
+
+    /// At-rest earth pressure coefficient `K0 = σₕ'/σᵥ'` to compute initial stresses
+    pub kk0: f64,
+
+    /// Initial porosity
+    pub nf_ini: f64,
+
+    /// Initial and constant intrinsic (real) density of solids
+    pub rho_ss: f64,
+
+    /// Maximum liquid saturation
+    pub sl_max: f64,
 }
 
 impl ModelPorous {
     /// Allocates a new instance
-    pub fn new(params: &ParamPorous, two_dim: bool) -> Result<Self, StrError> {
-        let retention_liquid = ModelLiquidRetention::new(&params.retention_liquid)?;
+    pub fn new(param_fluids: &ParamFluids, param_porous: &ParamPorous, two_dim: bool) -> Result<Self, StrError> {
+        let retention_liquid = ModelLiquidRetention::new(&param_porous.retention_liquid)?;
         let sl_max = retention_liquid.get_sl_max();
         let model = ModelPorous {
-            stress_strain: ModelStressStrain::new(&params.stress_strain, two_dim, false)?,
+            density_liquid: ModelRealDensity::new(&param_fluids.density_liquid)?,
+            density_gas: match &param_fluids.density_gas {
+                Some(p) => Some(ModelRealDensity::new(p)?),
+                None => None,
+            },
+            stress_strain: ModelStressStrain::new(&param_porous.stress_strain, two_dim, false)?,
             retention_liquid,
-            conductivity_liquid: ModelConductivity::new(&params.conductivity_liquid, two_dim)?,
-            density_liquid: ModelRealDensity::new(&params.density_liquid)?,
-            conductivity_gas: match params.conductivity_gas {
-                Some(v) => Some(ModelConductivity::new(&v, two_dim)?),
+            conductivity_liquid: ModelConductivity::new(&param_porous.conductivity_liquid, two_dim)?,
+            conductivity_gas: match &param_porous.conductivity_gas {
+                Some(p) => Some(ModelConductivity::new(p, two_dim)?),
                 None => None,
             },
-            density_gas: match params.density_gas {
-                Some(v) => Some(ModelRealDensity::new(&v)?),
-                None => None,
-            },
-            nf_ini: params.porosity_initial,
-            rho_ss: params.density_solid,
+            kk0: param_porous.earth_pres_coef_ini,
+            nf_ini: param_porous.porosity_initial,
+            rho_ss: param_porous.density_solid,
             sl_max,
-            kk0: params.earth_pres_coef_ini,
         };
         if let Some(_) = model.density_gas {
             if model.sl_max >= 1.0 {
@@ -102,19 +122,5 @@ impl ModelPorous {
             Some(m) => m.density_at_elevation(elevation, height, gravity),
             None => Ok(0.0),
         }
-    }
-
-    /// Calculates the initial partial density of the porous medium (mixture)
-    ///
-    /// ```text
-    /// ρ0 = (1-nf0)・ρS0 + nf0・sl_max・ρL(pl) + nf0・(1-sl_max)・ρG(pg)
-    /// ```
-    pub fn calc_rho_ini(&self, elevation: f64, height: f64, gravity: f64) -> Result<f64, StrError> {
-        let rho_ll = self.calc_rho_ll(elevation, height, gravity)?;
-        let rho_gg = self.calc_rho_gg(elevation, height, gravity)?;
-        let rho_ini = (1.0 - self.nf_ini) * self.rho_ss
-            + self.nf_ini * self.sl_max * rho_ll
-            + self.nf_ini * (1.0 - self.sl_max) * rho_gg;
-        Ok(rho_ini)
     }
 }
