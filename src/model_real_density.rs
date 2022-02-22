@@ -53,8 +53,18 @@ impl ModelRealDensity {
         if elevation < 0.0 || elevation > height {
             return Err("elevation must be in 0 ≤ elevation ≤ height to calculate pressure");
         }
-        let p = self.p_ref + self.rho_ref * f64::exp_m1(self.cc * (height - elevation) * gravity) / self.cc;
+        let p = self.p_ref + self.rho_exp_m1(elevation, height, gravity);
         Ok(p)
+    }
+
+    /// Returns the rho-exp-m1 term for pressure and stress computations
+    ///
+    /// # Warning
+    ///
+    /// No checks on elevation bounds are made here.
+    #[inline]
+    pub fn rho_exp_m1(&self, elevation: f64, height: f64, gravity: f64) -> f64 {
+        self.rho_ref * f64::exp_m1(self.cc * (height - elevation) * gravity) / self.cc
     }
 }
 

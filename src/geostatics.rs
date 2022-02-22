@@ -165,10 +165,10 @@ impl Geostatics {
         let mut cumulated_overburden_stress = 0.0;
         for layer in &mut layers {
             layer.overburden = cumulated_overburden_stress; // the first layer at the top has zero overburden
-            let thickness = layer.z_max - layer.z_min;
-            assert!(thickness > 0.0);
-            let rho_ini = 0.0; // TODO layer.model.calc_rho_ini(layer.z_min, height, gravity)?;
-            let delta_sigma_v = rho_ini * config.gravity * thickness;
+            let delta_sigma_v =
+                layer
+                    .model
+                    .calc_sigma_z_ini(layer.overburden, layer.z_min, height, layer.z_max, gravity)?;
             cumulated_overburden_stress += delta_sigma_v;
         }
 

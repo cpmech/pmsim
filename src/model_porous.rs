@@ -123,4 +123,45 @@ impl ModelPorous {
             None => Ok(0.0),
         }
     }
+
+    /// Calculates the geostatic initial total vertical stress at an elevation within a porous layer
+    pub fn calc_sigma_z_ini(
+        &self,
+        sigma_over: f64,
+        elevation: f64,
+        height: f64,
+        z_max: f64,
+        gravity: f64,
+    ) -> Result<f64, StrError> {
+        if elevation > z_max {
+            return Err("elevation must be ≤ z_max to calculate sigma_z_ini");
+        }
+        if z_max > height {
+            return Err("z_max must be ≤ height to calculate sigma_z_ini");
+        }
+        let (z, hh, g) = (elevation, height, gravity);
+        let nf = self.nf_ini;
+        let sigma_z = match &self.density_gas {
+            Some(model_density_gas) => {
+                let (sl, sg) = (self.sl_max, 1.0 - self.sl_max);
+                let (ns, nl, ng) = (1.0 - nf, sl * nf, sg * nf);
+                let rho_exp_l_a = self.density_liquid.rho_exp_m1(z, hh, g);
+                let rho_exp_l_b = self.density_liquid.rho_exp_m1(z_max, hh, g);
+                let rho_exp_g_a = model_density_gas.rho_exp_m1(z, hh, g);
+                let rho_exp_g_b = model_density_gas.rho_exp_m1(z_max, hh, g);
+                -sigma_over
+                    - ns * self.rho_ss * (z_max - z) * g
+                    - nl * (rho_exp_l_a - rho_exp_l_b)
+                    - ng * (rho_exp_g_a - rho_exp_g_b)
+            }
+            None => {
+                let sl = self.sl_max;
+                let (ns, nl) = (1.0 - nf, sl * nf);
+                let rho_exp_l_a = self.density_liquid.rho_exp_m1(z, hh, g);
+                let rho_exp_l_b = self.density_liquid.rho_exp_m1(z_max, hh, g);
+                -sigma_over - ns * self.rho_ss * (z_max - z) * g - nl * (rho_exp_l_a - rho_exp_l_b)
+            }
+        };
+        Ok(sigma_z)
+    }
 }
