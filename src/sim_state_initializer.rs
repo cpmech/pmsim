@@ -37,7 +37,7 @@ pub struct SimStateInitializer {
 impl SimStateInitializer {
     pub fn new(config: &SimConfig) -> Result<Self, StrError> {
         // let model_water = match &config.ini_option {
-        //     IniOption::Geostatic(params) => Some(ModelRealDensity::new(params)?),
+        //     IniOption::Geostatic(param) => Some(ModelRealDensity::new(param)?),
         //     _ => None,
         // };
         // Ok(SimStateInitializer { config, model_water })

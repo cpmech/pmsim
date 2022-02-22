@@ -17,8 +17,8 @@ pub struct ModelStressStrain {
 
 impl ModelStressStrain {
     /// Allocates a new instance
-    pub fn new(params: &ParamStressStrain, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
-        let model: Box<dyn ModelStressStrainTrait> = match params {
+    pub fn new(param: &ParamStressStrain, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
+        let model: Box<dyn ModelStressStrainTrait> = match param {
             &ParamStressStrain::LinearElastic { young, poisson } => {
                 Box::new(ModelLinearElastic::new(young, poisson, two_dim, plane_stress)?)
             }

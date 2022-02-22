@@ -33,7 +33,7 @@ pub struct ModelConductivity {
 
 impl ModelConductivity {
     /// Allocates a new instance
-    pub fn new(params: &ParamConductivity, two_dim: bool) -> Result<Self, StrError> {
+    pub fn new(param: &ParamConductivity, two_dim: bool) -> Result<Self, StrError> {
         let mut model = ModelConductivity {
             kk_sat: Tensor2::new(true, two_dim),
             is_constant: false,
@@ -48,7 +48,7 @@ impl ModelConductivity {
             c2: 0.0,
             c3: 0.0,
         };
-        let (kx, ky, kz) = match params {
+        let (kx, ky, kz) = match param {
             &ParamConductivity::Constant { kx, ky, kz } => {
                 model.is_constant = true;
                 (kx, ky, kz)

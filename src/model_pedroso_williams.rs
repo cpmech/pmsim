@@ -44,7 +44,7 @@ struct TemporaryWetting {
 ///    modelling in soil mechanics, Computers and Geotechnics, 36(1-2), 149-165,
 ///    <https://dx.doi.org/10.1016/j.compgeo.2008.01.009>
 pub struct ModelPedrosoWilliams {
-    // params
+    // parameters
     with_hysteresis: bool,
     lambda_d: f64,
     lambda_w: f64,

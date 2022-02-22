@@ -22,8 +22,8 @@ pub struct ModelLiquidRetention {
 
 impl ModelLiquidRetention {
     /// Allocates a new instance
-    pub fn new(params: &ParamLiquidRetention) -> Result<Self, StrError> {
-        let model: Box<dyn ModelLiquidRetentionTrait> = match params {
+    pub fn new(param: &ParamLiquidRetention) -> Result<Self, StrError> {
+        let model: Box<dyn ModelLiquidRetentionTrait> = match param {
             &ParamLiquidRetention::BrooksCorey {
                 lambda,
                 pc_ae,
