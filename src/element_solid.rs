@@ -1,13 +1,8 @@
-#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
-
 use crate::{
-    Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, SimStateInitializer, StateElement, StateStress,
-    StrError,
+    Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, SimStateInitializer, StateElement, StrError,
 };
-use gemlab::mesh::Cell;
-use gemlab::shapes::{IntegGDG, IntegTG, Shape};
-use russell_lab::{copy_matrix, copy_vector, Matrix, Vector};
-use russell_tensor::{Tensor2, Tensor4};
+use gemlab::shapes::Shape;
+use russell_lab::{Matrix, Vector};
 use std::cell::RefCell;
 
 /// Implements a finite element for solid mechanics problems
@@ -15,13 +10,13 @@ pub struct ElementSolid {
     // shape with point ids and integration functions
     shape: RefCell<Shape>,
 
-    // params
+    // param
     model: ModelStressStrain, // material model
-    thickness: f64,           // thickness
+    _thickness: f64,          // thickness
 
     // system
     dofs: Vec<Dof>, // degrees-of-freedom per node
-    yy: Vector,     // local Y-vector (neq)
+    _yy: Vector,    // local Y-vector (neq)
     kk: Matrix,     // local K-matrix (neq,neq)
 }
 
@@ -29,14 +24,14 @@ impl ElementSolid {
     /// Allocates a new instance
     pub fn new(
         shape: Shape,
-        params: &ParamSolid,
+        param: &ParamSolid,
         n_integ_point: Option<usize>,
         plane_stress: bool,
         thickness: f64,
     ) -> Result<Self, StrError> {
         // model
         let two_dim = shape.space_ndim == 2;
-        let model = ModelStressStrain::new(&params.stress_strain, two_dim, plane_stress)?;
+        let model = ModelStressStrain::new(&param.stress_strain, two_dim, plane_stress)?;
 
         // system
         let dofs = match shape.space_ndim {
@@ -56,9 +51,9 @@ impl ElementSolid {
         Ok(ElementSolid {
             shape,
             model,
-            thickness,
+            _thickness: thickness,
             dofs,
-            yy: Vector::new(neq),
+            _yy: Vector::new(neq),
             kk: Matrix::new(neq, neq),
         })
     }
@@ -97,17 +92,17 @@ impl Element for ElementSolid {
     }
 
     /// Computes the element K-matrix
-    fn calc_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_kk_matrix(&mut self, _first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Assembles the local Y-vector into the global Y-vector
-    fn assemble_yy_vector(&self, yy: &mut Vec<f64>) -> Result<(), StrError> {
+    fn assemble_yy_vector(&self, _yy: &mut Vec<f64>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_kk_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError> {
+    fn assemble_kk_matrix(&self, _kk: &mut Vec<Vec<f64>>) -> Result<(), StrError> {
         Ok(())
     }
 }
