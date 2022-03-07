@@ -144,12 +144,6 @@ impl<'a> SimConfig<'a> {
         Ok(self)
     }
 
-    /// Sets parameters for fluids
-    pub fn set_param_fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
-        self.param_fluids = Some(param_fluids);
-        Ok(self)
-    }
-
     /// Sets configurations for a group of elements
     ///
     /// # Note
@@ -214,6 +208,12 @@ impl<'a> SimConfig<'a> {
         }
         // store element config
         self.element_configs.insert(attribute_id, config);
+        Ok(self)
+    }
+
+    /// Sets parameters for fluids
+    pub fn set_param_fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
+        self.param_fluids = Some(param_fluids);
         Ok(self)
     }
 
