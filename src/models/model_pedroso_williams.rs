@@ -1,4 +1,4 @@
-use super::ModelLiquidRetentionTrait;
+use super::LiquidRetention;
 use crate::StrError;
 use std::cell::RefCell;
 
@@ -188,7 +188,7 @@ impl ModelPedrosoWilliams {
     }
 }
 
-impl ModelLiquidRetentionTrait for ModelPedrosoWilliams {
+impl LiquidRetention for ModelPedrosoWilliams {
     /// Returns the saturation limits (sl_min,sl_max)
     fn saturation_limits(&self) -> (f64, f64) {
         (self.y_r, self.y_0)

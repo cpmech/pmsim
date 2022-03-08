@@ -1,4 +1,4 @@
-use super::ModelLiquidRetentionTrait;
+use super::LiquidRetention;
 use crate::StrError;
 
 /// Implements the van Genuchten model for liquid retention
@@ -63,7 +63,7 @@ impl ModelVanGenuchten {
     }
 }
 
-impl ModelLiquidRetentionTrait for ModelVanGenuchten {
+impl LiquidRetention for ModelVanGenuchten {
     /// Returns the saturation limits (sl_min,sl_max)
     fn saturation_limits(&self) -> (f64, f64) {
         (self.sl_min, self.sl_max)

@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_lab::Vector;
 
 /// Defines a trait for models for liquid retention in porous media
-pub trait ModelLiquidRetentionTrait {
+pub(super) trait LiquidRetention {
     /// Returns the saturation limits (sl_min,sl_max)
     fn saturation_limits(&self) -> (f64, f64);
 
@@ -17,7 +17,7 @@ pub trait ModelLiquidRetentionTrait {
 
 /// Implements a model for liquid retention in porous media
 pub struct ModelLiquidRetention {
-    pub model: Box<dyn ModelLiquidRetentionTrait>,
+    model: Box<dyn LiquidRetention>,
     update_nit_max: usize, // max number of iterations for the update_saturation function
     update_tolerance: f64, // tolerance for the update_saturation function
 }
@@ -25,7 +25,7 @@ pub struct ModelLiquidRetention {
 impl ModelLiquidRetention {
     /// Allocates a new instance
     pub fn new(param: &ParamLiquidRetention) -> Result<Self, StrError> {
-        let model: Box<dyn ModelLiquidRetentionTrait> = match param {
+        let model: Box<dyn LiquidRetention> = match param {
             &ParamLiquidRetention::BrooksCorey {
                 lambda,
                 pc_ae,
