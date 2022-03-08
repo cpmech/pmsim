@@ -1,5 +1,5 @@
 use super::{EquationNumbers, SimConfig, SimState, SimStateInitializer};
-use crate::elements::{alloc_element, Element};
+use crate::elements::Element;
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{SparseTriplet, Symmetry};
@@ -11,7 +11,7 @@ pub struct Simulation<'a> {
     config: &'a SimConfig<'a>,
 
     /// All elements
-    elements: Vec<Box<dyn Element + 'a>>,
+    elements: Vec<Element>,
 
     /// Equation numbers table
     equation_numbers: EquationNumbers,
@@ -28,7 +28,7 @@ impl<'a> Simulation<'a> {
     pub fn new(config: &'a SimConfig) -> Result<Self, StrError> {
         // elements, equation numbers, and states
         let npoint = config.mesh.points.len();
-        let mut elements = Vec::<Box<dyn Element>>::new();
+        let mut elements = Vec::<Element>::new();
         let mut equation_numbers = EquationNumbers::new(npoint);
         let mut sim_state = SimState::new_empty();
         let initializer = SimStateInitializer::new(&config)?;
@@ -37,13 +37,13 @@ impl<'a> Simulation<'a> {
         let mut nnz_max = 0;
         for cell in &config.mesh.cells {
             // allocate element
-            let element = alloc_element(config, cell.id)?;
+            let element = Element::new(config, cell.id)?;
 
             // set DOFs and estimate the max number of non-zeros in the K-matrix
-            nnz_max += element.set_equation_numbers(&mut equation_numbers);
+            nnz_max += element.base.set_equation_numbers(&mut equation_numbers);
 
             // allocate integ points states
-            let states = element.alloc_state(&initializer)?;
+            let states = element.base.alloc_state(&initializer)?;
             sim_state.elements.push(states);
 
             // add element to array

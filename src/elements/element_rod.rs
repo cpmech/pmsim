@@ -1,4 +1,4 @@
-use super::Element;
+use super::GenericElement;
 use crate::simulation::{EquationNumbers, ParamRod, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
@@ -15,7 +15,7 @@ impl ElementRod {
     }
 }
 
-impl Element for ElementRod {
+impl GenericElement for ElementRod {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0

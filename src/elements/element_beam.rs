@@ -1,4 +1,4 @@
-use super::element::Element;
+use super::element::GenericElement;
 use crate::simulation::{EquationNumbers, ParamBeam, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
@@ -15,7 +15,7 @@ impl ElementBeam {
     }
 }
 
-impl Element for ElementBeam {
+impl GenericElement for ElementBeam {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0

@@ -1,4 +1,4 @@
-use super::Element;
+use super::GenericElement;
 use crate::models::ModelStressStrain;
 use crate::simulation::{Dof, EquationNumbers, ParamSolid, SimStateInitializer, StateElement};
 use crate::StrError;
@@ -60,7 +60,7 @@ impl ElementSolid {
     }
 }
 
-impl Element for ElementSolid {
+impl GenericElement for ElementSolid {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         for point_id in &self.shape.borrow().point_ids {
