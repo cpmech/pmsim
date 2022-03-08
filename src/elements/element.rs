@@ -1,49 +1,8 @@
 use crate::{
-    ElementBeam, ElementPorousUsPl, ElementPorousUsPlPg, ElementRod, ElementSeepagePl, ElementSeepagePlPg,
-    ElementSolid, EquationNumbers, ParamBeam, ParamPorous, ParamRod, ParamSeepage, ParamSolid, SimConfig,
-    SimStateInitializer, StateElement, StrError,
+    ElementBeam, ElementConfig, ElementPorousUsPl, ElementPorousUsPlPg, ElementRod, ElementSeepagePl,
+    ElementSeepagePlPg, ElementSolid, EquationNumbers, SimConfig, SimStateInitializer, StateElement, StrError,
 };
 use gemlab::mesh::CellId;
-
-/// Holds element configuration, material parameters, and number of integration points
-#[derive(Clone, Copy, Debug)]
-pub enum ElementConfig {
-    /// Configuration for Rod element
-    Rod(ParamRod),
-
-    /// Configuration for Beam element
-    Beam(ParamBeam),
-
-    /// Configuration for Solid element with (param, n_integ_point)
-    Solid(ParamSolid, Option<usize>),
-
-    /// Configuration for Porous element with (param, n_integ_point)
-    Porous(ParamPorous, Option<usize>),
-
-    /// Configuration for Seepage element with (param, n_integ_point)
-    Seepage(ParamSeepage, Option<usize>),
-}
-
-/// Defines the problem type
-///
-/// # Note
-///
-/// Solid problem type allows the following configurations:
-/// * ElementConfig::Rod
-/// * ElementConfig::Beam
-/// * ElementConfig::Solid
-///
-/// Porous mechanics problems type allows the following configurations:
-/// * ElementConfig::Rod
-/// * ElementConfig::Beam
-/// * ElementConfig::Solid
-/// * ElementConfig::Porous
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ProblemType {
-    Solid,
-    Porous,
-    Seepage,
-}
 
 /// Defines a trait for (finite) elements
 ///

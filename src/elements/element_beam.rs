@@ -1,4 +1,5 @@
-use crate::{Element, EquationNumbers, ParamBeam, SimStateInitializer, StateElement, StrError};
+use super::element::Element;
+use crate::{EquationNumbers, ParamBeam, SimStateInitializer, StateElement, StrError};
 use gemlab::shapes::Shape;
 
 /// Implements a Beam element
