@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{Geostatics, SimConfig, StateStress, StrError};
+use crate::{SimConfig, StateStress, StrError};
 use russell_lab::Vector;
 
 // /// Holds initialization data
@@ -30,8 +30,8 @@ pub enum IniOption {
 
 pub struct SimStateInitializer {
     // config: &'a SimConfig<'a>, // Access to configuration
-    geostatics: Option<Geostatics>,
-    // model_water: Option<ModelRealDensity>,
+// geostatics: Option<Geostatics>,
+// model_water: Option<ModelRealDensity>,
 }
 
 impl SimStateInitializer {

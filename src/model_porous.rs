@@ -50,25 +50,33 @@ pub struct ModelPorous {
     /// Model for the gas conductivity
     pub conductivity_gas: Option<ModelConductivity>,
 
-    /// At-rest earth pressure coefficient `K0 = σₕ'/σᵥ'` to compute initial stresses
-    pub kk0: f64,
-
     /// Initial porosity
     pub nf_ini: f64,
 
     /// Initial and constant intrinsic (real) density of solids
     pub rho_ss: f64,
-
-    /// Maximum liquid saturation
-    pub sl_max: f64,
 }
 
 impl ModelPorous {
     /// Allocates a new instance
+    ///
+    /// # Input
+    ///
+    /// * `param_fluids` -- parameters for fluids
+    /// * `param_porous` -- parameters for porous medium
+    /// * `two_dim` -- is it 2D instead of 3D? (used to allocate stress tensors)
     pub fn new(param_fluids: &ParamFluids, param_porous: &ParamPorous, two_dim: bool) -> Result<Self, StrError> {
         let retention_liquid = ModelLiquidRetention::new(&param_porous.retention_liquid)?;
         let sl_max = retention_liquid.get_sl_max();
-        let model = ModelPorous {
+        match &param_porous.conductivity_gas {
+            Some(_) => {
+                if sl_max >= 1.0 {
+                    return Err("with the gas phase, the maximum liquid saturation must be smaller than 1.0");
+                }
+            }
+            None => (),
+        }
+        Ok(ModelPorous {
             density_liquid: ModelRealDensity::new(&param_fluids.density_liquid)?,
             density_gas: match &param_fluids.density_gas {
                 Some(p) => Some(ModelRealDensity::new(p)?),
@@ -81,87 +89,8 @@ impl ModelPorous {
                 Some(p) => Some(ModelConductivity::new(p, two_dim)?),
                 None => None,
             },
-            kk0: param_porous.earth_pres_coef_ini,
             nf_ini: param_porous.porosity_initial,
             rho_ss: param_porous.density_solid,
-            sl_max,
-        };
-        if let Some(_) = model.density_gas {
-            if model.sl_max >= 1.0 {
-                return Err("with the gas phase, the maximum liquid saturation must be smaller than 1.0");
-            }
-        }
-        Ok(model)
-    }
-
-    /// Returns the liquid pressure at given elevation
-    #[inline]
-    pub fn calc_pl(&self, elevation: f64, height: f64, gravity: f64) -> Result<f64, StrError> {
-        self.density_liquid.pressure_at_elevation(elevation, height, gravity)
-    }
-
-    /// Returns the gas pressure at given elevation
-    #[inline]
-    pub fn calc_pg(&self, elevation: f64, height: f64, gravity: f64) -> Result<f64, StrError> {
-        match &self.density_gas {
-            Some(m) => m.pressure_at_elevation(elevation, height, gravity),
-            None => Ok(0.0),
-        }
-    }
-
-    /// Returns the intrinsic (real) density of liquid at given elevation
-    #[inline]
-    pub fn calc_rho_ll(&self, elevation: f64, height: f64, gravity: f64) -> Result<f64, StrError> {
-        self.density_liquid.density_at_elevation(elevation, height, gravity)
-    }
-
-    /// Returns the intrinsic (real) density of gas at given elevation
-    #[inline]
-    pub fn calc_rho_gg(&self, elevation: f64, height: f64, gravity: f64) -> Result<f64, StrError> {
-        match &self.density_gas {
-            Some(m) => m.density_at_elevation(elevation, height, gravity),
-            None => Ok(0.0),
-        }
-    }
-
-    /// Calculates the geostatic initial total vertical stress at an elevation within a porous layer
-    pub fn calc_sigma_z_ini(
-        &self,
-        sigma_over: f64,
-        elevation: f64,
-        height: f64,
-        z_max: f64,
-        gravity: f64,
-    ) -> Result<f64, StrError> {
-        if elevation > z_max {
-            return Err("elevation must be ≤ z_max to calculate sigma_z_ini");
-        }
-        if z_max > height {
-            return Err("z_max must be ≤ height to calculate sigma_z_ini");
-        }
-        let (z, hh, g) = (elevation, height, gravity);
-        let nf = self.nf_ini;
-        let sigma_z = match &self.density_gas {
-            Some(model_density_gas) => {
-                let (sl, sg) = (self.sl_max, 1.0 - self.sl_max);
-                let (ns, nl, ng) = (1.0 - nf, sl * nf, sg * nf);
-                let rho_exp_l_a = self.density_liquid.rho_exp_m1(z, hh, g);
-                let rho_exp_l_b = self.density_liquid.rho_exp_m1(z_max, hh, g);
-                let rho_exp_g_a = model_density_gas.rho_exp_m1(z, hh, g);
-                let rho_exp_g_b = model_density_gas.rho_exp_m1(z_max, hh, g);
-                -sigma_over
-                    - ns * self.rho_ss * (z_max - z) * g
-                    - nl * (rho_exp_l_a - rho_exp_l_b)
-                    - ng * (rho_exp_g_a - rho_exp_g_b)
-            }
-            None => {
-                let sl = self.sl_max;
-                let (ns, nl) = (1.0 - nf, sl * nf);
-                let rho_exp_l_a = self.density_liquid.rho_exp_m1(z, hh, g);
-                let rho_exp_l_b = self.density_liquid.rho_exp_m1(z_max, hh, g);
-                -sigma_over - ns * self.rho_ss * (z_max - z) * g - nl * (rho_exp_l_a - rho_exp_l_b)
-            }
-        };
-        Ok(sigma_z)
+        })
     }
 }
