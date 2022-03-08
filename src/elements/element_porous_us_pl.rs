@@ -1,12 +1,12 @@
 use crate::{
-    Element, EquationNumbers, ModelPorous, ParamFluids, ParamPorous, SimStateInitializer, StateElement, StrError,
+    Element, EquationNumbers, ModelPorousMedium, ParamFluids, ParamPorous, SimStateInitializer, StateElement, StrError,
 };
 use gemlab::shapes::Shape;
 
 /// Implements the us-pl (solid displacement, liquid pressure) element for porous media mechanics
 pub struct ElementPorousUsPl {
     _shape: Shape,
-    _model: ModelPorous, // material model
+    _model: ModelPorousMedium, // material model
 }
 
 impl ElementPorousUsPl {
@@ -20,7 +20,7 @@ impl ElementPorousUsPl {
         let two_dim = shape.space_ndim == 2;
         Ok(ElementPorousUsPl {
             _shape: shape,
-            _model: ModelPorous::new(param_fluids, param_porous, two_dim)?,
+            _model: ModelPorousMedium::new(param_fluids, param_porous, two_dim)?,
         })
     }
 }

@@ -31,7 +31,7 @@ use crate::{
 /// * `sl_max` -- is the maximum liquid saturation (e.g., 1.0 or 0.95)
 /// * `rho_ini` -- `ρ0 = (1-nf0)・ρS0 + nf0・sl_max・ρL(pl) + nf0・(1-sl_max)・ρG(pg)`
 ///   is the initial partial density of the (liquid-saturated) mixture
-pub struct ModelPorous {
+pub struct ModelPorousMedium {
     /// Model for the intrinsic (real) density of liquid
     pub density_liquid: ModelRealDensity,
 
@@ -57,7 +57,7 @@ pub struct ModelPorous {
     pub rho_ss: f64,
 }
 
-impl ModelPorous {
+impl ModelPorousMedium {
     /// Allocates a new instance
     ///
     /// # Input
@@ -76,7 +76,7 @@ impl ModelPorous {
             }
             None => (),
         }
-        Ok(ModelPorous {
+        Ok(ModelPorousMedium {
             density_liquid: ModelRealDensity::new(&param_fluids.density_liquid)?,
             density_gas: match &param_fluids.density_gas {
                 Some(p) => Some(ModelRealDensity::new(p)?),
