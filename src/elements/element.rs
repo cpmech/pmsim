@@ -1,5 +1,5 @@
 use super::{Beam, PorousUsPl, PorousUsPlPg, Rod, SeepagePl, SeepagePlPg, Solid};
-use crate::simulation::{ElementConfig, EquationNumbers, SimConfig, SimStateInitializer, StateElement};
+use crate::simulation::{Configuration, ElementConfig, EquationNumbers, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::mesh::CellId;
 
@@ -53,7 +53,7 @@ pub struct Element {
 
 impl Element {
     /// Allocates a new instance
-    pub fn new(config: &SimConfig, cell_id: CellId) -> Result<Self, StrError> {
+    pub fn new(config: &Configuration, cell_id: CellId) -> Result<Self, StrError> {
         if cell_id >= config.mesh.cells.len() {
             return Err("cell_id is out-of-bounds");
         }

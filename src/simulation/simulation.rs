@@ -1,4 +1,4 @@
-use super::{EquationNumbers, SimConfig, SimState, SimStateInitializer};
+use super::{Configuration, EquationNumbers, SimState, SimStateInitializer};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::Vector;
@@ -8,7 +8,7 @@ use russell_sparse::{SparseTriplet, Symmetry};
 #[allow(dead_code)]
 pub struct Simulation<'a> {
     /// Access to configuration
-    config: &'a SimConfig<'a>,
+    config: &'a Configuration<'a>,
 
     /// All elements
     elements: Vec<Element>,
@@ -25,7 +25,7 @@ pub struct Simulation<'a> {
 
 impl<'a> Simulation<'a> {
     /// Allocates a new instance
-    pub fn new(config: &'a SimConfig) -> Result<Self, StrError> {
+    pub fn new(config: &'a Configuration) -> Result<Self, StrError> {
         // elements, equation numbers, and states
         let npoint = config.mesh.points.len();
         let mut elements = Vec::<Element>::new();
@@ -76,14 +76,14 @@ impl<'a> Simulation<'a> {
 #[cfg(test)]
 mod tests {
     use super::Simulation;
-    use crate::simulation::{element_config::ElementConfig, SampleParam, SimConfig};
+    use crate::simulation::{element_config::ElementConfig, Configuration, SampleParam};
     use crate::StrError;
     use gemlab::mesh::Mesh;
 
     #[test]
     fn new_works() -> Result<(), StrError> {
         let mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
-        let mut config = SimConfig::new(&mesh);
+        let mut config = Configuration::new(&mesh);
 
         let param_1 = SampleParam::param_solid();
         let param_2 = SampleParam::param_porous_sol_liq_gas(0.3, 1e-2);

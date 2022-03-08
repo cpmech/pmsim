@@ -1,5 +1,5 @@
 use super::{layer::Layer, layer_info::LayerInfo};
-use crate::simulation::{ElementConfig, IniOption, SimConfig};
+use crate::simulation::{Configuration, ElementConfig, IniOption};
 use crate::StrError;
 use gemlab::mesh::{At, CellAttributeId, CellId};
 use russell_tensor::Tensor2;
@@ -29,7 +29,7 @@ impl Geostatics {
     ///
     /// Also discovers the layers from the Mesh, computes layers
     /// limits and allocates models.
-    pub fn new(config: &SimConfig) -> Result<Self, StrError> {
+    pub fn new(config: &Configuration) -> Result<Self, StrError> {
         // mesh and space_ndim
         let mesh = config.mesh;
         let two_dim = mesh.space_ndim == 2;
@@ -206,7 +206,7 @@ impl Geostatics {
 mod tests {
     use super::Geostatics;
     use crate::simulation::{
-        ElementConfig, IniOption, ParamFluids, ParamPorous, ParamRealDensity, ParamSolid, SampleParam, SimConfig,
+        Configuration, ElementConfig, IniOption, ParamFluids, ParamPorous, ParamRealDensity, ParamSolid, SampleParam,
     };
     use crate::StrError;
     use gemlab::mesh::Mesh;
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn solid_liquid_incompressible_works() -> Result<(), StrError> {
         let mesh = Mesh::from_text_file("./data/meshes/column_two_layers_quads.msh")?;
-        let mut config = SimConfig::new(&mesh);
+        let mut config = Configuration::new(&mesh);
         let (fluids, footing, upper, lower, sigma_v_mid_approx) = two_layers(3.0, 1.0, false, true);
         config
             .elements(1, ElementConfig::Porous(lower, None))?
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn solid_liquid_works() -> Result<(), StrError> {
         let mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
-        let mut config = SimConfig::new(&mesh);
+        let mut config = Configuration::new(&mesh);
         let (fluids, footing, upper, lower, sigma_v_mid_approx) = two_layers(3.0, 1.0, false, false);
         config
             .elements(1, ElementConfig::Porous(lower, None))?
@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn solid_liquid_gas_works() -> Result<(), StrError> {
         let mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
-        let mut config = SimConfig::new(&mesh);
+        let mut config = Configuration::new(&mesh);
         let (fluids, footing, upper, lower, sigma_v_mid_approx) = two_layers(3.0, 1.0, true, false);
         config
             .elements(111, ElementConfig::Porous(lower, None))?

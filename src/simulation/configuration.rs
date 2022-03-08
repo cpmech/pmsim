@@ -10,21 +10,21 @@ use std::collections::HashMap;
 pub type FnSpaceTime = fn(&[f64], f64) -> f64;
 
 /// Holds simulation configuration such as boundary conditions and element attributes
-pub struct SimConfig<'a> {
+pub struct Configuration<'a> {
     /// Access to mesh
     pub mesh: &'a Mesh,
 
     /// Essential boundary conditions
-    pub essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
+    essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
 
     /// Natural boundary conditions at edges
-    pub natural_bcs_edge: HashMap<(EdgeKey, Nbc), FnSpaceTime>,
+    natural_bcs_edge: HashMap<(EdgeKey, Nbc), FnSpaceTime>,
 
     /// Natural boundary conditions at faces
-    pub natural_bcs_face: HashMap<(FaceKey, Nbc), FnSpaceTime>,
+    natural_bcs_face: HashMap<(FaceKey, Nbc), FnSpaceTime>,
 
     /// Point boundary conditions (e.g., point loads)
-    pub point_bcs: HashMap<(PointId, BcPoint), FnSpaceTime>,
+    point_bcs: HashMap<(PointId, BcPoint), FnSpaceTime>,
 
     /// Parameters for fluids
     pub param_fluids: Option<ParamFluids>,
@@ -33,7 +33,7 @@ pub struct SimConfig<'a> {
     pub element_configs: HashMap<CellAttributeId, ElementConfig>,
 
     /// Problem type
-    pub problem_type: Option<ProblemType>,
+    problem_type: Option<ProblemType>,
 
     /// Gravity acceleration
     pub gravity: f64,
@@ -51,10 +51,10 @@ pub struct SimConfig<'a> {
     with_pl_and_pg: bool, // with liquid and gas pressures
 }
 
-impl<'a> SimConfig<'a> {
+impl<'a> Configuration<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &'a Mesh) -> Self {
-        SimConfig {
+        Configuration {
             mesh,
             essential_bcs: HashMap::new(),
             natural_bcs_edge: HashMap::new(),
@@ -296,7 +296,7 @@ impl<'a> SimConfig<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{FnSpaceTime, SimConfig};
+    use super::{Configuration, FnSpaceTime};
     use crate::simulation::element_config::{ElementConfig, ProblemType};
     use crate::simulation::{BcPoint, Dof, Nbc, SampleParam};
     use crate::StrError;
@@ -319,7 +319,7 @@ mod tests {
         let top = mesh.find_boundary_edges(At::Y(1.0))?;
         let corner = mesh.find_boundary_points(At::XY(2.0, 1.0))?;
 
-        let mut config = SimConfig::new(&mesh);
+        let mut config = Configuration::new(&mesh);
 
         let f_zero: FnSpaceTime = |_, _| 0.0;
         let f_qn: FnSpaceTime = |_, _| -1.0;

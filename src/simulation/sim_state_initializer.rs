@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use super::{SimConfig, StateStress};
+use super::{Configuration, StateStress};
 use crate::StrError;
 use russell_lab::Vector;
 
@@ -28,7 +28,7 @@ pub struct SimStateInitializer {
 }
 
 impl SimStateInitializer {
-    pub fn new(config: &SimConfig) -> Result<Self, StrError> {
+    pub fn new(config: &Configuration) -> Result<Self, StrError> {
         // let model_water = match &config.ini_option {
         //     IniOption::Geostatic(param) => Some(ModelRealDensity::new(param)?),
         //     _ => None,

@@ -130,7 +130,7 @@ fn main() -> Result<(), StrError> {
 
     let mesh = Mesh::from_text_file("./data/meshes/column_hks_example.msh")?;
 
-    let mut config = simulation::SimConfig::new(&mesh);
+    let mut config = simulation::Configuration::new(&mesh);
     config
         .elements(1, simulation::ElementConfig::Porous(lower, None))?
         .elements(2, simulation::ElementConfig::Porous(upper, None))?
