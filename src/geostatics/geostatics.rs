@@ -153,6 +153,18 @@ impl Geostatics {
         Err("elevation is outside the porous region limits")
     }
 
+    /// Returns the liquid pressure at given elevation
+    pub fn calc_pl(&self, z: f64) -> Result<f64, StrError> {
+        let layer = self.find_layer(z)?;
+        layer.calc_pl(z)
+    }
+
+    /// Returns the gas pressure at given elevation
+    pub fn calc_pg(&self, z: f64) -> Result<f64, StrError> {
+        let layer = self.find_layer(z)?;
+        layer.calc_pg(z)
+    }
+
     /// Calculates the geostatic total vertical stress at an elevation within the layer
     ///
     /// **Important:** Returns values using the continuum mechanics sign convention

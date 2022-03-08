@@ -41,35 +41,34 @@ fn main() -> Result<(), StrError> {
         beta: 10.0,
     };
 
-    let density_liquid = ParamRealDensity {
-        cc: 1e-12,    // Mg/(m³ kPa)
-        p_ref: 0.0,   // kPa
-        rho_ref: 1.0, // Mg/m³
-        tt_ref: 25.0, // ℃
-    };
-
     let upper = ParamPorous {
+        earth_pres_coef_ini: kk0,
         porosity_initial: 0.4,
         density_solid: 2.7, // Mg/m³
         stress_strain,
         retention_liquid,
         conductivity_liquid,
-        density_liquid,
         conductivity_gas: None,
-        density_gas: None,
-        earth_pres_coef_ini: kk0,
     };
 
     let lower = ParamPorous {
+        earth_pres_coef_ini: kk0,
         porosity_initial: 0.1,
         density_solid: 2.7, // Mg/m³
         stress_strain,
         retention_liquid,
         conductivity_liquid,
-        density_liquid,
         conductivity_gas: None,
+    };
+
+    let fluids = ParamFluids {
+        density_liquid: ParamRealDensity {
+            cc: 1e-12,    // Mg/(m³ kPa)
+            p_ref: 0.0,   // kPa
+            rho_ref: 1.0, // Mg/m³
+            tt_ref: 25.0, // ℃
+        },
         density_gas: None,
-        earth_pres_coef_ini: kk0,
     };
 
     let mesh = Mesh::from_text_file("./data/meshes/column_two_layers_quads.msh")?;
@@ -78,6 +77,7 @@ fn main() -> Result<(), StrError> {
     config
         .elements(1, ElementConfig::Porous(lower, None))?
         .elements(2, ElementConfig::Porous(upper, None))?
+        .set_param_fluids(fluids)?
         .set_gravity(10.0)?; // m/s²
 
     let geo = Geostatics::new(&config)?;
@@ -91,12 +91,13 @@ fn main() -> Result<(), StrError> {
     let mut sig_v_tot = Vector::new(count);
 
     for i in 0..count {
-        let sig_e = geo.calc_effective_stress(zz[i])?;
+        let sig_eff = geo.calc_stress(zz[i], false)?;
+        let sig_tot = geo.calc_stress(zz[i], true)?;
         pl[i] = geo.calc_pl(zz[i])?;
-        sig_h_eff[i] = -sig_e.get(0, 0); // negative to convert to soil mechanics' convention
-        sig_v_eff[i] = -sig_e.get(1, 1);
-        sig_h_tot[i] = sig_h_eff[i] + pl[i];
-        sig_v_tot[i] = sig_v_eff[i] + pl[i];
+        sig_h_eff[i] = -sig_eff.get(0, 0); // negative to convert to soil mechanics' convention
+        sig_v_eff[i] = -sig_eff.get(1, 1);
+        sig_h_tot[i] = -sig_tot.get(0, 0);
+        sig_v_tot[i] = -sig_tot.get(1, 1);
     }
 
     let mut curve_pl = Curve::new();
