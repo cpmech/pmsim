@@ -1,5 +1,5 @@
 use super::{layer::Layer, layer_info::LayerInfo};
-use crate::{ElementConfig, SimConfig, StrError};
+use crate::{ElementConfig, IniOption, SimConfig, StrError};
 use gemlab::mesh::{At, CellAttributeId, CellId};
 use russell_tensor::Tensor2;
 use std::collections::{HashMap, HashSet};
@@ -116,8 +116,13 @@ impl Geostatics {
             return Err("the height of the mesh must be greater than zero");
         }
 
+        // surface overburden
+        let mut sigma_z_total_over = match config.ini_option {
+            IniOption::Geostatic(overburden) => overburden,
+            _ => 0.0, // the first layer at the top has zero overburden
+        };
+
         // allocate layers
-        let mut sigma_z_total_over = 0.0; // the first layer at the top has zero overburden
         let mut top_down_layers: Vec<Layer> = Vec::new();
         for info in infos {
             let element_config = config.get_element_config(info.attribute_id)?;
@@ -135,7 +140,7 @@ impl Geostatics {
                 )?,
                 _ => panic!("INTERNAL ERROR: porous element_config is missing"), // not supposed to happen
             };
-            sigma_z_total_over += layer.calc_sigma_z_total(layer.z_min)?;
+            sigma_z_total_over = layer.calc_sigma_z_total(layer.z_min)?;
             top_down_layers.push(layer);
         }
 
@@ -200,7 +205,8 @@ impl Geostatics {
 mod tests {
     use super::Geostatics;
     use crate::{
-        ElementConfig, ParamFluids, ParamPorous, ParamRealDensity, ParamSolid, SampleParam, SimConfig, StrError,
+        ElementConfig, IniOption, ParamFluids, ParamPorous, ParamRealDensity, ParamSolid, SampleParam, SimConfig,
+        StrError,
     };
     use gemlab::mesh::Mesh;
     use russell_chk::assert_approx_eq;
@@ -310,19 +316,21 @@ mod tests {
             .elements(1, ElementConfig::Porous(lower, None))?
             .elements(2, ElementConfig::Porous(upper, None))?
             .elements(3, ElementConfig::Solid(footing, None))?
+            .set_ini_option(IniOption::Geostatic(-100.0))?
             .set_param_fluids(fluids)?
             .set_gravity(10.0)?; // m/s²
         let geo = Geostatics::new(&config)?;
         assert_eq!(geo.top_down_layers.len(), 2);
         let top = &geo.top_down_layers[0];
-        assert_eq!(top.z_min, 1.0);
         assert_eq!(top.z_max, 3.0);
-        assert_eq!(top.calc_sigma_z_total(top.z_max)?, 0.0);
-        assert_approx_eq!(top.calc_sigma_z_total(top.z_min)?, sigma_v_mid_approx, 1e-10);
+        assert_eq!(top.z_min, 1.0);
         let bot = &geo.top_down_layers[1];
-        assert_eq!(bot.z_min, 0.0);
         assert_eq!(bot.z_max, 1.0);
-        assert_approx_eq!(bot.calc_sigma_z_total(bot.z_max)?, sigma_v_mid_approx, 1e-10);
+        assert_eq!(bot.z_min, 0.0);
+        assert_approx_eq!(geo.calc_sigma_z_total(3.0)?, -100.0, 1e-15);
+        assert_approx_eq!(geo.calc_sigma_z_total(1.00001)?, -100.0 + sigma_v_mid_approx, 1e-3);
+        assert_approx_eq!(geo.calc_sigma_z_total(1.00000)?, -100.0 + sigma_v_mid_approx, 1e-10);
+        assert_approx_eq!(geo.calc_sigma_z_total(0.99999)?, -100.0 + sigma_v_mid_approx, 1e-3);
         Ok(())
     }
 

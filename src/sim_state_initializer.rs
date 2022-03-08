@@ -3,23 +3,15 @@
 use crate::{SimConfig, StateStress, StrError};
 use russell_lab::Vector;
 
-// /// Holds initialization data
-// pub struct InitializationData {
-//     /// At-rest earth pressure coefficient K0 = σₕ'/σᵥ' to compute horizontal effective stress (σₕ') from vertical effective stress (σᵥ')
-//     kk0: Option<f64>,
-
-//     /// Poisson's coefficient ν to estimate the at-rest earth pressure coefficient K0 = ν/(1-ν) = σₕ'/σᵥ' and then compute horizontal effective stress (σₕ') from vertical effective stress (σᵥ')
-//     nu: Option<f64>,
-// }
-
 pub enum IniOption {
     /// Geostatic initial state
     ///
     /// # Note
     ///
+    /// * The valued parameter is an overburden stress (negative means compression) at the whole surface (z=z_max=height)
     /// * The datum is at y=0.0 (2D) or z=0.0 (3D)
-    /// * The water table is at y=y_max (2D) or z=z_max (3D), thus only fully water-saturated states are considered
-    Geostatic,
+    /// * The water table is at y=y_max=height (2D) or z=z_max=height (3D), thus only fully water-saturated states are considered
+    Geostatic(f64),
 
     /// Initial isotropic stress state with σ_xx = σ_yy = σ_zz = value
     IsotropicStress,
