@@ -1,4 +1,4 @@
-use super::ModelStressStrainTrait;
+use super::StressStrain;
 use crate::simulation::StateStress;
 use crate::StrError;
 use russell_lab::copy_matrix;
@@ -48,7 +48,7 @@ impl ModelDruckerPrager {
     }
 }
 
-impl ModelStressStrainTrait for ModelDruckerPrager {
+impl StressStrain for ModelDruckerPrager {
     fn n_internal_values(&self) -> usize {
         // alpha       α: internal variables of rate type
         // dd_gamma    Δγ: increment of Lagrange multiplier

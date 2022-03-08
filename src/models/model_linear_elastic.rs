@@ -1,4 +1,4 @@
-use super::ModelStressStrainTrait;
+use super::StressStrain;
 use crate::simulation::StateStress;
 use crate::StrError;
 use russell_lab::copy_matrix;
@@ -24,7 +24,7 @@ impl ModelLinearElastic {
     }
 }
 
-impl ModelStressStrainTrait for ModelLinearElastic {
+impl StressStrain for ModelLinearElastic {
     fn n_internal_values(&self) -> usize {
         0
     }

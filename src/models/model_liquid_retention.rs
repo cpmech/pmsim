@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_lab::Vector;
 
 /// Defines a trait for models for liquid retention in porous media
-pub(super) trait LiquidRetention {
+pub trait LiquidRetention {
     /// Returns the saturation limits (sl_min,sl_max)
     fn saturation_limits(&self) -> (f64, f64);
 
@@ -74,6 +74,7 @@ impl ModelLiquidRetention {
     }
 
     /// Returns the maximum liquid saturation
+    #[inline]
     pub fn get_sl_max(&self) -> f64 {
         self.model.saturation_limits().1
     }

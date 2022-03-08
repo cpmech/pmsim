@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_tensor::Tensor4;
 
 /// Defines a trait for stress-strain models
-pub trait ModelStressStrainTrait {
+pub trait StressStrain {
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize;
 
@@ -14,13 +14,13 @@ pub trait ModelStressStrainTrait {
 
 /// Implements a model for stress-strain relations
 pub struct ModelStressStrain {
-    pub model: Box<dyn ModelStressStrainTrait>,
+    model: Box<dyn StressStrain>,
 }
 
 impl ModelStressStrain {
     /// Allocates a new instance
     pub fn new(param: &ParamStressStrain, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
-        let model: Box<dyn ModelStressStrainTrait> = match param {
+        let model: Box<dyn StressStrain> = match param {
             &ParamStressStrain::LinearElastic { young, poisson } => {
                 Box::new(ModelLinearElastic::new(young, poisson, two_dim, plane_stress)?)
             }
@@ -43,6 +43,7 @@ impl ModelStressStrain {
         Ok(ModelStressStrain { model })
     }
 
+    #[inline]
     pub fn n_internal_values(&self) -> usize {
         self.model.n_internal_values()
     }
