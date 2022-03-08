@@ -3,6 +3,7 @@ use crate::{geostatics::Geostatics, StrError};
 use russell_lab::Vector;
 use russell_tensor::Tensor2;
 
+/// Holds an option to initialize stresses
 pub enum IniOption {
     /// Geostatic initial state with data = (overburden,total_stress)
     ///
@@ -18,6 +19,7 @@ pub enum IniOption {
     Zero,
 }
 
+/// Implements functions to initialize stresses
 pub struct Initializer {
     space_ndim: usize,              // number of space dimensions
     total_stress: bool,             // total stress analysis?
