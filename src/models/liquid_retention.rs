@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_lab::Vector;
 
 /// Defines a trait for models for liquid retention in porous media
-pub trait LiquidRetention {
+pub trait BaseLiquidRetention {
     /// Returns the saturation limits (sl_min,sl_max)
     fn saturation_limits(&self) -> (f64, f64);
 
@@ -16,16 +16,16 @@ pub trait LiquidRetention {
 }
 
 /// Implements a model for liquid retention in porous media
-pub struct ModelLiquidRetention {
-    model: Box<dyn LiquidRetention>,
+pub struct LiquidRetention {
+    base: Box<dyn BaseLiquidRetention>,
     update_nit_max: usize, // max number of iterations for the update_saturation function
     update_tolerance: f64, // tolerance for the update_saturation function
 }
 
-impl ModelLiquidRetention {
+impl LiquidRetention {
     /// Allocates a new instance
     pub fn new(param: &ParamLiquidRetention) -> Result<Self, StrError> {
-        let model: Box<dyn LiquidRetention> = match param {
+        let base: Box<dyn BaseLiquidRetention> = match param {
             &ParamLiquidRetention::BrooksCorey {
                 lambda,
                 pc_ae,
@@ -66,8 +66,8 @@ impl ModelLiquidRetention {
                 y_r,
             )?),
         };
-        Ok(ModelLiquidRetention {
-            model,
+        Ok(LiquidRetention {
+            base,
             update_nit_max: 12,
             update_tolerance: 1.0e-6,
         })
@@ -76,7 +76,7 @@ impl ModelLiquidRetention {
     /// Returns the maximum liquid saturation
     #[inline]
     pub fn get_sl_max(&self) -> f64 {
-        self.model.saturation_limits().1
+        self.base.saturation_limits().1
     }
 
     /// Returns the updated saturation sl_new for given (pc,sl) and Δpc = pc_new - pc
@@ -87,25 +87,25 @@ impl ModelLiquidRetention {
     ///   Int. J. for Numerical Methods in Engineering, 101:606-634, DOI: 10.1002/nme.4808
     pub fn update_saturation(&self, pc: f64, sl: f64, delta_pc: f64) -> Result<f64, StrError> {
         // constants
-        let (sl_min, sl_max) = self.model.saturation_limits();
+        let (sl_min, sl_max) = self.base.saturation_limits();
         // wetting flag
         let wetting = delta_pc < 0.0;
         // forward Euler update
-        let f_a = self.model.calc_cc(pc, sl, wetting)?;
+        let f_a = self.base.calc_cc(pc, sl, wetting)?;
         let sl_fe = f64::min(f64::max(sl + delta_pc * f_a, sl_min), sl_max);
         // modified Euler update
         let pc_new = pc + delta_pc;
-        let f_b = self.model.calc_cc(pc_new, sl_fe, wetting)?;
+        let f_b = self.base.calc_cc(pc_new, sl_fe, wetting)?;
         let mut sl_new = f64::min(f64::max(sl + 0.5 * delta_pc * (f_a + f_b), sl_min), sl_max);
         let mut converged = false;
         for _ in 0..self.update_nit_max {
-            let cc = self.model.calc_cc(pc_new, sl_new, wetting)?;
+            let cc = self.base.calc_cc(pc_new, sl_new, wetting)?;
             let r = sl_new - sl - delta_pc * cc;
             if f64::abs(r) <= self.update_tolerance {
                 converged = true;
                 break;
             }
-            let dcc_dsl = self.model.calc_dcc_dsl(pc_new, sl_new, wetting)?;
+            let dcc_dsl = self.base.calc_dcc_dsl(pc_new, sl_new, wetting)?;
             let dsl = -r / (1.0 - delta_pc * dcc_dsl);
             sl_new += dsl;
         }

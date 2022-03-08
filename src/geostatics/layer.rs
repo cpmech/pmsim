@@ -1,4 +1,4 @@
-use crate::models::{ModelLiquidRetention, RealDensity};
+use crate::models::{LiquidRetention, RealDensity};
 use crate::simulation::{ParamFluids, ParamPorous};
 use crate::StrError;
 use gemlab::mesh::CellAttributeId;
@@ -93,7 +93,7 @@ impl Layer {
         gravity: f64,
         two_dim: bool,
     ) -> Result<Self, StrError> {
-        let retention_liquid = ModelLiquidRetention::new(&param_porous.retention_liquid)?;
+        let retention_liquid = LiquidRetention::new(&param_porous.retention_liquid)?;
         let sl_max = retention_liquid.get_sl_max();
         let layer = Layer {
             attribute_id,

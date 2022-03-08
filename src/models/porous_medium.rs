@@ -1,4 +1,4 @@
-use crate::models::{Conductivity, ModelLiquidRetention, ModelStressStrain, RealDensity};
+use crate::models::{Conductivity, LiquidRetention, ModelStressStrain, RealDensity};
 use crate::simulation::{ParamFluids, ParamPorous};
 use crate::StrError;
 
@@ -42,7 +42,7 @@ pub struct PorousMedium {
     pub stress_strain: ModelStressStrain,
 
     /// Model for the liquid retention behavior
-    pub retention_liquid: ModelLiquidRetention,
+    pub retention_liquid: LiquidRetention,
 
     /// Model for the liquid conductivity
     pub conductivity_liquid: Conductivity,
@@ -66,7 +66,7 @@ impl PorousMedium {
     /// * `param_porous` -- parameters for porous medium
     /// * `two_dim` -- is it 2D instead of 3D? (used to allocate stress tensors)
     pub fn new(param_fluids: &ParamFluids, param_porous: &ParamPorous, two_dim: bool) -> Result<Self, StrError> {
-        let retention_liquid = ModelLiquidRetention::new(&param_porous.retention_liquid)?;
+        let retention_liquid = LiquidRetention::new(&param_porous.retention_liquid)?;
         let sl_max = retention_liquid.get_sl_max();
         match &param_porous.conductivity_gas {
             Some(_) => {

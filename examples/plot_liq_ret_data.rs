@@ -10,7 +10,7 @@ fn main() -> Result<(), StrError> {
     let pc_data = Vector::from(&data.extract_column(0)).get_mapped(|v| f64::ln(1.0 + v));
     let sl_data = Vector::from(&data.extract_column(1));
 
-    let pw = ModelLiquidRetention::new(&ParamLiquidRetention::PedrosoWilliams {
+    let pw = LiquidRetention::new(&ParamLiquidRetention::PedrosoWilliams {
         with_hysteresis: false,
         lambda_d: 2.63,
         lambda_w: 0.0,
