@@ -17,9 +17,14 @@ pub trait BaseLiquidRetention {
 
 /// Implements a model for liquid retention in porous media
 pub struct LiquidRetention {
-    base: Box<dyn BaseLiquidRetention>,
-    update_nit_max: usize, // max number of iterations for the update_saturation function
-    update_tolerance: f64, // tolerance for the update_saturation function
+    /// Holds the base implementation
+    pub base: Box<dyn BaseLiquidRetention>,
+
+    /// max number of iterations for the update_saturation function
+    update_nit_max: usize,
+
+    /// tolerance for the update_saturation function
+    update_tolerance: f64,
 }
 
 impl LiquidRetention {
