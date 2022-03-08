@@ -7,7 +7,7 @@ use russell_lab::{Matrix, Vector};
 use std::cell::RefCell;
 
 /// Implements a finite element for solid mechanics problems
-pub struct ElementSolid {
+pub struct Solid {
     // shape with point ids and integration functions
     shape: RefCell<Shape>,
 
@@ -21,7 +21,7 @@ pub struct ElementSolid {
     kk: Matrix,     // local K-matrix (neq,neq)
 }
 
-impl ElementSolid {
+impl Solid {
     /// Allocates a new instance
     pub fn new(
         shape: Shape,
@@ -49,7 +49,7 @@ impl ElementSolid {
         }
 
         // element instance
-        Ok(ElementSolid {
+        Ok(Solid {
             shape,
             model,
             _thickness: thickness,
@@ -60,7 +60,7 @@ impl ElementSolid {
     }
 }
 
-impl GenericElement for ElementSolid {
+impl GenericElement for Solid {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize {
         for point_id in &self.shape.borrow().point_ids {

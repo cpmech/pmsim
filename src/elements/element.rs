@@ -1,6 +1,4 @@
-use super::{
-    ElementBeam, ElementPorousUsPl, ElementPorousUsPlPg, ElementRod, ElementSeepagePl, ElementSeepagePlPg, ElementSolid,
-};
+use super::{Beam, PorousUsPl, PorousUsPlPg, Rod, SeepagePl, SeepagePlPg, Solid};
 use crate::simulation::{ElementConfig, EquationNumbers, SimConfig, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::mesh::CellId;
@@ -66,9 +64,9 @@ impl Element {
         };
         let shape = config.mesh.alloc_shape_cell(cell_id)?; // moving to Element
         let base: Box<dyn GenericElement> = match element_config {
-            ElementConfig::Rod(param) => Box::new(ElementRod::new(shape, param)?),
-            ElementConfig::Beam(param) => Box::new(ElementBeam::new(shape, param)?),
-            ElementConfig::Solid(param, n_integ_point) => Box::new(ElementSolid::new(
+            ElementConfig::Rod(param) => Box::new(Rod::new(shape, param)?),
+            ElementConfig::Beam(param) => Box::new(Beam::new(shape, param)?),
+            ElementConfig::Solid(param, n_integ_point) => Box::new(Solid::new(
                 shape,
                 param,
                 *n_integ_point,
@@ -85,29 +83,19 @@ impl Element {
                         Some(_) => (),
                         None => return Err("param for gas density must be set first"),
                     };
-                    Box::new(ElementPorousUsPlPg::new(
-                        shape,
-                        &param_fluids,
-                        &param_porous,
-                        *n_integ_point,
-                    )?)
+                    Box::new(PorousUsPlPg::new(shape, &param_fluids, &param_porous, *n_integ_point)?)
                 }
                 None => {
                     let param_fluids = match &config.param_fluids {
                         Some(p) => p,
                         None => return Err("param for fluids (liquid) must be set first"),
                     };
-                    Box::new(ElementPorousUsPl::new(
-                        shape,
-                        &param_fluids,
-                        param_porous,
-                        *n_integ_point,
-                    )?)
+                    Box::new(PorousUsPl::new(shape, &param_fluids, param_porous, *n_integ_point)?)
                 }
             },
             ElementConfig::Seepage(param, n_integ_point) => match param.conductivity_gas {
-                Some(_) => Box::new(ElementSeepagePlPg::new(shape, param, *n_integ_point)?),
-                None => Box::new(ElementSeepagePl::new(shape, param, *n_integ_point)?),
+                Some(_) => Box::new(SeepagePlPg::new(shape, param, *n_integ_point)?),
+                None => Box::new(SeepagePl::new(shape, param, *n_integ_point)?),
             },
         };
         Ok(Element { base })

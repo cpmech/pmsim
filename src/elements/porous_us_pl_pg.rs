@@ -1,21 +1,32 @@
 use super::GenericElement;
-use crate::simulation::{EquationNumbers, ParamRod, SimStateInitializer, StateElement};
+use crate::models::ModelPorousMedium;
+use crate::simulation::{EquationNumbers, ParamFluids, ParamPorous, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
 
-/// Implements a Rod element
-pub struct ElementRod {
+/// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
+pub struct PorousUsPlPg {
     _shape: Shape,
+    _model: ModelPorousMedium, // material model
 }
 
-impl ElementRod {
+impl PorousUsPlPg {
     /// Allocates a new instance
-    pub fn new(shape: Shape, _param: &ParamRod) -> Result<Self, StrError> {
-        Ok(ElementRod { _shape: shape })
+    pub fn new(
+        shape: Shape,
+        param_fluids: &ParamFluids,
+        param_porous: &ParamPorous,
+        _n_integ_point: Option<usize>,
+    ) -> Result<Self, StrError> {
+        let two_dim = shape.space_ndim == 2;
+        Ok(PorousUsPlPg {
+            _shape: shape,
+            _model: ModelPorousMedium::new(param_fluids, param_porous, two_dim)?,
+        })
     }
 }
 
-impl GenericElement for ElementRod {
+impl GenericElement for PorousUsPlPg {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0

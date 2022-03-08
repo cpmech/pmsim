@@ -1,21 +1,21 @@
-use super::element::GenericElement;
-use crate::simulation::{EquationNumbers, ParamBeam, SimStateInitializer, StateElement};
+use super::GenericElement;
+use crate::simulation::{EquationNumbers, ParamRod, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
 
-/// Implements a Beam element
-pub struct ElementBeam {
+/// Implements a Rod element
+pub struct Rod {
     _shape: Shape,
 }
 
-impl ElementBeam {
+impl Rod {
     /// Allocates a new instance
-    pub fn new(shape: Shape, _param: &ParamBeam) -> Result<Self, StrError> {
-        Ok(ElementBeam { _shape: shape })
+    pub fn new(shape: Shape, _param: &ParamRod) -> Result<Self, StrError> {
+        Ok(Rod { _shape: shape })
     }
 }
 
-impl GenericElement for ElementBeam {
+impl GenericElement for Rod {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0

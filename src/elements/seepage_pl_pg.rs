@@ -3,19 +3,19 @@ use crate::simulation::{EquationNumbers, ParamSeepage, SimStateInitializer, Stat
 use crate::StrError;
 use gemlab::shapes::Shape;
 
-/// Implements the pl (liquid pressure) element for seepage simulations
-pub struct ElementSeepagePl {
+/// Implements the pl-pg (liquid pressure, gas pressure) element for seepage simulations
+pub struct SeepagePlPg {
     _shape: Shape,
 }
 
-impl ElementSeepagePl {
+impl SeepagePlPg {
     /// Allocates a new instance
     pub fn new(shape: Shape, _param: &ParamSeepage, _n_integ_point: Option<usize>) -> Result<Self, StrError> {
-        Ok(ElementSeepagePl { _shape: shape })
+        Ok(SeepagePlPg { _shape: shape })
     }
 }
 
-impl GenericElement for ElementSeepagePl {
+impl GenericElement for SeepagePlPg {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0

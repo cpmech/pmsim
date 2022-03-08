@@ -1,21 +1,32 @@
 use super::GenericElement;
-use crate::simulation::{EquationNumbers, ParamSeepage, SimStateInitializer, StateElement};
+use crate::models::ModelPorousMedium;
+use crate::simulation::{EquationNumbers, ParamFluids, ParamPorous, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
 
-/// Implements the pl-pg (liquid pressure, gas pressure) element for seepage simulations
-pub struct ElementSeepagePlPg {
+/// Implements the us-pl (solid displacement, liquid pressure) element for porous media mechanics
+pub struct PorousUsPl {
     _shape: Shape,
+    _model: ModelPorousMedium, // material model
 }
 
-impl ElementSeepagePlPg {
+impl PorousUsPl {
     /// Allocates a new instance
-    pub fn new(shape: Shape, _param: &ParamSeepage, _n_integ_point: Option<usize>) -> Result<Self, StrError> {
-        Ok(ElementSeepagePlPg { _shape: shape })
+    pub fn new(
+        shape: Shape,
+        param_fluids: &ParamFluids,
+        param_porous: &ParamPorous,
+        _n_integ_point: Option<usize>,
+    ) -> Result<Self, StrError> {
+        let two_dim = shape.space_ndim == 2;
+        Ok(PorousUsPl {
+            _shape: shape,
+            _model: ModelPorousMedium::new(param_fluids, param_porous, two_dim)?,
+        })
     }
 }
 
-impl GenericElement for ElementSeepagePlPg {
+impl GenericElement for PorousUsPl {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0

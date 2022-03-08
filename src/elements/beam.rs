@@ -1,32 +1,21 @@
-use super::GenericElement;
-use crate::models::ModelPorousMedium;
-use crate::simulation::{EquationNumbers, ParamFluids, ParamPorous, SimStateInitializer, StateElement};
+use super::element::GenericElement;
+use crate::simulation::{EquationNumbers, ParamBeam, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
 
-/// Implements the us-pl (solid displacement, liquid pressure) element for porous media mechanics
-pub struct ElementPorousUsPl {
+/// Implements a Beam element
+pub struct Beam {
     _shape: Shape,
-    _model: ModelPorousMedium, // material model
 }
 
-impl ElementPorousUsPl {
+impl Beam {
     /// Allocates a new instance
-    pub fn new(
-        shape: Shape,
-        param_fluids: &ParamFluids,
-        param_porous: &ParamPorous,
-        _n_integ_point: Option<usize>,
-    ) -> Result<Self, StrError> {
-        let two_dim = shape.space_ndim == 2;
-        Ok(ElementPorousUsPl {
-            _shape: shape,
-            _model: ModelPorousMedium::new(param_fluids, param_porous, two_dim)?,
-        })
+    pub fn new(shape: Shape, _param: &ParamBeam) -> Result<Self, StrError> {
+        Ok(Beam { _shape: shape })
     }
 }
 
-impl GenericElement for ElementPorousUsPl {
+impl GenericElement for Beam {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0
