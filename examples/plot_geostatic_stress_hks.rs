@@ -1,13 +1,13 @@
 use gemlab::mesh::Mesh;
 use plotpy::{Curve, Plot, Shapes, Text};
-use pmsim::{geostatics, simulation, StrError};
+use pmsim::{geostatics::*, simulation::*, StrError};
 use russell_chk::assert_approx_eq;
 use russell_lab::Vector;
 use std::path::Path;
 
 const OUT_DIR: &str = "/tmp/pmsim/examples";
 
-fn print_values_and_check(geo: &geostatics::Geostatics) -> Result<(), StrError> {
+fn print_values_and_check(geo: &Geostatics) -> Result<(), StrError> {
     let sig_t_a = geo.calc_sigma_z_total(6.0)?;
     let sig_t_b = geo.calc_sigma_z_total(4.0001)?;
     let sig_t_c = geo.calc_sigma_z_total(4.0)?;
@@ -69,12 +69,12 @@ fn main() -> Result<(), StrError> {
     let kk0 = 0.25; // assumed
     let nu = kk0 / (kk0 + 1.0);
 
-    let stress_strain = simulation::ParamStressStrain::LinearElastic {
+    let stress_strain = ParamStressStrain::LinearElastic {
         young: 10_000.0, // kPa
         poisson: nu,     // [-]
     };
 
-    let retention_liquid = simulation::ParamLiquidRetention::PedrosoWilliams {
+    let retention_liquid = ParamLiquidRetention::PedrosoWilliams {
         with_hysteresis: true,
         lambda_d: 3.0,
         lambda_w: 3.0,
@@ -88,7 +88,7 @@ fn main() -> Result<(), StrError> {
         y_r: 0.005,
     };
 
-    let conductivity_liquid = simulation::ParamConductivity::PedrosoZhangEhlers {
+    let conductivity_liquid = ParamConductivity::PedrosoZhangEhlers {
         kx: k_iso, // m/s
         ky: k_iso, // m/s
         kz: k_iso, // m/s
@@ -98,7 +98,7 @@ fn main() -> Result<(), StrError> {
         beta: 10.0,
     };
 
-    let upper = simulation::ParamPorous {
+    let upper = ParamPorous {
         earth_pres_coef_ini: kk0,
         porosity_initial: 0.5,
         density_solid: 2.7, // Mg/m³
@@ -108,7 +108,7 @@ fn main() -> Result<(), StrError> {
         conductivity_gas: None,
     };
 
-    let lower = simulation::ParamPorous {
+    let lower = ParamPorous {
         earth_pres_coef_ini: kk0,
         porosity_initial: 0.4,
         density_solid: 2.666666666666667, // Mg/m³
@@ -118,8 +118,8 @@ fn main() -> Result<(), StrError> {
         conductivity_gas: None,
     };
 
-    let fluids = simulation::ParamFluids {
-        density_liquid: simulation::ParamRealDensity {
+    let fluids = ParamFluids {
+        density_liquid: ParamRealDensity {
             cc: 1e-12,    // Mg/(m³ kPa)
             p_ref: 0.0,   // kPa
             rho_ref: 1.0, // Mg/m³
@@ -130,15 +130,15 @@ fn main() -> Result<(), StrError> {
 
     let mesh = Mesh::from_text_file("./data/meshes/column_hks_example.msh")?;
 
-    let mut config = simulation::Configuration::new(&mesh);
+    let mut config = Configuration::new(&mesh);
     config
-        .elements(1, simulation::ElementConfig::Porous(lower, None))?
-        .elements(2, simulation::ElementConfig::Porous(upper, None))?
-        .set_param_fluids(fluids)?
-        .set_gravity(9.81)? // m/s²
-        .set_ini_option(simulation::IniOption::Geostatic(-26.49))?; // kN/m²
+        .elements(1, ElementConfig::Porous(lower, None))?
+        .elements(2, ElementConfig::Porous(upper, None))?
+        .fluids(fluids)?
+        .gravity(9.81)? // m/s²
+        .init(IniOption::Geostatic(-26.49))?; // kN/m²
 
-    let geo = geostatics::Geostatics::new(&config)?;
+    let geo = Geostatics::new(&config)?;
 
     print_values_and_check(&geo)?;
 

@@ -311,9 +311,9 @@ mod tests {
             .elements(1, ElementConfig::Porous(lower, None))?
             .elements(2, ElementConfig::Porous(upper, None))?
             .elements(3, ElementConfig::Solid(footing, None))?
-            .set_ini_option(IniOption::Geostatic(-100.0))?
-            .set_param_fluids(fluids)?
-            .set_gravity(10.0)?; // m/s²
+            .init(IniOption::Geostatic(-100.0))?
+            .fluids(fluids)?
+            .gravity(10.0)?; // m/s²
         let geo = Geostatics::new(&config)?;
         assert_eq!(geo.top_down_layers.len(), 2);
         let top = &geo.top_down_layers[0];
@@ -338,8 +338,8 @@ mod tests {
             .elements(1, ElementConfig::Porous(lower, None))?
             .elements(2, ElementConfig::Porous(upper, None))?
             .elements(3, ElementConfig::Solid(footing, None))?
-            .set_param_fluids(fluids)?
-            .set_gravity(10.0)?; // m/s²
+            .fluids(fluids)?
+            .gravity(10.0)?; // m/s²
         let geo = Geostatics::new(&config)?;
         assert_eq!(geo.top_down_layers.len(), 2);
         let top = &geo.top_down_layers[0];
@@ -363,8 +363,8 @@ mod tests {
             .elements(111, ElementConfig::Porous(lower, None))?
             .elements(222, ElementConfig::Porous(upper, None))?
             .elements(333, ElementConfig::Solid(footing, None))?
-            .set_param_fluids(fluids)?
-            .set_gravity(10.0)?; // m/s²
+            .fluids(fluids)?
+            .gravity(10.0)?; // m/s²
         let geo = Geostatics::new(&config)?;
         assert_eq!(geo.top_down_layers.len(), 2);
         let top = &geo.top_down_layers[0];

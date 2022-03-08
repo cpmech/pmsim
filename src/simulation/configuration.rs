@@ -222,13 +222,13 @@ impl<'a> Configuration<'a> {
     }
 
     /// Sets parameters for fluids
-    pub fn set_param_fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
+    pub fn fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
         self.param_fluids = Some(param_fluids);
         Ok(self)
     }
 
     /// Sets the gravity acceleration
-    pub fn set_gravity(&mut self, value: f64) -> Result<&mut Self, StrError> {
+    pub fn gravity(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value < 0.0 {
             return Err("gravity value must be greater than or equal to zero");
         }
@@ -237,7 +237,7 @@ impl<'a> Configuration<'a> {
     }
 
     /// Sets the thickness for plane-stress
-    pub fn set_thickness(&mut self, value: f64) -> Result<&mut Self, StrError> {
+    pub fn thickness(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value <= 0.0 {
             return Err("thickness value must be greater than zero");
         }
@@ -250,7 +250,7 @@ impl<'a> Configuration<'a> {
     /// # Note
     ///
     /// If flag=false (plane-strain), this function will set the thickness to 1.0.
-    pub fn set_plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+    pub fn plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
         match self.ini_option {
             IniOption::Geostatic(..) => return Err("cannot set plane_stress with Geostatic ini_option"),
             IniOption::IsotropicStress => return Err("cannot set plane_stress with IsotropicStress ini_option"),
@@ -264,7 +264,7 @@ impl<'a> Configuration<'a> {
     }
 
     /// Sets option to initialize (stress) state
-    pub fn set_ini_option(&mut self, option: IniOption) -> Result<&mut Self, StrError> {
+    pub fn init(&mut self, option: IniOption) -> Result<&mut Self, StrError> {
         match option {
             IniOption::Geostatic(overburden) => {
                 if overburden > 0.0 {
@@ -387,7 +387,7 @@ mod tests {
         config.elements(2, ElementConfig::Porous(param_2, None))?;
         assert_eq!(config.problem_type, Some(ProblemType::Porous));
 
-        config.set_gravity(10.0)?; // m/s²
+        config.gravity(10.0)?; // m/s²
 
         Ok(())
     }

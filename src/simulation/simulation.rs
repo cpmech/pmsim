@@ -91,7 +91,7 @@ mod tests {
         config.elements(1, ElementConfig::Solid(param_1, None))?;
         config.elements(2, ElementConfig::Porous(param_2, None))?;
 
-        config.set_gravity(10.0)?; // m/s²
+        config.gravity(10.0)?; // m/s²
 
         let sim = Simulation::new(&config)?;
         assert_eq!(sim.elements.len(), 2);

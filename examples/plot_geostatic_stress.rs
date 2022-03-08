@@ -77,8 +77,8 @@ fn main() -> Result<(), StrError> {
     config
         .elements(1, ElementConfig::Porous(lower, None))?
         .elements(2, ElementConfig::Porous(upper, None))?
-        .set_param_fluids(fluids)?
-        .set_gravity(10.0)?; // m/s²
+        .fluids(fluids)?
+        .gravity(10.0)?; // m/s²
 
     let geo = Geostatics::new(&config)?;
 
