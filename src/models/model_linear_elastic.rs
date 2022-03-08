@@ -25,10 +25,17 @@ impl ModelLinearElastic {
 }
 
 impl StressStrain for ModelLinearElastic {
+    /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
         0
     }
 
+    /// Initializes internal values
+    fn initialize_internal_values(&self, _state: &mut StateStress) -> Result<(), StrError> {
+        Ok(())
+    }
+
+    /// Computes the consistent modulus dsig/deps
     fn consistent_modulus(&self, dd: &mut Tensor4, _state: &StateStress) -> Result<(), StrError> {
         let dd_ela = self.lin_elast.get_modulus();
         copy_matrix(&mut dd.mat, &dd_ela.mat)
