@@ -28,7 +28,7 @@ pub struct StateElement {
 
 /// Holds all simulation state variables
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SimState {
+pub struct State {
     pub elements: Vec<StateElement>, // (nele)
     pub system_xx: Vector,           // (neq)
     pub system_yy: Vector,           // (neq)
@@ -91,10 +91,10 @@ impl StateElement {
     }
 }
 
-impl SimState {
+impl State {
     /// Allocate a new instance with empty arrays
     pub fn new_empty() -> Self {
-        SimState {
+        State {
             elements: Vec::new(),
             system_xx: Vector::new(0),
             system_yy: Vector::new(0),

@@ -1,4 +1,4 @@
-use super::{Configuration, EquationNumbers, SimState, SimStateInitializer};
+use super::{Configuration, EquationNumbers, SimStateInitializer, State};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::Vector;
@@ -17,7 +17,7 @@ pub struct Simulation<'a> {
     equation_numbers: EquationNumbers,
 
     /// State variables
-    sim_state: SimState,
+    state: State,
 
     /// Global system Jacobian matrix
     system_kk: SparseTriplet,
@@ -31,7 +31,7 @@ impl<'a> Simulation<'a> {
         let npoint = mesh.points.len();
         let mut elements = Vec::<Element>::new();
         let mut equation_numbers = EquationNumbers::new(npoint);
-        let mut sim_state = SimState::new_empty();
+        let mut state = State::new_empty();
         let initializer = SimStateInitializer::new(&config)?;
 
         // loop over all cells and allocate elements
@@ -45,7 +45,7 @@ impl<'a> Simulation<'a> {
 
             // allocate integ points states
             let states = element.base.alloc_state(&initializer)?;
-            sim_state.elements.push(states);
+            state.elements.push(states);
 
             // add element to array
             elements.push(element);
@@ -55,15 +55,15 @@ impl<'a> Simulation<'a> {
         let neq = equation_numbers.get_number_of_equations();
 
         // allocate system arrays
-        sim_state.system_xx = Vector::new(neq);
-        sim_state.system_yy = Vector::new(neq);
+        state.system_xx = Vector::new(neq);
+        state.system_yy = Vector::new(neq);
 
         // done
         Ok(Simulation {
             config,
             elements,
             equation_numbers,
-            sim_state,
+            state,
             system_kk: SparseTriplet::new(neq, neq, nnz_max, Symmetry::No)?,
         })
     }
