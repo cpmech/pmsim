@@ -1,6 +1,6 @@
 use super::BaseElement;
 use crate::models::StressStrain;
-use crate::simulation::{Dof, EquationNumbers, ParamSolid, SimStateInitializer, StateElement};
+use crate::simulation::{Dof, EquationNumbers, Initializer, ParamSolid, StateElement, StateStress};
 use crate::StrError;
 use gemlab::shapes::Shape;
 use russell_lab::{Matrix, Vector};
@@ -73,18 +73,18 @@ impl BaseElement for Solid {
     }
 
     /// Allocates and initializes the element's state at all integration points
-    fn alloc_state(&self, initializer: &SimStateInitializer) -> Result<StateElement, StrError> {
+    fn new_state(&self, initializer: &Initializer) -> Result<StateElement, StrError> {
         let mut shape = self.shape.borrow_mut();
         let all_ip_coords = shape.calc_integ_points_coords()?;
         let n_integ_point = shape.integ_points.len();
-        let n_internal_values = self.model.base.n_internal_values();
-        let two_dim = shape.space_ndim == 2;
-        let mut state = StateElement::new_stress_only(n_integ_point, n_internal_values, two_dim);
+        let mut state = StateElement::new_empty();
         for index_ip in 0..n_integ_point {
-            initializer.initialize_stress(&mut state.stress[index_ip], &all_ip_coords[index_ip])?;
-            self.model
-                .base
-                .initialize_internal_values(&mut state.stress[index_ip])?;
+            let stress = initializer.stress_at_ip(&all_ip_coords[index_ip])?;
+            let internal_values = self.model.base.new_internal_values(&stress)?;
+            state.stress.push(StateStress {
+                stress,
+                internal_values,
+            })
         }
         Ok(state)
     }

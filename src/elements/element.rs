@@ -1,5 +1,5 @@
 use super::{Beam, PorousUsPl, PorousUsPlPg, Rod, SeepagePl, SeepagePlPg, Solid};
-use crate::simulation::{Configuration, ElementConfig, EquationNumbers, SimStateInitializer, StateElement};
+use crate::simulation::{Configuration, ElementConfig, EquationNumbers, Initializer, StateElement};
 use crate::StrError;
 use gemlab::mesh::CellId;
 
@@ -30,7 +30,7 @@ pub trait BaseElement {
     fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
 
     /// Allocates and initializes the element's state at all integration points
-    fn alloc_state(&self, initializer: &SimStateInitializer) -> Result<StateElement, StrError>;
+    fn new_state(&self, initializer: &Initializer) -> Result<StateElement, StrError>;
 
     /// Computes the element Y-vector
     fn calc_local_yy_vector(&mut self) -> Result<(), StrError>;

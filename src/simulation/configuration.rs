@@ -44,6 +44,9 @@ pub struct Configuration<'a> {
     /// 2D plane-stress problem, otherwise plane-strain in 2D
     plane_stress: bool,
 
+    /// Total stress analysis (instead of effective stresses)
+    total_stress: bool,
+
     /// Option to initialize stress state
     ini_option: IniOption,
 
@@ -70,6 +73,7 @@ impl<'a> Configuration<'a> {
             thickness: 1.0,
             plane_stress: false,
             ini_option: IniOption::Zero,
+            total_stress: false,
             with_pl_only: false,
             with_pl_and_pg: false,
         }
@@ -253,13 +257,19 @@ impl<'a> Configuration<'a> {
     pub fn plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
         match self.ini_option {
             IniOption::Geostatic(..) => return Err("cannot set plane_stress with Geostatic ini_option"),
-            IniOption::IsotropicStress => return Err("cannot set plane_stress with IsotropicStress ini_option"),
+            IniOption::Isotropic(..) => return Err("cannot set plane_stress with Isotropic ini_option"),
             _ => (),
         }
         self.plane_stress = flag;
         if !self.plane_stress {
             self.thickness = 1.0;
         }
+        Ok(self)
+    }
+
+    /// Sets total stress analysis or effective stress analysis
+    pub fn total_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+        self.total_stress = flag;
         Ok(self)
     }
 
@@ -274,7 +284,7 @@ impl<'a> Configuration<'a> {
                     return Err("cannot set Geostatic ini_option with plane_stress");
                 }
             }
-            IniOption::IsotropicStress => {
+            IniOption::Isotropic(..) => {
                 if self.plane_stress {
                     return Err("cannot set IsotropicStress ini_option with plane_stress");
                 }
@@ -316,6 +326,18 @@ impl<'a> Configuration<'a> {
     #[inline]
     pub fn get_plane_stress(&self) -> bool {
         self.plane_stress
+    }
+
+    /// Returns whether stresses are total or effective
+    #[inline]
+    pub fn get_total_stress(&self) -> bool {
+        self.total_stress
+    }
+
+    /// Returns an access to the initialization option
+    #[inline]
+    pub fn get_ini_option(&self) -> &IniOption {
+        &self.ini_option
     }
 
     /// Returns the initial overburden stress (negative means compression)

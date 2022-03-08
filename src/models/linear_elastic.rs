@@ -2,7 +2,7 @@ use super::BaseStressStrain;
 use crate::simulation::StateStress;
 use crate::StrError;
 use russell_lab::copy_matrix;
-use russell_tensor::{LinElasticity, Tensor4};
+use russell_tensor::{LinElasticity, Tensor2, Tensor4};
 
 /// Implements the generalized Hooke's linear elastic model
 pub struct LinearElastic {
@@ -30,9 +30,9 @@ impl BaseStressStrain for LinearElastic {
         0
     }
 
-    /// Initializes internal values
-    fn initialize_internal_values(&self, _state: &mut StateStress) -> Result<(), StrError> {
-        Ok(())
+    /// Allocates internal values
+    fn new_internal_values(&self, _stress: &Tensor2) -> Result<Vec<f64>, StrError> {
+        Ok(Vec::new())
     }
 
     /// Computes the consistent modulus dsig/deps

@@ -1,4 +1,4 @@
-use super::{Configuration, EquationNumbers, SimStateInitializer, State};
+use super::{Configuration, EquationNumbers, Initializer, State};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::Vector;
@@ -32,7 +32,7 @@ impl<'a> Simulation<'a> {
         let mut elements = Vec::<Element>::new();
         let mut equation_numbers = EquationNumbers::new(npoint);
         let mut state = State::new_empty();
-        let initializer = SimStateInitializer::new(&config)?;
+        let initializer = Initializer::new(&config)?;
 
         // loop over all cells and allocate elements
         let mut nnz_max = 0;
@@ -44,8 +44,8 @@ impl<'a> Simulation<'a> {
             nnz_max += element.base.set_equation_numbers(&mut equation_numbers);
 
             // allocate integ points states
-            let states = element.base.alloc_state(&initializer)?;
-            state.elements.push(states);
+            let state_elem = element.base.new_state(&initializer)?;
+            state.elements.push(state_elem);
 
             // add element to array
             elements.push(element);
@@ -86,12 +86,14 @@ mod tests {
         let mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
         let mut config = Configuration::new(&mesh);
 
+        let fluids = SampleParam::param_water_and_dry_air(true);
         let param_1 = SampleParam::param_solid();
         let param_2 = SampleParam::param_porous_sol_liq_gas(0.3, 1e-2);
-        config.elements(1, ElementConfig::Solid(param_1, None))?;
-        config.elements(2, ElementConfig::Porous(param_2, None))?;
-
-        config.gravity(10.0)?; // m/s²
+        config
+            .elements(1, ElementConfig::Solid(param_1, None))?
+            .elements(2, ElementConfig::Porous(param_2, None))?
+            .fluids(fluids)?
+            .gravity(10.0)?; // m/s²
 
         let sim = Simulation::new(&config)?;
         assert_eq!(sim.elements.len(), 2);

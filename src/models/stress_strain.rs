@@ -1,15 +1,15 @@
 use crate::models::{DruckerPrager, LinearElastic};
 use crate::simulation::{ParamStressStrain, StateStress};
 use crate::StrError;
-use russell_tensor::Tensor4;
+use russell_tensor::{Tensor2, Tensor4};
 
 /// Defines a trait for stress-strain models
 pub trait BaseStressStrain {
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize;
 
-    /// Initializes internal values
-    fn initialize_internal_values(&self, _state: &mut StateStress) -> Result<(), StrError>;
+    /// Allocates internal values
+    fn new_internal_values(&self, stress: &Tensor2) -> Result<Vec<f64>, StrError>;
 
     /// Computes the consistent modulus dsig/deps
     fn consistent_modulus(&self, dd: &mut Tensor4, state: &StateStress) -> Result<(), StrError>;

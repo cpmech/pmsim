@@ -1,6 +1,6 @@
 use super::BaseElement;
 use crate::models::PorousMedium;
-use crate::simulation::{EquationNumbers, ParamFluids, ParamPorous, SimStateInitializer, StateElement};
+use crate::simulation::{EquationNumbers, Initializer, ParamFluids, ParamPorous, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
 
@@ -33,7 +33,7 @@ impl BaseElement for PorousUsPl {
     }
 
     /// Allocates and initializes the element's state at all integration points
-    fn alloc_state(&self, _initializer: &SimStateInitializer) -> Result<StateElement, StrError> {
+    fn new_state(&self, _initializer: &Initializer) -> Result<StateElement, StrError> {
         Ok(StateElement::new_empty())
     }
 

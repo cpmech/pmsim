@@ -34,59 +34,12 @@ pub struct State {
     pub system_yy: Vector,           // (neq)
 }
 
-impl StateSeepage {
-    /// Allocates a new instance
-    pub fn new() -> Self {
-        StateSeepage {
-            ns0: 0.0,
-            sat_liq: 0.0,
-            real_rho_liq: 0.0,
-            real_rho_gas: 0.0,
-            delta_pc: 0.0,
-        }
-    }
-}
-
-impl StateStress {
-    /// Allocates a new instance
-    pub fn new(n_internal_values: usize, two_dim: bool) -> Self {
-        StateStress {
-            stress: Tensor2::new(true, two_dim),
-            internal_values: vec![0.0; n_internal_values],
-        }
-    }
-}
-
 impl StateElement {
     /// Allocates a new instance with empty arrays
     pub fn new_empty() -> Self {
         StateElement {
             seepage: Vec::new(),
             stress: Vec::new(),
-        }
-    }
-
-    /// Allocates a new instance with non-empty seepage array and with empty stress array
-    pub fn new_seepage_only(n_integ_point: usize) -> Self {
-        StateElement {
-            seepage: vec![StateSeepage::new(); n_integ_point],
-            stress: Vec::new(),
-        }
-    }
-
-    /// Allocates a new instance with non-empty stress array and empty seepage array
-    pub fn new_stress_only(n_integ_point: usize, n_internal_values: usize, two_dim: bool) -> Self {
-        StateElement {
-            seepage: Vec::new(),
-            stress: vec![StateStress::new(n_internal_values, two_dim); n_integ_point],
-        }
-    }
-
-    /// Allocates a new instance with non-empty seepage and stress arrays
-    pub fn new_seepage_and_stress(n_integ_point: usize, n_internal_values: usize, two_dim: bool) -> Self {
-        StateElement {
-            seepage: vec![StateSeepage::new(); n_integ_point],
-            stress: vec![StateStress::new(n_internal_values, two_dim); n_integ_point],
         }
     }
 }
