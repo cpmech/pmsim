@@ -5,7 +5,7 @@ use russell_lab::copy_matrix;
 use russell_tensor::{LinElasticity, Tensor4};
 
 /// Implements the Drucker-Prager elastoplastic model
-pub struct ModelDruckerPrager {
+pub struct DruckerPrager {
     _c: f64,   // apparent cohesion
     _phi: f64, // friction angle
     _hh: f64,  // hardening
@@ -13,7 +13,7 @@ pub struct ModelDruckerPrager {
     lin_elast: LinElasticity,
 }
 
-impl ModelDruckerPrager {
+impl DruckerPrager {
     /// Allocates a new instance
     pub fn new(
         young: f64,
@@ -39,7 +39,7 @@ impl ModelDruckerPrager {
         if hh < 0.0 {
             return Err("hh parameter for the Drucker-Prager stress-strain model is invalid");
         }
-        Ok(ModelDruckerPrager {
+        Ok(DruckerPrager {
             _c: c,
             _phi: phi,
             _hh: hh,
@@ -48,7 +48,7 @@ impl ModelDruckerPrager {
     }
 }
 
-impl StressStrain for ModelDruckerPrager {
+impl StressStrain for DruckerPrager {
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
         // alpha       α: internal variables of rate type

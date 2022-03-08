@@ -1,4 +1,4 @@
-use crate::models::{ModelDruckerPrager, ModelLinearElastic};
+use crate::models::{DruckerPrager, LinearElastic};
 use crate::simulation::{ParamStressStrain, StateStress};
 use crate::StrError;
 use russell_tensor::Tensor4;
@@ -26,7 +26,7 @@ impl ModelStressStrain {
     pub fn new(param: &ParamStressStrain, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
         let base: Box<dyn StressStrain> = match param {
             &ParamStressStrain::LinearElastic { young, poisson } => {
-                Box::new(ModelLinearElastic::new(young, poisson, two_dim, plane_stress)?)
+                Box::new(LinearElastic::new(young, poisson, two_dim, plane_stress)?)
             }
             &ParamStressStrain::DruckerPrager {
                 young,
@@ -34,15 +34,7 @@ impl ModelStressStrain {
                 c,
                 phi,
                 hh,
-            } => Box::new(ModelDruckerPrager::new(
-                young,
-                poisson,
-                c,
-                phi,
-                hh,
-                two_dim,
-                plane_stress,
-            )?),
+            } => Box::new(DruckerPrager::new(young, poisson, c, phi, hh, two_dim, plane_stress)?),
         };
         Ok(ModelStressStrain { base })
     }

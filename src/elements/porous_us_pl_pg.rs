@@ -1,5 +1,5 @@
 use super::GenericElement;
-use crate::models::ModelPorousMedium;
+use crate::models::PorousMedium;
 use crate::simulation::{EquationNumbers, ParamFluids, ParamPorous, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
@@ -7,7 +7,7 @@ use gemlab::shapes::Shape;
 /// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
 pub struct PorousUsPlPg {
     _shape: Shape,
-    _model: ModelPorousMedium, // material model
+    _model: PorousMedium, // material model
 }
 
 impl PorousUsPlPg {
@@ -21,7 +21,7 @@ impl PorousUsPlPg {
         let two_dim = shape.space_ndim == 2;
         Ok(PorousUsPlPg {
             _shape: shape,
-            _model: ModelPorousMedium::new(param_fluids, param_porous, two_dim)?,
+            _model: PorousMedium::new(param_fluids, param_porous, two_dim)?,
         })
     }
 }

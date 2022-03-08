@@ -1,4 +1,4 @@
-use super::{ModelBrooksCorey, ModelPedrosoWilliams, ModelVanGenuchten};
+use super::{BrooksCorey, PedrosoWilliams, VanGenuchten};
 use crate::simulation::ParamLiquidRetention;
 use crate::StrError;
 use russell_lab::Vector;
@@ -31,7 +31,7 @@ impl ModelLiquidRetention {
                 pc_ae,
                 sl_min,
                 sl_max,
-            } => Box::new(ModelBrooksCorey::new(lambda, pc_ae, sl_min, sl_max)?),
+            } => Box::new(BrooksCorey::new(lambda, pc_ae, sl_min, sl_max)?),
             &ParamLiquidRetention::VanGenuchten {
                 alpha,
                 m,
@@ -39,7 +39,7 @@ impl ModelLiquidRetention {
                 sl_min,
                 sl_max,
                 pc_min,
-            } => Box::new(ModelVanGenuchten::new(alpha, m, n, sl_min, sl_max, pc_min)?),
+            } => Box::new(VanGenuchten::new(alpha, m, n, sl_min, sl_max, pc_min)?),
             &ParamLiquidRetention::PedrosoWilliams {
                 with_hysteresis,
                 lambda_d,
@@ -52,7 +52,7 @@ impl ModelLiquidRetention {
                 x_rw,
                 y_0,
                 y_r,
-            } => Box::new(ModelPedrosoWilliams::new(
+            } => Box::new(PedrosoWilliams::new(
                 with_hysteresis,
                 lambda_d,
                 lambda_w,

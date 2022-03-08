@@ -7,7 +7,7 @@ use crate::StrError;
 ///
 /// * Pedroso DM and Williams DJ (2011) Automatic Calibration of soil-water characteristic
 ///   curves using genetic algorithms. Computers and Geotechnics, 38(3), 330-340,
-pub struct ModelVanGenuchten {
+pub struct VanGenuchten {
     // parameters
     alpha: f64,  // α parameter
     m: f64,      // m parameter
@@ -20,7 +20,7 @@ pub struct ModelVanGenuchten {
     pc_max: f64, // pc limit corresponding to sl_min
 }
 
-impl ModelVanGenuchten {
+impl VanGenuchten {
     /// Allocates a new instance
     pub fn new(alpha: f64, m: f64, n: f64, sl_min: f64, sl_max: f64, pc_min: f64) -> Result<Self, StrError> {
         // check saturation limits
@@ -51,7 +51,7 @@ impl ModelVanGenuchten {
             f64::MAX
         };
         // return model
-        Ok(ModelVanGenuchten {
+        Ok(VanGenuchten {
             alpha,
             m,
             n,
@@ -63,7 +63,7 @@ impl ModelVanGenuchten {
     }
 }
 
-impl LiquidRetention for ModelVanGenuchten {
+impl LiquidRetention for VanGenuchten {
     /// Returns the saturation limits (sl_min,sl_max)
     fn saturation_limits(&self) -> (f64, f64) {
         (self.sl_min, self.sl_max)

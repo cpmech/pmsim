@@ -9,13 +9,13 @@ use crate::StrError;
 ///   equations for porous media considering dynamics and hysteretic behavior,
 ///   ASCE Journal of Engineering Mechanics, 143:6(04017021),
 ///   <https://dx.doi.org/10.1061/(ASCE)EM.1943-7889.0001208>
-pub struct ModelRealDensity {
+pub struct RealDensity {
     pub cc: f64,      // compressibility C = dρReal/dp
     pub p_ref: f64,   // reference pressure p₀
     pub rho_ref: f64, // reference intrinsic density ρReal₀
 }
 
-impl ModelRealDensity {
+impl RealDensity {
     /// Allocates a new instance
     pub fn new(param: &ParamRealDensity) -> Result<Self, StrError> {
         if param.cc <= 0.0 {
@@ -24,7 +24,7 @@ impl ModelRealDensity {
         if param.rho_ref <= 0.0 {
             return Err("reference intrinsic density must be greater than zero");
         }
-        Ok(ModelRealDensity {
+        Ok(RealDensity {
             cc: param.cc,
             p_ref: param.p_ref,
             rho_ref: param.rho_ref,
@@ -36,14 +36,14 @@ impl ModelRealDensity {
 
 #[cfg(test)]
 mod tests {
-    use super::ModelRealDensity;
+    use super::RealDensity;
     use crate::simulation::ParamRealDensity;
     use crate::StrError;
 
     #[test]
     fn captures_wrong_input() -> Result<(), StrError> {
         assert_eq!(
-            ModelRealDensity::new(&ParamRealDensity {
+            RealDensity::new(&ParamRealDensity {
                 cc: 0.0,
                 p_ref: 0.0,
                 rho_ref: 0.0,
@@ -53,7 +53,7 @@ mod tests {
             Some("compressibility constant must be greater than zero")
         );
         assert_eq!(
-            ModelRealDensity::new(&ParamRealDensity {
+            RealDensity::new(&ParamRealDensity {
                 cc: 0.01,
                 p_ref: 0.0,
                 rho_ref: 0.0,

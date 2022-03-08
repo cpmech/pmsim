@@ -7,14 +7,14 @@ use crate::StrError;
 ///
 /// * Pedroso DM and Williams DJ (2011) Automatic Calibration of soil-water characteristic
 ///   curves using genetic algorithms. Computers and Geotechnics, 38(3), 330-340,
-pub struct ModelBrooksCorey {
+pub struct BrooksCorey {
     lambda: f64, // slope coefficient
     pc_ae: f64,  // air-entry pressure
     sl_min: f64, // residual (minimum) saturation
     sl_max: f64, // maximum saturation
 }
 
-impl ModelBrooksCorey {
+impl BrooksCorey {
     /// Allocates a new instance
     pub fn new(lambda: f64, pc_ae: f64, sl_min: f64, sl_max: f64) -> Result<Self, StrError> {
         // check saturation limits
@@ -32,7 +32,7 @@ impl ModelBrooksCorey {
             return Err("pc_ae parameter for the Brooks-Corey retention model is invalid");
         }
         // return model
-        Ok(ModelBrooksCorey {
+        Ok(BrooksCorey {
             lambda,
             pc_ae,
             sl_min,
@@ -41,7 +41,7 @@ impl ModelBrooksCorey {
     }
 }
 
-impl LiquidRetention for ModelBrooksCorey {
+impl LiquidRetention for BrooksCorey {
     /// Returns the saturation limits (sl_min,sl_max)
     fn saturation_limits(&self) -> (f64, f64) {
         (self.sl_min, self.sl_max)

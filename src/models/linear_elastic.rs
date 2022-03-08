@@ -5,11 +5,11 @@ use russell_lab::copy_matrix;
 use russell_tensor::{LinElasticity, Tensor4};
 
 /// Implements the generalized Hooke's linear elastic model
-pub struct ModelLinearElastic {
+pub struct LinearElastic {
     lin_elast: LinElasticity,
 }
 
-impl ModelLinearElastic {
+impl LinearElastic {
     /// Allocates a new instance
     pub fn new(young: f64, poisson: f64, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
         if young < 0.0 {
@@ -18,13 +18,13 @@ impl ModelLinearElastic {
         if poisson < 0.0 {
             return Err("poisson parameter for the Drucker-Prager stress-strain model is invalid");
         }
-        Ok(ModelLinearElastic {
+        Ok(LinearElastic {
             lin_elast: LinElasticity::new(young, poisson, two_dim, plane_stress),
         })
     }
 }
 
-impl StressStrain for ModelLinearElastic {
+impl StressStrain for LinearElastic {
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
         0

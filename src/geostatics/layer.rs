@@ -1,4 +1,4 @@
-use crate::models::{ModelLiquidRetention, ModelRealDensity};
+use crate::models::{ModelLiquidRetention, RealDensity};
 use crate::simulation::{ParamFluids, ParamPorous};
 use crate::StrError;
 use gemlab::mesh::CellAttributeId;
@@ -65,10 +65,10 @@ pub(super) struct Layer {
     sl_max: f64,
 
     /// Model for the intrinsic (real) density of liquid
-    density_liquid: ModelRealDensity,
+    density_liquid: RealDensity,
 
     /// Model for the intrinsic (real) density of gas
-    density_gas: Option<ModelRealDensity>,
+    density_gas: Option<RealDensity>,
 
     /// The height of the porous domain (column); it is the height of the whole set of layers
     height: f64,
@@ -104,9 +104,9 @@ impl Layer {
             nf_ini: param_porous.porosity_initial,
             rho_ss: param_porous.density_solid,
             sl_max,
-            density_liquid: ModelRealDensity::new(&param_fluids.density_liquid)?,
+            density_liquid: RealDensity::new(&param_fluids.density_liquid)?,
             density_gas: match &param_fluids.density_gas {
-                Some(p) => Some(ModelRealDensity::new(p)?),
+                Some(p) => Some(RealDensity::new(p)?),
                 None => None,
             },
             height,

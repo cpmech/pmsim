@@ -1,4 +1,4 @@
-use crate::models::{ModelConductivity, ModelLiquidRetention, ModelRealDensity, ModelStressStrain};
+use crate::models::{Conductivity, ModelLiquidRetention, ModelStressStrain, RealDensity};
 use crate::simulation::{ParamFluids, ParamPorous};
 use crate::StrError;
 
@@ -31,12 +31,12 @@ use crate::StrError;
 /// * `sl_max` -- is the maximum liquid saturation (e.g., 1.0 or 0.95)
 /// * `rho_ini` -- `ρ0 = (1-nf0)・ρS0 + nf0・sl_max・ρL(pl) + nf0・(1-sl_max)・ρG(pg)`
 ///   is the initial partial density of the (liquid-saturated) mixture
-pub struct ModelPorousMedium {
+pub struct PorousMedium {
     /// Model for the intrinsic (real) density of liquid
-    pub density_liquid: ModelRealDensity,
+    pub density_liquid: RealDensity,
 
     /// Optional model for the intrinsic (real) density of gas
-    pub density_gas: Option<ModelRealDensity>,
+    pub density_gas: Option<RealDensity>,
 
     /// Model for the stress-strain relation
     pub stress_strain: ModelStressStrain,
@@ -45,10 +45,10 @@ pub struct ModelPorousMedium {
     pub retention_liquid: ModelLiquidRetention,
 
     /// Model for the liquid conductivity
-    pub conductivity_liquid: ModelConductivity,
+    pub conductivity_liquid: Conductivity,
 
     /// Model for the gas conductivity
-    pub conductivity_gas: Option<ModelConductivity>,
+    pub conductivity_gas: Option<Conductivity>,
 
     /// Initial porosity
     pub nf_ini: f64,
@@ -57,7 +57,7 @@ pub struct ModelPorousMedium {
     pub rho_ss: f64,
 }
 
-impl ModelPorousMedium {
+impl PorousMedium {
     /// Allocates a new instance
     ///
     /// # Input
@@ -76,17 +76,17 @@ impl ModelPorousMedium {
             }
             None => (),
         }
-        Ok(ModelPorousMedium {
-            density_liquid: ModelRealDensity::new(&param_fluids.density_liquid)?,
+        Ok(PorousMedium {
+            density_liquid: RealDensity::new(&param_fluids.density_liquid)?,
             density_gas: match &param_fluids.density_gas {
-                Some(p) => Some(ModelRealDensity::new(p)?),
+                Some(p) => Some(RealDensity::new(p)?),
                 None => None,
             },
             stress_strain: ModelStressStrain::new(&param_porous.stress_strain, two_dim, false)?,
             retention_liquid,
-            conductivity_liquid: ModelConductivity::new(&param_porous.conductivity_liquid, two_dim)?,
+            conductivity_liquid: Conductivity::new(&param_porous.conductivity_liquid, two_dim)?,
             conductivity_gas: match &param_porous.conductivity_gas {
-                Some(p) => Some(ModelConductivity::new(p, two_dim)?),
+                Some(p) => Some(Conductivity::new(p, two_dim)?),
                 None => None,
             },
             nf_ini: param_porous.porosity_initial,

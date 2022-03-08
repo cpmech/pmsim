@@ -10,7 +10,7 @@ use russell_tensor::Tensor2;
 ///   equations for porous media considering dynamics and hysteretic behavior,
 ///   ASCE Journal of Engineering Mechanics, 143:6(04017021),
 ///   <https://dx.doi.org/10.1061/(ASCE)EM.1943-7889.0001208>
-pub struct ModelConductivity {
+pub struct Conductivity {
     // for constant, linear or pedroso-zhang-ehlers models
     kk_sat: Tensor2,
 
@@ -32,10 +32,10 @@ pub struct ModelConductivity {
     c3: f64,
 }
 
-impl ModelConductivity {
+impl Conductivity {
     /// Allocates a new instance
     pub fn new(param: &ParamConductivity, two_dim: bool) -> Result<Self, StrError> {
-        let mut model = ModelConductivity {
+        let mut model = Conductivity {
             kk_sat: Tensor2::new(true, two_dim),
             is_constant: false,
             is_linear: false,

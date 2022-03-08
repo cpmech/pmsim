@@ -44,7 +44,7 @@ struct TemporaryWetting {
 /// 5. Pedroso DM, Sheng D and Zhao, J (2009) The concept of reference curves for constitutive
 ///    modelling in soil mechanics, Computers and Geotechnics, 36(1-2), 149-165,
 ///    <https://dx.doi.org/10.1016/j.compgeo.2008.01.009>
-pub struct ModelPedrosoWilliams {
+pub struct PedrosoWilliams {
     // parameters
     with_hysteresis: bool,
     lambda_d: f64,
@@ -69,7 +69,7 @@ pub struct ModelPedrosoWilliams {
     temp_wet: RefCell<TemporaryWetting>,
 }
 
-impl ModelPedrosoWilliams {
+impl PedrosoWilliams {
     /// Allocate a new instance of ModelPedrosoWilliams
     pub fn new(
         with_hysteresis: bool,
@@ -132,7 +132,7 @@ impl ModelPedrosoWilliams {
             (c1_d, c2_d, c3_d)
         };
         // return model
-        Ok(ModelPedrosoWilliams {
+        Ok(PedrosoWilliams {
             with_hysteresis,
             lambda_d,
             lambda_w,
@@ -188,7 +188,7 @@ impl ModelPedrosoWilliams {
     }
 }
 
-impl LiquidRetention for ModelPedrosoWilliams {
+impl LiquidRetention for PedrosoWilliams {
     /// Returns the saturation limits (sl_min,sl_max)
     fn saturation_limits(&self) -> (f64, f64) {
         (self.y_r, self.y_0)
