@@ -32,27 +32,19 @@ use russell_tensor::Tensor2;
 /// * `rho_ini` -- `ρ0 = (1-nf0)・ρS0 + nf0・sl_max・ρL(pl) + nf0・(1-sl_max)・ρG(pg)`  is the initial partial density of the (liquid-saturated) mixture
 pub(super) struct Layer {
     /// Identification number; same as CellAttributeId
-    ///
-    /// **(readonly)**
-    pub attribute_id: CellAttributeId,
+    attribute_id: CellAttributeId,
 
     /// Minimum elevation of the layer (y in 2D or z in 3D)
-    ///
-    /// **(readonly)**
-    pub z_min: f64,
+    z_min: f64,
 
     /// Maximum elevation of the layer (y in 2D or z in 3D)
-    ///
-    /// **(readonly)**
-    pub z_max: f64,
+    z_max: f64,
 
     /// Total (**not** effective) vertical stress at the top (z_max) of the layer.
     /// Negative values means compression (continuum mechanics convention)
     sigma_z_total_over: f64,
 
     /// At-rest earth pressure coefficient `K0 = σₕ'/σᵥ'` to compute initial stresses
-    ///
-    /// **(readonly)**
     kk0: f64,
 
     /// Initial porosity
@@ -119,6 +111,24 @@ impl Layer {
             }
         }
         Ok(layer)
+    }
+
+    /// Returns the cell attribute id
+    #[inline]
+    pub fn get_attribute_id(&self) -> CellAttributeId {
+        self.attribute_id
+    }
+
+    /// Returns the z_min elevation
+    #[inline]
+    pub fn get_z_min(&self) -> f64 {
+        self.z_min
+    }
+
+    /// Returns the z_max elevation
+    #[inline]
+    pub fn get_z_max(&self) -> f64 {
+        self.z_max
     }
 
     /// Returns the liquid pressure at given elevation

@@ -51,13 +51,9 @@ pub struct PorousMedium {
     pub conductivity_gas: Option<Conductivity>,
 
     /// Initial porosity
-    ///
-    /// **(readonly)**
     pub nf_ini: f64,
 
     /// Initial and constant intrinsic (real) density of solids
-    ///
-    /// **(readonly)**
     pub rho_ss: f64,
 }
 

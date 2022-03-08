@@ -135,7 +135,7 @@ impl Geostatics {
                 )?,
                 _ => panic!("INTERNAL ERROR: porous element_config is missing"), // not supposed to happen
             };
-            sigma_z_total_over = layer.calc_sigma_z_total(layer.z_min)?;
+            sigma_z_total_over = layer.calc_sigma_z_total(layer.get_z_min())?;
             top_down_layers.push(layer);
         }
 
@@ -146,8 +146,8 @@ impl Geostatics {
     /// Finds the cell attribute id of the layer containing a given elevation
     pub fn find_attribute_id(&self, z: f64) -> Result<CellAttributeId, StrError> {
         for layer in &self.top_down_layers {
-            if z >= layer.z_min && z <= layer.z_max {
-                return Ok(layer.attribute_id);
+            if z >= layer.get_z_min() && z <= layer.get_z_max() {
+                return Ok(layer.get_attribute_id());
             }
         }
         Err("elevation is outside the porous region limits")
@@ -186,7 +186,7 @@ impl Geostatics {
     /// Finds the layer where a given elevation is located within
     fn find_layer(&self, z: f64) -> Result<&Layer, StrError> {
         for layer in &self.top_down_layers {
-            if z >= layer.z_min && z <= layer.z_max {
+            if z >= layer.get_z_min() && z <= layer.get_z_max() {
                 return Ok(layer);
             }
         }
@@ -317,11 +317,11 @@ mod tests {
         let geo = Geostatics::new(&config)?;
         assert_eq!(geo.top_down_layers.len(), 2);
         let top = &geo.top_down_layers[0];
-        assert_eq!(top.z_max, 3.0);
-        assert_eq!(top.z_min, 1.0);
+        assert_eq!(top.get_z_max(), 3.0);
+        assert_eq!(top.get_z_min(), 1.0);
         let bot = &geo.top_down_layers[1];
-        assert_eq!(bot.z_max, 1.0);
-        assert_eq!(bot.z_min, 0.0);
+        assert_eq!(bot.get_z_max(), 1.0);
+        assert_eq!(bot.get_z_min(), 0.0);
         assert_approx_eq!(geo.calc_sigma_z_total(3.0)?, -100.0, 1e-15);
         assert_approx_eq!(geo.calc_sigma_z_total(1.00001)?, -100.0 + sigma_v_mid_approx, 1e-3);
         assert_approx_eq!(geo.calc_sigma_z_total(1.00000)?, -100.0 + sigma_v_mid_approx, 1e-10);
@@ -343,14 +343,14 @@ mod tests {
         let geo = Geostatics::new(&config)?;
         assert_eq!(geo.top_down_layers.len(), 2);
         let top = &geo.top_down_layers[0];
-        assert_eq!(top.z_min, 1.0);
-        assert_eq!(top.z_max, 3.0);
-        assert_eq!(top.calc_sigma_z_total(top.z_max)?, 0.0);
-        assert_approx_eq!(top.calc_sigma_z_total(top.z_min)?, sigma_v_mid_approx, 1e-4); // only 1e-4 because of liquid compressibility
+        assert_eq!(top.get_z_max(), 3.0);
+        assert_eq!(top.get_z_min(), 1.0);
         let bot = &geo.top_down_layers[1];
-        assert_eq!(bot.z_min, 0.0);
-        assert_eq!(bot.z_max, 1.0);
-        assert_approx_eq!(bot.calc_sigma_z_total(bot.z_max)?, sigma_v_mid_approx, 1e-4);
+        assert_eq!(bot.get_z_max(), 1.0);
+        assert_eq!(bot.get_z_min(), 0.0);
+        assert_approx_eq!(geo.calc_sigma_z_total(3.00000)?, 0.0, 1e-15);
+        assert_approx_eq!(geo.calc_sigma_z_total(1.00000)?, sigma_v_mid_approx, 1e-4); // only 1e-4 because of liquid compressibility
+        assert_approx_eq!(geo.calc_sigma_z_total(0.99999)?, sigma_v_mid_approx, 1e-3);
         Ok(())
     }
 
@@ -368,14 +368,14 @@ mod tests {
         let geo = Geostatics::new(&config)?;
         assert_eq!(geo.top_down_layers.len(), 2);
         let top = &geo.top_down_layers[0];
-        assert_eq!(top.z_min, 1.0);
-        assert_eq!(top.z_max, 3.0);
-        assert_eq!(top.calc_sigma_z_total(top.z_max)?, 0.0);
-        assert_approx_eq!(top.calc_sigma_z_total(top.z_min)?, sigma_v_mid_approx, 1e-4); // only 1e-4 because of liquid compressibility
+        assert_eq!(top.get_z_max(), 3.0);
+        assert_eq!(top.get_z_min(), 1.0);
         let bot = &geo.top_down_layers[1];
-        assert_eq!(bot.z_min, 0.0);
-        assert_eq!(bot.z_max, 1.0);
-        assert_approx_eq!(bot.calc_sigma_z_total(bot.z_max)?, sigma_v_mid_approx, 1e-4);
+        assert_eq!(bot.get_z_min(), 0.0);
+        assert_eq!(bot.get_z_max(), 1.0);
+        assert_approx_eq!(geo.calc_sigma_z_total(3.00000)?, 0.0, 1e-15);
+        assert_approx_eq!(geo.calc_sigma_z_total(1.00000)?, sigma_v_mid_approx, 1e-4); // only 1e-4 because of liquid compressibility
+        assert_approx_eq!(geo.calc_sigma_z_total(0.99999)?, sigma_v_mid_approx, 1e-3);
         Ok(())
     }
 }
