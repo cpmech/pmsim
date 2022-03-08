@@ -27,7 +27,8 @@ impl<'a> Simulation<'a> {
     /// Allocates a new instance
     pub fn new(config: &'a Configuration) -> Result<Self, StrError> {
         // elements, equation numbers, and states
-        let npoint = config.mesh.points.len();
+        let mesh = config.get_mesh();
+        let npoint = mesh.points.len();
         let mut elements = Vec::<Element>::new();
         let mut equation_numbers = EquationNumbers::new(npoint);
         let mut sim_state = SimState::new_empty();
@@ -35,7 +36,7 @@ impl<'a> Simulation<'a> {
 
         // loop over all cells and allocate elements
         let mut nnz_max = 0;
-        for cell in &config.mesh.cells {
+        for cell in &mesh.cells {
             // allocate element
             let element = Element::new(config, cell.id)?;
 

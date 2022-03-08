@@ -1,5 +1,5 @@
 use super::{layer::Layer, layer_info::LayerInfo};
-use crate::simulation::{Configuration, ElementConfig, IniOption};
+use crate::simulation::{Configuration, ElementConfig};
 use crate::StrError;
 use gemlab::mesh::{At, CellAttributeId, CellId};
 use russell_tensor::Tensor2;
@@ -31,17 +31,14 @@ impl Geostatics {
     /// limits and allocates models.
     pub fn new(config: &Configuration) -> Result<Self, StrError> {
         // mesh and space_ndim
-        let mesh = config.mesh;
+        let mesh = config.get_mesh();
         let two_dim = mesh.space_ndim == 2;
         if mesh.space_ndim < 2 || mesh.space_ndim > 3 {
             return Err("Geostatics requires space_ndim = 2 or 3");
         }
 
         // param for fluids
-        let param_fluids = match &config.param_fluids {
-            Some(p) => p,
-            None => return Err("Geostatics requires the definition of parameters for fluids"),
-        };
+        let param_fluids = config.get_param_fluids()?;
 
         // find cells near x_min
         let x_min = mesh.coords_min[0];
@@ -118,10 +115,7 @@ impl Geostatics {
         }
 
         // surface overburden
-        let mut sigma_z_total_over = match config.ini_option {
-            IniOption::Geostatic(overburden) => overburden,
-            _ => 0.0, // the first layer at the top has zero overburden
-        };
+        let mut sigma_z_total_over = config.get_initial_overburden();
 
         // allocate layers
         let mut top_down_layers: Vec<Layer> = Vec::new();
@@ -136,7 +130,7 @@ impl Geostatics {
                     param_fluids,
                     param_porous,
                     height,
-                    config.gravity,
+                    config.get_gravity(),
                     two_dim,
                 )?,
                 _ => panic!("INTERNAL ERROR: porous element_config is missing"), // not supposed to happen

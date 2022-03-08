@@ -12,7 +12,7 @@ pub type FnSpaceTime = fn(&[f64], f64) -> f64;
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct Configuration<'a> {
     /// Access to mesh
-    pub mesh: &'a Mesh,
+    mesh: &'a Mesh,
 
     /// Essential boundary conditions
     essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
@@ -27,28 +27,31 @@ pub struct Configuration<'a> {
     point_bcs: HashMap<(PointId, BcPoint), FnSpaceTime>,
 
     /// Parameters for fluids
-    pub param_fluids: Option<ParamFluids>,
+    param_fluids: Option<ParamFluids>,
 
     /// Elements configuration
-    pub element_configs: HashMap<CellAttributeId, ElementConfig>,
+    element_configs: HashMap<CellAttributeId, ElementConfig>,
 
     /// Problem type
     problem_type: Option<ProblemType>,
 
     /// Gravity acceleration
-    pub gravity: f64,
+    gravity: f64,
 
     /// Thickness for plane-stress or 1.0 otherwise
-    pub thickness: f64,
+    thickness: f64,
 
     /// 2D plane-stress problem, otherwise plane-strain in 2D
-    pub plane_stress: bool,
+    plane_stress: bool,
 
     /// Option to initialize stress state
-    pub ini_option: IniOption,
+    ini_option: IniOption,
 
-    with_pl_only: bool,   // with liquid pressure only
-    with_pl_and_pg: bool, // with liquid and gas pressures
+    /// with liquid pressure only
+    with_pl_only: bool,
+
+    /// with liquid and gas pressures
+    with_pl_and_pg: bool,
 }
 
 impl<'a> Configuration<'a> {
@@ -282,12 +285,55 @@ impl<'a> Configuration<'a> {
         Ok(self)
     }
 
-    /// Returns an ElementConfig
+    /// Returns an access to Mesh
+    #[inline]
+    pub fn get_mesh(&self) -> &Mesh {
+        self.mesh
+    }
+
+    /// Returns an access to ParamFluids
+    #[inline]
+    pub fn get_param_fluids(&self) -> Result<&ParamFluids, StrError> {
+        match &self.param_fluids {
+            Some(p) => Ok(&p),
+            None => Err("set_param_fluids must be called first"),
+        }
+    }
+
+    /// Returns the gravity acceleration
+    #[inline]
+    pub fn get_gravity(&self) -> f64 {
+        self.gravity
+    }
+
+    /// Returns the thickness used for plane-stress
+    #[inline]
+    pub fn get_thickness(&self) -> f64 {
+        self.thickness
+    }
+
+    /// Returns whether plane-stress mode has been set or not
+    #[inline]
+    pub fn get_plane_stress(&self) -> bool {
+        self.plane_stress
+    }
+
+    /// Returns the initial overburden stress (negative means compression)
+    #[inline]
+    pub fn get_initial_overburden(&self) -> f64 {
+        match self.ini_option {
+            IniOption::Geostatic(overburden) => overburden,
+            _ => 0.0,
+        }
+    }
+
+    /// Returns an the element configuration
+    #[inline]
     pub fn get_element_config(&self, attribute_id: CellAttributeId) -> Result<&ElementConfig, StrError> {
         let res = self
             .element_configs
             .get(&attribute_id)
-            .ok_or("cell attribute id has not been set in SimConfig")?;
+            .ok_or("cannot find CellAttributeId in Configuration")?;
         Ok(res)
     }
 }
