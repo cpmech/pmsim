@@ -1,4 +1,4 @@
-use super::StressStrain;
+use super::BaseStressStrain;
 use crate::simulation::StateStress;
 use crate::StrError;
 use russell_lab::copy_matrix;
@@ -48,7 +48,7 @@ impl DruckerPrager {
     }
 }
 
-impl StressStrain for DruckerPrager {
+impl BaseStressStrain for DruckerPrager {
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
         // alpha       α: internal variables of rate type

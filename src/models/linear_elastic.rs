@@ -1,4 +1,4 @@
-use super::StressStrain;
+use super::BaseStressStrain;
 use crate::simulation::StateStress;
 use crate::StrError;
 use russell_lab::copy_matrix;
@@ -24,7 +24,7 @@ impl LinearElastic {
     }
 }
 
-impl StressStrain for LinearElastic {
+impl BaseStressStrain for LinearElastic {
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
         0

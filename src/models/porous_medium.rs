@@ -1,4 +1,4 @@
-use crate::models::{Conductivity, LiquidRetention, ModelStressStrain, RealDensity};
+use crate::models::{Conductivity, LiquidRetention, RealDensity, StressStrain};
 use crate::simulation::{ParamFluids, ParamPorous};
 use crate::StrError;
 
@@ -39,7 +39,7 @@ pub struct PorousMedium {
     pub density_gas: Option<RealDensity>,
 
     /// Model for the stress-strain relation
-    pub stress_strain: ModelStressStrain,
+    pub stress_strain: StressStrain,
 
     /// Model for the liquid retention behavior
     pub retention_liquid: LiquidRetention,
@@ -82,7 +82,7 @@ impl PorousMedium {
                 Some(p) => Some(RealDensity::new(p)?),
                 None => None,
             },
-            stress_strain: ModelStressStrain::new(&param_porous.stress_strain, two_dim, false)?,
+            stress_strain: StressStrain::new(&param_porous.stress_strain, two_dim, false)?,
             retention_liquid,
             conductivity_liquid: Conductivity::new(&param_porous.conductivity_liquid, two_dim)?,
             conductivity_gas: match &param_porous.conductivity_gas {

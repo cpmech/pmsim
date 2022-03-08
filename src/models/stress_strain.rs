@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_tensor::Tensor4;
 
 /// Defines a trait for stress-strain models
-pub trait StressStrain {
+pub trait BaseStressStrain {
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize;
 
@@ -16,15 +16,15 @@ pub trait StressStrain {
 }
 
 /// Implements a model for stress-strain relations
-pub struct ModelStressStrain {
+pub struct StressStrain {
     /// Holds the base implementation
-    pub base: Box<dyn StressStrain>,
+    pub base: Box<dyn BaseStressStrain>,
 }
 
-impl ModelStressStrain {
+impl StressStrain {
     /// Allocates a new instance
     pub fn new(param: &ParamStressStrain, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
-        let base: Box<dyn StressStrain> = match param {
+        let base: Box<dyn BaseStressStrain> = match param {
             &ParamStressStrain::LinearElastic { young, poisson } => {
                 Box::new(LinearElastic::new(young, poisson, two_dim, plane_stress)?)
             }
@@ -36,7 +36,7 @@ impl ModelStressStrain {
                 hh,
             } => Box::new(DruckerPrager::new(young, poisson, c, phi, hh, two_dim, plane_stress)?),
         };
-        Ok(ModelStressStrain { base })
+        Ok(StressStrain { base })
     }
 }
 
@@ -44,7 +44,7 @@ impl ModelStressStrain {
 
 #[cfg(test)]
 mod tests {
-    use super::ModelStressStrain;
+    use super::StressStrain;
     use crate::simulation::ParamStressStrain;
     use crate::StrError;
 
@@ -63,8 +63,8 @@ mod tests {
             hh: 0.0,         // kPa
         };
 
-        let mut _m1 = ModelStressStrain::new(&p1, true, false)?;
-        let mut _m2 = ModelStressStrain::new(&p2, true, false)?;
+        let mut _m1 = StressStrain::new(&p1, true, false)?;
+        let mut _m2 = StressStrain::new(&p2, true, false)?;
 
         Ok(())
     }

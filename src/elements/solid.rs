@@ -1,5 +1,5 @@
 use super::BaseElement;
-use crate::models::ModelStressStrain;
+use crate::models::StressStrain;
 use crate::simulation::{Dof, EquationNumbers, ParamSolid, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
@@ -12,8 +12,8 @@ pub struct Solid {
     shape: RefCell<Shape>,
 
     // param
-    model: ModelStressStrain, // material model
-    _thickness: f64,          // thickness
+    model: StressStrain, // material model
+    _thickness: f64,     // thickness
 
     // system
     dofs: Vec<Dof>, // degrees-of-freedom per node
@@ -32,7 +32,7 @@ impl Solid {
     ) -> Result<Self, StrError> {
         // model
         let two_dim = shape.space_ndim == 2;
-        let model = ModelStressStrain::new(&param.stress_strain, two_dim, plane_stress)?;
+        let model = StressStrain::new(&param.stress_strain, two_dim, plane_stress)?;
 
         // system
         let dofs = match shape.space_ndim {
