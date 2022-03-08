@@ -7,7 +7,7 @@ use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
 use std::collections::HashMap;
 
 /// Defines a function of (x,t) where x is space and t is time
-pub type FnSpaceTime = fn(&[f64], f64) -> f64;
+pub type FnSpaceTime = fn(x: &[f64], t: f64) -> f64;
 
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct Configuration<'a> {
