@@ -1,4 +1,4 @@
-use super::GenericElement;
+use super::BaseElement;
 use crate::models::PorousMedium;
 use crate::simulation::{EquationNumbers, ParamFluids, ParamPorous, SimStateInitializer, StateElement};
 use crate::StrError;
@@ -26,7 +26,7 @@ impl PorousUsPl {
     }
 }
 
-impl GenericElement for PorousUsPl {
+impl BaseElement for PorousUsPl {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0

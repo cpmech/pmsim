@@ -25,7 +25,7 @@ use gemlab::mesh::CellId;
 /// yy := {Y}
 /// kk := {K}
 /// ```
-pub trait GenericElement {
+pub trait BaseElement {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
 
@@ -48,7 +48,7 @@ pub trait GenericElement {
 /// Defines a finite element
 pub struct Element {
     /// Holds the base implementation
-    pub base: Box<dyn GenericElement>,
+    pub base: Box<dyn BaseElement>,
 }
 
 impl Element {
@@ -63,7 +63,7 @@ impl Element {
             None => return Err("cannot find element configuration for a cell attribute id"),
         };
         let shape = config.mesh.alloc_shape_cell(cell_id)?; // moving to Element
-        let base: Box<dyn GenericElement> = match element_config {
+        let base: Box<dyn BaseElement> = match element_config {
             ElementConfig::Rod(param) => Box::new(Rod::new(shape, param)?),
             ElementConfig::Beam(param) => Box::new(Beam::new(shape, param)?),
             ElementConfig::Solid(param, n_integ_point) => Box::new(Solid::new(

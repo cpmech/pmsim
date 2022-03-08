@@ -1,4 +1,4 @@
-use super::GenericElement;
+use super::BaseElement;
 use crate::simulation::{EquationNumbers, ParamSeepage, SimStateInitializer, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
@@ -15,7 +15,7 @@ impl SeepagePl {
     }
 }
 
-impl GenericElement for SeepagePl {
+impl BaseElement for SeepagePl {
     /// Activates an equation number, if not set yet
     fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
         0
