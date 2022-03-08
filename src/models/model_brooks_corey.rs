@@ -1,4 +1,5 @@
-use crate::{ModelLiquidRetentionTrait, StrError};
+use super::ModelLiquidRetentionTrait;
+use crate::StrError;
 
 /// Implements the Brooks-Corey model for liquid retention
 ///

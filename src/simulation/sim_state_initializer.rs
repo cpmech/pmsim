@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_mut, unused_variables, unused_imports)]
 
-use crate::{SimConfig, StateStress, StrError};
+use super::{SimConfig, StateStress};
+use crate::StrError;
 use russell_lab::Vector;
 
 pub enum IniOption {

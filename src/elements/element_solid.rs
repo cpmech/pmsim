@@ -1,6 +1,7 @@
-use crate::{
-    Dof, Element, EquationNumbers, ModelStressStrain, ParamSolid, SimStateInitializer, StateElement, StrError,
-};
+use super::Element;
+use crate::models::ModelStressStrain;
+use crate::simulation::{Dof, EquationNumbers, ParamSolid, SimStateInitializer, StateElement};
+use crate::StrError;
 use gemlab::shapes::Shape;
 use russell_lab::{Matrix, Vector};
 use std::cell::RefCell;

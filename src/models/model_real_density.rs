@@ -1,4 +1,5 @@
-use crate::{ParamRealDensity, StrError};
+use crate::simulation::ParamRealDensity;
+use crate::StrError;
 
 /// Implements a model for fluid intrinsic density
 ///
@@ -35,7 +36,9 @@ impl ModelRealDensity {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ModelRealDensity, ParamRealDensity, StrError};
+    use super::ModelRealDensity;
+    use crate::simulation::ParamRealDensity;
+    use crate::StrError;
 
     #[test]
     fn captures_wrong_input() -> Result<(), StrError> {

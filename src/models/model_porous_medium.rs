@@ -1,6 +1,6 @@
-use crate::{
-    ModelConductivity, ModelLiquidRetention, ModelRealDensity, ModelStressStrain, ParamFluids, ParamPorous, StrError,
-};
+use crate::models::{ModelConductivity, ModelLiquidRetention, ModelRealDensity, ModelStressStrain};
+use crate::simulation::{ParamFluids, ParamPorous};
+use crate::StrError;
 
 /// Implements a set of models for the mechanics porous media
 ///

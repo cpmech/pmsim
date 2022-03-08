@@ -1,3 +1,5 @@
+//! Implements finite elements
+
 mod element;
 mod element_beam;
 mod element_porous_us_pl;

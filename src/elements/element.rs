@@ -1,7 +1,8 @@
-use crate::{
-    ElementBeam, ElementConfig, ElementPorousUsPl, ElementPorousUsPlPg, ElementRod, ElementSeepagePl,
-    ElementSeepagePlPg, ElementSolid, EquationNumbers, SimConfig, SimStateInitializer, StateElement, StrError,
+use super::{
+    ElementBeam, ElementPorousUsPl, ElementPorousUsPlPg, ElementRod, ElementSeepagePl, ElementSeepagePlPg, ElementSolid,
 };
+use crate::simulation::{ElementConfig, EquationNumbers, SimConfig, SimStateInitializer, StateElement};
+use crate::StrError;
 use gemlab::mesh::CellId;
 
 /// Defines a trait for (finite) elements
@@ -103,52 +104,5 @@ pub fn alloc_element(config: &SimConfig, cell_id: CellId) -> Result<Box<dyn Elem
                 Ok(Box::new(ele))
             }
         },
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[cfg(test)]
-mod tests {
-    use crate::{ElementConfig, ParamBeam, ParamSolid, ParamStressStrain};
-
-    #[test]
-    fn config_works() {
-        let m1 = ParamSolid {
-            density: 2.7, // Mg/m2
-            stress_strain: ParamStressStrain::LinearElastic {
-                young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
-            },
-        };
-
-        let m2 = ParamSolid {
-            density: 2.7, // Mg/m2
-            stress_strain: ParamStressStrain::DruckerPrager {
-                young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
-                c: 40.0,         // kPa
-                phi: 30.0,       // degree
-                hh: 0.0,         // kPa
-            },
-        };
-
-        let m3 = ParamBeam::EulerBernoulli {
-            area: 1.0,
-            density: 2.7,
-            ii_11: 1.0,
-            ii_22: 1.0,
-            jj_tt: 1.0,
-            shear: 2000.0,
-            young: 1000.0,
-        };
-
-        let c1 = ElementConfig::Solid(m1, None);
-        let c2 = ElementConfig::Solid(m2, None);
-        let c3 = ElementConfig::Beam(m3);
-
-        println!("c1 = {:?}\n", c1);
-        println!("c2 = {:?}\n", c2);
-        println!("c3 = {:?}\n", c3);
     }
 }

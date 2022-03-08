@@ -1,4 +1,5 @@
-use crate::{Dof, StrError, NDOF_PER_NODE_TOTAL};
+use super::{Dof, NDOF_PER_NODE_TOTAL};
+use crate::StrError;
 use gemlab::mesh::PointId;
 use russell_lab::NumMatrix;
 use std::fmt;

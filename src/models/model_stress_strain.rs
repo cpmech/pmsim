@@ -1,4 +1,6 @@
-use crate::{ModelDruckerPrager, ModelLinearElastic, ParamStressStrain, StateStress, StrError};
+use crate::models::{ModelDruckerPrager, ModelLinearElastic};
+use crate::simulation::{ParamStressStrain, StateStress};
+use crate::StrError;
 use russell_tensor::Tensor4;
 
 /// Defines a trait for stress-strain models
@@ -54,7 +56,9 @@ impl ModelStressStrain {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ModelStressStrain, ParamStressStrain, StrError};
+    use super::ModelStressStrain;
+    use crate::simulation::ParamStressStrain;
+    use crate::StrError;
 
     #[test]
     fn new_works() -> Result<(), StrError> {

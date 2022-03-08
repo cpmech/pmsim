@@ -1,4 +1,6 @@
-use crate::{ModelStressStrainTrait, StateStress, StrError};
+use super::ModelStressStrainTrait;
+use crate::simulation::StateStress;
+use crate::StrError;
 use russell_lab::copy_matrix;
 use russell_tensor::{LinElasticity, Tensor4};
 

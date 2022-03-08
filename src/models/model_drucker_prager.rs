@@ -1,14 +1,14 @@
-#![allow(dead_code, unused_mut, unused_variables, unused_imports)]
-
-use crate::{ModelStressStrainTrait, StateStress, StrError};
+use super::ModelStressStrainTrait;
+use crate::simulation::StateStress;
+use crate::StrError;
 use russell_lab::copy_matrix;
 use russell_tensor::{LinElasticity, Tensor4};
 
 /// Implements the Drucker-Prager elastoplastic model
 pub struct ModelDruckerPrager {
-    c: f64,   // apparent cohesion
-    phi: f64, // friction angle
-    hh: f64,  // hardening
+    _c: f64,   // apparent cohesion
+    _phi: f64, // friction angle
+    _hh: f64,  // hardening
 
     lin_elast: LinElasticity,
 }
@@ -40,9 +40,9 @@ impl ModelDruckerPrager {
             return Err("hh parameter for the Drucker-Prager stress-strain model is invalid");
         }
         Ok(ModelDruckerPrager {
-            c,
-            phi,
-            hh,
+            _c: c,
+            _phi: phi,
+            _hh: hh,
             lin_elast: LinElasticity::new(young, poisson, two_dim, plane_stress),
         })
     }

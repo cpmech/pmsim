@@ -1,49 +1,13 @@
-use crate::{
-    BcPoint, Dof, FnSpaceTime, IniOption, Nbc, ParamBeam, ParamFluids, ParamPorous, ParamRod, ParamSeepage, ParamSolid,
-    StrError,
+use super::{
+    element_config::{ElementConfig, ProblemType},
+    BcPoint, Dof, IniOption, Nbc, ParamFluids,
 };
+use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
 use std::collections::HashMap;
 
-/// Holds element configuration, material parameters, and number of integration points
-#[derive(Clone, Copy, Debug)]
-pub enum ElementConfig {
-    /// Configuration for Rod element
-    Rod(ParamRod),
-
-    /// Configuration for Beam element
-    Beam(ParamBeam),
-
-    /// Configuration for Solid element with (param, n_integ_point)
-    Solid(ParamSolid, Option<usize>),
-
-    /// Configuration for Porous element with (param, n_integ_point)
-    Porous(ParamPorous, Option<usize>),
-
-    /// Configuration for Seepage element with (param, n_integ_point)
-    Seepage(ParamSeepage, Option<usize>),
-}
-
-/// Defines the problem type
-///
-/// # Note
-///
-/// Solid problem type allows the following configurations:
-/// * ElementConfig::Rod
-/// * ElementConfig::Beam
-/// * ElementConfig::Solid
-///
-/// Porous mechanics problems type allows the following configurations:
-/// * ElementConfig::Rod
-/// * ElementConfig::Beam
-/// * ElementConfig::Solid
-/// * ElementConfig::Porous
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ProblemType {
-    Solid,
-    Porous,
-    Seepage,
-}
+/// Defines a function of (x,t) where x is space and t is time
+pub type FnSpaceTime = fn(&[f64], f64) -> f64;
 
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct SimConfig<'a> {
@@ -332,7 +296,10 @@ impl<'a> SimConfig<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{BcPoint, Dof, ElementConfig, FnSpaceTime, Nbc, ProblemType, SampleParam, SimConfig, StrError};
+    use super::{FnSpaceTime, SimConfig};
+    use crate::simulation::element_config::{ElementConfig, ProblemType};
+    use crate::simulation::{BcPoint, Dof, Nbc, SampleParam};
+    use crate::StrError;
     use gemlab::mesh::{At, Mesh};
 
     #[test]

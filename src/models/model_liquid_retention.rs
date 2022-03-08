@@ -1,4 +1,6 @@
-use crate::{ModelBrooksCorey, ModelPedrosoWilliams, ModelVanGenuchten, ParamLiquidRetention, StrError};
+use super::{ModelBrooksCorey, ModelPedrosoWilliams, ModelVanGenuchten};
+use crate::simulation::ParamLiquidRetention;
+use crate::StrError;
 use russell_lab::Vector;
 
 /// Defines a trait for models for liquid retention in porous media

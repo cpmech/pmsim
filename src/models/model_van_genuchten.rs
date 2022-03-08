@@ -1,4 +1,5 @@
-use crate::{ModelLiquidRetentionTrait, StrError};
+use super::ModelLiquidRetentionTrait;
+use crate::StrError;
 
 /// Implements the van Genuchten model for liquid retention
 ///

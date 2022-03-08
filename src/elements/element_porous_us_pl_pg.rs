@@ -1,6 +1,7 @@
-use crate::{
-    Element, EquationNumbers, ModelPorousMedium, ParamFluids, ParamPorous, SimStateInitializer, StateElement, StrError,
-};
+use super::Element;
+use crate::models::ModelPorousMedium;
+use crate::simulation::{EquationNumbers, ParamFluids, ParamPorous, SimStateInitializer, StateElement};
+use crate::StrError;
 use gemlab::shapes::Shape;
 
 /// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics

@@ -1,5 +1,5 @@
 use plotpy::{Curve, Plot};
-use pmsim::*;
+use pmsim::{models::*, simulation::*, StrError};
 use std::path::Path;
 
 const OUT_DIR: &str = "/tmp/pmsim/examples";

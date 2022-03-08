@@ -1,4 +1,6 @@
-use crate::{Element, EquationNumbers, ParamSeepage, SimStateInitializer, StateElement, StrError};
+use super::Element;
+use crate::simulation::{EquationNumbers, ParamSeepage, SimStateInitializer, StateElement};
+use crate::StrError;
 use gemlab::shapes::Shape;
 
 /// Implements the pl (liquid pressure) element for seepage simulations

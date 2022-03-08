@@ -1,4 +1,5 @@
-use crate::{ParamConductivity, StrError};
+use crate::simulation::ParamConductivity;
+use crate::StrError;
 use russell_tensor::Tensor2;
 
 /// Implements a model for liquid conductivity within porous media

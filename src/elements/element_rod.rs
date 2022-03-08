@@ -1,4 +1,6 @@
-use crate::{Element, EquationNumbers, ParamRod, SimStateInitializer, StateElement, StrError};
+use super::Element;
+use crate::simulation::{EquationNumbers, ParamRod, SimStateInitializer, StateElement};
+use crate::StrError;
 use gemlab::shapes::Shape;
 
 /// Implements a Rod element

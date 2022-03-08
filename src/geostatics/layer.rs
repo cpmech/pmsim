@@ -1,4 +1,6 @@
-use crate::{ModelLiquidRetention, ModelRealDensity, ParamFluids, ParamPorous, StrError};
+use crate::models::{ModelLiquidRetention, ModelRealDensity};
+use crate::simulation::{ParamFluids, ParamPorous};
+use crate::StrError;
 use gemlab::mesh::CellAttributeId;
 use russell_tensor::Tensor2;
 
@@ -233,7 +235,8 @@ impl Layer {
 #[cfg(test)]
 mod tests {
     use super::Layer;
-    use crate::{ParamLiquidRetention, SampleParam, StrError};
+    use crate::simulation::{ParamLiquidRetention, SampleParam};
+    use crate::StrError;
     use russell_chk::assert_approx_eq;
 
     #[test]

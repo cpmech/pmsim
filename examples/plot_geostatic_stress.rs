@@ -1,6 +1,6 @@
 use gemlab::mesh::Mesh;
 use plotpy::{Curve, Plot, Shapes};
-use pmsim::*;
+use pmsim::{geostatics::*, simulation::*, StrError};
 use russell_lab::Vector;
 use std::path::Path;
 

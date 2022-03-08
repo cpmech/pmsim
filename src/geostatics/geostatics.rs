@@ -1,5 +1,6 @@
 use super::{layer::Layer, layer_info::LayerInfo};
-use crate::{ElementConfig, IniOption, SimConfig, StrError};
+use crate::simulation::{ElementConfig, IniOption, SimConfig};
+use crate::StrError;
 use gemlab::mesh::{At, CellAttributeId, CellId};
 use russell_tensor::Tensor2;
 use std::collections::{HashMap, HashSet};
@@ -204,10 +205,10 @@ impl Geostatics {
 #[cfg(test)]
 mod tests {
     use super::Geostatics;
-    use crate::{
+    use crate::simulation::{
         ElementConfig, IniOption, ParamFluids, ParamPorous, ParamRealDensity, ParamSolid, SampleParam, SimConfig,
-        StrError,
     };
+    use crate::StrError;
     use gemlab::mesh::Mesh;
     use russell_chk::assert_approx_eq;
 

@@ -1,4 +1,6 @@
-use crate::{alloc_element, Element, EquationNumbers, SimConfig, SimState, SimStateInitializer, StrError};
+use super::{EquationNumbers, SimConfig, SimState, SimStateInitializer};
+use crate::elements::{alloc_element, Element};
+use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{SparseTriplet, Symmetry};
 
@@ -73,7 +75,9 @@ impl<'a> Simulation<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ElementConfig, SampleParam, SimConfig, Simulation, StrError};
+    use super::Simulation;
+    use crate::simulation::{element_config::ElementConfig, SampleParam, SimConfig};
+    use crate::StrError;
     use gemlab::mesh::Mesh;
 
     #[test]

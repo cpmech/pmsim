@@ -1,5 +1,5 @@
 use plotpy::{Curve, Plot};
-use pmsim::*;
+use pmsim::{models::*, simulation::*, StrError};
 use russell_lab::{Matrix, Vector};
 use std::path::Path;
 

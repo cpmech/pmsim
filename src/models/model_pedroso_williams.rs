@@ -1,4 +1,5 @@
-use crate::{ModelLiquidRetentionTrait, StrError};
+use super::ModelLiquidRetentionTrait;
+use crate::StrError;
 use std::cell::RefCell;
 
 /// Holds temporary variables calculated for drying path
