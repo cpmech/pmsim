@@ -25,11 +25,6 @@ impl LinearElastic {
 }
 
 impl BaseStressStrain for LinearElastic {
-    /// Returns the number of internal values
-    fn n_internal_values(&self) -> usize {
-        0
-    }
-
     /// Allocates internal values
     fn new_internal_values(&self, _stress: &Tensor2) -> Result<Vec<f64>, StrError> {
         Ok(Vec::new())

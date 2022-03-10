@@ -49,18 +49,14 @@ impl DruckerPrager {
 }
 
 impl BaseStressStrain for DruckerPrager {
-    /// Returns the number of internal values
-    fn n_internal_values(&self) -> usize {
-        // alpha       α: internal variables of rate type
-        // dd_gamma    Δγ: increment of Lagrange multiplier
-        // loading     (bool) unloading flag
-        // apex_return (bool) return-to-apex flag
-        4
-    }
-
     /// Allocates internal values
     fn new_internal_values(&self, _stress: &Tensor2) -> Result<Vec<f64>, StrError> {
-        Ok(Vec::new())
+        Ok(vec![
+            0.0, // alpha       α: internal variables of rate type
+            0.0, // dd_gamma    Δγ: increment of Lagrange multiplier
+            0.0, // loading     (bool) unloading flag
+            0.0, // apex_return (bool) return-to-apex flag
+        ])
     }
 
     /// Computes the consistent modulus dsig/deps

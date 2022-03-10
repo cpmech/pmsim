@@ -74,12 +74,11 @@ impl BaseElement for Solid {
 
     /// Allocates and initializes the element's state at all integration points
     fn new_state(&self, initializer: &Initializer) -> Result<StateElement, StrError> {
+        let mut state = StateElement::new_empty();
         let mut shape = self.shape.borrow_mut();
         let all_ip_coords = shape.calc_integ_points_coords()?;
-        let n_integ_point = shape.integ_points.len();
-        let mut state = StateElement::new_empty();
-        for index_ip in 0..n_integ_point {
-            let stress = initializer.stress_at_ip(&all_ip_coords[index_ip])?;
+        for ip_coords in &all_ip_coords {
+            let stress = initializer.stress_at_ip(ip_coords)?;
             let internal_values = self.model.base.new_internal_values(&stress)?;
             state.stress.push(StateStress {
                 stress,

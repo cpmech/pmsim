@@ -5,9 +5,6 @@ use russell_tensor::{Tensor2, Tensor4};
 
 /// Defines a trait for stress-strain models
 pub trait BaseStressStrain {
-    /// Returns the number of internal values
-    fn n_internal_values(&self) -> usize;
-
     /// Allocates internal values
     fn new_internal_values(&self, stress: &Tensor2) -> Result<Vec<f64>, StrError>;
 
