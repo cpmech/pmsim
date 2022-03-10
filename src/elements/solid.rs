@@ -78,7 +78,7 @@ impl BaseElement for Solid {
         let mut shape = self.shape.borrow_mut();
         let all_ip_coords = shape.calc_integ_points_coords()?;
         for ip_coords in &all_ip_coords {
-            let stress = initializer.stress_at_ip(ip_coords)?;
+            let stress = initializer.stress(ip_coords.as_data())?;
             let internal_values = self.model.base.new_internal_values(&stress)?;
             state.stress.push(StateStress {
                 stress,

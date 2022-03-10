@@ -1,4 +1,4 @@
-use super::{Configuration, EquationNumbers, Initializer, State};
+use super::{Configuration, Dof, EquationNumbers, Initializer, State};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::Vector;
@@ -57,6 +57,16 @@ impl<'a> Simulation<'a> {
         // allocate system arrays
         state.system_xx = Vector::new(neq);
         state.system_yy = Vector::new(neq);
+
+        // initialize DOFs
+        for point in &mesh.points {
+            if let Some(n) = equation_numbers.number(point.id, Dof::Pl) {
+                state.system_xx[n] = initializer.pl(&point.coords)?;
+            }
+            if let Some(n) = equation_numbers.number(point.id, Dof::Pg) {
+                state.system_xx[n] = initializer.pg(&point.coords)?;
+            }
+        }
 
         // done
         Ok(Simulation {

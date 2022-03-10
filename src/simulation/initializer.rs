@@ -1,6 +1,5 @@
 use super::Configuration;
 use crate::{geostatics::Geostatics, StrError};
-use russell_lab::Vector;
 use russell_tensor::Tensor2;
 
 /// Holds an option to initialize stresses
@@ -54,13 +53,37 @@ impl Initializer {
         }
     }
 
-    /// Returns total or effective stress at an integration point
-    pub fn stress_at_ip(&self, ip_coords: &Vector) -> Result<Tensor2, StrError> {
-        if ip_coords.dim() != self.space_ndim {
-            return Err("ip_coords.dim() must be equal to space_ndim");
+    /// Returns the liquid pressure at given coordinates
+    pub fn pl(&self, coords: &[f64]) -> Result<f64, StrError> {
+        if coords.len() != self.space_ndim {
+            return Err("coords.len() must be equal to space_ndim to calculate pl");
         }
         if let Some(geostatics) = &self.geostatics {
-            let z = ip_coords[self.space_ndim - 1];
+            let z = coords[self.space_ndim - 1];
+            return geostatics.calc_pl(z);
+        }
+        Ok(0.0)
+    }
+
+    /// Returns the gas pressure at given coordinates
+    pub fn pg(&self, coords: &[f64]) -> Result<f64, StrError> {
+        if coords.len() != self.space_ndim {
+            return Err("coords.len() must be equal to space_ndim to calculate pg");
+        }
+        if let Some(geostatics) = &self.geostatics {
+            let z = coords[self.space_ndim - 1];
+            return geostatics.calc_pg(z);
+        }
+        Ok(0.0)
+    }
+
+    /// Returns total or effective stress at given coordinates
+    pub fn stress(&self, coords: &[f64]) -> Result<Tensor2, StrError> {
+        if coords.len() != self.space_ndim {
+            return Err("coords.len() must be equal to space_ndim to calculate stress");
+        }
+        if let Some(geostatics) = &self.geostatics {
+            let z = coords[self.space_ndim - 1];
             return geostatics.calc_stress(z, self.total_stress);
         }
         let mut sigma = Tensor2::new(true, self.space_ndim == 2);
@@ -70,9 +93,3 @@ impl Initializer {
         Ok(sigma)
     }
 }
-
-// for point in &config.mesh.points {
-//     if let Some(eq) = equation_numbers.get_option_equation_number(point.id, Dof::Pl) {
-//         sim_state.system_xx[eq] = geostatics.calc_liquid_pressure(&point.coords)?;
-//     }
-// }

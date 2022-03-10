@@ -1,5 +1,4 @@
 use super::{Dof, NDOF_PER_NODE_TOTAL};
-use crate::StrError;
 use gemlab::mesh::PointId;
 use russell_lab::NumMatrix;
 use std::fmt;
@@ -38,21 +37,12 @@ impl EquationNumbers {
         self.count as usize
     }
 
-    /// Tells whether a point has a specific DOF or not
-    pub fn has_dof(&self, point_id: PointId, dof: Dof) -> bool {
-        if self.numbers[point_id][dof as usize] < 0 {
-            false
-        } else {
-            true
-        }
-    }
-
     /// Returns the equation number corresponding to a point-DOF pair
-    pub fn equation_number(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+    pub fn number(&self, point_id: PointId, dof: Dof) -> Option<usize> {
         if self.numbers[point_id][dof as usize] < 0 {
-            return Err("equation number has not been set");
+            return None;
         }
-        Ok(self.numbers[point_id][dof as usize] as usize)
+        Some(self.numbers[point_id][dof as usize] as usize)
     }
 }
 
