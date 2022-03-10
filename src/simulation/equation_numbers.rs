@@ -34,24 +34,25 @@ impl EquationNumbers {
     }
 
     /// Returns the current total number of equations (DOFs)
-    pub fn get_number_of_equations(&self) -> usize {
+    pub fn n_equations(&self) -> usize {
         self.count as usize
     }
 
+    /// Tells whether a point has a specific DOF or not
+    pub fn has_dof(&self, point_id: PointId, dof: Dof) -> bool {
+        if self.numbers[point_id][dof as usize] < 0 {
+            false
+        } else {
+            true
+        }
+    }
+
     /// Returns the equation number corresponding to a point-DOF pair
-    pub fn get_equation_number(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+    pub fn equation_number(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         if self.numbers[point_id][dof as usize] < 0 {
             return Err("equation number has not been set");
         }
         Ok(self.numbers[point_id][dof as usize] as usize)
-    }
-
-    /// Returns the equation number corresponding to a point-DOF pair
-    pub fn get_option_equation_number(&self, point_id: PointId, dof: Dof) -> Option<usize> {
-        if self.numbers[point_id][dof as usize] < 0 {
-            return None;
-        }
-        Some(self.numbers[point_id][dof as usize] as usize)
     }
 }
 

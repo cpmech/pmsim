@@ -52,7 +52,7 @@ impl<'a> Simulation<'a> {
         }
 
         // number of equations
-        let neq = equation_numbers.get_number_of_equations();
+        let neq = equation_numbers.n_equations();
 
         // allocate system arrays
         state.system_xx = Vector::new(neq);
