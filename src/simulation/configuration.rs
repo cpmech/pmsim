@@ -79,8 +79,15 @@ impl<'a> Configuration<'a> {
         }
     }
 
+    /// Implements a FnSpaceTime function that returns 0.0
+    ///
+    /// This function is useful for setting boundary conditions.
+    pub fn zero(_x: &[f64], _t: f64) -> f64 {
+        0.0
+    }
+
     /// Sets essential boundary conditions (EBC) for a group of points
-    pub fn ebc(&mut self, point_ids: &[PointId], dofs: &[Dof], f: FnSpaceTime) -> Result<&mut Self, StrError> {
+    pub fn ebc_points(&mut self, point_ids: &[PointId], dofs: &[Dof], f: FnSpaceTime) -> Result<&mut Self, StrError> {
         for point_id in point_ids {
             if !self.mesh.boundary_points.contains(point_id) {
                 return Err("mesh does not have boundary point to set EBC");
@@ -99,7 +106,7 @@ impl<'a> Configuration<'a> {
                 Some(e) => e,
                 None => return Err("mesh does not have boundary edge to set EBC"),
             };
-            self.ebc(&edge.points, dofs, f)?;
+            self.ebc_points(&edge.points, dofs, f)?;
         }
         Ok(self)
     }
@@ -111,7 +118,7 @@ impl<'a> Configuration<'a> {
                 Some(e) => e,
                 None => return Err("mesh does not have boundary face to set EBC"),
             };
-            self.ebc(&face.points, dofs, f)?;
+            self.ebc_points(&face.points, dofs, f)?;
         }
         Ok(self)
     }
@@ -394,7 +401,7 @@ mod tests {
         let f_fy: FnSpaceTime = |_, _| -10.0;
 
         config
-            .ebc(&origin, &[Dof::Ux, Dof::Uy], f_zero)?
+            .ebc_points(&origin, &[Dof::Ux, Dof::Uy], f_zero)?
             .ebc_edges(&bottom, &[Dof::Uy], f_zero)?
             .ebc_edges(&left, &[Dof::Ux], f_zero)?
             .nbc_edges(&top, &[Nbc::Qn], f_qn)?

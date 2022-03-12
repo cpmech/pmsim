@@ -88,25 +88,42 @@ impl<'a> Simulation<'a> {
 mod tests {
     use super::Simulation;
     use crate::simulation::{element_config::ElementConfig, Configuration, SampleParam};
+    use crate::simulation::{Dof, Nbc};
     use crate::StrError;
-    use gemlab::mesh::Mesh;
+    use gemlab::mesh::{At, Mesh};
 
     #[test]
     fn new_works() -> Result<(), StrError> {
-        let mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
+        // mesh and configuration
+        let mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
         let mut config = Configuration::new(&mesh);
 
-        let fluids = SampleParam::param_water_and_dry_air(true);
-        let param_1 = SampleParam::param_solid();
-        let param_2 = SampleParam::param_porous_sol_liq_gas(0.3, 1e-2);
+        // boundary conditions
+        let left = mesh.find_boundary_edges(At::X(mesh.coords_min[0]))?;
+        let right = mesh.find_boundary_edges(At::X(mesh.coords_max[0]))?;
+        let bottom = mesh.find_boundary_edges(At::Y(mesh.coords_min[1]))?;
+        let loader = mesh.find_boundary_edges(At::Y(3.1))?;
         config
-            .elements(1, ElementConfig::Solid(param_1, None))?
-            .elements(2, ElementConfig::Porous(param_2, None))?
+            .ebc_edges(&left, &[Dof::Ux], Configuration::zero)?
+            .ebc_edges(&right, &[Dof::Ux], Configuration::zero)?
+            .ebc_edges(&bottom, &[Dof::Uy], Configuration::zero)?
+            .nbc_edges(&loader, &[Nbc::Qn], |_, _| -10.0)?;
+
+        // parameters and properties
+        let fluids = SampleParam::param_water_and_dry_air(true);
+        let footing = SampleParam::param_solid();
+        let upper = SampleParam::param_porous_sol_liq_gas(0.4, 1e-2);
+        let lower = SampleParam::param_porous_sol_liq_gas(0.1, 1e-2);
+        config
             .fluids(fluids)?
+            .elements(333, ElementConfig::Solid(footing, None))?
+            .elements(222, ElementConfig::Porous(upper, None))?
+            .elements(111, ElementConfig::Porous(lower, None))?
             .gravity(10.0)?; // m/s²
 
+        // simulation
         let sim = Simulation::new(&config)?;
-        assert_eq!(sim.elements.len(), 2);
+        assert_eq!(sim.elements.len(), 12);
         Ok(())
     }
 }
