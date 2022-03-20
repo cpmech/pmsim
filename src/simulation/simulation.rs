@@ -88,7 +88,7 @@ impl<'a> Simulation<'a> {
 mod tests {
     use super::Simulation;
     use crate::simulation::{element_config::ElementConfig, Configuration, SampleParam};
-    use crate::simulation::{Dof, Nbc};
+    use crate::simulation::{Dof, Nbc, ParamSolid, ParamStressStrain};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};
 
@@ -124,6 +124,62 @@ mod tests {
         // simulation
         let sim = Simulation::new(&config)?;
         assert_eq!(sim.elements.len(), 12);
+        Ok(())
+    }
+
+    #[test]
+    fn sim_bhatti_1_6_works() -> Result<(), StrError> {
+        /* Example 1.6 from [@bhatti] page 32
+
+         Solid bracket with thickness = 0.25
+
+                      1    load                connectivity:
+         y=2.0  fixed *'-,__                    eid : vertices
+                      |     '-,_  3   load        0 :  0, 2, 3
+         y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
+                      |  1   ,'  |    '-,_  5     2 :  2, 4, 5
+         y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
+                      |  ,'  0   |   ,-'   |
+                      |,'        |,-'   2  |   constraints:
+         y=0.0  fixed *----------*---------*     fixed on x and y
+                      0          2         4
+                     x=0.0     x=2.0     x=4.0
+
+        # References
+
+        [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
+                  and Applications, Wiley, 700p.
+        */
+
+        // mesh and configuration
+        let mesh = Mesh::from_text_file("./data/meshes/bhatti_1_6.msh")?;
+        let mut config = Configuration::new(&mesh);
+
+        // boundary conditions
+        config
+            .ebc_points(&[0, 1], &[Dof::Ux, Dof::Uy], Configuration::zero)?
+            .nbc_edges(&[(1, 3), (3, 5)], &[Nbc::Qn], |_, _| -20.0)?;
+
+        // parameters and properties
+        let params = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 10_000.0,
+                poisson: 0.2,
+            },
+        };
+        config.elements(1, ElementConfig::Solid(params, None))?;
+
+        // simulation
+        let sim = Simulation::new(&config)?;
+
+        // check
+        assert_eq!(sim.elements.len(), 4);
+        assert_eq!(sim.equation_numbers.n_equations(), 12);
+        assert_eq!(sim.state.elements.len(), 4);
+        assert_eq!(sim.system_kk.dims(), (12, 12));
+
+        // done
         Ok(())
     }
 }
