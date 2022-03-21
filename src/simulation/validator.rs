@@ -10,7 +10,7 @@ pub struct ValidatorIteration {
     pub iteration: usize,
 
     /// relative residual
-    #[serde(rename(deserialize = "res_rel"))]
+    #[serde(rename(deserialize = "resrel"))]
     pub relative_residual: f64,
 
     /// absolute residual
@@ -26,18 +26,22 @@ pub struct ValidatorIteration {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValidatorResults {
     /// all stiffness matrices (nele,nu,nu)
+    #[serde(default)]
     #[serde(rename(deserialize = "Kmats"))]
     pub kk_matrices: Vec<Vec<Vec<f64>>>,
 
     /// displacements at nodes (npoint,ndim)
+    #[serde(default)]
     #[serde(rename(deserialize = "disp"))]
     pub displacements: Vec<Vec<f64>>,
 
     /// all stresses @ all ips (nele,nip,nsigma)
+    #[serde(default)]
     pub stresses: Vec<Vec<Vec<f64>>>,
 
     /// load factor
     #[serde(default)]
+    #[serde(rename(deserialize = "loadfactor"))]
     pub load_factor: f64,
 
     /// iterations data
@@ -132,9 +136,86 @@ mod tests {
         assert_vec_approx_eq!(c_res.stresses[0][0], [100.0, 101.0, 102.0, 103.0], 1e-15);
         assert_vec_approx_eq!(c_res.stresses[1][0], [200.0, 201.0, 202.0, 203.0], 1e-15);
 
-        println!("{:?}", res);
         assert_eq!(format!("{:?}", res),"ValidatorResults { kk_matrices: [[[1.0, 2.0], [3.0, 4.0]], [[10.0, 20.0], [30.0, 40.0]]], displacements: [[11.0, 21.0], [12.0, 22.0]], stresses: [[[100.0, 101.0, 102.0, 103.0]], [[200.0, 201.0, 202.0, 203.0]]], load_factor: 0.0, iterations: [] }");
 
+        Ok(())
+    }
+
+    #[test]
+    fn from_json_works() -> Result<(), StrError> {
+        let val = Validator::from_json(
+            "{ \"results\":\n\
+          [\n\
+            {\n\
+              \"loadfactor\" : 1,\n\
+              \"iterations\" : [\n\
+                { \"it\":1, \"resrel\": 1, \"resid\": 2}\n\
+              ],\n\
+              \"disp\" : [\n\
+                [1, 2],\n\
+                [1, 2]\n\
+              ],\n\
+              \"stresses\" : [\n\
+                [\n\
+                  [1, 2, 3, 4],\n\
+                  [1, 2, 3, 4]\n\
+                ],\n\
+                [\n\
+                  [1, 2, 3, 4],\n\
+                  [1, 2, 3, 4]\n\
+                ]\n\
+              ]\n\
+            },\n\
+            {\n\
+              \"loadfactor\" : 2,\n\
+              \"iterations\" : [\n\
+                { \"it\":1, \"resrel\": 1, \"resid\": 2},\n\
+                { \"it\":2, \"resrel\": 1, \"resid\": 2}\n\
+              ],\n\
+              \"disp\" : [\n\
+                [1, 2],\n\
+                [1, 2]\n\
+              ],\n\
+              \"stresses\" : [\n\
+                [\n\
+                  [1, 2, 3, 4],\n\
+                  [1, 2, 3, 4]\n\
+                ],\n\
+                [\n\
+                  [1, 2, 3, 4],\n\
+                  [1, 2, 3, 4]\n\
+                ]\n\
+              ]\n\
+            },\n\
+            {\n\
+              \"loadfactor\" : 3,\n\
+              \"iterations\" : [\n\
+                { \"it\":1, \"resrel\": 1, \"resid\": 2},\n\
+                { \"it\":2, \"resrel\": 1, \"resid\": 2},\n\
+                { \"it\":3, \"resrel\": 1, \"resid\": 2}\n\
+              ],\n\
+              \"disp\" : [\n\
+                [1, 2],\n\
+                [1, 2]\n\
+              ],\n\
+              \"stresses\" : [\n\
+                [\n\
+                  [1, 2, 3, 4],\n\
+                  [1, 2, 3, 4]\n\
+                ],\n\
+                [\n\
+                  [1, 2, 3, 4],\n\
+                  [1, 2, 3, 4]\n\
+                ]\n\
+              ]\n\
+            }\n\
+          ]\n\
+        }",
+        )?;
+        assert_eq!(val.results.len(), 3);
+        assert_eq!(val.results[0].iterations.len(), 1);
+        assert_eq!(val.results[1].iterations.len(), 2);
+        assert_eq!(val.results[2].iterations.len(), 3);
         Ok(())
     }
 }
