@@ -33,12 +33,12 @@ impl EquationNumbers {
     }
 
     /// Returns the number of points
-    pub fn n_point(&self) -> usize {
+    pub fn npoint(&self) -> usize {
         self.numbers.nrow()
     }
 
     /// Returns the current total number of equations (DOFs)
-    pub fn n_equations(&self) -> usize {
+    pub fn nequation(&self) -> usize {
         self.count as usize
     }
 

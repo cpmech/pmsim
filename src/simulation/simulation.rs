@@ -52,7 +52,7 @@ impl<'a> Simulation<'a> {
         }
 
         // number of equations
-        let neq = equation_numbers.n_equations();
+        let neq = equation_numbers.nequation();
 
         // allocate system arrays
         state.system_xx = Vector::new(neq);
@@ -175,7 +175,7 @@ mod tests {
 
         // check
         assert_eq!(sim.elements.len(), 4);
-        assert_eq!(sim.equation_numbers.n_equations(), 12);
+        assert_eq!(sim.equation_numbers.nequation(), 12);
         assert_eq!(sim.state.elements.len(), 4);
         assert_eq!(sim.system_kk.dims(), (12, 12));
 
