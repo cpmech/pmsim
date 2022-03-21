@@ -126,11 +126,19 @@ impl Validator {
                 Some(eq) => state.system_xx[eq],
                 None => return format!("state does not have uy displacement of point #{}", point_id),
             };
-            if f64::abs(ux - reference[0]) > self.tol_displacement {
-                return format!("ux displacement of point #{} is greater than tolerance", point_id);
+            let diff_ux = f64::abs(ux - reference[0]);
+            if diff_ux > self.tol_displacement {
+                return format!(
+                    "ux displacement of point #{} is greater than tolerance. |ux - reference| = {:e}",
+                    point_id, diff_ux
+                );
             }
-            if f64::abs(uy - reference[1]) > self.tol_displacement {
-                return format!("uy displacement of point #{} is greater than tolerance", point_id);
+            let diff_uy = f64::abs(uy - reference[1]);
+            if diff_uy > self.tol_displacement {
+                return format!(
+                    "uy displacement of point #{} is greater than tolerance. |uy - reference| = {:e}",
+                    point_id, diff_uy
+                );
             }
             if !two_dim {
                 if reference.len() != 3 {
@@ -140,8 +148,12 @@ impl Validator {
                     Some(eq) => state.system_xx[eq],
                     None => return format!("state does not have uz displacement of point #{}", point_id),
                 };
-                if f64::abs(uz - reference[2]) > self.tol_displacement {
-                    return format!("uz displacement of point #{} is greater than tolerance", point_id);
+                let diff_uz = f64::abs(uz - reference[2]);
+                if diff_uz > self.tol_displacement {
+                    return format!(
+                        "uz displacement of point #{} is greater than tolerance. |uz - reference| = {:e}",
+                        point_id, diff_uz
+                    );
                 }
             }
         }
@@ -173,22 +185,25 @@ impl Validator {
                     let sx = sigma.vec[0];
                     let sy = sigma.vec[1];
                     let sxy = sigma.vec[3] / SQRT_2;
-                    if f64::abs(sx - reference[0]) > self.tol_stress {
+                    let diff_sx = f64::abs(sx - reference[0]);
+                    if diff_sx > self.tol_stress {
                         return format!(
-                            "sx stress of element #{} at ip #{} is greater than tolerance",
-                            element_id, index_ip
+                            "sx stress of element #{} at ip #{} is greater than tolerance. |sx - reference| = {:e}",
+                            element_id, index_ip, diff_sx
                         );
                     }
-                    if f64::abs(sy - reference[1]) > self.tol_stress {
+                    let diff_sy = f64::abs(sy - reference[1]);
+                    if diff_sy > self.tol_stress {
                         return format!(
-                            "sy stress of element #{} at ip #{} is greater than tolerance",
-                            element_id, index_ip
+                            "sy stress of element #{} at ip #{} is greater than tolerance. |sy - reference| = {:e}",
+                            element_id, index_ip, diff_sy
                         );
                     }
-                    if f64::abs(sxy - reference[2]) > self.tol_stress {
+                    let diff_sxy = f64::abs(sxy - reference[2]);
+                    if diff_sxy > self.tol_stress {
                         return format!(
-                            "sxy stress of element #{} at ip #{} is greater than tolerance",
-                            element_id, index_ip
+                            "sxy stress of element #{} at ip #{} is greater than tolerance. |sxy - reference| = {:e}",
+                            element_id, index_ip, diff_sxy
                         );
                     }
                     if !two_dim {
@@ -199,10 +214,11 @@ impl Validator {
                             );
                         }
                         let sz = sigma.vec[2];
-                        if f64::abs(sz - reference[3]) > self.tol_stress {
+                        let diff_sz = f64::abs(sz - reference[3]);
+                        if diff_sz > self.tol_stress {
                             return format!(
-                                "sy stress of element #{} at ip #{} is greater than tolerance",
-                                element_id, index_ip
+                                "sy stress of element #{} at ip #{} is greater than tolerance. |sz - reference| = {:e}",
+                                element_id, index_ip, diff_sz
                             );
                         }
                     }
@@ -218,8 +234,11 @@ impl Validator {
 #[cfg(test)]
 mod tests {
     use super::Validator;
+    use crate::simulation::{Dof, EquationNumbers, State, StateElement, StateStress};
     use crate::StrError;
     use russell_chk::assert_vec_approx_eq;
+    use russell_lab::Vector;
+    use russell_tensor::Tensor2;
 
     #[test]
     fn clone_and_serialize_work() -> Result<(), StrError> {
@@ -372,6 +391,84 @@ mod tests {
         assert_eq!(val.steps[0].kk_matrices.len(), 4);
         assert_eq!(val.steps[0].displacements.len(), 6);
         assert_eq!(val.steps[0].stresses.len(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn compare_state_works() -> Result<(), StrError> {
+        /* Example 1.6 from [@bhatti] page 32
+
+         Solid bracket with thickness = 0.25
+
+                      1    load                connectivity:
+         y=2.0  fixed *'-,__                    eid : vertices
+                      |     '-,_  3   load        0 :  0, 2, 3
+         y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
+                      |  1   ,'  |    '-,_  5     2 :  2, 4, 5
+         y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
+                      |  ,'  0   |   ,-'   |
+                      |,'        |,-'   2  |   constraints:
+         y=0.0  fixed *----------*---------*     fixed on x and y
+                      0          2         4
+                     x=0.0     x=2.0     x=4.0
+
+        # References
+
+        [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
+                  and Applications, Wiley, 700p.
+        */
+
+        let mut equations = EquationNumbers::new(6);
+        for point_id in 0..6 {
+            equations.activate_equation(point_id, Dof::Ux);
+            equations.activate_equation(point_id, Dof::Uy);
+        }
+
+        let neq = equations.nequation();
+        let two_dim = true;
+
+        let state_element_0 = StateElement {
+            seepage: Vec::new(),
+            stress: vec![StateStress {
+                stress: Tensor2::from_matrix(
+                    &[
+                        [-5.283090599362460e+01, -1.128984616188524e+01, 0.0],
+                        [-1.128984616188524e+01, -5.272560566371797e+00, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    true,
+                    two_dim,
+                )?,
+                internal_values: Vec::new(),
+            }],
+        };
+
+        let state = State {
+            elements: vec![state_element_0],
+            system_xx: Vector::from(&[
+                0.000000000000000e+00,
+                0.000000000000000e+00,
+                0.000000000000000e+00,
+                0.000000000000000e+00,
+                -1.035527877607004e-02,
+                -2.552969847657423e-02,
+                4.727650463081949e-03,
+                -2.473565538172127e-02,
+                -1.313941349422282e-02,
+                -5.549310752960183e-02,
+                8.389015766816341e-05,
+                -5.556637423271112e-02,
+            ]),
+            system_yy: Vector::new(neq),
+        };
+
+        let mut val = Validator::read_json("./data/validation/bhatti_1_6.json")?;
+        val.tol_displacement = 1e-14;
+        val.tol_stress = 1e-14;
+
+        let res = val.compare_state(0, &state, &equations, two_dim);
+        assert_eq!(res, "OK");
+
         Ok(())
     }
 }
