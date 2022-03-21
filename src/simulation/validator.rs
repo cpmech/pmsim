@@ -1,4 +1,6 @@
+use super::{Dof, EquationNumbers, State};
 use crate::StrError;
+use russell_tensor::SQRT_2;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::ffi::OsStr;
@@ -9,46 +11,44 @@ use std::path::Path;
 /// Holds results from iterations
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValidatorIteration {
-    /// iteration number
+    /// Iteration number
     #[serde(rename(deserialize = "it"))]
     pub iteration: usize,
 
-    /// relative residual
+    /// Relative residual
     #[serde(rename(deserialize = "resrel"))]
     pub relative_residual: f64,
 
-    /// absolute residual
+    /// Absolute residual
     #[serde(rename(deserialize = "resid"))]
     pub absolute_residual: f64,
 }
 
 /// Holds numerical results
-///
-/// Stresses: examples:
-///   2D solid: [sx, sy, sxy, sz]
-///   3D beam:  [M22, M11, Mtt, Vs, Vr]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValidatorResults {
-    /// all stiffness matrices (nele,nu,nu)
+    /// All stiffness matrices (nele,nu,nu)
     #[serde(default)]
     #[serde(rename(deserialize = "Kmats"))]
     pub kk_matrices: Vec<Vec<Vec<f64>>>,
 
-    /// displacements at nodes (npoint,ndim)
+    /// Displacements at nodes (npoint,ndim)
     #[serde(default)]
     #[serde(rename(deserialize = "disp"))]
     pub displacements: Vec<Vec<f64>>,
 
-    /// all stresses @ all ips (nele,nip,nsigma)
+    /// All stresses @ all ips (nele,nip,nsigma)
+    ///
+    /// NOTE: these are "real" components and the order is (sx, sy, sxy, {sz}), different than Tensor2
     #[serde(default)]
     pub stresses: Vec<Vec<Vec<f64>>>,
 
-    /// load factor
+    /// Load factor
     #[serde(default)]
     #[serde(rename(deserialize = "loadfactor"))]
     pub load_factor: f64,
 
-    /// iterations data
+    /// Iterations data
     #[serde(default)]
     pub iterations: Vec<ValidatorIteration>,
 }
@@ -56,8 +56,20 @@ pub struct ValidatorResults {
 /// Holds results for comparisons (checking/tests)
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Validator {
-    /// results for each time-step output
-    pub results: Vec<ValidatorResults>,
+    /// Results from output-, time-, or load- steps
+    pub steps: Vec<ValidatorResults>,
+
+    /// Tolerance to compare K matrix components
+    #[serde(skip)]
+    pub tol_kk_matrix: f64,
+
+    /// Tolerance to compare displacement components
+    #[serde(skip)]
+    pub tol_displacement: f64,
+
+    /// Tolerance to compare stress components
+    #[serde(skip)]
+    pub tol_stress: f64,
 }
 
 impl Validator {
@@ -88,6 +100,117 @@ impl Validator {
         })?;
         Ok(res)
     }
+
+    /// Compares state against results at a fixed time- or load- step
+    pub fn compare_state(&self, step: usize, state: &State, equations: &EquationNumbers, two_dim: bool) -> String {
+        if step >= self.steps.len() {
+            return "results for the step are not available".to_string();
+        }
+        let cmp = &self.steps[step];
+
+        // displacements
+        let npoint = equations.npoint();
+        for point_id in 0..npoint {
+            if point_id >= cmp.displacements.len() {
+                return format!("displacement of point #{} is not available", point_id);
+            }
+            let reference = &cmp.displacements[point_id];
+            if reference.len() < 2 {
+                return format!("reference (ux,uy) for point #{} is missing", point_id);
+            }
+            let ux = match equations.number(point_id, Dof::Ux) {
+                Some(eq) => state.system_xx[eq],
+                None => return format!("state does not have ux displacement of point #{}", point_id),
+            };
+            let uy = match equations.number(point_id, Dof::Uy) {
+                Some(eq) => state.system_xx[eq],
+                None => return format!("state does not have uy displacement of point #{}", point_id),
+            };
+            if f64::abs(ux - reference[0]) > self.tol_displacement {
+                return format!("ux displacement of point #{} is greater than tolerance", point_id);
+            }
+            if f64::abs(uy - reference[1]) > self.tol_displacement {
+                return format!("uy displacement of point #{} is greater than tolerance", point_id);
+            }
+            if !two_dim {
+                if reference.len() != 3 {
+                    return format!("reference uz for point #{} is missing", point_id);
+                }
+                let uz = match equations.number(point_id, Dof::Uz) {
+                    Some(eq) => state.system_xx[eq],
+                    None => return format!("state does not have uz displacement of point #{}", point_id),
+                };
+                if f64::abs(uz - reference[2]) > self.tol_displacement {
+                    return format!("uz displacement of point #{} is greater than tolerance", point_id);
+                }
+            }
+        }
+
+        // stresses
+        let nele = state.elements.len();
+        for element_id in 0..nele {
+            let element = &state.elements[element_id];
+            let n_integ_point = element.stress.len();
+            if n_integ_point > 0 {
+                if element_id >= cmp.stresses.len() {
+                    return format!("stresses for element #{} are not available", element_id);
+                }
+                for index_ip in 0..n_integ_point {
+                    if index_ip >= cmp.stresses[element_id].len() {
+                        return format!(
+                            "stress at integration point #{} of element #{} is missing",
+                            index_ip, element_id
+                        );
+                    }
+                    let reference = &cmp.stresses[element_id][index_ip];
+                    if reference.len() < 3 {
+                        return format!(
+                            "reference (sx,sy,sxy) for element #{} at ip #{} is missing",
+                            element_id, index_ip
+                        );
+                    }
+                    let sigma = &element.stress[index_ip].stress;
+                    let sx = sigma.vec[0];
+                    let sy = sigma.vec[1];
+                    let sxy = sigma.vec[3] / SQRT_2;
+                    if f64::abs(sx - reference[0]) > self.tol_stress {
+                        return format!(
+                            "sx stress of element #{} at ip #{} is greater than tolerance",
+                            element_id, index_ip
+                        );
+                    }
+                    if f64::abs(sy - reference[1]) > self.tol_stress {
+                        return format!(
+                            "sy stress of element #{} at ip #{} is greater than tolerance",
+                            element_id, index_ip
+                        );
+                    }
+                    if f64::abs(sxy - reference[2]) > self.tol_stress {
+                        return format!(
+                            "sxy stress of element #{} at ip #{} is greater than tolerance",
+                            element_id, index_ip
+                        );
+                    }
+                    if !two_dim {
+                        if reference.len() != 4 {
+                            return format!(
+                                "reference sz for element #{} at ip #{} is missing",
+                                element_id, index_ip
+                            );
+                        }
+                        let sz = sigma.vec[2];
+                        if f64::abs(sz - reference[3]) > self.tol_stress {
+                            return format!(
+                                "sy stress of element #{} at ip #{} is greater than tolerance",
+                                element_id, index_ip
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        "OK".to_string()
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -101,7 +224,7 @@ mod tests {
     #[test]
     fn clone_and_serialize_work() -> Result<(), StrError> {
         let val = Validator::from_json(
-            "{ \"results\":\n\
+            "{ \"steps\":\n\
           [\n\
             {\n\
               \"Kmats\": [\n\
@@ -130,8 +253,8 @@ mod tests {
           ]\n\
         }",
         )?;
-        assert_eq!(val.results.len(), 1);
-        let res = &val.results[0];
+        assert_eq!(val.steps.len(), 1);
+        let res = &val.steps[0];
         assert_eq!(res.kk_matrices.len(), 2);
         assert_vec_approx_eq!(res.kk_matrices[0][0], [1.0, 2.0], 1e-15);
         assert_vec_approx_eq!(res.kk_matrices[0][1], [3.0, 4.0], 1e-15);
@@ -145,8 +268,8 @@ mod tests {
         assert_vec_approx_eq!(res.stresses[1][0], [200.0, 201.0, 202.0, 203.0], 1e-15);
 
         let cloned = val.clone();
-        assert_eq!(cloned.results.len(), 1);
-        let c_res = &cloned.results[0];
+        assert_eq!(cloned.steps.len(), 1);
+        let c_res = &cloned.steps[0];
         assert_eq!(c_res.kk_matrices.len(), 2);
         assert_vec_approx_eq!(c_res.kk_matrices[0][0], [1.0, 2.0], 1e-15);
         assert_vec_approx_eq!(c_res.kk_matrices[0][1], [3.0, 4.0], 1e-15);
@@ -167,7 +290,7 @@ mod tests {
     #[test]
     fn from_json_works() -> Result<(), StrError> {
         let val = Validator::from_json(
-            "{ \"results\":\n\
+            "{ \"steps\":\n\
           [\n\
             {\n\
               \"loadfactor\" : 1,\n\
@@ -235,20 +358,20 @@ mod tests {
           ]\n\
         }",
         )?;
-        assert_eq!(val.results.len(), 3);
-        assert_eq!(val.results[0].iterations.len(), 1);
-        assert_eq!(val.results[1].iterations.len(), 2);
-        assert_eq!(val.results[2].iterations.len(), 3);
+        assert_eq!(val.steps.len(), 3);
+        assert_eq!(val.steps[0].iterations.len(), 1);
+        assert_eq!(val.steps[1].iterations.len(), 2);
+        assert_eq!(val.steps[2].iterations.len(), 3);
         Ok(())
     }
 
     #[test]
     fn read_json_works() -> Result<(), StrError> {
-        let val = Validator::read_json("./data/comparison/bhatti_1_6.cmp")?;
-        assert_eq!(val.results.len(), 1);
-        assert_eq!(val.results[0].kk_matrices.len(), 4);
-        assert_eq!(val.results[0].displacements.len(), 6);
-        assert_eq!(val.results[0].stresses.len(), 4);
+        let val = Validator::read_json("./data/validation/bhatti_1_6.json")?;
+        assert_eq!(val.steps.len(), 1);
+        assert_eq!(val.steps[0].kk_matrices.len(), 4);
+        assert_eq!(val.steps[0].displacements.len(), 6);
+        assert_eq!(val.steps[0].stresses.len(), 4);
         Ok(())
     }
 }
