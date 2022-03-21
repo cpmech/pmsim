@@ -1,6 +1,10 @@
 use crate::StrError;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::ffi::OsStr;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 
 /// Holds results from iterations
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -59,7 +63,26 @@ pub struct Validator {
 impl Validator {
     /// Returns a new Validator from JSON string
     pub fn from_json(cmp: &str) -> Result<Self, StrError> {
-        let res: Validator = serde_json::from_str(&cmp).map_err(|op| {
+        let res = serde_json::from_str(&cmp).map_err(|op| {
+            println!("ERROR: {}", op);
+            return "serde_json failed";
+        })?;
+        Ok(res)
+    }
+
+    /// Reads a JSON file containing the comparison results
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        let file = File::open(&path).map_err(|_| "file not found")?;
+        let reader = BufReader::new(file);
+        let res = serde_json::from_reader(reader).map_err(|op| {
             println!("ERROR: {}", op);
             return "serde_json failed";
         })?;
@@ -216,6 +239,16 @@ mod tests {
         assert_eq!(val.results[0].iterations.len(), 1);
         assert_eq!(val.results[1].iterations.len(), 2);
         assert_eq!(val.results[2].iterations.len(), 3);
+        Ok(())
+    }
+
+    #[test]
+    fn read_json_works() -> Result<(), StrError> {
+        let val = Validator::read_json("./data/comparison/bhatti_1_6.cmp")?;
+        assert_eq!(val.results.len(), 1);
+        assert_eq!(val.results[0].kk_matrices.len(), 4);
+        assert_eq!(val.results[0].displacements.len(), 6);
+        assert_eq!(val.results[0].stresses.len(), 4);
         Ok(())
     }
 }
