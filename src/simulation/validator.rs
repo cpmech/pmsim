@@ -8,6 +8,10 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
+const VALIDATOR_DEFAULT_TOL_K_MATRIX: f64 = 1e-12;
+const VALIDATOR_DEFAULT_TOL_DISPLACEMENT: f64 = 1e-12;
+const VALIDATOR_DEFAULT_TOL_STRESS: f64 = 1e-12;
+
 /// Holds results from iterations
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ValidatorIteration {
@@ -75,10 +79,13 @@ pub struct Validator {
 impl Validator {
     /// Returns a new Validator from JSON string
     pub fn from_json(cmp: &str) -> Result<Self, StrError> {
-        let res = serde_json::from_str(&cmp).map_err(|op| {
+        let mut res: Validator = serde_json::from_str(&cmp).map_err(|op| {
             println!("ERROR: {}", op);
             return "serde_json failed";
         })?;
+        res.tol_kk_matrix = VALIDATOR_DEFAULT_TOL_K_MATRIX;
+        res.tol_displacement = VALIDATOR_DEFAULT_TOL_DISPLACEMENT;
+        res.tol_stress = VALIDATOR_DEFAULT_TOL_STRESS;
         Ok(res)
     }
 
@@ -94,64 +101,95 @@ impl Validator {
         let path = Path::new(full_path).to_path_buf();
         let file = File::open(&path).map_err(|_| "file not found")?;
         let reader = BufReader::new(file);
-        let res = serde_json::from_reader(reader).map_err(|op| {
+        let mut res: Validator = serde_json::from_reader(reader).map_err(|op| {
             println!("ERROR: {}", op);
             return "serde_json failed";
         })?;
+        res.tol_kk_matrix = VALIDATOR_DEFAULT_TOL_K_MATRIX;
+        res.tol_displacement = VALIDATOR_DEFAULT_TOL_DISPLACEMENT;
+        res.tol_stress = VALIDATOR_DEFAULT_TOL_STRESS;
         Ok(res)
     }
 
     /// Compares state against results at a fixed time- or load- step
     pub fn compare_state(&self, step: usize, state: &State, equations: &EquationNumbers, two_dim: bool) -> String {
         if step >= self.steps.len() {
-            return "results for the step are not available".to_string();
+            return "reference results for the step are not available".to_string();
         }
         let cmp = &self.steps[step];
+        let n_disp_components = if two_dim { 2 } else { 3 };
+        let n_stress_components = if two_dim { 3 } else { 4 };
 
         // displacements
         let npoint = equations.npoint();
         for point_id in 0..npoint {
             if point_id >= cmp.displacements.len() {
-                return format!("displacement of point #{} is not available", point_id);
+                return format!("point {}: reference displacement is not available", point_id);
             }
             let reference = &cmp.displacements[point_id];
-            if reference.len() < 2 {
-                return format!("reference (ux,uy) for point #{} is missing", point_id);
+            if reference.len() != n_disp_components {
+                return format!(
+                    "point {}: reference displacement has incompatible number of components. {}(wrong) != {}",
+                    point_id,
+                    reference.len(),
+                    n_disp_components
+                );
             }
             let ux = match equations.number(point_id, Dof::Ux) {
-                Some(eq) => state.system_xx[eq],
-                None => return format!("state does not have ux displacement of point #{}", point_id),
+                Some(eq) => {
+                    if eq >= state.system_xx.dim() {
+                        return format!(
+                            "point: {}: state does not have ux corresponding to equation {}",
+                            point_id, eq
+                        );
+                    }
+                    state.system_xx[eq]
+                }
+                None => return format!("point {}: state does not have ux", point_id),
             };
             let uy = match equations.number(point_id, Dof::Uy) {
-                Some(eq) => state.system_xx[eq],
-                None => return format!("state does not have uy displacement of point #{}", point_id),
+                Some(eq) => {
+                    if eq >= state.system_xx.dim() {
+                        return format!(
+                            "point {}: state does not have uy corresponding to equation {}",
+                            point_id, eq
+                        );
+                    }
+                    state.system_xx[eq]
+                }
+                None => return format!("point {}: state does not have uy", point_id),
             };
             let diff_ux = f64::abs(ux - reference[0]);
             if diff_ux > self.tol_displacement {
                 return format!(
-                    "ux displacement of point #{} is greater than tolerance. |ux - reference| = {:e}",
+                    "point {}: ux is greater than tolerance. |ux - reference| = {:e}",
                     point_id, diff_ux
                 );
             }
             let diff_uy = f64::abs(uy - reference[1]);
             if diff_uy > self.tol_displacement {
                 return format!(
-                    "uy displacement of point #{} is greater than tolerance. |uy - reference| = {:e}",
+                    "point {}: uy is greater than tolerance. |uy - reference| = {:e}",
                     point_id, diff_uy
                 );
             }
             if !two_dim {
-                if reference.len() != 3 {
-                    return format!("reference uz for point #{} is missing", point_id);
-                }
                 let uz = match equations.number(point_id, Dof::Uz) {
-                    Some(eq) => state.system_xx[eq],
-                    None => return format!("state does not have uz displacement of point #{}", point_id),
+                    Some(eq) => {
+                        if eq >= state.system_xx.dim() {
+                            return format!(
+                                "point {}: state does not have uz corresponding to equation {}",
+                                point_id, eq
+                            );
+                        }
+                        state.system_xx[eq]
+                    }
+                    None => return format!("point {}: state does not have uz", point_id),
                 };
                 let diff_uz = f64::abs(uz - reference[2]);
                 if diff_uz > self.tol_displacement {
                     return format!(
-                        "uz displacement of point #{} is greater than tolerance. |uz - reference| = {:e}",
+                        "point {}: uz is greater than tolerance. |uz - reference| = {:e}",
                         point_id, diff_uz
                     );
                 }
@@ -165,20 +203,20 @@ impl Validator {
             let n_integ_point = element.stress.len();
             if n_integ_point > 0 {
                 if element_id >= cmp.stresses.len() {
-                    return format!("stresses for element #{} are not available", element_id);
+                    return format!("element {}: reference stress is not available", element_id);
                 }
                 for index_ip in 0..n_integ_point {
                     if index_ip >= cmp.stresses[element_id].len() {
                         return format!(
-                            "stress at integration point #{} of element #{} is missing",
-                            index_ip, element_id
+                            "element {}: integration point {}: reference stress is not available",
+                            element_id, index_ip
                         );
                     }
                     let reference = &cmp.stresses[element_id][index_ip];
-                    if reference.len() < 3 {
+                    if reference.len() != n_stress_components {
                         return format!(
-                            "reference (sx,sy,sxy) for element #{} at ip #{} is missing",
-                            element_id, index_ip
+                            "element {}: integration point {}: reference stress has incompatible number of components. {}(wrong) != {}",
+                            element_id, index_ip, reference.len(), n_stress_components,
                         );
                     }
                     let sigma = &element.stress[index_ip].stress;
@@ -188,36 +226,30 @@ impl Validator {
                     let diff_sx = f64::abs(sx - reference[0]);
                     if diff_sx > self.tol_stress {
                         return format!(
-                            "sx stress of element #{} at ip #{} is greater than tolerance. |sx - reference| = {:e}",
+                            "element {}: integration point {}: sx is greater than tolerance. |sx - reference| = {:e}",
                             element_id, index_ip, diff_sx
                         );
                     }
                     let diff_sy = f64::abs(sy - reference[1]);
                     if diff_sy > self.tol_stress {
                         return format!(
-                            "sy stress of element #{} at ip #{} is greater than tolerance. |sy - reference| = {:e}",
+                            "element {}: integration point {}: sy is greater than tolerance. |sy - reference| = {:e}",
                             element_id, index_ip, diff_sy
                         );
                     }
                     let diff_sxy = f64::abs(sxy - reference[2]);
                     if diff_sxy > self.tol_stress {
                         return format!(
-                            "sxy stress of element #{} at ip #{} is greater than tolerance. |sxy - reference| = {:e}",
+                            "element {}: integration point {}: sxy is greater than tolerance. |sxy - reference| = {:e}",
                             element_id, index_ip, diff_sxy
                         );
                     }
                     if !two_dim {
-                        if reference.len() != 4 {
-                            return format!(
-                                "reference sz for element #{} at ip #{} is missing",
-                                element_id, index_ip
-                            );
-                        }
                         let sz = sigma.vec[2];
                         let diff_sz = f64::abs(sz - reference[3]);
                         if diff_sz > self.tol_stress {
                             return format!(
-                                "sy stress of element #{} at ip #{} is greater than tolerance. |sz - reference| = {:e}",
+                                "element {}: integration point {}: sz is greater than tolerance. |sz - reference| = {:e}",
                                 element_id, index_ip, diff_sz
                             );
                         }
@@ -395,6 +427,171 @@ mod tests {
     }
 
     #[test]
+    fn compare_state_captures_errors_2d() -> Result<(), StrError> {
+        let two_dim = true;
+
+        let mut equations = EquationNumbers::new(1);
+        equations.activate_equation(0, Dof::Ux);
+        equations.activate_equation(0, Dof::Uy);
+
+        let neq = equations.nequation();
+        let mut state = State {
+            elements: Vec::new(),
+            system_xx: Vector::new(neq),
+            system_yy: Vector::new(neq),
+        };
+        state.system_xx[0] = 3.0;
+        state.system_xx[1] = 4.0;
+
+        let val = Validator::from_json(r#"{ "steps": [] }"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "reference results for the step are not available"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: reference displacement is not available"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: reference displacement has incompatible number of components. 1(wrong) != 2"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: ux is greater than tolerance. |ux - reference| = 2e0"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[3,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: uy is greater than tolerance. |uy - reference| = 2e0"
+        );
+
+        let stress = StateStress {
+            internal_values: Vec::new(),
+            stress: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
+        };
+        let elements = vec![StateElement {
+            seepage: Vec::new(),
+            stress: vec![stress.clone(), stress.clone()],
+        }];
+
+        let mut state = State {
+            elements,
+            system_xx: Vector::new(neq),
+            system_yy: Vector::new(neq),
+        };
+        state.system_xx[0] = 1.0;
+        state.system_xx[1] = 2.0;
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "element 0: reference stress is not available"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "element 0: integration point 1: reference stress is not available"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[1,2]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "element 0: integration point 1: reference stress has incompatible number of components. 2(wrong) != 3"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[2,2,2]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "element 0: integration point 1: sx is greater than tolerance. |sx - reference| = 2e0"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[0,2,2]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "element 0: integration point 1: sy is greater than tolerance. |sy - reference| = 2e0"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[0,0,2]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "element 0: integration point 1: sxy is greater than tolerance. |sxy - reference| = 2e0"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn compare_state_captures_errors_3d() -> Result<(), StrError> {
+        let two_dim = false;
+
+        let mut equations = EquationNumbers::new(1);
+        equations.activate_equation(0, Dof::Ux);
+        equations.activate_equation(0, Dof::Uy);
+        equations.activate_equation(0, Dof::Uz);
+
+        let neq = equations.nequation();
+        let mut state = State {
+            elements: Vec::new(),
+            system_xx: Vector::new(neq),
+            system_yy: Vector::new(neq),
+        };
+        state.system_xx[0] = 3.0;
+        state.system_xx[1] = 4.0;
+        state.system_xx[2] = 6.0;
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: reference displacement has incompatible number of components. 2(wrong) != 3"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: uz is greater than tolerance. |uz - reference| = 2e0"
+        );
+
+        let stress = StateStress {
+            internal_values: Vec::new(),
+            stress: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
+        };
+        let elements = vec![StateElement {
+            seepage: Vec::new(),
+            stress: vec![stress],
+        }];
+
+        let mut state = State {
+            elements,
+            system_xx: Vector::new(neq),
+            system_yy: Vector::new(neq),
+        };
+        state.system_xx[0] = 3.0;
+        state.system_xx[1] = 4.0;
+        state.system_xx[2] = 6.0;
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "element 0: integration point 0: reference stress has incompatible number of components. 3(wrong) != 4"
+        );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0,2]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "element 0: integration point 0: sz is greater than tolerance. |sz - reference| = 2e0"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn compare_state_works() -> Result<(), StrError> {
         /* Example 1.6 from [@bhatti] page 32
 
@@ -468,7 +665,6 @@ mod tests {
 
         let res = val.compare_state(0, &state, &equations, two_dim);
         assert_eq!(res, "OK");
-
         Ok(())
     }
 }
