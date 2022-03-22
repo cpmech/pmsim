@@ -273,6 +273,16 @@ mod tests {
     use russell_tensor::Tensor2;
 
     #[test]
+    fn serialize_handles_errors() {
+        assert_eq!(Validator::from_json("").err(), Some("serde_json failed"));
+        assert_eq!(Validator::read_json("").err(), Some("file not found"));
+        assert_eq!(
+            Validator::read_json("./data/validation/z_wrong_data_for_test.json").err(),
+            Some("serde_json failed")
+        );
+    }
+
+    #[test]
     fn clone_and_serialize_work() -> Result<(), StrError> {
         let val = Validator::from_json(
             r#"{ "steps":
@@ -334,7 +344,6 @@ mod tests {
         assert_vec_approx_eq!(c_res.stresses[1][0], [200.0, 201.0, 202.0, 203.0], 1e-15);
 
         assert_eq!(format!("{:?}", res),"ValidatorResults { kk_matrices: [[[1.0, 2.0], [3.0, 4.0]], [[10.0, 20.0], [30.0, 40.0]]], displacements: [[11.0, 21.0], [12.0, 22.0]], stresses: [[[100.0, 101.0, 102.0, 103.0]], [[200.0, 201.0, 202.0, 203.0]]], load_factor: 0.0, iterations: [] }");
-
         Ok(())
     }
 
