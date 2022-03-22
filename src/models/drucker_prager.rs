@@ -59,7 +59,7 @@ impl BaseStressStrain for DruckerPrager {
         ])
     }
 
-    /// Computes the consistent modulus dsig/deps
+    /// Computes the consistent modulus d_sigma/d_epsilon
     fn consistent_modulus(
         &self,
         dd: &mut Tensor4,

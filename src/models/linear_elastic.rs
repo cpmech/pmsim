@@ -30,7 +30,7 @@ impl BaseStressStrain for LinearElastic {
         Ok(Vec::new())
     }
 
-    /// Computes the consistent modulus dsig/deps
+    /// Computes the consistent modulus d_sigma/d_epsilon
     fn consistent_modulus(
         &self,
         dd: &mut Tensor4,
