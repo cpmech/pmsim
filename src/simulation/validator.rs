@@ -216,58 +216,59 @@ impl Validator {
         for element_id in 0..nele {
             let element = &state.elements[element_id];
             let n_integ_point = element.stress.len();
-            if n_integ_point > 0 {
-                if element_id >= cmp.stresses.len() {
-                    return format!("element {}: reference stress is not available", element_id);
+            if n_integ_point < 1 {
+                return format!("element {}: state does not have integration point stress", element_id);
+            }
+            if element_id >= cmp.stresses.len() {
+                return format!("element {}: reference stress is not available", element_id);
+            }
+            for index_ip in 0..n_integ_point {
+                if index_ip >= cmp.stresses[element_id].len() {
+                    return format!(
+                        "element {}: integration point {}: reference stress is not available",
+                        element_id, index_ip
+                    );
                 }
-                for index_ip in 0..n_integ_point {
-                    if index_ip >= cmp.stresses[element_id].len() {
-                        return format!(
-                            "element {}: integration point {}: reference stress is not available",
-                            element_id, index_ip
-                        );
-                    }
-                    let reference = &cmp.stresses[element_id][index_ip];
-                    if reference.len() != n_stress_components {
-                        return format!(
+                let reference = &cmp.stresses[element_id][index_ip];
+                if reference.len() != n_stress_components {
+                    return format!(
                             "element {}: integration point {}: reference stress has incompatible number of components. {}(wrong) != {}",
                             element_id, index_ip, reference.len(), n_stress_components,
                         );
-                    }
-                    let sigma = &element.stress[index_ip].stress;
-                    let sx = sigma.vec[0];
-                    let sy = sigma.vec[1];
-                    let sxy = sigma.vec[3] / SQRT_2;
-                    let diff_sx = f64::abs(sx - reference[0]);
-                    if diff_sx > self.tol_stress {
+                }
+                let sigma = &element.stress[index_ip].stress;
+                let sx = sigma.vec[0];
+                let sy = sigma.vec[1];
+                let sxy = sigma.vec[3] / SQRT_2;
+                let diff_sx = f64::abs(sx - reference[0]);
+                if diff_sx > self.tol_stress {
+                    return format!(
+                        "element {}: integration point {}: sx is greater than tolerance. |sx - reference| = {:e}",
+                        element_id, index_ip, diff_sx
+                    );
+                }
+                let diff_sy = f64::abs(sy - reference[1]);
+                if diff_sy > self.tol_stress {
+                    return format!(
+                        "element {}: integration point {}: sy is greater than tolerance. |sy - reference| = {:e}",
+                        element_id, index_ip, diff_sy
+                    );
+                }
+                let diff_sxy = f64::abs(sxy - reference[2]);
+                if diff_sxy > self.tol_stress {
+                    return format!(
+                        "element {}: integration point {}: sxy is greater than tolerance. |sxy - reference| = {:e}",
+                        element_id, index_ip, diff_sxy
+                    );
+                }
+                if !two_dim {
+                    let sz = sigma.vec[2];
+                    let diff_sz = f64::abs(sz - reference[3]);
+                    if diff_sz > self.tol_stress {
                         return format!(
-                            "element {}: integration point {}: sx is greater than tolerance. |sx - reference| = {:e}",
-                            element_id, index_ip, diff_sx
+                            "element {}: integration point {}: sz is greater than tolerance. |sz - reference| = {:e}",
+                            element_id, index_ip, diff_sz
                         );
-                    }
-                    let diff_sy = f64::abs(sy - reference[1]);
-                    if diff_sy > self.tol_stress {
-                        return format!(
-                            "element {}: integration point {}: sy is greater than tolerance. |sy - reference| = {:e}",
-                            element_id, index_ip, diff_sy
-                        );
-                    }
-                    let diff_sxy = f64::abs(sxy - reference[2]);
-                    if diff_sxy > self.tol_stress {
-                        return format!(
-                            "element {}: integration point {}: sxy is greater than tolerance. |sxy - reference| = {:e}",
-                            element_id, index_ip, diff_sxy
-                        );
-                    }
-                    if !two_dim {
-                        let sz = sigma.vec[2];
-                        let diff_sz = f64::abs(sz - reference[3]);
-                        if diff_sz > self.tol_stress {
-                            return format!(
-                                "element {}: integration point {}: sz is greater than tolerance. |sz - reference| = {:e}",
-                                element_id, index_ip, diff_sz
-                            );
-                        }
                     }
                 }
             }
@@ -550,6 +551,78 @@ mod tests {
     }
 
     #[test]
+    fn compare_displacements_captures_errors_3d() -> Result<(), StrError> {
+        let two_dim = false;
+        let mut equations = EquationNumbers::new(1);
+        let state = State {
+            elements: Vec::new(),
+            system_xx: Vector::new(2), // << incorrect
+            system_yy: Vector::new(2), // << incorrect
+        };
+
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_displacements(0, &state, &equations, two_dim),
+            "point 0: reference displacement has incompatible number of components. 2(wrong) != 3"
+        );
+
+        equations.activate_equation(0, Dof::Ux);
+        equations.activate_equation(0, Dof::Uy);
+
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        assert_eq!(
+            val.compare_displacements(0, &state, &equations, two_dim),
+            "point 0: state does not have uz"
+        );
+
+        equations.activate_equation(0, Dof::Uz);
+
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        assert_eq!(
+            val.compare_displacements(0, &state, &equations, two_dim),
+            "point 0: state does not have equation 2 corresponding to uz"
+        );
+
+        let neq = equations.nequation();
+        let mut state = State {
+            elements: Vec::new(),
+            system_xx: Vector::new(neq),
+            system_yy: Vector::new(neq),
+        };
+        state.system_xx[0] = 3.0;
+        state.system_xx[1] = 4.0;
+        state.system_xx[2] = 6.0;
+
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        assert_eq!(
+            val.compare_displacements(0, &state, &equations, two_dim),
+            "point 0: uz is greater than tolerance. |uz - reference| = 2e0"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn compare_stresses_handles_missing_data() -> Result<(), StrError> {
+        let two_dim = true;
+        let equations = EquationNumbers::new(1);
+        let neq = equations.nequation();
+        let state = State {
+            elements: vec![StateElement {
+                seepage: Vec::new(),
+                stress: Vec::new(),
+            }],
+            system_xx: Vector::new(neq),
+            system_yy: Vector::new(neq),
+        };
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_stresses(0, &state, two_dim),
+            "element 0: state does not have integration point stress"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn compare_stresses_captures_errors_2d() -> Result<(), StrError> {
         let two_dim = true;
         let mut equations = EquationNumbers::new(1);
@@ -616,57 +689,6 @@ mod tests {
     }
 
     #[test]
-    fn compare_displacements_captures_errors_3d() -> Result<(), StrError> {
-        let two_dim = false;
-        let mut equations = EquationNumbers::new(1);
-        let state = State {
-            elements: Vec::new(),
-            system_xx: Vector::new(2), // << incorrect
-            system_yy: Vector::new(2), // << incorrect
-        };
-
-        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
-        assert_eq!(
-            val.compare_displacements(0, &state, &equations, two_dim),
-            "point 0: reference displacement has incompatible number of components. 2(wrong) != 3"
-        );
-
-        equations.activate_equation(0, Dof::Ux);
-        equations.activate_equation(0, Dof::Uy);
-
-        let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
-        assert_eq!(
-            val.compare_displacements(0, &state, &equations, two_dim),
-            "point 0: state does not have uz"
-        );
-
-        equations.activate_equation(0, Dof::Uz);
-
-        let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
-        assert_eq!(
-            val.compare_displacements(0, &state, &equations, two_dim),
-            "point 0: state does not have equation 2 corresponding to uz"
-        );
-
-        let neq = equations.nequation();
-        let mut state = State {
-            elements: Vec::new(),
-            system_xx: Vector::new(neq),
-            system_yy: Vector::new(neq),
-        };
-        state.system_xx[0] = 3.0;
-        state.system_xx[1] = 4.0;
-        state.system_xx[2] = 6.0;
-
-        let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
-        assert_eq!(
-            val.compare_displacements(0, &state, &equations, two_dim),
-            "point 0: uz is greater than tolerance. |uz - reference| = 2e0"
-        );
-        Ok(())
-    }
-
-    #[test]
     fn compare_stresses_captures_errors_3d() -> Result<(), StrError> {
         let two_dim = false;
         let mut equations = EquationNumbers::new(1);
@@ -708,11 +730,7 @@ mod tests {
     fn compare_displacements_and_stresses_work_with_no_data() -> Result<(), StrError> {
         let two_dim = true;
         let equations = EquationNumbers::new(0);
-        let mut state = State::new_empty();
-        state.elements.push(StateElement {
-            seepage: Vec::new(),
-            stress: Vec::new(),
-        });
+        let state = State::new_empty();
         let val = Validator::from_str(r#"{"steps":[{}]}"#)?;
         assert_eq!(val.compare_displacements(0, &state, &equations, two_dim), "OK");
         assert_eq!(val.compare_stresses(0, &state, two_dim), "OK");
