@@ -1,7 +1,7 @@
 use super::{Dof, EquationNumbers, State};
 use crate::elements::Element;
 use crate::StrError;
-use russell_lab::Matrix;
+use russell_lab::{mat_max_abs_diff, Matrix};
 use russell_tensor::SQRT_2;
 use serde::Deserialize;
 use serde_json;
@@ -116,7 +116,7 @@ impl Validator {
     /// Compare K matrices against results at a fixed time- or load-step
     ///
     /// Returns "OK" if all values are approximately equal under tol_kk_matrix.
-    pub fn compare_kk_matrices(&self, step: usize, elements: &Vec<Element>) -> String {
+    pub fn compare_kk_matrices(&self, step: usize, state: &State, elements: &mut Vec<Element>) -> String {
         if step >= self.steps.len() {
             return "reference results for the step are not available".to_string();
         }
@@ -126,9 +126,23 @@ impl Validator {
             if element_id >= cmp.kk_matrices.len() {
                 return format!("element {}: reference K matrix is not available", element_id);
             }
-            let element = &elements[element_id];
+            let element = &mut elements[element_id];
+            if let Err(e) = element.base.calc_local_kk_matrix(&state.elements[element_id], true) {
+                return e.to_string();
+            }
             let kk = element.base.get_local_kk_matrix();
             let reference = &cmp.kk_matrices[element_id];
+            match mat_max_abs_diff(&kk, &reference) {
+                Ok((i, j, max_abs_diff)) => {
+                    if max_abs_diff > self.tol_kk_matrix {
+                        return format!(
+                            "element {}: K{}{} component is greater than tolerance. max_abs_diff = {:e}",
+                            element_id, i, j, max_abs_diff
+                        );
+                    }
+                }
+                Err(e) => return e.to_string(),
+            }
         }
         "OK".to_string()
     }
@@ -304,8 +318,13 @@ impl Validator {
 #[cfg(test)]
 mod tests {
     use super::{Validator, ValidatorIteration};
-    use crate::simulation::{Dof, EquationNumbers, State, StateElement, StateStress};
+    use crate::elements::Element;
+    use crate::simulation::{
+        Configuration, Dof, ElementConfig, EquationNumbers, Initializer, ParamSolid, ParamStressStrain, State,
+        StateElement, StateStress,
+    };
     use crate::StrError;
+    use gemlab::mesh::Mesh;
     use russell_chk::assert_vec_approx_eq;
     use russell_lab::Vector;
     use russell_tensor::Tensor2;
@@ -508,6 +527,57 @@ mod tests {
     }
 
     #[test]
+    fn compare_kk_matrices_works() -> Result<(), StrError> {
+        /* Example 1.6 from [@bhatti] page 32
+
+         Solid bracket with thickness = 0.25
+
+                      1    load                connectivity:
+         y=2.0  fixed *'-,__                    eid : vertices
+                      |     '-,_  3   load        0 :  0, 2, 3
+         y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
+                      |  1   ,'  |    '-,_  5     2 :  2, 4, 5
+         y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
+                      |  ,'  0   |   ,-'   |
+                      |,'        |,-'   2  |   constraints:
+         y=0.0  fixed *----------*---------*     fixed on x and y
+                      0          2         4
+                     x=0.0     x=2.0     x=4.0
+
+        # References
+
+        [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
+                  and Applications, Wiley, 700p.
+        */
+        let mesh = Mesh::from_text_file("./data/meshes/bhatti_1_6.msh")?;
+
+        let mut config = Configuration::new(&mesh);
+        config.plane_stress(true)?.thickness(0.25)?;
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 10_000.0,
+                poisson: 0.2,
+            },
+        };
+        config.elements(1, ElementConfig::Solid(param, None))?;
+        let initializer = Initializer::new(&config)?;
+
+        let element_0 = Element::new(&config, 0)?;
+        let state = State {
+            elements: vec![element_0.base.new_state(&initializer)?],
+            system_xx: Vector::new(0),
+            system_yy: Vector::new(0),
+        };
+        let mut elements = vec![element_0];
+
+        let val = Validator::read_json("./data/validation/bhatti_1_6.json")?;
+        let res = val.compare_kk_matrices(0, &state, &mut elements);
+        assert_eq!(res, "OK");
+        Ok(())
+    }
+
+    #[test]
     fn compare_displacements_captures_errors_2d() -> Result<(), StrError> {
         let two_dim = true;
         let mut equations = EquationNumbers::new(1);
@@ -669,14 +739,14 @@ mod tests {
         equations.activate_equation(0, Dof::Ux);
         equations.activate_equation(0, Dof::Uy);
         let neq = equations.nequation();
-        let stress = StateStress {
+        let sigma = StateStress {
             internal_values: Vec::new(),
             sigma: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
         };
         let mut state = State {
             elements: vec![StateElement {
                 seepage: Vec::new(),
-                stress: vec![stress.clone(), stress.clone()],
+                stress: vec![sigma.clone(), sigma.clone()],
             }],
             system_xx: Vector::new(neq),
             system_yy: Vector::new(neq),
@@ -736,14 +806,14 @@ mod tests {
         equations.activate_equation(0, Dof::Uy);
         equations.activate_equation(0, Dof::Uz);
         let neq = equations.nequation();
-        let stress = StateStress {
+        let sigma = StateStress {
             internal_values: Vec::new(),
             sigma: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
         };
         let mut state = State {
             elements: vec![StateElement {
                 seepage: Vec::new(),
-                stress: vec![stress.clone(), stress.clone()],
+                stress: vec![sigma.clone(), sigma.clone()],
             }],
             system_xx: Vector::new(neq),
             system_yy: Vector::new(neq),
