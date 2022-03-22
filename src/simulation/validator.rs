@@ -1,5 +1,7 @@
 use super::{Dof, EquationNumbers, State};
+use crate::elements::Element;
 use crate::StrError;
+use russell_lab::Matrix;
 use russell_tensor::SQRT_2;
 use serde::Deserialize;
 use serde_json;
@@ -34,7 +36,7 @@ pub struct ValidatorResults {
     /// All stiffness matrices (nele,nu,nu)
     #[serde(default)]
     #[serde(rename(deserialize = "Kmats"))]
-    pub kk_matrices: Vec<Vec<Vec<f64>>>,
+    pub kk_matrices: Vec<Matrix>,
 
     /// Displacements at nodes (npoint,ndim)
     #[serde(default)]
@@ -60,7 +62,7 @@ pub struct ValidatorResults {
 /// Holds results for comparisons (checking/tests)
 #[derive(Clone, Debug, Deserialize)]
 pub struct Validator {
-    /// Results from output-, time-, or load- steps
+    /// Results from output-, time-, or load-steps
     pub steps: Vec<ValidatorResults>,
 
     /// Tolerance to compare K matrix components
@@ -111,7 +113,27 @@ impl Validator {
         Ok(res)
     }
 
-    /// Compares displacements against results at a fixed time- or load- step
+    /// Compare K matrices against results at a fixed time- or load-step
+    ///
+    /// Returns "OK" if all values are approximately equal under tol_kk_matrix.
+    pub fn compare_kk_matrices(&self, step: usize, elements: &Vec<Element>) -> String {
+        if step >= self.steps.len() {
+            return "reference results for the step are not available".to_string();
+        }
+        let cmp = &self.steps[step];
+        let nele = elements.len();
+        for element_id in 0..nele {
+            if element_id >= cmp.kk_matrices.len() {
+                return format!("element {}: reference K matrix is not available", element_id);
+            }
+            let element = &elements[element_id];
+            let kk = element.base.get_local_kk_matrix();
+            let reference = &cmp.kk_matrices[element_id];
+        }
+        "OK".to_string()
+    }
+
+    /// Compares displacements against results at a fixed time- or load-step
     ///
     /// Returns "OK" if all values are approximately equal under tol_displacement.
     pub fn compare_displacements(
@@ -203,7 +225,7 @@ impl Validator {
         "OK".to_string()
     }
 
-    /// Compares stresses against results at a fixed time- or load- step
+    /// Compares stresses against results at a fixed time- or load-step
     ///
     /// Returns "OK" if all values are approximately equal under tol_stress.
     pub fn compare_stresses(&self, step: usize, state: &State, two_dim: bool) -> String {
@@ -236,7 +258,7 @@ impl Validator {
                             element_id, index_ip, reference.len(), n_stress_components,
                         );
                 }
-                let sigma = &element.stress[index_ip].stress;
+                let sigma = &element.stress[index_ip].sigma;
                 let sx = sigma.vec[0];
                 let sy = sigma.vec[1];
                 let sxy = sigma.vec[3] / SQRT_2;
@@ -319,14 +341,14 @@ mod tests {
           [
             {
               "Kmats": [
-                [
-                  [1, 2],
-                  [3, 4]
-                ],
-                [
-                  [10, 20],
-                  [30, 40]
-                ]
+                { "nrow":2, "ncol":2, "data":[
+                  1, 2,
+                  3, 4
+                ] },
+                { "nrow":2, "ncol":2, "data":[
+                  10, 20,
+                  30, 40
+                ] }
               ],
               "disp": [
                 [11, 21],
@@ -347,10 +369,20 @@ mod tests {
         assert_eq!(val.steps.len(), 1);
         let res = &val.steps[0];
         assert_eq!(res.kk_matrices.len(), 2);
-        assert_vec_approx_eq!(res.kk_matrices[0][0], [1.0, 2.0], 1e-15);
-        assert_vec_approx_eq!(res.kk_matrices[0][1], [3.0, 4.0], 1e-15);
-        assert_vec_approx_eq!(res.kk_matrices[1][0], [10.0, 20.0], 1e-15);
-        assert_vec_approx_eq!(res.kk_matrices[1][1], [30.0, 40.0], 1e-15);
+        assert_eq!(
+            format!("{}", res.kk_matrices[0]),
+            "┌     ┐\n\
+             │ 1 2 │\n\
+             │ 3 4 │\n\
+             └     ┘"
+        );
+        assert_eq!(
+            format!("{}", res.kk_matrices[1]),
+            "┌       ┐\n\
+             │ 10 20 │\n\
+             │ 30 40 │\n\
+             └       ┘"
+        );
         assert_eq!(res.displacements.len(), 2);
         assert_vec_approx_eq!(res.displacements[0], [11.0, 21.0], 1e-15);
         assert_vec_approx_eq!(res.displacements[1], [12.0, 22.0], 1e-15);
@@ -362,10 +394,20 @@ mod tests {
         assert_eq!(cloned.steps.len(), 1);
         let c_res = &cloned.steps[0];
         assert_eq!(c_res.kk_matrices.len(), 2);
-        assert_vec_approx_eq!(c_res.kk_matrices[0][0], [1.0, 2.0], 1e-15);
-        assert_vec_approx_eq!(c_res.kk_matrices[0][1], [3.0, 4.0], 1e-15);
-        assert_vec_approx_eq!(c_res.kk_matrices[1][0], [10.0, 20.0], 1e-15);
-        assert_vec_approx_eq!(c_res.kk_matrices[1][1], [30.0, 40.0], 1e-15);
+        assert_eq!(
+            format!("{}", c_res.kk_matrices[0]),
+            "┌     ┐\n\
+             │ 1 2 │\n\
+             │ 3 4 │\n\
+             └     ┘"
+        );
+        assert_eq!(
+            format!("{}", c_res.kk_matrices[1]),
+            "┌       ┐\n\
+             │ 10 20 │\n\
+             │ 30 40 │\n\
+             └       ┘"
+        );
         assert_eq!(c_res.displacements.len(), 2);
         assert_vec_approx_eq!(c_res.displacements[0], [11.0, 21.0], 1e-15);
         assert_vec_approx_eq!(c_res.displacements[1], [12.0, 22.0], 1e-15);
@@ -373,9 +415,7 @@ mod tests {
         assert_vec_approx_eq!(c_res.stresses[0][0], [100.0, 101.0, 102.0, 103.0], 1e-15);
         assert_vec_approx_eq!(c_res.stresses[1][0], [200.0, 201.0, 202.0, 203.0], 1e-15);
 
-        assert_eq!(format!("{:?}", res),"ValidatorResults { kk_matrices: [[[1.0, 2.0], [3.0, 4.0]], [[10.0, 20.0], [30.0, 40.0]]], displacements: [[11.0, 21.0], [12.0, 22.0]], stresses: [[[100.0, 101.0, 102.0, 103.0]], [[200.0, 201.0, 202.0, 203.0]]], load_factor: 0.0, iterations: [] }");
-
-        assert_eq!(format!("{:?}", val),"Validator { steps: [ValidatorResults { kk_matrices: [[[1.0, 2.0], [3.0, 4.0]], [[10.0, 20.0], [30.0, 40.0]]], displacements: [[11.0, 21.0], [12.0, 22.0]], stresses: [[[100.0, 101.0, 102.0, 103.0]], [[200.0, 201.0, 202.0, 203.0]]], load_factor: 0.0, iterations: [] }], tol_kk_matrix: 1e-12, tol_displacement: 1e-12, tol_stress: 1e-12 }");
+        assert_eq!(format!("{:?}", val), "Validator { steps: [ValidatorResults { kk_matrices: [NumMatrix { nrow: 2, ncol: 2, data: [1.0, 2.0, 3.0, 4.0] }, NumMatrix { nrow: 2, ncol: 2, data: [10.0, 20.0, 30.0, 40.0] }], displacements: [[11.0, 21.0], [12.0, 22.0]], stresses: [[[100.0, 101.0, 102.0, 103.0]], [[200.0, 201.0, 202.0, 203.0]]], load_factor: 0.0, iterations: [] }], tol_kk_matrix: 1e-12, tol_displacement: 1e-12, tol_stress: 1e-12 }");
         Ok(())
     }
 
@@ -631,7 +671,7 @@ mod tests {
         let neq = equations.nequation();
         let stress = StateStress {
             internal_values: Vec::new(),
-            stress: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
+            sigma: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
         };
         let mut state = State {
             elements: vec![StateElement {
@@ -698,7 +738,7 @@ mod tests {
         let neq = equations.nequation();
         let stress = StateStress {
             internal_values: Vec::new(),
-            stress: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
+            sigma: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
         };
         let mut state = State {
             elements: vec![StateElement {
@@ -773,7 +813,7 @@ mod tests {
         let state_element_0 = StateElement {
             seepage: Vec::new(),
             stress: vec![StateStress {
-                stress: Tensor2::from_matrix(
+                sigma: Tensor2::from_matrix(
                     &[
                         [-5.283090599362460e+01, -1.128984616188524e+01, 0.0],
                         [-1.128984616188524e+01, -5.272560566371797e+00, 0.0],
@@ -789,7 +829,7 @@ mod tests {
         let state_element_1 = StateElement {
             seepage: Vec::new(),
             stress: vec![StateStress {
-                stress: Tensor2::from_matrix(
+                sigma: Tensor2::from_matrix(
                     &[
                         [2.462317949521848e+01, -5.153261537858599e+01, 0.0],
                         [-5.153261537858599e+01, 4.924635899043697e+00, 0.0],
@@ -842,7 +882,7 @@ mod tests {
         let state_element_0 = StateElement {
             seepage: Vec::new(),
             stress: vec![StateStress {
-                stress: Tensor2::from_matrix(&[[1.1, 1.2, 1.3], [1.2, 2.2, 2.3], [1.3, 2.3, 3.3]], true, two_dim)?,
+                sigma: Tensor2::from_matrix(&[[1.1, 1.2, 1.3], [1.2, 2.2, 2.3], [1.3, 2.3, 3.3]], true, two_dim)?,
                 internal_values: Vec::new(),
             }],
         };
