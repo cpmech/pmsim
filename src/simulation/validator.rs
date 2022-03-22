@@ -1,7 +1,7 @@
 use super::{Dof, EquationNumbers, State};
 use crate::StrError;
 use russell_tensor::SQRT_2;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json;
 use std::ffi::OsStr;
 use std::fs::File;
@@ -13,7 +13,7 @@ const VALIDATOR_DEFAULT_TOL_DISPLACEMENT: f64 = 1e-12;
 const VALIDATOR_DEFAULT_TOL_STRESS: f64 = 1e-12;
 
 /// Holds results from iterations
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ValidatorIteration {
     /// Iteration number
     #[serde(rename(deserialize = "it"))]
@@ -29,7 +29,7 @@ pub struct ValidatorIteration {
 }
 
 /// Holds numerical results
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ValidatorResults {
     /// All stiffness matrices (nele,nu,nu)
     #[serde(default)]
@@ -58,7 +58,7 @@ pub struct ValidatorResults {
 }
 
 /// Holds results for comparisons (checking/tests)
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Validator {
     /// Results from output-, time-, or load- steps
     pub steps: Vec<ValidatorResults>,
@@ -265,7 +265,7 @@ impl Validator {
 
 #[cfg(test)]
 mod tests {
-    use super::Validator;
+    use super::{Validator, ValidatorIteration};
     use crate::simulation::{Dof, EquationNumbers, State, StateElement, StateStress};
     use crate::StrError;
     use russell_chk::assert_vec_approx_eq;
@@ -283,7 +283,21 @@ mod tests {
     }
 
     #[test]
-    fn clone_and_serialize_work() -> Result<(), StrError> {
+    fn clone_debug_and_serialize_work() -> Result<(), StrError> {
+        let ite = ValidatorIteration {
+            iteration: 1,
+            relative_residual: 2.0,
+            absolute_residual: 3.0,
+        };
+        let cloned = ite.clone();
+        assert_eq!(cloned.iteration, 1);
+        let ite: ValidatorIteration = serde_json::from_str(r#"{"it":1,"resrel":2,"resid":3}"#).unwrap();
+        assert_eq!(ite.iteration, 1);
+        assert_eq!(
+            format!("{:?}", ite),
+            "ValidatorIteration { iteration: 1, relative_residual: 2.0, absolute_residual: 3.0 }"
+        );
+
         let val = Validator::from_json(
             r#"{ "steps":
           [
@@ -344,6 +358,8 @@ mod tests {
         assert_vec_approx_eq!(c_res.stresses[1][0], [200.0, 201.0, 202.0, 203.0], 1e-15);
 
         assert_eq!(format!("{:?}", res),"ValidatorResults { kk_matrices: [[[1.0, 2.0], [3.0, 4.0]], [[10.0, 20.0], [30.0, 40.0]]], displacements: [[11.0, 21.0], [12.0, 22.0]], stresses: [[[100.0, 101.0, 102.0, 103.0]], [[200.0, 201.0, 202.0, 203.0]]], load_factor: 0.0, iterations: [] }");
+
+        assert_eq!(format!("{:?}", val),"Validator { steps: [ValidatorResults { kk_matrices: [[[1.0, 2.0], [3.0, 4.0]], [[10.0, 20.0], [30.0, 40.0]]], displacements: [[11.0, 21.0], [12.0, 22.0]], stresses: [[[100.0, 101.0, 102.0, 103.0]], [[200.0, 201.0, 202.0, 203.0]]], load_factor: 0.0, iterations: [] }], tol_kk_matrix: 1e-12, tol_displacement: 1e-12, tol_stress: 1e-12 }");
         Ok(())
     }
 
