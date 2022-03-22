@@ -111,16 +111,21 @@ impl Validator {
         Ok(res)
     }
 
-    /// Compares state against results at a fixed time- or load- step
-    pub fn compare_state(&self, step: usize, state: &State, equations: &EquationNumbers, two_dim: bool) -> String {
+    /// Compares displacements against results at a fixed time- or load- step
+    ///
+    /// Returns "OK" if all values are approximately equal under tol_displacement.
+    pub fn compare_displacements(
+        &self,
+        step: usize,
+        state: &State,
+        equations: &EquationNumbers,
+        two_dim: bool,
+    ) -> String {
         if step >= self.steps.len() {
             return "reference results for the step are not available".to_string();
         }
         let cmp = &self.steps[step];
         let n_disp_components = if two_dim { 2 } else { 3 };
-        let n_stress_components = if two_dim { 3 } else { 4 };
-
-        // displacements
         let npoint = equations.npoint();
         for point_id in 0..npoint {
             if point_id >= cmp.displacements.len() {
@@ -195,8 +200,18 @@ impl Validator {
                 }
             }
         }
+        "OK".to_string()
+    }
 
-        // stresses
+    /// Compares stresses against results at a fixed time- or load- step
+    ///
+    /// Returns "OK" if all values are approximately equal under tol_stress.
+    pub fn compare_stresses(&self, step: usize, state: &State, two_dim: bool) -> String {
+        if step >= self.steps.len() {
+            return "reference results for the step are not available".to_string();
+        }
+        let cmp = &self.steps[step];
+        let n_stress_components = if two_dim { 3 } else { 4 };
         let nele = state.elements.len();
         for element_id in 0..nele {
             let element = &state.elements[element_id];
@@ -452,11 +467,9 @@ mod tests {
     }
 
     #[test]
-    fn compare_state_captures_errors_2d() -> Result<(), StrError> {
+    fn compare_displacements_captures_errors_2d() -> Result<(), StrError> {
         let two_dim = true;
-
         let mut equations = EquationNumbers::new(1);
-
         let mut state = State {
             elements: Vec::new(),
             system_xx: Vector::new(0), // << incorrect
@@ -465,25 +478,25 @@ mod tests {
 
         let val = Validator::from_str(r#"{ "steps": [] }"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "reference results for the step are not available"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: reference displacement is not available"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: reference displacement has incompatible number of components. 1(wrong) != 2"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: state does not have ux"
         );
 
@@ -492,7 +505,7 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: state does not have uy"
         );
 
@@ -501,7 +514,7 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: state does not have equation 0 corresponding to ux"
         );
 
@@ -509,7 +522,7 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: state does not have equation 1 corresponding to uy"
         );
 
@@ -524,77 +537,88 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: ux is greater than tolerance. |ux - reference| = 2e0"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[3,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: uy is greater than tolerance. |uy - reference| = 2e0"
         );
+        Ok(())
+    }
 
+    #[test]
+    fn compare_stresses_captures_errors_2d() -> Result<(), StrError> {
+        let two_dim = true;
+        let mut equations = EquationNumbers::new(1);
+        equations.activate_equation(0, Dof::Ux);
+        equations.activate_equation(0, Dof::Uy);
+        let neq = equations.nequation();
         let stress = StateStress {
             internal_values: Vec::new(),
             stress: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
         };
-        let elements = vec![StateElement {
-            seepage: Vec::new(),
-            stress: vec![stress.clone(), stress.clone()],
-        }];
-
         let mut state = State {
-            elements,
+            elements: vec![StateElement {
+                seepage: Vec::new(),
+                stress: vec![stress.clone(), stress.clone()],
+            }],
             system_xx: Vector::new(neq),
             system_yy: Vector::new(neq),
         };
         state.system_xx[0] = 1.0;
         state.system_xx[1] = 2.0;
 
+        let val = Validator::from_str(r#"{ "steps": [] }"#)?;
+        assert_eq!(
+            val.compare_stresses(0, &state, two_dim),
+            "reference results for the step are not available"
+        );
+
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_stresses(0, &state, two_dim),
             "element 0: reference stress is not available"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_stresses(0, &state, two_dim),
             "element 0: integration point 1: reference stress is not available"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[1,2]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_stresses(0, &state, two_dim),
             "element 0: integration point 1: reference stress has incompatible number of components. 2(wrong) != 3"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[2,2,2]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_stresses(0, &state, two_dim),
             "element 0: integration point 1: sx is greater than tolerance. |sx - reference| = 2e0"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[0,2,2]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_stresses(0, &state, two_dim),
             "element 0: integration point 1: sy is greater than tolerance. |sy - reference| = 2e0"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[0,0,2]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_stresses(0, &state, two_dim),
             "element 0: integration point 1: sxy is greater than tolerance. |sxy - reference| = 2e0"
         );
         Ok(())
     }
 
     #[test]
-    fn compare_state_captures_errors_3d() -> Result<(), StrError> {
+    fn compare_displacements_captures_errors_3d() -> Result<(), StrError> {
         let two_dim = false;
-
         let mut equations = EquationNumbers::new(1);
-
         let state = State {
             elements: Vec::new(),
             system_xx: Vector::new(2), // << incorrect
@@ -603,7 +627,7 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: reference displacement has incompatible number of components. 2(wrong) != 3"
         );
 
@@ -612,7 +636,7 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: state does not have uz"
         );
 
@@ -620,7 +644,7 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: state does not have equation 2 corresponding to uz"
         );
 
@@ -636,21 +660,29 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: uz is greater than tolerance. |uz - reference| = 2e0"
         );
+        Ok(())
+    }
 
+    #[test]
+    fn compare_stresses_captures_errors_3d() -> Result<(), StrError> {
+        let two_dim = false;
+        let mut equations = EquationNumbers::new(1);
+        equations.activate_equation(0, Dof::Ux);
+        equations.activate_equation(0, Dof::Uy);
+        equations.activate_equation(0, Dof::Uz);
+        let neq = equations.nequation();
         let stress = StateStress {
             internal_values: Vec::new(),
             stress: Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], true, two_dim)?,
         };
-        let elements = vec![StateElement {
-            seepage: Vec::new(),
-            stress: vec![stress],
-        }];
-
         let mut state = State {
-            elements,
+            elements: vec![StateElement {
+                seepage: Vec::new(),
+                stress: vec![stress.clone(), stress.clone()],
+            }],
             system_xx: Vector::new(neq),
             system_yy: Vector::new(neq),
         };
@@ -660,20 +692,20 @@ mod tests {
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_stresses(0, &state, two_dim),
             "element 0: integration point 0: reference stress has incompatible number of components. 3(wrong) != 4"
         );
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0,2]]]}]}"#)?;
         assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
+            val.compare_stresses(0, &state, two_dim),
             "element 0: integration point 0: sz is greater than tolerance. |sz - reference| = 2e0"
         );
         Ok(())
     }
 
     #[test]
-    fn compare_state_works_with_no_data() -> Result<(), StrError> {
+    fn compare_displacements_and_stresses_work_with_no_data() -> Result<(), StrError> {
         let two_dim = true;
         let equations = EquationNumbers::new(0);
         let mut state = State::new_empty();
@@ -682,12 +714,13 @@ mod tests {
             stress: Vec::new(),
         });
         let val = Validator::from_str(r#"{"steps":[{}]}"#)?;
-        assert_eq!(val.compare_state(0, &state, &equations, two_dim), "OK");
+        assert_eq!(val.compare_displacements(0, &state, &equations, two_dim), "OK");
+        assert_eq!(val.compare_stresses(0, &state, two_dim), "OK");
         Ok(())
     }
 
     #[test]
-    fn compare_state_works_2d() -> Result<(), StrError> {
+    fn compare_displacements_and_stress_work_2d() -> Result<(), StrError> {
         /* Example 1.6 from [@bhatti] page 32
 
          Solid bracket with thickness = 0.25
@@ -773,13 +806,13 @@ mod tests {
         let mut val = Validator::read_json("./data/validation/bhatti_1_6.json")?;
         val.tol_displacement = 1e-14;
         val.tol_stress = 1e-14;
-        let res = val.compare_state(0, &state, &equations, two_dim);
-        assert_eq!(res, "OK");
+        assert_eq!(val.compare_displacements(0, &state, &equations, two_dim), "OK");
+        assert_eq!(val.compare_stresses(0, &state, two_dim), "OK");
         Ok(())
     }
 
     #[test]
-    fn compare_state_works_3d() -> Result<(), StrError> {
+    fn compare_displacements_and_stress_work_3d() -> Result<(), StrError> {
         let mut equations = EquationNumbers::new(1);
         equations.activate_equation(0, Dof::Ux);
         equations.activate_equation(0, Dof::Uy);
@@ -803,8 +836,8 @@ mod tests {
         };
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2,3]],"stresses":[[[1.1,2.2,1.2,3.3]]]}]}"#)?;
-        let res = val.compare_state(0, &state, &equations, two_dim);
-        assert_eq!(res, "OK");
+        assert_eq!(val.compare_displacements(0, &state, &equations, two_dim), "OK");
+        assert_eq!(val.compare_stresses(0, &state, two_dim), "OK");
         Ok(())
     }
 }
