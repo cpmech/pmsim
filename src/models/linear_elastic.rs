@@ -31,7 +31,12 @@ impl BaseStressStrain for LinearElastic {
     }
 
     /// Computes the consistent modulus dsig/deps
-    fn consistent_modulus(&self, dd: &mut Tensor4, _state: &StateStress) -> Result<(), StrError> {
+    fn consistent_modulus(
+        &self,
+        dd: &mut Tensor4,
+        _state: &StateStress,
+        _first_iteration: bool,
+    ) -> Result<(), StrError> {
         let dd_ela = self.lin_elast.get_modulus();
         copy_matrix(&mut dd.mat, &dd_ela.mat)
     }

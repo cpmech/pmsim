@@ -3,11 +3,13 @@ use crate::models::PorousMedium;
 use crate::simulation::{EquationNumbers, Initializer, ParamFluids, ParamPorous, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
+use russell_lab::Matrix;
 
 /// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
 pub struct PorousUsPlPg {
     _shape: Shape,
     _model: PorousMedium, // material model
+    kk: Matrix,           // local K-matrix (neq,neq)
 }
 
 impl PorousUsPlPg {
@@ -22,6 +24,7 @@ impl PorousUsPlPg {
         Ok(PorousUsPlPg {
             _shape: shape,
             _model: PorousMedium::new(param_fluids, param_porous, two_dim)?,
+            kk: Matrix::new(0, 0),
         })
     }
 }
@@ -38,13 +41,18 @@ impl BaseElement for PorousUsPlPg {
     }
 
     /// Computes the element Y-vector
-    fn calc_local_yy_vector(&mut self) -> Result<(), StrError> {
+    fn calc_local_yy_vector(&mut self, _state: &StateElement) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element K-matrix
-    fn calc_local_kk_matrix(&mut self, _first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_kk_matrix(&mut self, _state: &StateElement, _first_iteration: bool) -> Result<(), StrError> {
         Ok(())
+    }
+
+    /// Returns the element K matrix (e.g., for debugging)
+    fn get_local_kk_matrix(&self) -> &Matrix {
+        &self.kk
     }
 
     /// Assembles the local Y-vector into the global Y-vector

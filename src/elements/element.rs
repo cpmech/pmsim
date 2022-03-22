@@ -2,6 +2,7 @@ use super::{Beam, PorousUsPl, PorousUsPlPg, Rod, SeepagePl, SeepagePlPg, Solid};
 use crate::simulation::{Configuration, ElementConfig, EquationNumbers, Initializer, StateElement};
 use crate::StrError;
 use gemlab::mesh::CellId;
+use russell_lab::Matrix;
 
 /// Defines a trait for (finite) elements
 ///
@@ -33,10 +34,13 @@ pub trait BaseElement {
     fn new_state(&self, initializer: &Initializer) -> Result<StateElement, StrError>;
 
     /// Computes the element Y-vector
-    fn calc_local_yy_vector(&mut self) -> Result<(), StrError>;
+    fn calc_local_yy_vector(&mut self, state: &StateElement) -> Result<(), StrError>;
 
     /// Computes the element K-matrix
-    fn calc_local_kk_matrix(&mut self, first_iteration: bool) -> Result<(), StrError>;
+    fn calc_local_kk_matrix(&mut self, state: &StateElement, first_iteration: bool) -> Result<(), StrError>;
+
+    /// Returns the element K matrix (e.g., for debugging)
+    fn get_local_kk_matrix(&self) -> &Matrix;
 
     /// Assembles the local Y-vector into the global Y-vector
     fn assemble_yy_vector(&self, yy: &mut Vec<f64>) -> Result<(), StrError>;

@@ -15,7 +15,7 @@ pub struct StateSeepage {
 /// Holds stress state variables for an integration point
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StateStress {
-    pub stress: Tensor2,           // total or effective stress
+    pub sigma: Tensor2,            // total or effective stress
     pub internal_values: Vec<f64>, // internal values
 }
 

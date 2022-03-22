@@ -9,7 +9,7 @@ pub trait BaseStressStrain {
     fn new_internal_values(&self, stress: &Tensor2) -> Result<Vec<f64>, StrError>;
 
     /// Computes the consistent modulus dsig/deps
-    fn consistent_modulus(&self, dd: &mut Tensor4, state: &StateStress) -> Result<(), StrError>;
+    fn consistent_modulus(&self, dd: &mut Tensor4, state: &StateStress, first_iteration: bool) -> Result<(), StrError>;
 }
 
 /// Implements a model for stress-strain relations
