@@ -128,7 +128,7 @@ impl Validator {
             }
             let element = &mut elements[element_id];
             if let Err(e) = element.base.calc_local_kk_matrix(&state.elements[element_id], true) {
-                return e.to_string();
+                return format!("element {}: calc_local_kk_matrix failed: {}", element_id, e);
             }
             let kk = element.base.get_local_kk_matrix();
             let reference = &cmp.kk_matrices[element_id];
@@ -141,7 +141,7 @@ impl Validator {
                         );
                     }
                 }
-                Err(e) => return e.to_string(),
+                Err(e) => return format!("element {}: mat_max_abs_diff failed: {}", element_id, e),
             }
         }
         "OK".to_string()
@@ -523,6 +523,78 @@ mod tests {
         assert_eq!(val.steps[0].kk_matrices.len(), 4);
         assert_eq!(val.steps[0].displacements.len(), 6);
         assert_eq!(val.steps[0].stresses.len(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn compare_kk_matrices_captures_errors() -> Result<(), StrError> {
+        /* Example 1.6 from [@bhatti] page 32
+
+         Solid bracket with thickness = 0.25
+
+                      1    load                connectivity:
+         y=2.0  fixed *'-,__                    eid : vertices
+                      |     '-,_  3   load        0 :  0, 2, 3
+         y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
+                      |  1   ,'  |    '-,_  5     2 :  2, 4, 5
+         y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
+                      |  ,'  0   |   ,-'   |
+                      |,'        |,-'   2  |   constraints:
+         y=0.0  fixed *----------*---------*     fixed on x and y
+                      0          2         4
+                     x=0.0     x=2.0     x=4.0
+
+        # References
+
+        [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
+                  and Applications, Wiley, 700p.
+        */
+        let mesh = Mesh::from_text_file("./data/meshes/bhatti_1_6.msh")?;
+
+        let mut config = Configuration::new(&mesh);
+        config.plane_stress(true)?.thickness(0.24)?; // << wrong
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 10_000.0,
+                poisson: 0.2,
+            },
+        };
+        config.elements(1, ElementConfig::Solid(param, None))?;
+        let initializer = Initializer::new(&config)?;
+
+        let element_0 = Element::new(&config, 0)?;
+        let state = State {
+            elements: vec![element_0.base.new_state(&initializer)?],
+            system_xx: Vector::new(0),
+            system_yy: Vector::new(0),
+        };
+        let mut elements = vec![element_0];
+
+        let val = Validator::from_str(r#"{ "steps": [] }"#)?;
+        assert_eq!(
+            val.compare_kk_matrices(0, &state, &mut elements),
+            "reference results for the step are not available"
+        );
+
+        let val = Validator::from_str(r#"{ "steps": [ { "Kmats":[] } ] }"#)?;
+        assert_eq!(
+            val.compare_kk_matrices(0, &state, &mut elements),
+            "element 0: reference K matrix is not available"
+        );
+
+        let val = Validator::from_str(r#"{ "steps": [ { "Kmats":[ {"nrow":2,"ncol":2,"data":[1,2,3,4]} ] } ] }"#)?;
+        assert_eq!(
+            val.compare_kk_matrices(0, &state, &mut elements),
+            "element 0: mat_max_abs_diff failed: matrices are incompatible"
+        );
+
+        let val = Validator::read_json("./data/validation/bhatti_1_6.json")?;
+        let res = val.compare_kk_matrices(0, &state, &mut elements);
+        assert_eq!(
+            &res[..66],
+            "element 0: K33 component is greater than tolerance. max_abs_diff ="
+        );
         Ok(())
     }
 
