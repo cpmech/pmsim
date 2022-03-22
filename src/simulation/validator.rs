@@ -139,7 +139,7 @@ impl Validator {
                 Some(eq) => {
                     if eq >= state.system_xx.dim() {
                         return format!(
-                            "point: {}: state does not have ux corresponding to equation {}",
+                            "point {}: state does not have equation {} corresponding to ux",
                             point_id, eq
                         );
                     }
@@ -151,7 +151,7 @@ impl Validator {
                 Some(eq) => {
                     if eq >= state.system_xx.dim() {
                         return format!(
-                            "point {}: state does not have uy corresponding to equation {}",
+                            "point {}: state does not have equation {} corresponding to uy",
                             point_id, eq
                         );
                     }
@@ -178,7 +178,7 @@ impl Validator {
                     Some(eq) => {
                         if eq >= state.system_xx.dim() {
                             return format!(
-                                "point {}: state does not have uz corresponding to equation {}",
+                                "point {}: state does not have equation {} corresponding to uz",
                                 point_id, eq
                             );
                         }
@@ -440,17 +440,12 @@ mod tests {
         let two_dim = true;
 
         let mut equations = EquationNumbers::new(1);
-        equations.activate_equation(0, Dof::Ux);
-        equations.activate_equation(0, Dof::Uy);
 
-        let neq = equations.nequation();
         let mut state = State {
             elements: Vec::new(),
-            system_xx: Vector::new(neq),
-            system_yy: Vector::new(neq),
+            system_xx: Vector::new(0), // << incorrect
+            system_yy: Vector::new(0), // << incorrect
         };
-        state.system_xx[0] = 3.0;
-        state.system_xx[1] = 4.0;
 
         let val = Validator::from_json(r#"{ "steps": [] }"#)?;
         assert_eq!(
@@ -469,6 +464,47 @@ mod tests {
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: reference displacement has incompatible number of components. 1(wrong) != 2"
         );
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: state does not have ux"
+        );
+
+        equations.activate_equation(0, Dof::Ux);
+        state.system_xx = Vector::new(2);
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: state does not have uy"
+        );
+
+        equations.activate_equation(0, Dof::Uy);
+        state.system_xx = Vector::new(0); // << incorrect
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: state does not have equation 0 corresponding to ux"
+        );
+
+        state.system_xx = Vector::new(1); // << incorrect
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: state does not have equation 1 corresponding to uy"
+        );
+
+        let neq = equations.nequation();
+        let mut state = State {
+            elements: Vec::new(),
+            system_xx: Vector::new(neq),
+            system_yy: Vector::new(neq),
+        };
+        state.system_xx[0] = 3.0;
+        state.system_xx[1] = 4.0;
 
         let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -542,9 +578,35 @@ mod tests {
         let two_dim = false;
 
         let mut equations = EquationNumbers::new(1);
+
+        let state = State {
+            elements: Vec::new(),
+            system_xx: Vector::new(2), // << incorrect
+            system_yy: Vector::new(2), // << incorrect
+        };
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: reference displacement has incompatible number of components. 2(wrong) != 3"
+        );
+
         equations.activate_equation(0, Dof::Ux);
         equations.activate_equation(0, Dof::Uy);
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: state does not have uz"
+        );
+
         equations.activate_equation(0, Dof::Uz);
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        assert_eq!(
+            val.compare_state(0, &state, &equations, two_dim),
+            "point 0: state does not have equation 2 corresponding to uz"
+        );
 
         let neq = equations.nequation();
         let mut state = State {
@@ -555,12 +617,6 @@ mod tests {
         state.system_xx[0] = 3.0;
         state.system_xx[1] = 4.0;
         state.system_xx[2] = 6.0;
-
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
-        assert_eq!(
-            val.compare_state(0, &state, &equations, two_dim),
-            "point 0: reference displacement has incompatible number of components. 2(wrong) != 3"
-        );
 
         let val = Validator::from_json(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
