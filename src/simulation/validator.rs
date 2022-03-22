@@ -78,7 +78,7 @@ pub struct Validator {
 
 impl Validator {
     /// Returns a new Validator from JSON string
-    pub fn from_json(cmp: &str) -> Result<Self, StrError> {
+    pub fn from_str(cmp: &str) -> Result<Self, StrError> {
         let mut res: Validator = serde_json::from_str(&cmp).map_err(|op| {
             println!("ERROR: {}", op);
             return "serde_json failed";
@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn serialize_handles_errors() {
-        assert_eq!(Validator::from_json("").err(), Some("serde_json failed"));
+        assert_eq!(Validator::from_str("").err(), Some("serde_json failed"));
         assert_eq!(Validator::read_json("").err(), Some("file not found"));
         assert_eq!(
             Validator::read_json("./data/validation/z_wrong_data_for_test.json").err(),
@@ -298,7 +298,7 @@ mod tests {
             "ValidatorIteration { iteration: 1, relative_residual: 2.0, absolute_residual: 3.0 }"
         );
 
-        let val = Validator::from_json(
+        let val = Validator::from_str(
             r#"{ "steps":
           [
             {
@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn from_json_works() -> Result<(), StrError> {
-        let val = Validator::from_json(
+        let val = Validator::from_str(
             r#"{ "steps":
           [
             {
@@ -463,25 +463,25 @@ mod tests {
             system_yy: Vector::new(0), // << incorrect
         };
 
-        let val = Validator::from_json(r#"{ "steps": [] }"#)?;
+        let val = Validator::from_str(r#"{ "steps": [] }"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "reference results for the step are not available"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: reference displacement is not available"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1]],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: reference displacement has incompatible number of components. 1(wrong) != 2"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: state does not have ux"
@@ -490,7 +490,7 @@ mod tests {
         equations.activate_equation(0, Dof::Ux);
         state.system_xx = Vector::new(2);
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: state does not have uy"
@@ -499,7 +499,7 @@ mod tests {
         equations.activate_equation(0, Dof::Uy);
         state.system_xx = Vector::new(0); // << incorrect
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: state does not have equation 0 corresponding to ux"
@@ -507,7 +507,7 @@ mod tests {
 
         state.system_xx = Vector::new(1); // << incorrect
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: state does not have equation 1 corresponding to uy"
@@ -522,13 +522,13 @@ mod tests {
         state.system_xx[0] = 3.0;
         state.system_xx[1] = 4.0;
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: ux is greater than tolerance. |ux - reference| = 2e0"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[3,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[3,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: uy is greater than tolerance. |uy - reference| = 2e0"
@@ -551,37 +551,37 @@ mod tests {
         state.system_xx[0] = 1.0;
         state.system_xx[1] = 2.0;
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "element 0: reference stress is not available"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "element 0: integration point 1: reference stress is not available"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[1,2]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[1,2]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "element 0: integration point 1: reference stress has incompatible number of components. 2(wrong) != 3"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[2,2,2]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[2,2,2]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "element 0: integration point 1: sx is greater than tolerance. |sx - reference| = 2e0"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[0,2,2]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[0,2,2]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "element 0: integration point 1: sy is greater than tolerance. |sy - reference| = 2e0"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[0,0,2]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[0,0,0],[0,0,2]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "element 0: integration point 1: sxy is greater than tolerance. |sxy - reference| = 2e0"
@@ -601,7 +601,7 @@ mod tests {
             system_yy: Vector::new(2), // << incorrect
         };
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: reference displacement has incompatible number of components. 2(wrong) != 3"
@@ -610,7 +610,7 @@ mod tests {
         equations.activate_equation(0, Dof::Ux);
         equations.activate_equation(0, Dof::Uy);
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: state does not have uz"
@@ -618,7 +618,7 @@ mod tests {
 
         equations.activate_equation(0, Dof::Uz);
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: state does not have equation 2 corresponding to uz"
@@ -634,7 +634,7 @@ mod tests {
         state.system_xx[1] = 4.0;
         state.system_xx[2] = 6.0;
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "point 0: uz is greater than tolerance. |uz - reference| = 2e0"
@@ -658,13 +658,13 @@ mod tests {
         state.system_xx[1] = 4.0;
         state.system_xx[2] = 6.0;
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "element 0: integration point 0: reference stress has incompatible number of components. 3(wrong) != 4"
         );
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0,2]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0,2]]]}]}"#)?;
         assert_eq!(
             val.compare_state(0, &state, &equations, two_dim),
             "element 0: integration point 0: sz is greater than tolerance. |sz - reference| = 2e0"
@@ -681,7 +681,7 @@ mod tests {
             seepage: Vec::new(),
             stress: Vec::new(),
         });
-        let val = Validator::from_json(r#"{"steps":[{}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{}]}"#)?;
         assert_eq!(val.compare_state(0, &state, &equations, two_dim), "OK");
         Ok(())
     }
@@ -802,7 +802,7 @@ mod tests {
             system_yy: Vector::new(neq),
         };
 
-        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2,3]],"stresses":[[[1.1,2.2,1.2,3.3]]]}]}"#)?;
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2,3]],"stresses":[[[1.1,2.2,1.2,3.3]]]}]}"#)?;
         let res = val.compare_state(0, &state, &equations, two_dim);
         assert_eq!(res, "OK");
         Ok(())
