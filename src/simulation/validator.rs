@@ -275,34 +275,34 @@ mod tests {
     #[test]
     fn clone_and_serialize_work() -> Result<(), StrError> {
         let val = Validator::from_json(
-            "{ \"steps\":\n\
-          [\n\
-            {\n\
-              \"Kmats\": [\n\
-                [\n\
-                  [1, 2],\n\
-                  [3, 4]\n\
-                ],\n\
-                [\n\
-                  [10, 20],\n\
-                  [30, 40]\n\
-                ]\n\
-              ],\n\
-              \"disp\": [\n\
-                [11, 21],\n\
-                [12, 22]\n\
-              ],\n\
-              \"stresses\": [\n\
-                [\n\
-                  [100, 101, 102, 103]\n\
-                ],\n\
-                [\n\
-                  [200, 201, 202, 203]\n\
-                ]\n\
-              ]\n\
-            }\n\
-          ]\n\
-        }",
+            r#"{ "steps":
+          [
+            {
+              "Kmats": [
+                [
+                  [1, 2],
+                  [3, 4]
+                ],
+                [
+                  [10, 20],
+                  [30, 40]
+                ]
+              ],
+              "disp": [
+                [11, 21],
+                [12, 22]
+              ],
+              "stresses": [
+                [
+                  [100, 101, 102, 103]
+                ],
+                [
+                  [200, 201, 202, 203]
+                ]
+              ]
+            }
+          ]
+        }"#,
         )?;
         assert_eq!(val.steps.len(), 1);
         let res = &val.steps[0];
@@ -341,73 +341,73 @@ mod tests {
     #[test]
     fn from_json_works() -> Result<(), StrError> {
         let val = Validator::from_json(
-            "{ \"steps\":\n\
-          [\n\
-            {\n\
-              \"loadfactor\" : 1,\n\
-              \"iterations\" : [\n\
-                { \"it\":1, \"resrel\": 1, \"resid\": 2}\n\
-              ],\n\
-              \"disp\" : [\n\
-                [1, 2],\n\
-                [1, 2]\n\
-              ],\n\
-              \"stresses\" : [\n\
-                [\n\
-                  [1, 2, 3, 4],\n\
-                  [1, 2, 3, 4]\n\
-                ],\n\
-                [\n\
-                  [1, 2, 3, 4],\n\
-                  [1, 2, 3, 4]\n\
-                ]\n\
-              ]\n\
-            },\n\
-            {\n\
-              \"loadfactor\" : 2,\n\
-              \"iterations\" : [\n\
-                { \"it\":1, \"resrel\": 1, \"resid\": 2},\n\
-                { \"it\":2, \"resrel\": 1, \"resid\": 2}\n\
-              ],\n\
-              \"disp\" : [\n\
-                [1, 2],\n\
-                [1, 2]\n\
-              ],\n\
-              \"stresses\" : [\n\
-                [\n\
-                  [1, 2, 3, 4],\n\
-                  [1, 2, 3, 4]\n\
-                ],\n\
-                [\n\
-                  [1, 2, 3, 4],\n\
-                  [1, 2, 3, 4]\n\
-                ]\n\
-              ]\n\
-            },\n\
-            {\n\
-              \"loadfactor\" : 3,\n\
-              \"iterations\" : [\n\
-                { \"it\":1, \"resrel\": 1, \"resid\": 2},\n\
-                { \"it\":2, \"resrel\": 1, \"resid\": 2},\n\
-                { \"it\":3, \"resrel\": 1, \"resid\": 2}\n\
-              ],\n\
-              \"disp\" : [\n\
-                [1, 2],\n\
-                [1, 2]\n\
-              ],\n\
-              \"stresses\" : [\n\
-                [\n\
-                  [1, 2, 3, 4],\n\
-                  [1, 2, 3, 4]\n\
-                ],\n\
-                [\n\
-                  [1, 2, 3, 4],\n\
-                  [1, 2, 3, 4]\n\
-                ]\n\
-              ]\n\
-            }\n\
-          ]\n\
-        }",
+            r#"{ "steps":
+          [
+            {
+              "loadfactor" : 1,
+              "iterations" : [
+                { "it":1, "resrel": 1, "resid": 2}
+              ],
+              "disp" : [
+                [1, 2],
+                [1, 2]
+              ],
+              "stresses" : [
+                [
+                  [1, 2, 3, 4],
+                  [1, 2, 3, 4]
+                ],
+                [
+                  [1, 2, 3, 4],
+                  [1, 2, 3, 4]
+                ]
+              ]
+            },
+            {
+              "loadfactor" : 2,
+              "iterations" : [
+                { "it":1, "resrel": 1, "resid": 2},
+                { "it":2, "resrel": 1, "resid": 2}
+              ],
+              "disp" : [
+                [1, 2],
+                [1, 2]
+              ],
+              "stresses" : [
+                [
+                  [1, 2, 3, 4],
+                  [1, 2, 3, 4]
+                ],
+                [
+                  [1, 2, 3, 4],
+                  [1, 2, 3, 4]
+                ]
+              ]
+            },
+            {
+              "loadfactor" : 3,
+              "iterations" : [
+                { "it":1, "resrel": 1, "resid": 2},
+                { "it":2, "resrel": 1, "resid": 2},
+                { "it":3, "resrel": 1, "resid": 2}
+              ],
+              "disp" : [
+                [1, 2],
+                [1, 2]
+              ],
+              "stresses" : [
+                [
+                  [1, 2, 3, 4],
+                  [1, 2, 3, 4]
+                ],
+                [
+                  [1, 2, 3, 4],
+                  [1, 2, 3, 4]
+                ]
+              ]
+            }
+          ]
+        }"#,
         )?;
         assert_eq!(val.steps.len(), 3);
         assert_eq!(val.steps[0].iterations.len(), 1);
