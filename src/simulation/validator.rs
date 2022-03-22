@@ -673,7 +673,21 @@ mod tests {
     }
 
     #[test]
-    fn compare_state_works() -> Result<(), StrError> {
+    fn compare_state_works_with_no_data() -> Result<(), StrError> {
+        let two_dim = true;
+        let equations = EquationNumbers::new(0);
+        let mut state = State::new_empty();
+        state.elements.push(StateElement {
+            seepage: Vec::new(),
+            stress: Vec::new(),
+        });
+        let val = Validator::from_json(r#"{"steps":[{}]}"#)?;
+        assert_eq!(val.compare_state(0, &state, &equations, two_dim), "OK");
+        Ok(())
+    }
+
+    #[test]
+    fn compare_state_works_2d() -> Result<(), StrError> {
         /* Example 1.6 from [@bhatti] page 32
 
          Solid bracket with thickness = 0.25
@@ -721,8 +735,24 @@ mod tests {
             }],
         };
 
+        let state_element_1 = StateElement {
+            seepage: Vec::new(),
+            stress: vec![StateStress {
+                stress: Tensor2::from_matrix(
+                    &[
+                        [2.462317949521848e+01, -5.153261537858599e+01, 0.0],
+                        [-5.153261537858599e+01, 4.924635899043697e+00, 0.0],
+                        [0.0, 0.0, 0.0],
+                    ],
+                    true,
+                    two_dim,
+                )?,
+                internal_values: Vec::new(),
+            }],
+        };
+
         let state = State {
-            elements: vec![state_element_0],
+            elements: vec![state_element_0, state_element_1],
             system_xx: Vector::from(&[
                 0.000000000000000e+00,
                 0.000000000000000e+00,
@@ -743,7 +773,36 @@ mod tests {
         let mut val = Validator::read_json("./data/validation/bhatti_1_6.json")?;
         val.tol_displacement = 1e-14;
         val.tol_stress = 1e-14;
+        let res = val.compare_state(0, &state, &equations, two_dim);
+        assert_eq!(res, "OK");
+        Ok(())
+    }
 
+    #[test]
+    fn compare_state_works_3d() -> Result<(), StrError> {
+        let mut equations = EquationNumbers::new(1);
+        equations.activate_equation(0, Dof::Ux);
+        equations.activate_equation(0, Dof::Uy);
+        equations.activate_equation(0, Dof::Uz);
+
+        let neq = equations.nequation();
+        let two_dim = false;
+
+        let state_element_0 = StateElement {
+            seepage: Vec::new(),
+            stress: vec![StateStress {
+                stress: Tensor2::from_matrix(&[[1.1, 1.2, 1.3], [1.2, 2.2, 2.3], [1.3, 2.3, 3.3]], true, two_dim)?,
+                internal_values: Vec::new(),
+            }],
+        };
+
+        let state = State {
+            elements: vec![state_element_0],
+            system_xx: Vector::from(&[1.0, 2.0, 3.0]),
+            system_yy: Vector::new(neq),
+        };
+
+        let val = Validator::from_json(r#"{"steps":[{"disp":[[1,2,3]],"stresses":[[[1.1,2.2,1.2,3.3]]]}]}"#)?;
         let res = val.compare_state(0, &state, &equations, two_dim);
         assert_eq!(res, "OK");
         Ok(())
