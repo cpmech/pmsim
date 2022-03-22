@@ -8,7 +8,7 @@ pub trait BaseStressStrain {
     /// Allocates internal values
     fn new_internal_values(&self, stress: &Tensor2) -> Result<Vec<f64>, StrError>;
 
-    /// Computes the consistent modulus dsig/deps
+    /// Computes the consistent modulus d_sigma/d_epsilon
     fn consistent_modulus(&self, dd: &mut Tensor4, state: &StateStress, first_iteration: bool) -> Result<(), StrError>;
 }
 
