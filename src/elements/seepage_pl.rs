@@ -2,7 +2,8 @@ use super::BaseElement;
 use crate::simulation::{EquationNumbers, Initializer, ParamSeepage, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
-use russell_lab::Matrix;
+use russell_lab::{Matrix, Vector};
+use russell_sparse::SparseTriplet;
 
 /// Implements the pl (liquid pressure) element for seepage simulations
 pub struct SeepagePl {
@@ -21,13 +22,18 @@ impl SeepagePl {
 }
 
 impl BaseElement for SeepagePl {
-    /// Activates an equation number, if not set yet
-    fn set_equation_numbers(&self, _equation_numbers: &mut EquationNumbers) -> usize {
+    /// Activates equation identification numbers
+    ///
+    /// Returns the total number of entries in the local K matrix that can be used to
+    /// estimate the total number of non-zero values in the global K matrix
+    fn activate_equations(&mut self, _equation_numbers: &mut EquationNumbers) -> usize {
         0
     }
 
-    /// Allocates and initializes the element's state at all integration points
-    fn new_state(&self, _initializer: &Initializer) -> Result<StateElement, StrError> {
+    /// Returns a new StateElement with initialized state data at all integration points
+    ///
+    /// Note: the use of "mut" here allows `shape.calc_integ_points_coords` to be called from within the element
+    fn new_state(&mut self, _initializer: &Initializer) -> Result<StateElement, StrError> {
         Ok(StateElement::new_empty())
     }
 
@@ -47,12 +53,12 @@ impl BaseElement for SeepagePl {
     }
 
     /// Assembles the local Y-vector into the global Y-vector
-    fn assemble_yy_vector(&self, _yy: &mut Vec<f64>) -> Result<(), StrError> {
+    fn assemble_yy_vector(&self, _yy: &mut Vector) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_kk_matrix(&self, _kk: &mut Vec<Vec<f64>>) -> Result<(), StrError> {
+    fn assemble_kk_matrix(&self, _kk: &mut SparseTriplet) -> Result<(), StrError> {
         Ok(())
     }
 }

@@ -2,7 +2,8 @@ use super::{Beam, PorousUsPl, PorousUsPlPg, Rod, SeepagePl, SeepagePlPg, Solid};
 use crate::simulation::{Configuration, ElementConfig, EquationNumbers, Initializer, StateElement};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_lab::Matrix;
+use russell_lab::{Matrix, Vector};
+use russell_sparse::SparseTriplet;
 
 /// Defines a trait for (finite) elements
 ///
@@ -27,11 +28,16 @@ use russell_lab::Matrix;
 /// kk := {K}
 /// ```
 pub trait BaseElement {
-    /// Activates an equation number, if not set yet
-    fn set_equation_numbers(&self, equation_numbers: &mut EquationNumbers) -> usize;
+    /// Activates equation identification numbers
+    ///
+    /// Returns the total number of entries in the local K matrix that can be used to
+    /// estimate the total number of non-zero values in the global K matrix
+    fn activate_equations(&mut self, equation_numbers: &mut EquationNumbers) -> usize;
 
-    /// Allocates and initializes the element's state at all integration points
-    fn new_state(&self, initializer: &Initializer) -> Result<StateElement, StrError>;
+    /// Returns a new StateElement with initialized state data at all integration points
+    ///
+    /// Note: the use of "mut" here allows `shape.calc_integ_points_coords` to be called from within the element
+    fn new_state(&mut self, initializer: &Initializer) -> Result<StateElement, StrError>;
 
     /// Computes the element Y-vector
     fn calc_local_yy_vector(&mut self, state: &StateElement) -> Result<(), StrError>;
@@ -43,10 +49,10 @@ pub trait BaseElement {
     fn get_local_kk_matrix(&self) -> &Matrix;
 
     /// Assembles the local Y-vector into the global Y-vector
-    fn assemble_yy_vector(&self, yy: &mut Vec<f64>) -> Result<(), StrError>;
+    fn assemble_yy_vector(&self, yy: &mut Vector) -> Result<(), StrError>;
 
     /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_kk_matrix(&self, kk: &mut Vec<Vec<f64>>) -> Result<(), StrError>;
+    fn assemble_kk_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError>;
 }
 
 /// Defines a finite element

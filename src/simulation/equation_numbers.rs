@@ -25,11 +25,17 @@ impl EquationNumbers {
     ///
     /// Note: Also increments the number of equations count
     ///       if the equation does not exist yet
-    pub fn activate_equation(&mut self, point_id: PointId, dof: Dof) {
+    ///
+    /// # Output
+    ///
+    /// * `eq` -- Returns the current or newly allocated equation number
+    ///           corresponding to `point_id` and `dof` index
+    pub fn activate_equation(&mut self, point_id: PointId, dof: Dof) -> usize {
         if self.numbers[point_id][dof as usize] < 0 {
             self.numbers[point_id][dof as usize] = self.count;
             self.count += 1;
         }
+        self.numbers[point_id][dof as usize] as usize
     }
 
     /// Returns the number of points
