@@ -153,7 +153,7 @@ mod tests {
     };
     use crate::StrError;
     use gemlab::mesh::Mesh;
-    use gemlab::shapes::Shape;
+    use gemlab::shapes::{AnalyticalTri3, Shape};
     use russell_chk::assert_vec_approx_eq;
     use russell_lab::{mat_max_abs_diff, Matrix};
     use russell_tensor::Tensor2;
@@ -273,16 +273,32 @@ mod tests {
 
     #[test]
     fn calc_local_yy_vector_works() -> Result<(), StrError> {
-        let mut element_5 = get_element_5()?;
+        // constant tensor function: σ(x) = {σ₀₀, σ₁₁, σ₂₂, σ₀₁√2}
+        // solution:
+        //    dᵐ₀ = ½ (σ₀₀ bₘ + σ₀₁ cₘ)
+        //    dᵐ₁ = ½ (σ₁₀ bₘ + σ₁₁ cₘ)
+        const S00: f64 = 2.0;
+        const S11: f64 = 3.0;
+        const S22: f64 = 4.0;
+        const S01: f64 = 5.0;
+        #[rustfmt::skip]
+        let sigma = Tensor2::from_matrix(&[
+            [S00, S01, 0.0],
+            [S01, S11, 0.0],
+            [0.0, 0.0, S22],
+        ],true,true)?;
         let state = StateElement {
             seepage: Vec::new(),
             stress: vec![StateStress {
-                sigma: Tensor2::new(true, true),
+                sigma,
                 internal_values: Vec::new(),
             }],
         };
+        let mut element_5 = get_element_5()?;
         element_5.calc_local_yy_vector(&state)?;
-        assert_vec_approx_eq!(element_5.yy.as_data(), &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 1e-14);
+        let mut ana = AnalyticalTri3::new(&mut element_5.shape);
+        let yy_correct = ana.integ_vec_d_constant(S00, S11, S01);
+        assert_vec_approx_eq!(element_5.yy.as_data(), &yy_correct, 1e-14);
         Ok(())
     }
 
@@ -297,8 +313,10 @@ mod tests {
             }],
         };
         element_5.calc_local_kk_matrix(&state, true)?;
+
+        // compare with book
         #[rustfmt::skip]
-        let reference = Matrix::from(&[
+        let kk_book = Matrix::from(&[
            [ 6.730769230769230E+05,  0.000000000000000E+00, -6.730769230769230E+05,  2.884615384615384E+05,  0.000000000000000E+00, -2.884615384615384E+05],
            [ 0.000000000000000E+00,  1.923076923076923E+05,  1.923076923076923E+05, -1.923076923076923E+05, -1.923076923076923E+05,  0.000000000000000E+00],
            [-6.730769230769230E+05,  1.923076923076923E+05,  8.653846153846153E+05, -4.807692307692308E+05, -1.923076923076923E+05,  2.884615384615384E+05],
@@ -306,7 +324,13 @@ mod tests {
            [ 0.000000000000000E+00, -1.923076923076923E+05, -1.923076923076923E+05,  1.923076923076923E+05,  1.923076923076923E+05,  0.000000000000000E+00],
            [-2.884615384615384E+05,  0.000000000000000E+00,  2.884615384615384E+05, -6.730769230769230E+05,  0.000000000000000E+00,  6.730769230769230E+05]
         ]);
-        let (_, _, diff) = mat_max_abs_diff(&element_5.kk, &reference)?;
+        let (_, _, diff) = mat_max_abs_diff(&element_5.kk, &kk_book)?;
+        assert!(diff < 1e-10);
+        let mut ana = AnalyticalTri3::new(&mut element_5.shape);
+
+        // compare with analytical formula
+        let kk_ana = ana.integ_stiffness(1e6, 0.3, false, 1.0)?;
+        let (_, _, diff) = mat_max_abs_diff(&element_5.kk, &kk_ana)?;
         assert!(diff < 1e-10);
         Ok(())
     }
