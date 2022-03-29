@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn calc_local_kk_vector_works() -> Result<(), StrError> {
+    fn calc_local_kk_matrix_works() -> Result<(), StrError> {
         let mut element_5 = get_element_5()?;
         let state = StateElement {
             seepage: Vec::new(),
@@ -330,7 +330,7 @@ mod tests {
 
         // compare with analytical formula
         let kk_ana = ana.integ_stiffness(1e6, 0.3, false, 1.0)?;
-        let (_, _, diff) = mat_max_abs_diff(&element_5.kk, &kk_ana)?;
+        let (_, _, diff) = mat_max_abs_diff(&element_5.get_local_kk_matrix(), &kk_ana)?;
         assert!(diff < 1e-10);
         Ok(())
     }
