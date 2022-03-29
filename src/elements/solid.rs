@@ -40,14 +40,14 @@ impl Solid {
         thickness: f64,
     ) -> Result<Self, StrError> {
         // model
-        let two_dim = shape.space_ndim == 2;
+        let two_dim = shape.geo_ndim == 2;
         let model = StressStrain::new(&param.stress_strain, two_dim, plane_stress)?;
 
         // degrees-of-freedom per node
-        let element_dof = match shape.space_ndim {
+        let element_dof = match shape.geo_ndim {
             2 => vec![Dof::Ux, Dof::Uy],
             3 => vec![Dof::Ux, Dof::Uy, Dof::Uz],
-            _ => return Err("space_ndim is invalid for ElementSolid"),
+            _ => return Err("shape.geo_ndim must be 2 or 3 for Solid element"),
         };
         let neq_local = shape.nnode * element_dof.len();
 
@@ -79,7 +79,7 @@ impl BaseElement for Solid {
         for (m, a) in self.shape.node_to_point.iter().enumerate() {
             for (i, d) in self.element_dof.iter().enumerate() {
                 let p = equation_numbers.activate_equation(*a, *d);
-                let k = i + m * self.shape.space_ndim;
+                let k = i + m * self.shape.geo_ndim;
                 self.local_to_global[k] = p;
             }
         }
@@ -149,7 +149,8 @@ mod tests {
     use super::Solid;
     use crate::elements::BaseElement;
     use crate::simulation::{
-        Configuration, Dof, EquationNumbers, Initializer, ParamSolid, ParamStressStrain, StateElement, StateStress,
+        Configuration, Dof, EquationNumbers, Initializer, ParamSolid, ParamStressStrain, SampleParam, StateElement,
+        StateStress,
     };
     use crate::StrError;
     use gemlab::mesh::Mesh;
@@ -159,6 +160,8 @@ mod tests {
     use russell_tensor::Tensor2;
 
     // The mesh below is used in tests; from Reference #1
+    //
+    //                  (sgm_5_2)
     //
     //          0.25       0.5      0.25 kN/m
     //            ↓         ↓         ↓
@@ -182,8 +185,8 @@ mod tests {
     // Reference
     //
     // 1. Smith, Griffiths and Margetts (5th ed) Figure 5.2 p173
-
-    fn get_element_5() -> Result<Solid, StrError> {
+    //    (sgm_5_2)
+    fn get_sgm_5_2_element_5() -> Result<Solid, StrError> {
         let mut shape_5 = Shape::new(2, 2, 3)?;
         shape_5.set_node(6, 0, 0, 0.0)?;
         shape_5.set_node(6, 0, 1, -1.0)?;
@@ -201,20 +204,78 @@ mod tests {
         Solid::new(shape_5, &param, None, false, 1.0)
     }
 
+    fn get_cube_element(n_integ_point: usize) -> Result<Solid, StrError> {
+        //       4--------------7
+        //      /.             /|
+        //     / .            / |
+        //    /  .           /  |
+        //   /   .          /   |
+        //  5--------------6    |
+        //  |    .         |    |
+        //  |    0---------|----3
+        //  |   /          |   /
+        //  |  /           |  /
+        //  | /            | /
+        //  |/             |/
+        //  1--------------2
+        let mesh = Mesh::from_text(
+            r#"
+            # header
+            # space_ndim npoint ncell
+                       3      8     1
+            # points
+            # id    x   y   z
+               0  0.0 0.0 0.0
+               1  1.0 0.0 0.0
+               2  1.0 1.0 0.0
+               3  0.0 1.0 0.0
+               4  0.0 0.0 1.0
+               5  1.0 0.0 1.0
+               6  1.0 1.0 1.0
+               7  0.0 1.0 1.0
+            # cells
+            # id att geo_ndim nnode  point_ids...
+               0   1        3     8  0 1 2 3 4 5 6 7
+        "#,
+        )?;
+        let shape = mesh.alloc_shape_cell(0)?;
+        let param = SampleParam::param_solid();
+        let cube = Solid::new(shape, &param, Some(n_integ_point), false, 1.0)?;
+        Ok(cube)
+    }
+
+    #[test]
+    fn new_captures_errors() -> Result<(), StrError> {
+        let shape_1d = Shape::new(1, 1, 2)?;
+        let param = SampleParam::param_solid();
+        assert_eq!(
+            Solid::new(shape_1d, &param, None, false, 1.0).err(),
+            Some("shape.geo_ndim must be 2 or 3 for Solid element")
+        );
+        Ok(())
+    }
+
     #[test]
     fn new_works() -> Result<(), StrError> {
-        let element_5 = get_element_5()?;
-        assert_eq!(element_5.shape.node_to_point.len(), 3);
+        // 2D
+        let element_5 = get_sgm_5_2_element_5()?;
+        assert_eq!(element_5.shape.node_to_point, [6, 7, 4]);
         assert_eq!(element_5.thickness, 1.0);
         assert_eq!(element_5.element_dof, vec![Dof::Ux, Dof::Uy]);
         assert_eq!(element_5.yy.dim(), 6);
         assert_eq!(element_5.kk.dims(), (6, 6));
+
+        // 3D
+        let cube = get_cube_element(6)?;
+        assert_eq!(cube.shape.integ_points.len(), 6);
+        assert_eq!(cube.shape.node_to_point, [0, 1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(cube.element_dof, vec![Dof::Ux, Dof::Uy, Dof::Uz]);
         Ok(())
     }
 
     #[test]
     fn activate_equations_works() -> Result<(), StrError> {
-        let mut element_5 = get_element_5()?;
+        let mut element_5 = get_sgm_5_2_element_5()?;
         let mut equation_numbers = EquationNumbers::new(9);
         let nnz = element_5.activate_equations(&mut equation_numbers);
         assert_eq!(nnz, 6 * 6);
@@ -233,11 +294,10 @@ mod tests {
     #[test]
     fn new_state_works() -> Result<(), StrError> {
         let mesh = Mesh::from_text(
-            r#"
+            r#"#       sgm_5_2 mesh
             # header
             # space_ndim npoint ncell
-                    2      9     8
-
+                       2      9     8
             # points
             # id    x    y
                0  0.0  0.0
@@ -249,7 +309,6 @@ mod tests {
                6  0.0 -1.0
                7  0.5 -1.0
                8  1.0 -1.0
-
             # cells
             # id att geo_ndim nnode  point_ids...
                0   1        2     3  1 0 3
@@ -264,7 +323,7 @@ mod tests {
         )?;
         let config = Configuration::new(&mesh);
         let initializer = Initializer::new(&config)?;
-        let mut element_5 = get_element_5()?;
+        let mut element_5 = get_sgm_5_2_element_5()?;
         let state = element_5.new_state(&initializer)?;
         assert_eq!(state.stress.len(), 1);
         assert_vec_approx_eq!(state.stress[0].sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0], 1e-14);
@@ -294,7 +353,7 @@ mod tests {
                 internal_values: Vec::new(),
             }],
         };
-        let mut element_5 = get_element_5()?;
+        let mut element_5 = get_sgm_5_2_element_5()?;
         element_5.calc_local_yy_vector(&state)?;
         let mut ana = AnalyticalTri3::new(&mut element_5.shape);
         let yy_correct = ana.integ_vec_d_constant(S00, S11, S01);
@@ -304,7 +363,7 @@ mod tests {
 
     #[test]
     fn calc_local_kk_matrix_works() -> Result<(), StrError> {
-        let mut element_5 = get_element_5()?;
+        let mut element_5 = get_sgm_5_2_element_5()?;
         let state = StateElement {
             seepage: Vec::new(),
             stress: vec![StateStress {
