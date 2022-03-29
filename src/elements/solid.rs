@@ -147,46 +147,167 @@ impl BaseElement for Solid {
 #[cfg(test)]
 mod tests {
     use super::Solid;
-    use crate::simulation::{Dof, SampleParam};
+    use crate::elements::BaseElement;
+    use crate::simulation::{
+        Configuration, Dof, EquationNumbers, Initializer, ParamSolid, ParamStressStrain, StateElement, StateStress,
+    };
     use crate::StrError;
+    use gemlab::mesh::Mesh;
     use gemlab::shapes::Shape;
+    use russell_chk::assert_vec_approx_eq;
+    use russell_lab::{mat_max_abs_diff, Matrix};
+    use russell_tensor::Tensor2;
+
+    // The mesh below is used in tests; from Reference #1
+    //
+    //          0.25       0.5      0.25 kN/m
+    //            ↓         ↓         ↓
+    //    ---    ▷0---------1---------2   Plane-Strain
+    //     |      |       ,'|       ,'|   E = 1e6 kN/m²
+    //     |      |  0  ,'  |  2  ,'  |   ν = 0.3
+    //     |      |   ,'    |   ,'    |
+    //            | ,'   1  | ,'  3   |   connectivity:
+    //    1 m    ▷3'--------4'--------5     0 : 1 0 3
+    //            |       ,'|       ,'|     1 : 3 4 1
+    //     |      |  4  ,'  |  6  ,'  |     2 : 2 1 4
+    //     |      |   ,'    |   ,'    |     3 : 4 5 2
+    //     |      | ,'   5  | ,'   7  |     4 : 4 3 6
+    //    ---    ▷6'--------7'--------8     5 : 6 7 4
+    //            △         △         △     6 : 5 4 7
+    //                                      7 : 7 8 5
+    //            |------- 1 m -------|
+    //
+    // Note: the x-y origin is at the top-left (Point #0)
+    //
+    // Reference
+    //
+    // 1. Smith, Griffiths and Margetts (5th ed) Figure 5.2 p173
+
+    fn get_element_5() -> Result<Solid, StrError> {
+        let mut shape_5 = Shape::new(2, 2, 3)?;
+        shape_5.set_node(6, 0, 0, 0.0)?;
+        shape_5.set_node(6, 0, 1, -1.0)?;
+        shape_5.set_node(7, 1, 0, 0.5)?;
+        shape_5.set_node(7, 1, 1, -1.0)?;
+        shape_5.set_node(4, 2, 0, 0.5)?;
+        shape_5.set_node(4, 2, 1, -0.5)?;
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 1e6,
+                poisson: 0.3,
+            },
+        };
+        Solid::new(shape_5, &param, None, false, 1.0)
+    }
 
     #[test]
     fn new_works() -> Result<(), StrError> {
-        /* Smith, Griffiths and Margetts (5th ed) Figure 5.2 p173
-         *
-         *          0.25       0.5      0.25 kN/m
-         *            ↓         ↓         ↓
-         *    ---    ▷0---------1---------2   Plane-Strain
-         *     |      |       ,'|       ,'|   E = 1e6 kN/m²
-         *     |      |  0  ,'  |  2  ,'  |   ν = 0.3
-         *     |      |   ,'    |   ,'    |
-         *            | ,'   1  | ,'  3   |   connectivity:
-         *    1 m    ▷3'--------4'--------5     0 : 1 0 3
-         *            |       ,'|       ,'|     1 : 3 4 1
-         *     |      |  4  ,'  |  6  ,'  |     2 : 2 1 4
-         *     |      |   ,'    |   ,'    |     3 : 4 5 2
-         *     |      | ,'   5  | ,'   7  |     4 : 4 3 6
-         *    ---    ▷6'--------7'--------8     5 : 6 7 4
-         *            △         △         △     6 : 5 4 7
-         *                                      7 : 7 8 5
-         *            |------- 1 m -------|
-         */
-
-        let mut shape_5 = Shape::new(2, 2, 3)?;
-        shape_5.set_node(6, 0, 0, 0.0)?;
-        shape_5.set_node(6, 1, 0, 0.0)?;
-        shape_5.set_node(7, 0, 0, 0.5)?;
-        shape_5.set_node(7, 1, 0, -1.0)?;
-        shape_5.set_node(4, 0, 0, 0.5)?;
-        shape_5.set_node(4, 1, 0, -0.5)?;
-        let param = SampleParam::param_solid();
-        let element_5 = Solid::new(shape_5, &param, None, false, 1.0)?;
+        let element_5 = get_element_5()?;
         assert_eq!(element_5.shape.node_to_point.len(), 3);
         assert_eq!(element_5.thickness, 1.0);
         assert_eq!(element_5.element_dof, vec![Dof::Ux, Dof::Uy]);
         assert_eq!(element_5.yy.dim(), 6);
         assert_eq!(element_5.kk.dims(), (6, 6));
+        Ok(())
+    }
+
+    #[test]
+    fn activate_equations_works() -> Result<(), StrError> {
+        let mut element_5 = get_element_5()?;
+        let mut equation_numbers = EquationNumbers::new(9);
+        let nnz = element_5.activate_equations(&mut equation_numbers);
+        assert_eq!(nnz, 6 * 6);
+        assert_eq!(equation_numbers.number(6, Dof::Ux), Some(0));
+        assert_eq!(equation_numbers.number(6, Dof::Uy), Some(1));
+        assert_eq!(equation_numbers.number(7, Dof::Ux), Some(2));
+        assert_eq!(equation_numbers.number(7, Dof::Uy), Some(3));
+        assert_eq!(equation_numbers.number(4, Dof::Ux), Some(4));
+        assert_eq!(equation_numbers.number(4, Dof::Uy), Some(5));
+        assert_eq!(equation_numbers.number(0, Dof::Ux), None);
+        assert_eq!(equation_numbers.number(8, Dof::Uy), None);
+        assert_eq!(equation_numbers.nequation(), 6);
+        Ok(())
+    }
+
+    #[test]
+    fn new_state_works() -> Result<(), StrError> {
+        let mesh = Mesh::from_text(
+            r#"
+            # header
+            # space_ndim npoint ncell
+                    2      9     8
+
+            # points
+            # id    x    y
+               0  0.0  0.0
+               1  0.5  0.0
+               2  1.0  0.0
+               3  0.0 -0.5
+               4  0.5 -0.5
+               5  1.0 -0.5
+               6  0.0 -1.0
+               7  0.5 -1.0
+               8  1.0 -1.0
+
+            # cells
+            # id att geo_ndim nnode  point_ids...
+               0   1        2     3  1 0 3
+               1   1        2     3  3 4 1
+               2   1        2     3  2 1 4
+               3   1        2     3  4 5 2
+               4   1        2     3  4 3 6
+               5   1        2     3  6 7 4
+               6   1        2     3  5 4 7
+               7   1        2     3  7 8 5
+        "#,
+        )?;
+        let config = Configuration::new(&mesh);
+        let initializer = Initializer::new(&config)?;
+        let mut element_5 = get_element_5()?;
+        let state = element_5.new_state(&initializer)?;
+        assert_eq!(state.stress.len(), 1);
+        assert_vec_approx_eq!(state.stress[0].sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0], 1e-14);
+        Ok(())
+    }
+
+    #[test]
+    fn calc_local_yy_vector_works() -> Result<(), StrError> {
+        let mut element_5 = get_element_5()?;
+        let state = StateElement {
+            seepage: Vec::new(),
+            stress: vec![StateStress {
+                sigma: Tensor2::new(true, true),
+                internal_values: Vec::new(),
+            }],
+        };
+        element_5.calc_local_yy_vector(&state)?;
+        assert_vec_approx_eq!(element_5.yy.as_data(), &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 1e-14);
+        Ok(())
+    }
+
+    #[test]
+    fn calc_local_kk_vector_works() -> Result<(), StrError> {
+        let mut element_5 = get_element_5()?;
+        let state = StateElement {
+            seepage: Vec::new(),
+            stress: vec![StateStress {
+                sigma: Tensor2::new(true, true),
+                internal_values: Vec::new(),
+            }],
+        };
+        element_5.calc_local_kk_matrix(&state, true)?;
+        #[rustfmt::skip]
+        let reference = Matrix::from(&[
+           [ 6.730769230769230E+05,  0.000000000000000E+00, -6.730769230769230E+05,  2.884615384615384E+05,  0.000000000000000E+00, -2.884615384615384E+05],
+           [ 0.000000000000000E+00,  1.923076923076923E+05,  1.923076923076923E+05, -1.923076923076923E+05, -1.923076923076923E+05,  0.000000000000000E+00],
+           [-6.730769230769230E+05,  1.923076923076923E+05,  8.653846153846153E+05, -4.807692307692308E+05, -1.923076923076923E+05,  2.884615384615384E+05],
+           [ 2.884615384615384E+05, -1.923076923076923E+05, -4.807692307692308E+05,  8.653846153846153E+05,  1.923076923076923E+05, -6.730769230769230E+05],
+           [ 0.000000000000000E+00, -1.923076923076923E+05, -1.923076923076923E+05,  1.923076923076923E+05,  1.923076923076923E+05,  0.000000000000000E+00],
+           [-2.884615384615384E+05,  0.000000000000000E+00,  2.884615384615384E+05, -6.730769230769230E+05,  0.000000000000000E+00,  6.730769230769230E+05]
+        ]);
+        let (_, _, diff) = mat_max_abs_diff(&element_5.kk, &reference)?;
+        assert!(diff < 1e-10);
         Ok(())
     }
 }
