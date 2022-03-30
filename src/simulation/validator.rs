@@ -562,8 +562,9 @@ mod tests {
         };
         config.elements(1, ElementConfig::Solid(param, None))?;
         let initializer = Initializer::new(&config)?;
+        let mut equation_numbers = EquationNumbers::new(mesh.points.len());
 
-        let mut element_0 = Element::new(&config, 0)?;
+        let mut element_0 = Element::new(&config, 0, &mut equation_numbers)?;
         let element_zero_state = element_0.base.new_state(&initializer)?;
         let state = State {
             elements: vec![element_zero_state],
@@ -635,8 +636,9 @@ mod tests {
         };
         config.elements(1, ElementConfig::Solid(param, None))?;
         let initializer = Initializer::new(&config)?;
+        let mut equation_numbers = EquationNumbers::new(mesh.points.len());
 
-        let mut element_0 = Element::new(&config, 0)?;
+        let mut element_0 = Element::new(&config, 0, &mut equation_numbers)?;
         let element_zero_state = element_0.base.new_state(&initializer)?;
         let state = State {
             elements: vec![element_zero_state],

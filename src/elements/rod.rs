@@ -1,5 +1,5 @@
 use super::BaseElement;
-use crate::simulation::{EquationNumbers, Initializer, ParamRod, StateElement};
+use crate::simulation::{Initializer, ParamRod, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
 use russell_lab::{Matrix, Vector};
@@ -22,14 +22,6 @@ impl Rod {
 }
 
 impl BaseElement for Rod {
-    /// Activates equation identification numbers
-    ///
-    /// Returns the total number of entries in the local K matrix that can be used to
-    /// estimate the total number of non-zero values in the global K matrix
-    fn activate_equations(&mut self, _equation_numbers: &mut EquationNumbers) -> usize {
-        0
-    }
-
     /// Returns a new StateElement with initialized state data at all integration points
     ///
     /// Note: the use of "mut" here allows `shape.calc_integ_points_coords` to be called from within the element

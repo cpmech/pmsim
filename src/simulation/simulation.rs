@@ -38,10 +38,11 @@ impl<'a> Simulation<'a> {
         let mut nnz_max = 0;
         for cell in &mesh.cells {
             // allocate element
-            let mut element = Element::new(config, cell.id)?;
+            let mut element = Element::new(config, cell.id, &mut equation_numbers)?;
 
-            // set DOFs and estimate the max number of non-zeros in the K-matrix
-            nnz_max += element.base.activate_equations(&mut equation_numbers);
+            // estimate the max number of non-zeros in the K-matrix
+            let (nrow, ncol) = element.base.get_local_kk_matrix().dims();
+            nnz_max += nrow * ncol;
 
             // allocate integ points states
             let state_elem = element.base.new_state(&initializer)?;

@@ -28,12 +28,6 @@ use russell_sparse::SparseTriplet;
 /// kk := {K}
 /// ```
 pub trait BaseElement {
-    /// Activates equation identification numbers
-    ///
-    /// Returns the total number of entries in the local K matrix that can be used to
-    /// estimate the total number of non-zero values in the global K matrix
-    fn activate_equations(&mut self, equation_numbers: &mut EquationNumbers) -> usize;
-
     /// Returns a new StateElement with initialized state data at all integration points
     ///
     /// Note: the use of "mut" here allows `shape.calc_integ_points_coords` to be called from within the element
@@ -45,7 +39,7 @@ pub trait BaseElement {
     /// Computes the element K-matrix
     fn calc_local_kk_matrix(&mut self, state: &StateElement, first_iteration: bool) -> Result<(), StrError>;
 
-    /// Returns the element K matrix (e.g., for debugging)
+    /// Returns the element K matrix
     fn get_local_kk_matrix(&self) -> &Matrix;
 
     /// Assembles the local Y-vector into the global Y-vector
@@ -63,7 +57,13 @@ pub struct Element {
 
 impl Element {
     /// Allocates a new instance
-    pub fn new(config: &Configuration, cell_id: CellId) -> Result<Self, StrError> {
+    ///
+    /// This function also activates equation identification numbers in `equation_numbers`
+    pub fn new(
+        config: &Configuration,
+        cell_id: CellId,
+        equation_numbers: &mut EquationNumbers,
+    ) -> Result<Self, StrError> {
         let mesh = config.get_mesh();
         if cell_id >= mesh.cells.len() {
             return Err("cell_id is out-of-bounds");
@@ -80,6 +80,7 @@ impl Element {
                 *n_integ_point,
                 config.get_plane_stress(),
                 config.get_thickness(),
+                equation_numbers,
             )?),
             ElementConfig::Porous(param_porous, n_integ_point) => {
                 let param_fluids = config.get_param_fluids()?;

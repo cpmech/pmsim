@@ -38,6 +38,7 @@ impl Solid {
         n_integ_point: Option<usize>,
         plane_stress: bool,
         thickness: f64,
+        equation_numbers: &mut EquationNumbers,
     ) -> Result<Self, StrError> {
         // model
         let two_dim = shape.geo_ndim == 2;
@@ -62,6 +63,15 @@ impl Solid {
             kk: Matrix::new(neq_local, neq_local),
         };
 
+        // activate equation identification numbers
+        for (m, a) in element.shape.node_to_point.iter().enumerate() {
+            for (i, d) in element.element_dof.iter().enumerate() {
+                let p = equation_numbers.activate_equation(*a, *d);
+                let k = i + m * element.shape.geo_ndim;
+                element.local_to_global[k] = p;
+            }
+        }
+
         // set integration points' constants
         if let Some(n) = n_integ_point {
             element.shape.select_integ_points(n)?;
@@ -71,22 +81,6 @@ impl Solid {
 }
 
 impl BaseElement for Solid {
-    /// Activates equation identification numbers
-    ///
-    /// Returns the total number of entries in the local K matrix that can be used to
-    /// estimate the total number of non-zero values in the global K matrix
-    fn activate_equations(&mut self, equation_numbers: &mut EquationNumbers) -> usize {
-        for (m, a) in self.shape.node_to_point.iter().enumerate() {
-            for (i, d) in self.element_dof.iter().enumerate() {
-                let p = equation_numbers.activate_equation(*a, *d);
-                let k = i + m * self.shape.geo_ndim;
-                self.local_to_global[k] = p;
-            }
-        }
-        let (nrow, ncol) = self.kk.dims();
-        nrow * ncol
-    }
-
     /// Returns a new StateElement with initialized state data at all integration points
     ///
     /// Note: the use of "mut" here allows `shape.calc_integ_points_coords` to be called from within the element
@@ -155,9 +149,14 @@ mod tests {
     use crate::StrError;
     use gemlab::mesh::Mesh;
     use gemlab::shapes::{AnalyticalTri3, Shape};
-    use russell_chk::assert_vec_approx_eq;
-    use russell_lab::{mat_max_abs_diff, Matrix};
+    use russell_chk::{assert_approx_eq, assert_vec_approx_eq};
+    use russell_lab::{mat_max_abs_diff, Matrix, Vector};
+    use russell_sparse::SparseTriplet;
     use russell_tensor::Tensor2;
+
+    /////////////////////////
+    // auxiliary functions //
+    /////////////////////////
 
     // The mesh below is used in tests; from Reference #1
     //
@@ -186,25 +185,81 @@ mod tests {
     //
     // 1. Smith, Griffiths and Margetts (5th ed) Figure 5.2 p173
     //    (sgm_5_2)
-    fn get_sgm_5_2_element_5() -> Result<Solid, StrError> {
-        let mut shape_5 = Shape::new(2, 2, 3)?;
-        shape_5.set_node(6, 0, 0, 0.0)?;
-        shape_5.set_node(6, 0, 1, -1.0)?;
-        shape_5.set_node(7, 1, 0, 0.5)?;
-        shape_5.set_node(7, 1, 1, -1.0)?;
-        shape_5.set_node(4, 2, 0, 0.5)?;
-        shape_5.set_node(4, 2, 1, -0.5)?;
-        let param = ParamSolid {
+    //
+    fn get_sgm_5_2_mesh() -> Result<Mesh, StrError> {
+        Mesh::from_text(
+            r#"
+            # header
+            # space_ndim npoint ncell
+                       2      9     8
+            # points
+            # id    x    y
+               0  0.0  0.0
+               1  0.5  0.0
+               2  1.0  0.0
+               3  0.0 -0.5
+               4  0.5 -0.5
+               5  1.0 -0.5
+               6  0.0 -1.0
+               7  0.5 -1.0
+               8  1.0 -1.0
+            # cells
+            # id att geo_ndim nnode  point_ids...
+               0   1        2     3  1 0 3
+               1   1        2     3  3 4 1
+               2   1        2     3  2 1 4
+               3   1        2     3  4 5 2
+               4   1        2     3  4 3 6
+               5   1        2     3  6 7 4
+               6   1        2     3  5 4 7
+               7   1        2     3  7 8 5
+        "#,
+        )
+    }
+
+    fn get_sgm_5_2_param() -> ParamSolid {
+        ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 1e6,
                 poisson: 0.3,
             },
-        };
-        Solid::new(shape_5, &param, None, false, 1.0)
+        }
     }
 
-    fn get_cube_element(n_integ_point: usize) -> Result<Solid, StrError> {
+    fn get_sgm_5_2_element_5(equation_numbers: &mut EquationNumbers) -> Result<Solid, StrError> {
+        let mesh = get_sgm_5_2_mesh()?;
+        let shape = mesh.alloc_shape_cell(5)?;
+        let param = get_sgm_5_2_param();
+        Solid::new(shape, &param, None, false, 1.0, equation_numbers)
+    }
+
+    const S00: f64 = 2.0;
+    const S11: f64 = 3.0;
+    const S22: f64 = 4.0;
+    const S01: f64 = 5.0;
+
+    fn get_non_zero_stress_state_2d() -> Result<StateElement, StrError> {
+        // constant tensor function: σ(x) = {σ₀₀, σ₁₁, σ₂₂, σ₀₁√2}
+        // solution:
+        //    dᵐ₀ = ½ (σ₀₀ bₘ + σ₀₁ cₘ)
+        //    dᵐ₁ = ½ (σ₁₀ bₘ + σ₁₁ cₘ)
+        #[rustfmt::skip]
+        let sigma = Tensor2::from_matrix(&[
+            [S00, S01, 0.0],
+            [S01, S11, 0.0],
+            [0.0, 0.0, S22],
+        ],true,true)?;
+        Ok(StateElement {
+            seepage: Vec::new(),
+            stress: vec![StateStress {
+                sigma,
+                internal_values: Vec::new(),
+            }],
+        })
+    }
+
+    fn get_cube_element(n_integ_point: usize, equation_numbers: &mut EquationNumbers) -> Result<Solid, StrError> {
         //       4--------------7
         //      /.             /|
         //     / .            / |
@@ -240,16 +295,21 @@ mod tests {
         )?;
         let shape = mesh.alloc_shape_cell(0)?;
         let param = SampleParam::param_solid();
-        let cube = Solid::new(shape, &param, Some(n_integ_point), false, 1.0)?;
+        let cube = Solid::new(shape, &param, Some(n_integ_point), false, 1.0, equation_numbers)?;
         Ok(cube)
     }
+
+    ///////////
+    // tests //
+    ///////////
 
     #[test]
     fn new_captures_errors() -> Result<(), StrError> {
         let shape_1d = Shape::new(1, 1, 2)?;
         let param = SampleParam::param_solid();
+        let mut equation_numbers = EquationNumbers::new(9);
         assert_eq!(
-            Solid::new(shape_1d, &param, None, false, 1.0).err(),
+            Solid::new(shape_1d, &param, None, false, 1.0, &mut equation_numbers).err(),
             Some("shape.geo_ndim must be 2 or 3 for Solid element")
         );
         Ok(())
@@ -258,15 +318,16 @@ mod tests {
     #[test]
     fn new_works() -> Result<(), StrError> {
         // 2D
-        let element_5 = get_sgm_5_2_element_5()?;
+        let mut equation_numbers = EquationNumbers::new(9);
+        let element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?;
         assert_eq!(element_5.shape.node_to_point, [6, 7, 4]);
         assert_eq!(element_5.thickness, 1.0);
         assert_eq!(element_5.element_dof, vec![Dof::Ux, Dof::Uy]);
         assert_eq!(element_5.yy.dim(), 6);
         assert_eq!(element_5.kk.dims(), (6, 6));
-
         // 3D
-        let cube = get_cube_element(6)?;
+        let mut equation_numbers = EquationNumbers::new(8);
+        let cube = get_cube_element(6, &mut equation_numbers)?;
         assert_eq!(cube.shape.integ_points.len(), 6);
         assert_eq!(cube.shape.node_to_point, [0, 1, 2, 3, 4, 5, 6, 7]);
         assert_eq!(cube.element_dof, vec![Dof::Ux, Dof::Uy, Dof::Uz]);
@@ -275,10 +336,8 @@ mod tests {
 
     #[test]
     fn activate_equations_works() -> Result<(), StrError> {
-        let mut element_5 = get_sgm_5_2_element_5()?;
         let mut equation_numbers = EquationNumbers::new(9);
-        let nnz = element_5.activate_equations(&mut equation_numbers);
-        assert_eq!(nnz, 6 * 6);
+        get_sgm_5_2_element_5(&mut equation_numbers)?;
         assert_eq!(equation_numbers.number(6, Dof::Ux), Some(0));
         assert_eq!(equation_numbers.number(6, Dof::Uy), Some(1));
         assert_eq!(equation_numbers.number(7, Dof::Ux), Some(2));
@@ -293,37 +352,13 @@ mod tests {
 
     #[test]
     fn new_state_works() -> Result<(), StrError> {
-        let mesh = Mesh::from_text(
-            r#"#       sgm_5_2 mesh
-            # header
-            # space_ndim npoint ncell
-                       2      9     8
-            # points
-            # id    x    y
-               0  0.0  0.0
-               1  0.5  0.0
-               2  1.0  0.0
-               3  0.0 -0.5
-               4  0.5 -0.5
-               5  1.0 -0.5
-               6  0.0 -1.0
-               7  0.5 -1.0
-               8  1.0 -1.0
-            # cells
-            # id att geo_ndim nnode  point_ids...
-               0   1        2     3  1 0 3
-               1   1        2     3  3 4 1
-               2   1        2     3  2 1 4
-               3   1        2     3  4 5 2
-               4   1        2     3  4 3 6
-               5   1        2     3  6 7 4
-               6   1        2     3  5 4 7
-               7   1        2     3  7 8 5
-        "#,
-        )?;
+        let mesh = get_sgm_5_2_mesh()?;
         let config = Configuration::new(&mesh);
         let initializer = Initializer::new(&config)?;
-        let mut element_5 = get_sgm_5_2_element_5()?;
+        let mut equation_numbers = EquationNumbers::new(mesh.points.len());
+        let shape = mesh.alloc_shape_cell(5)?;
+        let param = get_sgm_5_2_param();
+        let mut element_5 = Solid::new(shape, &param, None, false, 1.0, &mut equation_numbers)?;
         let state = element_5.new_state(&initializer)?;
         assert_eq!(state.stress.len(), 1);
         assert_vec_approx_eq!(state.stress[0].sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0], 1e-14);
@@ -332,28 +367,9 @@ mod tests {
 
     #[test]
     fn calc_local_yy_vector_works() -> Result<(), StrError> {
-        // constant tensor function: σ(x) = {σ₀₀, σ₁₁, σ₂₂, σ₀₁√2}
-        // solution:
-        //    dᵐ₀ = ½ (σ₀₀ bₘ + σ₀₁ cₘ)
-        //    dᵐ₁ = ½ (σ₁₀ bₘ + σ₁₁ cₘ)
-        const S00: f64 = 2.0;
-        const S11: f64 = 3.0;
-        const S22: f64 = 4.0;
-        const S01: f64 = 5.0;
-        #[rustfmt::skip]
-        let sigma = Tensor2::from_matrix(&[
-            [S00, S01, 0.0],
-            [S01, S11, 0.0],
-            [0.0, 0.0, S22],
-        ],true,true)?;
-        let state = StateElement {
-            seepage: Vec::new(),
-            stress: vec![StateStress {
-                sigma,
-                internal_values: Vec::new(),
-            }],
-        };
-        let mut element_5 = get_sgm_5_2_element_5()?;
+        let mut equation_numbers = EquationNumbers::new(9);
+        let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?;
+        let state = get_non_zero_stress_state_2d()?;
         element_5.calc_local_yy_vector(&state)?;
         let mut ana = AnalyticalTri3::new(&mut element_5.shape);
         let yy_correct = ana.integ_vec_d_constant(S00, S11, S01);
@@ -363,14 +379,9 @@ mod tests {
 
     #[test]
     fn calc_local_kk_matrix_works() -> Result<(), StrError> {
-        let mut element_5 = get_sgm_5_2_element_5()?;
-        let state = StateElement {
-            seepage: Vec::new(),
-            stress: vec![StateStress {
-                sigma: Tensor2::new(true, true),
-                internal_values: Vec::new(),
-            }],
-        };
+        let mut equation_numbers = EquationNumbers::new(9);
+        let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?;
+        let state = get_non_zero_stress_state_2d()?;
         element_5.calc_local_kk_matrix(&state, true)?;
 
         // compare with book
@@ -391,6 +402,41 @@ mod tests {
         let kk_ana = ana.integ_stiffness(1e6, 0.3, false, 1.0)?;
         let (_, _, diff) = mat_max_abs_diff(&element_5.get_local_kk_matrix(), &kk_ana)?;
         assert!(diff < 1e-10);
+        Ok(())
+    }
+
+    #[test]
+    fn assemble_yy_vector_works() -> Result<(), StrError> {
+        let mut equation_numbers = EquationNumbers::new(9);
+        let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?; // points 6,7,4 will get the first eq numbers
+        let state = get_non_zero_stress_state_2d()?;
+        element_5.calc_local_yy_vector(&state)?;
+        let mut yy_global = Vector::new(18); // 2_dim x 9_point
+        element_5.assemble_yy_vector(&mut yy_global)?;
+        let mut ana = AnalyticalTri3::new(&mut element_5.shape);
+        let yy_correct = ana.integ_vec_d_constant(S00, S11, S01);
+        let yy_top = &yy_global.as_data()[0..6];
+        assert_vec_approx_eq!(&yy_top, &yy_correct, 1e-14);
+        Ok(())
+    }
+
+    #[test]
+    fn assemble_kk_matrix_works() -> Result<(), StrError> {
+        let mut equation_numbers = EquationNumbers::new(9);
+        let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?; // points 6,7,4 will get the first eq numbers
+        let state = get_non_zero_stress_state_2d()?;
+        element_5.calc_local_kk_matrix(&state, true)?;
+        let mut kk_global = SparseTriplet::new(18, 18, 6 * 6, russell_sparse::Symmetry::No)?;
+        element_5.assemble_kk_matrix(&mut kk_global)?;
+        let mut ana = AnalyticalTri3::new(&mut element_5.shape);
+        let kk_correct = ana.integ_stiffness(1e6, 0.3, false, 1.0)?;
+        let mut kk_global_mat = Matrix::new(18, 18);
+        kk_global.to_matrix(&mut kk_global_mat)?;
+        assert_approx_eq!(kk_global_mat[0][0], kk_correct[0][0], 1e-14);
+        assert_approx_eq!(kk_global_mat[0][5], kk_correct[0][5], 1e-14);
+        assert_approx_eq!(kk_global_mat[5][0], kk_correct[5][0], 1e-14);
+        assert_approx_eq!(kk_global_mat[5][5], kk_correct[5][5], 1e-14);
+        assert_eq!(kk_global_mat[6][6], 0.0);
         Ok(())
     }
 }
