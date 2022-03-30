@@ -1,7 +1,4 @@
-use super::{
-    element_config::{ElementConfig, ProblemType},
-    BcPoint, Dof, IniOption, Nbc, ParamFluids,
-};
+use super::{element_config::ElementConfig, BcPoint, Dof, IniOption, Nbc, ParamFluids, ProblemType};
 use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
 use std::collections::HashMap;
@@ -181,48 +178,7 @@ impl<'a> Configuration<'a> {
     /// * ElementConfig::Porous
     pub fn elements(&mut self, attribute_id: CellAttributeId, config: ElementConfig) -> Result<&mut Self, StrError> {
         // handle problem type
-        let (mut set_liq, mut set_liq_and_gas) = (false, false);
-        match config {
-            ElementConfig::Rod(..) | ElementConfig::Beam(..) | ElementConfig::Solid(..) => match self.problem_type {
-                Some(p) => {
-                    if p == ProblemType::Seepage {
-                        return Err("rod, beam, or solid config cannot be mixed with seepage configs");
-                    }
-                    // ok if Porous was set already
-                }
-                None => self.problem_type = Some(ProblemType::Solid),
-            },
-            ElementConfig::Porous(param, _) => {
-                match param.conductivity_gas {
-                    Some(_) => set_liq_and_gas = true,
-                    None => set_liq = true,
-                }
-                match self.problem_type {
-                    Some(p) => {
-                        if p == ProblemType::Seepage {
-                            return Err("porous config cannot be mixed with seepage configs");
-                        } else {
-                            self.problem_type = Some(ProblemType::Porous); // override Solid config, eventually
-                        }
-                    }
-                    None => self.problem_type = Some(ProblemType::Porous),
-                }
-            }
-            ElementConfig::Seepage(param, _) => {
-                match param.conductivity_gas {
-                    Some(_) => set_liq_and_gas = true,
-                    None => set_liq = true,
-                }
-                match self.problem_type {
-                    Some(p) => {
-                        if p != ProblemType::Seepage {
-                            return Err("seepage config cannot be mixed with other configs");
-                        }
-                    }
-                    None => self.problem_type = Some(ProblemType::Seepage),
-                }
-            }
-        };
+        // TODO
         // check
         if (set_liq && self.with_pl_and_pg) || (set_liq_and_gas && self.with_pl_only) {
             return Err("cannot mix configurations with liquid-only and liquid-and-gas");
@@ -371,8 +327,8 @@ impl<'a> Configuration<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Configuration, FnSpaceTime};
-    use crate::simulation::element_config::{ElementConfig, ProblemType};
+    use super::{Configuration, FnSpaceTime, ProblemType};
+    use crate::simulation::element_config::ElementConfig;
     use crate::simulation::{BcPoint, Dof, Nbc, SampleParam};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};

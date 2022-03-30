@@ -79,6 +79,31 @@ impl<'a> Simulation<'a> {
         })
     }
 
+    /// Solves static equilibrium of solids and structures
+    pub fn solve_statics(&mut self) -> Result<(), StrError> {
+        Err("TODO: solve_statics")
+    }
+
+    /// Solves dynamics problems with solids, structures and porous media
+    pub fn solve_dynamics(&mut self) -> Result<(), StrError> {
+        Err("TODO: solve_dynamics")
+    }
+
+    /// Solves an eigenvalues problem
+    pub fn solve_eigenvalues(&mut self) -> Result<(), StrError> {
+        Err("TODO: solve_eigenvalues")
+    }
+
+    /// Solves steady flow such as seepage or heat flow
+    pub fn solve_steady_flow(&mut self) -> Result<(), StrError> {
+        Err("TODO: solve_steady_flow")
+    }
+
+    /// Solves transient flow involving seepage or heat
+    pub fn solve_transient_flow(&mut self) -> Result<(), StrError> {
+        Err("TODO: solve_transient_flow")
+    }
+
     // Applies boundary condition at time t
     // fn apply_bcs(&self, t: f64) {}
 }

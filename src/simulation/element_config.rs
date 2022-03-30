@@ -19,27 +19,6 @@ pub enum ElementConfig {
     Seepage(ParamSeepage, Option<usize>),
 }
 
-/// Defines the problem type
-///
-/// # Note
-///
-/// Solid problem type allows the following configurations:
-/// * ElementConfig::Rod
-/// * ElementConfig::Beam
-/// * ElementConfig::Solid
-///
-/// Porous mechanics problems type allows the following configurations:
-/// * ElementConfig::Rod
-/// * ElementConfig::Beam
-/// * ElementConfig::Solid
-/// * ElementConfig::Porous
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ProblemType {
-    Solid,
-    Porous,
-    Seepage,
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
