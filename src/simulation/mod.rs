@@ -2,6 +2,7 @@
 
 mod boundary_conditions;
 mod configuration;
+mod control;
 mod degrees_of_freedom;
 mod element_and_analysis;
 mod equation_numbers;
@@ -12,6 +13,7 @@ mod state;
 mod validator;
 pub use crate::simulation::boundary_conditions::*;
 pub use crate::simulation::configuration::*;
+pub use crate::simulation::control::*;
 pub use crate::simulation::degrees_of_freedom::*;
 pub use crate::simulation::element_and_analysis::*;
 pub use crate::simulation::equation_numbers::*;

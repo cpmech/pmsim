@@ -259,6 +259,15 @@ impl<'a> Configuration<'a> {
         }
     }
 
+    /// Returns the analysis type
+    #[inline]
+    pub fn get_analysis_type(&self) -> Result<AnalysisType, StrError> {
+        match self.analysis_type {
+            Some(a) => Ok(a),
+            None => Err("analysis_type has not been set yet (set via element_config)"),
+        }
+    }
+
     /// Returns the gravity acceleration
     #[inline]
     pub fn get_gravity(&self) -> f64 {

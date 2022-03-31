@@ -1,4 +1,4 @@
-use super::{Configuration, Dof, EquationNumbers, Initializer, State};
+use super::{AnalysisType, Configuration, Control, Dof, EquationNumbers, Initializer, State};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::Vector;
@@ -79,29 +79,99 @@ impl<'a> Simulation<'a> {
         })
     }
 
-    /// Solves static equilibrium of solids and structures
-    pub fn solve_statics(&mut self) -> Result<(), StrError> {
-        Err("TODO: solve_statics")
+    /// Run simulation
+    pub fn run(&mut self, control: Control) -> Result<(), StrError> {
+        // check quasi_static flag
+        if control.quasi_static {
+            if self.config.get_analysis_type()? != AnalysisType::Mechanics {
+                return Err("quasi-static mode is only available for rod, beam, and solids");
+            }
+        }
+
+        // current time
+        let mut t = control.t_ini;
+
+        // time for generating output
+        let mut t_out = t + (control.dt_out)(t);
+
+        // this is the last time step
+        let mut last_time_step = false;
+
+        // divergence control: time step multiplier if divergence control is on
+        let mut div_ctrl_multiplier = 1.0;
+
+        // divergence control: number of steps diverging
+        let mut div_ctrl_n_steps = 0;
+
+        // first output
+        if control.verbose {
+            println!("t={}", t);
+        }
+
+        // time loop
+        while t < control.t_fin {
+            // check if still diverging
+            if div_ctrl_n_steps >= control.div_ctrl_max_steps {
+                return Err("maximum number of diverging steps reached");
+            }
+
+            // calculate time increment
+            let dt = (control.dt)(t) * div_ctrl_multiplier;
+            if dt < control.dt_min {
+                return Err("dt is too small");
+            }
+
+            // set last time step flag
+            if t + dt >= control.t_fin {
+                last_time_step = true;
+            }
+
+            // update timestep
+            t += dt;
+
+            // output
+            if control.verbose {
+                println!("t={}", t);
+            }
+
+            // backup state if divergence control is on
+            if control.divergence_control {
+                // todo: make backup
+            }
+
+            // run iterations
+            let diverging = self.iterations(t, dt)?;
+
+            // restore solution and reduce time step if divergence control is on
+            if control.divergence_control {
+                if diverging {
+                    if control.verbose {
+                        println!(". . . diverging . . .");
+                    }
+                    // todo: restore backup
+                    t -= dt;
+                    div_ctrl_multiplier *= 0.5;
+                    div_ctrl_n_steps += 1;
+                } else {
+                    div_ctrl_multiplier = 1.0;
+                    div_ctrl_n_steps = 0;
+                }
+            }
+
+            // perform output
+            if t >= t_out || last_time_step {
+                // todo: output
+                t_out += (control.dt_out)(t);
+            }
+        }
+
+        // done
+        Ok(())
     }
 
-    /// Solves dynamics problems with solids, structures and porous media
-    pub fn solve_dynamics(&mut self) -> Result<(), StrError> {
-        Err("TODO: solve_dynamics")
-    }
-
-    /// Solves an eigenvalues problem
-    pub fn solve_eigenvalues(&mut self) -> Result<(), StrError> {
-        Err("TODO: solve_eigenvalues")
-    }
-
-    /// Solves steady flow such as seepage or heat flow
-    pub fn solve_steady_flow(&mut self) -> Result<(), StrError> {
-        Err("TODO: solve_steady_flow")
-    }
-
-    /// Solves transient flow involving seepage or heat
-    pub fn solve_transient_flow(&mut self) -> Result<(), StrError> {
-        Err("TODO: solve_transient_flow")
+    /// Performs iterations
+    fn iterations(&mut self, _t: f64, _dt: f64) -> Result<bool, StrError> {
+        Ok(false)
     }
 
     // Applies boundary condition at time t
@@ -114,7 +184,7 @@ impl<'a> Simulation<'a> {
 mod tests {
     use super::Simulation;
     use crate::simulation::{element_and_analysis::ElementConfig, Configuration, SampleParam};
-    use crate::simulation::{Dof, Nbc, ParamSolid, ParamStressStrain};
+    use crate::simulation::{Control, Dof, Nbc, ParamSolid, ParamStressStrain};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};
 
@@ -197,13 +267,17 @@ mod tests {
         config.elements(1, ElementConfig::Solid(params, None))?;
 
         // simulation
-        let sim = Simulation::new(&config)?;
+        let mut sim = Simulation::new(&config)?;
 
         // check
         assert_eq!(sim.elements.len(), 4);
         assert_eq!(sim.equation_numbers.nequation(), 12);
         assert_eq!(sim.state.elements.len(), 4);
         assert_eq!(sim.system_kk.dims(), (12, 12));
+
+        // run simulation
+        let control = Control::new();
+        sim.run(control)?;
 
         // done
         Ok(())
