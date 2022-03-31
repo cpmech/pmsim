@@ -1,6 +1,6 @@
 use super::{
-    element_config::ElementConfig, get_analysis_type, upgrade_analysis_type, AnalysisType, BcPoint, Dof, IniOption,
-    Nbc, ParamFluids,
+    element_and_analysis_type::ElementConfig, get_analysis_type, upgrade_analysis_type, AnalysisType, BcPoint, Dof,
+    IniOption, Nbc, ParamFluids,
 };
 use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
@@ -314,7 +314,7 @@ impl<'a> Configuration<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Configuration, FnSpaceTime};
-    use crate::simulation::element_config::ElementConfig;
+    use crate::simulation::element_and_analysis_type::ElementConfig;
     use crate::simulation::{AnalysisType, BcPoint, Dof, Nbc, SampleParam};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};

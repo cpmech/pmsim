@@ -113,7 +113,7 @@ impl<'a> Simulation<'a> {
 #[cfg(test)]
 mod tests {
     use super::Simulation;
-    use crate::simulation::{element_config::ElementConfig, Configuration, SampleParam};
+    use crate::simulation::{element_and_analysis_type::ElementConfig, Configuration, SampleParam};
     use crate::simulation::{Dof, Nbc, ParamSolid, ParamStressStrain};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};
