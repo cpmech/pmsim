@@ -72,6 +72,12 @@ pub fn upgrade_analysis_type(
             return Ok(new_analysis_type);
         }
     }
+    // OK: allow mechanics' configurations in coupled mechanics
+    if new_analysis_type == AnalysisType::Mechanics {
+        if analysis_type == AnalysisType::CoupledMechanicsLiq || analysis_type == AnalysisType::CoupledMechanicsLiqGas {
+            return Ok(analysis_type);
+        }
+    }
     Err("element configurations are incompatible regarding the analysis type")
 }
 
@@ -80,10 +86,13 @@ pub fn upgrade_analysis_type(
 #[cfg(test)]
 mod tests {
     use super::ElementConfig;
-    use crate::simulation::{ParamBeam, ParamSolid, ParamStressStrain};
+    use crate::simulation::{
+        get_analysis_type, upgrade_analysis_type, AnalysisType, ParamBeam, ParamSolid, ParamStressStrain, SampleParam,
+    };
+    use crate::StrError;
 
     #[test]
-    fn config_works() {
+    fn element_config_and_get_analysis_type_work() {
         let m1 = ParamSolid {
             density: 2.7, // Mg/m2
             stress_strain: ParamStressStrain::LinearElastic {
@@ -117,8 +126,48 @@ mod tests {
         let c2 = ElementConfig::Solid(m2, None);
         let c3 = ElementConfig::Beam(m3);
 
-        println!("c1 = {:?}\n", c1);
-        println!("c2 = {:?}\n", c2);
-        println!("c3 = {:?}\n", c3);
+        assert_eq!(get_analysis_type(c1), AnalysisType::Mechanics);
+        assert_eq!(get_analysis_type(c2), AnalysisType::Mechanics);
+        assert_eq!(get_analysis_type(c3), AnalysisType::Mechanics);
+    }
+
+    #[test]
+    fn upgrade_analysis_type_works() -> Result<(), StrError> {
+        let p_solid = SampleParam::param_solid();
+        let p_porous_liq = SampleParam::param_porous_sol_liq(0.4, 0.1);
+        let p_porous_liq_gas = SampleParam::param_porous_sol_liq_gas(0.4, 0.1);
+
+        let solid = ElementConfig::Solid(p_solid, None);
+        let porous_liq = ElementConfig::Porous(p_porous_liq, None);
+        let porous_liq_gas = ElementConfig::Porous(p_porous_liq_gas, None);
+
+        // no upgrades
+        let analysis_type = AnalysisType::Mechanics;
+        assert_eq!(upgrade_analysis_type(analysis_type, solid)?, AnalysisType::Mechanics);
+
+        // upgrade from mechanics to coupled mechanics
+        let analysis_type = AnalysisType::Mechanics;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, porous_liq)?,
+            AnalysisType::CoupledMechanicsLiq
+        );
+        let analysis_type = AnalysisType::Mechanics;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, porous_liq_gas)?,
+            AnalysisType::CoupledMechanicsLiqGas
+        );
+
+        // allow solid in coupled mechanics
+        let analysis_type = AnalysisType::CoupledMechanicsLiq;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, solid)?,
+            AnalysisType::CoupledMechanicsLiq
+        );
+        let analysis_type = AnalysisType::CoupledMechanicsLiqGas;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, solid)?,
+            AnalysisType::CoupledMechanicsLiqGas
+        );
+        Ok(())
     }
 }
