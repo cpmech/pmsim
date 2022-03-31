@@ -1,4 +1,7 @@
-use super::{element_config::ElementConfig, BcPoint, Dof, IniOption, Nbc, ParamFluids, ProblemType};
+use super::{
+    element_config::ElementConfig, get_analysis_type, upgrade_analysis_type, AnalysisType, BcPoint, Dof, IniOption,
+    Nbc, ParamFluids,
+};
 use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
 use std::collections::HashMap;
@@ -29,8 +32,8 @@ pub struct Configuration<'a> {
     /// Elements configuration
     element_configs: HashMap<CellAttributeId, ElementConfig>,
 
-    /// Problem type
-    problem_type: Option<ProblemType>,
+    /// Analysis type
+    analysis_type: Option<AnalysisType>,
 
     /// Gravity acceleration
     gravity: f64,
@@ -46,12 +49,6 @@ pub struct Configuration<'a> {
 
     /// Option to initialize stress state
     ini_option: IniOption,
-
-    /// with liquid pressure only
-    with_pl_only: bool,
-
-    /// with liquid and gas pressures
-    with_pl_and_pg: bool,
 }
 
 impl<'a> Configuration<'a> {
@@ -65,14 +62,12 @@ impl<'a> Configuration<'a> {
             point_bcs: HashMap::new(),
             param_fluids: None,
             element_configs: HashMap::new(),
-            problem_type: None,
+            analysis_type: None,
             gravity: 0.0,
             thickness: 1.0,
             plane_stress: false,
             ini_option: IniOption::Zero,
             total_stress: false,
-            with_pl_only: false,
-            with_pl_and_pg: false,
         }
     }
 
@@ -163,28 +158,19 @@ impl<'a> Configuration<'a> {
     }
 
     /// Sets configurations for a group of elements
-    ///
-    /// # Note
-    ///
-    /// SolidMech problem type allows the following configurations:
-    /// * ElementConfig::Rod
-    /// * ElementConfig::Beam
-    /// * ElementConfig::Solid
-    ///
-    /// PorousMediaMech problem type allows the following configurations:
-    /// * ElementConfig::Rod
-    /// * ElementConfig::Beam
-    /// * ElementConfig::Solid
-    /// * ElementConfig::Porous
-    pub fn elements(&mut self, attribute_id: CellAttributeId, config: ElementConfig) -> Result<&mut Self, StrError> {
-        // handle problem type
-        // TODO
-        // check
-        if (set_liq && self.with_pl_and_pg) || (set_liq_and_gas && self.with_pl_only) {
-            return Err("cannot mix configurations with liquid-only and liquid-and-gas");
-        }
+    pub fn elements(
+        &mut self,
+        attribute_id: CellAttributeId,
+        element_config: ElementConfig,
+    ) -> Result<&mut Self, StrError> {
+        // handle analysis type
+        let ana_type: AnalysisType = match self.analysis_type {
+            None => get_analysis_type(element_config),
+            Some(a) => upgrade_analysis_type(a, element_config)?,
+        };
+        self.analysis_type = Some(ana_type);
         // store element config
-        self.element_configs.insert(attribute_id, config);
+        self.element_configs.insert(attribute_id, element_config);
         Ok(self)
     }
 
@@ -327,9 +313,9 @@ impl<'a> Configuration<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Configuration, FnSpaceTime, ProblemType};
+    use super::{Configuration, FnSpaceTime};
     use crate::simulation::element_config::ElementConfig;
-    use crate::simulation::{BcPoint, Dof, Nbc, SampleParam};
+    use crate::simulation::{AnalysisType, BcPoint, Dof, Nbc, SampleParam};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};
 
@@ -366,11 +352,13 @@ mod tests {
         let param_1 = SampleParam::param_solid();
         let param_2 = SampleParam::param_porous_sol_liq_gas(0.3, 1e-2);
 
+        // start with analysis type equal to mechanics
         config.elements(1, ElementConfig::Solid(param_1, None))?;
-        assert_eq!(config.problem_type, Some(ProblemType::Solid));
+        assert_eq!(config.analysis_type, Some(AnalysisType::Mechanics));
 
+        // upgrade analysis type to coupled mechanics with liq and gas
         config.elements(2, ElementConfig::Porous(param_2, None))?;
-        assert_eq!(config.problem_type, Some(ProblemType::Porous));
+        assert_eq!(config.analysis_type, Some(AnalysisType::CoupledMechanicsLiqGas));
 
         config.gravity(10.0)?; // m/s²
 

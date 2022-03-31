@@ -1,4 +1,5 @@
 use super::{ParamBeam, ParamPorous, ParamRod, ParamSeepage, ParamSolid};
+use crate::StrError;
 
 /// Holds element configuration, material parameters, and number of integration points
 #[derive(Clone, Copy, Debug)]
@@ -17,6 +18,61 @@ pub enum ElementConfig {
 
     /// Configuration for Seepage element with (param, n_integ_point)
     Seepage(ParamSeepage, Option<usize>),
+}
+
+/// Defines the finite element analysis type
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AnalysisType {
+    /// Mechanics of solids or structures
+    Mechanics,
+
+    /// Coupled mechanics of liquid-only porous media, solids and structures
+    CoupledMechanicsLiq,
+
+    /// Coupled mechanics of liquid-and-gas porous media, solids and structures
+    CoupledMechanicsLiqGas,
+
+    /// Seepage flow of liquid-only porous media
+    SeepageLiq,
+
+    /// Seepage flow of liquid-and-gas porous media
+    SeepageLiqGas,
+}
+
+/// Determines the type of analysis from the element configuration
+pub fn get_analysis_type(element_config: ElementConfig) -> AnalysisType {
+    match element_config {
+        ElementConfig::Rod(..) | ElementConfig::Beam(..) | ElementConfig::Solid(..) => AnalysisType::Mechanics,
+        ElementConfig::Porous(param, _) => match param.conductivity_gas {
+            None => AnalysisType::CoupledMechanicsLiq,
+            Some(..) => AnalysisType::CoupledMechanicsLiqGas,
+        },
+        ElementConfig::Seepage(param, _) => match param.conductivity_gas {
+            None => AnalysisType::SeepageLiq,
+            Some(..) => AnalysisType::SeepageLiqGas,
+        },
+    }
+}
+
+/// Upgrades current analysis type given a new element configuration
+pub fn upgrade_analysis_type(
+    analysis_type: AnalysisType,
+    element_config: ElementConfig,
+) -> Result<AnalysisType, StrError> {
+    let new_analysis_type = get_analysis_type(element_config);
+    // OK: matching types
+    if new_analysis_type == analysis_type {
+        return Ok(new_analysis_type);
+    }
+    // OK: upgrading mechanics to coupled mechanics
+    if analysis_type == AnalysisType::Mechanics {
+        if new_analysis_type == AnalysisType::CoupledMechanicsLiq
+            || new_analysis_type == AnalysisType::CoupledMechanicsLiqGas
+        {
+            return Ok(new_analysis_type);
+        }
+    }
+    Err("element configurations are incompatible regarding the analysis type")
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
