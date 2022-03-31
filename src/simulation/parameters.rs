@@ -288,4 +288,56 @@ impl SampleParam {
             conductivity_gas: None,
         }
     }
+
+    pub fn param_euler_bernoulli_beam() -> ParamBeam {
+        ParamBeam::EulerBernoulli {
+            area: 1.0,
+            density: 2.7,
+            ii_11: 1.0,
+            ii_22: 1.0,
+            jj_tt: 1.0,
+            shear: 2000.0,
+            young: 1000.0,
+        }
+    }
+
+    pub fn param_seepage_liq() -> ParamSeepage {
+        ParamSeepage {
+            porosity_initial: 0.4,
+            retention_liquid: ParamLiquidRetention::BrooksCorey {
+                lambda: 0.1,
+                pc_ae: 0.1,
+                sl_min: 0.1,
+                sl_max: 1.0,
+            },
+            conductivity_liquid: ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.1,
+                kz: 0.1,
+            },
+            conductivity_gas: None,
+        }
+    }
+
+    pub fn param_seepage_liq_gas() -> ParamSeepage {
+        ParamSeepage {
+            porosity_initial: 0.4,
+            retention_liquid: ParamLiquidRetention::BrooksCorey {
+                lambda: 0.1,
+                pc_ae: 0.1,
+                sl_min: 0.1,
+                sl_max: 1.0,
+            },
+            conductivity_liquid: ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.1,
+                kz: 0.1,
+            },
+            conductivity_gas: Some(ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.1,
+                kz: 0.1,
+            }),
+        }
+    }
 }

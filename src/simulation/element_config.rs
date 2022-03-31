@@ -87,9 +87,21 @@ pub fn upgrade_analysis_type(
 mod tests {
     use super::ElementConfig;
     use crate::simulation::{
-        get_analysis_type, upgrade_analysis_type, AnalysisType, ParamBeam, ParamSolid, ParamStressStrain, SampleParam,
+        get_analysis_type, upgrade_analysis_type, AnalysisType, ParamSolid, ParamStressStrain, SampleParam,
     };
     use crate::StrError;
+
+    #[test]
+    fn clone_debug_partial_eq_work() {
+        let p_solid = SampleParam::param_solid();
+        let a = ElementConfig::Solid(p_solid, None);
+        let b = a.clone();
+        assert_eq!(format!("{:?}", a), format!("{:?}", b));
+        let c = AnalysisType::CoupledMechanicsLiq;
+        let d = c.clone();
+        assert!(c == d);
+        assert_eq!(format!("{:?}", c), format!("{:?}", d));
+    }
 
     #[test]
     fn element_config_and_get_analysis_type_work() {
@@ -112,23 +124,92 @@ mod tests {
             },
         };
 
-        let m3 = ParamBeam::EulerBernoulli {
-            area: 1.0,
-            density: 2.7,
-            ii_11: 1.0,
-            ii_22: 1.0,
-            jj_tt: 1.0,
-            shear: 2000.0,
-            young: 1000.0,
-        };
+        let m3 = SampleParam::param_euler_bernoulli_beam();
+        let m4 = SampleParam::param_seepage_liq();
+        let m5 = SampleParam::param_seepage_liq_gas();
+        let m6 = SampleParam::param_porous_sol_liq(0.5, 0.1);
+        let m7 = SampleParam::param_porous_sol_liq_gas(0.5, 0.1);
 
         let c1 = ElementConfig::Solid(m1, None);
         let c2 = ElementConfig::Solid(m2, None);
         let c3 = ElementConfig::Beam(m3);
+        let c4 = ElementConfig::Seepage(m4, None);
+        let c5 = ElementConfig::Seepage(m5, None);
+        let c6 = ElementConfig::Porous(m6, None);
+        let c7 = ElementConfig::Porous(m7, None);
 
         assert_eq!(get_analysis_type(c1), AnalysisType::Mechanics);
         assert_eq!(get_analysis_type(c2), AnalysisType::Mechanics);
         assert_eq!(get_analysis_type(c3), AnalysisType::Mechanics);
+        assert_eq!(get_analysis_type(c4), AnalysisType::SeepageLiq);
+        assert_eq!(get_analysis_type(c5), AnalysisType::SeepageLiqGas);
+        assert_eq!(get_analysis_type(c6), AnalysisType::CoupledMechanicsLiq);
+        assert_eq!(get_analysis_type(c7), AnalysisType::CoupledMechanicsLiqGas);
+    }
+
+    #[test]
+    fn upgrade_analysis_type_captures_errors() {
+        let p_solid = SampleParam::param_solid();
+        let p_seepage_liq = SampleParam::param_seepage_liq();
+        let p_seepage_liq_gas = SampleParam::param_seepage_liq_gas();
+        let p_porous_liq = SampleParam::param_porous_sol_liq(0.4, 0.1);
+        let p_porous_liq_gas = SampleParam::param_porous_sol_liq_gas(0.4, 0.1);
+
+        let solid = ElementConfig::Solid(p_solid, None);
+        let seepage_liq = ElementConfig::Seepage(p_seepage_liq, None);
+        let seepage_liq_gas = ElementConfig::Seepage(p_seepage_liq_gas, None);
+        let porous_liq = ElementConfig::Porous(p_porous_liq, None);
+        let porous_liq_gas = ElementConfig::Porous(p_porous_liq_gas, None);
+
+        // mechanics and seepage fail
+        let analysis_type = AnalysisType::Mechanics;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, seepage_liq).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, seepage_liq_gas).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
+
+        // coupled mechanics-liq and coupled mechanics-liq-gas fail
+        let analysis_type = AnalysisType::CoupledMechanicsLiq;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, porous_liq_gas).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
+        let analysis_type = AnalysisType::CoupledMechanicsLiqGas;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, porous_liq).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
+
+        // solid or porous and seepage fail
+        let analysis_type = AnalysisType::SeepageLiq;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, solid).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, porous_liq).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, porous_liq_gas).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
+
+        // seepage-liq and seepage-gas fail
+        let analysis_type = AnalysisType::SeepageLiq;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, seepage_liq_gas).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
+        let analysis_type = AnalysisType::SeepageLiqGas;
+        assert_eq!(
+            upgrade_analysis_type(analysis_type, seepage_liq).err(),
+            Some("element configurations are incompatible regarding the analysis type")
+        );
     }
 
     #[test]
