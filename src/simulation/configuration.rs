@@ -237,7 +237,7 @@ impl<'a> Configuration<'a> {
     }
 
     /// Sets option to initialize (stress) state
-    pub fn init(&mut self, option: IniOption) -> Result<&mut Self, StrError> {
+    pub fn ini_option(&mut self, option: IniOption) -> Result<&mut Self, StrError> {
         match option {
             IniOption::Geostatic(overburden) => {
                 if overburden > 0.0 {

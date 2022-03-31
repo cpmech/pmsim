@@ -311,7 +311,7 @@ mod tests {
             .elements(1, ElementConfig::Porous(lower, None))?
             .elements(2, ElementConfig::Porous(upper, None))?
             .elements(3, ElementConfig::Solid(footing, None))?
-            .init(IniOption::Geostatic(-100.0))?
+            .ini_option(IniOption::Geostatic(-100.0))?
             .fluids(fluids)?
             .gravity(10.0)?; // m/s²
         let geo = Geostatics::new(&config)?;

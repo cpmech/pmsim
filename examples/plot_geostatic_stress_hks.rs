@@ -136,7 +136,7 @@ fn main() -> Result<(), StrError> {
         .elements(2, ElementConfig::Porous(upper, None))?
         .fluids(fluids)?
         .gravity(9.81)? // m/s²
-        .init(IniOption::Geostatic(-26.49))?; // kN/m²
+        .ini_option(IniOption::Geostatic(-26.49))?; // kN/m²
 
     let geo = Geostatics::new(&config)?;
 
