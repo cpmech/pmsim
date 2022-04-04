@@ -91,10 +91,10 @@ impl<'a> Simulation<'a> {
         // current time
         let mut t = control.t_ini;
 
-        // time for generating output
+        // time for the next output (after the first output)
         let mut t_out = t + (control.dt_out)(t);
 
-        // this is the last time step
+        // detect the last time step
         let mut last_time_step = false;
 
         // divergence control: time step multiplier if divergence control is on
@@ -109,16 +109,16 @@ impl<'a> Simulation<'a> {
         }
 
         // time loop
-        while t < control.t_fin {
+        while t < control.t_fin && f64::abs(t - control.t_fin) >= control.dt_min {
             // check if still diverging
             if div_ctrl_n_steps >= control.div_ctrl_max_steps {
-                return Err("maximum number of diverging steps reached");
+                return Err("simulation stopped because the maximum number of diverging steps has been reached");
             }
 
             // calculate time increment
             let dt = (control.dt)(t) * div_ctrl_multiplier;
             if dt < control.dt_min {
-                return Err("dt is too small");
+                return Err("simulation stopped because dt is too small");
             }
 
             // set last time step flag
@@ -132,23 +132,30 @@ impl<'a> Simulation<'a> {
             // output
             if control.verbose {
                 println!("t={}", t);
+                /* todo:
+                   make output
+                */
             }
 
-            // backup state if divergence control is on
+            // backup state if divergence control is enabled
             if control.divergence_control {
-                // todo: make backup
+                /* todo:
+                   make backup
+                */
             }
 
             // run iterations
             let diverging = self.iterations(t, dt)?;
 
-            // restore solution and reduce time step if divergence control is on
+            // restore solution and reduce time step if divergence control is enabled
             if control.divergence_control {
                 if diverging {
                     if control.verbose {
                         println!(". . . diverging . . .");
                     }
-                    // todo: restore backup
+                    /* todo:
+                    restore backup
+                    */
                     t -= dt;
                     div_ctrl_multiplier *= 0.5;
                     div_ctrl_n_steps += 1;
@@ -160,7 +167,9 @@ impl<'a> Simulation<'a> {
 
             // perform output
             if t >= t_out || last_time_step {
-                // todo: output
+                /* todo:
+                   make output
+                */
                 t_out += (control.dt_out)(t);
             }
         }
