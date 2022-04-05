@@ -105,7 +105,7 @@ impl<'a> Simulation<'a> {
 
         // first output
         if control.verbose {
-            println!("t={}", t);
+            println!("t = {}", t);
         }
 
         // time loop
@@ -131,7 +131,7 @@ impl<'a> Simulation<'a> {
 
             // output
             if control.verbose {
-                println!("t={}", t);
+                println!("t = {}", t);
                 /* todo:
                    make output
                 */

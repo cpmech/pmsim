@@ -52,7 +52,7 @@ impl Control {
             t_fin: 1.0,
             dt: |_| 0.1,
             dt_out: |_| 0.1,
-            dt_min: 1e-5,
+            dt_min: 1e-10,
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_it: 10,
