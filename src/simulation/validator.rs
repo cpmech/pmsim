@@ -944,7 +944,6 @@ mod tests {
             equations.activate_equation(point_id, Dof::Uy);
         }
 
-        let neq = equations.nequation();
         let two_dim = true;
 
         let state_element_0 = StateElement {
@@ -1012,7 +1011,6 @@ mod tests {
         equations.activate_equation(0, Dof::Uy);
         equations.activate_equation(0, Dof::Uz);
 
-        let neq = equations.nequation();
         let two_dim = false;
 
         let state_element_0 = StateElement {
