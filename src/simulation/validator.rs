@@ -126,11 +126,11 @@ impl Validator {
             if element_id >= cmp.kk_matrices.len() {
                 return format!("element {}: reference K matrix is not available", element_id);
             }
-            let element = &mut elements[element_id];
-            if let Err(e) = element.base.calc_local_kk_matrix(&state.elements[element_id], true) {
+            let element = &mut elements[element_id].base;
+            if let Err(e) = element.calc_local_jacobian_matrix(&state.elements[element_id], true) {
                 return format!("element {}: calc_local_kk_matrix failed: {}", element_id, e);
             }
-            let kk = element.base.get_local_kk_matrix();
+            let kk = element.get_local_jacobian_matrix();
             let reference = &cmp.kk_matrices[element_id];
             match mat_max_abs_diff(&kk, &reference) {
                 Ok((i, j, max_abs_diff)) => {
@@ -178,25 +178,25 @@ impl Validator {
             }
             let ux = match equations.number(point_id, Dof::Ux) {
                 Some(eq) => {
-                    if eq >= state.system_xx.dim() {
+                    if eq >= state.unknowns.dim() {
                         return format!(
                             "point {}: state does not have equation {} corresponding to ux",
                             point_id, eq
                         );
                     }
-                    state.system_xx[eq]
+                    state.unknowns[eq]
                 }
                 None => return format!("point {}: state does not have ux", point_id),
             };
             let uy = match equations.number(point_id, Dof::Uy) {
                 Some(eq) => {
-                    if eq >= state.system_xx.dim() {
+                    if eq >= state.unknowns.dim() {
                         return format!(
                             "point {}: state does not have equation {} corresponding to uy",
                             point_id, eq
                         );
                     }
-                    state.system_xx[eq]
+                    state.unknowns[eq]
                 }
                 None => return format!("point {}: state does not have uy", point_id),
             };
@@ -217,13 +217,13 @@ impl Validator {
             if !two_dim {
                 let uz = match equations.number(point_id, Dof::Uz) {
                     Some(eq) => {
-                        if eq >= state.system_xx.dim() {
+                        if eq >= state.unknowns.dim() {
                             return format!(
                                 "point {}: state does not have equation {} corresponding to uz",
                                 point_id, eq
                             );
                         }
-                        state.system_xx[eq]
+                        state.unknowns[eq]
                     }
                     None => return format!("point {}: state does not have uz", point_id),
                 };
@@ -568,8 +568,7 @@ mod tests {
         let element_zero_state = element_0.base.new_state(&initializer)?;
         let state = State {
             elements: vec![element_zero_state],
-            system_xx: Vector::new(0),
-            system_yy: Vector::new(0),
+            unknowns: Vector::new(0),
         };
         let mut elements = vec![element_0];
 
@@ -642,8 +641,7 @@ mod tests {
         let element_zero_state = element_0.base.new_state(&initializer)?;
         let state = State {
             elements: vec![element_zero_state],
-            system_xx: Vector::new(0),
-            system_yy: Vector::new(0),
+            unknowns: Vector::new(0),
         };
         let mut elements = vec![element_0];
 
@@ -659,8 +657,7 @@ mod tests {
         let mut equations = EquationNumbers::new(1);
         let mut state = State {
             elements: Vec::new(),
-            system_xx: Vector::new(0), // << incorrect
-            system_yy: Vector::new(0), // << incorrect
+            unknowns: Vector::new(0), // << incorrect
         };
 
         let val = Validator::from_str(r#"{ "steps": [] }"#)?;
@@ -688,7 +685,7 @@ mod tests {
         );
 
         equations.activate_equation(0, Dof::Ux);
-        state.system_xx = Vector::new(2);
+        state.unknowns = Vector::new(2);
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -697,7 +694,7 @@ mod tests {
         );
 
         equations.activate_equation(0, Dof::Uy);
-        state.system_xx = Vector::new(0); // << incorrect
+        state.unknowns = Vector::new(0); // << incorrect
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -705,7 +702,7 @@ mod tests {
             "point 0: state does not have equation 0 corresponding to ux"
         );
 
-        state.system_xx = Vector::new(1); // << incorrect
+        state.unknowns = Vector::new(1); // << incorrect
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -716,11 +713,10 @@ mod tests {
         let neq = equations.nequation();
         let mut state = State {
             elements: Vec::new(),
-            system_xx: Vector::new(neq),
-            system_yy: Vector::new(neq),
+            unknowns: Vector::new(neq),
         };
-        state.system_xx[0] = 3.0;
-        state.system_xx[1] = 4.0;
+        state.unknowns[0] = 3.0;
+        state.unknowns[1] = 4.0;
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -742,8 +738,7 @@ mod tests {
         let mut equations = EquationNumbers::new(1);
         let state = State {
             elements: Vec::new(),
-            system_xx: Vector::new(2), // << incorrect
-            system_yy: Vector::new(2), // << incorrect
+            unknowns: Vector::new(2), // << incorrect
         };
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
@@ -772,12 +767,11 @@ mod tests {
         let neq = equations.nequation();
         let mut state = State {
             elements: Vec::new(),
-            system_xx: Vector::new(neq),
-            system_yy: Vector::new(neq),
+            unknowns: Vector::new(neq),
         };
-        state.system_xx[0] = 3.0;
-        state.system_xx[1] = 4.0;
-        state.system_xx[2] = 6.0;
+        state.unknowns[0] = 3.0;
+        state.unknowns[1] = 4.0;
+        state.unknowns[2] = 6.0;
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
@@ -797,8 +791,7 @@ mod tests {
                 seepage: Vec::new(),
                 stress: Vec::new(),
             }],
-            system_xx: Vector::new(neq),
-            system_yy: Vector::new(neq),
+            unknowns: Vector::new(neq),
         };
         let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -824,11 +817,10 @@ mod tests {
                 seepage: Vec::new(),
                 stress: vec![sigma.clone(), sigma.clone()],
             }],
-            system_xx: Vector::new(neq),
-            system_yy: Vector::new(neq),
+            unknowns: Vector::new(neq),
         };
-        state.system_xx[0] = 1.0;
-        state.system_xx[1] = 2.0;
+        state.unknowns[0] = 1.0;
+        state.unknowns[1] = 2.0;
 
         let val = Validator::from_str(r#"{ "steps": [] }"#)?;
         assert_eq!(
@@ -891,12 +883,11 @@ mod tests {
                 seepage: Vec::new(),
                 stress: vec![sigma.clone(), sigma.clone()],
             }],
-            system_xx: Vector::new(neq),
-            system_yy: Vector::new(neq),
+            unknowns: Vector::new(neq),
         };
-        state.system_xx[0] = 3.0;
-        state.system_xx[1] = 4.0;
-        state.system_xx[2] = 6.0;
+        state.unknowns[0] = 3.0;
+        state.unknowns[1] = 4.0;
+        state.unknowns[2] = 6.0;
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,6]],"stresses":[[[0,0,0]]]}]}"#)?;
         assert_eq!(
@@ -990,7 +981,7 @@ mod tests {
 
         let state = State {
             elements: vec![state_element_0, state_element_1],
-            system_xx: Vector::from(&[
+            unknowns: Vector::from(&[
                 0.000000000000000e+00,
                 0.000000000000000e+00,
                 0.000000000000000e+00,
@@ -1004,7 +995,6 @@ mod tests {
                 8.389015766816341e-05,
                 -5.556637423271112e-02,
             ]),
-            system_yy: Vector::new(neq),
         };
 
         let mut val = Validator::read_json("./data/validation/bhatti_1_6.json")?;
@@ -1035,8 +1025,7 @@ mod tests {
 
         let state = State {
             elements: vec![state_element_0],
-            system_xx: Vector::from(&[1.0, 2.0, 3.0]),
-            system_yy: Vector::new(neq),
+            unknowns: Vector::from(&[1.0, 2.0, 3.0]),
         };
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2,3]],"stresses":[[[1.1,2.2,1.2,3.3]]]}]}"#)?;

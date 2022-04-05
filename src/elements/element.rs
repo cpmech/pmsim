@@ -6,47 +6,26 @@ use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
 /// Defines a trait for (finite) elements
-///
-/// The resulting linear system is:
-///
-/// ```text
-/// [K] {δX} = -{Y}
-///
-/// or
-///
-/// [K] {X_bar} = {Y}
-///
-/// where
-///
-/// {X_bar} = -{δX}
-/// ```
-///
-/// Since we can't use capital letters as code variables, then we consider the following convention:
-///
-/// ```text
-/// yy := {Y}
-/// kk := {K}
-/// ```
 pub trait BaseElement {
     /// Returns a new StateElement with initialized state data at all integration points
     ///
     /// Note: the use of "mut" here allows `shape.calc_integ_points_coords` to be called from within the element
     fn new_state(&mut self, initializer: &Initializer) -> Result<StateElement, StrError>;
 
-    /// Computes the element Y-vector
-    fn calc_local_yy_vector(&mut self, state: &StateElement) -> Result<(), StrError>;
+    /// Computes the element's residual vector
+    fn calc_local_residual_vector(&mut self, state: &StateElement) -> Result<(), StrError>;
 
-    /// Computes the element K-matrix
-    fn calc_local_kk_matrix(&mut self, state: &StateElement, first_iteration: bool) -> Result<(), StrError>;
+    /// Computes the element's jacobian matrix
+    fn calc_local_jacobian_matrix(&mut self, state: &StateElement, first_iteration: bool) -> Result<(), StrError>;
 
-    /// Returns the element K matrix
-    fn get_local_kk_matrix(&self) -> &Matrix;
+    /// Returns the element's jacobian matrix
+    fn get_local_jacobian_matrix(&self) -> &Matrix;
 
-    /// Assembles the local Y-vector into the global Y-vector
-    fn assemble_yy_vector(&self, yy: &mut Vector) -> Result<(), StrError>;
+    /// Assembles the local residual vector into the global residual vector
+    fn assemble_residual_vector(&self, rr: &mut Vector) -> Result<(), StrError>;
 
-    /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_kk_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError>;
+    /// Assembles the local jacobian matrix into the global jacobian matrix
+    fn assemble_jacobian_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError>;
 }
 
 /// Defines a finite element

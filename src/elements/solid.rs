@@ -23,10 +23,10 @@ pub struct Solid {
     /// Maps local Y or K indices to global Y or K indices (neq_local)
     local_to_global: Vec<usize>,
 
-    /// Local Y-vector (neq_local)
-    yy: Vector,
+    /// Local residual vector (neq_local)
+    rr: Vector,
 
-    /// Local K-matrix (neq_local, neq_local)
+    /// Local Jacobian matrix (neq_local, neq_local)
     kk: Matrix,
 }
 
@@ -59,7 +59,7 @@ impl Solid {
             thickness,
             element_dof,
             local_to_global: vec![0; neq_local],
-            yy: Vector::new(neq_local),
+            rr: Vector::new(neq_local),
             kk: Matrix::new(neq_local, neq_local),
         };
 
@@ -95,16 +95,16 @@ impl BaseElement for Solid {
         Ok(state)
     }
 
-    /// Computes the element Y-vector
-    fn calc_local_yy_vector(&mut self, state: &StateElement) -> Result<(), StrError> {
+    /// Computes the element's residual vector
+    fn calc_local_residual_vector(&mut self, state: &StateElement) -> Result<(), StrError> {
         self.shape
-            .integ_vec_d_tg(&mut self.yy, self.thickness, |sig, index_ip| {
+            .integ_vec_d_tg(&mut self.rr, self.thickness, |sig, index_ip| {
                 copy_vector(&mut sig.vec, &state.stress[index_ip].sigma.vec)
             })
     }
 
-    /// Computes the element K-matrix
-    fn calc_local_kk_matrix(&mut self, state: &StateElement, first_iteration: bool) -> Result<(), StrError> {
+    /// Computes the element's jacobian matrix
+    fn calc_local_jacobian_matrix(&mut self, state: &StateElement, first_iteration: bool) -> Result<(), StrError> {
         let model = &self.model.base;
         self.shape
             .integ_mat_10_gdg(&mut self.kk, self.thickness, |dd, index_ip| {
@@ -112,21 +112,21 @@ impl BaseElement for Solid {
             })
     }
 
-    /// Returns the element K matrix (e.g., for debugging)
-    fn get_local_kk_matrix(&self) -> &Matrix {
+    /// Returns the element's jacobian matrix
+    fn get_local_jacobian_matrix(&self) -> &Matrix {
         &self.kk
     }
 
-    /// Assembles the local Y-vector into the global Y-vector
-    fn assemble_yy_vector(&self, yy: &mut Vector) -> Result<(), StrError> {
+    /// Assembles the local residual vector into the global residual vector
+    fn assemble_residual_vector(&self, rr: &mut Vector) -> Result<(), StrError> {
         for (i, p) in self.local_to_global.iter().enumerate() {
-            yy[*p] = self.yy[i];
+            rr[*p] = self.rr[i];
         }
         Ok(())
     }
 
-    /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_kk_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError> {
+    /// Assembles the local jacobian matrix into the global jacobian matrix
+    fn assemble_jacobian_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError> {
         for (i, p) in self.local_to_global.iter().enumerate() {
             for (j, q) in self.local_to_global.iter().enumerate() {
                 kk.put(*p, *q, self.kk[i][j])?;
@@ -323,7 +323,7 @@ mod tests {
         assert_eq!(element_5.shape.node_to_point, [6, 7, 4]);
         assert_eq!(element_5.thickness, 1.0);
         assert_eq!(element_5.element_dof, vec![Dof::Ux, Dof::Uy]);
-        assert_eq!(element_5.yy.dim(), 6);
+        assert_eq!(element_5.rr.dim(), 6);
         assert_eq!(element_5.kk.dims(), (6, 6));
         // 3D
         let mut equation_numbers = EquationNumbers::new(8);
@@ -370,10 +370,10 @@ mod tests {
         let mut equation_numbers = EquationNumbers::new(9);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?;
         let state = get_non_zero_stress_state_2d()?;
-        element_5.calc_local_yy_vector(&state)?;
+        element_5.calc_local_residual_vector(&state)?;
         let mut ana = AnalyticalTri3::new(&mut element_5.shape);
         let yy_correct = ana.integ_vec_d_constant(S00, S11, S01);
-        assert_vec_approx_eq!(element_5.yy.as_data(), &yy_correct, 1e-14);
+        assert_vec_approx_eq!(element_5.rr.as_data(), &yy_correct, 1e-14);
         Ok(())
     }
 
@@ -382,7 +382,7 @@ mod tests {
         let mut equation_numbers = EquationNumbers::new(9);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?;
         let state = get_non_zero_stress_state_2d()?;
-        element_5.calc_local_kk_matrix(&state, true)?;
+        element_5.calc_local_jacobian_matrix(&state, true)?;
 
         // compare with book
         #[rustfmt::skip]
@@ -400,7 +400,7 @@ mod tests {
 
         // compare with analytical formula
         let kk_ana = ana.integ_stiffness(1e6, 0.3, false, 1.0)?;
-        let (_, _, diff) = mat_max_abs_diff(&element_5.get_local_kk_matrix(), &kk_ana)?;
+        let (_, _, diff) = mat_max_abs_diff(&element_5.get_local_jacobian_matrix(), &kk_ana)?;
         assert!(diff < 1e-10);
         Ok(())
     }
@@ -410,9 +410,9 @@ mod tests {
         let mut equation_numbers = EquationNumbers::new(9);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?; // points 6,7,4 will get the first eq numbers
         let state = get_non_zero_stress_state_2d()?;
-        element_5.calc_local_yy_vector(&state)?;
+        element_5.calc_local_residual_vector(&state)?;
         let mut yy_global = Vector::new(18); // 2_dim x 9_point
-        element_5.assemble_yy_vector(&mut yy_global)?;
+        element_5.assemble_residual_vector(&mut yy_global)?;
         let mut ana = AnalyticalTri3::new(&mut element_5.shape);
         let yy_correct = ana.integ_vec_d_constant(S00, S11, S01);
         let yy_top = &yy_global.as_data()[0..6];
@@ -425,9 +425,9 @@ mod tests {
         let mut equation_numbers = EquationNumbers::new(9);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?; // points 6,7,4 will get the first eq numbers
         let state = get_non_zero_stress_state_2d()?;
-        element_5.calc_local_kk_matrix(&state, true)?;
+        element_5.calc_local_jacobian_matrix(&state, true)?;
         let mut kk_global = SparseTriplet::new(18, 18, 6 * 6, russell_sparse::Symmetry::No)?;
-        element_5.assemble_kk_matrix(&mut kk_global)?;
+        element_5.assemble_jacobian_matrix(&mut kk_global)?;
         let mut ana = AnalyticalTri3::new(&mut element_5.shape);
         let kk_correct = ana.integ_stiffness(1e6, 0.3, false, 1.0)?;
         let mut kk_global_mat = Matrix::new(18, 18);

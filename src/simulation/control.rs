@@ -30,7 +30,7 @@ pub struct Control {
     pub(super) div_ctrl_max_steps: usize,
 
     /// Maximum number of iterations
-    pub(super) n_max_it: usize,
+    pub(super) n_max_iterations: usize,
 
     /// Absolute tolerance
     pub(super) tol_abs: f64,
@@ -40,6 +40,9 @@ pub struct Control {
 
     /// Verbose mode
     pub(super) verbose: bool,
+
+    /// Verbose mode for iterations
+    pub(super) verbose_iterations: bool,
 }
 
 impl Control {
@@ -55,10 +58,11 @@ impl Control {
             dt_min: 1e-10,
             divergence_control: false,
             div_ctrl_max_steps: 10,
-            n_max_it: 10,
+            n_max_iterations: 10,
             tol_abs: 1e-5,
             tol_rel: 1e-5,
             verbose: true,
+            verbose_iterations: true,
         }
     }
 
@@ -126,8 +130,8 @@ impl Control {
     }
 
     /// Sets the maximum number of iterations
-    pub fn n_max_it(&mut self, value: usize) -> Result<&mut Self, StrError> {
-        self.n_max_it = value;
+    pub fn n_max_iterations(&mut self, value: usize) -> Result<&mut Self, StrError> {
+        self.n_max_iterations = value;
         Ok(self)
     }
 
@@ -152,6 +156,12 @@ impl Control {
     /// Shows messages during the solution
     pub fn verbose(&mut self, flag: bool) -> Result<&mut Self, StrError> {
         self.verbose = flag;
+        Ok(self)
+    }
+
+    /// Shows messages during the solution
+    pub fn verbose_iterations(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+        self.verbose_iterations = flag;
         Ok(self)
     }
 }

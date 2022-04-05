@@ -30,8 +30,7 @@ pub struct StateElement {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct State {
     pub elements: Vec<StateElement>, // (nele)
-    pub system_xx: Vector,           // (neq)
-    pub system_yy: Vector,           // (neq)
+    pub unknowns: Vector,            // (neq)
 }
 
 impl StateElement {
@@ -49,8 +48,7 @@ impl State {
     pub fn new_empty() -> Self {
         State {
             elements: Vec::new(),
-            system_xx: Vector::new(0),
-            system_yy: Vector::new(0),
+            unknowns: Vector::new(0),
         }
     }
 }

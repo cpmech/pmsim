@@ -1,8 +1,7 @@
-use super::{AnalysisType, Configuration, Control, Dof, EquationNumbers, Initializer, State};
+use super::{AnalysisType, Configuration, Control, Dof, EquationNumbers, Initializer, SolutionVariables, State};
 use crate::elements::Element;
 use crate::StrError;
-use russell_lab::Vector;
-use russell_sparse::{SparseTriplet, Symmetry};
+use russell_lab::{vector_norm, NormVec, Vector};
 
 /// Implements the finite element simulation
 #[allow(dead_code)]
@@ -19,8 +18,8 @@ pub struct Simulation<'a> {
     /// State variables
     state: State,
 
-    /// Global system Jacobian matrix
-    system_kk: SparseTriplet,
+    /// Solution variables
+    solution_variables: SolutionVariables,
 }
 
 impl<'a> Simulation<'a> {
@@ -41,7 +40,7 @@ impl<'a> Simulation<'a> {
             let mut element = Element::new(config, cell.id, &mut equation_numbers)?;
 
             // estimate the max number of non-zeros in the K-matrix
-            let (nrow, ncol) = element.base.get_local_kk_matrix().dims();
+            let (nrow, ncol) = element.base.get_local_jacobian_matrix().dims();
             nnz_max += nrow * ncol;
 
             // allocate integ points states
@@ -56,16 +55,15 @@ impl<'a> Simulation<'a> {
         let neq = equation_numbers.nequation();
 
         // allocate system arrays
-        state.system_xx = Vector::new(neq);
-        state.system_yy = Vector::new(neq);
+        state.unknowns = Vector::new(neq);
 
         // initialize DOFs
         for point in &mesh.points {
             if let Some(n) = equation_numbers.number(point.id, Dof::Pl) {
-                state.system_xx[n] = initializer.pl(&point.coords)?;
+                state.unknowns[n] = initializer.pl(&point.coords)?;
             }
             if let Some(n) = equation_numbers.number(point.id, Dof::Pg) {
-                state.system_xx[n] = initializer.pg(&point.coords)?;
+                state.unknowns[n] = initializer.pg(&point.coords)?;
             }
         }
 
@@ -75,7 +73,7 @@ impl<'a> Simulation<'a> {
             elements,
             equation_numbers,
             state,
-            system_kk: SparseTriplet::new(neq, neq, nnz_max, Symmetry::No)?,
+            solution_variables: SolutionVariables::new(neq, nnz_max)?,
         })
     }
 
@@ -145,7 +143,7 @@ impl<'a> Simulation<'a> {
             }
 
             // run iterations
-            let diverging = self.iterations(t, dt)?;
+            let diverging = self.iterations(&control, t, dt)?;
 
             // restore solution and reduce time step if divergence control is enabled
             if control.divergence_control {
@@ -154,7 +152,7 @@ impl<'a> Simulation<'a> {
                         println!(". . . diverging . . .");
                     }
                     /* todo:
-                    restore backup
+                       restore backup
                     */
                     t -= dt;
                     div_ctrl_multiplier *= 0.5;
@@ -166,7 +164,7 @@ impl<'a> Simulation<'a> {
             }
 
             // perform output
-            if t >= t_out || last_time_step {
+            if (t >= t_out || last_time_step) && !diverging {
                 /* todo:
                    make output
                 */
@@ -179,12 +177,72 @@ impl<'a> Simulation<'a> {
     }
 
     /// Performs iterations
-    fn iterations(&mut self, _t: f64, _dt: f64) -> Result<bool, StrError> {
-        Ok(false)
-    }
+    ///
+    /// **NOTE**: Returns **true** if diverging.
+    ///
+    ///
+    /// For each iteration, the linear system is:
+    ///
+    /// ```text
+    /// [K] {δX} = -{Y}
+    /// ```
+    ///
+    /// or
+    ///
+    /// ```text
+    /// [K] {X_bar} = {Y}
+    /// ```
+    ///
+    /// where
+    ///
+    /// ```text
+    /// {X_bar} = -{δX}
+    /// ```
+    fn iterations(&mut self, control: &Control, t: f64, _dt: f64) -> Result<bool, StrError> {
+        // auxiliary
+        let kk = &mut self.solution_variables.kk;
+        let rr = &mut self.solution_variables.rr;
+        let mdu = &mut self.solution_variables.mdu;
+        let ddu = &mut self.solution_variables.ddu;
+        let uu = &mut self.state.unknowns;
 
-    // Applies boundary condition at time t
-    // fn apply_bcs(&self, t: f64) {}
+        // zero accumulated increments
+        ddu.fill(0.0);
+
+        // residual vector (right-hand-side) maximum absolute value
+        let mut max_abs_rr: f64 = f64::MAX; // current
+        let mut max_abs_rr_first: f64; // at the first iteration
+        let mut max_abs_rr_previous: f64; // from the previous iteration
+
+        // message
+        if control.verbose_iterations {
+            // todo
+        }
+
+        // run iterations
+        for iteration in 0..control.n_max_iterations {
+            // assemble residual vector
+            for element in &self.elements {
+                element.base.assemble_residual_vector(rr)?;
+            }
+
+            // boundary conditions
+            // todo
+
+            // residual vector maximum absolute value
+            if iteration == 0 {
+                max_abs_rr = vector_norm(rr, NormVec::Max);
+                max_abs_rr_first = max_abs_rr;
+                max_abs_rr_previous = max_abs_rr;
+            } else {
+                max_abs_rr_previous = max_abs_rr;
+                max_abs_rr = vector_norm(rr, NormVec::Max);
+            }
+        }
+
+        // done
+        Ok(false) // false means **not diverging**
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -282,7 +340,6 @@ mod tests {
         assert_eq!(sim.elements.len(), 4);
         assert_eq!(sim.equation_numbers.nequation(), 12);
         assert_eq!(sim.state.elements.len(), 4);
-        assert_eq!(sim.system_kk.dims(), (12, 12));
 
         // run simulation
         let control = Control::new();

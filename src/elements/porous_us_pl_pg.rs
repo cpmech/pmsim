@@ -38,28 +38,28 @@ impl BaseElement for PorousUsPlPg {
         Ok(StateElement::new_empty())
     }
 
-    /// Computes the element Y-vector
-    fn calc_local_yy_vector(&mut self, _state: &StateElement) -> Result<(), StrError> {
+    /// Computes the element's residual vector
+    fn calc_local_residual_vector(&mut self, _state: &StateElement) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Computes the element K-matrix
-    fn calc_local_kk_matrix(&mut self, _state: &StateElement, _first_iteration: bool) -> Result<(), StrError> {
+    /// Computes the element's jacobian matrix
+    fn calc_local_jacobian_matrix(&mut self, _state: &StateElement, _first_iteration: bool) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Returns the element K matrix (e.g., for debugging)
-    fn get_local_kk_matrix(&self) -> &Matrix {
+    /// Returns the element's jacobian matrix
+    fn get_local_jacobian_matrix(&self) -> &Matrix {
         &self.kk
     }
 
-    /// Assembles the local Y-vector into the global Y-vector
-    fn assemble_yy_vector(&self, _yy: &mut Vector) -> Result<(), StrError> {
+    /// Assembles the local residual vector into the global residual vector
+    fn assemble_residual_vector(&self, _rr: &mut Vector) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Assembles the local K-matrix into the global K-matrix
-    fn assemble_kk_matrix(&self, _kk: &mut SparseTriplet) -> Result<(), StrError> {
+    /// Assembles the local jacobian matrix into the global jacobian matrix
+    fn assemble_jacobian_matrix(&self, _kk: &mut SparseTriplet) -> Result<(), StrError> {
         Ok(())
     }
 }
