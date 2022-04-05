@@ -1,7 +1,9 @@
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::{SparseTriplet, Symmetry};
+use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
 
+/// Implements the linear system solved at each iteration
+///
 /// Holds solution variables used in the time-loop and iteration-loop
 ///
 /// We consider the following notation:
@@ -30,28 +32,36 @@ use russell_sparse::{SparseTriplet, Symmetry};
 ///
 /// {ΔU} -= mdu
 /// ```
-pub struct SolutionVariables {
+pub struct LinearSystem {
     /// {K}: Jacobian matrix (neq,neq)
-    pub kk: SparseTriplet,
+    pub(super) kk: SparseTriplet,
 
     /// {R}: residual vector (neq)
-    pub rr: Vector,
+    pub(super) rr: Vector,
 
     /// -{δU}: minus little delta U (neq)
-    pub mdu: Vector,
+    pub(super) mdu: Vector,
 
     /// {ΔU}: accumulated delta U (neq)
-    pub ddu: Vector,
+    pub(super) ddu: Vector,
+
+    /// Linear system solver
+    pub(super) solver: Solver,
+
+    /// Solver has been initialized
+    pub(super) initialized: bool,
 }
 
-impl SolutionVariables {
+impl LinearSystem {
     /// Allocates a new instance
-    pub fn new(neq: usize, nnz_max: usize) -> Result<Self, StrError> {
-        Ok(SolutionVariables {
+    pub fn new(neq: usize, nnz_max: usize, config_solver: &ConfigSolver) -> Result<Self, StrError> {
+        Ok(LinearSystem {
             kk: SparseTriplet::new(neq, neq, nnz_max, Symmetry::No)?,
             rr: Vector::new(neq),
             mdu: Vector::new(neq),
             ddu: Vector::new(neq),
+            solver: Solver::new(*config_solver)?,
+            initialized: false,
         })
     }
 }

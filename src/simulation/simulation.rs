@@ -1,7 +1,8 @@
-use super::{AnalysisType, Configuration, Control, Dof, EquationNumbers, Initializer, SolutionVariables, State};
+use super::{AnalysisType, Configuration, Control, Dof, EquationNumbers, Initializer, LinearSystem, State};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::{vector_norm, NormVec, Vector};
+use russell_sparse::Solver;
 
 /// Implements the finite element simulation
 #[allow(dead_code)]
@@ -18,8 +19,11 @@ pub struct Simulation<'a> {
     /// State variables
     state: State,
 
-    /// Solution variables
-    solution_variables: SolutionVariables,
+    /// Number of equations in the global system
+    neq: usize,
+
+    /// Maximum number of non-zero values in the global Jacobian matrix
+    nnz_max: usize,
 }
 
 impl<'a> Simulation<'a> {
@@ -73,7 +77,8 @@ impl<'a> Simulation<'a> {
             elements,
             equation_numbers,
             state,
-            solution_variables: SolutionVariables::new(neq, nnz_max)?,
+            neq,
+            nnz_max,
         })
     }
 
@@ -85,6 +90,9 @@ impl<'a> Simulation<'a> {
                 return Err("quasi-static mode is only available for rod, beam, and solids");
             }
         }
+
+        // linear system
+        let mut lin_sys = LinearSystem::new(self.neq, self.nnz_max, &control.config_solver)?;
 
         // current time
         let mut t = control.t_ini;
@@ -143,7 +151,7 @@ impl<'a> Simulation<'a> {
             }
 
             // run iterations
-            let diverging = self.iterations(&control, t, dt)?;
+            let diverging = self.iterations(&control, &mut lin_sys, t, dt)?;
 
             // restore solution and reduce time step if divergence control is enabled
             if control.divergence_control {
@@ -198,12 +206,18 @@ impl<'a> Simulation<'a> {
     /// ```text
     /// {X_bar} = -{δX}
     /// ```
-    fn iterations(&mut self, control: &Control, t: f64, _dt: f64) -> Result<bool, StrError> {
+    fn iterations(
+        &mut self,
+        control: &Control,
+        lin_sys: &mut LinearSystem,
+        t: f64,
+        _dt: f64,
+    ) -> Result<bool, StrError> {
         // auxiliary
-        let kk = &mut self.solution_variables.kk;
-        let rr = &mut self.solution_variables.rr;
-        let mdu = &mut self.solution_variables.mdu;
-        let ddu = &mut self.solution_variables.ddu;
+        let kk = &mut lin_sys.kk;
+        let rr = &mut lin_sys.rr;
+        let mdu = &mut lin_sys.mdu;
+        let ddu = &mut lin_sys.ddu;
         let uu = &mut self.state.unknowns;
 
         // zero accumulated increments
@@ -211,7 +225,7 @@ impl<'a> Simulation<'a> {
 
         // residual vector (right-hand-side) maximum absolute value
         let mut max_abs_rr: f64 = f64::MAX; // current
-        let mut max_abs_rr_first: f64; // at the first iteration
+        let mut max_abs_rr_first: f64 = f64::MAX; // at the first iteration
         let mut max_abs_rr_previous: f64; // from the previous iteration
 
         // message
@@ -220,9 +234,15 @@ impl<'a> Simulation<'a> {
         }
 
         // run iterations
-        for iteration in 0..control.n_max_iterations {
+        let mut iteration = 0;
+        while iteration < control.n_max_iterations {
+            // auxiliary flag
+            let first_iteration = iteration == 0;
+
             // assemble residual vector
-            for element in &self.elements {
+            for (e, element) in self.elements.iter_mut().enumerate() {
+                let state = &self.state.elements[e];
+                element.base.calc_local_residual_vector(state)?;
                 element.base.assemble_residual_vector(rr)?;
             }
 
@@ -230,7 +250,7 @@ impl<'a> Simulation<'a> {
             // todo
 
             // residual vector maximum absolute value
-            if iteration == 0 {
+            if first_iteration {
                 max_abs_rr = vector_norm(rr, NormVec::Max);
                 max_abs_rr_first = max_abs_rr;
                 max_abs_rr_previous = max_abs_rr;
@@ -238,6 +258,71 @@ impl<'a> Simulation<'a> {
                 max_abs_rr_previous = max_abs_rr;
                 max_abs_rr = vector_norm(rr, NormVec::Max);
             }
+
+            // check convergence or divergence on the residual vector
+            if !first_iteration {
+                // converged w.r.t absolute value of residual
+                if max_abs_rr < control.tol_abs_residual {
+                    return Ok(false);
+                }
+                // converged w.r.t relative value of residual
+                if max_abs_rr < control.tol_rel_residual * max_abs_rr_first {
+                    return Ok(false);
+                }
+                // diverging
+                if control.divergence_control && max_abs_rr > max_abs_rr_previous {
+                    return Ok(true);
+                }
+            }
+
+            // Jacobian matrix and linear solver
+            if first_iteration || !control.constant_tangent {
+                // assemble Jacobian matrix
+                kk.reset();
+                for (e, element) in self.elements.iter_mut().enumerate() {
+                    let state = &self.state.elements[e];
+                    element.base.calc_local_jacobian_matrix(state, first_iteration)?;
+                    element.base.assemble_jacobian_matrix(kk)?;
+                }
+
+                // initialize linear solver
+                if !lin_sys.initialized {
+                    lin_sys.solver.initialize(kk)?;
+                }
+
+                // perform factorization
+                lin_sys.solver.factorize()?;
+            }
+
+            // solver linear system: mdu = inv(K) * R
+            lin_sys.solver.solve(mdu, rr)?;
+
+            // update primary variables
+            for i in 0..self.neq {
+                ddu[i] -= mdu[i];
+                uu[i] -= mdu[i];
+            }
+
+            // update secondary variables
+            for (e, element) in self.elements.iter_mut().enumerate() {
+                let state = &self.state.elements[e];
+                // element.base.update_state(state, ddu, uu)?;
+            }
+
+            // compute RMS norm of δu and check convergence on δu
+
+            // converged on δu
+            // if ldu < itol {
+            //     break;
+            // }
+
+            // next iteration number
+            iteration += 1;
+        }
+
+        // check number of iterations
+        if iteration == control.n_max_iterations {
+            return Err("max number of iterations reached");
         }
 
         // done

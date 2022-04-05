@@ -1,3 +1,5 @@
+use russell_sparse::ConfigSolver;
+
 use crate::StrError;
 
 /// Holds time and iteration parameters
@@ -7,6 +9,9 @@ pub struct Control {
 
     /// Quasi-static analysis
     pub(super) quasi_static: bool,
+
+    /// Pseudo-Newton method with constant-tangent operator
+    pub(super) constant_tangent: bool,
 
     /// Initial time
     pub(super) t_ini: f64,
@@ -32,11 +37,14 @@ pub struct Control {
     /// Maximum number of iterations
     pub(super) n_max_iterations: usize,
 
-    /// Absolute tolerance
-    pub(super) tol_abs: f64,
+    /// Absolute tolerance for the residual vector
+    pub(super) tol_abs_residual: f64,
 
-    /// Relative tolerance
-    pub(super) tol_rel: f64,
+    /// Relative tolerance for the residual vector
+    pub(super) tol_rel_residual: f64,
+
+    /// Linear solver configuration
+    pub(super) config_solver: ConfigSolver,
 
     /// Verbose mode
     pub(super) verbose: bool,
@@ -51,6 +59,7 @@ impl Control {
         Control {
             linear_problem: false,
             quasi_static: false,
+            constant_tangent: false,
             t_ini: 0.0,
             t_fin: 1.0,
             dt: |_| 0.1,
@@ -59,8 +68,9 @@ impl Control {
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_abs: 1e-5,
-            tol_rel: 1e-5,
+            tol_abs_residual: 1e-8,
+            tol_rel_residual: 1e-6,
+            config_solver: ConfigSolver::new(),
             verbose: true,
             verbose_iterations: true,
         }
@@ -75,6 +85,12 @@ impl Control {
     /// Tells the solver to treat the simulation as a quasi-static analysis
     pub fn quasi_static(&mut self, flag: bool) -> Result<&mut Self, StrError> {
         self.quasi_static = flag;
+        Ok(self)
+    }
+
+    /// Tells the solver to use the pseudo-Newton method with constant (tangent) Jacobian
+    pub fn constant_tangent(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+        self.constant_tangent = flag;
         Ok(self)
     }
 
@@ -135,21 +151,21 @@ impl Control {
         Ok(self)
     }
 
-    /// Sets the absolute tolerance
-    pub fn tol_abs(&mut self, value: f64) -> Result<&mut Self, StrError> {
-        if value < 1e-14 {
-            return Err("tol_abs must be greater than or equal to 1e-14");
+    /// Sets the absolute tolerance for the residual vector
+    pub fn tol_abs_residual(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value < 1e-8 {
+            return Err("tol_abs_residual must be greater than or equal to 1e-8");
         }
-        self.tol_abs = value;
+        self.tol_abs_residual = value;
         Ok(self)
     }
 
-    /// Sets the relative tolerance
-    pub fn tol_rel(&mut self, value: f64) -> Result<&mut Self, StrError> {
-        if value < 1e-14 {
-            return Err("tol_rel must be greater than or equal to 1e-14");
+    /// Sets the relative tolerance for the residual vector
+    pub fn tol_rel_residual(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value < 1e-8 {
+            return Err("tol_rel_residual must be greater than or equal to 1e-8");
         }
-        self.tol_rel = value;
+        self.tol_rel_residual = value;
         Ok(self)
     }
 
