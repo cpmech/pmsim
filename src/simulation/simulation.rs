@@ -2,7 +2,12 @@ use super::{AnalysisType, Configuration, Control, Dof, EquationNumbers, Initiali
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::{vector_norm, NormVec, Vector};
-use russell_sparse::Solver;
+
+#[derive(PartialEq)]
+enum Status {
+    Converged,
+    Diverging,
+}
 
 /// Implements the finite element simulation
 #[allow(dead_code)]
@@ -151,11 +156,11 @@ impl<'a> Simulation<'a> {
             }
 
             // run iterations
-            let diverging = self.iterations(&control, &mut lin_sys, t, dt)?;
+            let status = self.iterations(&control, &mut lin_sys, t, dt)?;
 
             // restore solution and reduce time step if divergence control is enabled
             if control.divergence_control {
-                if diverging {
+                if status == Status::Diverging {
                     if control.verbose {
                         println!(". . . diverging . . .");
                     }
@@ -165,6 +170,7 @@ impl<'a> Simulation<'a> {
                     t -= dt;
                     div_ctrl_multiplier *= 0.5;
                     div_ctrl_n_steps += 1;
+                    continue; // <<<<<< skip possible output
                 } else {
                     div_ctrl_multiplier = 1.0;
                     div_ctrl_n_steps = 0;
@@ -172,7 +178,7 @@ impl<'a> Simulation<'a> {
             }
 
             // perform output
-            if (t >= t_out || last_time_step) && !diverging {
+            if t >= t_out || last_time_step {
                 /* todo:
                    make output
                 */
@@ -185,9 +191,6 @@ impl<'a> Simulation<'a> {
     }
 
     /// Performs iterations
-    ///
-    /// **NOTE**: Returns **true** if diverging.
-    ///
     ///
     /// For each iteration, the linear system is:
     ///
@@ -210,18 +213,18 @@ impl<'a> Simulation<'a> {
         &mut self,
         control: &Control,
         lin_sys: &mut LinearSystem,
-        t: f64,
+        _t: f64,
         _dt: f64,
-    ) -> Result<bool, StrError> {
+    ) -> Result<Status, StrError> {
         // auxiliary
         let kk = &mut lin_sys.kk;
         let rr = &mut lin_sys.rr;
         let mdu = &mut lin_sys.mdu;
-        let ddu = &mut lin_sys.ddu;
+        let delta_uu = &mut lin_sys.ddu;
         let uu = &mut self.state.unknowns;
 
         // zero accumulated increments
-        ddu.fill(0.0);
+        delta_uu.fill(0.0);
 
         // residual vector (right-hand-side) maximum absolute value
         let mut max_abs_rr: f64 = f64::MAX; // current
@@ -234,11 +237,9 @@ impl<'a> Simulation<'a> {
         }
 
         // run iterations
-        let mut iteration = 0;
-        while iteration < control.n_max_iterations {
-            // auxiliary flag
-            let first_iteration = iteration == 0;
-
+        let mut iteration_number = 1;
+        let mut first_iteration = true;
+        while iteration_number <= control.n_max_iterations {
             // assemble residual vector
             for (e, element) in self.elements.iter_mut().enumerate() {
                 let state = &self.state.elements[e];
@@ -261,17 +262,11 @@ impl<'a> Simulation<'a> {
 
             // check convergence or divergence on the residual vector
             if !first_iteration {
-                // converged w.r.t absolute value of residual
-                if max_abs_rr < control.tol_abs_residual {
-                    return Ok(false);
-                }
-                // converged w.r.t relative value of residual
                 if max_abs_rr < control.tol_rel_residual * max_abs_rr_first {
-                    return Ok(false);
+                    return Ok(Status::Converged);
                 }
-                // diverging
                 if control.divergence_control && max_abs_rr > max_abs_rr_previous {
-                    return Ok(true);
+                    return Ok(Status::Diverging);
                 }
             }
 
@@ -299,34 +294,30 @@ impl<'a> Simulation<'a> {
 
             // update primary variables
             for i in 0..self.neq {
-                ddu[i] -= mdu[i];
+                delta_uu[i] -= mdu[i];
                 uu[i] -= mdu[i];
             }
 
             // update secondary variables
             for (e, element) in self.elements.iter_mut().enumerate() {
-                let state = &self.state.elements[e];
-                // element.base.update_state(state, ddu, uu)?;
+                let state = &mut self.state.elements[e];
+                element.base.update_state(state, delta_uu, uu)?;
             }
 
-            // compute RMS norm of δu and check convergence on δu
+            // check convergence on mdu (-δu)
+            let max_abs_mdu = vector_norm(mdu, NormVec::Max);
+            let max_abs_uu = vector_norm(uu, NormVec::Max);
+            if max_abs_mdu < control.tol_rel_mdu * max_abs_uu {
+                return Ok(Status::Converged);
+            }
 
-            // converged on δu
-            // if ldu < itol {
-            //     break;
-            // }
-
-            // next iteration number
-            iteration += 1;
+            // next iteration
+            iteration_number += 1;
+            first_iteration = false;
         }
 
-        // check number of iterations
-        if iteration == control.n_max_iterations {
-            return Err("max number of iterations reached");
-        }
-
-        // done
-        Ok(false) // false means **not diverging**
+        // failed
+        Err("max number of iterations reached")
     }
 }
 

@@ -1,6 +1,5 @@
-use russell_sparse::ConfigSolver;
-
 use crate::StrError;
+use russell_sparse::ConfigSolver;
 
 /// Holds time and iteration parameters
 pub struct Control {
@@ -37,11 +36,11 @@ pub struct Control {
     /// Maximum number of iterations
     pub(super) n_max_iterations: usize,
 
-    /// Absolute tolerance for the residual vector
-    pub(super) tol_abs_residual: f64,
-
     /// Relative tolerance for the residual vector
     pub(super) tol_rel_residual: f64,
+
+    /// Relative tolerance for the iterative increment (mdu = -δu)
+    pub(super) tol_rel_mdu: f64,
 
     /// Linear solver configuration
     pub(super) config_solver: ConfigSolver,
@@ -68,8 +67,8 @@ impl Control {
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_abs_residual: 1e-8,
             tol_rel_residual: 1e-6,
+            tol_rel_mdu: 1e-10,
             config_solver: ConfigSolver::new(),
             verbose: true,
             verbose_iterations: true,
@@ -151,21 +150,21 @@ impl Control {
         Ok(self)
     }
 
-    /// Sets the absolute tolerance for the residual vector
-    pub fn tol_abs_residual(&mut self, value: f64) -> Result<&mut Self, StrError> {
-        if value < 1e-8 {
-            return Err("tol_abs_residual must be greater than or equal to 1e-8");
+    /// Sets the relative tolerance for the residual vector
+    pub fn tol_rel_residual(&mut self, tol_rel: f64) -> Result<&mut Self, StrError> {
+        if tol_rel < 1e-15 {
+            return Err("relative tolerance for the residual must be greater than or equal to 1e-15");
         }
-        self.tol_abs_residual = value;
+        self.tol_rel_residual = tol_rel;
         Ok(self)
     }
 
-    /// Sets the relative tolerance for the residual vector
-    pub fn tol_rel_residual(&mut self, value: f64) -> Result<&mut Self, StrError> {
-        if value < 1e-8 {
-            return Err("tol_rel_residual must be greater than or equal to 1e-8");
+    /// Sets the relative tolerance for the iterative increment (mdu = -δu)
+    pub fn tol_rel_mdu(&mut self, tol_rel: f64) -> Result<&mut Self, StrError> {
+        if tol_rel < 1e-15 {
+            return Err("relative tolerance for the iterative increment must be greater than or equal to 1e-15");
         }
-        self.tol_rel_residual = value;
+        self.tol_rel_mdu = tol_rel;
         Ok(self)
     }
 

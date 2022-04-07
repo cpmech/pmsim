@@ -26,6 +26,9 @@ pub trait BaseElement {
 
     /// Assembles the local jacobian matrix into the global jacobian matrix
     fn assemble_jacobian_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError>;
+
+    /// Updates StateElement given the primary unknown and its increment
+    fn update_state(&mut self, state: &mut StateElement, delta_uu: &Vector, uu: &Vector) -> Result<(), StrError>;
 }
 
 /// Defines a finite element

@@ -62,4 +62,9 @@ impl BaseElement for PorousUsPlPg {
     fn assemble_jacobian_matrix(&self, _kk: &mut SparseTriplet) -> Result<(), StrError> {
         Ok(())
     }
+
+    /// Updates StateElement given the primary unknown and its increment
+    fn update_state(&mut self, _state: &mut StateElement, _delta_uu: &Vector, _uu: &Vector) -> Result<(), StrError> {
+        Ok(())
+    }
 }
