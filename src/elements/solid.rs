@@ -1,6 +1,6 @@
 use super::BaseElement;
 use crate::models::StressStrain;
-use crate::simulation::{Dof, EquationNumbers, Initializer, ParamSolid, StateElement, StateStress};
+use crate::simulation::{Dof, EquationId, Initializer, ParamSolid, StateElement, StateStress, EID};
 use crate::StrError;
 use gemlab::shapes::Shape;
 use russell_lab::{copy_vector, Matrix, Vector};
@@ -20,8 +20,8 @@ pub struct Solid {
     /// Degrees-of-freedom per node (ndof_per_node)
     element_dof: Vec<Dof>,
 
-    /// Maps local Y or K indices to global Y or K indices (neq_local)
-    local_to_global: Vec<usize>,
+    /// Maps local R index to the equation identification number in the global R vector
+    local_to_global: Vec<EID>,
 
     /// Local residual vector (neq_local)
     rr: Vector,
@@ -38,7 +38,7 @@ impl Solid {
         n_integ_point: Option<usize>,
         plane_stress: bool,
         thickness: f64,
-        equation_numbers: &mut EquationNumbers,
+        equation_id: &mut EquationId,
     ) -> Result<Self, StrError> {
         // model
         let two_dim = shape.geo_ndim == 2;
@@ -66,9 +66,9 @@ impl Solid {
         // activate equation identification numbers
         for (m, a) in element.shape.node_to_point.iter().enumerate() {
             for (i, d) in element.element_dof.iter().enumerate() {
-                let p = equation_numbers.activate_equation(*a, *d);
+                let eid = equation_id.activate(*a, *d);
                 let k = i + m * element.shape.geo_ndim;
-                element.local_to_global[k] = p;
+                element.local_to_global[k] = eid;
             }
         }
 
@@ -118,18 +118,31 @@ impl BaseElement for Solid {
     }
 
     /// Assembles the local residual vector into the global residual vector
+    ///
+    /// **unknown equations only**
     fn assemble_residual_vector(&self, rr: &mut Vector) -> Result<(), StrError> {
-        for (i, p) in self.local_to_global.iter().enumerate() {
-            rr[*p] = self.rr[i];
+        for (i, eid) in self.local_to_global.iter().enumerate() {
+            if *eid > 0 {
+                let p = *eid as usize - 1;
+                rr[p] = self.rr[i];
+            }
         }
         Ok(())
     }
 
     /// Assembles the local jacobian matrix into the global jacobian matrix
+    ///
+    /// **unknown equations only**
     fn assemble_jacobian_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError> {
-        for (i, p) in self.local_to_global.iter().enumerate() {
-            for (j, q) in self.local_to_global.iter().enumerate() {
-                kk.put(*p, *q, self.kk[i][j])?;
+        for (i, eid_i) in self.local_to_global.iter().enumerate() {
+            if *eid_i > 0 {
+                let p = *eid_i as usize - 1;
+                for (j, eid_j) in self.local_to_global.iter().enumerate() {
+                    if *eid_j > 0 {
+                        let q = *eid_j as usize - 1;
+                        kk.put(p, q, self.kk[i][j])?;
+                    }
+                }
             }
         }
         Ok(())
@@ -148,8 +161,8 @@ mod tests {
     use super::Solid;
     use crate::elements::BaseElement;
     use crate::simulation::{
-        Configuration, Dof, EquationNumbers, Initializer, ParamSolid, ParamStressStrain, SampleParam, StateElement,
-        StateStress,
+        Configuration, Dof, EquationId, Initializer, ParamSolid, ParamStressStrain, SampleParam, StateElement,
+        StateStress, UNASSIGNED,
     };
     use crate::StrError;
     use gemlab::mesh::Mesh;
@@ -159,45 +172,88 @@ mod tests {
     use russell_sparse::SparseTriplet;
     use russell_tensor::Tensor2;
 
-    /////////////////////////
-    // auxiliary functions //
-    /////////////////////////
+    fn mesh_square() -> Mesh {
+        Mesh::from_text(
+            r"
+            #  3------2
+            #  |      |
+            #  |      |
+            #  0------1
 
-    // The mesh below is used in tests; from Reference #1
-    //
-    //                  (sgm_5_2)
-    //
-    //          0.25       0.5      0.25 kN/m
-    //            ↓         ↓         ↓
-    //    ---    ▷0---------1---------2   Plane-Strain
-    //     |      |       ,'|       ,'|   E = 1e6 kN/m²
-    //     |      |  0  ,'  |  2  ,'  |   ν = 0.3
-    //     |      |   ,'    |   ,'    |
-    //            | ,'   1  | ,'  3   |   connectivity:
-    //    1 m    ▷3'--------4'--------5     0 : 1 0 3
-    //            |       ,'|       ,'|     1 : 3 4 1
-    //     |      |  4  ,'  |  6  ,'  |     2 : 2 1 4
-    //     |      |   ,'    |   ,'    |     3 : 4 5 2
-    //     |      | ,'   5  | ,'   7  |     4 : 4 3 6
-    //    ---    ▷6'--------7'--------8     5 : 6 7 4
-    //            △         △         △     6 : 5 4 7
-    //                                      7 : 7 8 5
-    //            |------- 1 m -------|
-    //
-    // Note: the x-y origin is at the top-left (Point #0)
-    //
-    // Reference
-    //
-    // 1. Smith, Griffiths and Margetts (5th ed) Figure 5.2 p173
-    //    (sgm_5_2)
-    //
-    fn get_sgm_5_2_mesh() -> Result<Mesh, StrError> {
+            # space_ndim npoint ncell
+                       2      4     1
+
+            # id   x   y
+               0 0.0 0.0
+               1 1.0 0.0
+               2 1.0 1.0
+               3 0.0 1.0
+
+            # id att geo_ndim nnode  point_ids...
+               0   1        2     4  0 1 2 3",
+        )
+        .unwrap()
+    }
+
+    fn mesh_cube() -> Mesh {
+        Mesh::from_text(
+            r"
+            #     4-----------7
+            #    /.          /|
+            #   / .         / |
+            #  5-----------6  |
+            #  |  .        |  |
+            #  |  0--------|--3
+            #  | /         | /
+            #  |/          |/
+            #  1-----------2
+
+            # space_ndim npoint ncell
+                       3      8     1
+
+            # id    x   y   z
+               0  0.0 0.0 0.0
+               1  1.0 0.0 0.0
+               2  1.0 1.0 0.0
+               3  0.0 1.0 0.0
+               4  0.0 0.0 1.0
+               5  1.0 0.0 1.0
+               6  1.0 1.0 1.0
+               7  0.0 1.0 1.0
+
+            # id att geo_ndim nnode  point_ids...
+               0   1        3     8  0 1 2 3 4 5 6 7",
+        )
+        .unwrap()
+    }
+
+    fn mesh_sgm_5_2() -> Mesh {
         Mesh::from_text(
             r#"
-            # header
+            #          0.25       0.5      0.25 kN/m
+            #            ↓         ↓         ↓
+            #    ---    ▷0---------1---------2   Plane-Strain
+            #     |      |       ,'|       ,'|   E = 1e6 kN/m²
+            #     |      |  0  ,'  |  2  ,'  |   ν = 0.3
+            #     |      |   ,'    |   ,'    |
+            #            | ,'   1  | ,'  3   |   connectivity:
+            #    1 m    ▷3'--------4'--------5     0 : 1 0 3
+            #            |       ,'|       ,'|     1 : 3 4 1
+            #     |      |  4  ,'  |  6  ,'  |     2 : 2 1 4
+            #     |      |   ,'    |   ,'    |     3 : 4 5 2
+            #     |      | ,'   5  | ,'   7  |     4 : 4 3 6
+            #    ---    ▷6'--------7'--------8     5 : 6 7 4
+            #            △         △         △     6 : 5 4 7
+            #                                      7 : 7 8 5
+            #            |------- 1 m -------|
+            #
+            # Note: the x-y origin is at the top-left (Point #0)
+            #
+            # Reference: Smith, Griffiths and Margetts (5th ed) Figure 5.2 p173
+
             # space_ndim npoint ncell
                        2      9     8
-            # points
+
             # id    x    y
                0  0.0  0.0
                1  0.5  0.0
@@ -208,7 +264,7 @@ mod tests {
                6  0.0 -1.0
                7  0.5 -1.0
                8  1.0 -1.0
-            # cells
+
             # id att geo_ndim nnode  point_ids...
                0   1        2     3  1 0 3
                1   1        2     3  3 4 1
@@ -220,6 +276,7 @@ mod tests {
                7   1        2     3  7 8 5
         "#,
         )
+        .unwrap()
     }
 
     fn get_sgm_5_2_param() -> ParamSolid {
@@ -232,8 +289,8 @@ mod tests {
         }
     }
 
-    fn get_sgm_5_2_element_5(equation_numbers: &mut EquationNumbers) -> Result<Solid, StrError> {
-        let mesh = get_sgm_5_2_mesh()?;
+    fn get_sgm_5_2_element_5(equation_numbers: &mut EquationId) -> Result<Solid, StrError> {
+        let mesh = mesh_sgm_5_2();
         let shape = mesh.alloc_shape_cell(5)?;
         let param = get_sgm_5_2_param();
         Solid::new(shape, &param, None, false, 1.0, equation_numbers)
@@ -264,55 +321,21 @@ mod tests {
         })
     }
 
-    fn get_cube_element(n_integ_point: usize, equation_numbers: &mut EquationNumbers) -> Result<Solid, StrError> {
-        //       4--------------7
-        //      /.             /|
-        //     / .            / |
-        //    /  .           /  |
-        //   /   .          /   |
-        //  5--------------6    |
-        //  |    .         |    |
-        //  |    0---------|----3
-        //  |   /          |   /
-        //  |  /           |  /
-        //  | /            | /
-        //  |/             |/
-        //  1--------------2
-        let mesh = Mesh::from_text(
-            r#"
-            # header
-            # space_ndim npoint ncell
-                       3      8     1
-            # points
-            # id    x   y   z
-               0  0.0 0.0 0.0
-               1  1.0 0.0 0.0
-               2  1.0 1.0 0.0
-               3  0.0 1.0 0.0
-               4  0.0 0.0 1.0
-               5  1.0 0.0 1.0
-               6  1.0 1.0 1.0
-               7  0.0 1.0 1.0
-            # cells
-            # id att geo_ndim nnode  point_ids...
-               0   1        3     8  0 1 2 3 4 5 6 7
-        "#,
-        )?;
+    fn get_cube_element(n_integ_point: usize, equation_numbers: &mut EquationId) -> Result<Solid, StrError> {
+        let mesh = mesh_cube();
         let shape = mesh.alloc_shape_cell(0)?;
         let param = SampleParam::param_solid();
         let cube = Solid::new(shape, &param, Some(n_integ_point), false, 1.0, equation_numbers)?;
         Ok(cube)
     }
 
-    ///////////
-    // tests //
-    ///////////
-
     #[test]
     fn new_captures_errors() -> Result<(), StrError> {
         let shape_1d = Shape::new(1, 1, 2)?;
         let param = SampleParam::param_solid();
-        let mut equation_numbers = EquationNumbers::new(9);
+        let mesh = mesh_square();
+        let config = Configuration::new(&mesh);
+        let mut equation_numbers = EquationId::new(&config);
         assert_eq!(
             Solid::new(shape_1d, &param, None, false, 1.0, &mut equation_numbers).err(),
             Some("shape.geo_ndim must be 2 or 3 for Solid element")
@@ -323,7 +346,9 @@ mod tests {
     #[test]
     fn new_works() -> Result<(), StrError> {
         // 2D
-        let mut equation_numbers = EquationNumbers::new(9);
+        let mesh = mesh_sgm_5_2();
+        let config = Configuration::new(&mesh);
+        let mut equation_numbers = EquationId::new(&config);
         let element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?;
         assert_eq!(element_5.shape.node_to_point, [6, 7, 4]);
         assert_eq!(element_5.thickness, 1.0);
@@ -331,7 +356,9 @@ mod tests {
         assert_eq!(element_5.rr.dim(), 6);
         assert_eq!(element_5.kk.dims(), (6, 6));
         // 3D
-        let mut equation_numbers = EquationNumbers::new(8);
+        let mesh = mesh_cube();
+        let config = Configuration::new(&mesh);
+        let mut equation_numbers = EquationId::new(&config);
         let cube = get_cube_element(6, &mut equation_numbers)?;
         assert_eq!(cube.shape.integ_points.len(), 6);
         assert_eq!(cube.shape.node_to_point, [0, 1, 2, 3, 4, 5, 6, 7]);
@@ -341,26 +368,28 @@ mod tests {
 
     #[test]
     fn activate_equations_works() -> Result<(), StrError> {
-        let mut equation_numbers = EquationNumbers::new(9);
+        let mesh = mesh_sgm_5_2();
+        let config = Configuration::new(&mesh);
+        let mut equation_numbers = EquationId::new(&config);
         get_sgm_5_2_element_5(&mut equation_numbers)?;
-        assert_eq!(equation_numbers.number(6, Dof::Ux), Some(0));
-        assert_eq!(equation_numbers.number(6, Dof::Uy), Some(1));
-        assert_eq!(equation_numbers.number(7, Dof::Ux), Some(2));
-        assert_eq!(equation_numbers.number(7, Dof::Uy), Some(3));
-        assert_eq!(equation_numbers.number(4, Dof::Ux), Some(4));
-        assert_eq!(equation_numbers.number(4, Dof::Uy), Some(5));
-        assert_eq!(equation_numbers.number(0, Dof::Ux), None);
-        assert_eq!(equation_numbers.number(8, Dof::Uy), None);
+        assert_eq!(equation_numbers.eid(6, Dof::Ux), 0 + 1);
+        assert_eq!(equation_numbers.eid(6, Dof::Uy), 1 + 1);
+        assert_eq!(equation_numbers.eid(7, Dof::Ux), 2 + 1);
+        assert_eq!(equation_numbers.eid(7, Dof::Uy), 3 + 1);
+        assert_eq!(equation_numbers.eid(4, Dof::Ux), 4 + 1);
+        assert_eq!(equation_numbers.eid(4, Dof::Uy), 5 + 1);
+        assert_eq!(equation_numbers.eid(0, Dof::Ux), UNASSIGNED);
+        assert_eq!(equation_numbers.eid(8, Dof::Uy), UNASSIGNED);
         assert_eq!(equation_numbers.nequation(), 6);
         Ok(())
     }
 
     #[test]
     fn new_state_works() -> Result<(), StrError> {
-        let mesh = get_sgm_5_2_mesh()?;
+        let mesh = mesh_sgm_5_2();
         let config = Configuration::new(&mesh);
         let initializer = Initializer::new(&config)?;
-        let mut equation_numbers = EquationNumbers::new(mesh.points.len());
+        let mut equation_numbers = EquationId::new(&config);
         let shape = mesh.alloc_shape_cell(5)?;
         let param = get_sgm_5_2_param();
         let mut element_5 = Solid::new(shape, &param, None, false, 1.0, &mut equation_numbers)?;
@@ -372,7 +401,9 @@ mod tests {
 
     #[test]
     fn calc_local_yy_vector_works() -> Result<(), StrError> {
-        let mut equation_numbers = EquationNumbers::new(9);
+        let mesh = mesh_sgm_5_2();
+        let config = Configuration::new(&mesh);
+        let mut equation_numbers = EquationId::new(&config);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?;
         let state = get_non_zero_stress_state_2d()?;
         element_5.calc_local_residual_vector(&state)?;
@@ -384,7 +415,9 @@ mod tests {
 
     #[test]
     fn calc_local_kk_matrix_works() -> Result<(), StrError> {
-        let mut equation_numbers = EquationNumbers::new(9);
+        let mesh = mesh_sgm_5_2();
+        let config = Configuration::new(&mesh);
+        let mut equation_numbers = EquationId::new(&config);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?;
         let state = get_non_zero_stress_state_2d()?;
         element_5.calc_local_jacobian_matrix(&state, true)?;
@@ -412,7 +445,9 @@ mod tests {
 
     #[test]
     fn assemble_yy_vector_works() -> Result<(), StrError> {
-        let mut equation_numbers = EquationNumbers::new(9);
+        let mesh = mesh_sgm_5_2();
+        let config = Configuration::new(&mesh);
+        let mut equation_numbers = EquationId::new(&config);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?; // points 6,7,4 will get the first eq numbers
         let state = get_non_zero_stress_state_2d()?;
         element_5.calc_local_residual_vector(&state)?;
@@ -427,7 +462,9 @@ mod tests {
 
     #[test]
     fn assemble_kk_matrix_works() -> Result<(), StrError> {
-        let mut equation_numbers = EquationNumbers::new(9);
+        let mesh = mesh_sgm_5_2();
+        let config = Configuration::new(&mesh);
+        let mut equation_numbers = EquationId::new(&config);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_numbers)?; // points 6,7,4 will get the first eq numbers
         let state = get_non_zero_stress_state_2d()?;
         element_5.calc_local_jacobian_matrix(&state, true)?;

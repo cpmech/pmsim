@@ -1,5 +1,6 @@
-use super::Configuration;
+use super::{Configuration, Dof, EquationId, State, UNASSIGNED};
 use crate::{geostatics::Geostatics, StrError};
+use gemlab::mesh::Mesh;
 use russell_tensor::Tensor2;
 
 /// Holds an option to initialize stresses
@@ -29,7 +30,7 @@ pub struct Initializer {
 impl Initializer {
     /// Allocates a new instance
     pub fn new(config: &Configuration) -> Result<Self, StrError> {
-        let space_ndim = config.get_mesh().space_ndim;
+        let space_ndim = config.mesh.space_ndim;
         let total_stress = config.get_total_stress();
         match config.get_ini_option() {
             &IniOption::Geostatic(..) => Ok(Initializer {
@@ -91,5 +92,31 @@ impl Initializer {
         sigma.vec[1] = self.isotropic;
         sigma.vec[2] = self.isotropic;
         Ok(sigma)
+    }
+
+    /// Initializes liquid and/or gas pressure values
+    pub fn liquid_gas_pressure(
+        &self,
+        state: &mut State,
+        mesh: &Mesh,
+        equation_id: &EquationId,
+    ) -> Result<(), StrError> {
+        for point in &mesh.points {
+            // liquid pressure
+            let eid = equation_id.eid(point.id, Dof::Pl);
+            if eid != UNASSIGNED {
+                let e = if eid < 0 { -eid } else { eid };
+                let i = (e as usize) - 1;
+                state.unknowns[i] = self.pl(&point.coords)?;
+            }
+            // gas pressure
+            let eid = equation_id.eid(point.id, Dof::Pg);
+            if eid != UNASSIGNED {
+                let e = if eid < 0 { -eid } else { eid };
+                let i = (e as usize) - 1;
+                state.unknowns[i] = self.pg(&point.coords)?;
+            }
+        }
+        Ok(())
     }
 }

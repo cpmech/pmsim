@@ -12,10 +12,10 @@ pub type FnSpaceTime = fn(x: &[f64], t: f64) -> f64;
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct Configuration<'a> {
     /// Access to mesh
-    mesh: &'a Mesh,
+    pub(crate) mesh: &'a Mesh,
 
     /// Essential boundary conditions
-    essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
+    pub(crate) essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
 
     /// Natural boundary conditions at edges
     natural_bcs_edge: HashMap<(EdgeKey, Nbc), FnSpaceTime>,
@@ -244,12 +244,6 @@ impl<'a> Configuration<'a> {
         Ok(self)
     }
 
-    /// Returns an access to Mesh
-    #[inline]
-    pub fn get_mesh(&self) -> &Mesh {
-        self.mesh
-    }
-
     /// Returns an access to ParamFluids
     #[inline]
     pub fn get_param_fluids(&self) -> Result<&ParamFluids, StrError> {
@@ -328,16 +322,36 @@ mod tests {
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};
 
+    fn mesh_two_quads() -> Mesh {
+        Mesh::from_text(
+            r"
+            #  3--------2--------5
+            #  |        |        |
+            #  |        |        |
+            #  |        |        |
+            #  0--------1--------4
+
+            # space_ndim npoint ncell
+                       2      6     2
+
+            # id    x   y
+               0  0.0 0.0
+               1  1.0 0.0
+               2  1.0 1.0
+               3  0.0 1.0
+               4  2.0 0.0
+               5  2.0 1.0
+
+            # id att geo_ndim nnode  point_ids...
+               0   1        2     4  0 1 2 3
+               1   2        2     4  1 4 5 2",
+        )
+        .unwrap()
+    }
+
     #[test]
     fn new_works() -> Result<(), StrError> {
-        //
-        //  3--------2--------5
-        //  |        |        |
-        //  |        |        |
-        //  |        |        |
-        //  0--------1--------4
-        //
-        let mesh = Mesh::from_text_file("./data/meshes/ok1.msh")?;
+        let mesh = mesh_two_quads();
 
         let origin = mesh.find_boundary_points(At::XY(0.0, 0.0))?;
         let bottom = mesh.find_boundary_edges(At::Y(0.0))?;

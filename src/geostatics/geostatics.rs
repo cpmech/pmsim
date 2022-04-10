@@ -31,7 +31,7 @@ impl Geostatics {
     /// limits and allocates models.
     pub fn new(config: &Configuration) -> Result<Self, StrError> {
         // mesh and space_ndim
-        let mesh = config.get_mesh();
+        let mesh = config.mesh;
         let two_dim = mesh.space_ndim == 2;
         if mesh.space_ndim < 2 || mesh.space_ndim > 3 {
             return Err("Geostatics requires space_ndim = 2 or 3");

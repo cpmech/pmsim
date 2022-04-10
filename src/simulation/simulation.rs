@@ -1,4 +1,4 @@
-use super::{AnalysisType, Configuration, Control, Dof, EquationNumbers, Initializer, LinearSystem, State};
+use super::{AnalysisType, Configuration, Control, EquationId, Initializer, LinearSystem, State};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::{vector_norm, NormVec, Vector};
@@ -18,8 +18,8 @@ pub struct Simulation<'a> {
     /// All elements
     elements: Vec<Element>,
 
-    /// Equation numbers table
-    equation_numbers: EquationNumbers,
+    /// Equation identification number matrix (point_id,dof)
+    equation_id: EquationId,
 
     /// State variables
     state: State,
@@ -35,18 +35,16 @@ impl<'a> Simulation<'a> {
     /// Allocates a new instance
     pub fn new(config: &'a Configuration) -> Result<Self, StrError> {
         // elements, equation numbers, and states
-        let mesh = config.get_mesh();
-        let npoint = mesh.points.len();
         let mut elements = Vec::<Element>::new();
-        let mut equation_numbers = EquationNumbers::new(npoint);
+        let mut equation_id = EquationId::new(&config);
         let mut state = State::new_empty();
         let initializer = Initializer::new(&config)?;
 
         // loop over all cells and allocate elements
         let mut nnz_max = 0;
-        for cell in &mesh.cells {
+        for cell in &config.mesh.cells {
             // allocate element
-            let mut element = Element::new(config, cell.id, &mut equation_numbers)?;
+            let mut element = Element::new(config, cell.id, &mut equation_id)?;
 
             // estimate the max number of non-zeros in the K-matrix
             let (nrow, ncol) = element.base.get_local_jacobian_matrix().dims();
@@ -61,26 +59,19 @@ impl<'a> Simulation<'a> {
         }
 
         // number of equations
-        let neq = equation_numbers.nequation();
+        let neq = equation_id.nequation();
 
         // allocate system arrays
         state.unknowns = Vector::new(neq);
 
-        // initialize DOFs
-        for point in &mesh.points {
-            if let Some(n) = equation_numbers.number(point.id, Dof::Pl) {
-                state.unknowns[n] = initializer.pl(&point.coords)?;
-            }
-            if let Some(n) = equation_numbers.number(point.id, Dof::Pg) {
-                state.unknowns[n] = initializer.pg(&point.coords)?;
-            }
-        }
+        // initialize liquid/gas pressure values in the global state vector
+        initializer.liquid_gas_pressure(&mut state, &config.mesh, &equation_id)?;
 
         // done
         Ok(Simulation {
             config,
             elements,
-            equation_numbers,
+            equation_id,
             state,
             neq,
             nnz_max,
@@ -327,7 +318,7 @@ impl<'a> Simulation<'a> {
 mod tests {
     use super::Simulation;
     use crate::simulation::{element_and_analysis::ElementConfig, Configuration, SampleParam};
-    use crate::simulation::{Control, Dof, Nbc, ParamSolid, ParamStressStrain};
+    use crate::simulation::{Dof, Nbc, ParamSolid, ParamStressStrain};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};
 
@@ -410,16 +401,16 @@ mod tests {
         config.elements(1, ElementConfig::Solid(params, None))?;
 
         // simulation
-        let mut sim = Simulation::new(&config)?;
+        let sim = Simulation::new(&config)?;
 
         // check
         assert_eq!(sim.elements.len(), 4);
-        assert_eq!(sim.equation_numbers.nequation(), 12);
+        assert_eq!(sim.equation_id.nequation(), 12);
         assert_eq!(sim.state.elements.len(), 4);
 
         // run simulation
-        let control = Control::new();
-        sim.run(control)?;
+        // let control = Control::new();
+        // sim.run(control)?;
 
         // done
         Ok(())

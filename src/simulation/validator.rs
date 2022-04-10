@@ -1,4 +1,4 @@
-use super::{Dof, EquationNumbers, State};
+use super::{Dof, EquationId, State, UNASSIGNED};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::{mat_max_abs_diff, Matrix};
@@ -150,19 +150,13 @@ impl Validator {
     /// Compares displacements against results at a fixed time- or load-step
     ///
     /// Returns "OK" if all values are approximately equal under tol_displacement.
-    pub fn compare_displacements(
-        &self,
-        step: usize,
-        state: &State,
-        equations: &EquationNumbers,
-        two_dim: bool,
-    ) -> String {
+    pub fn compare_displacements(&self, step: usize, state: &State, equation_id: &EquationId, two_dim: bool) -> String {
         if step >= self.steps.len() {
             return "reference results for the step are not available".to_string();
         }
         let cmp = &self.steps[step];
         let n_disp_components = if two_dim { 2 } else { 3 };
-        let npoint = equations.npoint();
+        let npoint = equation_id.npoint();
         for point_id in 0..npoint {
             if point_id >= cmp.displacements.len() {
                 return format!("point {}: reference displacement is not available", point_id);
@@ -176,29 +170,19 @@ impl Validator {
                     n_disp_components
                 );
             }
-            let ux = match equations.number(point_id, Dof::Ux) {
-                Some(eq) => {
-                    if eq >= state.unknowns.dim() {
-                        return format!(
-                            "point {}: state does not have equation {} corresponding to ux",
-                            point_id, eq
-                        );
-                    }
-                    state.unknowns[eq]
-                }
-                None => return format!("point {}: state does not have ux", point_id),
-            };
-            let uy = match equations.number(point_id, Dof::Uy) {
-                Some(eq) => {
-                    if eq >= state.unknowns.dim() {
-                        return format!(
-                            "point {}: state does not have equation {} corresponding to uy",
-                            point_id, eq
-                        );
-                    }
-                    state.unknowns[eq]
-                }
-                None => return format!("point {}: state does not have uy", point_id),
+            // ux
+            let eid_ux = equation_id.eid(point_id, Dof::Ux);
+            if eid_ux == UNASSIGNED {
+                return format!("point {}: state does not have ux", point_id);
+            }
+            let i_ux = if eid_ux < 0 { -eid_ux } else { eid_ux } as usize - 1;
+            let ux = if i_ux >= state.unknowns.dim() {
+                return format!(
+                    "point {}: state does not have equation {} corresponding to ux",
+                    point_id, i_ux
+                );
+            } else {
+                state.unknowns[i_ux]
             };
             let diff_ux = f64::abs(ux - reference[0]);
             if diff_ux > self.tol_displacement {
@@ -207,6 +191,20 @@ impl Validator {
                     point_id, diff_ux
                 );
             }
+            // uy
+            let eid_uy = equation_id.eid(point_id, Dof::Uy);
+            if eid_uy == UNASSIGNED {
+                return format!("point {}: state does not have uy", point_id);
+            }
+            let i_uy = if eid_uy < 0 { -eid_uy } else { eid_uy } as usize - 1;
+            let uy = if i_uy >= state.unknowns.dim() {
+                return format!(
+                    "point {}: state does not have equation {} corresponding to uy",
+                    point_id, i_uy
+                );
+            } else {
+                state.unknowns[i_uy]
+            };
             let diff_uy = f64::abs(uy - reference[1]);
             if diff_uy > self.tol_displacement {
                 return format!(
@@ -215,17 +213,19 @@ impl Validator {
                 );
             }
             if !two_dim {
-                let uz = match equations.number(point_id, Dof::Uz) {
-                    Some(eq) => {
-                        if eq >= state.unknowns.dim() {
-                            return format!(
-                                "point {}: state does not have equation {} corresponding to uz",
-                                point_id, eq
-                            );
-                        }
-                        state.unknowns[eq]
-                    }
-                    None => return format!("point {}: state does not have uz", point_id),
+                // uz
+                let eid_uz = equation_id.eid(point_id, Dof::Uz);
+                if eid_uz == UNASSIGNED {
+                    return format!("point {}: state does not have uz", point_id);
+                }
+                let i_uz = if eid_uz < 0 { -eid_uz } else { eid_uz } as usize - 1;
+                let uz = if i_uz >= state.unknowns.dim() {
+                    return format!(
+                        "point {}: state does not have equation {} corresponding to uz",
+                        point_id, i_uz
+                    );
+                } else {
+                    state.unknowns[i_uz]
                 };
                 let diff_uz = f64::abs(uz - reference[2]);
                 if diff_uz > self.tol_displacement {
@@ -320,14 +320,108 @@ mod tests {
     use super::{Validator, ValidatorIteration};
     use crate::elements::Element;
     use crate::simulation::{
-        Configuration, Dof, ElementConfig, EquationNumbers, Initializer, ParamSolid, ParamStressStrain, State,
-        StateElement, StateStress,
+        Configuration, Dof, ElementConfig, EquationId, Initializer, ParamSolid, ParamStressStrain, State, StateElement,
+        StateStress,
     };
     use crate::StrError;
     use gemlab::mesh::Mesh;
     use russell_chk::assert_vec_approx_eq;
     use russell_lab::Vector;
     use russell_tensor::Tensor2;
+
+    fn mesh_square() -> Mesh {
+        Mesh::from_text(
+            r"
+            #  3------2
+            #  |      |
+            #  |      |
+            #  0------1
+
+            # space_ndim npoint ncell
+                       2      4     1
+
+            # id   x   y
+               0 0.0 0.0
+               1 1.0 0.0
+               2 1.0 1.0
+               3 0.0 1.0
+
+            # id att geo_ndim nnode  point_ids...
+               0   1        2     4  0 1 2 3",
+        )
+        .unwrap()
+    }
+
+    fn mesh_cube() -> Mesh {
+        Mesh::from_text(
+            r"
+            #     4-----------7
+            #    /.          /|
+            #   / .         / |
+            #  5-----------6  |
+            #  |  .        |  |
+            #  |  0--------|--3
+            #  | /         | /
+            #  |/          |/
+            #  1-----------2
+
+            # space_ndim npoint ncell
+                       3      8     1
+
+            # points
+            # id    x   y   z
+               0  0.0 0.0 0.0
+               1  1.0 0.0 0.0
+               2  1.0 1.0 0.0
+               3  0.0 1.0 0.0
+               4  0.0 0.0 1.0
+               5  1.0 0.0 1.0
+               6  1.0 1.0 1.0
+               7  0.0 1.0 1.0
+
+            # cells
+            # id att geo_ndim nnode  point_ids...
+               0   1        3     8  0 1 2 3 4 5 6 7",
+        )
+        .unwrap()
+    }
+
+    fn mesh_bhatti_1_6() -> Mesh {
+        // Example 1.6 (page 32) from: Bhatti, M.A. (2005) Fundamental
+        // Finite Element Analysis and Applications, Wiley, 700p.
+        Mesh::from_text(
+            r"
+            #              1    load                connectivity:
+            # y=2.0  fixed *'-,__                    eid : vertices
+            #              |     '-,_  3   load        0 :  0, 2, 3
+            # y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
+            #              |  1   ,'  |    '-,_  5     2 :  2, 4, 5
+            # y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
+            #              |  ,'  0   |   ,-'   |
+            #              |,'        |,-'   2  |   constraints:
+            # y=0.0  fixed *----------*---------*     fixed on x and y
+            #              0          2         4
+            #             x=0.0     x=2.0     x=4.0
+
+            # space_ndim npoint ncell
+                       2      6     4
+            
+            # id    x   y
+               0  0.0 0.0
+               1  0.0 2.0
+               2  2.0 0.0
+               3  2.0 1.5
+               4  4.0 0.0
+               5  4.0 1.0
+            
+            # id att geo_ndim nnode  point_ids...
+               0   1        2     3  0 2 3
+               1   1        2     3  3 1 0
+               2   1        2     3  2 4 5
+               3   1        2     3  5 3 2",
+        )
+        .unwrap()
+    }
 
     #[test]
     fn serialize_handles_errors() {
@@ -528,29 +622,7 @@ mod tests {
 
     #[test]
     fn compare_kk_matrices_captures_errors() -> Result<(), StrError> {
-        /* Example 1.6 from [@bhatti] page 32
-
-         Solid bracket with thickness = 0.25
-
-                      1    load                connectivity:
-         y=2.0  fixed *'-,__                    eid : vertices
-                      |     '-,_  3   load        0 :  0, 2, 3
-         y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
-                      |  1   ,'  |    '-,_  5     2 :  2, 4, 5
-         y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
-                      |  ,'  0   |   ,-'   |
-                      |,'        |,-'   2  |   constraints:
-         y=0.0  fixed *----------*---------*     fixed on x and y
-                      0          2         4
-                     x=0.0     x=2.0     x=4.0
-
-        # References
-
-        [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
-                  and Applications, Wiley, 700p.
-        */
-        let mesh = Mesh::from_text_file("./data/meshes/bhatti_1_6.msh")?;
-
+        let mesh = mesh_bhatti_1_6();
         let mut config = Configuration::new(&mesh);
         config.plane_stress(true)?.thickness(0.24)?; // << wrong
         let param = ParamSolid {
@@ -562,7 +634,7 @@ mod tests {
         };
         config.elements(1, ElementConfig::Solid(param, None))?;
         let initializer = Initializer::new(&config)?;
-        let mut equation_numbers = EquationNumbers::new(mesh.points.len());
+        let mut equation_numbers = EquationId::new(&config);
 
         let mut element_0 = Element::new(&config, 0, &mut equation_numbers)?;
         let element_zero_state = element_0.base.new_state(&initializer)?;
@@ -601,29 +673,7 @@ mod tests {
 
     #[test]
     fn compare_kk_matrices_works() -> Result<(), StrError> {
-        /* Example 1.6 from [@bhatti] page 32
-
-         Solid bracket with thickness = 0.25
-
-                      1    load                connectivity:
-         y=2.0  fixed *'-,__                    eid : vertices
-                      |     '-,_  3   load        0 :  0, 2, 3
-         y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
-                      |  1   ,'  |    '-,_  5     2 :  2, 4, 5
-         y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
-                      |  ,'  0   |   ,-'   |
-                      |,'        |,-'   2  |   constraints:
-         y=0.0  fixed *----------*---------*     fixed on x and y
-                      0          2         4
-                     x=0.0     x=2.0     x=4.0
-
-        # References
-
-        [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
-                  and Applications, Wiley, 700p.
-        */
-        let mesh = Mesh::from_text_file("./data/meshes/bhatti_1_6.msh")?;
-
+        let mesh = mesh_bhatti_1_6();
         let mut config = Configuration::new(&mesh);
         config.plane_stress(true)?.thickness(0.25)?;
         let param = ParamSolid {
@@ -635,7 +685,7 @@ mod tests {
         };
         config.elements(1, ElementConfig::Solid(param, None))?;
         let initializer = Initializer::new(&config)?;
-        let mut equation_numbers = EquationNumbers::new(mesh.points.len());
+        let mut equation_numbers = EquationId::new(&config);
 
         let mut element_0 = Element::new(&config, 0, &mut equation_numbers)?;
         let element_zero_state = element_0.base.new_state(&initializer)?;
@@ -653,12 +703,14 @@ mod tests {
 
     #[test]
     fn compare_displacements_captures_errors_2d() -> Result<(), StrError> {
-        let two_dim = true;
-        let mut equations = EquationNumbers::new(1);
+        let mesh = mesh_square();
+        let config = Configuration::new(&mesh);
+        let mut equations = EquationId::new(&config);
         let mut state = State {
             elements: Vec::new(),
             unknowns: Vector::new(0), // << incorrect
         };
+        let two_dim = mesh.space_ndim == 2;
 
         let val = Validator::from_str(r#"{ "steps": [] }"#)?;
         assert_eq!(
@@ -678,23 +730,15 @@ mod tests {
             "point 0: reference displacement has incompatible number of components. 1(wrong) != 2"
         );
 
+        // ux -----------------------------------------------------------------------------------------------
+
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: state does not have ux"
         );
 
-        equations.activate_equation(0, Dof::Ux);
-        state.unknowns = Vector::new(2);
-
-        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
-        assert_eq!(
-            val.compare_displacements(0, &state, &equations, two_dim),
-            "point 0: state does not have uy"
-        );
-
-        equations.activate_equation(0, Dof::Uy);
-        state.unknowns = Vector::new(0); // << incorrect
+        equations.activate(0, Dof::Ux);
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -702,21 +746,7 @@ mod tests {
             "point 0: state does not have equation 0 corresponding to ux"
         );
 
-        state.unknowns = Vector::new(1); // << incorrect
-
-        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
-        assert_eq!(
-            val.compare_displacements(0, &state, &equations, two_dim),
-            "point 0: state does not have equation 1 corresponding to uy"
-        );
-
-        let neq = equations.nequation();
-        let mut state = State {
-            elements: Vec::new(),
-            unknowns: Vector::new(neq),
-        };
-        state.unknowns[0] = 3.0;
-        state.unknowns[1] = 4.0;
+        state.unknowns = Vector::from(&[3.0]); // incorrect ux value
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -724,7 +754,27 @@ mod tests {
             "point 0: ux is greater than tolerance. |ux - reference| = 2e0"
         );
 
-        let val = Validator::from_str(r#"{"steps":[{"disp":[[3,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        // uy -----------------------------------------------------------------------------------------------
+
+        state.unknowns = Vector::from(&[1.0]); // fix ux value
+
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_displacements(0, &state, &equations, two_dim),
+            "point 0: state does not have uy"
+        );
+
+        equations.activate(0, Dof::Uy);
+
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
+        assert_eq!(
+            val.compare_displacements(0, &state, &equations, two_dim),
+            "point 0: state does not have equation 1 corresponding to uy"
+        );
+
+        state.unknowns = Vector::from(&[1.0, 4.0]); // incorrect uy value
+
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_displacements(0, &state, &equations, two_dim),
             "point 0: uy is greater than tolerance. |uy - reference| = 2e0"
@@ -734,12 +784,14 @@ mod tests {
 
     #[test]
     fn compare_displacements_captures_errors_3d() -> Result<(), StrError> {
-        let two_dim = false;
-        let mut equations = EquationNumbers::new(1);
-        let state = State {
+        let mesh = mesh_cube();
+        let config = Configuration::new(&mesh);
+        let mut equations = EquationId::new(&config);
+        let mut state = State {
             elements: Vec::new(),
             unknowns: Vector::new(2), // << incorrect
         };
+        let two_dim = mesh.space_ndim == 2;
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
@@ -747,8 +799,10 @@ mod tests {
             "point 0: reference displacement has incompatible number of components. 2(wrong) != 3"
         );
 
-        equations.activate_equation(0, Dof::Ux);
-        equations.activate_equation(0, Dof::Uy);
+        equations.activate(0, Dof::Ux);
+        equations.activate(0, Dof::Uy);
+
+        // uz -----------------------------------------------------------------------------------------------
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
@@ -756,7 +810,7 @@ mod tests {
             "point 0: state does not have uz"
         );
 
-        equations.activate_equation(0, Dof::Uz);
+        equations.activate(0, Dof::Uz);
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0,0]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
@@ -764,14 +818,7 @@ mod tests {
             "point 0: state does not have equation 2 corresponding to uz"
         );
 
-        let neq = equations.nequation();
-        let mut state = State {
-            elements: Vec::new(),
-            unknowns: Vector::new(neq),
-        };
-        state.unknowns[0] = 3.0;
-        state.unknowns[1] = 4.0;
-        state.unknowns[2] = 6.0;
+        state.unknowns = Vector::from(&[3.0, 4.0, 6.0]); // incorrect uz value
 
         let val = Validator::from_str(r#"{"steps":[{"disp":[[3,4,4]],"stresses":[[[1,2,3,4]]]}]}"#)?;
         assert_eq!(
@@ -783,8 +830,9 @@ mod tests {
 
     #[test]
     fn compare_stresses_handles_missing_data() -> Result<(), StrError> {
-        let two_dim = true;
-        let equations = EquationNumbers::new(1);
+        let mesh = mesh_square();
+        let config = Configuration::new(&mesh);
+        let equations = EquationId::new(&config);
         let neq = equations.nequation();
         let state = State {
             elements: vec![StateElement {
@@ -793,6 +841,7 @@ mod tests {
             }],
             unknowns: Vector::new(neq),
         };
+        let two_dim = mesh.space_ndim == 2;
         let val = Validator::from_str(r#"{"steps":[{"disp":[[0,0]],"stresses":[[[1,2,3]]]}]}"#)?;
         assert_eq!(
             val.compare_stresses(0, &state, two_dim),
@@ -803,10 +852,12 @@ mod tests {
 
     #[test]
     fn compare_stresses_captures_errors_2d() -> Result<(), StrError> {
-        let two_dim = true;
-        let mut equations = EquationNumbers::new(1);
-        equations.activate_equation(0, Dof::Ux);
-        equations.activate_equation(0, Dof::Uy);
+        let mesh = mesh_square();
+        let config = Configuration::new(&mesh);
+        let mut equations = EquationId::new(&config);
+        equations.activate(0, Dof::Ux);
+        equations.activate(0, Dof::Uy);
+        let two_dim = mesh.space_ndim == 2;
         let neq = equations.nequation();
         let sigma = StateStress {
             internal_values: Vec::new(),
@@ -868,11 +919,13 @@ mod tests {
 
     #[test]
     fn compare_stresses_captures_errors_3d() -> Result<(), StrError> {
-        let two_dim = false;
-        let mut equations = EquationNumbers::new(1);
-        equations.activate_equation(0, Dof::Ux);
-        equations.activate_equation(0, Dof::Uy);
-        equations.activate_equation(0, Dof::Uz);
+        let mesh = mesh_cube();
+        let config = Configuration::new(&mesh);
+        let mut equations = EquationId::new(&config);
+        equations.activate(0, Dof::Ux);
+        equations.activate(0, Dof::Uy);
+        equations.activate(0, Dof::Uz);
+        let two_dim = mesh.space_ndim == 2;
         let neq = equations.nequation();
         let sigma = StateStress {
             internal_values: Vec::new(),
@@ -904,47 +957,39 @@ mod tests {
     }
 
     #[test]
-    fn compare_displacements_and_stresses_work_with_no_data() -> Result<(), StrError> {
+    fn compare_stresses_work_with_no_data() -> Result<(), StrError> {
+        // 2d
         let two_dim = true;
-        let equations = EquationNumbers::new(0);
         let state = State::new_empty();
         let val = Validator::from_str(r#"{"steps":[{}]}"#)?;
-        assert_eq!(val.compare_displacements(0, &state, &equations, two_dim), "OK");
+        assert_eq!(val.compare_stresses(0, &state, two_dim), "OK");
+        // 3d
+        let two_dim = false;
+        let state = State {
+            elements: vec![StateElement {
+                seepage: Vec::new(),
+                stress: vec![StateStress {
+                    sigma: Tensor2::from_matrix(&[[1.1, 1.2, 1.3], [1.2, 2.2, 2.3], [1.3, 2.3, 3.3]], true, two_dim)?,
+                    internal_values: Vec::new(),
+                }],
+            }],
+            unknowns: Vector::from(&[1.0, 2.0, 3.0]),
+        };
+        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2,3]],"stresses":[[[1.1,2.2,1.2,3.3]]]}]}"#)?;
         assert_eq!(val.compare_stresses(0, &state, two_dim), "OK");
         Ok(())
     }
 
     #[test]
     fn compare_displacements_and_stress_work_2d() -> Result<(), StrError> {
-        /* Example 1.6 from [@bhatti] page 32
-
-         Solid bracket with thickness = 0.25
-
-                      1    load                connectivity:
-         y=2.0  fixed *'-,__                    eid : vertices
-                      |     '-,_  3   load        0 :  0, 2, 3
-         y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
-                      |  1   ,'  |    '-,_  5     2 :  2, 4, 5
-         y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
-                      |  ,'  0   |   ,-'   |
-                      |,'        |,-'   2  |   constraints:
-         y=0.0  fixed *----------*---------*     fixed on x and y
-                      0          2         4
-                     x=0.0     x=2.0     x=4.0
-
-        # References
-
-        [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
-                  and Applications, Wiley, 700p.
-        */
-
-        let mut equations = EquationNumbers::new(6);
+        let mesh = mesh_bhatti_1_6();
+        let config = Configuration::new(&mesh);
+        let mut equations = EquationId::new(&config);
         for point_id in 0..6 {
-            equations.activate_equation(point_id, Dof::Ux);
-            equations.activate_equation(point_id, Dof::Uy);
+            equations.activate(point_id, Dof::Ux);
+            equations.activate(point_id, Dof::Uy);
         }
-
-        let two_dim = true;
+        let two_dim = mesh.space_ndim == 2;
 
         let state_element_0 = StateElement {
             seepage: Vec::new(),
@@ -999,34 +1044,6 @@ mod tests {
         let mut val = Validator::read_json("./data/validation/bhatti_1_6.json")?;
         val.tol_displacement = 1e-14;
         val.tol_stress = 1e-14;
-        assert_eq!(val.compare_displacements(0, &state, &equations, two_dim), "OK");
-        assert_eq!(val.compare_stresses(0, &state, two_dim), "OK");
-        Ok(())
-    }
-
-    #[test]
-    fn compare_displacements_and_stress_work_3d() -> Result<(), StrError> {
-        let mut equations = EquationNumbers::new(1);
-        equations.activate_equation(0, Dof::Ux);
-        equations.activate_equation(0, Dof::Uy);
-        equations.activate_equation(0, Dof::Uz);
-
-        let two_dim = false;
-
-        let state_element_0 = StateElement {
-            seepage: Vec::new(),
-            stress: vec![StateStress {
-                sigma: Tensor2::from_matrix(&[[1.1, 1.2, 1.3], [1.2, 2.2, 2.3], [1.3, 2.3, 3.3]], true, two_dim)?,
-                internal_values: Vec::new(),
-            }],
-        };
-
-        let state = State {
-            elements: vec![state_element_0],
-            unknowns: Vector::from(&[1.0, 2.0, 3.0]),
-        };
-
-        let val = Validator::from_str(r#"{"steps":[{"disp":[[1,2,3]],"stresses":[[[1.1,2.2,1.2,3.3]]]}]}"#)?;
         assert_eq!(val.compare_displacements(0, &state, &equations, two_dim), "OK");
         assert_eq!(val.compare_stresses(0, &state, two_dim), "OK");
         Ok(())

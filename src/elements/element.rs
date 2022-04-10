@@ -1,5 +1,5 @@
 use super::{Beam, PorousUsPl, PorousUsPlPg, Rod, SeepagePl, SeepagePlPg, Solid};
-use crate::simulation::{Configuration, ElementConfig, EquationNumbers, Initializer, StateElement};
+use crate::simulation::{Configuration, ElementConfig, EquationId, Initializer, StateElement};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
@@ -41,18 +41,13 @@ impl Element {
     /// Allocates a new instance
     ///
     /// This function also activates equation identification numbers in `equation_numbers`
-    pub fn new(
-        config: &Configuration,
-        cell_id: CellId,
-        equation_numbers: &mut EquationNumbers,
-    ) -> Result<Self, StrError> {
-        let mesh = config.get_mesh();
-        if cell_id >= mesh.cells.len() {
+    pub fn new(config: &Configuration, cell_id: CellId, equation_id: &mut EquationId) -> Result<Self, StrError> {
+        if cell_id >= config.mesh.cells.len() {
             return Err("cell_id is out-of-bounds");
         }
-        let cell = &mesh.cells[cell_id];
+        let cell = &config.mesh.cells[cell_id];
         let element_config = config.get_element_config(cell.attribute_id)?;
-        let shape = mesh.alloc_shape_cell(cell_id)?; // moving to Element
+        let shape = config.mesh.alloc_shape_cell(cell_id)?; // moving to Element
         let base: Box<dyn BaseElement> = match element_config {
             ElementConfig::Rod(param) => Box::new(Rod::new(shape, param)?),
             ElementConfig::Beam(param) => Box::new(Beam::new(shape, param)?),
@@ -62,7 +57,7 @@ impl Element {
                 *n_integ_point,
                 config.get_plane_stress(),
                 config.get_thickness(),
-                equation_numbers,
+                equation_id,
             )?),
             ElementConfig::Porous(param_porous, n_integ_point) => {
                 let param_fluids = config.get_param_fluids()?;
