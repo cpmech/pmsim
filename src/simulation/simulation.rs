@@ -272,15 +272,9 @@ impl<'a> Simulation<'a> {
                 }
 
                 // put "ones" on the diagonal entries corresponding to prescribed DOFs
-                // for ((point_id, dof), _) in &self.config.essential_bcs {
-                //     let eid = self.equation_id.eid(*point_id, *dof);
-                //     assert!(eid < 0);
-                //     let p = (-eid as usize) - 1;
-                //     kk.put(p, p, 1.0)?;
-                // }
-                // for p in self.equation_id.prescribed_id() {
-                // kk.put(*p, *p, 1.0)?;
-                // }
+                for p in self.equation_id.prescribed() {
+                    kk.put(*p, *p, 1.0)?;
+                }
 
                 // initialize linear solver
                 if !lin_sys.initialized {
@@ -421,7 +415,7 @@ mod tests {
 
         // run simulation
         let control = Control::new();
-        assert_eq!(sim.run(control).err(), Some("Error(1): Matrix is singular"));
+        assert_eq!(sim.run(control).err(), Some("max number of iterations reached"));
 
         // done
         Ok(())

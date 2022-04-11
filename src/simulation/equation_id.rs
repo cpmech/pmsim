@@ -18,6 +18,11 @@ pub struct EquationId {
     /// * `eid = 0`: zero means that the point/DOF is not being used (unassigned)
     /// * `eid > 0`: positive numbers indicate that the point/DOF corresponds to an unknown value
     eid_one_based: NumMatrix<i64>,
+
+    /// Holds a subset of equation identification numbers corresponding to prescribed DOFs
+    ///
+    /// Note: this vector holds **zero-based** indices.
+    prescribed: Vec<usize>,
 }
 
 impl EquationId {
@@ -29,13 +34,18 @@ impl EquationId {
         let npoint = config.mesh.points.len();
         let mut nequation: i32 = 0;
         let mut eid_one_based = NumMatrix::filled(npoint, NDOF_PER_NODE_TOTAL, 0);
+        let mut prescribed = vec![0; config.essential_bcs.len()];
+        let mut i = 0;
         for ((point_id, dof), _) in &config.essential_bcs {
             nequation += 1;
             eid_one_based[*point_id][*dof as usize] = -nequation as i64;
+            prescribed[i] = nequation as usize - 1;
+            i += 1;
         }
         EquationId {
             nequation,
             eid_one_based,
+            prescribed,
         }
     }
 
@@ -76,6 +86,11 @@ impl EquationId {
         } else {
             Ok((eid_one_based as usize - 1, false)) // not prescribed; i.e., unknown DOF
         }
+    }
+
+    /// Accesses the equation identification numbers corresponding to prescribed DOFs
+    pub fn prescribed(&self) -> &Vec<usize> {
+        &self.prescribed
     }
 
     /// Returns the number of points
