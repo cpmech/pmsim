@@ -1,34 +1,23 @@
 use super::{Configuration, Dof, NDOF_PER_NODE_TOTAL};
+use crate::StrError;
 use gemlab::mesh::PointId;
 use russell_lab::NumMatrix;
 
-/// Indicates that the point/DOF is not being used (unassigned)
-pub const UNASSIGNED: i64 = 0;
-
-/// Equation identification number type
-///
-/// * `eid < 0`: negative numbers indicate that the point/DOF has a prescribed (imposed) value
-/// * `eid = 0`: zero means that the point/DOF is not being used (unassigned)
-/// * `eid > 0`: positive numbers indicate that the point/DOF corresponds to an unknown value
-pub type EID = i64;
-
 /// Holds equation identification numbers (all DOF numbers)
-///
-/// # Important
-///
-/// * the equation identification number `eid` is **one-based**;
-///   i.e., `eid` starts from 1
-/// * the maximum number of equations is 2³¹ - 1 = 2,147,483,647
-///   (~2.1 billion! which will break any linear solver)
-/// * `eid < 0`: negative numbers indicate that the point/DOF has a prescribed (imposed) value
-/// * `eid = 0`: zero means that the point/DOF is not being used (unassigned)
-/// * `eid > 0`: positive numbers indicate that the point/DOF corresponds to an unknown value
 pub struct EquationId {
     /// Total number of equations
+    ///
+    /// The maximum number of equations is 2³¹ - 1 = 2,147,483,647
+    /// (~2.1 billion! which will break any linear solver)
     nequation: i32,
 
     /// Matrix of equation identification numbers (npoint,ndof)
-    equation_id: NumMatrix<EID>,
+    ///
+    /// * numbers are stored here following the **one-based** convention; i.e., they starts from 1
+    /// * `eid < 0`: negative numbers indicate that the point/DOF has a prescribed (imposed) value
+    /// * `eid = 0`: zero means that the point/DOF is not being used (unassigned)
+    /// * `eid > 0`: positive numbers indicate that the point/DOF corresponds to an unknown value
+    eid_one_based: NumMatrix<i64>,
 }
 
 impl EquationId {
@@ -39,47 +28,59 @@ impl EquationId {
     pub fn new(config: &Configuration) -> Self {
         let npoint = config.mesh.points.len();
         let mut nequation: i32 = 0;
-        let mut equation_id = NumMatrix::filled(npoint, NDOF_PER_NODE_TOTAL, UNASSIGNED);
+        let mut eid_one_based = NumMatrix::filled(npoint, NDOF_PER_NODE_TOTAL, 0);
         for ((point_id, dof), _) in &config.essential_bcs {
             nequation += 1;
-            equation_id[*point_id][*dof as usize] = -nequation as EID;
+            eid_one_based[*point_id][*dof as usize] = -nequation as i64;
         }
-        EquationId { nequation, equation_id }
+        EquationId {
+            nequation,
+            eid_one_based,
+        }
     }
 
     /// Activates an equation corresponding to a point/DOF pair
     ///
     /// This function will also increment the number of equations,
-    /// if the equation does not exist yet (unassigned).
+    /// if the equation does not exist yet.
     ///
     /// # Output
     ///
-    /// Returns the equation identification number (EID) of an
-    /// existent point/DOF pair or the newly assigned EID
-    ///
-    /// * `eid < 0`: negative numbers indicate that the point/DOF has a prescribed (imposed) value
-    /// * `eid = 0`: zero means that the point/DOF is not being used (unassigned)
-    /// * `eid > 0`: positive numbers indicate that the point/DOF corresponds to an unknown value
-    pub fn activate(&mut self, point_id: PointId, dof: Dof) -> EID {
-        if self.equation_id[point_id][dof as usize] == UNASSIGNED {
+    /// * `(eid,prescribed)` -- A pair with the equation identification number and
+    ///                         whether the `eid` corresponds to a prescribed DOF or not.
+    pub fn activate(&mut self, point_id: PointId, dof: Dof) -> (usize, bool) {
+        let eid_one_based = self.eid_one_based[point_id][dof as usize];
+        if eid_one_based < 0 {
+            (-eid_one_based as usize - 1, true) // prescribed
+        } else if eid_one_based == 0 {
             self.nequation += 1;
-            self.equation_id[point_id][dof as usize] = self.nequation as EID;
+            self.eid_one_based[point_id][dof as usize] = self.nequation as i64;
+            (self.nequation as usize - 1, false) // not prescribed; newly activated
+        } else {
+            (eid_one_based as usize - 1, false) // not prescribed; previously activated
         }
-        self.equation_id[point_id][dof as usize]
     }
 
     /// Returns the equation identification number corresponding to a point/DOF pair
     ///
-    /// * `eid < 0`: negative numbers indicate that the point/DOF has a prescribed (imposed) value
-    /// * `eid = 0`: zero means that the point/DOF is not being used (unassigned)
-    /// * `eid > 0`: positive numbers indicate that the point/DOF corresponds to an unknown value
-    pub fn eid(&self, point_id: PointId, dof: Dof) -> EID {
-        self.equation_id[point_id][dof as usize]
+    /// # Output
+    ///
+    /// * `(eid,prescribed)` -- A pair with the equation identification number and
+    ///                         whether the `eid` corresponds to a prescribed DOF or not.
+    pub fn eid(&self, point_id: PointId, dof: Dof) -> Result<(usize, bool), StrError> {
+        let eid_one_based = self.eid_one_based[point_id][dof as usize];
+        if eid_one_based < 0 {
+            Ok((-eid_one_based as usize - 1, true)) // prescribed
+        } else if eid_one_based == 0 {
+            Err("(point_id,dof) pair does not have an assigned equation id yet")
+        } else {
+            Ok((eid_one_based as usize - 1, false)) // not prescribed; i.e., unknown DOF
+        }
     }
 
     /// Returns the number of points
     pub fn npoint(&self) -> usize {
-        self.equation_id.nrow()
+        self.eid_one_based.nrow()
     }
 
     /// Returns the current total number of equations (prescribed and unknown DOFs)

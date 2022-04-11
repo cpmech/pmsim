@@ -1,4 +1,4 @@
-use super::{Dof, EquationId, State, UNASSIGNED};
+use super::{Dof, EquationId, State};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::{mat_max_abs_diff, Matrix};
@@ -171,18 +171,17 @@ impl Validator {
                 );
             }
             // ux
-            let eid_ux = equation_id.eid(point_id, Dof::Ux);
-            if eid_ux == UNASSIGNED {
-                return format!("point {}: state does not have ux", point_id);
-            }
-            let i_ux = if eid_ux < 0 { -eid_ux } else { eid_ux } as usize - 1;
-            let ux = if i_ux >= state.unknowns.dim() {
+            let eid_ux = match equation_id.eid(point_id, Dof::Ux) {
+                Err(_) => return format!("point {}: state does not have ux", point_id),
+                Ok((eid, _)) => eid,
+            };
+            let ux = if eid_ux >= state.unknowns.dim() {
                 return format!(
                     "point {}: state does not have equation {} corresponding to ux",
-                    point_id, i_ux
+                    point_id, eid_ux
                 );
             } else {
-                state.unknowns[i_ux]
+                state.unknowns[eid_ux]
             };
             let diff_ux = f64::abs(ux - reference[0]);
             if diff_ux > self.tol_displacement {
@@ -192,18 +191,17 @@ impl Validator {
                 );
             }
             // uy
-            let eid_uy = equation_id.eid(point_id, Dof::Uy);
-            if eid_uy == UNASSIGNED {
-                return format!("point {}: state does not have uy", point_id);
-            }
-            let i_uy = if eid_uy < 0 { -eid_uy } else { eid_uy } as usize - 1;
-            let uy = if i_uy >= state.unknowns.dim() {
+            let eid_uy = match equation_id.eid(point_id, Dof::Uy) {
+                Err(_) => return format!("point {}: state does not have uy", point_id),
+                Ok((eid, _)) => eid,
+            };
+            let uy = if eid_uy >= state.unknowns.dim() {
                 return format!(
                     "point {}: state does not have equation {} corresponding to uy",
-                    point_id, i_uy
+                    point_id, eid_uy
                 );
             } else {
-                state.unknowns[i_uy]
+                state.unknowns[eid_uy]
             };
             let diff_uy = f64::abs(uy - reference[1]);
             if diff_uy > self.tol_displacement {
@@ -214,18 +212,17 @@ impl Validator {
             }
             if !two_dim {
                 // uz
-                let eid_uz = equation_id.eid(point_id, Dof::Uz);
-                if eid_uz == UNASSIGNED {
-                    return format!("point {}: state does not have uz", point_id);
-                }
-                let i_uz = if eid_uz < 0 { -eid_uz } else { eid_uz } as usize - 1;
-                let uz = if i_uz >= state.unknowns.dim() {
+                let eid_uz = match equation_id.eid(point_id, Dof::Uz) {
+                    Err(_) => return format!("point {}: state does not have uz", point_id),
+                    Ok((eid, _)) => eid,
+                };
+                let uz = if eid_uz >= state.unknowns.dim() {
                     return format!(
                         "point {}: state does not have equation {} corresponding to uz",
-                        point_id, i_uz
+                        point_id, eid_uz
                     );
                 } else {
-                    state.unknowns[i_uz]
+                    state.unknowns[eid_uz]
                 };
                 let diff_uz = f64::abs(uz - reference[2]);
                 if diff_uz > self.tol_displacement {

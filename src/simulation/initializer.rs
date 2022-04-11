@@ -1,4 +1,4 @@
-use super::{Configuration, Dof, EquationId, State, UNASSIGNED};
+use super::{Configuration, Dof, EquationId, State};
 use crate::{geostatics::Geostatics, StrError};
 use gemlab::mesh::Mesh;
 use russell_tensor::Tensor2;
@@ -103,18 +103,14 @@ impl Initializer {
     ) -> Result<(), StrError> {
         for point in &mesh.points {
             // liquid pressure
-            let eid = equation_id.eid(point.id, Dof::Pl);
-            if eid != UNASSIGNED {
-                let e = if eid < 0 { -eid } else { eid };
-                let i = (e as usize) - 1;
-                state.unknowns[i] = self.pl(&point.coords)?;
+            match equation_id.eid(point.id, Dof::Pl) {
+                Ok((eid, _)) => state.unknowns[eid] = self.pl(&point.coords)?,
+                Err(_) => (), // ignore inexistent DOFs
             }
             // gas pressure
-            let eid = equation_id.eid(point.id, Dof::Pg);
-            if eid != UNASSIGNED {
-                let e = if eid < 0 { -eid } else { eid };
-                let i = (e as usize) - 1;
-                state.unknowns[i] = self.pg(&point.coords)?;
+            match equation_id.eid(point.id, Dof::Pg) {
+                Ok((eid, _)) => state.unknowns[eid] = self.pg(&point.coords)?,
+                Err(_) => (), // ignore inexistent DOFs
             }
         }
         Ok(())

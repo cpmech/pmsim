@@ -271,6 +271,17 @@ impl<'a> Simulation<'a> {
                     element.base.assemble_jacobian_matrix(kk)?;
                 }
 
+                // put "ones" on the diagonal entries corresponding to prescribed DOFs
+                // for ((point_id, dof), _) in &self.config.essential_bcs {
+                //     let eid = self.equation_id.eid(*point_id, *dof);
+                //     assert!(eid < 0);
+                //     let p = (-eid as usize) - 1;
+                //     kk.put(p, p, 1.0)?;
+                // }
+                // for p in self.equation_id.prescribed_id() {
+                // kk.put(*p, *p, 1.0)?;
+                // }
+
                 // initialize linear solver
                 if !lin_sys.initialized {
                     lin_sys.solver.initialize(kk)?;
@@ -318,7 +329,7 @@ impl<'a> Simulation<'a> {
 mod tests {
     use super::Simulation;
     use crate::simulation::{element_and_analysis::ElementConfig, Configuration, SampleParam};
-    use crate::simulation::{Dof, Nbc, ParamSolid, ParamStressStrain};
+    use crate::simulation::{Control, Dof, Nbc, ParamSolid, ParamStressStrain};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};
 
@@ -401,7 +412,7 @@ mod tests {
         config.elements(1, ElementConfig::Solid(params, None))?;
 
         // simulation
-        let sim = Simulation::new(&config)?;
+        let mut sim = Simulation::new(&config)?;
 
         // check
         assert_eq!(sim.elements.len(), 4);
@@ -409,8 +420,8 @@ mod tests {
         assert_eq!(sim.state.elements.len(), 4);
 
         // run simulation
-        // let control = Control::new();
-        // sim.run(control)?;
+        let control = Control::new();
+        assert_eq!(sim.run(control).err(), Some("Error(1): Matrix is singular"));
 
         // done
         Ok(())
