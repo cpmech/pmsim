@@ -1,4 +1,3 @@
-use russell_lab::Vector;
 use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
 
@@ -26,29 +25,12 @@ pub struct StateElement {
     pub stress: Vec<StateStress>,   // (n_integ_point)
 }
 
-/// Holds all simulation state variables
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct State {
-    pub elements: Vec<StateElement>, // (nele)
-    pub unknowns: Vector,            // (neq)
-}
-
 impl StateElement {
     /// Allocates a new instance with empty arrays
     pub fn new_empty() -> Self {
         StateElement {
             seepage: Vec::new(),
             stress: Vec::new(),
-        }
-    }
-}
-
-impl State {
-    /// Allocate a new instance with empty arrays
-    pub fn new_empty() -> Self {
-        State {
-            elements: Vec::new(),
-            unknowns: Vector::new(0),
         }
     }
 }

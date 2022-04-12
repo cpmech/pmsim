@@ -45,6 +45,15 @@ pub struct Control {
     /// Linear solver configuration
     pub(super) config_solver: ConfigSolver,
 
+    /// Coefficient θ for the θ-method
+    pub(super) theta: f64,
+
+    /// Coefficient θ1 for the Newmark method
+    pub(super) theta1: f64,
+
+    /// Coefficient θ2 for the Newmark method
+    pub(super) theta2: f64,
+
     /// Verbose mode
     pub(super) verbose: bool,
 
@@ -70,6 +79,9 @@ impl Control {
             tol_rel_residual: 1e-6,
             tol_rel_mdu: 1e-10,
             config_solver: ConfigSolver::new(),
+            theta: 0.5,
+            theta1: 0.5,
+            theta2: 0.5,
             verbose: true,
             verbose_iterations: true,
         }
@@ -165,6 +177,33 @@ impl Control {
             return Err("relative tolerance for the iterative increment must be greater than or equal to 1e-15");
         }
         self.tol_rel_mdu = tol_rel;
+        Ok(self)
+    }
+
+    /// Sets the θ coefficient for the θ-method
+    pub fn theta(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value < 0.0001 || value > 1.0 {
+            return Err("θ must be between 0.0001 and 1.0");
+        }
+        self.theta = value;
+        Ok(self)
+    }
+
+    /// Coefficient θ1 for the Newmark method
+    pub fn theta1(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value < 0.0001 || value > 1.0 {
+            return Err("θ1 must be between 0.0001 and 1.0");
+        }
+        self.theta1 = value;
+        Ok(self)
+    }
+
+    /// Coefficient θ2 for the Newmark method
+    pub fn theta2(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value < 0.0001 || value > 1.0 {
+            return Err("θ2 must be between 0.0001 and 1.0");
+        }
+        self.theta2 = value;
         Ok(self)
     }
 

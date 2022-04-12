@@ -1,4 +1,4 @@
-use super::element::BaseElement;
+use super::{ArgsElement, BaseElement};
 use crate::simulation::{Initializer, ParamBeam, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
@@ -30,12 +30,12 @@ impl BaseElement for Beam {
     }
 
     /// Computes the element's residual vector
-    fn calc_local_residual_vector(&mut self, _state: &StateElement) -> Result<(), StrError> {
+    fn calc_local_residual_vector(&mut self, _args: ArgsElement) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element's jacobian matrix
-    fn calc_local_jacobian_matrix(&mut self, _state: &StateElement, _first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_jacobian_matrix(&mut self, _args: ArgsElement) -> Result<(), StrError> {
         Ok(())
     }
 

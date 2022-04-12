@@ -1,9 +1,16 @@
 use super::{Beam, PorousUsPl, PorousUsPlPg, Rod, SeepagePl, SeepagePlPg, Solid};
-use crate::simulation::{Configuration, ElementConfig, EquationId, Initializer, StateElement};
+use crate::simulation::{Configuration, ElementConfig, EquationId, Initializer, Solution, StateElement, TransientVars};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
+
+/// Holds input arguments for element functions
+pub struct ArgsElement<'a> {
+    pub state: &'a StateElement,
+    pub solution: &'a Solution,
+    pub transient_vars: &'a TransientVars,
+}
 
 /// Defines a trait for (finite) elements
 pub trait BaseElement {
@@ -13,10 +20,10 @@ pub trait BaseElement {
     fn new_state(&mut self, initializer: &Initializer) -> Result<StateElement, StrError>;
 
     /// Computes the element's residual vector
-    fn calc_local_residual_vector(&mut self, state: &StateElement) -> Result<(), StrError>;
+    fn calc_local_residual_vector(&mut self, args: ArgsElement) -> Result<(), StrError>;
 
     /// Computes the element's jacobian matrix
-    fn calc_local_jacobian_matrix(&mut self, state: &StateElement, first_iteration: bool) -> Result<(), StrError>;
+    fn calc_local_jacobian_matrix(&mut self, args: ArgsElement) -> Result<(), StrError>;
 
     /// Returns the element's jacobian matrix
     fn get_local_jacobian_matrix(&self) -> &Matrix;

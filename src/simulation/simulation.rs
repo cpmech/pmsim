@@ -1,7 +1,7 @@
-use super::{AnalysisType, Configuration, Control, EquationId, Initializer, LinearSystem, State};
-use crate::elements::Element;
+use super::{AnalysisType, Configuration, Control, EquationId, Initializer, LinearSystem, Solution, TransientVars};
+use crate::elements::{ArgsElement, Element};
 use crate::StrError;
-use russell_lab::{vector_norm, NormVec, Vector};
+use russell_lab::{vector_norm, NormVec};
 
 #[derive(PartialEq)]
 enum Status {
@@ -21,8 +21,8 @@ pub struct Simulation<'a> {
     /// Equation identification number matrix (point_id,dof)
     equation_id: EquationId,
 
-    /// State variables
-    state: State,
+    /// Solution variables
+    solution: Solution,
 
     /// Number of equations in the global system
     neq: usize,
@@ -34,25 +34,20 @@ pub struct Simulation<'a> {
 impl<'a> Simulation<'a> {
     /// Allocates a new instance
     pub fn new(config: &'a Configuration) -> Result<Self, StrError> {
-        // elements, equation numbers, and states
+        // auxiliary
         let mut elements = Vec::<Element>::new();
         let mut equation_id = EquationId::new(&config);
-        let mut state = State::new_empty();
         let initializer = Initializer::new(&config)?;
 
         // loop over all cells and allocate elements
         let mut nnz_max = 0;
         for cell in &config.mesh.cells {
             // allocate element
-            let mut element = Element::new(config, cell.id, &mut equation_id)?;
+            let element = Element::new(config, cell.id, &mut equation_id)?;
 
             // estimate the max number of non-zeros in the K-matrix
             let (nrow, ncol) = element.base.get_local_jacobian_matrix().dims();
             nnz_max += nrow * ncol;
-
-            // allocate integ points states
-            let state_elem = element.base.new_state(&initializer)?;
-            state.elements.push(state_elem);
 
             // add element to array
             elements.push(element);
@@ -61,18 +56,24 @@ impl<'a> Simulation<'a> {
         // number of equations
         let neq = equation_id.nequation();
 
-        // allocate system arrays
-        state.unknowns = Vector::new(neq);
+        // solution variables
+        let mut solution = Solution::new(neq);
 
-        // initialize liquid/gas pressure values in the global state vector
-        initializer.liquid_gas_pressure(&mut state, &config.mesh, &equation_id)?;
+        // initialize state at element's integration points
+        for element in &mut elements {
+            let state = element.base.new_state(&initializer)?;
+            solution.ips.push(state);
+        }
+
+        // initialize liquid/gas pressure values
+        initializer.liquid_gas_pressure(&mut solution, &config.mesh, &equation_id)?;
 
         // done
         Ok(Simulation {
             config,
             elements,
             equation_id,
-            state,
+            solution,
             neq,
             nnz_max,
         })
@@ -89,6 +90,9 @@ impl<'a> Simulation<'a> {
 
         // linear system
         let mut lin_sys = LinearSystem::new(self.neq, self.nnz_max, &control.config_solver)?;
+
+        // Variables for transient analyses
+        let mut transient_vars = TransientVars::new(&control);
 
         // current time
         let mut t = control.t_ini;
@@ -128,7 +132,7 @@ impl<'a> Simulation<'a> {
                 last_time_step = true;
             }
 
-            // update timestep
+            // update timestep: t <- t_new
             t += dt;
 
             // output
@@ -147,7 +151,7 @@ impl<'a> Simulation<'a> {
             }
 
             // run iterations
-            let status = self.iterations(&control, &mut lin_sys, t, dt)?;
+            let status = self.iterations(&control, &mut lin_sys, &mut transient_vars, t, dt)?;
 
             // restore solution and reduce time step if divergence control is enabled
             if control.divergence_control {
@@ -183,39 +187,49 @@ impl<'a> Simulation<'a> {
 
     /// Performs iterations
     ///
+    /// ```text
     /// For each iteration, the linear system is:
-    ///
-    /// ```text
-    /// [K] {δX} = -{Y}
-    /// ```
-    ///
+    ///     [K] {δU} = -{R}
     /// or
-    ///
-    /// ```text
-    /// [K] {X_bar} = {Y}
-    /// ```
-    ///
+    ///     [K] {mdu} = {R}
     /// where
-    ///
-    /// ```text
-    /// {X_bar} = -{δX}
+    ///     {mdu} = -{δU}
+    /// The update is:
+    ///     {ΔU} -= {mdu}
+    ///     {U} -= {mdu}
     /// ```
     fn iterations(
         &mut self,
         control: &Control,
         lin_sys: &mut LinearSystem,
-        _t: f64,
-        _dt: f64,
+        transient_vars: &mut TransientVars,
+        t_new: f64,
+        dt: f64,
     ) -> Result<Status, StrError> {
         // auxiliary
         let kk = &mut lin_sys.kk;
         let rr = &mut lin_sys.rr;
         let mdu = &mut lin_sys.mdu;
         let delta_uu = &mut lin_sys.ddu;
-        let uu = &mut self.state.unknowns;
+        // let uu = &mut self.solution.uu;
 
-        // zero accumulated increments
+        // zero accumulated increments: ΔU
         delta_uu.fill(0.0);
+
+        // sets prescribed values for U = U(x,t_new) and ΔU = U(x,t_new) - U(x,t_old)
+        let t_old = t_new - dt;
+        if t_old < 0.0 {
+            return Err("INTERNAL ERROR: previous time step is negative");
+        }
+        for ((point_id, dof), f) in &self.config.essential_bcs {
+            let (eid, prescribed) = self.equation_id.eid(*point_id, *dof)?;
+            if !prescribed {
+                return Err("INTERNAL ERROR: inconsistent prescribed flag for essential BC");
+            }
+            let x = &self.config.mesh.points[*point_id].coords;
+            // uu[eid] = f(&x, t_new);
+            // delta_uu[eid] = uu[eid] - f(&x, t_old);
+        }
 
         // residual vector (right-hand-side) maximum absolute value
         let mut max_abs_rr: f64 = f64::MAX; // current
@@ -233,12 +247,15 @@ impl<'a> Simulation<'a> {
         while iteration_number <= control.n_max_iterations {
             // assemble residual vector
             for (e, element) in self.elements.iter_mut().enumerate() {
-                let state = &self.state.elements[e];
-                element.base.calc_local_residual_vector(state)?;
+                element.base.calc_local_residual_vector(ArgsElement {
+                    state: &self.solution.ips[e],
+                    solution: &self.solution,
+                    transient_vars,
+                })?;
                 element.base.assemble_residual_vector(rr)?;
             }
 
-            // boundary conditions
+            // natural boundary conditions
             // todo
 
             // residual vector maximum absolute value
@@ -266,8 +283,11 @@ impl<'a> Simulation<'a> {
                 // assemble Jacobian matrix
                 kk.reset();
                 for (e, element) in self.elements.iter_mut().enumerate() {
-                    let state = &self.state.elements[e];
-                    element.base.calc_local_jacobian_matrix(state, first_iteration)?;
+                    element.base.calc_local_jacobian_matrix(ArgsElement {
+                        state: &self.solution.ips[e],
+                        solution: &self.solution,
+                        transient_vars,
+                    })?;
                     element.base.assemble_jacobian_matrix(kk)?;
                 }
 
@@ -291,21 +311,21 @@ impl<'a> Simulation<'a> {
             // update primary variables
             for i in 0..self.neq {
                 delta_uu[i] -= mdu[i];
-                uu[i] -= mdu[i];
+                // uu[i] -= mdu[i];
             }
 
             // update secondary variables
             for (e, element) in self.elements.iter_mut().enumerate() {
-                let state = &mut self.state.elements[e];
-                element.base.update_state(state, delta_uu, uu)?;
+                let state = &mut self.solution.ips[e];
+                // element.base.update_state(state, delta_uu, uu)?;
             }
 
             // check convergence on mdu (-δu)
             let max_abs_mdu = vector_norm(mdu, NormVec::Max);
-            let max_abs_uu = vector_norm(uu, NormVec::Max);
-            if max_abs_mdu < control.tol_rel_mdu * max_abs_uu {
-                return Ok(Status::Converged);
-            }
+            // let max_abs_uu = vector_norm(uu, NormVec::Max);
+            // if max_abs_mdu < control.tol_rel_mdu * max_abs_uu {
+            // return Ok(Status::Converged);
+            // }
 
             // next iteration
             iteration_number += 1;
@@ -411,10 +431,11 @@ mod tests {
         // check
         assert_eq!(sim.elements.len(), 4);
         assert_eq!(sim.equation_id.nequation(), 12);
-        assert_eq!(sim.state.elements.len(), 4);
+        assert_eq!(sim.solution.ips.len(), 4);
 
         // run simulation
-        let control = Control::new();
+        let mut control = Control::new();
+        control.linear_problem(true)?.quasi_static(true)?;
         assert_eq!(sim.run(control).err(), Some("max number of iterations reached"));
 
         // done

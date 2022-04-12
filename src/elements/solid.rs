@@ -1,4 +1,4 @@
-use super::BaseElement;
+use super::{ArgsElement, BaseElement};
 use crate::models::StressStrain;
 use crate::simulation::{Dof, EquationId, Initializer, ParamSolid, StateElement, StateStress};
 use crate::StrError;
@@ -20,11 +20,16 @@ pub struct Solid {
     /// Maps (non-prescribed) global equation numbers (eid) to local indices
     global_to_local: Vec<(usize, usize)>,
 
+    local_to_global: Vec<usize>,
+
     /// Local residual vector (neq_local)
     rr: Vector,
 
     /// Local Jacobian matrix (neq_local, neq_local)
     kk: Matrix,
+
+    /// Auxiliary vector (space_ndim)
+    aux: Vector,
 }
 
 impl Solid {
@@ -50,25 +55,30 @@ impl Solid {
         };
 
         // activate equation identification numbers
+        let neq_local = shape.nnode * ndim;
         let mut global_to_local = Vec::new();
+        let mut local_to_global = vec![0; neq_local];
         for (m, a) in shape.node_to_point.iter().enumerate() {
             for (i, d) in element_dof.iter().enumerate() {
                 let (eid, prescribed) = equation_id.activate(*a, *d);
+                let k = i + m * ndim;
                 if !prescribed {
-                    global_to_local.push((eid, i + m * ndim))
+                    global_to_local.push((eid, k))
                 }
+                local_to_global[k] = eid;
             }
         }
 
         // element instance
-        let neq_local = shape.nnode * element_dof.len();
         let mut element = Solid {
             shape,
             model,
             thickness,
             global_to_local,
+            local_to_global,
             rr: Vector::new(neq_local),
             kk: Matrix::new(neq_local, neq_local),
+            aux: Vector::new(ndim),
         };
 
         // set integration points' constants
@@ -95,19 +105,42 @@ impl BaseElement for Solid {
     }
 
     /// Computes the element's residual vector
-    fn calc_local_residual_vector(&mut self, state: &StateElement) -> Result<(), StrError> {
+    fn calc_local_residual_vector(&mut self, args: ArgsElement) -> Result<(), StrError> {
         self.shape
-            .integ_vec_d_tg(&mut self.rr, self.thickness, |sig, index_ip| {
-                copy_vector(&mut sig.vec, &state.stress[index_ip].sigma.vec)
-            })
+            .integ_vec_d_tg(&mut self.rr, true, self.thickness, |sig, index_ip| {
+                copy_vector(&mut sig.vec, &args.state.stress[index_ip].sigma.vec)
+            })?;
+        // todo: add body forces to rr, even if quasi-static
+        /*
+        if quasi_static {
+            return Ok(());
+        }
+        self.shape
+            .integ_vec_b_nv(&mut self.rr, false, self.thickness, |v, index_ip| {
+                // interpolate displacement at integration point
+                let ksi = &self.shape.integ_points[index_ip];
+                self.shape.calc_interp(ksi);
+                self.aux.fill(0.0);
+                for m in 0..self.shape.nnode {
+                    for i in 0..self.shape.space_ndim {
+                        let k = i + m * self.shape.space_ndim;
+                        let eid = self.local_to_global[k];
+                        self.aux[i] += self.shape.temp_interp[m] * (alpha_1 * uu_new[eid] - aa_star - b);
+                    }
+                }
+                Ok(())
+                // todo
+            })?;
+            */
+        Ok(())
     }
 
     /// Computes the element's jacobian matrix
-    fn calc_local_jacobian_matrix(&mut self, state: &StateElement, first_iteration: bool) -> Result<(), StrError> {
+    fn calc_local_jacobian_matrix(&mut self, args: ArgsElement) -> Result<(), StrError> {
         let model = &self.model.base;
         self.shape
             .integ_mat_10_gdg(&mut self.kk, self.thickness, |dd, index_ip| {
-                model.consistent_modulus(dd, &state.stress[index_ip], first_iteration)
+                model.consistent_modulus(dd, &args.state.stress[index_ip], args.solution.first_iteration)
             })
     }
 
@@ -149,10 +182,10 @@ impl BaseElement for Solid {
 #[cfg(test)]
 mod tests {
     use super::Solid;
-    use crate::elements::BaseElement;
+    use crate::elements::{ArgsElement, BaseElement};
     use crate::simulation::{
-        Configuration, Dof, EquationId, Initializer, ParamSolid, ParamStressStrain, SampleParam, StateElement,
-        StateStress,
+        Configuration, Control, Dof, EquationId, Initializer, ParamSolid, ParamStressStrain, SampleParam, Solution,
+        StateElement, StateStress, TransientVars,
     };
     use crate::StrError;
     use gemlab::mesh::Mesh;
@@ -417,13 +450,17 @@ mod tests {
     }
 
     #[test]
-    fn calc_local_yy_vector_works() -> Result<(), StrError> {
+    fn calc_local_rr_vector_works() -> Result<(), StrError> {
         let mesh = mesh_sgm_5_2();
         let config = Configuration::new(&mesh);
         let mut equation_id = EquationId::new(&config);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_id)?;
-        let state = get_non_zero_stress_state_2d()?;
-        element_5.calc_local_residual_vector(&state)?;
+        let state = &get_non_zero_stress_state_2d()?;
+        element_5.calc_local_residual_vector(ArgsElement {
+            state,
+            solution: &Solution::new(0),
+            transient_vars: &TransientVars::new(&Control::new()),
+        })?;
         let mut ana = AnalyticalTri3::new(&mut element_5.shape);
         let yy_correct = ana.integ_vec_d_constant(S00, S11, S01);
         assert_vec_approx_eq!(element_5.rr.as_data(), &yy_correct, 1e-14);
@@ -436,8 +473,12 @@ mod tests {
         let config = Configuration::new(&mesh);
         let mut equation_id = EquationId::new(&config);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_id)?;
-        let state = get_non_zero_stress_state_2d()?;
-        element_5.calc_local_jacobian_matrix(&state, true)?;
+        let state = &get_non_zero_stress_state_2d()?;
+        element_5.calc_local_jacobian_matrix(ArgsElement {
+            state,
+            solution: &Solution::new(0),
+            transient_vars: &TransientVars::new(&Control::new()),
+        })?;
 
         // compare with book
         #[rustfmt::skip]
@@ -461,13 +502,17 @@ mod tests {
     }
 
     #[test]
-    fn assemble_yy_vector_works() -> Result<(), StrError> {
+    fn assemble_rr_vector_works() -> Result<(), StrError> {
         let mesh = mesh_sgm_5_2();
         let config = Configuration::new(&mesh);
         let mut equation_id = EquationId::new(&config);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_id)?; // points 6,7,4 will get the first eq numbers
-        let state = get_non_zero_stress_state_2d()?;
-        element_5.calc_local_residual_vector(&state)?;
+        let state = &get_non_zero_stress_state_2d()?;
+        element_5.calc_local_residual_vector(ArgsElement {
+            state,
+            solution: &Solution::new(0),
+            transient_vars: &TransientVars::new(&Control::new()),
+        })?;
         let mut yy_global = Vector::new(18); // 2_dim x 9_point
         element_5.assemble_residual_vector(&mut yy_global)?;
         let mut ana = AnalyticalTri3::new(&mut element_5.shape);
@@ -483,8 +528,12 @@ mod tests {
         let config = Configuration::new(&mesh);
         let mut equation_id = EquationId::new(&config);
         let mut element_5 = get_sgm_5_2_element_5(&mut equation_id)?; // points 6,7,4 will get the first eq numbers
-        let state = get_non_zero_stress_state_2d()?;
-        element_5.calc_local_jacobian_matrix(&state, true)?;
+        let state = &get_non_zero_stress_state_2d()?;
+        element_5.calc_local_jacobian_matrix(ArgsElement {
+            state,
+            solution: &Solution::new(0),
+            transient_vars: &TransientVars::new(&Control::new()),
+        })?;
         let mut kk_global = SparseTriplet::new(18, 18, 6 * 6, russell_sparse::Symmetry::No)?;
         element_5.assemble_jacobian_matrix(&mut kk_global)?;
         let mut ana = AnalyticalTri3::new(&mut element_5.shape);
