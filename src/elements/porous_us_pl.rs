@@ -1,6 +1,6 @@
-use super::{ArgsElement, BaseElement};
+use super::BaseElement;
 use crate::models::PorousMedium;
-use crate::simulation::{Initializer, ParamFluids, ParamPorous, StateElement};
+use crate::simulation::{Initializer, ParamFluids, ParamPorous, Solution, StateElement};
 use crate::StrError;
 use gemlab::shapes::Shape;
 use russell_lab::{Matrix, Vector};
@@ -39,12 +39,12 @@ impl BaseElement for PorousUsPl {
     }
 
     /// Computes the element's residual vector
-    fn calc_local_residual_vector(&mut self, _args: ArgsElement) -> Result<(), StrError> {
+    fn calc_local_residual_vector(&mut self, _solution: &Solution) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the element's jacobian matrix
-    fn calc_local_jacobian_matrix(&mut self, _args: ArgsElement) -> Result<(), StrError> {
+    fn calc_local_jacobian_matrix(&mut self, _solution: &Solution) -> Result<(), StrError> {
         Ok(())
     }
 

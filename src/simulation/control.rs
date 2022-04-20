@@ -24,7 +24,7 @@ pub struct Control {
     /// Time increment for the output of results
     pub(super) dt_out: fn(t: f64) -> f64,
 
-    /// Minimum timestep
+    /// Minimum allowed time increment min(Δt)
     pub(super) dt_min: f64,
 
     /// Divergence control
@@ -45,13 +45,13 @@ pub struct Control {
     /// Linear solver configuration
     pub(super) config_solver: ConfigSolver,
 
-    /// Coefficient θ for the θ-method
+    /// Coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub(super) theta: f64,
 
-    /// Coefficient θ1 for the Newmark method
+    /// Coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
     pub(super) theta1: f64,
 
-    /// Coefficient θ2 for the Newmark method
+    /// Coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
     pub(super) theta2: f64,
 
     /// Verbose mode
@@ -180,7 +180,7 @@ impl Control {
         Ok(self)
     }
 
-    /// Sets the θ coefficient for the θ-method
+    /// Sets the θ coefficient for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub fn theta(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value < 0.0001 || value > 1.0 {
             return Err("θ must be between 0.0001 and 1.0");
@@ -189,7 +189,7 @@ impl Control {
         Ok(self)
     }
 
-    /// Coefficient θ1 for the Newmark method
+    /// Sets the coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
     pub fn theta1(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value < 0.0001 || value > 1.0 {
             return Err("θ1 must be between 0.0001 and 1.0");
@@ -198,7 +198,7 @@ impl Control {
         Ok(self)
     }
 
-    /// Coefficient θ2 for the Newmark method
+    /// Sets the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
     pub fn theta2(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value < 0.0001 || value > 1.0 {
             return Err("θ2 must be between 0.0001 and 1.0");

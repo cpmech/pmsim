@@ -1,10 +1,9 @@
-use super::{AnalysisType, Configuration, Control, EquationId, Initializer, LinearSystem, Solution, TransientVars};
-use crate::elements::{ArgsElement, Element};
+use super::{AnalysisType, Configuration, Control, EquationId, ImplicitSolver, Initializer, Solution};
+use crate::elements::Element;
 use crate::StrError;
-use russell_lab::{vector_norm, NormVec};
 
-#[derive(PartialEq)]
-enum Status {
+/// Defines the status of the (time-) step update
+pub enum StepUpdateStatus {
     Converged,
     Diverging,
 }
@@ -12,38 +11,32 @@ enum Status {
 /// Implements the finite element simulation
 #[allow(dead_code)]
 pub struct Simulation<'a> {
-    /// Access to configuration
+    /// Configuration
     config: &'a Configuration<'a>,
-
-    /// All elements
-    elements: Vec<Element>,
 
     /// Equation identification number matrix (point_id,dof)
     equation_id: EquationId,
 
+    /// All elements
+    elements: Vec<Element>,
+
     /// Solution variables
     solution: Solution,
-
-    /// Number of equations in the global system
-    neq: usize,
-
-    /// Maximum number of non-zero values in the global Jacobian matrix
-    nnz_max: usize,
 }
 
 impl<'a> Simulation<'a> {
     /// Allocates a new instance
     pub fn new(config: &'a Configuration) -> Result<Self, StrError> {
         // auxiliary
+        let mut equation_id = EquationId::new(config.mesh.points.len());
         let mut elements = Vec::<Element>::new();
-        let mut equation_id = EquationId::new(&config);
         let initializer = Initializer::new(&config)?;
 
         // loop over all cells and allocate elements
         let mut nnz_max = 0;
         for cell in &config.mesh.cells {
             // allocate element
-            let element = Element::new(config, cell.id, &mut equation_id)?;
+            let element = Element::new(&mut equation_id, config, cell.id)?;
 
             // estimate the max number of non-zeros in the K-matrix
             let (nrow, ncol) = element.base.get_local_jacobian_matrix().dims();
@@ -57,7 +50,7 @@ impl<'a> Simulation<'a> {
         let neq = equation_id.nequation();
 
         // solution variables
-        let mut solution = Solution::new(neq);
+        let mut solution = Solution::new(neq, nnz_max);
 
         // initialize state at element's integration points
         for element in &mut elements {
@@ -71,269 +64,99 @@ impl<'a> Simulation<'a> {
         // done
         Ok(Simulation {
             config,
-            elements,
             equation_id,
+            elements,
             solution,
-            neq,
-            nnz_max,
         })
     }
 
     /// Run simulation
-    pub fn run(&mut self, control: Control) -> Result<(), StrError> {
-        // check quasi_static flag
+    pub fn run(&mut self, control: &Control) -> Result<(), StrError> {
+        // check the quasi-static flag
         if control.quasi_static {
             if self.config.get_analysis_type()? != AnalysisType::Mechanics {
                 return Err("quasi-static mode is only available for rod, beam, and solids");
             }
         }
 
-        // linear system
-        let mut lin_sys = LinearSystem::new(self.neq, self.nnz_max, &control.config_solver)?;
+        // allocate implicit solver
+        let mut implicit_solver = ImplicitSolver::new(control, &self.solution)?;
 
-        // Variables for transient analyses
-        let mut transient_vars = TransientVars::new(&control);
+        // set current time to initial time
+        self.solution.t = control.t_ini;
 
-        // current time
-        let mut t = control.t_ini;
+        // set time for the next output (after the first output)
+        let mut t_out = self.solution.t + (control.dt_out)(self.solution.t);
 
-        // time for the next output (after the first output)
-        let mut t_out = t + (control.dt_out)(t);
+        // initialize divergence control variables
+        self.solution.div_ctrl_multiplier = 1.0;
+        self.solution.div_ctrl_n_steps = 0;
 
-        // detect the last time step
-        let mut last_time_step = false;
+        // perform first output of results
+        self.solution.output(control.verbose, false)?;
 
-        // divergence control: time step multiplier if divergence control is on
-        let mut div_ctrl_multiplier = 1.0;
-
-        // divergence control: number of steps diverging
-        let mut div_ctrl_n_steps = 0;
-
-        // first output
-        if control.verbose {
-            println!("t = {}", t);
-        }
+        // divergence control: create a backup of all solution values
+        let mut solution_backup = if control.divergence_control {
+            self.solution.clone()
+        } else {
+            Solution::new(0, 0) // empty backup solution (unnecessary)
+        };
 
         // time loop
-        while t < control.t_fin && f64::abs(t - control.t_fin) >= control.dt_min {
-            // check if still diverging
-            if div_ctrl_n_steps >= control.div_ctrl_max_steps {
-                return Err("simulation stopped because the maximum number of diverging steps has been reached");
+        while self.solution.t < control.t_fin && f64::abs(self.solution.t - control.t_fin) >= control.dt_min {
+            // check if iterations are diverging
+            if self.solution.div_ctrl_n_steps >= control.div_ctrl_max_steps {
+                return Err("simulation stopped due to excessive number of diverging steps");
             }
 
             // calculate time increment
-            let dt = (control.dt)(t) * div_ctrl_multiplier;
-            if dt < control.dt_min {
+            self.solution.dt = (control.dt)(self.solution.t) * self.solution.div_ctrl_multiplier;
+            if self.solution.dt < control.dt_min {
                 return Err("simulation stopped because dt is too small");
             }
 
-            // set last time step flag
-            if t + dt >= control.t_fin {
-                last_time_step = true;
-            }
+            // update timestep, t ← t_new
+            self.solution.t += self.solution.dt;
 
-            // update timestep: t <- t_new
-            t += dt;
-
-            // output
-            if control.verbose {
-                println!("t = {}", t);
-                /* todo:
-                   make output
-                */
-            }
+            // perform output of results
+            self.solution.output(control.verbose, false)?;
 
             // backup state if divergence control is enabled
             if control.divergence_control {
-                /* todo:
-                   make backup
-                */
+                self.solution.copy_into(&mut solution_backup)?;
             }
 
-            // run iterations
-            let status = self.iterations(&control, &mut lin_sys, &mut transient_vars, t, dt)?;
+            // update solution to t_new
+            let status = implicit_solver.step_update(&mut self.solution, &mut self.elements, &self.config, control)?;
 
-            // restore solution and reduce time step if divergence control is enabled
+            // divergence control
             if control.divergence_control {
-                if status == Status::Diverging {
-                    if control.verbose {
-                        println!(". . . diverging . . .");
+                match status {
+                    StepUpdateStatus::Converged => {
+                        self.solution.div_ctrl_multiplier = 1.0;
+                        self.solution.div_ctrl_n_steps = 0;
                     }
-                    /* todo:
-                       restore backup
-                    */
-                    t -= dt;
-                    div_ctrl_multiplier *= 0.5;
-                    div_ctrl_n_steps += 1;
-                    continue; // <<<<<< skip possible output
-                } else {
-                    div_ctrl_multiplier = 1.0;
-                    div_ctrl_n_steps = 0;
+                    StepUpdateStatus::Diverging => {
+                        if control.verbose {
+                            println!(". . . iterations diverging . . .");
+                        }
+                        solution_backup.copy_into(&mut self.solution)?; // restore solution
+                        self.solution.div_ctrl_multiplier *= 0.5; // will force a reduction of the time increment
+                        self.solution.div_ctrl_n_steps += 1; // count the number of diverging steps
+                        continue; // skip eventual output of results
+                    }
                 }
             }
 
-            // perform output
-            if t >= t_out || last_time_step {
-                /* todo:
-                   make output
-                */
-                t_out += (control.dt_out)(t);
+            // perform output and compute the next output time
+            if self.solution.t >= t_out || self.solution.t >= control.t_fin {
+                self.solution.output(control.verbose, false)?;
+                t_out += (control.dt_out)(self.solution.t);
             }
         }
 
         // done
         Ok(())
-    }
-
-    /// Performs iterations
-    ///
-    /// ```text
-    /// For each iteration, the linear system is:
-    ///     [K] {δU} = -{R}
-    /// or
-    ///     [K] {mdu} = {R}
-    /// where
-    ///     {mdu} = -{δU}
-    /// The update is:
-    ///     {ΔU} -= {mdu}
-    ///     {U} -= {mdu}
-    /// ```
-    fn iterations(
-        &mut self,
-        control: &Control,
-        lin_sys: &mut LinearSystem,
-        transient_vars: &mut TransientVars,
-        t_new: f64,
-        dt: f64,
-    ) -> Result<Status, StrError> {
-        // auxiliary
-        let kk = &mut lin_sys.kk;
-        let rr = &mut lin_sys.rr;
-        let mdu = &mut lin_sys.mdu;
-        let delta_uu = &mut lin_sys.ddu;
-        // let uu = &mut self.solution.uu;
-
-        // zero accumulated increments: ΔU
-        delta_uu.fill(0.0);
-
-        // sets prescribed values for U = U(x,t_new) and ΔU = U(x,t_new) - U(x,t_old)
-        let t_old = t_new - dt;
-        if t_old < 0.0 {
-            return Err("INTERNAL ERROR: previous time step is negative");
-        }
-        for ((point_id, dof), f) in &self.config.essential_bcs {
-            let (eid, prescribed) = self.equation_id.eid(*point_id, *dof)?;
-            if !prescribed {
-                return Err("INTERNAL ERROR: inconsistent prescribed flag for essential BC");
-            }
-            let x = &self.config.mesh.points[*point_id].coords;
-            // uu[eid] = f(&x, t_new);
-            // delta_uu[eid] = uu[eid] - f(&x, t_old);
-        }
-
-        // residual vector (right-hand-side) maximum absolute value
-        let mut max_abs_rr: f64 = f64::MAX; // current
-        let mut max_abs_rr_first: f64 = f64::MAX; // at the first iteration
-        let mut max_abs_rr_previous: f64; // from the previous iteration
-
-        // message
-        if control.verbose_iterations {
-            // todo
-        }
-
-        // run iterations
-        let mut iteration_number = 1;
-        let mut first_iteration = true;
-        while iteration_number <= control.n_max_iterations {
-            // assemble residual vector
-            for (e, element) in self.elements.iter_mut().enumerate() {
-                element.base.calc_local_residual_vector(ArgsElement {
-                    state: &self.solution.ips[e],
-                    solution: &self.solution,
-                    transient_vars,
-                })?;
-                element.base.assemble_residual_vector(rr)?;
-            }
-
-            // natural boundary conditions
-            // todo
-
-            // residual vector maximum absolute value
-            if first_iteration {
-                max_abs_rr = vector_norm(rr, NormVec::Max);
-                max_abs_rr_first = max_abs_rr;
-                max_abs_rr_previous = max_abs_rr;
-            } else {
-                max_abs_rr_previous = max_abs_rr;
-                max_abs_rr = vector_norm(rr, NormVec::Max);
-            }
-
-            // check convergence or divergence on the residual vector
-            if !first_iteration {
-                if max_abs_rr < control.tol_rel_residual * max_abs_rr_first {
-                    return Ok(Status::Converged);
-                }
-                if control.divergence_control && max_abs_rr > max_abs_rr_previous {
-                    return Ok(Status::Diverging);
-                }
-            }
-
-            // Jacobian matrix and linear solver
-            if first_iteration || !control.constant_tangent {
-                // assemble Jacobian matrix
-                kk.reset();
-                for (e, element) in self.elements.iter_mut().enumerate() {
-                    element.base.calc_local_jacobian_matrix(ArgsElement {
-                        state: &self.solution.ips[e],
-                        solution: &self.solution,
-                        transient_vars,
-                    })?;
-                    element.base.assemble_jacobian_matrix(kk)?;
-                }
-
-                // put "ones" on the diagonal entries corresponding to prescribed DOFs
-                for p in self.equation_id.prescribed() {
-                    kk.put(*p, *p, 1.0)?;
-                }
-
-                // initialize linear solver
-                if !lin_sys.initialized {
-                    lin_sys.solver.initialize(kk)?;
-                }
-
-                // perform factorization
-                lin_sys.solver.factorize()?;
-            }
-
-            // solver linear system: mdu = inv(K) * R
-            lin_sys.solver.solve(mdu, rr)?;
-
-            // update primary variables
-            for i in 0..self.neq {
-                delta_uu[i] -= mdu[i];
-                // uu[i] -= mdu[i];
-            }
-
-            // update secondary variables
-            for (e, element) in self.elements.iter_mut().enumerate() {
-                let state = &mut self.solution.ips[e];
-                // element.base.update_state(state, delta_uu, uu)?;
-            }
-
-            // check convergence on mdu (-δu)
-            let max_abs_mdu = vector_norm(mdu, NormVec::Max);
-            // let max_abs_uu = vector_norm(uu, NormVec::Max);
-            // if max_abs_mdu < control.tol_rel_mdu * max_abs_uu {
-            // return Ok(Status::Converged);
-            // }
-
-            // next iteration
-            iteration_number += 1;
-            first_iteration = false;
-        }
-
-        // failed
-        Err("max number of iterations reached")
     }
 }
 
@@ -376,9 +199,11 @@ mod tests {
             .elements(111, ElementConfig::Porous(lower, None))?
             .gravity(10.0)?; // m/s²
 
+        /*
         // simulation
         let sim = Simulation::new(&config)?;
         assert_eq!(sim.elements.len(), 12);
+        */
         Ok(())
     }
 
@@ -426,8 +251,9 @@ mod tests {
         config.elements(1, ElementConfig::Solid(params, None))?;
 
         // simulation
-        let mut sim = Simulation::new(&config)?;
+        // let mut sim = Simulation::new(&config)?;
 
+        /*
         // check
         assert_eq!(sim.elements.len(), 4);
         assert_eq!(sim.equation_id.nequation(), 12);
@@ -437,6 +263,7 @@ mod tests {
         let mut control = Control::new();
         control.linear_problem(true)?.quasi_static(true)?;
         assert_eq!(sim.run(control).err(), Some("max number of iterations reached"));
+        */
 
         // done
         Ok(())

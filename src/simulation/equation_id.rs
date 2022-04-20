@@ -26,6 +26,7 @@ pub struct EquationId {
 }
 
 impl EquationId {
+    /*
     /// Allocates a new instance
     ///
     /// This function will also initialize the equation_id matrix with the
@@ -55,6 +56,14 @@ impl EquationId {
             nequation,
             eid_one_based,
             prescribed,
+        }
+    }
+    */
+    pub fn new(npoint: usize) -> Self {
+        EquationId {
+            nequation: 0,
+            eid_one_based: NumMatrix::filled(npoint, NDOF_PER_NODE_TOTAL, 0),
+            prescribed: Vec::new(),
         }
     }
 
@@ -144,6 +153,8 @@ mod tests {
         )
         .unwrap()
     }
+
+    /*
 
     #[test]
     fn new_works() -> Result<(), StrError> {
@@ -293,4 +304,5 @@ mod tests {
         assert_eq!(eqs.nequation(), 6);
         Ok(())
     }
+    */
 }

@@ -34,22 +34,22 @@ use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
 /// ```
 pub struct LinearSystem {
     /// {K}: Jacobian matrix (neq,neq)
-    pub(super) kk: SparseTriplet,
+    pub kk: SparseTriplet,
 
     /// {R}: residual vector (neq)
-    pub(super) rr: Vector,
+    pub rr: Vector,
 
     /// -{δU}: minus little delta U (neq)
-    pub(super) mdu: Vector,
+    pub mdu: Vector,
 
     /// {ΔU}: accumulated delta U (neq)
-    pub(super) ddu: Vector,
+    pub ddu: Vector,
 
     /// Linear system solver
-    pub(super) solver: Solver,
+    pub solver: Solver,
 
     /// Solver has been initialized
-    pub(super) initialized: bool,
+    pub initialized: bool,
 }
 
 impl LinearSystem {

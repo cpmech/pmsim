@@ -1,6 +1,6 @@
 use super::{
     element_and_analysis::ElementConfig, get_analysis_type, upgrade_analysis_type, AnalysisType, BcPoint, Dof,
-    IniOption, Nbc, ParamFluids,
+    EquationId, IniOption, Nbc, ParamFluids,
 };
 use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
@@ -11,11 +11,11 @@ pub type FnSpaceTime = fn(x: &[f64], t: f64) -> f64;
 
 /// Holds simulation configuration such as boundary conditions and element attributes
 pub struct Configuration<'a> {
-    /// Access to mesh
+    /// Access to Mesh
     pub(crate) mesh: &'a Mesh,
 
     /// Essential boundary conditions
-    pub(crate) essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
+    essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
 
     /// Natural boundary conditions at edges
     natural_bcs_edge: HashMap<(EdgeKey, Nbc), FnSpaceTime>,
