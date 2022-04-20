@@ -25,16 +25,12 @@ pub struct Solid {
     /// Maps (non-prescribed) global equation numbers (eid) to local indices
     global_to_local: Vec<(usize, usize)>,
 
-    local_to_global: Vec<usize>,
-
+    // local_to_global: Vec<usize>,
     /// Local residual vector (neq_local)
     rr: Vector,
 
     /// Local Jacobian matrix (neq_local, neq_local)
     kk: Matrix,
-
-    /// Auxiliary vector (space_ndim)
-    aux: Vector,
 }
 
 impl Solid {
@@ -66,7 +62,7 @@ impl Solid {
         // activate equation identification numbers
         let neq_local = shape.nnode * ndim;
         let mut global_to_local = Vec::new();
-        let mut local_to_global = vec![0; neq_local];
+        // let mut local_to_global = vec![0; neq_local];
         for (m, a) in shape.node_to_point.iter().enumerate() {
             for (i, d) in element_dof.iter().enumerate() {
                 let (eid, prescribed) = equation_id.activate(*a, *d);
@@ -74,7 +70,7 @@ impl Solid {
                 if !prescribed {
                     global_to_local.push((eid, k))
                 }
-                local_to_global[k] = eid;
+                // local_to_global[k] = eid;
             }
         }
 
@@ -85,10 +81,8 @@ impl Solid {
             model,
             thickness,
             global_to_local,
-            local_to_global,
             rr: Vector::new(neq_local),
             kk: Matrix::new(neq_local, neq_local),
-            aux: Vector::new(ndim),
         };
 
         // set integration points' constants

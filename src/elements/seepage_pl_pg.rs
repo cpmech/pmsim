@@ -1,23 +1,25 @@
 use super::BaseElement;
-use crate::simulation::{Initializer, ParamSeepage, Solution, StateElement};
+use crate::simulation::{Configuration, EquationId, Initializer, ParamSeepage, Solution, StateElement};
 use crate::StrError;
-use gemlab::shapes::Shape;
+use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
 /// Implements the pl-pg (liquid pressure, gas pressure) element for seepage simulations
 pub struct SeepagePlPg {
-    _shape: Shape,
     kk: Matrix, // local K-matrix (neq,neq)
 }
 
 impl SeepagePlPg {
     /// Allocates a new instance
-    pub fn new(shape: Shape, _param: &ParamSeepage, _n_integ_point: Option<usize>) -> Result<Self, StrError> {
-        Ok(SeepagePlPg {
-            _shape: shape,
-            kk: Matrix::new(0, 0),
-        })
+    pub fn new(
+        _equation_id: &mut EquationId,
+        _config: &Configuration,
+        _cell_id: CellId,
+        _param: &ParamSeepage,
+        _n_integ_point: Option<usize>,
+    ) -> Result<Self, StrError> {
+        Ok(SeepagePlPg { kk: Matrix::new(0, 0) })
     }
 }
 

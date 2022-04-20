@@ -55,15 +55,9 @@ impl Element {
         }
         let cell = &config.mesh.cells[cell_id];
         let element_config = config.get_element_config(cell.attribute_id)?;
-
-        /* TODO: remove the following line
-          because the element can read config + mesh + cell_id now
-        */
-        let shape = config.mesh.alloc_shape_cell(cell_id)?; // moving to Element
-
         let base: Box<dyn BaseElement> = match element_config {
-            ElementConfig::Rod(param) => Box::new(Rod::new(shape, param)?),
-            ElementConfig::Beam(param) => Box::new(Beam::new(shape, param)?),
+            ElementConfig::Rod(param) => Box::new(Rod::new(equation_id, config, cell_id, param)?),
+            ElementConfig::Beam(param) => Box::new(Beam::new(equation_id, config, cell_id, param)?),
             ElementConfig::Solid(param, n_integ_point) => {
                 Box::new(Solid::new(equation_id, config, cell_id, param, *n_integ_point)?)
             }
@@ -75,14 +69,28 @@ impl Element {
                             Some(_) => (),
                             None => return Err("param for gas density must be set when using conductivity_gas"),
                         };
-                        Box::new(PorousUsPlPg::new(shape, &param_fluids, &param_porous, *n_integ_point)?)
+                        Box::new(PorousUsPlPg::new(
+                            equation_id,
+                            config,
+                            cell_id,
+                            &param_fluids,
+                            &param_porous,
+                            *n_integ_point,
+                        )?)
                     }
-                    None => Box::new(PorousUsPl::new(shape, &param_fluids, param_porous, *n_integ_point)?),
+                    None => Box::new(PorousUsPl::new(
+                        equation_id,
+                        config,
+                        cell_id,
+                        &param_fluids,
+                        param_porous,
+                        *n_integ_point,
+                    )?),
                 }
             }
             ElementConfig::Seepage(param, n_integ_point) => match param.conductivity_gas {
-                Some(_) => Box::new(SeepagePlPg::new(shape, param, *n_integ_point)?),
-                None => Box::new(SeepagePl::new(shape, param, *n_integ_point)?),
+                Some(_) => Box::new(SeepagePlPg::new(equation_id, config, cell_id, param, *n_integ_point)?),
+                None => Box::new(SeepagePl::new(equation_id, config, cell_id, param, *n_integ_point)?),
             },
         };
         Ok(Element { base })

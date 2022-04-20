@@ -1,23 +1,24 @@
 use super::BaseElement;
-use crate::simulation::{Initializer, ParamRod, Solution, StateElement};
+use crate::simulation::{Configuration, EquationId, Initializer, ParamRod, Solution, StateElement};
 use crate::StrError;
-use gemlab::shapes::Shape;
+use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
 /// Implements a Rod element
 pub struct Rod {
-    _shape: Shape,
     kk: Matrix, // local K-matrix (neq,neq)
 }
 
 impl Rod {
     /// Allocates a new instance
-    pub fn new(shape: Shape, _param: &ParamRod) -> Result<Self, StrError> {
-        Ok(Rod {
-            _shape: shape,
-            kk: Matrix::new(0, 0),
-        })
+    pub fn new(
+        _equation_id: &mut EquationId,
+        _config: &Configuration,
+        _cell_id: CellId,
+        _param: &ParamRod,
+    ) -> Result<Self, StrError> {
+        Ok(Rod { kk: Matrix::new(0, 0) })
     }
 }
 

@@ -1,14 +1,13 @@
 use super::BaseElement;
 use crate::models::PorousMedium;
-use crate::simulation::{Initializer, ParamFluids, ParamPorous, Solution, StateElement};
+use crate::simulation::{Configuration, EquationId, Initializer, ParamFluids, ParamPorous, Solution, StateElement};
 use crate::StrError;
-use gemlab::shapes::Shape;
+use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
 /// Implements the us-pl-pg (solid displacement, liquid pressure, gas pressure) element for porous media mechanics
 pub struct PorousUsPlPg {
-    _shape: Shape,
     _model: PorousMedium, // material model
     kk: Matrix,           // local K-matrix (neq,neq)
 }
@@ -16,14 +15,15 @@ pub struct PorousUsPlPg {
 impl PorousUsPlPg {
     /// Allocates a new instance
     pub fn new(
-        shape: Shape,
+        _equation_id: &mut EquationId,
+        config: &Configuration,
+        _cell_id: CellId,
         param_fluids: &ParamFluids,
         param_porous: &ParamPorous,
         _n_integ_point: Option<usize>,
     ) -> Result<Self, StrError> {
-        let two_dim = shape.space_ndim == 2;
+        let two_dim = config.mesh.space_ndim == 2;
         Ok(PorousUsPlPg {
-            _shape: shape,
             _model: PorousMedium::new(param_fluids, param_porous, two_dim)?,
             kk: Matrix::new(0, 0),
         })

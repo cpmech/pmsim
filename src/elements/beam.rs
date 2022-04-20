@@ -1,23 +1,24 @@
 use super::BaseElement;
-use crate::simulation::{Initializer, ParamBeam, Solution, StateElement};
+use crate::simulation::{Configuration, EquationId, Initializer, ParamBeam, Solution, StateElement};
 use crate::StrError;
-use gemlab::shapes::Shape;
+use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
 /// Implements a Beam element
 pub struct Beam {
-    _shape: Shape,
     kk: Matrix, // local K-matrix (neq,neq)
 }
 
 impl Beam {
     /// Allocates a new instance
-    pub fn new(shape: Shape, _param: &ParamBeam) -> Result<Self, StrError> {
-        Ok(Beam {
-            _shape: shape,
-            kk: Matrix::new(0, 0),
-        })
+    pub fn new(
+        _equation_id: &mut EquationId,
+        _config: &Configuration,
+        _cell_id: CellId,
+        _param: &ParamBeam,
+    ) -> Result<Self, StrError> {
+        Ok(Beam { kk: Matrix::new(0, 0) })
     }
 }
 
