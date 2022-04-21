@@ -1,9 +1,8 @@
-use super::{Beam, PorousUsPl, PorousUsPlPg, Rod, SeepagePl, SeepagePlPg, Solid};
+use super::Solid;
 use crate::simulation::{Configuration, ElementConfig, EquationId, Initializer, Solution, StateElement};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_lab::{Matrix, Vector};
-use russell_sparse::SparseTriplet;
+use russell_lab::Matrix;
 
 /// Defines a trait for (finite) elements
 ///
@@ -22,17 +21,14 @@ pub trait BaseElement {
     /// Computes the element's jacobian matrix
     fn calc_local_jacobian_matrix(&mut self, solution: &Solution) -> Result<(), StrError>;
 
+    /// Accesses the local-to-global mapping of equation numbers
+    fn get_local_to_global_map(&self) -> &Vec<usize>;
+
     /// Returns the element's jacobian matrix
     fn get_local_jacobian_matrix(&self) -> &Matrix;
 
-    /// Assembles the local residual vector into the global residual vector
-    fn assemble_residual_vector(&self, rr: &mut Vector) -> Result<(), StrError>;
-
-    /// Assembles the local jacobian matrix into the global jacobian matrix
-    fn assemble_jacobian_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError>;
-
-    /// Updates StateElement given the primary unknown and its increment
-    fn update_state(&mut self, state: &mut StateElement, delta_uu: &Vector, uu: &Vector) -> Result<(), StrError>;
+    /// Updates StateElement given the updated solution vectors (e.g., uu_new, delta_uu)
+    fn update_state(&mut self, solution: &mut Solution) -> Result<(), StrError>;
 }
 
 /// Defines a finite element
@@ -50,14 +46,15 @@ impl Element {
     ///
     /// * The element can access the solution array by knowing its own CellId
     pub fn new(equation_id: &mut EquationId, config: &Configuration, cell_id: CellId) -> Result<Self, StrError> {
-        if cell_id >= config.mesh.cells.len() {
+        let mesh = config.get_mesh();
+        if cell_id >= mesh.cells.len() {
             return Err("cell_id is out-of-bounds");
         }
-        let cell = &config.mesh.cells[cell_id];
+        let cell = &mesh.cells[cell_id];
         let element_config = config.get_element_config(cell.attribute_id)?;
         let base: Box<dyn BaseElement> = match element_config {
-            ElementConfig::Rod(param) => Box::new(Rod::new(equation_id, config, cell_id, param)?),
-            ElementConfig::Beam(param) => Box::new(Beam::new(equation_id, config, cell_id, param)?),
+            ElementConfig::Rod(param) => panic!("not yet"),
+            ElementConfig::Beam(param) => panic!("not yet"),
             ElementConfig::Solid(param, n_integ_point) => {
                 Box::new(Solid::new(equation_id, config, cell_id, param, *n_integ_point)?)
             }
@@ -69,28 +66,14 @@ impl Element {
                             Some(_) => (),
                             None => return Err("param for gas density must be set when using conductivity_gas"),
                         };
-                        Box::new(PorousUsPlPg::new(
-                            equation_id,
-                            config,
-                            cell_id,
-                            &param_fluids,
-                            &param_porous,
-                            *n_integ_point,
-                        )?)
+                        panic!("not yet");
                     }
-                    None => Box::new(PorousUsPl::new(
-                        equation_id,
-                        config,
-                        cell_id,
-                        &param_fluids,
-                        param_porous,
-                        *n_integ_point,
-                    )?),
+                    None => panic!("not yet"),
                 }
             }
             ElementConfig::Seepage(param, n_integ_point) => match param.conductivity_gas {
-                Some(_) => Box::new(SeepagePlPg::new(equation_id, config, cell_id, param, *n_integ_point)?),
-                None => Box::new(SeepagePl::new(equation_id, config, cell_id, param, *n_integ_point)?),
+                Some(_) => panic!("not yet"),
+                None => panic!("not yet"),
             },
         };
         Ok(Element { base })

@@ -87,13 +87,13 @@ pub fn upgrade_analysis_type(
 mod tests {
     use super::ElementConfig;
     use crate::simulation::{
-        get_analysis_type, upgrade_analysis_type, AnalysisType, ParamSolid, ParamStressStrain, SampleParam,
+        get_analysis_type, upgrade_analysis_type, AnalysisType, ParamSolid, ParamStressStrain, Samples,
     };
     use crate::StrError;
 
     #[test]
     fn clone_debug_partial_eq_work() {
-        let p_solid = SampleParam::param_solid();
+        let p_solid = Samples::param_solid();
         let a = ElementConfig::Solid(p_solid, None);
         let b = a.clone();
         assert_eq!(format!("{:?}", a), format!("{:?}", b));
@@ -124,11 +124,11 @@ mod tests {
             },
         };
 
-        let m3 = SampleParam::param_euler_bernoulli_beam();
-        let m4 = SampleParam::param_seepage_liq();
-        let m5 = SampleParam::param_seepage_liq_gas();
-        let m6 = SampleParam::param_porous_sol_liq(0.5, 0.1);
-        let m7 = SampleParam::param_porous_sol_liq_gas(0.5, 0.1);
+        let m3 = Samples::param_euler_bernoulli_beam();
+        let m4 = Samples::param_seepage_liq();
+        let m5 = Samples::param_seepage_liq_gas();
+        let m6 = Samples::param_porous_sol_liq(0.5, 0.1);
+        let m7 = Samples::param_porous_sol_liq_gas(0.5, 0.1);
 
         let c1 = ElementConfig::Solid(m1, None);
         let c2 = ElementConfig::Solid(m2, None);
@@ -149,11 +149,11 @@ mod tests {
 
     #[test]
     fn upgrade_analysis_type_captures_errors() {
-        let p_solid = SampleParam::param_solid();
-        let p_seepage_liq = SampleParam::param_seepage_liq();
-        let p_seepage_liq_gas = SampleParam::param_seepage_liq_gas();
-        let p_porous_liq = SampleParam::param_porous_sol_liq(0.4, 0.1);
-        let p_porous_liq_gas = SampleParam::param_porous_sol_liq_gas(0.4, 0.1);
+        let p_solid = Samples::param_solid();
+        let p_seepage_liq = Samples::param_seepage_liq();
+        let p_seepage_liq_gas = Samples::param_seepage_liq_gas();
+        let p_porous_liq = Samples::param_porous_sol_liq(0.4, 0.1);
+        let p_porous_liq_gas = Samples::param_porous_sol_liq_gas(0.4, 0.1);
 
         let solid = ElementConfig::Solid(p_solid, None);
         let seepage_liq = ElementConfig::Seepage(p_seepage_liq, None);
@@ -214,9 +214,9 @@ mod tests {
 
     #[test]
     fn upgrade_analysis_type_works() -> Result<(), StrError> {
-        let p_solid = SampleParam::param_solid();
-        let p_porous_liq = SampleParam::param_porous_sol_liq(0.4, 0.1);
-        let p_porous_liq_gas = SampleParam::param_porous_sol_liq_gas(0.4, 0.1);
+        let p_solid = Samples::param_solid();
+        let p_porous_liq = Samples::param_porous_sol_liq(0.4, 0.1);
+        let p_porous_liq_gas = Samples::param_porous_sol_liq_gas(0.4, 0.1);
 
         let solid = ElementConfig::Solid(p_solid, None);
         let porous_liq = ElementConfig::Porous(p_porous_liq, None);

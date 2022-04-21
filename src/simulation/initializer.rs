@@ -30,7 +30,8 @@ pub struct Initializer {
 impl Initializer {
     /// Allocates a new instance
     pub fn new(config: &Configuration) -> Result<Self, StrError> {
-        let space_ndim = config.mesh.space_ndim;
+        let mesh = config.get_mesh();
+        let space_ndim = mesh.space_ndim;
         let total_stress = config.get_total_stress();
         match config.get_ini_option() {
             &IniOption::Geostatic(..) => Ok(Initializer {

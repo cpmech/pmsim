@@ -31,7 +31,7 @@ impl Geostatics {
     /// limits and allocates models.
     pub fn new(config: &Configuration) -> Result<Self, StrError> {
         // mesh and space_ndim
-        let mesh = config.mesh;
+        let mesh = config.get_mesh();
         let two_dim = mesh.space_ndim == 2;
         if mesh.space_ndim < 2 || mesh.space_ndim > 3 {
             return Err("Geostatics requires space_ndim = 2 or 3");
@@ -200,10 +200,9 @@ impl Geostatics {
 mod tests {
     use super::Geostatics;
     use crate::simulation::{
-        Configuration, ElementConfig, IniOption, ParamFluids, ParamPorous, ParamRealDensity, ParamSolid, SampleParam,
+        Configuration, ElementConfig, IniOption, ParamFluids, ParamPorous, ParamRealDensity, ParamSolid, Samples,
     };
     use crate::StrError;
-    use gemlab::mesh::Mesh;
     use russell_chk::assert_approx_eq;
 
     // Returns the parameters of a two-layer porous column with a footing at the top and
@@ -287,16 +286,16 @@ mod tests {
                 None
             },
         };
-        let footing = SampleParam::param_solid();
+        let footing = Samples::param_solid();
         let (upper, lower) = if with_gas {
             (
-                SampleParam::param_porous_sol_liq_gas(nf0, 1e-2),
-                SampleParam::param_porous_sol_liq_gas(0.2, 1e-2),
+                Samples::param_porous_sol_liq_gas(nf0, 1e-2),
+                Samples::param_porous_sol_liq_gas(0.2, 1e-2),
             )
         } else {
             (
-                SampleParam::param_porous_sol_liq(nf0, 1e-2),
-                SampleParam::param_porous_sol_liq(0.2, 1e-2),
+                Samples::param_porous_sol_liq(nf0, 1e-2),
+                Samples::param_porous_sol_liq(0.2, 1e-2),
             )
         };
         (fluids, footing, upper, lower, sigma_v_mid_approx)
@@ -304,8 +303,8 @@ mod tests {
 
     #[test]
     fn solid_liquid_incompressible_works() -> Result<(), StrError> {
-        let mesh = Mesh::from_text_file("./data/meshes/column_two_layers_quads.msh")?;
-        let mut config = Configuration::new(&mesh);
+        let mesh = Samples::mesh_column_two_layers_quads();
+        let mut config = Configuration::new(mesh);
         let (fluids, footing, upper, lower, sigma_v_mid_approx) = two_layers(3.0, 1.0, false, true);
         config
             .elements(1, ElementConfig::Porous(lower, None))?
@@ -331,8 +330,8 @@ mod tests {
 
     #[test]
     fn solid_liquid_works() -> Result<(), StrError> {
-        let mesh = Mesh::from_text_file("./data/meshes/column_distorted_tris_quads.msh")?;
-        let mut config = Configuration::new(&mesh);
+        let mesh = Samples::mesh_column_distorted_tris_quads();
+        let mut config = Configuration::new(mesh);
         let (fluids, footing, upper, lower, sigma_v_mid_approx) = two_layers(3.0, 1.0, false, false);
         config
             .elements(1, ElementConfig::Porous(lower, None))?
@@ -356,8 +355,8 @@ mod tests {
 
     #[test]
     fn solid_liquid_gas_works() -> Result<(), StrError> {
-        let mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
-        let mut config = Configuration::new(&mesh);
+        let mesh = Samples::mesh_rectangle_tris_quads();
+        let mut config = Configuration::new(mesh);
         let (fluids, footing, upper, lower, sigma_v_mid_approx) = two_layers(3.0, 1.0, true, false);
         config
             .elements(111, ElementConfig::Porous(lower, None))?

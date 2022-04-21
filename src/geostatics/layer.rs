@@ -245,14 +245,14 @@ impl Layer {
 #[cfg(test)]
 mod tests {
     use super::Layer;
-    use crate::simulation::{ParamLiquidRetention, SampleParam};
+    use crate::simulation::{ParamLiquidRetention, Samples};
     use crate::StrError;
     use russell_chk::assert_approx_eq;
 
     #[test]
     fn handle_wrong_input() -> Result<(), StrError> {
-        let param_fluids = SampleParam::param_water_and_dry_air(true);
-        let mut param_porous = SampleParam::param_porous_sol_liq_gas(0.4, 1e-2);
+        let param_fluids = Samples::param_water_and_dry_air(true);
+        let mut param_porous = Samples::param_porous_sol_liq_gas(0.4, 1e-2);
         param_porous.retention_liquid = ParamLiquidRetention::BrooksCorey {
             lambda: 1.0,
             pc_ae: 1.0,
@@ -299,8 +299,8 @@ mod tests {
 
     #[test]
     fn calc_works_liq_only() -> Result<(), StrError> {
-        let param_fluids = SampleParam::param_water(true);
-        let mut param_porous = SampleParam::param_porous_sol_liq_gas(0.4, 1e-2);
+        let param_fluids = Samples::param_water(true);
+        let mut param_porous = Samples::param_porous_sol_liq_gas(0.4, 1e-2);
         param_porous.retention_liquid = ParamLiquidRetention::BrooksCorey {
             lambda: 1.0,
             pc_ae: 1.0,
@@ -331,8 +331,8 @@ mod tests {
 
     #[test]
     fn calc_works_liq_gas() -> Result<(), StrError> {
-        let param_fluids = SampleParam::param_water_and_dry_air(true);
-        let param_porous = SampleParam::param_porous_sol_liq_gas(0.4, 1e-2);
+        let param_fluids = Samples::param_water_and_dry_air(true);
+        let param_porous = Samples::param_porous_sol_liq_gas(0.4, 1e-2);
         let (hh, g) = (10.0, 10.0);
         let top = Layer::new(2, 5.0, hh, 0.0, &param_fluids, &param_porous, hh, g, true)?;
         let overburden = top.calc_sigma_z_total(top.z_min)?;
@@ -357,8 +357,8 @@ mod tests {
 
     #[test]
     fn calc_stress_works() -> Result<(), StrError> {
-        let param_fluids = SampleParam::param_water(true);
-        let mut param_porous = SampleParam::param_porous_sol_liq_gas(0.4, 1e-2);
+        let param_fluids = Samples::param_water(true);
+        let mut param_porous = Samples::param_porous_sol_liq_gas(0.4, 1e-2);
         param_porous.retention_liquid = ParamLiquidRetention::BrooksCorey {
             lambda: 1.0,
             pc_ae: 1.0,

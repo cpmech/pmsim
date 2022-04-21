@@ -73,7 +73,7 @@ fn main() -> Result<(), StrError> {
 
     let mesh = Mesh::from_text_file("./data/meshes/column_two_layers_quads.msh")?;
 
-    let mut config = Configuration::new(&mesh);
+    let mut config = Configuration::new(mesh);
     config
         .elements(1, ElementConfig::Porous(lower, None))?
         .elements(2, ElementConfig::Porous(upper, None))?

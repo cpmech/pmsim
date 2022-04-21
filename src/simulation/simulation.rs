@@ -10,9 +10,9 @@ pub enum StepUpdateStatus {
 
 /// Implements the finite element simulation
 #[allow(dead_code)]
-pub struct Simulation<'a> {
+pub struct Simulation {
     /// Configuration
-    config: &'a Configuration<'a>,
+    config: Configuration,
 
     /// Equation identification number matrix (point_id,dof)
     equation_id: EquationId,
@@ -24,19 +24,20 @@ pub struct Simulation<'a> {
     solution: Solution,
 }
 
-impl<'a> Simulation<'a> {
+impl Simulation {
     /// Allocates a new instance
-    pub fn new(config: &'a Configuration) -> Result<Self, StrError> {
+    pub fn new(config: Configuration) -> Result<Self, StrError> {
         // auxiliary
-        let mut equation_id = EquationId::new(config.mesh.points.len());
+        let mesh = config.get_mesh();
+        let mut equation_id = EquationId::new(mesh.points.len());
         let mut elements = Vec::<Element>::new();
         let initializer = Initializer::new(&config)?;
 
         // loop over all cells and allocate elements
         let mut nnz_max = 0;
-        for cell in &config.mesh.cells {
+        for cell in &mesh.cells {
             // allocate element
-            let element = Element::new(&mut equation_id, config, cell.id)?;
+            let element = Element::new(&mut equation_id, &config, cell.id)?;
 
             // estimate the max number of non-zeros in the K-matrix
             let (nrow, ncol) = element.base.get_local_jacobian_matrix().dims();
@@ -59,7 +60,7 @@ impl<'a> Simulation<'a> {
         }
 
         // initialize liquid/gas pressure values
-        initializer.liquid_gas_pressure(&mut solution, &config.mesh, &equation_id)?;
+        initializer.liquid_gas_pressure(&mut solution, mesh, &equation_id)?;
 
         // done
         Ok(Simulation {
@@ -165,22 +166,22 @@ impl<'a> Simulation<'a> {
 #[cfg(test)]
 mod tests {
     use super::Simulation;
-    use crate::simulation::{element_and_analysis::ElementConfig, Configuration, SampleParam};
+    use crate::simulation::{element_and_analysis::ElementConfig, Configuration, Samples};
     use crate::simulation::{Control, Dof, Nbc, ParamSolid, ParamStressStrain};
     use crate::StrError;
     use gemlab::mesh::{At, Mesh};
 
     #[test]
     fn new_works() -> Result<(), StrError> {
-        // mesh and configuration
-        let mesh = Mesh::from_text_file("./data/meshes/rectangle_tris_quads.msh")?;
-        let mut config = Configuration::new(&mesh);
-
-        // boundary conditions
+        // mesh
+        let mesh = Samples::mesh_rectangle_tris_quads();
         let left = mesh.find_boundary_edges(At::X(mesh.coords_min[0]))?;
         let right = mesh.find_boundary_edges(At::X(mesh.coords_max[0]))?;
         let bottom = mesh.find_boundary_edges(At::Y(mesh.coords_min[1]))?;
         let loader = mesh.find_boundary_edges(At::Y(3.1))?;
+
+        // boundary conditions
+        let mut config = Configuration::new(mesh);
         config
             .ebc_edges(&left, &[Dof::Ux], Configuration::zero)?
             .ebc_edges(&right, &[Dof::Ux], Configuration::zero)?
@@ -188,10 +189,10 @@ mod tests {
             .nbc_edges(&loader, &[Nbc::Qn], |_, _| -10.0)?;
 
         // parameters and properties
-        let fluids = SampleParam::param_water_and_dry_air(true);
-        let footing = SampleParam::param_solid();
-        let upper = SampleParam::param_porous_sol_liq_gas(0.4, 1e-2);
-        let lower = SampleParam::param_porous_sol_liq_gas(0.1, 1e-2);
+        let fluids = Samples::param_water_and_dry_air(true);
+        let footing = Samples::param_solid();
+        let upper = Samples::param_porous_sol_liq_gas(0.4, 1e-2);
+        let lower = Samples::param_porous_sol_liq_gas(0.1, 1e-2);
         config
             .fluids(fluids)?
             .elements(333, ElementConfig::Solid(footing, None))?
@@ -209,31 +210,9 @@ mod tests {
 
     #[test]
     fn sim_bhatti_1_6_works() -> Result<(), StrError> {
-        /* Example 1.6 from [@bhatti] page 32
-
-         Solid bracket with thickness = 0.25
-
-                      1    load                connectivity:
-         y=2.0  fixed *'-,__                    eid : vertices
-                      |     '-,_  3   load        0 :  0, 2, 3
-         y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
-                      |  1   ,'  |    '-,_  5     2 :  2, 4, 5
-         y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
-                      |  ,'  0   |   ,-'   |
-                      |,'        |,-'   2  |   constraints:
-         y=0.0  fixed *----------*---------*     fixed on x and y
-                      0          2         4
-                     x=0.0     x=2.0     x=4.0
-
-        # References
-
-        [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
-                  and Applications, Wiley, 700p.
-        */
-
         // mesh and configuration
-        let mesh = Mesh::from_text_file("./data/meshes/bhatti_1_6.msh")?;
-        let mut config = Configuration::new(&mesh);
+        let mesh = Samples::mesh_bhatti_1_6();
+        let mut config = Configuration::new(mesh);
 
         // boundary conditions
         config

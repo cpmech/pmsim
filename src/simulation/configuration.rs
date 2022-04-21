@@ -1,6 +1,6 @@
 use super::{
     element_and_analysis::ElementConfig, get_analysis_type, upgrade_analysis_type, AnalysisType, BcPoint, Dof,
-    EquationId, IniOption, Nbc, ParamFluids,
+    IniOption, Nbc, ParamFluids,
 };
 use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, Mesh, PointId};
@@ -10,9 +10,9 @@ use std::collections::HashMap;
 pub type FnSpaceTime = fn(x: &[f64], t: f64) -> f64;
 
 /// Holds simulation configuration such as boundary conditions and element attributes
-pub struct Configuration<'a> {
-    /// Access to Mesh
-    pub(crate) mesh: &'a Mesh,
+pub struct Configuration {
+    /// Holds the finite element mesh
+    mesh: Mesh,
 
     /// Essential boundary conditions
     essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
@@ -51,9 +51,9 @@ pub struct Configuration<'a> {
     ini_option: IniOption,
 }
 
-impl<'a> Configuration<'a> {
+impl Configuration {
     /// Allocates a new instance
-    pub fn new(mesh: &'a Mesh) -> Self {
+    pub fn new(mesh: Mesh) -> Self {
         Configuration {
             mesh,
             essential_bcs: HashMap::new(),
@@ -98,7 +98,11 @@ impl<'a> Configuration<'a> {
                 Some(e) => e,
                 None => return Err("mesh does not have boundary edge to set EBC"),
             };
-            self.ebc_points(&edge.points, dofs, f)?;
+            for point_id in &edge.points {
+                for dof in dofs {
+                    self.essential_bcs.insert((*point_id, *dof), f);
+                }
+            }
         }
         Ok(self)
     }
@@ -110,7 +114,11 @@ impl<'a> Configuration<'a> {
                 Some(e) => e,
                 None => return Err("mesh does not have boundary face to set EBC"),
             };
-            self.ebc_points(&face.points, dofs, f)?;
+            for point_id in &face.points {
+                for dof in dofs {
+                    self.essential_bcs.insert((*point_id, *dof), f);
+                }
+            }
         }
         Ok(self)
     }
@@ -244,6 +252,12 @@ impl<'a> Configuration<'a> {
         Ok(self)
     }
 
+    /// Returns an access to the Mesh
+    #[inline]
+    pub fn get_mesh(&self) -> &Mesh {
+        &self.mesh
+    }
+
     /// Returns an access to ParamFluids
     #[inline]
     pub fn get_param_fluids(&self) -> Result<&ParamFluids, StrError> {
@@ -318,40 +332,13 @@ impl<'a> Configuration<'a> {
 mod tests {
     use super::{Configuration, FnSpaceTime};
     use crate::simulation::element_and_analysis::ElementConfig;
-    use crate::simulation::{AnalysisType, BcPoint, Dof, Nbc, SampleParam};
+    use crate::simulation::{AnalysisType, BcPoint, Dof, Nbc, Samples};
     use crate::StrError;
-    use gemlab::mesh::{At, Mesh};
-
-    fn mesh_two_quads() -> Mesh {
-        Mesh::from_text(
-            r"
-            #  3--------2--------5
-            #  |        |        |
-            #  |        |        |
-            #  |        |        |
-            #  0--------1--------4
-
-            # space_ndim npoint ncell
-                       2      6     2
-
-            # id    x   y
-               0  0.0 0.0
-               1  1.0 0.0
-               2  1.0 1.0
-               3  0.0 1.0
-               4  2.0 0.0
-               5  2.0 1.0
-
-            # id att geo_ndim nnode  point_ids...
-               0   1        2     4  0 1 2 3
-               1   2        2     4  1 4 5 2",
-        )
-        .unwrap()
-    }
+    use gemlab::mesh::At;
 
     #[test]
     fn new_works() -> Result<(), StrError> {
-        let mesh = mesh_two_quads();
+        let mesh = Samples::mesh_two_quads();
 
         let origin = mesh.find_boundary_points(At::XY(0.0, 0.0))?;
         let bottom = mesh.find_boundary_edges(At::Y(0.0))?;
@@ -359,7 +346,7 @@ mod tests {
         let top = mesh.find_boundary_edges(At::Y(1.0))?;
         let corner = mesh.find_boundary_points(At::XY(2.0, 1.0))?;
 
-        let mut config = Configuration::new(&mesh);
+        let mut config = Configuration::new(mesh);
 
         let f_zero: FnSpaceTime = |_, _| 0.0;
         let f_qn: FnSpaceTime = |_, _| -1.0;
@@ -372,8 +359,8 @@ mod tests {
             .nbc_edges(&top, &[Nbc::Qn], f_qn)?
             .bc_point(&corner, &[BcPoint::Fy], f_fy)?;
 
-        let param_1 = SampleParam::param_solid();
-        let param_2 = SampleParam::param_porous_sol_liq_gas(0.3, 1e-2);
+        let param_1 = Samples::param_solid();
+        let param_2 = Samples::param_porous_sol_liq_gas(0.3, 1e-2);
 
         // start with analysis type equal to mechanics
         config.elements(1, ElementConfig::Solid(param_1, None))?;

@@ -1,4 +1,4 @@
-use super::{Configuration, Dof, NDOF_PER_NODE_TOTAL};
+use super::{Dof, NDOF_PER_NODE_TOTAL};
 use crate::StrError;
 use gemlab::mesh::PointId;
 use russell_lab::NumMatrix;
@@ -74,19 +74,19 @@ impl EquationId {
     ///
     /// # Output
     ///
-    /// * `(eid,prescribed)` -- A pair with the equation identification number and
-    ///                         whether the `eid` corresponds to a prescribed DOF or not.
-    pub fn activate(&mut self, point_id: PointId, dof: Dof) -> (usize, bool) {
-        let eid_one_based = self.eid_one_based[point_id][dof as usize];
-        if eid_one_based < 0 {
-            (-eid_one_based as usize - 1, true) // prescribed
-        } else if eid_one_based == 0 {
-            self.nequation += 1;
-            self.eid_one_based[point_id][dof as usize] = self.nequation as i64;
-            (self.nequation as usize - 1, false) // not prescribed; newly activated
-        } else {
-            (eid_one_based as usize - 1, false) // not prescribed; previously activated
-        }
+    /// * `eid` -- The new or existent equation identification number
+    pub fn activate(&mut self, point_id: PointId, dof: Dof) -> usize {
+        0
+        // let eid_one_based = self.eid_one_based[point_id][dof as usize];
+        // if eid_one_based < 0 {
+        //     (-eid_one_based as usize - 1, true) // prescribed
+        // } else if eid_one_based == 0 {
+        //     self.nequation += 1;
+        //     self.eid_one_based[point_id][dof as usize] = self.nequation as i64;
+        //     (self.nequation as usize - 1, false) // not prescribed; newly activated
+        // } else {
+        //     (eid_one_based as usize - 1, false) // not prescribed; previously activated
+        // }
     }
 
     /// Returns the equation identification number corresponding to a point/DOF pair
