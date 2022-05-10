@@ -1,4 +1,4 @@
-//! Implements the base structures for the finite element simulation
+//! Implements the base structures for a finite element simulation
 
 mod analysis_type;
 mod boundary_conditions;
