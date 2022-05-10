@@ -36,17 +36,13 @@ mod tests {
     #[test]
     fn derive_works() {
         let qn = Nbc::Qn;
-        let qn_cloned = qn.clone();
-        let qn_copy = qn;
+        let qn_clone = qn.clone();
         assert_eq!(format!("{:?}", qn), "Qn");
-        assert_eq!(qn, qn_cloned);
-        assert_eq!(qn, qn_copy);
+        assert_eq!(qn, qn_clone);
 
         let fx = BcPoint::Fx;
-        let fx_cloned = fx.clone();
-        let fx_copy = fx;
+        let fx_clone = fx.clone();
         assert_eq!(format!("{:?}", fx), "Fx");
-        assert_eq!(fx, fx_cloned);
-        assert_eq!(fx, fx_copy);
+        assert_eq!(fx, fx_clone);
     }
 }

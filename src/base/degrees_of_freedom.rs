@@ -45,11 +45,9 @@ mod tests {
     #[test]
     fn derive_works() {
         let ux = Dof::Ux;
-        let ux_cloned = ux.clone();
-        let ux_copy = ux;
+        let ux_clone = ux.clone();
         assert_eq!(format!("{:?}", ux), "Ux");
-        assert_eq!(ux, ux_cloned);
-        assert_eq!(ux, ux_copy);
+        assert_eq!(ux, ux_clone);
 
         let uy = Dof::Uy;
         assert!(ux < uy);
