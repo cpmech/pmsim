@@ -34,3 +34,25 @@ pub enum Dof {
 
 /// Defines the total number of available DOFs per node
 pub const NDOF_PER_NODE_TOTAL: usize = 10;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::Dof;
+    use std::cmp::Ordering;
+
+    #[test]
+    fn derive_works() {
+        let ux = Dof::Ux;
+        let ux_cloned = ux.clone();
+        let ux_copy = ux;
+        assert_eq!(format!("{:?}", ux), "Ux");
+        assert_eq!(ux, ux_cloned);
+        assert_eq!(ux, ux_copy);
+
+        let uy = Dof::Uy;
+        assert!(ux < uy);
+        assert_eq!(ux.cmp(&uy), Ordering::Less);
+    }
+}
