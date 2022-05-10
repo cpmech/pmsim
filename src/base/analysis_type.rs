@@ -38,9 +38,9 @@ pub(super) fn determine_analysis_type(param_element: ParamElement) -> AnalysisTy
 /// Upgrades current analysis type given a new element configuration
 pub(super) fn upgrade_analysis_type(
     analysis_type: AnalysisType,
-    element_config: ParamElement,
+    param_element: ParamElement,
 ) -> Result<AnalysisType, StrError> {
-    let new_analysis_type = determine_analysis_type(element_config);
+    let new_analysis_type = determine_analysis_type(param_element);
     // OK: matching types
     if new_analysis_type == analysis_type {
         return Ok(new_analysis_type);

@@ -29,8 +29,8 @@ pub struct Configuration {
     /// Parameters for fluids
     param_fluids: Option<ParamFluids>,
 
-    /// Elements configuration
-    element_configs: HashMap<CellAttributeId, ParamElement>,
+    /// Parameters for elements
+    param_elements: HashMap<CellAttributeId, ParamElement>,
 
     /// Analysis type
     analysis_type: Option<AnalysisType>,
@@ -61,7 +61,7 @@ impl Configuration {
             natural_bcs_face: HashMap::new(),
             point_bcs: HashMap::new(),
             param_fluids: None,
-            element_configs: HashMap::new(),
+            param_elements: HashMap::new(),
             analysis_type: None,
             gravity: 0.0,
             thickness: 1.0,
@@ -169,16 +169,16 @@ impl Configuration {
     pub fn elements(
         &mut self,
         attribute_id: CellAttributeId,
-        element_config: ParamElement,
+        param_element: ParamElement,
     ) -> Result<&mut Self, StrError> {
         // handle analysis type
         let ana_type: AnalysisType = match self.analysis_type {
-            None => determine_analysis_type(element_config),
-            Some(a) => upgrade_analysis_type(a, element_config)?,
+            None => determine_analysis_type(param_element),
+            Some(a) => upgrade_analysis_type(a, param_element)?,
         };
         self.analysis_type = Some(ana_type);
         // store element config
-        self.element_configs.insert(attribute_id, element_config);
+        self.param_elements.insert(attribute_id, param_element);
         Ok(self)
     }
 
@@ -263,7 +263,7 @@ impl Configuration {
     pub fn get_param_fluids(&self) -> Result<&ParamFluids, StrError> {
         match &self.param_fluids {
             Some(p) => Ok(&p),
-            None => Err("set_param_fluids must be called first"),
+            None => Err("<set_param_fluids> must be called first"),
         }
     }
 
@@ -272,7 +272,7 @@ impl Configuration {
     pub fn get_analysis_type(&self) -> Result<AnalysisType, StrError> {
         match self.analysis_type {
             Some(a) => Ok(a),
-            None => Err("analysis_type has not been set yet (set via element_config)"),
+            None => Err("<elements> must be called first to define the analysis type"),
         }
     }
 
@@ -319,7 +319,7 @@ impl Configuration {
     #[inline]
     pub fn get_element_config(&self, attribute_id: CellAttributeId) -> Result<&ParamElement, StrError> {
         let res = self
-            .element_configs
+            .param_elements
             .get(&attribute_id)
             .ok_or("cannot find CellAttributeId in Configuration")?;
         Ok(res)
