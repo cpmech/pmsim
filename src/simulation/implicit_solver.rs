@@ -1,4 +1,4 @@
-use super::{Configuration, Control, LinearSystem, Solution, StepUpdateStatus};
+use super::{Configuration, Control, EquationId, LinearSystem, Solution, StepUpdateStatus};
 use crate::elements::Element;
 use crate::StrError;
 use russell_lab::{vector_norm, NormVec};
@@ -39,7 +39,8 @@ impl ImplicitSolver {
     pub fn step_update(
         &mut self,
         solution: &mut Solution,
-        elements: &mut Vec<Element>,
+        elements: &Vec<Element>,
+        equation_id: &EquationId,
         config: &Configuration,
         control: &Control,
     ) -> Result<StepUpdateStatus, StrError> {
@@ -56,6 +57,7 @@ impl ImplicitSolver {
             .calculate(solution.dt, control.theta, control.theta1, control.theta2);
 
         // auxiliary
+        let prescribed = equation_id.prescribed();
         let kk = &mut self.lin_sys.kk;
         let rr = &mut self.lin_sys.rr;
         let mdu = &mut self.lin_sys.mdu;
@@ -95,10 +97,10 @@ impl ImplicitSolver {
         let mut first_iteration = true;
         while iteration_number <= control.n_max_iterations {
             // assemble residual vector
-            // for element in elements {
-            //     element.base.calc_local_residual_vector(solution)?;
-            //     element.base.assemble_residual_vector(rr)?;
-            // }
+            for element in elements {
+                element.base.calc_local_residual_vector(solution)?;
+                element.base.assemble_residual_vector(rr, prescribed)?;
+            }
 
             // natural boundary conditions
             // todo
@@ -127,15 +129,15 @@ impl ImplicitSolver {
             if first_iteration || !control.constant_tangent {
                 // assemble Jacobian matrix
                 kk.reset();
-                // for element in elements {
-                //     element.base.calc_local_jacobian_matrix(solution)?;
-                //     element.base.assemble_jacobian_matrix(kk)?;
-                // }
+                for element in elements {
+                    element.base.calc_local_jacobian_matrix(solution)?;
+                    element.base.assemble_jacobian_matrix(kk, prescribed)?;
+                }
 
                 // put "ones" on the diagonal entries corresponding to prescribed DOFs
-                // for p in self.equation_id.prescribed() {
-                //     kk.put(*p, *p, 1.0)?;
-                // }
+                for p in equation_id.prescribed() {
+                    kk.put(*p, *p, 1.0)?;
+                }
 
                 // initialize linear solver
                 if !self.lin_sys.initialized {

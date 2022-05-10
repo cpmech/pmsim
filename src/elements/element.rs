@@ -2,7 +2,8 @@ use super::Solid;
 use crate::simulation::{Configuration, ElementConfig, EquationId, Initializer, Solution, StateElement};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_lab::Matrix;
+use russell_lab::Vector;
+use russell_sparse::SparseTriplet;
 
 /// Defines a trait for (finite) elements
 ///
@@ -10,25 +11,26 @@ use russell_lab::Matrix;
 ///
 /// * The element can access the solution array by knowing its own CellId
 pub trait BaseElement {
+    /// Returns the number of local equations
+    fn nequation_local(&self) -> usize;
+
     /// Returns a new StateElement with initialized state data at all integration points
-    ///
-    /// Note: the use of "mut" here allows `shape.calc_integ_points_coords` to be called from within the element
-    fn new_state(&mut self, initializer: &Initializer) -> Result<StateElement, StrError>;
+    fn new_state(&self, initializer: &Initializer) -> Result<StateElement, StrError>;
 
     /// Computes the element's residual vector
-    fn calc_local_residual_vector(&mut self, solution: &Solution) -> Result<(), StrError>;
+    fn calc_local_residual_vector(&self, solution: &Solution) -> Result<(), StrError>;
 
     /// Computes the element's jacobian matrix
-    fn calc_local_jacobian_matrix(&mut self, solution: &Solution) -> Result<(), StrError>;
+    fn calc_local_jacobian_matrix(&self, solution: &Solution) -> Result<(), StrError>;
 
-    /// Accesses the local-to-global mapping of equation numbers
-    fn get_local_to_global_map(&self) -> &Vec<usize>;
+    /// Assembles the local residual vector into the global residual vector (non-prescribed only)
+    fn assemble_residual_vector(&self, rr_global: &mut Vector, prescribed: &Vec<bool>) -> Result<(), StrError>;
 
-    /// Returns the element's jacobian matrix
-    fn get_local_jacobian_matrix(&self) -> &Matrix;
+    /// Assembles the local jacobian matrix into the global jacobian matrix (non-prescribed only)
+    fn assemble_jacobian_matrix(&self, kk_global: &mut SparseTriplet, prescribed: &Vec<bool>) -> Result<(), StrError>;
 
     /// Updates StateElement given the updated solution vectors (e.g., uu_new, delta_uu)
-    fn update_state(&mut self, solution: &mut Solution) -> Result<(), StrError>;
+    fn update_state(&self, solution: &mut Solution) -> Result<(), StrError>;
 }
 
 /// Defines a finite element
@@ -53,12 +55,12 @@ impl Element {
         let cell = &mesh.cells[cell_id];
         let element_config = config.get_element_config(cell.attribute_id)?;
         let base: Box<dyn BaseElement> = match element_config {
-            ElementConfig::Rod(param) => panic!("not yet"),
-            ElementConfig::Beam(param) => panic!("not yet"),
+            ElementConfig::Rod(_param) => panic!("not yet"),
+            ElementConfig::Beam(_param) => panic!("not yet"),
             ElementConfig::Solid(param, n_integ_point) => {
                 Box::new(Solid::new(equation_id, config, cell_id, param, *n_integ_point)?)
             }
-            ElementConfig::Porous(param_porous, n_integ_point) => {
+            ElementConfig::Porous(param_porous, _n_integ_point) => {
                 let param_fluids = config.get_param_fluids()?;
                 match param_porous.conductivity_gas {
                     Some(_) => {
@@ -71,7 +73,7 @@ impl Element {
                     None => panic!("not yet"),
                 }
             }
-            ElementConfig::Seepage(param, n_integ_point) => match param.conductivity_gas {
+            ElementConfig::Seepage(param, _n_integ_point) => match param.conductivity_gas {
                 Some(_) => panic!("not yet"),
                 None => panic!("not yet"),
             },

@@ -5,7 +5,9 @@ use crate::StrError;
 use gemlab::mesh::CellId;
 use gemlab::shapes::Shape;
 use russell_lab::{Matrix, Vector};
+use russell_sparse::SparseTriplet;
 use russell_tensor::copy_tensor2;
+use std::cell::RefCell;
 
 /// Implements a finite element for solid mechanics problems
 pub struct Solid {
@@ -13,7 +15,7 @@ pub struct Solid {
     cell_id: usize,
 
     /// Shape with point ids and integration functions
-    shape: Shape,
+    shape: RefCell<Shape>,
 
     /// Material model
     model: StressStrain,
@@ -25,10 +27,10 @@ pub struct Solid {
     local_to_global: Vec<usize>,
 
     /// Local residual vector (neq_local)
-    rr: Vector,
+    rr: RefCell<Vector>,
 
     /// Local Jacobian matrix (neq_local, neq_local)
-    kk: Matrix,
+    kk: RefCell<Matrix>,
 }
 
 impl Solid {
@@ -48,7 +50,7 @@ impl Solid {
         let thickness = config.get_thickness();
 
         // shape and model
-        let shape = mesh.alloc_shape_cell(cell_id)?;
+        let mut shape = mesh.alloc_shape_cell(cell_id)?;
         let model = StressStrain::new(&param.stress_strain, two_dim, plane_stress)?;
 
         // degrees-of-freedom per node
@@ -69,32 +71,35 @@ impl Solid {
             }
         }
 
+        // set integration points' constants
+        if let Some(n) = n_integ_point {
+            shape.select_integ_points(n)?;
+        }
+
         // element instance
-        let mut element = Solid {
+        Ok(Solid {
             cell_id,
-            shape,
+            shape: RefCell::new(shape),
             model,
             thickness,
             local_to_global,
-            rr: Vector::new(neq_local),
-            kk: Matrix::new(neq_local, neq_local),
-        };
-
-        // set integration points' constants
-        if let Some(n) = n_integ_point {
-            element.shape.select_integ_points(n)?;
-        }
-        Ok(element)
+            rr: RefCell::new(Vector::new(neq_local)),
+            kk: RefCell::new(Matrix::new(neq_local, neq_local)),
+        })
     }
 }
 
 impl BaseElement for Solid {
+    /// Returns the number of local equations
+    fn nequation_local(&self) -> usize {
+        self.local_to_global.len()
+    }
+
     /// Returns a new StateElement with initialized state data at all integration points
-    ///
-    /// Note: the use of "mut" here allows `shape.calc_integ_points_coords` to be called from within the element
-    fn new_state(&mut self, initializer: &Initializer) -> Result<StateElement, StrError> {
+    fn new_state(&self, initializer: &Initializer) -> Result<StateElement, StrError> {
+        let mut shape = self.shape.borrow_mut();
         let mut state = StateElement::new_empty();
-        let all_ip_coords = self.shape.calc_integ_points_coords()?;
+        let all_ip_coords = shape.calc_integ_points_coords()?;
         for ip_coords in &all_ip_coords {
             let sigma = initializer.stress(ip_coords.as_data())?;
             let internal_values = self.model.base.new_internal_values(&sigma)?;
@@ -104,12 +109,13 @@ impl BaseElement for Solid {
     }
 
     /// Computes the element's residual vector
-    fn calc_local_residual_vector(&mut self, solution: &Solution) -> Result<(), StrError> {
+    fn calc_local_residual_vector(&self, solution: &Solution) -> Result<(), StrError> {
+        let mut shape = self.shape.borrow_mut();
+        let mut rr = self.rr.borrow_mut();
         let state = &solution.ips[self.cell_id];
-        self.shape
-            .integ_vec_d_tg(&mut self.rr, true, self.thickness, |sig, index_ip| {
-                copy_tensor2(sig, &state.stress[index_ip].sigma)
-            })?;
+        shape.integ_vec_d_tg(&mut rr, true, self.thickness, |sig, index_ip| {
+            copy_tensor2(sig, &state.stress[index_ip].sigma)
+        })?;
         // todo: add body forces to rr, even if quasi-static
         /*
         if quasi_static {
@@ -136,49 +142,44 @@ impl BaseElement for Solid {
     }
 
     /// Computes the element's jacobian matrix
-    fn calc_local_jacobian_matrix(&mut self, solution: &Solution) -> Result<(), StrError> {
+    fn calc_local_jacobian_matrix(&self, solution: &Solution) -> Result<(), StrError> {
+        let mut shape = self.shape.borrow_mut();
+        let mut kk = self.kk.borrow_mut();
         let model = &self.model.base;
         let state = &solution.ips[self.cell_id];
-        self.shape
-            .integ_mat_10_gdg(&mut self.kk, self.thickness, |dd, index_ip| {
-                model.consistent_modulus(dd, &state.stress[index_ip], solution.first_iteration)
-            })
+        shape.integ_mat_10_gdg(&mut kk, self.thickness, |dd, index_ip| {
+            model.consistent_modulus(dd, &state.stress[index_ip], solution.first_iteration)
+        })
     }
 
-    /// Accesses the local-to-global mapping of equation numbers
-    fn get_local_to_global_map(&self) -> &Vec<usize> {
-        &self.local_to_global
+    /// Assembles the local residual vector into the global residual vector (non-prescribed only)
+    fn assemble_residual_vector(&self, rr_global: &mut Vector, prescribed: &Vec<bool>) -> Result<(), StrError> {
+        let rr = self.rr.borrow();
+        for (i, p) in self.local_to_global.iter().enumerate() {
+            if !prescribed[*p] {
+                rr[*p] = rr[i];
+            }
+        }
+        Ok(())
     }
 
-    /// Returns the element's jacobian matrix
-    fn get_local_jacobian_matrix(&self) -> &Matrix {
-        &self.kk
+    /// Assembles the local jacobian matrix into the global jacobian matrix (non-prescribed only)
+    fn assemble_jacobian_matrix(&self, kk_global: &mut SparseTriplet, prescribed: &Vec<bool>) -> Result<(), StrError> {
+        let kk = self.kk.borrow();
+        for (i, p) in self.local_to_global.iter().enumerate() {
+            if !prescribed[*p] {
+                for (j, q) in self.local_to_global.iter().enumerate() {
+                    if !prescribed[*q] {
+                        kk_global.put(*p, *q, kk[i][j])?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
-
-    // /// Assembles the local residual vector into the global residual vector
-    // ///
-    // /// **non-prescribed equations only**
-    // fn assemble_residual_vector(&self, rr: &mut Vector) -> Result<(), StrError> {
-    //     for (p, i) in &self.global_to_local {
-    //         rr[*p] = self.rr[*i];
-    //     }
-    //     Ok(())
-    // }
-
-    // /// Assembles the local jacobian matrix into the global jacobian matrix
-    // ///
-    // /// **non-prescribed equations only**
-    // fn assemble_jacobian_matrix(&self, kk: &mut SparseTriplet) -> Result<(), StrError> {
-    //     for (p, i) in &self.global_to_local {
-    //         for (q, j) in &self.global_to_local {
-    //             kk.put(*p, *q, self.kk[*i][*j])?;
-    //         }
-    //     }
-    //     Ok(())
-    // }
 
     /// Updates StateElement given the updated solution vectors (e.g., uu_new, delta_uu)
-    fn update_state(&mut self, _solution: &mut Solution) -> Result<(), StrError> {
+    fn update_state(&self, _solution: &mut Solution) -> Result<(), StrError> {
         Ok(())
     }
 }

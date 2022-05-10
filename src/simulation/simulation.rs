@@ -40,8 +40,8 @@ impl Simulation {
             let element = Element::new(&mut equation_id, &config, cell.id)?;
 
             // estimate the max number of non-zeros in the K-matrix
-            let (nrow, ncol) = element.base.get_local_jacobian_matrix().dims();
-            nnz_max += nrow * ncol;
+            let neq_local = element.base.nequation_local();
+            nnz_max += neq_local * neq_local;
 
             // add element to array
             elements.push(element);
@@ -128,7 +128,7 @@ impl Simulation {
             }
 
             // update solution to t_new
-            let status = implicit_solver.step_update(&mut self.solution, &mut self.elements, &self.config, control)?;
+            let status = implicit_solver.step_update(&mut self.solution, &self.elements, &self.config, control)?;
 
             // divergence control
             if control.divergence_control {
