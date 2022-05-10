@@ -2,15 +2,27 @@
 #[derive(Clone, Copy, Debug)]
 pub enum ParamStressStrain {
     LinearElastic {
-        young: f64,   // Young's modulus
-        poisson: f64, // Poisson's coefficient
+        /// Young's modulus
+        young: f64,
+
+        /// Poisson's coefficient
+        poisson: f64,
     },
     DruckerPrager {
-        young: f64,   // Young's modulus
-        poisson: f64, // Poisson's coefficient
-        c: f64,       // apparent cohesion
-        phi: f64,     // friction angle
-        hh: f64,      // hardening
+        /// Young's modulus
+        young: f64,
+
+        /// Poisson's coefficient
+        poisson: f64,
+
+        /// Apparent cohesion
+        c: f64,
+
+        /// Friction angle
+        phi: f64,
+
+        /// Hardening
+        hh: f64,
     },
 }
 
@@ -18,30 +30,69 @@ pub enum ParamStressStrain {
 #[derive(Clone, Copy, Debug)]
 pub enum ParamLiquidRetention {
     BrooksCorey {
-        lambda: f64, // slope coefficient
-        pc_ae: f64,  // air-entry pressure
-        sl_min: f64, // residual (minimum) saturation
-        sl_max: f64, // maximum saturation
+        /// Slope coefficient
+        lambda: f64,
+
+        /// Air-entry pressure
+        pc_ae: f64,
+
+        /// Residual (minimum) saturation
+        sl_min: f64,
+
+        /// Maximum saturation
+        sl_max: f64,
     },
     VanGenuchten {
-        alpha: f64,  // α parameter
-        m: f64,      // m parameter
-        n: f64,      // n parameter
-        sl_min: f64, // minimum sl
-        sl_max: f64, // maximum sl
-        pc_min: f64, // pc limit to consider zero slope
+        /// α parameter
+        alpha: f64,
+
+        /// m parameter
+        m: f64,
+
+        /// n parameter
+        n: f64,
+
+        /// Minimum sl
+        sl_min: f64,
+
+        /// Maximum sl
+        sl_max: f64,
+
+        /// Capillary pressure limit to consider zero slope
+        pc_min: f64,
     },
     PedrosoWilliams {
+        /// Allows the model to generate hysteresis loops and scanning curves
         with_hysteresis: bool,
+
+        /// λd parameter
         lambda_d: f64,
+
+        /// λw parameter
         lambda_w: f64,
+
+        /// βd parameter
         beta_d: f64,
+
+        /// βw parameter
         beta_w: f64,
+
+        /// β1 parameter
         beta_1: f64,
+
+        /// β2 parameter
         beta_2: f64,
+
+        /// xrd parameter
         x_rd: f64,
+
+        /// xrw parameter
         x_rw: f64,
+
+        /// y0 parameter
         y_0: f64,
+
+        /// yr parameter
         y_r: f64,
     },
 }
@@ -50,23 +101,48 @@ pub enum ParamLiquidRetention {
 #[derive(Clone, Copy, Debug)]
 pub enum ParamConductivity {
     Constant {
+        /// x-component of the conductivity tensor
         kx: f64,
+
+        /// y-component of the conductivity tensor
         ky: f64,
+
+        /// z-component of the conductivity tensor
         kz: f64,
     },
     Linear {
+        /// x-component of the conductivity tensor
         kx: f64,
+
+        /// y-component of the conductivity tensor
         ky: f64,
+
+        /// z-component of the conductivity tensor
         kz: f64,
+
+        /// Slope coefficient
         lambda: f64,
     },
     PedrosoZhangEhlers {
+        /// x-component of the conductivity tensor
         kx: f64,
+
+        /// y-component of the conductivity tensor
         ky: f64,
+
+        /// z-component of the conductivity tensor
         kz: f64,
+
+        /// λ0 parameter
         lambda_0: f64,
+
+        /// λ1 parameter
         lambda_1: f64,
+
+        /// α parameter
         alpha: f64,
+
+        /// β parameter
         beta: f64,
     },
 }
@@ -74,16 +150,26 @@ pub enum ParamConductivity {
 /// Holds parameters for intrinsic (real) density
 #[derive(Clone, Copy, Debug)]
 pub struct ParamRealDensity {
-    pub cc: f64,      // compressibility C = dρReal/dp
-    pub p_ref: f64,   // reference pressure p₀
-    pub rho_ref: f64, // reference intrinsic density ρReal₀
-    pub tt_ref: f64,  // reference temperature T₀
+    /// Compressibility C = dρReal/dp
+    pub cc: f64,
+
+    /// Reference pressure p₀
+    pub p_ref: f64,
+
+    /// Reference intrinsic density ρReal₀
+    pub rho_ref: f64,
+
+    /// Reference temperature T₀
+    pub tt_ref: f64,
 }
 
 /// Holds parameters for fluids (liquid and gas)
 #[derive(Clone, Copy, Debug)]
 pub struct ParamFluids {
+    /// Density of liquid constituent
     pub density_liquid: ParamRealDensity,
+
+    /// Density of gas constituent (if any)
     pub density_gas: Option<ParamRealDensity>,
 }
 
@@ -93,9 +179,14 @@ pub struct ParamFluids {
 #[derive(Clone, Copy, Debug)]
 pub enum ParamRod {
     LinearElastic {
-        density: f64, // intrinsic (real) density
-        young: f64,   // Young's modulus E
-        area: f64,    // cross-sectional area A
+        /// Intrinsic (real) density
+        density: f64,
+
+        /// Young's modulus E
+        young: f64,
+
+        /// Cross-sectional area A
+        area: f64,
     },
 }
 
@@ -103,13 +194,26 @@ pub enum ParamRod {
 #[derive(Clone, Copy, Debug)]
 pub enum ParamBeam {
     EulerBernoulli {
-        density: f64, // intrinsic (real) density
-        young: f64,   // Young's modulus E
-        shear: f64,   // shear modulus G
-        area: f64,    // cross-sectional area A
-        ii_22: f64,   // moment of inertia of cross section about y2-axis
-        ii_11: f64,   // moment of inertia of cross section about y1-axis
-        jj_tt: f64,   // torsional constant
+        /// Intrinsic (real) density
+        density: f64,
+
+        /// Young's modulus E
+        young: f64,
+
+        /// Shear modulus G
+        shear: f64,
+
+        /// Cross-sectional area A
+        area: f64,
+
+        /// Moment of inertia of cross section about y2-axis
+        ii_22: f64,
+
+        /// Moment of inertia of cross section about y1-axis
+        ii_11: f64,
+
+        /// Torsional constant
+        jj_tt: f64,
     },
 }
 
@@ -122,7 +226,7 @@ pub struct ParamSolid {
     /// Parameters for the stress-strain model
     pub stress_strain: ParamStressStrain,
 
-    /// Number of integration points
+    /// Alternative number of integration points
     pub n_integ_point: Option<usize>,
 }
 
@@ -148,10 +252,10 @@ pub struct ParamPorous {
     /// Liquid conductivity: `kl`
     pub conductivity_liquid: ParamConductivity,
 
-    /// gas conductivity `kg`
+    /// Gas conductivity `kg`
     pub conductivity_gas: Option<ParamConductivity>,
 
-    /// Number of integration points
+    /// Alternative number of integration points
     pub n_integ_point: Option<usize>,
 }
 
@@ -170,7 +274,7 @@ pub struct ParamSeepage {
     /// Gas conductivity kg
     pub conductivity_gas: Option<ParamConductivity>,
 
-    /// Number of integration points
+    /// Alternative number of integration points
     pub n_integ_point: Option<usize>,
 }
 
