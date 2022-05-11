@@ -105,7 +105,7 @@ mod tests {
             n_integ_point: None,
         };
 
-        let m3 = Samples::param_euler_bernoulli_beam();
+        let m3 = Samples::param_beam();
         let m4 = Samples::param_seepage_liq();
         let m5 = Samples::param_seepage_liq_gas();
         let m6 = Samples::param_porous_sol_liq(0.5, 0.1);

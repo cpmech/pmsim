@@ -1,15 +1,14 @@
-use gemlab::mesh::Mesh;
-
 use super::{
-    ParamBeam, ParamConductivity, ParamFluids, ParamLiquidRetention, ParamPorous, ParamRealDensity, ParamSeepage,
-    ParamSolid, ParamStressStrain,
+    ParamBeam, ParamConductivity, ParamFluids, ParamLiquidRetention, ParamPorous, ParamRealDensity, ParamRod,
+    ParamSeepage, ParamSolid, ParamStressStrain,
 };
+use gemlab::mesh::Mesh;
 
 /// Holds some sample material parameters and meshes
 pub struct Samples;
 
 impl Samples {
-    /// Returns example parameters for the density of water (SI units)
+    /// Returns sample parameters for the density of water (SI units)
     pub fn param_density_water(incompressible: bool) -> ParamRealDensity {
         let cc = if incompressible { 1e-12 } else { 4.53e-7 }; // Mg/(m³ kPa)
         ParamRealDensity {
@@ -20,7 +19,7 @@ impl Samples {
         }
     }
 
-    /// Returns example parameters for the density of dry air (SI units)
+    /// Returns sample parameters for the density of dry air (SI units)
     pub fn param_density_dry_air() -> ParamRealDensity {
         ParamRealDensity {
             cc: 1.17e-5,     // Mg/(m³ kPa)
@@ -30,7 +29,7 @@ impl Samples {
         }
     }
 
-    /// Returns example parameters for water (SI units)
+    /// Returns sample parameters for water (SI units)
     pub fn param_water(incompressible: bool) -> ParamFluids {
         ParamFluids {
             density_liquid: Samples::param_density_water(incompressible),
@@ -38,7 +37,7 @@ impl Samples {
         }
     }
 
-    /// Returns example parameters for water and dry air (SI units)
+    /// Returns sample parameters for water and dry air (SI units)
     pub fn param_water_and_dry_air(incompressible: bool) -> ParamFluids {
         ParamFluids {
             density_liquid: Samples::param_density_water(incompressible),
@@ -46,7 +45,29 @@ impl Samples {
         }
     }
 
-    /// Returns example parameters for a solid medium
+    /// Returns sample parameters for a linear-elastic rod
+    pub fn param_rod() -> ParamRod {
+        ParamRod {
+            density: 2.0,
+            young: 1000.0,
+            area: 1.0,
+        }
+    }
+
+    /// Returns sample parameters for an Euler-Bernoulli beam
+    pub fn param_beam() -> ParamBeam {
+        ParamBeam {
+            density: 2.0,
+            young: 1000.0,
+            shear: 2000.0,
+            area: 1.0,
+            ii_11: 1.0,
+            ii_22: 1.0,
+            jj_tt: 1.0,
+        }
+    }
+
+    /// Returns sample parameters for a solid medium
     pub fn param_solid() -> ParamSolid {
         ParamSolid {
             density: 2.7, // Mg/m²
@@ -58,7 +79,7 @@ impl Samples {
         }
     }
 
-    /// Returns example parameters for a porous medium with solid, liquid and gas
+    /// Returns sample parameters for a porous medium with solid, liquid and gas
     pub fn param_porous_sol_liq_gas(porosity_initial: f64, k_iso: f64) -> ParamPorous {
         let nu = 0.2;
         let kk0 = nu / (1.0 - nu);
@@ -105,7 +126,7 @@ impl Samples {
         }
     }
 
-    /// Returns example parameters for a porous medium with solid and liquid
+    /// Returns sample parameters for a porous medium with solid and liquid
     pub fn param_porous_sol_liq(porosity_initial: f64, k_iso: f64) -> ParamPorous {
         let nu = 0.2;
         let kk0 = nu / (1.0 - nu);
@@ -144,18 +165,7 @@ impl Samples {
         }
     }
 
-    pub fn param_euler_bernoulli_beam() -> ParamBeam {
-        ParamBeam::EulerBernoulli {
-            area: 1.0,
-            density: 2.7,
-            ii_11: 1.0,
-            ii_22: 1.0,
-            jj_tt: 1.0,
-            shear: 2000.0,
-            young: 1000.0,
-        }
-    }
-
+    /// Returns sample parameters for seepage models with liquid only
     pub fn param_seepage_liq() -> ParamSeepage {
         ParamSeepage {
             porosity_initial: 0.4,
@@ -175,6 +185,7 @@ impl Samples {
         }
     }
 
+    /// Returns sample parameters for seepage models with liquid and gas
     pub fn param_seepage_liq_gas() -> ParamSeepage {
         ParamSeepage {
             porosity_initial: 0.4,
@@ -198,6 +209,7 @@ impl Samples {
         }
     }
 
+    /// Returns a sample mesh with a single segment
     pub fn mesh_segment() -> Mesh {
         Mesh::from_text(
             r"
@@ -222,6 +234,7 @@ impl Samples {
         .unwrap()
     }
 
+    /// Returns a sample mesh with a single square
     pub fn mesh_square() -> Mesh {
         Mesh::from_text(
             r"
@@ -248,6 +261,7 @@ impl Samples {
         .unwrap()
     }
 
+    /// Returns a sample mesh with two squares
     pub fn mesh_two_quads() -> Mesh {
         Mesh::from_text(
             r"
@@ -277,6 +291,7 @@ impl Samples {
         .unwrap()
     }
 
+    /// Returns a sample mesh with a single cube
     pub fn mesh_cube() -> Mesh {
         Mesh::from_text(
             r"
@@ -312,6 +327,7 @@ impl Samples {
         .unwrap()
     }
 
+    /// Returns the mesh used in Figure 5.2 of Smith-Griffiths-Margetts book
     pub fn mesh_sgm_5_2() -> Mesh {
         Mesh::from_text(
             r#"
@@ -371,6 +387,7 @@ impl Samples {
         .unwrap()
     }
 
+    /// Returns the mesh used in Example 1.6 of Bhatti's book
     pub fn mesh_bhatti_1_6() -> Mesh {
         Mesh::from_text(
             r#"
@@ -422,6 +439,7 @@ impl Samples {
         .unwrap()
     }
 
+    /// Returns a sample 2D mesh with triangles and quadrilaterals
     pub fn mesh_rectangle_tris_quads() -> Mesh {
         Mesh::from_text(
             r#"
@@ -499,6 +517,7 @@ impl Samples {
         .unwrap()
     }
 
+    /// Returns a mesh with quadrilaterals representing a column
     pub fn mesh_column_two_layers_quads() -> Mesh {
         Mesh::from_text(
             r#"
@@ -561,6 +580,7 @@ impl Samples {
         .unwrap()
     }
 
+    /// Returns a mesh with triangles and distorted quadrilaterals representing a column
     pub fn mesh_column_distorted_tris_quads() -> Mesh {
         Mesh::from_text(
             r#"
