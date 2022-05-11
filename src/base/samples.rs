@@ -661,3 +661,86 @@ impl Samples {
         .unwrap()
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::Samples;
+
+    #[test]
+    fn sample_params_work() {
+        let p = Samples::param_density_water(true);
+        assert_eq!(p.cc, 1e-12);
+
+        let p = Samples::param_density_water(false);
+        assert_eq!(p.cc, 4.53e-7);
+
+        let p = Samples::param_density_dry_air();
+        assert_eq!(p.cc, 1.17e-5);
+
+        let p = Samples::param_water(true);
+        assert_eq!(p.density_liquid.cc, 1e-12);
+
+        let p = Samples::param_water(false);
+        assert_eq!(p.density_liquid.cc, 4.53e-7);
+
+        let p = Samples::param_water_and_dry_air(true);
+        assert_eq!(p.density_liquid.cc, 1e-12);
+
+        let p = Samples::param_water_and_dry_air(false);
+        assert_eq!(p.density_liquid.cc, 4.53e-7);
+
+        let p = Samples::param_rod();
+        assert_eq!(p.density, 2.0);
+
+        let p = Samples::param_beam();
+        assert_eq!(p.density, 2.0);
+
+        let p = Samples::param_solid();
+        assert_eq!(p.density, 2.7);
+
+        let p = Samples::param_porous_sol_liq(0.4, 1.0);
+        assert_eq!(p.porosity_initial, 0.4);
+
+        let p = Samples::param_porous_sol_liq_gas(0.4, 1.0);
+        assert_eq!(p.porosity_initial, 0.4);
+
+        let p = Samples::param_seepage_liq();
+        assert_eq!(p.porosity_initial, 0.4);
+
+        let p = Samples::param_seepage_liq_gas();
+        assert_eq!(p.porosity_initial, 0.4);
+    }
+
+    #[test]
+    fn sample_meshes_work() {
+        let m = Samples::mesh_segment();
+        assert_eq!(m.cells.len(), 1);
+
+        let m = Samples::mesh_square();
+        assert_eq!(m.cells.len(), 1);
+
+        let m = Samples::mesh_two_quads();
+        assert_eq!(m.cells.len(), 2);
+
+        let m = Samples::mesh_cube();
+        assert_eq!(m.cells.len(), 1);
+        assert_eq!(m.space_ndim, 3);
+
+        let m = Samples::mesh_sgm_5_2();
+        assert_eq!(m.cells.len(), 8);
+
+        let m = Samples::mesh_bhatti_1_6();
+        assert_eq!(m.cells.len(), 4);
+
+        let m = Samples::mesh_rectangle_tris_quads();
+        assert_eq!(m.cells.len(), 12);
+
+        let m = Samples::mesh_column_two_layers_quads();
+        assert_eq!(m.cells.len(), 6);
+
+        let m = Samples::mesh_column_distorted_tris_quads();
+        assert_eq!(m.cells.len(), 7);
+    }
+}

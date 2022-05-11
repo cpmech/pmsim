@@ -173,7 +173,7 @@ pub struct ParamFluids {
     pub density_gas: Option<ParamRealDensity>,
 }
 
-// parameters for elements ///////////////////////////////////////////////////////////////////////////////////
+// parameters for elements ------------------------------------------------------------------------
 
 /// Holds parameters for (linear-elastic) rods
 #[derive(Clone, Copy, Debug)]
