@@ -210,14 +210,16 @@ impl Samples {
     }
 
     /// Returns a sample mesh with a single segment
+    ///
+    /// ```text
+    ///    1
+    ///   /
+    ///  /
+    /// 0
+    /// ```
     pub fn mesh_segment() -> Mesh {
         Mesh::from_text(
             r"
-            #       1
-            #      /
-            #     /
-            #    0
-
             # header
             # space_ndim npoint ncell
                        2      2     1
@@ -235,14 +237,16 @@ impl Samples {
     }
 
     /// Returns a sample mesh with a single square
+    ///
+    /// ```text
+    /// 3------2
+    /// |      |
+    /// |      |
+    /// 0------1
+    /// ```
     pub fn mesh_square() -> Mesh {
         Mesh::from_text(
             r"
-            #  3------2
-            #  |      |
-            #  |      |
-            #  0------1
-
             # header
             # space_ndim npoint ncell
                        2      4     1
@@ -262,15 +266,17 @@ impl Samples {
     }
 
     /// Returns a sample mesh with two squares
+    ///
+    /// ```text
+    /// 3--------2--------5
+    /// |        |        |
+    /// |        |        |
+    /// |        |        |
+    /// 0--------1--------4
+    /// ```
     pub fn mesh_two_quads() -> Mesh {
         Mesh::from_text(
             r"
-            #  3--------2--------5
-            #  |        |        |
-            #  |        |        |
-            #  |        |        |
-            #  0--------1--------4
-
             # space_ndim npoint ncell
                        2      6     2
 
@@ -292,19 +298,21 @@ impl Samples {
     }
 
     /// Returns a sample mesh with a single cube
+    ///
+    /// ```text
+    ///     4-----------7
+    ///    /.          /|
+    ///   / .         / |
+    ///  5-----------6  |
+    ///  |  .        |  |
+    ///  |  0--------|--3
+    ///  | /         | /
+    ///  |/          |/
+    ///  1-----------2
+    /// ```
     pub fn mesh_cube() -> Mesh {
         Mesh::from_text(
             r"
-            #     4-----------7
-            #    /.          /|
-            #   / .         / |
-            #  5-----------6  |
-            #  |  .        |  |
-            #  |  0--------|--3
-            #  | /         | /
-            #  |/          |/
-            #  1-----------2
-
             # header
             # space_ndim npoint ncell
                        3      8     1
@@ -328,34 +336,36 @@ impl Samples {
     }
 
     /// Returns the mesh used in Figure 5.2 of Smith-Griffiths-Margetts book
+    ///
+    /// ```text
+    /// Example shown in Figure 5.2 from [@sgm] page 173
+    ///
+    ///          0.25       0.5      0.25 kN/m
+    ///            ↓         ↓         ↓
+    ///    ---    ▷0---------1---------2   Plane-Strain
+    ///     |      |       ,'|       ,'|   Young = 1e6 kN/m²
+    ///     |      |  0  ,'  |  2  ,'  |   Poisson = 0.3
+    ///     |      |   ,'    |   ,'    |
+    ///            | ,'   1  | ,'  3   |   connectivity:
+    ///    1 m    ▷3'--------4'--------5     0 : 1 0 3
+    ///            |       ,'|       ,'|     1 : 3 4 1
+    ///     |      |  4  ,'  |  6  ,'  |     2 : 2 1 4
+    ///     |      |   ,'    |   ,'    |     3 : 4 5 2
+    ///     |      | ,'   5  | ,'   7  |     4 : 4 3 6
+    ///    ---    ▷6'--------7'--------8     5 : 6 7 4
+    ///            △         △         △     6 : 5 4 7
+    ///                                      7 : 7 8 5
+    ///            |------- 1 m -------|
+    ///
+    /// Note: the x-y origin is at the top-left (Point #0)
+    ///
+    /// References
+    ///
+    /// [@sgm] Smith, Griffiths and Margetts (5th ed) Figure 5.2 p173
+    /// ```
     pub fn mesh_sgm_5_2() -> Mesh {
         Mesh::from_text(
             r#"
-            # Example shown in Figure 5.2 from [@sgm] page 173
-            #
-            #          0.25       0.5      0.25 kN/m
-            #            ↓         ↓         ↓
-            #    ---    ▷0---------1---------2   Plane-Strain
-            #     |      |       ,'|       ,'|   Young = 1e6 kN/m²
-            #     |      |  0  ,'  |  2  ,'  |   Poisson = 0.3
-            #     |      |   ,'    |   ,'    |
-            #            | ,'   1  | ,'  3   |   connectivity:
-            #    1 m    ▷3'--------4'--------5     0 : 1 0 3
-            #            |       ,'|       ,'|     1 : 3 4 1
-            #     |      |  4  ,'  |  6  ,'  |     2 : 2 1 4
-            #     |      |   ,'    |   ,'    |     3 : 4 5 2
-            #     |      | ,'   5  | ,'   7  |     4 : 4 3 6
-            #    ---    ▷6'--------7'--------8     5 : 6 7 4
-            #            △         △         △     6 : 5 4 7
-            #                                      7 : 7 8 5
-            #            |------- 1 m -------|
-            #
-            # Note: the x-y origin is at the top-left (Point #0)
-            #
-            # References
-            #
-            # [@sgm] Smith, Griffiths and Margetts (5th ed) Figure 5.2 p173
-
             # header
             # space_ndim npoint ncell
                        2      9     8
@@ -388,33 +398,35 @@ impl Samples {
     }
 
     /// Returns the mesh used in Example 1.6 of Bhatti's book
+    ///
+    /// ```text
+    /// Example 1.6 from [@bhatti] page 32
+    ///
+    /// Solid bracket with thickness = 0.25 (plane-stress)
+    ///
+    /// The load a the top is normal to the slanted edge
+    /// and has a value of 20 kN/m; thus Qn = -20 kN/m
+    ///
+    ///              1    load                connectivity:
+    /// y=2.0  fixed *'-,__                    eid : vertices
+    ///              |     '-,_  3   load        0 :  0, 2, 3
+    /// y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
+    ///              |  1   ,'  |    '-,_  5     2 :  2, 4, 5
+    /// y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
+    ///              |  ,'  0   |   ,-'   |
+    ///              |,'        |,-'   2  |   constraints:
+    /// y=0.0  fixed *----------*---------*     fixed on x and y
+    ///              0          2         4
+    ///             x=0.0     x=2.0     x=4.0
+    ///
+    /// References
+    ///
+    /// [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
+    ///           and Applications, Wiley, 700p.
+    /// ```
     pub fn mesh_bhatti_1_6() -> Mesh {
         Mesh::from_text(
             r#"
-            # Example 1.6 from [@bhatti] page 32
-            #
-            # Solid bracket with thickness = 0.25 (plane-stress)
-            #
-            # The load a the top is normal to the slanted edge
-            # and has a value of 20 kN/m; thus Qn = -20 kN/m
-            #
-            #              1    load                connectivity:
-            # y=2.0  fixed *'-,__                    eid : vertices
-            #              |     '-,_  3   load        0 :  0, 2, 3
-            # y=1.5 - - -  |        ,'*-,__            1 :  3, 1, 0
-            #              |  1   ,'  |    '-,_  5     2 :  2, 4, 5
-            # y=1.0 - - -  |    ,'    |  3   ,-'*      3 :  5, 3, 2
-            #              |  ,'  0   |   ,-'   |
-            #              |,'        |,-'   2  |   constraints:
-            # y=0.0  fixed *----------*---------*     fixed on x and y
-            #              0          2         4
-            #             x=0.0     x=2.0     x=4.0
-            #
-            # References
-            #
-            # [@bhatti] Bhatti, M.A. (2005) Fundamental Finite Element Analysis
-            #           and Applications, Wiley, 700p.
-
             # header
             # space_ndim npoint ncell
                        2      6     4
@@ -440,34 +452,35 @@ impl Samples {
     }
 
     /// Returns a sample 2D mesh with triangles and quadrilaterals
+    ///
+    /// ```text
+    /// 3.1  14---------15
+    ///       |  [11]333 |    
+    /// 3.0  10---------11---------12--------------------13
+    ///       |        .' '.        |                     |
+    ///       | [8]  .'     '.  [9] |                     |
+    ///       | 222.'         '.222 |        [10]         |  L
+    ///       |  .'             '.  |         222         |  A
+    ///       |.'                 '.|                     |  Y
+    /// 2.0   7         [5]         8---------------------9  E
+    ///       |'.       222       .'|                     |  R
+    ///       |  '.             .'  |                     | 222
+    ///       | [4]'.         .'[6] |         [7]         |
+    ///       | 222  '.     .'  222 |         222         |
+    ///       |        '. .'        |                     |
+    /// 1.0   3----------4----------5---------------------6  <-- layer separation
+    ///       |        .' '.        |                     |  L
+    ///       | [0]  .'     '.  [2] |                     |  A
+    ///       | 111.'   [1]   '.111 |         [3]         |  Y
+    ///       |  .'     111     '.  |         111         |  E
+    ///       |.'                 '.|                     |  R
+    /// 0.0   0---------------------1---------------------2 111
+    ///
+    ///      0.0        1.0        2.0                   4.0
+    /// ```
     pub fn mesh_rectangle_tris_quads() -> Mesh {
         Mesh::from_text(
             r#"
-            #
-            # 3.1  14---------15
-            #       |  [11]333 |    
-            # 3.0  10---------11---------12--------------------13
-            #       |        .' '.        |                     |
-            #       | [8]  .'     '.  [9] |                     |
-            #       | 222.'         '.222 |        [10]         |  L
-            #       |  .'             '.  |         222         |  A
-            #       |.'                 '.|                     |  Y
-            # 2.0   7         [5]         8---------------------9  E
-            #       |'.       222       .'|                     |  R
-            #       |  '.             .'  |                     | 222
-            #       | [4]'.         .'[6] |         [7]         |
-            #       | 222  '.     .'  222 |         222         |
-            #       |        '. .'        |                     |
-            # 1.0   3----------4----------5---------------------6  <-- layer separation
-            #       |        .' '.        |                     |  L
-            #       | [0]  .'     '.  [2] |                     |  A
-            #       | 111.'   [1]   '.111 |         [3]         |  Y
-            #       |  .'     111     '.  |         111         |  E
-            #       |.'                 '.|                     |  R
-            # 0.0   0---------------------1---------------------2 111
-            #
-            #      0.0        1.0        2.0                   4.0
-
             # header
             # space_ndim npoint ncell
                        2     16    12
@@ -518,32 +531,33 @@ impl Samples {
     }
 
     /// Returns a mesh with quadrilaterals representing a column
+    ///
+    /// ```text
+    /// 3.0   6---------13
+    ///       |    [5]   |
+    ///       |          |   L
+    /// 2.5   5---------12   A
+    ///       |    [4]   |   Y
+    ///       |          |   E
+    /// 2.0   4---------11   R
+    ///       |    [3]   |    
+    ///       |          |   2
+    /// 1.5   3---------10    
+    ///       |    [2]   |
+    ///       |          |
+    /// 1.0   2----------9   <-- layer separation
+    ///       |    [1]   |   L
+    ///       |          |   A
+    /// 0.5   1----------8   Y
+    ///       |    [0]   |   E
+    ///       |          |   R
+    /// 0.0   0----------7   1
+    ///
+    ///      0.0        1.0
+    /// ```
     pub fn mesh_column_two_layers_quads() -> Mesh {
         Mesh::from_text(
             r#"
-            #
-            # 3.0   6---------13
-            #       |    [5]   |
-            #       |          |   L
-            # 2.5   5---------12   A
-            #       |    [4]   |   Y
-            #       |          |   E
-            # 2.0   4---------11   R
-            #       |    [3]   |    
-            #       |          |   2
-            # 1.5   3---------10    
-            #       |    [2]   |
-            #       |          |
-            # 1.0   2----------9   <-- layer separation
-            #       |    [1]   |   L
-            #       |          |   A
-            # 0.5   1----------8   Y
-            #       |    [0]   |   E
-            #       |          |   R
-            # 0.0   0----------7   1
-            #
-            #      0.0        1.0
-            #
             # header
             # space_ndim npoint ncell
                        2     14     6
@@ -581,34 +595,35 @@ impl Samples {
     }
 
     /// Returns a mesh with triangles and distorted quadrilaterals representing a column
+    ///
+    /// ```text
+    /// 3.1   6---------12
+    ///       |    [6]   |       SOLID
+    /// 3.0   5---------11       <-- layer separation
+    ///       | [5]  ,-' |       POROUS
+    ///       |   ,-'    |
+    /// 2.5   4.-'       |
+    ///       | '.   [4] |       L
+    ///       | [3].     |       A
+    /// 2.0   3.    '.   |       Y
+    ///       | '--__ '. |       E
+    ///       |      '--10  1.8  R
+    ///       |          |       2
+    ///       |   [2]    |
+    ///       |          |
+    /// 1.0   2----------9       <-- layer separation
+    ///       |          |       L
+    ///       |    [1]   |       A
+    /// 0.5   1.__       |       Y
+    ///       |   '--..  |       E
+    ///       |  [0]   '-8  0.2  R
+    /// 0.0   0----------7       1
+    ///
+    ///      0.0        1.0
+    /// ```
     pub fn mesh_column_distorted_tris_quads() -> Mesh {
         Mesh::from_text(
             r#"
-            #
-            # 3.1   6---------12
-            #       |    [6]   |       SOLID
-            # 3.0   5---------11       <-- layer separation
-            #       | [5]  ,-' |       POROUS
-            #       |   ,-'    |
-            # 2.5   4.-'       |
-            #       | '.   [4] |       L
-            #       | [3].     |       A
-            # 2.0   3.    '.   |       Y
-            #       | '--__ '. |       E
-            #       |      '--10  1.8  R
-            #       |          |       2
-            #       |   [2]    |
-            #       |          |
-            # 1.0   2----------9       <-- layer separation
-            #       |          |       L
-            #       |    [1]   |       A
-            # 0.5   1.__       |       Y
-            #       |   '--..  |       E
-            #       |  [0]   '-8  0.2  R
-            # 0.0   0----------7       1
-            #
-            #      0.0        1.0
-            #
             # header
             # space_ndim npoint ncell
                        2     13     7
