@@ -1,0 +1,93 @@
+#![allow(unused)]
+
+use super::Dof;
+use crate::StrError;
+use gemlab::mesh::{EdgeKey, Mesh, PointId, Region};
+use std::collections::{HashMap, HashSet};
+
+pub fn zero(t: f64, u: f64, v: f64) -> f64 {
+    0.0
+}
+
+/// Defines a function of (x,t) where x is space and t is time
+pub type FnSpaceTime = fn(x: &[f64], t: f64) -> f64;
+
+/// Holds all configuration data for a finite element analysis
+pub struct Config<'a> {
+    pub(crate) ndim: usize,
+    pub(crate) region: &'a Region<'a>,
+    pub(crate) essential_bcs: HashMap<(PointId, Dof), FnSpaceTime>,
+}
+
+impl<'a> Config<'a> {
+    pub fn new(region: &'a Region) -> Self {
+        Config {
+            ndim: region.mesh.ndim,
+            region,
+        }
+    }
+
+    // pub fn ebc_edges<F>(&mut self, edges: &HashSet<EdgeKey>, dofs: &[Dof], f: F) -> Result<(), StrError>
+    // where
+    //     F: Fn(f64, f64, f64) -> f64,
+    // {
+    //     Ok(())
+    // }
+
+    /// Sets essential boundary conditions (EBC) for a group of points along specified edges
+    pub fn ebc_edges<F>(&mut self, edge_keys: &HashSet<EdgeKey>, dofs: &[Dof], f: F) -> Result<&mut Self, StrError>
+    where
+        F: Fn(f64, f64, f64) -> f64,
+    {
+        let edges = &self.region.features.edges;
+        for edge_key in edge_keys {
+            let edge = match edges.get(edge_key) {
+                Some(e) => e,
+                None => return Err("mesh does not have boundary edge to set EBC"),
+            };
+            for point_id in &edge.points {
+                for dof in dofs {
+                    self.essential_bcs.insert((*point_id, *dof), f);
+                }
+            }
+        }
+        Ok(self)
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::{zero, Config};
+    use crate::base::Dof;
+    use crate::StrError;
+    use gemlab::mesh::{draw_mesh, At, Extract, Mesh, Region};
+
+    #[test]
+    fn config_works() -> Result<(), StrError> {
+        let mesh = Mesh::from_text(
+            "# ndim npoint ncell\n\
+             2 4 2\n\
+             # points\n\
+             0 0.0 0.0\n\
+             1 1.0 0.0\n\
+             2 1.0 1.0\n\
+             3 0.0 1.0\n\
+             # cells\n\
+             0 1 tri3  0 1 3\n\
+             1 1 tri3  2 3 1\n",
+        )?;
+        let region = Region::with(&mesh, Extract::Boundary)?;
+        let bottom = region.find.edges(At::Y(0.0))?;
+        let left = region.find.edges(At::X(0.0))?;
+        let top = region.find.edges(At::Y(1.0))?;
+        let mut config = Config::new();
+        config.ebc_edges(&bottom, &[Dof::Ux, Dof::Uy], zero)?;
+        // config.set_ebc(Dof::Ux, zero, At::Y(0.0))?;
+        if false {
+            draw_mesh(&mesh, true, "/tmp/pmsim/test_config_works.svg")?;
+        }
+        Ok(())
+    }
+}

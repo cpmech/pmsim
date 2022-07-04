@@ -1,0 +1,320 @@
+use super::{Dof, Init, Nbc, ParamElement, ParamFluids, Pbc};
+use crate::StrError;
+use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, PointId, Region};
+use std::collections::{HashMap, HashSet};
+
+/// Defines a function to configure boundary conditions
+///
+/// This is a function of (t,u,v) where t is time and (u,v) are
+/// the local (e.g., texture) coordinates on the boundary
+pub type FnBc = fn(t: f64, u: f64, v: f64) -> f64;
+
+/// Holds configuration data such as boundary conditions and element attributes
+///
+/// # Warning
+///
+/// All data here is **read-only** and must not be modified externally.
+pub struct Config<'a> {
+    /// The finite element region/mesh
+    pub region: &'a Region<'a>,
+
+    /// Space number of dimensions
+    pub ndim: usize,
+
+    /// Essential boundary conditions
+    pub essential_bcs: HashMap<(PointId, Dof), FnBc>,
+
+    /// Natural boundary conditions at edges
+    pub natural_bcs_edge: HashMap<(EdgeKey, Nbc), FnBc>,
+
+    /// Natural boundary conditions at faces
+    pub natural_bcs_face: HashMap<(FaceKey, Nbc), FnBc>,
+
+    /// Point boundary conditions (e.g., point loads)
+    pub point_bcs: HashMap<(PointId, Pbc), FnBc>,
+
+    /// Parameters for fluids
+    pub param_fluids: Option<ParamFluids>,
+
+    /// Parameters for elements
+    pub param_elements: HashMap<CellAttributeId, ParamElement>,
+
+    /// Gravity acceleration
+    pub gravity: f64,
+
+    /// Thickness for plane-stress or 1.0 otherwise
+    pub thickness: f64,
+
+    /// 2D plane-stress problem, otherwise plane-strain in 2D
+    pub plane_stress: bool,
+
+    /// Total stress analysis (instead of effective stresses)
+    pub total_stress: bool,
+
+    /// Option to initialize stress state
+    pub initialization: Init,
+}
+
+impl<'a> Config<'a> {
+    /// Allocates a new instance
+    pub fn new(region: &'a Region<'a>) -> Self {
+        Config {
+            region,
+            ndim: region.mesh.ndim,
+            essential_bcs: HashMap::new(),
+            natural_bcs_edge: HashMap::new(),
+            natural_bcs_face: HashMap::new(),
+            point_bcs: HashMap::new(),
+            param_fluids: None,
+            param_elements: HashMap::new(),
+            gravity: 0.0,
+            thickness: 1.0,
+            plane_stress: false,
+            total_stress: false,
+            initialization: Init::Zero,
+        }
+    }
+
+    /// Implements a boundary condition function that returns zero
+    pub fn zero(_t: f64, _u: f64, _v: f64) -> f64 {
+        0.0
+    }
+
+    /// Sets essential boundary conditions (EBC) for a group of points
+    pub fn ebc_points(&mut self, point_ids: &HashSet<PointId>, dofs: &[Dof], f: FnBc) -> Result<&mut Self, StrError> {
+        let points = &self.region.features.points;
+        for point_id in point_ids {
+            if !points.contains(point_id) {
+                return Err("region.features does not have boundary point to set EBC");
+            }
+            for dof in dofs {
+                self.essential_bcs.insert((*point_id, *dof), f);
+            }
+        }
+        Ok(self)
+    }
+
+    /// Sets essential boundary conditions (EBC) for a group of points along specified edges
+    pub fn ebc_edges(&mut self, edge_keys: &HashSet<EdgeKey>, dofs: &[Dof], f: FnBc) -> Result<&mut Self, StrError> {
+        let edges = &self.region.features.edges;
+        for edge_key in edge_keys {
+            let edge = match edges.get(edge_key) {
+                Some(e) => e,
+                None => return Err("region.features does not have boundary edge to set EBC"),
+            };
+            for point_id in &edge.points {
+                for dof in dofs {
+                    self.essential_bcs.insert((*point_id, *dof), f);
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    /// Sets essential boundary conditions (EBC) for a group of points on specified faces
+    pub fn ebc_faces(&mut self, face_keys: &HashSet<FaceKey>, dofs: &[Dof], f: FnBc) -> Result<&mut Self, StrError> {
+        let faces = &self.region.features.faces;
+        for face_key in face_keys {
+            let face = match faces.get(face_key) {
+                Some(e) => e,
+                None => return Err("region.features does not have boundary face to set EBC"),
+            };
+            for point_id in &face.points {
+                for dof in dofs {
+                    self.essential_bcs.insert((*point_id, *dof), f);
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    /// Sets natural boundary conditions (NBC) for a group of edges
+    pub fn nbc_edges(&mut self, edge_keys: &HashSet<EdgeKey>, nbcs: &[Nbc], f: FnBc) -> Result<&mut Self, StrError> {
+        let edges = &self.region.features.edges;
+        for edge_key in edge_keys {
+            if !edges.contains_key(edge_key) {
+                return Err("region.features does not have boundary edge to set NBC");
+            }
+            for nbc in nbcs {
+                if self.ndim == 3 && *nbc == Nbc::Qn {
+                    return Err("Qn natural boundary condition is not available for 3D edge");
+                }
+                self.natural_bcs_edge.insert((*edge_key, *nbc), f);
+            }
+        }
+        Ok(self)
+    }
+
+    /// Sets natural boundary conditions (NBC) for a group of faces
+    pub fn nbc_faces(&mut self, face_keys: &HashSet<FaceKey>, nbcs: &[Nbc], f: FnBc) -> Result<&mut Self, StrError> {
+        let faces = &self.region.features.faces;
+        for face_key in face_keys {
+            if !faces.contains_key(face_key) {
+                return Err("mesh does not have boundary face to set NBC");
+            }
+            for nbc in nbcs {
+                self.natural_bcs_face.insert((*face_key, *nbc), f);
+            }
+        }
+        Ok(self)
+    }
+
+    /// Sets point boundary conditions for a group of points
+    pub fn bc_point(&mut self, point_ids: &HashSet<PointId>, bcs: &[Pbc], f: FnBc) -> Result<&mut Self, StrError> {
+        let points = &self.region.features.points;
+        for point_id in point_ids {
+            if !points.contains(point_id) {
+                return Err("mesh does not have boundary point to set BC");
+            }
+            for bc in bcs {
+                self.point_bcs.insert((*point_id, *bc), f);
+            }
+        }
+        Ok(self)
+    }
+
+    /// Sets parameters for fluids
+    pub fn fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
+        self.param_fluids = Some(param_fluids);
+        Ok(self)
+    }
+
+    /// Sets configurations for a group of elements
+    pub fn elements(
+        &mut self,
+        attribute_id: CellAttributeId,
+        param_element: ParamElement,
+    ) -> Result<&mut Self, StrError> {
+        self.param_elements.insert(attribute_id, param_element);
+        Ok(self)
+    }
+
+    /// Sets the gravity acceleration
+    pub fn gravity(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value < 0.0 {
+            return Err("gravity value must be greater than or equal to zero");
+        }
+        self.gravity = value;
+        Ok(self)
+    }
+
+    /// Sets the thickness for plane-stress
+    pub fn thickness(&mut self, value: f64) -> Result<&mut Self, StrError> {
+        if value <= 0.0 {
+            return Err("thickness value must be greater than zero");
+        }
+        self.thickness = value;
+        Ok(self)
+    }
+
+    /// Sets a 2D plane-stress problem, otherwise plane-strain in 2D
+    ///
+    /// **Note:** If false (plane-strain), this function will set the thickness to 1.0.
+    pub fn plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+        match self.initialization {
+            Init::Geostatic(..) => return Err("cannot set plane_stress with Init::Geostatic"),
+            Init::Isotropic(..) => return Err("cannot set plane_stress with Init::Isotropic"),
+            _ => (),
+        }
+        self.plane_stress = flag;
+        if !self.plane_stress {
+            self.thickness = 1.0;
+        }
+        Ok(self)
+    }
+
+    /// Sets total stress analysis or effective stress analysis
+    pub fn total_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+        self.total_stress = flag;
+        Ok(self)
+    }
+
+    /// Sets stress initialization option
+    pub fn init(&mut self, option: Init) -> Result<&mut Self, StrError> {
+        match option {
+            Init::Geostatic(overburden) => {
+                if overburden > 0.0 {
+                    return Err("overburden stress must be negative (compressive)");
+                }
+                if self.plane_stress {
+                    return Err("cannot set Init::Geostatic with plane_stress");
+                }
+            }
+            Init::Isotropic(..) => {
+                if self.plane_stress {
+                    return Err("cannot set Init::Isotropic with plane_stress");
+                }
+            }
+            _ => (),
+        }
+        self.initialization = option;
+        Ok(self)
+    }
+
+    /// Returns the initial overburden stress (negative means compression)
+    #[inline]
+    pub fn initial_overburden_stress(&self) -> f64 {
+        match self.initialization {
+            Init::Geostatic(overburden) => overburden,
+            _ => 0.0,
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, FnBc};
+    use crate::base::{self, Dof, Nbc, Pbc};
+    use crate::StrError;
+    use gemlab::mesh::{At, Extract, Mesh, Region};
+
+    #[test]
+    fn new_works() -> Result<(), StrError> {
+        let mesh = Mesh::from_text(
+            "# ndim npoint ncell\n\
+             2 4 2\n\
+             # points\n\
+             0 0.0 0.0\n\
+             1 1.0 0.0\n\
+             2 1.0 1.0\n\
+             3 0.0 1.0\n\
+             # cells\n\
+             0 1 tri3  0 1 3\n\
+             1 1 tri3  2 3 1\n",
+        )?;
+        let region = Region::with(&mesh, Extract::Boundary)?;
+
+        let origin = region.find.points(At::XY(0.0, 0.0))?;
+        let bottom = region.find.edges(At::Y(0.0))?;
+        let left = region.find.edges(At::X(0.0))?;
+        let top = region.find.edges(At::Y(1.0))?;
+        let corner = region.find.points(At::XY(1.0, 1.0))?;
+
+        let mut config = Config::new(&region);
+
+        let qn: FnBc = |_, _, _| -1.0;
+        let fy: FnBc = |_, _, _| -10.0;
+
+        config
+            .ebc_points(&origin, &[Dof::Ux, Dof::Uy], Config::zero)?
+            .ebc_edges(&bottom, &[Dof::Uy], Config::zero)?
+            .ebc_edges(&left, &[Dof::Ux], Config::zero)?
+            .nbc_edges(&top, &[Nbc::Qn], qn)?
+            .bc_point(&corner, &[Pbc::Fy], fy)?;
+
+        let solid = base::ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: base::ParamStressStrain::LinearElastic {
+                young: 10_000.0, // kPa
+                poisson: 0.2,    // [-]
+            },
+            n_integ_point: None,
+        };
+
+        config.elements(1, base::ParamElement::Solid(solid))?;
+        config.gravity(10.0)?; // m/s²
+        Ok(())
+    }
+}
