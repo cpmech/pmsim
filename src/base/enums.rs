@@ -88,7 +88,7 @@ pub enum Init {
 #[cfg(test)]
 mod tests {
     use super::{Dof, Init, Nbc, Pbc};
-    use std::cmp::Ordering;
+    use std::{cmp::Ordering, collections::HashSet};
 
     #[test]
     fn dof_derive_works() {
@@ -100,6 +100,10 @@ mod tests {
         let uy = Dof::Uy;
         assert!(ux < uy);
         assert_eq!(ux.cmp(&uy), Ordering::Less);
+
+        let mut set = HashSet::new();
+        set.insert(ux);
+        assert_eq!(set.len(), 1);
     }
 
     #[test]
@@ -109,10 +113,18 @@ mod tests {
         assert_eq!(format!("{:?}", qn), "Qn");
         assert_eq!(qn, qn_clone);
 
+        let mut set = HashSet::new();
+        set.insert(qn);
+        assert_eq!(set.len(), 1);
+
         let fx = Pbc::Fx;
         let fx_clone = fx.clone();
         assert_eq!(format!("{:?}", fx), "Fx");
         assert_eq!(fx, fx_clone);
+
+        let mut set = HashSet::new();
+        set.insert(fx);
+        assert_eq!(set.len(), 1);
     }
 
     #[test]
