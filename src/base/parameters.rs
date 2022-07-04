@@ -213,7 +213,7 @@ pub struct ParamBeam {
     pub jj_tt: f64,
 }
 
-/// Holds parameters for solid medium
+/// Holds parameters for solid media mechanics simulations
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSolid {
     /// Intrinsic (real) density
@@ -274,7 +274,7 @@ pub struct ParamSeepage {
     pub n_integ_point: Option<usize>,
 }
 
-/// Holds parameters to configure an element
+/// Holds parameters for finite elements
 #[derive(Clone, Copy, Debug)]
 pub enum ParamElement {
     /// Parameters for Rod element
@@ -298,12 +298,12 @@ pub enum ParamElement {
 #[cfg(test)]
 mod tests {
     use super::{
-        ParamBeam, ParamConductivity, ParamFluids, ParamLiquidRetention, ParamPorous, ParamRealDensity, ParamRod,
-        ParamSeepage, ParamSolid, ParamStressStrain,
+        ParamBeam, ParamConductivity, ParamElement, ParamFluids, ParamLiquidRetention, ParamPorous, ParamRealDensity,
+        ParamRod, ParamSeepage, ParamSolid, ParamStressStrain,
     };
 
     #[test]
-    fn param_stress_strain_clone_works() {
+    fn param_stress_strain_derive_works() {
         let p = ParamStressStrain::LinearElastic {
             young: 1000.0,
             poisson: 0.2,
@@ -314,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn param_liquid_retention_clone_works() {
+    fn param_liquid_retention_derive_works() {
         let p = ParamLiquidRetention::BrooksCorey {
             lambda: 1.0,
             pc_ae: 2.0,
@@ -327,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn param_conductivity_clone_works() {
+    fn param_conductivity_derive_works() {
         let p = ParamConductivity::Constant {
             kx: 1.0,
             ky: 2.0,
@@ -339,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn param_real_density_clone_works() {
+    fn param_real_density_derive_works() {
         let p = ParamRealDensity {
             cc: 1.0,
             p_ref: 2.0,
@@ -352,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    fn param_fluids_clone_works() {
+    fn param_fluids_derive_works() {
         let p = ParamFluids {
             density_liquid: ParamRealDensity {
                 cc: 1.0,
@@ -497,6 +497,18 @@ mod tests {
         p.n_integ_point = Some(3);
         assert_eq!(q.n_integ_point, None);
         let correct = "ParamSeepage { porosity_initial: 0.4, retention_liquid: BrooksCorey { lambda: 0.1, pc_ae: 0.1, sl_min: 0.1, sl_max: 1.0 }, conductivity_liquid: Constant { kx: 0.1, ky: 0.1, kz: 0.1 }, conductivity_gas: Some(Constant { kx: 0.1, ky: 0.1, kz: 0.1 }), n_integ_point: None }";
+        assert_eq!(format!("{:?}", q), correct);
+    }
+
+    #[test]
+    fn param_element_derive_works() {
+        let p = ParamElement::Rod(ParamRod {
+            density: 2.0,
+            young: 1000.0,
+            area: 1.0,
+        });
+        let q = p.clone();
+        let correct = "Rod(ParamRod { density: 2.0, young: 1000.0, area: 1.0 })";
         assert_eq!(format!("{:?}", q), correct);
     }
 }
