@@ -297,8 +297,10 @@ pub enum ParamElement {
 
 #[cfg(test)]
 mod tests {
-    use super::{ParamConductivity, ParamFluids, ParamLiquidRetention, ParamRealDensity, ParamStressStrain};
-    use crate::base::Samples;
+    use super::{
+        ParamBeam, ParamConductivity, ParamFluids, ParamLiquidRetention, ParamPorous, ParamRealDensity, ParamRod,
+        ParamSeepage, ParamSolid, ParamStressStrain,
+    };
 
     #[test]
     fn param_stress_strain_clone_works() {
@@ -367,7 +369,11 @@ mod tests {
 
     #[test]
     fn param_rod_derive_works() {
-        let mut p = Samples::param_rod();
+        let mut p = ParamRod {
+            density: 2.0,
+            young: 1000.0,
+            area: 1.0,
+        };
         let q = p.clone();
         p.area = 111.0;
         assert_eq!(q.area, 1.0);
@@ -377,7 +383,15 @@ mod tests {
 
     #[test]
     fn param_beam_derive_works() {
-        let mut p = Samples::param_beam();
+        let mut p = ParamBeam {
+            density: 2.0,
+            young: 1000.0,
+            shear: 2000.0,
+            area: 1.0,
+            ii_11: 1.0,
+            ii_22: 1.0,
+            jj_tt: 1.0,
+        };
         let q = p.clone();
         p.area = 111.0;
         assert_eq!(q.area, 1.0);
@@ -388,7 +402,14 @@ mod tests {
 
     #[test]
     fn param_solid_derive_works() {
-        let mut p = Samples::param_solid();
+        let mut p = ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 10_000.0, // kPa
+                poisson: 0.2,    // [-]
+            },
+            n_integ_point: None,
+        };
         let q = p.clone();
         p.density = 111.0;
         assert_eq!(q.density, 2.7);
@@ -398,7 +419,51 @@ mod tests {
 
     #[test]
     fn param_porous_derive_works() {
-        let mut p = Samples::param_porous_sol_liq_gas(0.4, 2.2);
+        let porosity_initial = 0.4;
+        let k_iso = 2.2;
+        let nu = 0.2;
+        let kk0 = nu / (1.0 - nu);
+        let mut p = ParamPorous {
+            earth_pres_coef_ini: kk0,
+            porosity_initial,
+            density_solid: 2.7, // Mg/m³
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 10_000.0, // kPa
+                poisson: nu,     // [-]
+            },
+            retention_liquid: ParamLiquidRetention::PedrosoWilliams {
+                with_hysteresis: true,
+                lambda_d: 3.0,
+                lambda_w: 3.0,
+                beta_d: 6.0,
+                beta_w: 6.0,
+                beta_1: 6.0,
+                beta_2: 6.0,
+                x_rd: 2.0,
+                x_rw: 2.0,
+                y_0: 0.95,
+                y_r: 0.005,
+            },
+            conductivity_liquid: ParamConductivity::PedrosoZhangEhlers {
+                kx: k_iso, // m/s
+                ky: k_iso, // m/s
+                kz: k_iso, // m/s
+                lambda_0: 0.001,
+                lambda_1: 1.2,
+                alpha: 0.01,
+                beta: 10.0,
+            },
+            conductivity_gas: Some(ParamConductivity::PedrosoZhangEhlers {
+                kx: k_iso, // m/s
+                ky: k_iso, // m/s
+                kz: k_iso, // m/s
+                lambda_0: 2.0,
+                lambda_1: 0.001,
+                alpha: 0.01,
+                beta: 10.0,
+            }),
+            n_integ_point: None,
+        };
         let q = p.clone();
         p.density_solid = 111.0;
         assert_eq!(q.density_solid, 2.7);
@@ -408,7 +473,26 @@ mod tests {
 
     #[test]
     fn param_seepage_derive_works() {
-        let mut p = Samples::param_seepage_liq_gas();
+        let mut p = ParamSeepage {
+            porosity_initial: 0.4,
+            retention_liquid: ParamLiquidRetention::BrooksCorey {
+                lambda: 0.1,
+                pc_ae: 0.1,
+                sl_min: 0.1,
+                sl_max: 1.0,
+            },
+            conductivity_liquid: ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.1,
+                kz: 0.1,
+            },
+            conductivity_gas: Some(ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.1,
+                kz: 0.1,
+            }),
+            n_integ_point: None,
+        };
         let q = p.clone();
         p.n_integ_point = Some(3);
         assert_eq!(q.n_integ_point, None);

@@ -67,7 +67,7 @@ pub(super) fn upgrade_analysis_type(
 #[cfg(test)]
 mod tests {
     use super::{determine_analysis_type, upgrade_analysis_type, AnalysisType};
-    use crate::base::{ParamElement, ParamSolid, ParamStressStrain, Samples};
+    use crate::base::{ParamElement, ParamSolid, ParamStressStrain};
     use crate::StrError;
 
     #[test]
