@@ -1,5 +1,5 @@
 /// Defines degrees-of-freedom (DOF) types
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Dof {
     /// Displacement along the first dimension
     Ux = 0,

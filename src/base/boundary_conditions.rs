@@ -1,5 +1,5 @@
 /// Defines natural boundary conditions (NBC)
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Nbc {
     /// Normal distributed load
     Qn,
@@ -15,7 +15,7 @@ pub enum Nbc {
 }
 
 /// Defines boundary conditions at points (e.g., point loads)
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BcPoint {
     /// Concentrated load parallel to x
     Fx,
