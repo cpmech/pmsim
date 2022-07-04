@@ -271,6 +271,11 @@ mod tests {
     use gemlab::mesh::{At, Extract, Mesh, Region};
 
     #[test]
+    fn zero_returns_zero() {
+        assert_eq!(Config::zero(1.0, 2.0, 3.0), 0.0);
+    }
+
+    #[test]
     fn new_works() -> Result<(), StrError> {
         let mesh = Mesh::from_text(
             "# ndim npoint ncell\n\
