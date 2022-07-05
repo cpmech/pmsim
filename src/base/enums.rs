@@ -36,7 +36,7 @@ pub enum Dof {
 }
 
 /// Defines natural boundary conditions (NBC)
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Nbc {
     /// Normal distributed load
     Qn,
@@ -52,7 +52,7 @@ pub enum Nbc {
 }
 
 /// Defines point boundary conditions (e.g., point loads)
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Pbc {
     /// Concentrated load parallel to x
     Fx,
@@ -117,10 +117,18 @@ mod tests {
         set.insert(qn);
         assert_eq!(set.len(), 1);
 
+        let qx = Nbc::Qx;
+        assert!(qn < qx);
+        assert_eq!(qn.cmp(&qx), Ordering::Less);
+
         let fx = Pbc::Fx;
         let fx_clone = fx.clone();
         assert_eq!(format!("{:?}", fx), "Fx");
         assert_eq!(fx, fx_clone);
+
+        let fy = Pbc::Fy;
+        assert!(fx < fy);
+        assert_eq!(fx.cmp(&fy), Ordering::Less);
 
         let mut set = HashSet::new();
         set.insert(fx);

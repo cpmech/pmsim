@@ -2,6 +2,7 @@ use super::{Dof, Init, Nbc, ParamElement, ParamFluids, Pbc};
 use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, PointId, Region};
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write;
 
 /// Defines a function to configure boundary conditions
 ///
@@ -24,14 +25,14 @@ pub struct Config<'a> {
     /// Essential boundary conditions
     pub essential_bcs: HashMap<(PointId, Dof), FnBc>,
 
+    /// Point boundary conditions (e.g., point loads)
+    pub point_bcs: HashMap<(PointId, Pbc), FnBc>,
+
     /// Natural boundary conditions at edges
     pub natural_bcs_edge: HashMap<(EdgeKey, Nbc), FnBc>,
 
     /// Natural boundary conditions at faces
     pub natural_bcs_face: HashMap<(FaceKey, Nbc), FnBc>,
-
-    /// Point boundary conditions (e.g., point loads)
-    pub point_bcs: HashMap<(PointId, Pbc), FnBc>,
 
     /// Parameters for fluids
     pub param_fluids: Option<ParamFluids>,
@@ -62,9 +63,9 @@ impl<'a> Config<'a> {
             region,
             ndim: region.mesh.ndim,
             essential_bcs: HashMap::new(),
+            point_bcs: HashMap::new(),
             natural_bcs_edge: HashMap::new(),
             natural_bcs_face: HashMap::new(),
-            point_bcs: HashMap::new(),
             param_fluids: None,
             param_elements: HashMap::new(),
             gravity: 0.0,
@@ -132,7 +133,7 @@ impl<'a> Config<'a> {
     }
 
     /// Sets point boundary conditions for a group of points
-    pub fn pbc(&mut self, point_ids: &HashSet<PointId>, bcs: &[Pbc], f: FnBc) -> Result<&mut Self, StrError> {
+    pub fn bc_points(&mut self, point_ids: &HashSet<PointId>, bcs: &[Pbc], f: FnBc) -> Result<&mut Self, StrError> {
         let points = &self.region.features.points;
         for point_id in point_ids {
             if !points.contains(point_id) {
@@ -268,6 +269,62 @@ impl<'a> Config<'a> {
             _ => 0.0,
         }
     }
+
+    /// Displays the essential boundary conditions (EBCs)
+    pub fn display_ebc(&self) -> String {
+        let mut buffer = String::new();
+        let mut keys: Vec<_> = self.essential_bcs.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let f = self.essential_bcs.get(&key).unwrap();
+            let f0 = f(0.0, 0.0, 0.0);
+            let f1 = f(0.0, 0.0, 0.0);
+            write!(&mut buffer, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
+        }
+        buffer
+    }
+
+    /// Displays the point boundary conditions (PBCs)
+    pub fn display_pbc(&self) -> String {
+        let mut buffer = String::new();
+        let mut keys: Vec<_> = self.point_bcs.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let f = self.point_bcs.get(&key).unwrap();
+            let f0 = f(0.0, 0.0, 0.0);
+            let f1 = f(0.0, 0.0, 0.0);
+            write!(&mut buffer, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
+        }
+        buffer
+    }
+
+    /// Displays the natural boundary conditions (NBCs) at edges
+    pub fn display_nbc_edge(&self) -> String {
+        let mut buffer = String::new();
+        let mut keys: Vec<_> = self.natural_bcs_edge.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let f = self.natural_bcs_edge.get(&key).unwrap();
+            let f0 = f(0.0, 0.0, 0.0);
+            let f1 = f(0.0, 0.0, 0.0);
+            write!(&mut buffer, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
+        }
+        buffer
+    }
+
+    /// Displays the natural boundary conditions (NBCs) at faces
+    pub fn display_nbc_face(&self) -> String {
+        let mut buffer = String::new();
+        let mut keys: Vec<_> = self.natural_bcs_face.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let f = self.natural_bcs_face.get(&key).unwrap();
+            let f0 = f(0.0, 0.0, 0.0);
+            let f1 = f(0.0, 0.0, 0.0);
+            write!(&mut buffer, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
+        }
+        buffer
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -343,8 +400,18 @@ mod tests {
             .ebc_points(&origin, &[Dof::Ux, Dof::Uy], Config::zero)?
             .ebc_edges(&bottom, &[Dof::Uy], Config::zero)?
             .ebc_edges(&left, &[Dof::Ux], Config::zero)?
-            .nbc_edges(&top, &[Nbc::Qn], qn)?
-            .pbc(&corner, &[Pbc::Fy], fy)?;
+            .bc_points(&corner, &[Pbc::Fy], fy)?
+            .nbc_edges(&top, &[Nbc::Qn], qn)?;
+
+        let fluids = base::ParamFluids {
+            density_liquid: base::ParamRealDensity {
+                cc: 4.53e-7,  // Mg/(m³ kPa)
+                p_ref: 0.0,   // kPa
+                rho_ref: 1.0, // Mg/m³
+                tt_ref: 25.0, // ℃
+            },
+            density_gas: None,
+        };
 
         let solid = base::ParamSolid {
             density: 2.7, // Mg/m²
@@ -356,12 +423,33 @@ mod tests {
         };
 
         config
+            .fluids(fluids)?
             .elements(1, base::ParamElement::Solid(solid))?
             .gravity(10.0)? // m/s²
             .thickness(1.0)?
             .plane_stress(true)?
             .total_stress(true)?
             .init(Init::Zero)?;
+
+        assert_eq!(config.region.mesh.ndim, 2);
+        assert_eq!(config.ndim, 2);
+        assert_eq!(
+            format!("{}", config.display_ebc()),
+            "(0, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (0, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (1, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (3, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n"
+        );
+        assert_eq!(
+            format!("{}", config.display_nbc_edge()),
+            "((2, 3), Qn) @ t=0 → -1.0 @ t=1 → -1.0\n"
+        );
+        assert_eq!(format!("{}", config.display_nbc_face()), "");
+        println!("{}", config.display_pbc());
+        assert_eq!(
+            format!("{}", config.display_pbc()),
+            "(2, Fy) @ t=0 → -10.0 @ t=1 → -10.0\n"
+        );
         Ok(())
     }
 
@@ -388,7 +476,7 @@ mod tests {
             .ebc_faces(&y_zero, &[Dof::Uy], Config::zero)?
             .ebc_faces(&z_zero, &[Dof::Uz], Config::zero)?
             .nbc_faces(&top, &[Nbc::Qn], qn)?
-            .pbc(&corner, &[Pbc::Fz], fz)?;
+            .bc_points(&corner, &[Pbc::Fz], fz)?;
 
         let solid = base::ParamSolid {
             density: 2.7, // Mg/m²
@@ -427,7 +515,7 @@ mod tests {
             Some("cannot set face EBC in 2D")
         );
         assert_eq!(
-            config.pbc(&point_ids, &[Pbc::Fx], Config::zero).err(),
+            config.bc_points(&point_ids, &[Pbc::Fx], Config::zero).err(),
             Some("cannot find point in region.features.points to set PBC")
         );
         assert_eq!(
@@ -486,6 +574,7 @@ mod tests {
             config.nbc_faces(&face_keys, &[Nbc::Qn], Config::zero).err(),
             Some("cannot find face in region.features.faces to set NBC")
         );
+        assert_eq!(config.plane_stress(true).err(), Some("cannot set plane_stress in 3D"));
         Ok(())
     }
 }
