@@ -273,81 +273,81 @@ impl<'a> Config<'a> {
 
 impl<'a> fmt::Display for Config<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Mesh data\n")?;
-        write!(f, "=========\n")?;
-        write!(f, "ndim = {}\n", self.region.mesh.ndim)?;
-        write!(f, "npoint = {}\n", self.region.mesh.points.len())?;
-        write!(f, "ncell = {}\n", self.region.mesh.cells.len())?;
-        write!(f, "nedge = {}\n", self.region.features.edges.len())?;
+        write!(f, "Mesh data\n").unwrap();
+        write!(f, "=========\n").unwrap();
+        write!(f, "ndim = {}\n", self.region.mesh.ndim).unwrap();
+        write!(f, "npoint = {}\n", self.region.mesh.points.len()).unwrap();
+        write!(f, "ncell = {}\n", self.region.mesh.cells.len()).unwrap();
+        write!(f, "nedge = {}\n", self.region.features.edges.len()).unwrap();
         if self.ndim == 3 {
-            write!(f, "nface = {}\n", self.region.features.faces.len())?;
+            write!(f, "nface = {}\n", self.region.features.faces.len()).unwrap();
         }
 
-        write!(f, "\nOther configuration data\n")?;
-        write!(f, "========================\n")?;
-        write!(f, "gravity = {:?}\n", self.gravity)?;
-        write!(f, "thickness = {:?}\n", self.thickness)?;
-        write!(f, "plane_stress = {:?}\n", self.plane_stress)?;
-        write!(f, "total_stress = {:?}\n", self.total_stress)?;
-        write!(f, "initialization = {:?}\n", self.initialization)?;
+        write!(f, "\nOther configuration data\n").unwrap();
+        write!(f, "========================\n").unwrap();
+        write!(f, "gravity = {:?}\n", self.gravity).unwrap();
+        write!(f, "thickness = {:?}\n", self.thickness).unwrap();
+        write!(f, "plane_stress = {:?}\n", self.plane_stress).unwrap();
+        write!(f, "total_stress = {:?}\n", self.total_stress).unwrap();
+        write!(f, "initialization = {:?}\n", self.initialization).unwrap();
 
-        write!(f, "\nEssential boundary conditions\n")?;
-        write!(f, "=============================\n")?;
+        write!(f, "\nEssential boundary conditions\n").unwrap();
+        write!(f, "=============================\n").unwrap();
         let mut keys: Vec<_> = self.essential_bcs.keys().copied().collect();
         keys.sort();
         for key in keys {
             let fbc = self.essential_bcs.get(&key).unwrap();
             let f0 = fbc(0.0, 0.0, 0.0);
             let f1 = fbc(0.0, 0.0, 0.0);
-            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1)?;
+            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
         }
 
-        write!(f, "\nPoint boundary conditions\n")?;
-        write!(f, "=========================\n")?;
+        write!(f, "\nPoint boundary conditions\n").unwrap();
+        write!(f, "=========================\n").unwrap();
         let mut keys: Vec<_> = self.point_bcs.keys().copied().collect();
         keys.sort();
         for key in keys {
             let fbc = self.point_bcs.get(&key).unwrap();
             let f0 = fbc(0.0, 0.0, 0.0);
             let f1 = fbc(0.0, 0.0, 0.0);
-            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1)?;
+            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
         }
 
-        write!(f, "\nNatural boundary conditions at edges\n")?;
-        write!(f, "====================================\n")?;
+        write!(f, "\nNatural boundary conditions at edges\n").unwrap();
+        write!(f, "====================================\n").unwrap();
         let mut keys: Vec<_> = self.natural_bcs_edge.keys().copied().collect();
         keys.sort();
         for key in keys {
             let fbc = self.natural_bcs_edge.get(&key).unwrap();
             let f0 = fbc(0.0, 0.0, 0.0);
             let f1 = fbc(0.0, 0.0, 0.0);
-            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1)?;
+            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
         }
 
         if self.ndim == 3 {
-            write!(f, "\nNatural boundary conditions at faces\n")?;
-            write!(f, "====================================\n")?;
+            write!(f, "\nNatural boundary conditions at faces\n").unwrap();
+            write!(f, "====================================\n").unwrap();
             let mut keys: Vec<_> = self.natural_bcs_face.keys().copied().collect();
             keys.sort();
             for key in keys {
                 let fbc = self.natural_bcs_face.get(&key).unwrap();
                 let f0 = fbc(0.0, 0.0, 0.0);
                 let f1 = fbc(0.0, 0.0, 0.0);
-                write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1)?;
+                write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
             }
         }
 
-        write!(f, "\nParameters for fluids\n")?;
-        write!(f, "=====================\n")?;
-        write!(f, "{:?}\n", self.param_fluids)?;
+        write!(f, "\nParameters for fluids\n").unwrap();
+        write!(f, "=====================\n").unwrap();
+        write!(f, "{:?}\n", self.param_fluids).unwrap();
 
-        write!(f, "\nParameters for Elements\n")?;
-        write!(f, "=======================\n")?;
+        write!(f, "\nParameters for Elements\n").unwrap();
+        write!(f, "=======================\n").unwrap();
         let mut keys: Vec<_> = self.param_elements.keys().copied().collect();
         keys.sort();
         for key in keys {
             let p = self.param_elements.get(&key).unwrap();
-            write!(f, "{:?} → {:?}\n", key, p)?;
+            write!(f, "{:?} → {:?}\n", key, p).unwrap();
         }
         Ok(())
     }
@@ -454,8 +454,11 @@ mod tests {
             .gravity(10.0)? // m/s²
             .thickness(1.0)?
             .plane_stress(true)?
+            .plane_stress(false)?
             .total_stress(true)?
-            .init(Init::Zero)?;
+            .init(Init::Geostatic(-123.0))?;
+
+        assert_eq!(config.initial_overburden_stress(), -123.0);
 
         assert_eq!(
             format!("{}", config),
@@ -470,9 +473,9 @@ mod tests {
              ========================\n\
              gravity = 10.0\n\
              thickness = 1.0\n\
-             plane_stress = true\n\
+             plane_stress = false\n\
              total_stress = true\n\
-             initialization = Zero\n\
+             initialization = Geostatic(-123.0)\n\
              \n\
              Essential boundary conditions\n\
              =============================\n\
@@ -538,6 +541,61 @@ mod tests {
             .elements(1, base::ParamElement::Solid(solid))?
             .gravity(10.0)? // m/s²
             .init(Init::Zero)?;
+
+        assert_eq!(config.initial_overburden_stress(), 0.0);
+
+        assert_eq!(
+            format!("{}", config),
+            "Mesh data\n\
+             =========\n\
+             ndim = 3\n\
+             npoint = 8\n\
+             ncell = 1\n\
+             nedge = 12\n\
+             nface = 6\n\
+             \n\
+             Other configuration data\n\
+             ========================\n\
+             gravity = 10.0\n\
+             thickness = 1.0\n\
+             plane_stress = false\n\
+             total_stress = false\n\
+             initialization = Zero\n\
+             \n\
+             Essential boundary conditions\n\
+             =============================\n\
+             (0, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (0, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (0, Uz) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (1, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (1, Uz) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (2, Uz) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (3, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (3, Uz) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (4, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (4, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (5, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             (7, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             \n\
+             Point boundary conditions\n\
+             =========================\n\
+             (6, Fz) @ t=0 → -10.0 @ t=1 → -10.0\n\
+             \n\
+             Natural boundary conditions at edges\n\
+             ====================================\n\
+             \n\
+             Natural boundary conditions at faces\n\
+             ====================================\n\
+             ((4, 5, 6, 7), Qn) @ t=0 → -1.0 @ t=1 → -1.0\n\
+             \n\
+             Parameters for fluids\n\
+             =====================\n\
+             None\n\
+             \n\
+             Parameters for Elements\n\
+             =======================\n\
+             1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, n_integ_point: None })\n"
+        );
         Ok(())
     }
 
