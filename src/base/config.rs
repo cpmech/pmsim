@@ -2,7 +2,7 @@ use super::{Dof, Init, Nbc, ParamElement, ParamFluids, Pbc};
 use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, PointId, Region};
 use std::collections::{HashMap, HashSet};
-use std::fmt::{self, Write};
+use std::fmt;
 
 /// Defines a function to configure boundary conditions
 ///
@@ -269,98 +269,87 @@ impl<'a> Config<'a> {
             _ => 0.0,
         }
     }
-
-    /// Displays the essential boundary conditions (EBCs)
-    pub fn display_ebc(&self) -> String {
-        let mut buffer = String::new();
-        let mut keys: Vec<_> = self.essential_bcs.keys().copied().collect();
-        keys.sort();
-        for key in keys {
-            let f = self.essential_bcs.get(&key).unwrap();
-            let f0 = f(0.0, 0.0, 0.0);
-            let f1 = f(0.0, 0.0, 0.0);
-            write!(&mut buffer, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
-        }
-        buffer
-    }
-
-    /// Displays the point boundary conditions (PBCs)
-    pub fn display_pbc(&self) -> String {
-        let mut buffer = String::new();
-        let mut keys: Vec<_> = self.point_bcs.keys().copied().collect();
-        keys.sort();
-        for key in keys {
-            let f = self.point_bcs.get(&key).unwrap();
-            let f0 = f(0.0, 0.0, 0.0);
-            let f1 = f(0.0, 0.0, 0.0);
-            write!(&mut buffer, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
-        }
-        buffer
-    }
-
-    /// Displays the natural boundary conditions (NBCs) at edges
-    pub fn display_nbc_edge(&self) -> String {
-        let mut buffer = String::new();
-        let mut keys: Vec<_> = self.natural_bcs_edge.keys().copied().collect();
-        keys.sort();
-        for key in keys {
-            let f = self.natural_bcs_edge.get(&key).unwrap();
-            let f0 = f(0.0, 0.0, 0.0);
-            let f1 = f(0.0, 0.0, 0.0);
-            write!(&mut buffer, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
-        }
-        buffer
-    }
-
-    /// Displays the natural boundary conditions (NBCs) at faces
-    pub fn display_nbc_face(&self) -> String {
-        let mut buffer = String::new();
-        let mut keys: Vec<_> = self.natural_bcs_face.keys().copied().collect();
-        keys.sort();
-        for key in keys {
-            let f = self.natural_bcs_face.get(&key).unwrap();
-            let f0 = f(0.0, 0.0, 0.0);
-            let f1 = f(0.0, 0.0, 0.0);
-            write!(&mut buffer, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
-        }
-        buffer
-    }
-
-    /// Displays the parameters (for elements)
-    pub fn display_param_elements(&self) -> String {
-        let mut buffer = String::new();
-        let mut keys: Vec<_> = self.param_elements.keys().copied().collect();
-        keys.sort();
-        for key in keys {
-            let p = self.param_elements.get(&key).unwrap();
-            write!(&mut buffer, "{:?} → {:?}\n", key, p).unwrap();
-        }
-        buffer
-    }
 }
 
 impl<'a> fmt::Display for Config<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Mesh data\n")?;
+        write!(f, "=========\n")?;
+        write!(f, "ndim = {}\n", self.region.mesh.ndim)?;
+        write!(f, "npoint = {}\n", self.region.mesh.points.len())?;
+        write!(f, "ncell = {}\n", self.region.mesh.cells.len())?;
+        write!(f, "nedge = {}\n", self.region.features.edges.len())?;
+        if self.ndim == 3 {
+            write!(f, "nface = {}\n", self.region.features.faces.len())?;
+        }
+
+        write!(f, "\nOther configuration data\n")?;
+        write!(f, "========================\n")?;
+        write!(f, "gravity = {:?}\n", self.gravity)?;
+        write!(f, "thickness = {:?}\n", self.thickness)?;
+        write!(f, "plane_stress = {:?}\n", self.plane_stress)?;
+        write!(f, "total_stress = {:?}\n", self.total_stress)?;
+        write!(f, "initialization = {:?}\n", self.initialization)?;
+
         write!(f, "\nEssential boundary conditions\n")?;
         write!(f, "=============================\n")?;
-        write!(f, "{}", self.display_ebc())?;
+        let mut keys: Vec<_> = self.essential_bcs.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let fbc = self.essential_bcs.get(&key).unwrap();
+            let f0 = fbc(0.0, 0.0, 0.0);
+            let f1 = fbc(0.0, 0.0, 0.0);
+            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1)?;
+        }
+
         write!(f, "\nPoint boundary conditions\n")?;
         write!(f, "=========================\n")?;
-        write!(f, "{}", self.display_pbc())?;
-        write!(f, "\nEdge natural boundary conditions\n")?;
-        write!(f, "================================\n")?;
-        write!(f, "{}", self.display_nbc_edge())?;
-        if self.ndim == 3 {
-            write!(f, "\nFace natural boundary conditions\n")?;
-            write!(f, "================================\n")?;
-            write!(f, "{}", self.display_nbc_edge())?;
+        let mut keys: Vec<_> = self.point_bcs.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let fbc = self.point_bcs.get(&key).unwrap();
+            let f0 = fbc(0.0, 0.0, 0.0);
+            let f1 = fbc(0.0, 0.0, 0.0);
+            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1)?;
         }
+
+        write!(f, "\nNatural boundary conditions at edges\n")?;
+        write!(f, "====================================\n")?;
+        let mut keys: Vec<_> = self.natural_bcs_edge.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let fbc = self.natural_bcs_edge.get(&key).unwrap();
+            let f0 = fbc(0.0, 0.0, 0.0);
+            let f1 = fbc(0.0, 0.0, 0.0);
+            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1)?;
+        }
+
+        if self.ndim == 3 {
+            write!(f, "\nNatural boundary conditions at faces\n")?;
+            write!(f, "====================================\n")?;
+            let mut keys: Vec<_> = self.natural_bcs_face.keys().copied().collect();
+            keys.sort();
+            for key in keys {
+                let fbc = self.natural_bcs_face.get(&key).unwrap();
+                let f0 = fbc(0.0, 0.0, 0.0);
+                let f1 = fbc(0.0, 0.0, 0.0);
+                write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1)?;
+            }
+        }
+
         write!(f, "\nParameters for fluids\n")?;
         write!(f, "=====================\n")?;
         write!(f, "{:?}\n", self.param_fluids)?;
+
         write!(f, "\nParameters for Elements\n")?;
         write!(f, "=======================\n")?;
-        write!(f, "{}", self.display_param_elements())
+        let mut keys: Vec<_> = self.param_elements.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let p = self.param_elements.get(&key).unwrap();
+            write!(f, "{:?} → {:?}\n", key, p)?;
+        }
+        Ok(())
     }
 }
 
@@ -468,30 +457,46 @@ mod tests {
             .total_stress(true)?
             .init(Init::Zero)?;
 
-        assert_eq!(config.region.mesh.ndim, 2);
-        assert_eq!(config.ndim, 2);
         assert_eq!(
-            format!("{}", config.display_ebc()),
-            "(0, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
+            format!("{}", config),
+            "Mesh data\n\
+             =========\n\
+             ndim = 2\n\
+             npoint = 4\n\
+             ncell = 2\n\
+             nedge = 4\n\
+             \n\
+             Other configuration data\n\
+             ========================\n\
+             gravity = 10.0\n\
+             thickness = 1.0\n\
+             plane_stress = true\n\
+             total_stress = true\n\
+             initialization = Zero\n\
+             \n\
+             Essential boundary conditions\n\
+             =============================\n\
+             (0, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
              (0, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
              (1, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
-             (3, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n"
+             (3, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
+             \n\
+             Point boundary conditions\n\
+             =========================\n\
+             (2, Fy) @ t=0 → -10.0 @ t=1 → -10.0\n\
+             \n\
+             Natural boundary conditions at edges\n\
+             ====================================\n\
+             ((2, 3), Qn) @ t=0 → -1.0 @ t=1 → -1.0\n\
+             \n\
+             Parameters for fluids\n\
+             =====================\n\
+             Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })\n\
+             \n\
+             Parameters for Elements\n\
+             =======================\n\
+             1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, n_integ_point: None })\n"
         );
-        assert_eq!(
-            format!("{}", config.display_nbc_edge()),
-            "((2, 3), Qn) @ t=0 → -1.0 @ t=1 → -1.0\n"
-        );
-        assert_eq!(format!("{}", config.display_nbc_face()), "");
-        assert_eq!(
-            format!("{}", config.display_pbc()),
-            "(2, Fy) @ t=0 → -10.0 @ t=1 → -10.0\n"
-        );
-        assert_eq!(format!("{:?}", config.param_fluids),"Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })");
-        assert_eq!(format!("{}", config.display_param_elements()),"1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, n_integ_point: None })\n");
-
-        println!("{}", config);
-
-        // assert_eq!(format!("{}",config),"");
         Ok(())
     }
 
