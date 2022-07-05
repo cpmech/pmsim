@@ -15,6 +15,10 @@ pub type FnBc = fn(t: f64, u: f64, v: f64) -> f64;
 /// # Warning
 ///
 /// All data here is **read-only** and must not be modified externally.
+///
+/// # Examples
+///
+/// See `examples/config_2d.rs` and `examples/config_3d.rs`
 pub struct Config<'a> {
     /// The finite element region/mesh
     pub region: &'a Region<'a>,
@@ -358,45 +362,72 @@ impl<'a> fmt::Display for Config<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Config, FnBc};
-    use crate::base::{self, Dof, Init, Nbc, Pbc};
+    use crate::base::{
+        Dof, Init, Nbc, ParamElement, ParamFluids, ParamRealDensity, ParamSolid, ParamStressStrain, Pbc,
+    };
     use crate::StrError;
-    use gemlab::mesh::{self, At, Extract, Mesh, Region};
-    use gemlab::shapes;
+    use gemlab::mesh::{At, Cell, Extract, Mesh, Point, Region};
+    use gemlab::shapes::GeoKind;
     use std::collections::HashSet;
 
     #[rustfmt::skip]
     fn mesh_two_tri3() -> Mesh {
+        //      y
+        //      ^
+        // 1.0  3------------2
+        //      |`.      [1] |    [#] indicates id
+        //      |  `.    (1) |    (#) indicates attribute_id
+        //      |    `.      |
+        //      |      `.    |
+        //      | [0]    `.  |
+        //      | (1)      `.|
+        // 0.0  0------------1 -> x
+        //     0.0          1.0
         Mesh {
             ndim: 2,
             points: vec![
-                mesh::Point { id: 0, coords: vec![0.0, 0.0] },
-                mesh::Point { id: 1, coords: vec![1.0, 0.0] },
-                mesh::Point { id: 2, coords: vec![1.0, 1.0] },
-                mesh::Point { id: 3, coords: vec![0.0, 1.0] },
+                Point { id: 0, coords: vec![0.0, 0.0] },
+                Point { id: 1, coords: vec![1.0, 0.0] },
+                Point { id: 2, coords: vec![1.0, 1.0] },
+                Point { id: 3, coords: vec![0.0, 1.0] },
             ],
             cells: vec![
-                mesh::Cell { id: 0, attribute_id: 1, kind: shapes::GeoKind::Tri3, points: vec![0, 1, 3] },
-                mesh::Cell { id: 1, attribute_id: 1, kind: shapes::GeoKind::Tri3, points: vec![2, 3, 1] },
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Tri3, points: vec![0, 1, 3] },
+                Cell { id: 1, attribute_id: 1, kind: GeoKind::Tri3, points: vec![2, 3, 1] },
             ],
         }
     }
 
     #[rustfmt::skip]
     pub fn mesh_one_cube() -> Mesh {
+        //       4--------------7  1.0
+        //      /.             /|
+        //     / .            / |    [#] indicates id
+        //    /  .           /  |    (#) indicates attribute_id
+        //   /   .          /   |
+        //  5--------------6    |          z
+        //  |    .         |    |          ↑
+        //  |    0---------|----3  0.0     o → y
+        //  |   /  [0]     |   /          ↙
+        //  |  /   (1)     |  /          x
+        //  | /            | /
+        //  |/             |/
+        //  1--------------2   1.0
+        // 0.0            1.0
         Mesh {
             ndim: 3,
             points: vec![
-                mesh::Point { id: 0, coords: vec![0.0, 0.0, 0.0] },
-                mesh::Point { id: 1, coords: vec![1.0, 0.0, 0.0] },
-                mesh::Point { id: 2, coords: vec![1.0, 1.0, 0.0] },
-                mesh::Point { id: 3, coords: vec![0.0, 1.0, 0.0] },
-                mesh::Point { id: 4, coords: vec![0.0, 0.0, 1.0] },
-                mesh::Point { id: 5, coords: vec![1.0, 0.0, 1.0] },
-                mesh::Point { id: 6, coords: vec![1.0, 1.0, 1.0] },
-                mesh::Point { id: 7, coords: vec![0.0, 1.0, 1.0] },
+                Point { id: 0, coords: vec![0.0, 0.0, 0.0] },
+                Point { id: 1, coords: vec![1.0, 0.0, 0.0] },
+                Point { id: 2, coords: vec![1.0, 1.0, 0.0] },
+                Point { id: 3, coords: vec![0.0, 1.0, 0.0] },
+                Point { id: 4, coords: vec![0.0, 0.0, 1.0] },
+                Point { id: 5, coords: vec![1.0, 0.0, 1.0] },
+                Point { id: 6, coords: vec![1.0, 1.0, 1.0] },
+                Point { id: 7, coords: vec![0.0, 1.0, 1.0] },
             ],
             cells: vec![
-                mesh::Cell { id: 0, attribute_id: 1, kind: shapes::GeoKind::Hex8, points: vec![0,1,2,3, 4,5,6,7] },
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Hex8, points: vec![0,1,2,3, 4,5,6,7] },
             ],
         }
     }
@@ -429,8 +460,8 @@ mod tests {
             .bc_points(&corner, &[Pbc::Fy], fy)?
             .nbc_edges(&top, &[Nbc::Qn], qn)?;
 
-        let fluids = base::ParamFluids {
-            density_liquid: base::ParamRealDensity {
+        let fluids = ParamFluids {
+            density_liquid: ParamRealDensity {
                 cc: 4.53e-7,  // Mg/(m³ kPa)
                 p_ref: 0.0,   // kPa
                 rho_ref: 1.0, // Mg/m³
@@ -439,9 +470,9 @@ mod tests {
             density_gas: None,
         };
 
-        let solid = base::ParamSolid {
+        let solid = ParamSolid {
             density: 2.7, // Mg/m²
-            stress_strain: base::ParamStressStrain::LinearElastic {
+            stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
             },
@@ -450,7 +481,7 @@ mod tests {
 
         config
             .fluids(fluids)?
-            .elements(1, base::ParamElement::Solid(solid))?
+            .elements(1, ParamElement::Solid(solid))?
             .gravity(10.0)? // m/s²
             .thickness(1.0)?
             .plane_stress(true)?
@@ -528,9 +559,9 @@ mod tests {
             .nbc_faces(&top, &[Nbc::Qn], qn)?
             .bc_points(&corner, &[Pbc::Fz], fz)?;
 
-        let solid = base::ParamSolid {
+        let solid = ParamSolid {
             density: 2.7, // Mg/m²
-            stress_strain: base::ParamStressStrain::LinearElastic {
+            stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
             },
@@ -538,7 +569,7 @@ mod tests {
         };
 
         config
-            .elements(1, base::ParamElement::Solid(solid))?
+            .elements(1, ParamElement::Solid(solid))?
             .gravity(10.0)? // m/s²
             .init(Init::Zero)?;
 
