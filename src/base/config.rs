@@ -2,7 +2,7 @@ use super::{Dof, Init, Nbc, ParamElement, ParamFluids, Pbc};
 use crate::StrError;
 use gemlab::mesh::{CellAttributeId, EdgeKey, FaceKey, PointId, Region};
 use std::collections::{HashMap, HashSet};
-use std::fmt::Write;
+use std::fmt::{self, Write};
 
 /// Defines a function to configure boundary conditions
 ///
@@ -325,6 +325,43 @@ impl<'a> Config<'a> {
         }
         buffer
     }
+
+    /// Displays the parameters (for elements)
+    pub fn display_param_elements(&self) -> String {
+        let mut buffer = String::new();
+        let mut keys: Vec<_> = self.param_elements.keys().copied().collect();
+        keys.sort();
+        for key in keys {
+            let p = self.param_elements.get(&key).unwrap();
+            write!(&mut buffer, "{:?} → {:?}\n", key, p).unwrap();
+        }
+        buffer
+    }
+}
+
+impl<'a> fmt::Display for Config<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\nEssential boundary conditions\n")?;
+        write!(f, "=============================\n")?;
+        write!(f, "{}", self.display_ebc())?;
+        write!(f, "\nPoint boundary conditions\n")?;
+        write!(f, "=========================\n")?;
+        write!(f, "{}", self.display_pbc())?;
+        write!(f, "\nEdge natural boundary conditions\n")?;
+        write!(f, "================================\n")?;
+        write!(f, "{}", self.display_nbc_edge())?;
+        if self.ndim == 3 {
+            write!(f, "\nFace natural boundary conditions\n")?;
+            write!(f, "================================\n")?;
+            write!(f, "{}", self.display_nbc_edge())?;
+        }
+        write!(f, "\nParameters for fluids\n")?;
+        write!(f, "=====================\n")?;
+        write!(f, "{:?}\n", self.param_fluids)?;
+        write!(f, "\nParameters for Elements\n")?;
+        write!(f, "=======================\n")?;
+        write!(f, "{}", self.display_param_elements())
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -445,11 +482,16 @@ mod tests {
             "((2, 3), Qn) @ t=0 → -1.0 @ t=1 → -1.0\n"
         );
         assert_eq!(format!("{}", config.display_nbc_face()), "");
-        println!("{}", config.display_pbc());
         assert_eq!(
             format!("{}", config.display_pbc()),
             "(2, Fy) @ t=0 → -10.0 @ t=1 → -10.0\n"
         );
+        assert_eq!(format!("{:?}", config.param_fluids),"Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })");
+        assert_eq!(format!("{}", config.display_param_elements()),"1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, n_integ_point: None })\n");
+
+        println!("{}", config);
+
+        // assert_eq!(format!("{}",config),"");
         Ok(())
     }
 
