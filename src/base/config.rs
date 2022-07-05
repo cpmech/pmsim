@@ -85,7 +85,7 @@ impl<'a> Config<'a> {
         let points = &self.region.features.points;
         for point_id in point_ids {
             if !points.contains(point_id) {
-                return Err("region.features does not have boundary point to set EBC");
+                return Err("cannot find point in region.features.points to set EBC");
             }
             for dof in dofs {
                 self.essential_bcs.insert((*point_id, *dof), f);
@@ -100,7 +100,7 @@ impl<'a> Config<'a> {
         for edge_key in edge_keys {
             let edge = match edges.get(edge_key) {
                 Some(e) => e,
-                None => return Err("region.features does not have boundary edge to set EBC"),
+                None => return Err("cannot find edge in region.features.edges to set EBC"),
             };
             for point_id in &edge.points {
                 for dof in dofs {
@@ -113,11 +113,14 @@ impl<'a> Config<'a> {
 
     /// Sets essential boundary conditions (EBC) for a group of points on specified faces
     pub fn ebc_faces(&mut self, face_keys: &HashSet<FaceKey>, dofs: &[Dof], f: FnBc) -> Result<&mut Self, StrError> {
+        if self.ndim == 2 {
+            return Err("cannot set face EBC in 2D");
+        }
         let faces = &self.region.features.faces;
         for face_key in face_keys {
             let face = match faces.get(face_key) {
                 Some(e) => e,
-                None => return Err("region.features does not have boundary face to set EBC"),
+                None => return Err("cannot find face in region.features.faces to set EBC"),
             };
             for point_id in &face.points {
                 for dof in dofs {
@@ -128,12 +131,26 @@ impl<'a> Config<'a> {
         Ok(self)
     }
 
+    /// Sets point boundary conditions for a group of points
+    pub fn pbc(&mut self, point_ids: &HashSet<PointId>, bcs: &[Pbc], f: FnBc) -> Result<&mut Self, StrError> {
+        let points = &self.region.features.points;
+        for point_id in point_ids {
+            if !points.contains(point_id) {
+                return Err("cannot find point in region.features.points to set PBC");
+            }
+            for bc in bcs {
+                self.point_bcs.insert((*point_id, *bc), f);
+            }
+        }
+        Ok(self)
+    }
+
     /// Sets natural boundary conditions (NBC) for a group of edges
     pub fn nbc_edges(&mut self, edge_keys: &HashSet<EdgeKey>, nbcs: &[Nbc], f: FnBc) -> Result<&mut Self, StrError> {
         let edges = &self.region.features.edges;
         for edge_key in edge_keys {
             if !edges.contains_key(edge_key) {
-                return Err("region.features does not have boundary edge to set NBC");
+                return Err("cannot find edge in region.features.edges to set NBC");
             }
             for nbc in nbcs {
                 if self.ndim == 3 && *nbc == Nbc::Qn {
@@ -147,27 +164,16 @@ impl<'a> Config<'a> {
 
     /// Sets natural boundary conditions (NBC) for a group of faces
     pub fn nbc_faces(&mut self, face_keys: &HashSet<FaceKey>, nbcs: &[Nbc], f: FnBc) -> Result<&mut Self, StrError> {
+        if self.ndim == 2 {
+            return Err("cannot set face NBC in 2D");
+        }
         let faces = &self.region.features.faces;
         for face_key in face_keys {
             if !faces.contains_key(face_key) {
-                return Err("mesh does not have boundary face to set NBC");
+                return Err("cannot find face in region.features.faces to set NBC");
             }
             for nbc in nbcs {
                 self.natural_bcs_face.insert((*face_key, *nbc), f);
-            }
-        }
-        Ok(self)
-    }
-
-    /// Sets point boundary conditions for a group of points
-    pub fn bc_point(&mut self, point_ids: &HashSet<PointId>, bcs: &[Pbc], f: FnBc) -> Result<&mut Self, StrError> {
-        let points = &self.region.features.points;
-        for point_id in point_ids {
-            if !points.contains(point_id) {
-                return Err("mesh does not have boundary point to set BC");
-            }
-            for bc in bcs {
-                self.point_bcs.insert((*point_id, *bc), f);
             }
         }
         Ok(self)
@@ -192,7 +198,7 @@ impl<'a> Config<'a> {
     /// Sets the gravity acceleration
     pub fn gravity(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value < 0.0 {
-            return Err("gravity value must be greater than or equal to zero");
+            return Err("gravity must be ≥ 0.0");
         }
         self.gravity = value;
         Ok(self)
@@ -201,7 +207,7 @@ impl<'a> Config<'a> {
     /// Sets the thickness for plane-stress
     pub fn thickness(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value <= 0.0 {
-            return Err("thickness value must be greater than zero");
+            return Err("thickness must be > 0.0");
         }
         self.thickness = value;
         Ok(self)
@@ -211,6 +217,9 @@ impl<'a> Config<'a> {
     ///
     /// **Note:** If false (plane-strain), this function will set the thickness to 1.0.
     pub fn plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+        if self.ndim == 3 {
+            return Err("cannot set plane_stress in 3D");
+        }
         match self.initialization {
             Init::Geostatic(..) => return Err("cannot set plane_stress with Init::Geostatic"),
             Init::Isotropic(..) => return Err("cannot set plane_stress with Init::Isotropic"),
@@ -266,9 +275,48 @@ impl<'a> Config<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Config, FnBc};
-    use crate::base::{self, Dof, Nbc, Pbc};
+    use crate::base::{self, Dof, Init, Nbc, Pbc};
     use crate::StrError;
-    use gemlab::mesh::{At, Extract, Mesh, Region};
+    use gemlab::mesh::{self, At, Extract, Mesh, Region};
+    use gemlab::shapes;
+    use std::collections::HashSet;
+
+    #[rustfmt::skip]
+    fn mesh_two_tri3() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                mesh::Point { id: 0, coords: vec![0.0, 0.0] },
+                mesh::Point { id: 1, coords: vec![1.0, 0.0] },
+                mesh::Point { id: 2, coords: vec![1.0, 1.0] },
+                mesh::Point { id: 3, coords: vec![0.0, 1.0] },
+            ],
+            cells: vec![
+                mesh::Cell { id: 0, attribute_id: 1, kind: shapes::GeoKind::Tri3, points: vec![0, 1, 3] },
+                mesh::Cell { id: 1, attribute_id: 1, kind: shapes::GeoKind::Tri3, points: vec![2, 3, 1] },
+            ],
+        }
+    }
+
+    #[rustfmt::skip]
+    pub fn mesh_one_cube() -> Mesh {
+        Mesh {
+            ndim: 3,
+            points: vec![
+                mesh::Point { id: 0, coords: vec![0.0, 0.0, 0.0] },
+                mesh::Point { id: 1, coords: vec![1.0, 0.0, 0.0] },
+                mesh::Point { id: 2, coords: vec![1.0, 1.0, 0.0] },
+                mesh::Point { id: 3, coords: vec![0.0, 1.0, 0.0] },
+                mesh::Point { id: 4, coords: vec![0.0, 0.0, 1.0] },
+                mesh::Point { id: 5, coords: vec![1.0, 0.0, 1.0] },
+                mesh::Point { id: 6, coords: vec![1.0, 1.0, 1.0] },
+                mesh::Point { id: 7, coords: vec![0.0, 1.0, 1.0] },
+            ],
+            cells: vec![
+                mesh::Cell { id: 0, attribute_id: 1, kind: shapes::GeoKind::Hex8, points: vec![0,1,2,3, 4,5,6,7] },
+            ],
+        }
+    }
 
     #[test]
     fn zero_returns_zero() {
@@ -276,19 +324,8 @@ mod tests {
     }
 
     #[test]
-    fn new_works() -> Result<(), StrError> {
-        let mesh = Mesh::from_text(
-            "# ndim npoint ncell\n\
-             2 4 2\n\
-             # points\n\
-             0 0.0 0.0\n\
-             1 1.0 0.0\n\
-             2 1.0 1.0\n\
-             3 0.0 1.0\n\
-             # cells\n\
-             0 1 tri3  0 1 3\n\
-             1 1 tri3  2 3 1\n",
-        )?;
+    fn new_works_2d() -> Result<(), StrError> {
+        let mesh = mesh_two_tri3();
         let region = Region::with(&mesh, Extract::Boundary)?;
 
         let origin = region.find.points(At::XY(0.0, 0.0))?;
@@ -307,7 +344,7 @@ mod tests {
             .ebc_edges(&bottom, &[Dof::Uy], Config::zero)?
             .ebc_edges(&left, &[Dof::Ux], Config::zero)?
             .nbc_edges(&top, &[Nbc::Qn], qn)?
-            .bc_point(&corner, &[Pbc::Fy], fy)?;
+            .pbc(&corner, &[Pbc::Fy], fy)?;
 
         let solid = base::ParamSolid {
             density: 2.7, // Mg/m²
@@ -318,8 +355,137 @@ mod tests {
             n_integ_point: None,
         };
 
-        config.elements(1, base::ParamElement::Solid(solid))?;
-        config.gravity(10.0)?; // m/s²
+        config
+            .elements(1, base::ParamElement::Solid(solid))?
+            .gravity(10.0)? // m/s²
+            .thickness(1.0)?
+            .plane_stress(true)?
+            .total_stress(true)?
+            .init(Init::Zero)?;
+        Ok(())
+    }
+
+    #[test]
+    fn new_works_3d() -> Result<(), StrError> {
+        let mesh = mesh_one_cube();
+        let region = Region::with(&mesh, Extract::Boundary)?;
+
+        let origin = region.find.points(At::XYZ(0.0, 0.0, 0.0))?;
+        let x_zero = region.find.faces(At::X(0.0))?;
+        let y_zero = region.find.faces(At::Y(0.0))?;
+        let z_zero = region.find.faces(At::Z(0.0))?;
+        let top = region.find.faces(At::Z(1.0))?;
+        let corner = region.find.points(At::XYZ(1.0, 1.0, 1.0))?;
+
+        let mut config = Config::new(&region);
+
+        let qn: FnBc = |_, _, _| -1.0;
+        let fz: FnBc = |_, _, _| -10.0;
+
+        config
+            .ebc_points(&origin, &[Dof::Ux, Dof::Uy, Dof::Uz], Config::zero)?
+            .ebc_faces(&x_zero, &[Dof::Ux], Config::zero)?
+            .ebc_faces(&y_zero, &[Dof::Uy], Config::zero)?
+            .ebc_faces(&z_zero, &[Dof::Uz], Config::zero)?
+            .nbc_faces(&top, &[Nbc::Qn], qn)?
+            .pbc(&corner, &[Pbc::Fz], fz)?;
+
+        let solid = base::ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: base::ParamStressStrain::LinearElastic {
+                young: 10_000.0, // kPa
+                poisson: 0.2,    // [-]
+            },
+            n_integ_point: None,
+        };
+
+        config
+            .elements(1, base::ParamElement::Solid(solid))?
+            .gravity(10.0)? // m/s²
+            .init(Init::Zero)?;
+        Ok(())
+    }
+
+    #[test]
+    fn catch_some_errors_2d() -> Result<(), StrError> {
+        let mesh = mesh_two_tri3();
+        let region = Region::with(&mesh, Extract::Boundary)?;
+        let mut config = Config::new(&region);
+        let point_ids = HashSet::from([10]);
+        let edge_keys = HashSet::from([(8, 80)]);
+        let face_keys = HashSet::from([(100, 200, 300, 400)]);
+        assert_eq!(
+            config.ebc_points(&point_ids, &[Dof::Ux], Config::zero).err(),
+            Some("cannot find point in region.features.points to set EBC")
+        );
+        assert_eq!(
+            config.ebc_edges(&edge_keys, &[Dof::Ux], Config::zero).err(),
+            Some("cannot find edge in region.features.edges to set EBC")
+        );
+        assert_eq!(
+            config.ebc_faces(&face_keys, &[Dof::Ux], Config::zero).err(),
+            Some("cannot set face EBC in 2D")
+        );
+        assert_eq!(
+            config.pbc(&point_ids, &[Pbc::Fx], Config::zero).err(),
+            Some("cannot find point in region.features.points to set PBC")
+        );
+        assert_eq!(
+            config.nbc_edges(&edge_keys, &[Nbc::Qn], Config::zero).err(),
+            Some("cannot find edge in region.features.edges to set NBC")
+        );
+        assert_eq!(
+            config.nbc_faces(&face_keys, &[Nbc::Qn], Config::zero).err(),
+            Some("cannot set face NBC in 2D")
+        );
+        assert_eq!(config.gravity(-10.0).err(), Some("gravity must be ≥ 0.0"));
+        assert_eq!(config.thickness(0.0).err(), Some("thickness must be > 0.0"));
+        assert_eq!(
+            config.init(Init::Geostatic(10.0)).err(),
+            Some("overburden stress must be negative (compressive)")
+        );
+        config.plane_stress(true)?;
+        assert_eq!(
+            config.init(Init::Geostatic(-10.0)).err(),
+            Some("cannot set Init::Geostatic with plane_stress")
+        );
+        assert_eq!(
+            config.init(Init::Isotropic(-1.0)).err(),
+            Some("cannot set Init::Isotropic with plane_stress")
+        );
+        config.plane_stress(false)?;
+        config.init(Init::Geostatic(-10.0))?;
+        assert_eq!(
+            config.plane_stress(true).err(),
+            Some("cannot set plane_stress with Init::Geostatic")
+        );
+        config.init(Init::Isotropic(-1.0))?;
+        assert_eq!(
+            config.plane_stress(true).err(),
+            Some("cannot set plane_stress with Init::Isotropic")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn catch_some_errors_3d() -> Result<(), StrError> {
+        let mesh = mesh_one_cube();
+        let region = Region::with(&mesh, Extract::Boundary)?;
+        let mut config = Config::new(&region);
+        let edge_keys = HashSet::from([(0, 1)]);
+        let face_keys = HashSet::from([(100, 200, 300, 400)]);
+        assert_eq!(
+            config.nbc_edges(&edge_keys, &[Nbc::Qn], Config::zero).err(),
+            Some("Qn natural boundary condition is not available for 3D edge")
+        );
+        assert_eq!(
+            config.ebc_faces(&face_keys, &[Dof::Ux], Config::zero).err(),
+            Some("cannot find face in region.features.faces to set EBC")
+        );
+        assert_eq!(
+            config.nbc_faces(&face_keys, &[Nbc::Qn], Config::zero).err(),
+            Some("cannot find face in region.features.faces to set NBC")
+        );
         Ok(())
     }
 }
