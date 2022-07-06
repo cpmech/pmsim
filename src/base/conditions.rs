@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn catch_some_errors_3d() -> Result<(), StrError> {
-        let mesh = SampleMeshes::one_cube();
+        let mesh = SampleMeshes::one_hex8();
         let region = Region::with(&mesh, Extract::Boundary)?;
         let mut conditions = Conditions::new();
         let edge_keys = HashSet::from([(0, 1)]);
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn boundary_conditions_works_3d() -> Result<(), StrError> {
-        let mesh = SampleMeshes::one_cube();
+        let mesh = SampleMeshes::one_hex8();
         let region = Region::with(&mesh, Extract::Boundary)?;
 
         let fz = |_, _, _| -10.0;
