@@ -6,12 +6,6 @@ use std::fmt;
 
 /// Holds configuration data such as boundary conditions and element attributes
 pub struct Config {
-    /// Parameters for fluids
-    pub param_fluids: Option<ParamFluids>,
-
-    /// Parameters for elements
-    pub param_elements: HashMap<CellAttributeId, ParamElement>,
-
     /// Gravity acceleration
     pub gravity: f64,
 
@@ -26,40 +20,30 @@ pub struct Config {
 
     /// Option to initialize stress state
     pub initialization: Init,
+
+    /// Parameters for elements
+    pub param_elements: HashMap<CellAttributeId, ParamElement>,
+
+    /// Parameters for fluids
+    pub param_fluids: Option<ParamFluids>,
 }
 
 impl Config {
     /// Allocates a new instance
     pub fn new() -> Self {
         Config {
-            param_fluids: None,
-            param_elements: HashMap::new(),
             gravity: 0.0,
             thickness: 1.0,
             plane_stress: false,
             total_stress: false,
             initialization: Init::Zero,
+            param_elements: HashMap::new(),
+            param_fluids: None,
         }
     }
 
-    /// Sets parameters for fluids
-    pub fn fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
-        self.param_fluids = Some(param_fluids);
-        Ok(self)
-    }
-
-    /// Sets configurations for a group of elements
-    pub fn elements(
-        &mut self,
-        attribute_id: CellAttributeId,
-        param_element: ParamElement,
-    ) -> Result<&mut Self, StrError> {
-        self.param_elements.insert(attribute_id, param_element);
-        Ok(self)
-    }
-
     /// Sets the gravity acceleration
-    pub fn gravity(&mut self, value: f64) -> Result<&mut Self, StrError> {
+    pub fn set_gravity(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value < 0.0 {
             return Err("gravity must be ≥ 0.0");
         }
@@ -68,7 +52,7 @@ impl Config {
     }
 
     /// Sets the thickness for plane-stress
-    pub fn thickness(&mut self, value: f64) -> Result<&mut Self, StrError> {
+    pub fn set_thickness(&mut self, value: f64) -> Result<&mut Self, StrError> {
         if value <= 0.0 {
             return Err("thickness must be > 0.0");
         }
@@ -79,7 +63,7 @@ impl Config {
     /// Sets a 2D plane-stress problem, otherwise plane-strain in 2D
     ///
     /// **Note:** If false (plane-strain), this function will set the thickness to 1.0.
-    pub fn plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+    pub fn set_plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
         match self.initialization {
             Init::Geostatic(..) => return Err("cannot set plane_stress with Init::Geostatic"),
             Init::Isotropic(..) => return Err("cannot set plane_stress with Init::Isotropic"),
@@ -93,13 +77,13 @@ impl Config {
     }
 
     /// Sets total stress analysis or effective stress analysis
-    pub fn total_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+    pub fn set_total_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
         self.total_stress = flag;
         Ok(self)
     }
 
     /// Sets stress initialization option
-    pub fn init(&mut self, option: Init) -> Result<&mut Self, StrError> {
+    pub fn set_initialization(&mut self, option: Init) -> Result<&mut Self, StrError> {
         match option {
             Init::Geostatic(overburden) => {
                 if overburden > 0.0 {
@@ -117,6 +101,22 @@ impl Config {
             _ => (),
         }
         self.initialization = option;
+        Ok(self)
+    }
+
+    /// Sets parameters for elements
+    pub fn set_param_elements(
+        &mut self,
+        attribute_id: CellAttributeId,
+        param_element: ParamElement,
+    ) -> Result<&mut Self, StrError> {
+        self.param_elements.insert(attribute_id, param_element);
+        Ok(self)
+    }
+
+    /// Sets parameters for fluids
+    pub fn set_param_fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
+        self.param_fluids = Some(param_fluids);
         Ok(self)
     }
 
@@ -140,10 +140,6 @@ impl fmt::Display for Config {
         write!(f, "total_stress = {:?}\n", self.total_stress).unwrap();
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
 
-        write!(f, "\nParameters for fluids\n").unwrap();
-        write!(f, "=====================\n").unwrap();
-        write!(f, "{:?}\n", self.param_fluids).unwrap();
-
         write!(f, "\nParameters for Elements\n").unwrap();
         write!(f, "=======================\n").unwrap();
         let mut keys: Vec<_> = self.param_elements.keys().copied().collect();
@@ -152,6 +148,10 @@ impl fmt::Display for Config {
             let p = self.param_elements.get(&key).unwrap();
             write!(f, "{:?} → {:?}\n", key, p).unwrap();
         }
+
+        write!(f, "\nParameters for fluids\n").unwrap();
+        write!(f, "=====================\n").unwrap();
+        write!(f, "{:?}\n", self.param_fluids).unwrap();
         Ok(())
     }
 }
@@ -167,10 +167,19 @@ mod tests {
     #[test]
     fn new_works() -> Result<(), StrError> {
         let mut config = Config::new();
-        config.init(Init::Zero)?;
+        config.set_initialization(Init::Zero)?;
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
         let mut config = Config::new();
+
+        let solid = ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 10_000.0, // kPa
+                poisson: 0.2,    // [-]
+            },
+            n_integ_point: None,
+        };
 
         let fluids = ParamFluids {
             density_liquid: ParamRealDensity {
@@ -182,24 +191,15 @@ mod tests {
             density_gas: None,
         };
 
-        let solid = ParamSolid {
-            density: 2.7, // Mg/m²
-            stress_strain: ParamStressStrain::LinearElastic {
-                young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
-            },
-            n_integ_point: None,
-        };
-
         config
-            .fluids(fluids)?
-            .elements(1, ParamElement::Solid(solid))?
-            .gravity(10.0)? // m/s²
-            .thickness(1.0)?
-            .plane_stress(true)?
-            .plane_stress(false)?
-            .total_stress(true)?
-            .init(Init::Geostatic(-123.0))?;
+            .set_gravity(10.0)? // m/s²
+            .set_thickness(1.0)?
+            .set_plane_stress(true)?
+            .set_plane_stress(false)?
+            .set_total_stress(true)?
+            .set_initialization(Init::Geostatic(-123.0))?
+            .set_param_fluids(fluids)?
+            .set_param_elements(1, ParamElement::Solid(solid))?;
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
 
@@ -213,13 +213,13 @@ mod tests {
              total_stress = true\n\
              initialization = Geostatic(-123.0)\n\
              \n\
-             Parameters for fluids\n\
-             =====================\n\
-             Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })\n\
-             \n\
              Parameters for Elements\n\
              =======================\n\
-             1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, n_integ_point: None })\n"
+             1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, n_integ_point: None })\n\
+             \n\
+             Parameters for fluids\n\
+             =====================\n\
+             Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })\n"
         );
 
         Ok(())
@@ -228,30 +228,30 @@ mod tests {
     #[test]
     fn catch_some_errors_2d() -> Result<(), StrError> {
         let mut config = Config::new();
-        assert_eq!(config.gravity(-10.0).err(), Some("gravity must be ≥ 0.0"));
-        assert_eq!(config.thickness(0.0).err(), Some("thickness must be > 0.0"));
+        assert_eq!(config.set_gravity(-10.0).err(), Some("gravity must be ≥ 0.0"));
+        assert_eq!(config.set_thickness(0.0).err(), Some("thickness must be > 0.0"));
         assert_eq!(
-            config.init(Init::Geostatic(10.0)).err(),
+            config.set_initialization(Init::Geostatic(10.0)).err(),
             Some("overburden stress must be negative (compressive)")
         );
-        config.plane_stress(true)?;
+        config.set_plane_stress(true)?;
         assert_eq!(
-            config.init(Init::Geostatic(-10.0)).err(),
+            config.set_initialization(Init::Geostatic(-10.0)).err(),
             Some("cannot set Init::Geostatic with plane_stress")
         );
         assert_eq!(
-            config.init(Init::Isotropic(-1.0)).err(),
+            config.set_initialization(Init::Isotropic(-1.0)).err(),
             Some("cannot set Init::Isotropic with plane_stress")
         );
-        config.plane_stress(false)?;
-        config.init(Init::Geostatic(-10.0))?;
+        config.set_plane_stress(false)?;
+        config.set_initialization(Init::Geostatic(-10.0))?;
         assert_eq!(
-            config.plane_stress(true).err(),
+            config.set_plane_stress(true).err(),
             Some("cannot set plane_stress with Init::Geostatic")
         );
-        config.init(Init::Isotropic(-1.0))?;
+        config.set_initialization(Init::Isotropic(-1.0))?;
         assert_eq!(
-            config.plane_stress(true).err(),
+            config.set_plane_stress(true).err(),
             Some("cannot set plane_stress with Init::Isotropic")
         );
         Ok(())
