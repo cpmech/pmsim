@@ -1,5 +1,4 @@
 use super::{Init, ParamElement, ParamFluids};
-use crate::StrError;
 use gemlab::mesh::CellAttributeId;
 use std::collections::HashMap;
 use std::fmt;
@@ -42,82 +41,48 @@ impl Config {
         }
     }
 
-    /// Sets the gravity acceleration
-    pub fn set_gravity(&mut self, value: f64) -> Result<&mut Self, StrError> {
-        if value < 0.0 {
-            return Err("gravity must be ≥ 0.0");
-        }
-        self.gravity = value;
-        Ok(self)
-    }
-
-    /// Sets the thickness for plane-stress
-    pub fn set_thickness(&mut self, value: f64) -> Result<&mut Self, StrError> {
-        if value <= 0.0 {
-            return Err("thickness must be > 0.0");
-        }
-        self.thickness = value;
-        Ok(self)
-    }
-
-    /// Sets a 2D plane-stress problem, otherwise plane-strain in 2D
+    /// Validates all data
     ///
-    /// **Note:** If false (plane-strain), this function will set the thickness to 1.0.
-    pub fn set_plane_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
+    /// Returns a message with the inconsistent data, or returns None if everything is all right.
+    pub fn validate(&self, ndim: usize) -> Option<String> {
+        if self.gravity < 0.0 {
+            return Some(format!("gravity = {:?} is incorrect; it must be ≥ 0.0", self.gravity));
+        }
+        if self.thickness <= 0.0 {
+            return Some(format!(
+                "thickness = {:?} is incorrect; it must be > 0.0",
+                self.thickness
+            ));
+        }
+        if self.plane_stress && ndim == 3 {
+            return Some("plane-stress does not work in 3D".to_string());
+        }
+        if !self.plane_stress && self.thickness != 1.0 {
+            return Some(format!(
+                "thickness = {:?} is incorrect; it must be = 1.0 for plane-strain or 3D",
+                self.thickness
+            ));
+        }
         match self.initialization {
-            Init::Geostatic(..) => return Err("cannot set plane_stress with Init::Geostatic"),
-            Init::Isotropic(..) => return Err("cannot set plane_stress with Init::Isotropic"),
-            _ => (),
-        }
-        self.plane_stress = flag;
-        if !self.plane_stress {
-            self.thickness = 1.0;
-        }
-        Ok(self)
-    }
-
-    /// Sets total stress analysis or effective stress analysis
-    pub fn set_total_stress(&mut self, flag: bool) -> Result<&mut Self, StrError> {
-        self.total_stress = flag;
-        Ok(self)
-    }
-
-    /// Sets stress initialization option
-    pub fn set_initialization(&mut self, option: Init) -> Result<&mut Self, StrError> {
-        match option {
             Init::Geostatic(overburden) => {
                 if overburden > 0.0 {
-                    return Err("overburden stress must be negative (compressive)");
+                    return Some(format!(
+                        "overburden stress = {:?} is incorrect; it must be ≤ 0.0 (compressive)",
+                        overburden
+                    ));
                 }
                 if self.plane_stress {
-                    return Err("cannot set Init::Geostatic with plane_stress");
+                    return Some("Init::Geostatic does not work with plane-stress".to_string());
                 }
             }
             Init::Isotropic(..) => {
                 if self.plane_stress {
-                    return Err("cannot set Init::Isotropic with plane_stress");
+                    return Some("Init::Isotropic does not work with plane-stress".to_string());
                 }
             }
             _ => (),
         }
-        self.initialization = option;
-        Ok(self)
-    }
-
-    /// Sets parameters for elements
-    pub fn set_param_elements(
-        &mut self,
-        attribute_id: CellAttributeId,
-        param_element: ParamElement,
-    ) -> Result<&mut Self, StrError> {
-        self.param_elements.insert(attribute_id, param_element);
-        Ok(self)
-    }
-
-    /// Sets parameters for fluids
-    pub fn set_param_fluids(&mut self, param_fluids: ParamFluids) -> Result<&mut Self, StrError> {
-        self.param_fluids = Some(param_fluids);
-        Ok(self)
+        None
     }
 
     /// Returns the initial overburden stress (negative means compression)
@@ -162,26 +127,31 @@ impl fmt::Display for Config {
 mod tests {
     use super::Config;
     use crate::base::{Init, ParamElement, ParamFluids, ParamRealDensity, ParamSolid, ParamStressStrain};
-    use crate::StrError;
 
     #[test]
-    fn new_works() -> Result<(), StrError> {
-        let mut config = Config::new();
-        config.set_initialization(Init::Zero)?;
+    fn new_works() {
+        let config = Config::new();
+        assert_eq!(config.gravity, 0.0);
+        assert_eq!(config.thickness, 1.0);
+        assert_eq!(config.plane_stress, false);
+        assert_eq!(config.total_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
         let mut config = Config::new();
 
-        let solid = ParamSolid {
-            density: 2.7, // Mg/m²
-            stress_strain: ParamStressStrain::LinearElastic {
-                young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
-            },
-            n_integ_point: None,
-        };
+        config.param_elements.insert(
+            1, // attribute_id
+            ParamElement::Solid(ParamSolid {
+                density: 2.7, // Mg/m²
+                stress_strain: ParamStressStrain::LinearElastic {
+                    young: 10_000.0, // kPa
+                    poisson: 0.2,    // [-]
+                },
+                n_integ_point: None,
+            }),
+        );
 
-        let fluids = ParamFluids {
+        config.param_fluids = Some(ParamFluids {
             density_liquid: ParamRealDensity {
                 cc: 4.53e-7,  // Mg/(m³ kPa)
                 p_ref: 0.0,   // kPa
@@ -189,17 +159,13 @@ mod tests {
                 tt_ref: 25.0, // ℃
             },
             density_gas: None,
-        };
+        });
 
-        config
-            .set_gravity(10.0)? // m/s²
-            .set_thickness(1.0)?
-            .set_plane_stress(true)?
-            .set_plane_stress(false)?
-            .set_total_stress(true)?
-            .set_initialization(Init::Geostatic(-123.0))?
-            .set_param_fluids(fluids)?
-            .set_param_elements(1, ParamElement::Solid(solid))?;
+        config.gravity = 10.0; // m/s²
+        config.thickness = 1.0;
+        config.plane_stress = true;
+        config.total_stress = true;
+        config.initialization = Init::Geostatic(-123.0);
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
 
@@ -209,7 +175,7 @@ mod tests {
              ==================\n\
              gravity = 10.0\n\
              thickness = 1.0\n\
-             plane_stress = false\n\
+             plane_stress = true\n\
              total_stress = true\n\
              initialization = Geostatic(-123.0)\n\
              \n\
@@ -221,39 +187,64 @@ mod tests {
              =====================\n\
              Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })\n"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn catch_some_errors_2d() -> Result<(), StrError> {
+    fn validate_works() {
         let mut config = Config::new();
-        assert_eq!(config.set_gravity(-10.0).err(), Some("gravity must be ≥ 0.0"));
-        assert_eq!(config.set_thickness(0.0).err(), Some("thickness must be > 0.0"));
+
+        config.gravity = -10.0;
         assert_eq!(
-            config.set_initialization(Init::Geostatic(10.0)).err(),
-            Some("overburden stress must be negative (compressive)")
+            config.validate(2),
+            Some("gravity = -10.0 is incorrect; it must be ≥ 0.0".to_string())
         );
-        config.set_plane_stress(true)?;
+        config.gravity = 10.0;
+
+        config.thickness = 0.0;
         assert_eq!(
-            config.set_initialization(Init::Geostatic(-10.0)).err(),
-            Some("cannot set Init::Geostatic with plane_stress")
+            config.validate(2),
+            Some("thickness = 0.0 is incorrect; it must be > 0.0".to_string())
         );
+        config.thickness = 1.0;
+
+        config.plane_stress = true;
+        assert_eq!(config.validate(3), Some("plane-stress does not work in 3D".to_string()));
+
+        config.plane_stress = false;
+        config.thickness = 0.5;
         assert_eq!(
-            config.set_initialization(Init::Isotropic(-1.0)).err(),
-            Some("cannot set Init::Isotropic with plane_stress")
+            config.validate(2),
+            Some("thickness = 0.5 is incorrect; it must be = 1.0 for plane-strain or 3D".to_string())
         );
-        config.set_plane_stress(false)?;
-        config.set_initialization(Init::Geostatic(-10.0))?;
+        config.thickness = 1.0;
+
+        config.initialization = Init::Geostatic(123.0);
         assert_eq!(
-            config.set_plane_stress(true).err(),
-            Some("cannot set plane_stress with Init::Geostatic")
+            config.validate(2),
+            Some("overburden stress = 123.0 is incorrect; it must be ≤ 0.0 (compressive)".to_string())
         );
-        config.set_initialization(Init::Isotropic(-1.0))?;
+
+        config.plane_stress = true;
+        config.initialization = Init::Geostatic(-123.0);
         assert_eq!(
-            config.set_plane_stress(true).err(),
-            Some("cannot set plane_stress with Init::Isotropic")
+            config.validate(2),
+            Some("Init::Geostatic does not work with plane-stress".to_string())
         );
-        Ok(())
+
+        config.plane_stress = false;
+        assert_eq!(config.validate(2), None);
+
+        config.plane_stress = true;
+        config.initialization = Init::Isotropic(-123.0);
+        assert_eq!(
+            config.validate(2),
+            Some("Init::Isotropic does not work with plane-stress".to_string())
+        );
+
+        config.plane_stress = false;
+        assert_eq!(config.validate(2), None);
+
+        config.initialization = Init::Zero;
+        assert_eq!(config.validate(2), None);
     }
 }
