@@ -37,7 +37,7 @@ impl BoundaryConditions {
     }
 
     /// Sets essential boundary condition at points
-    pub fn set_ebc_points(
+    pub fn set_essential_at_points(
         &mut self,
         region: &Region,
         ids: &HashSet<PointId>,
@@ -57,7 +57,7 @@ impl BoundaryConditions {
     }
 
     /// Sets essential boundary condition at edges
-    pub fn set_ebc_edges(
+    pub fn set_essential_at_edges(
         &mut self,
         region: &Region,
         keys: &HashSet<EdgeKey>,
@@ -80,7 +80,7 @@ impl BoundaryConditions {
     }
 
     /// Sets essential boundary condition at faces
-    pub fn set_ebc_faces(
+    pub fn set_essential_at_faces(
         &mut self,
         region: &Region,
         keys: &HashSet<FaceKey>,
@@ -106,7 +106,7 @@ impl BoundaryConditions {
     }
 
     /// Sets natural boundary condition at points
-    pub fn set_nbc_points(
+    pub fn set_natural_at_points(
         &mut self,
         region: &Region,
         ids: &HashSet<PointId>,
@@ -124,7 +124,7 @@ impl BoundaryConditions {
     }
 
     /// Sets natural boundary condition at edges
-    pub fn set_nbc_edges(
+    pub fn set_natural_at_edges(
         &mut self,
         region: &Region,
         keys: &HashSet<EdgeKey>,
@@ -145,7 +145,7 @@ impl BoundaryConditions {
     }
 
     /// Sets natural boundary condition at faces
-    pub fn set_nbc_faces(
+    pub fn set_natural_at_faces(
         &mut self,
         region: &Region,
         keys: &HashSet<FaceKey>,
@@ -240,32 +240,44 @@ mod tests {
     fn catch_some_errors_2d() -> Result<(), StrError> {
         let mesh = SampleMeshes::two_tri3();
         let region = Region::with(&mesh, Extract::Boundary)?;
-        let mut bcs = BoundaryConditions::new();
+        let mut conditions = BoundaryConditions::new();
         let point_ids = HashSet::from([10]);
         let edge_keys = HashSet::from([(8, 80)]);
         let face_keys = HashSet::from([(100, 200, 300, 400)]);
         assert_eq!(
-            bcs.set_ebc_points(&region, &point_ids, &[Dof::Ux], zero).err(),
+            conditions
+                .set_essential_at_points(&region, &point_ids, &[Dof::Ux], zero)
+                .err(),
             Some("cannot find point in region.features.points to set EBC")
         );
         assert_eq!(
-            bcs.set_ebc_edges(&region, &edge_keys, &[Dof::Ux], zero).err(),
+            conditions
+                .set_essential_at_edges(&region, &edge_keys, &[Dof::Ux], zero)
+                .err(),
             Some("cannot find edge in region.features.edges to set EBC")
         );
         assert_eq!(
-            bcs.set_ebc_faces(&region, &face_keys, &[Dof::Ux], zero).err(),
+            conditions
+                .set_essential_at_faces(&region, &face_keys, &[Dof::Ux], zero)
+                .err(),
             Some("cannot set face EBC in 2D")
         );
         assert_eq!(
-            bcs.set_nbc_points(&region, &point_ids, Pbc::Fx, zero).err(),
+            conditions
+                .set_natural_at_points(&region, &point_ids, Pbc::Fx, zero)
+                .err(),
             Some("cannot find point in region.features.points to set NBC")
         );
         assert_eq!(
-            bcs.set_nbc_edges(&region, &edge_keys, Nbc::Qn, zero).err(),
+            conditions
+                .set_natural_at_edges(&region, &edge_keys, Nbc::Qn, zero)
+                .err(),
             Some("cannot find edge in region.features.edges to set NBC")
         );
         assert_eq!(
-            bcs.set_nbc_faces(&region, &face_keys, Nbc::Qn, zero).err(),
+            conditions
+                .set_natural_at_faces(&region, &face_keys, Nbc::Qn, zero)
+                .err(),
             Some("cannot set face NBC in 2D")
         );
         Ok(())
@@ -275,19 +287,25 @@ mod tests {
     fn catch_some_errors_3d() -> Result<(), StrError> {
         let mesh = SampleMeshes::one_cube();
         let region = Region::with(&mesh, Extract::Boundary)?;
-        let mut bcs = BoundaryConditions::new();
+        let mut conditions = BoundaryConditions::new();
         let edge_keys = HashSet::from([(0, 1)]);
         let face_keys = HashSet::from([(100, 200, 300, 400)]);
         assert_eq!(
-            bcs.set_nbc_edges(&region, &edge_keys, Nbc::Qn, zero).err(),
+            conditions
+                .set_natural_at_edges(&region, &edge_keys, Nbc::Qn, zero)
+                .err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
         assert_eq!(
-            bcs.set_ebc_faces(&region, &face_keys, &[Dof::Ux], zero).err(),
+            conditions
+                .set_essential_at_faces(&region, &face_keys, &[Dof::Ux], zero)
+                .err(),
             Some("cannot find face in region.features.faces to set EBC")
         );
         assert_eq!(
-            bcs.set_nbc_faces(&region, &face_keys, Nbc::Qn, zero).err(),
+            conditions
+                .set_natural_at_faces(&region, &face_keys, Nbc::Qn, zero)
+                .err(),
             Some("cannot find face in region.features.faces to set NBC")
         );
         Ok(())
@@ -307,15 +325,16 @@ mod tests {
         let fy = |_, _, _| -10.0;
         let qn = |_, _, _| -1.0;
 
-        let mut bcs = BoundaryConditions::new();
-        bcs.set_ebc_points(&region, &origin, &[Dof::Ux, Dof::Uy], zero)?
-            .set_ebc_edges(&region, &bottom, &[Dof::Uy], zero)?
-            .set_ebc_edges(&region, &left, &[Dof::Ux], zero)?
-            .set_nbc_points(&region, &corner, Pbc::Fy, fy)?
-            .set_nbc_edges(&region, &top, Nbc::Qn, qn)?;
+        let mut conditions = BoundaryConditions::new();
+        conditions
+            .set_essential_at_points(&region, &origin, &[Dof::Ux, Dof::Uy], zero)?
+            .set_essential_at_edges(&region, &bottom, &[Dof::Uy], zero)?
+            .set_essential_at_edges(&region, &left, &[Dof::Ux], zero)?
+            .set_natural_at_points(&region, &corner, Pbc::Fy, fy)?
+            .set_natural_at_edges(&region, &top, Nbc::Qn, qn)?;
 
         assert_eq!(
-            format!("{}", bcs),
+            format!("{}", conditions),
             "Essential boundary conditions\n\
              =============================\n\
              (0, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
@@ -352,16 +371,17 @@ mod tests {
         let top = region.find.faces(At::Z(1.0))?;
         let corner = region.find.points(At::XYZ(1.0, 1.0, 1.0))?;
 
-        let mut bcs = BoundaryConditions::new();
-        bcs.set_ebc_points(&region, &origin, &[Dof::Ux, Dof::Uy, Dof::Uz], zero)?
-            .set_ebc_faces(&region, &x_zero, &[Dof::Ux], zero)?
-            .set_ebc_faces(&region, &y_zero, &[Dof::Uy], zero)?
-            .set_ebc_faces(&region, &z_zero, &[Dof::Uz], zero)?
-            .set_nbc_faces(&region, &top, Nbc::Qn, qn)?
-            .set_nbc_points(&region, &corner, Pbc::Fz, fz)?;
+        let mut conditions = BoundaryConditions::new();
+        conditions
+            .set_essential_at_points(&region, &origin, &[Dof::Ux, Dof::Uy, Dof::Uz], zero)?
+            .set_essential_at_faces(&region, &x_zero, &[Dof::Ux], zero)?
+            .set_essential_at_faces(&region, &y_zero, &[Dof::Uy], zero)?
+            .set_essential_at_faces(&region, &z_zero, &[Dof::Uz], zero)?
+            .set_natural_at_faces(&region, &top, Nbc::Qn, qn)?
+            .set_natural_at_points(&region, &corner, Pbc::Fz, fz)?;
 
         assert_eq!(
-            format!("{}", bcs),
+            format!("{}", conditions),
             "Essential boundary conditions\n\
              =============================\n\
              (0, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
