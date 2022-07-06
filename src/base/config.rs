@@ -82,7 +82,7 @@ impl Config {
             }
             _ => (),
         }
-        None
+        None // all good
     }
 
     /// Returns the initial overburden stress (negative means compression)
