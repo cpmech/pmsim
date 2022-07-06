@@ -118,26 +118,22 @@ impl SampleMeshes {
 #[cfg(test)]
 mod tests {
     use super::SampleMeshes;
+
+    #[allow(unused_imports)]
     use gemlab::mesh::draw_mesh;
 
     #[test]
     fn sample_meshes_are_ok() {
         let mesh = SampleMeshes::two_tri3();
         assert_eq!(mesh.cells.len(), 2);
-        if false {
-            draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_two_tri3.svg").unwrap();
-        }
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_two_tri3.svg").unwrap();
 
         let mesh = SampleMeshes::three_tri3();
         assert_eq!(mesh.cells.len(), 3);
-        if false {
-            draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_three_tri3.svg").unwrap();
-        }
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_three_tri3.svg").unwrap();
 
         let mesh = SampleMeshes::one_hex8();
         assert_eq!(mesh.cells.len(), 1);
-        if false {
-            draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_one_hex8.svg").unwrap();
-        }
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_one_hex8.svg").unwrap();
     }
 }
