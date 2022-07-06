@@ -10,8 +10,8 @@ use std::fmt;
 /// the local (e.g., texture) coordinates on the boundary
 pub type FnBc = fn(t: f64, u: f64, v: f64) -> f64;
 
-/// Holds boundary conditions
-pub struct BoundaryConditions {
+/// Collects all boundary conditions
+pub struct Conditions {
     /// Essential boundary conditions
     pub essential: HashMap<(PointId, Dof), FnBc>,
 
@@ -25,10 +25,10 @@ pub struct BoundaryConditions {
     pub natural_face: HashMap<(FaceKey, Nbc), FnBc>,
 }
 
-impl BoundaryConditions {
+impl Conditions {
     /// Allocates a new instance
     pub fn new() -> Self {
-        BoundaryConditions {
+        Conditions {
             essential: HashMap::new(),
             natural_point: HashMap::new(),
             natural_edge: HashMap::new(),
@@ -171,7 +171,7 @@ pub fn zero(_: f64, _: f64, _: f64) -> f64 {
     0.0
 }
 
-impl fmt::Display for BoundaryConditions {
+impl fmt::Display for Conditions {
     /// Prints a formatted summary of Boundary Conditions
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Essential boundary conditions\n").unwrap();
@@ -225,7 +225,7 @@ impl fmt::Display for BoundaryConditions {
 
 #[cfg(test)]
 mod tests {
-    use super::{zero, BoundaryConditions};
+    use super::{zero, Conditions};
     use crate::base::{Dof, Nbc, Pbc, SampleMeshes};
     use crate::StrError;
     use gemlab::mesh::{At, Extract, Region};
@@ -240,7 +240,7 @@ mod tests {
     fn catch_some_errors_2d() -> Result<(), StrError> {
         let mesh = SampleMeshes::two_tri3();
         let region = Region::with(&mesh, Extract::Boundary)?;
-        let mut conditions = BoundaryConditions::new();
+        let mut conditions = Conditions::new();
         let point_ids = HashSet::from([10]);
         let edge_keys = HashSet::from([(8, 80)]);
         let face_keys = HashSet::from([(100, 200, 300, 400)]);
@@ -287,7 +287,7 @@ mod tests {
     fn catch_some_errors_3d() -> Result<(), StrError> {
         let mesh = SampleMeshes::one_cube();
         let region = Region::with(&mesh, Extract::Boundary)?;
-        let mut conditions = BoundaryConditions::new();
+        let mut conditions = Conditions::new();
         let edge_keys = HashSet::from([(0, 1)]);
         let face_keys = HashSet::from([(100, 200, 300, 400)]);
         assert_eq!(
@@ -325,7 +325,7 @@ mod tests {
         let fy = |_, _, _| -10.0;
         let qn = |_, _, _| -1.0;
 
-        let mut conditions = BoundaryConditions::new();
+        let mut conditions = Conditions::new();
         conditions
             .set_essential_at_points(&region, &origin, &[Dof::Ux, Dof::Uy], zero)?
             .set_essential_at_edges(&region, &bottom, &[Dof::Uy], zero)?
@@ -371,7 +371,7 @@ mod tests {
         let top = region.find.faces(At::Z(1.0))?;
         let corner = region.find.points(At::XYZ(1.0, 1.0, 1.0))?;
 
-        let mut conditions = BoundaryConditions::new();
+        let mut conditions = Conditions::new();
         conditions
             .set_essential_at_points(&region, &origin, &[Dof::Ux, Dof::Uy, Dof::Uz], zero)?
             .set_essential_at_faces(&region, &x_zero, &[Dof::Ux], zero)?
