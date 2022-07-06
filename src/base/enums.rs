@@ -83,11 +83,21 @@ pub enum Init {
     Zero,
 }
 
+/// Defines the element type
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
+pub enum Element {
+    Rod,
+    Beam,
+    Solid,
+    Porous,
+    Seepage,
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-    use super::{Dof, Init, Nbc, Pbc};
+    use super::{Dof, Element, Init, Nbc, Pbc};
     use std::{cmp::Ordering, collections::HashSet};
 
     #[test]
@@ -140,5 +150,21 @@ mod tests {
         let init = Init::Geostatic(123.456);
         let init_clone = init.clone();
         assert_eq!(format!("{:?}", init_clone), format!("{:?}", init));
+    }
+
+    #[test]
+    fn element_derive_works() {
+        let rod = Element::Rod;
+        let rod_clone = rod.clone();
+        assert_eq!(format!("{:?}", rod), "Rod");
+        assert_eq!(rod, rod_clone);
+
+        let beam = Element::Beam;
+        assert!(rod < beam);
+        assert_eq!(rod.cmp(&beam), Ordering::Less);
+
+        let mut set = HashSet::new();
+        set.insert(rod);
+        assert_eq!(set.len(), 1);
     }
 }
