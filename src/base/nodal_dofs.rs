@@ -36,6 +36,7 @@ impl NodalDofs {
         }
     }
 
+    /// Sets the nodal DOFs for a pair of (Element,GeoKind)
     pub fn set(&mut self, element: Element, kind: GeoKind) -> Result<(), StrError> {
         // check consistency
         let rod_or_beam = element == Element::Rod || element == Element::Beam;
@@ -125,6 +126,11 @@ impl NodalDofs {
         self.all.insert(*key, dofs);
         Ok(())
     }
+
+    /// Gets the nodal DOFs for a pair of (Element,GeoKind)
+    pub fn get(&self, element: Element, kind: GeoKind) -> Option<&Vec<Vec<Dof>>> {
+        self.all.get(&(element, kind))
+    }
 }
 
 impl fmt::Display for NodalDofs {
@@ -147,7 +153,7 @@ impl fmt::Display for NodalDofs {
 #[cfg(test)]
 mod tests {
     use super::NodalDofs;
-    use crate::base::Element;
+    use crate::base::{Dof, Element};
     use crate::StrError;
     use gemlab::shapes::GeoKind;
 
@@ -177,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    pub fn set_works_2d() -> Result<(), StrError> {
+    pub fn set_and_get_work_2d() -> Result<(), StrError> {
         let mut nodal_dofs = NodalDofs::new(2);
         nodal_dofs.set(Element::Rod, GeoKind::Lin2)?;
         nodal_dofs.set(Element::Beam, GeoKind::Lin2)?;
@@ -198,11 +204,16 @@ mod tests {
              (PorousSldLiq, Tri6) → [[Ux, Uy, Pl], [Ux, Uy, Pl], [Ux, Uy, Pl], [Ux, Uy], [Ux, Uy], [Ux, Uy]]\n\
              (PorousSldLiqGas, Tri6) → [[Ux, Uy, Pl, Pg], [Ux, Uy, Pl, Pg], [Ux, Uy, Pl, Pg], [Ux, Uy], [Ux, Uy], [Ux, Uy]]\n"
         );
+        assert_eq!(
+            nodal_dofs.get(Element::Rod, GeoKind::Lin2),
+            Some(&vec![vec![Dof::Ux, Dof::Uy], vec![Dof::Ux, Dof::Uy]])
+        );
+        assert_eq!(nodal_dofs.get(Element::PorousLiq, GeoKind::Qua4), None);
         Ok(())
     }
 
     #[test]
-    pub fn set_works_3d() -> Result<(), StrError> {
+    pub fn set_and_get_work_3d() -> Result<(), StrError> {
         let mut nodal_dofs = NodalDofs::new(3);
         nodal_dofs.set(Element::Rod, GeoKind::Lin2)?;
         nodal_dofs.set(Element::Beam, GeoKind::Lin2)?;
@@ -223,6 +234,11 @@ mod tests {
              (PorousSldLiq, Tri6) → [[Ux, Uy, Uz, Pl], [Ux, Uy, Uz, Pl], [Ux, Uy, Uz, Pl], [Ux, Uy, Uz], [Ux, Uy, Uz], [Ux, Uy, Uz]]\n\
              (PorousSldLiqGas, Tri6) → [[Ux, Uy, Uz, Pl, Pg], [Ux, Uy, Uz, Pl, Pg], [Ux, Uy, Uz, Pl, Pg], [Ux, Uy, Uz], [Ux, Uy, Uz], [Ux, Uy, Uz]]\n"
         );
+        assert_eq!(
+            nodal_dofs.get(Element::Rod, GeoKind::Lin2),
+            Some(&vec![vec![Dof::Ux, Dof::Uy, Dof::Uz], vec![Dof::Ux, Dof::Uy, Dof::Uz]])
+        );
+        assert_eq!(nodal_dofs.get(Element::PorousLiq, GeoKind::Qua4), None);
         Ok(())
     }
 }
