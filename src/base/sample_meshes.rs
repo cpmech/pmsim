@@ -20,7 +20,7 @@ impl SampleMeshes {
     ///     0.0          1.0
     /// ```
     ///
-    /// ![test_mesh_two_tri3.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_two_tri3.svg)
+    /// ![two_tri3.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_two_tri3.svg)
     #[rustfmt::skip]
     pub fn two_tri3() -> Mesh {
         Mesh {
@@ -52,7 +52,7 @@ impl SampleMeshes {
     ///               1
     /// ```
     ///
-    /// ![test_mesh_three_tri3.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_three_tri3.svg)
+    /// ![three_tri3.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_three_tri3.svg)
     #[rustfmt::skip]
     pub fn three_tri3() -> Mesh {
         Mesh {
@@ -68,6 +68,43 @@ impl SampleMeshes {
                 Cell { id: 0, attribute_id: 1, kind: GeoKind::Tri3, points: vec![0, 1, 4] },
                 Cell { id: 1, attribute_id: 1, kind: GeoKind::Tri3, points: vec![1, 3, 4] },
                 Cell { id: 2, attribute_id: 1, kind: GeoKind::Tri3, points: vec![1, 2, 3] },
+            ],
+        }
+    }
+
+    /// Returns a mesh with two Tri3 and one Qua4
+    ///
+    /// ```text
+    ///      y
+    ///      ^
+    /// 1.0  3------------2------------5
+    ///      |`.      [1] |            |    [#] indicates id
+    ///      |  `.    (1) |            |    (#) indicates attribute_id
+    ///      |    `.      |     [2]    |
+    ///      |      `.    |     (2)    |
+    ///      | [0]    `.  |            |
+    ///      | (1)      `.|            |
+    /// 0.0  0------------1------------4 -> x
+    ///     0.0          1.0          2.0
+    /// ```
+    ///
+    /// ![two_tri3_one_qua4.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_two_tri3_one_qua4.svg)
+    #[rustfmt::skip]
+    pub fn two_tri3_one_qua4() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, coords: vec![0.0, 0.0] },
+                Point { id: 1, coords: vec![1.0, 0.0] },
+                Point { id: 2, coords: vec![1.0, 1.0] },
+                Point { id: 3, coords: vec![0.0, 1.0] },
+                Point { id: 4, coords: vec![2.0, 0.0] },
+                Point { id: 5, coords: vec![2.0, 1.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Tri3, points: vec![0, 1, 3] },
+                Cell { id: 1, attribute_id: 1, kind: GeoKind::Tri3, points: vec![2, 3, 1] },
+                Cell { id: 2, attribute_id: 2, kind: GeoKind::Qua4, points: vec![1, 4, 5, 2] },
             ],
         }
     }
@@ -91,7 +128,7 @@ impl SampleMeshes {
     /// 0.0            1.0
     /// ```
     ///
-    /// ![test_mesh_one_hex8.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_one_hex8.svg)
+    /// ![one_hex8.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_one_hex8.svg)
     #[rustfmt::skip]
     pub fn one_hex8() -> Mesh {
         Mesh {
@@ -131,6 +168,10 @@ mod tests {
         let mesh = SampleMeshes::three_tri3();
         assert_eq!(mesh.cells.len(), 3);
         // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_three_tri3.svg").unwrap();
+
+        let mesh = SampleMeshes::two_tri3_one_qua4();
+        assert_eq!(mesh.cells.len(), 3);
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_two_tri3_one_qua4.svg").unwrap();
 
         let mesh = SampleMeshes::one_hex8();
         assert_eq!(mesh.cells.len(), 1);
