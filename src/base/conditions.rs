@@ -176,10 +176,10 @@ impl fmt::Display for Conditions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Essential boundary conditions\n").unwrap();
         write!(f, "=============================\n").unwrap();
-        let mut keys: Vec<_> = self.essential.keys().copied().collect();
+        let mut keys: Vec<_> = self.essential.keys().collect();
         keys.sort();
         for key in keys {
-            let fbc = self.essential.get(&key).unwrap();
+            let fbc = self.essential.get(key).unwrap();
             let f0 = fbc(0.0, 0.0, 0.0);
             let f1 = fbc(0.0, 0.0, 0.0);
             write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
@@ -187,10 +187,10 @@ impl fmt::Display for Conditions {
 
         write!(f, "\nNatural boundary conditions at points\n").unwrap();
         write!(f, "=====================================\n").unwrap();
-        let mut keys: Vec<_> = self.natural_point.keys().copied().collect();
+        let mut keys: Vec<_> = self.natural_point.keys().collect();
         keys.sort();
         for key in keys {
-            let fbc = self.natural_point.get(&key).unwrap();
+            let fbc = self.natural_point.get(key).unwrap();
             let f0 = fbc(0.0, 0.0, 0.0);
             let f1 = fbc(0.0, 0.0, 0.0);
             write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
@@ -198,10 +198,10 @@ impl fmt::Display for Conditions {
 
         write!(f, "\nNatural boundary conditions at edges\n").unwrap();
         write!(f, "====================================\n").unwrap();
-        let mut keys: Vec<_> = self.natural_edge.keys().copied().collect();
+        let mut keys: Vec<_> = self.natural_edge.keys().collect();
         keys.sort();
         for key in keys {
-            let fbc = self.natural_edge.get(&key).unwrap();
+            let fbc = self.natural_edge.get(key).unwrap();
             let f0 = fbc(0.0, 0.0, 0.0);
             let f1 = fbc(0.0, 0.0, 0.0);
             write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
@@ -209,10 +209,10 @@ impl fmt::Display for Conditions {
 
         write!(f, "\nNatural boundary conditions at faces\n").unwrap();
         write!(f, "====================================\n").unwrap();
-        let mut keys: Vec<_> = self.natural_face.keys().copied().collect();
+        let mut keys: Vec<_> = self.natural_face.keys().collect();
         keys.sort();
         for key in keys {
-            let fbc = self.natural_face.get(&key).unwrap();
+            let fbc = self.natural_face.get(key).unwrap();
             let f0 = fbc(0.0, 0.0, 0.0);
             let f1 = fbc(0.0, 0.0, 0.0);
             write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
