@@ -41,15 +41,15 @@ impl SampleMeshes {
     /// Returns a mesh with three Tri3
     ///
     /// ```text
-    ///         4---.__
-    ///        / \     `--.___3
-    ///       /   \          / \
-    ///      /     \  [1]   /   \
-    ///     /  [0]  \      /     \
-    ///    /         \    /  [2]  \
-    ///   0---.__     \  /      ___2
-    ///          `--.__\/__.---'
-    ///                 1
+    ///       4---.__
+    ///      / \     `--.___3    [#] indicates id
+    ///     /   \          / \   (#) indicates attribute_id
+    ///    /     \  [1]   /   \
+    ///   /  [0]  \ (1)  / [2] \
+    ///  /   (1)   \    /  (1)  \
+    /// 0---.__     \  /      ___2
+    ///        `--.__\/__.---'
+    ///               1
     /// ```
     ///
     /// ![test_mesh_three_tri3.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_three_tri3.svg)
