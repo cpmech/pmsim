@@ -1,7 +1,9 @@
-use super::{Dof, Equation};
+use super::{Equation, NodalDofs};
+use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::Vector;
 
+/// Implements functions to perform the assembly process
 pub struct Assemble {
     /// Holds all local-to-global mappings (ncell x n_local_equation)
     pub local_to_global: Vec<Vec<usize>>,
@@ -11,21 +13,31 @@ pub struct Assemble {
 }
 
 impl Assemble {
-    // cell_dofs [ncell][nnode]
-    pub fn new(mesh: &Mesh, equation: &Equation, cell_dofs: &Vec<Vec<Dof>>) -> Self {
+    /// Allocates a new instance
+    pub fn new(mesh: &Mesh, nodal_dofs: &NodalDofs, equation: &Equation) -> Result<Self, StrError> {
         let mut local_to_global = vec![Vec::new(); mesh.cells.len()];
         for cell in &mesh.cells {
+            let dofs = match nodal_dofs.get(cell.attribute_id, cell.kind) {
+                Some(d) => d,
+                None => return Err("cannot find nodal DOFs for given (CellAttributeId,GeoKind)"),
+            };
             for m in 0..cell.points.len() {
-                let eid = equation.id(cell.points[m], cell_dofs[cell.id][m]).unwrap();
-                local_to_global[cell.id].push(eid);
+                for dof in &dofs[m] {
+                    let eid = match equation.id(cell.points[m], *dof) {
+                        Some(e) => e,
+                        None => return Err("cannot find equation id for given (PointId,DOF)"),
+                    };
+                    local_to_global[cell.id].push(eid);
+                }
             }
         }
-        Assemble {
+        Ok(Assemble {
             local_to_global,
             prescribed: vec![false; equation.len()],
-        }
+        })
     }
 
+    /// Assembles local vector into global vector
     pub fn vector(&self, global: &mut Vector, local: &Vector, cell_id: CellId) {
         for i in 0..local.dim() {
             let g = self.local_to_global[cell_id][i];
@@ -41,33 +53,26 @@ impl Assemble {
 #[cfg(test)]
 mod tests {
     use super::Assemble;
-    use crate::base::{Dof, Equation, SampleMeshes};
+    use crate::base::{AttrElement, Element, Equation, NodalDofs, SampleMeshes};
+    use crate::StrError;
     use russell_lab::Vector;
 
     #[test]
-    fn new_and_vector_works() {
+    fn assemble_works() -> Result<(), StrError> {
         //       {2}4---.__
-        //         / \     `--.___3{3}
-        //        /   \          / \
-        //       /     \  [1]   /   \    {#} means equation id
-        //      /  [0]  \      /     \
-        //     /         \    /  [2]  \
+        //         / \     `--.___3{3}   [#] indicates id
+        //        /   \          / \     (#) indicates attribute_id
+        //       /     \  [1]   /   \    {#} indicates equation id
+        //      /  [0]  \ (1)  / [2] \
+        //     /   (1)   \    /  (1)  \
         // {0}0---.__     \  /      ___2{4}
         //           `--.__\/__.---'
         //               {1}1
         let mesh = SampleMeshes::three_tri3();
-        let mut equation = Equation::new(mesh.points.len());
-        let cell_dofs = vec![
-            vec![Dof::T, Dof::T, Dof::T],
-            vec![Dof::T, Dof::T, Dof::T],
-            vec![Dof::T, Dof::T, Dof::T],
-        ];
-        mesh.cells.iter().zip(&cell_dofs).for_each(|(cell, dofs)| {
-            cell.points.iter().zip(dofs).for_each(|(point_id, dof)| {
-                equation.activate(*point_id, *dof);
-            });
-        });
-        let assemble = Assemble::new(&mesh, &equation, &cell_dofs);
+        let attr_element = AttrElement::from([(1, Element::PorousLiq)]);
+        let nodal_dofs = NodalDofs::new(&mesh, &attr_element).unwrap();
+        let equation = Equation::new(&mesh, &nodal_dofs).unwrap();
+        let assemble = Assemble::new(&mesh, &nodal_dofs, &equation)?;
         assert_eq!(assemble.local_to_global, &[[0, 1, 2], [1, 3, 2], [1, 4, 3]]);
 
         let mut global = Vector::new(equation.len());
@@ -78,5 +83,6 @@ mod tests {
         assemble.vector(&mut global, &local_1, 1);
         assemble.vector(&mut global, &local_2, 2);
         assert_eq!(global.as_data(), &[10.0, 312111.0, 2414.0, 332300.0, 320000.0]);
+        Ok(())
     }
 }
