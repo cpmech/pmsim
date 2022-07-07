@@ -24,7 +24,7 @@ pub struct NodalDofs {
     ndim: usize,
 
     /// Holds all combinations
-    all: HashMap<(Element, GeoKind), Vec<Vec<Dof>>>,
+    pub all: HashMap<(Element, GeoKind), Vec<Vec<Dof>>>,
 }
 
 impl NodalDofs {
@@ -126,11 +126,6 @@ impl NodalDofs {
         self.all.insert(*key, dofs);
         Ok(())
     }
-
-    /// Gets the nodal DOFs for a pair of (Element,GeoKind)
-    pub fn get(&self, element: Element, kind: GeoKind) -> Option<&Vec<Vec<Dof>>> {
-        self.all.get(&(element, kind))
-    }
 }
 
 impl fmt::Display for NodalDofs {
@@ -205,10 +200,10 @@ mod tests {
              (PorousSldLiqGas, Tri6) → [[Ux, Uy, Pl, Pg], [Ux, Uy, Pl, Pg], [Ux, Uy, Pl, Pg], [Ux, Uy], [Ux, Uy], [Ux, Uy]]\n"
         );
         assert_eq!(
-            nodal_dofs.get(Element::Rod, GeoKind::Lin2),
+            nodal_dofs.all.get(&(Element::Rod, GeoKind::Lin2)),
             Some(&vec![vec![Dof::Ux, Dof::Uy], vec![Dof::Ux, Dof::Uy]])
         );
-        assert_eq!(nodal_dofs.get(Element::PorousLiq, GeoKind::Qua4), None);
+        assert_eq!(nodal_dofs.all.get(&(Element::PorousLiq, GeoKind::Qua4)), None);
         Ok(())
     }
 
@@ -235,10 +230,10 @@ mod tests {
              (PorousSldLiqGas, Tri6) → [[Ux, Uy, Uz, Pl, Pg], [Ux, Uy, Uz, Pl, Pg], [Ux, Uy, Uz, Pl, Pg], [Ux, Uy, Uz], [Ux, Uy, Uz], [Ux, Uy, Uz]]\n"
         );
         assert_eq!(
-            nodal_dofs.get(Element::Rod, GeoKind::Lin2),
+            nodal_dofs.all.get(&(Element::Rod, GeoKind::Lin2)),
             Some(&vec![vec![Dof::Ux, Dof::Uy, Dof::Uz], vec![Dof::Ux, Dof::Uy, Dof::Uz]])
         );
-        assert_eq!(nodal_dofs.get(Element::PorousLiq, GeoKind::Qua4), None);
+        assert_eq!(nodal_dofs.all.get(&(Element::PorousLiq, GeoKind::Qua4)), None);
         Ok(())
     }
 }
