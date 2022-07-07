@@ -1,4 +1,6 @@
+use gemlab::mesh::CellAttributeId;
 use gemlab::shapes::GeoKind;
+use std::collections::HashMap;
 
 /// Defines the total number of available/possible DOFs per node
 pub const NDOF_PER_NODE_TOTAL: usize = 10;
@@ -111,6 +113,9 @@ pub const POROUS_SLD_GEO_KIND_ALLOWED: [GeoKind; 7] = [
     // Hex
     GeoKind::Hex20,
 ];
+
+/// Maps cells attribute id to element types
+pub type AttrElement = HashMap<CellAttributeId, Element>;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
