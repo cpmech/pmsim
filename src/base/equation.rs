@@ -1,7 +1,7 @@
-use super::{Dof, NDOF_PER_NODE_TOTAL};
-use gemlab::mesh::PointId;
+use super::{Dof, NodalDofs, NDOF_PER_NODE_TOTAL};
+use crate::StrError;
+use gemlab::mesh::{Mesh, PointId};
 use russell_lab::NumMatrix;
-use std::collections::HashSet;
 
 /// Holds equation ids (all DOF numbers)
 pub struct Equation {
@@ -13,50 +13,34 @@ pub struct Equation {
 
     /// Equation ids matrix (npoint,ndof)
     ids: NumMatrix<i32>,
-
-    /// Holds the prescribed equation ids
-    pub prescribed: HashSet<usize>,
 }
 
 impl Equation {
     /// Allocates a new instance
-    ///
-    /// # Input
-    ///
-    /// * `npoint` -- is the total number of points in the mesh
-    pub fn new(npoint: usize) -> Self {
-        Equation {
-            count: 0,
-            ids: NumMatrix::filled(npoint, NDOF_PER_NODE_TOTAL, -1),
-            prescribed: HashSet::new(),
+    pub fn new(mesh: &Mesh, nodal_dofs: &NodalDofs) -> Result<Self, StrError> {
+        let mut ids = NumMatrix::filled(mesh.points.len(), NDOF_PER_NODE_TOTAL, -1);
+        let mut count = 0;
+        for cell in &mesh.cells {
+            let dofs = match nodal_dofs.get(cell.attribute_id, cell.kind) {
+                Some(d) => d,
+                None => return Err("cannot find nodal DOFs for given (CellAttributeId,GeoKind)"),
+            };
+            for m in 0..cell.kind.nnode() {
+                let point_id = cell.points[m];
+                for dof in &dofs[m] {
+                    if ids[point_id][*dof as usize] < 0 {
+                        ids[point_id][*dof as usize] = count;
+                        count += 1;
+                    }
+                }
+            }
         }
+        Ok(Equation { count, ids })
     }
 
     /// Returns the number of equations
     pub fn len(&self) -> usize {
         self.count as usize
-    }
-
-    /// Activates equation corresponding to a point-DOF pair
-    ///
-    /// # Input
-    ///
-    /// * `point_id` -- is the PointID corresponding to the equation
-    /// * `dof` -- is the DOF index corresponding to the equation
-    ///
-    /// # Output
-    ///
-    /// * `eid` -- the current (or newly allocated) equation id
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if `point_id` is out of bounds.
-    pub fn activate(&mut self, point_id: PointId, dof: Dof) -> usize {
-        if self.ids[point_id][dof as usize] < 0 {
-            self.ids[point_id][dof as usize] = self.count;
-            self.count += 1;
-        }
-        self.ids[point_id][dof as usize] as usize
     }
 
     /// Returns the equation id corresponding to a point-DOF pair
@@ -75,25 +59,47 @@ impl Equation {
 #[cfg(test)]
 mod tests {
     use super::Equation;
-    use crate::base::{Dof, NDOF_PER_NODE_TOTAL};
+    use crate::base::{AttrElement, Dof, Element, NodalDofs, SampleMeshes, NDOF_PER_NODE_TOTAL};
+    use gemlab::mesh::{Cell, Mesh, Point};
+    use gemlab::shapes::GeoKind;
 
     #[test]
-    fn new_and_len_work() {
-        let npoint = 3;
-        let equation = Equation::new(npoint);
-        assert_eq!(equation.count, 0);
-        assert_eq!(equation.ids.dims(), (npoint, NDOF_PER_NODE_TOTAL));
-        assert_eq!(equation.prescribed.len(), 0);
-        assert_eq!(equation.len(), 0);
+    fn new_captures_errors() {
+        let mesh = SampleMeshes::two_tri3();
+        let attr_element = AttrElement::from([(1, Element::PorousLiq)]);
+        let nodal_dofs = NodalDofs::new(&mesh, &attr_element).unwrap();
+        // must not change mesh
+        #[rustfmt::skip]
+        let mesh = Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, coords: vec![0.0, 0.0] },
+                Point { id: 1, coords: vec![1.0, 0.0] },
+                Point { id: 2, coords: vec![0.0, 1.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 2, kind: GeoKind::Tri3, points: vec![0, 1, 2] },
+            ],
+        };
+        assert_eq!(
+            Equation::new(&mesh, &nodal_dofs).err(),
+            Some("cannot find nodal DOFs for given (CellAttributeId,GeoKind)")
+        );
     }
 
     #[test]
-    fn activate_and_id_work() {
-        let mut equation = Equation::new(3);
-        let eid = equation.activate(0, Dof::Ux);
-        assert_eq!(eid, 0);
-        assert_eq!(equation.id(0, Dof::Ux), Some(0));
+    fn equation_works() {
+        let mesh = SampleMeshes::two_tri3();
+        let attr_element = AttrElement::from([(1, Element::PorousLiq)]);
+        let nodal_dofs = NodalDofs::new(&mesh, &attr_element).unwrap();
+        let equation = Equation::new(&mesh, &nodal_dofs).unwrap();
+        assert_eq!(equation.count, 4);
+        assert_eq!(equation.ids.dims(), (4, NDOF_PER_NODE_TOTAL));
+        assert_eq!(equation.len(), 4);
+        assert_eq!(equation.id(0, Dof::Pl), Some(0));
+        assert_eq!(equation.id(1, Dof::Pl), Some(1));
+        assert_eq!(equation.id(3, Dof::Pl), Some(2));
+        assert_eq!(equation.id(2, Dof::Pl), Some(3));
         assert_eq!(equation.id(0, Dof::Uy), None);
-        assert_eq!(equation.id(1, Dof::Ux), None);
     }
 }
