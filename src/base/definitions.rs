@@ -66,18 +66,35 @@ pub type AttrDofs = HashMap<(CellAttributeId, GeoKind), Vec<Vec<Dof>>>;
 /// use pmsim::base::{display_point_dofs, Dof};
 /// use std::collections::HashSet;
 ///
+/// //           {Ux}
+/// //           {Uy}
+/// //           {Pl}
+/// //            2
+/// //           / \
+/// //    {Ux}  /   \  {Ux}
+/// //    {Uy} 5     4 {Uy}
+/// //        /       \
+/// // {Ux}  /         \  {Ux}
+/// // {Uy} 0-----3-----1 {Uy}
+/// // {Pl}      {Ux}     {Pl}
+/// //           {Uy}
+///
 /// let point_dofs = vec![
-///     HashSet::from([Dof::Ux, Dof::Uy]),
+///     HashSet::from([Dof::Ux, Dof::Uy, Dof::Pl]),
+///     HashSet::from([Dof::Ux, Dof::Uy, Dof::Pl]),
+///     HashSet::from([Dof::Ux, Dof::Uy, Dof::Pl]),
 ///     HashSet::from([Dof::Ux, Dof::Uy]),
 ///     HashSet::from([Dof::Ux, Dof::Uy]),
 ///     HashSet::from([Dof::Ux, Dof::Uy]),
 /// ];
 /// assert_eq!(
 ///     format!("{}", display_point_dofs(&point_dofs)),
-///     "0 → [Ux, Uy]\n\
-///      1 → [Ux, Uy]\n\
-///      2 → [Ux, Uy]\n\
-///      3 → [Ux, Uy]\n"
+///     "0 → [Ux, Uy, Pl]\n\
+///      1 → [Ux, Uy, Pl]\n\
+///      2 → [Ux, Uy, Pl]\n\
+///      3 → [Ux, Uy]\n\
+///      4 → [Ux, Uy]\n\
+///      5 → [Ux, Uy]\n"
 /// );
 /// ```
 pub type PointDofs = Vec<HashSet<Dof>>;
@@ -89,18 +106,35 @@ pub type PointDofs = Vec<HashSet<Dof>>;
 /// ```
 /// use pmsim::base::display_point_equations;
 ///
+/// //            {Ux → 6}
+/// //            {Uy → 7}
+/// //            {Pl → 8}
+/// //                2
+/// //               / \
+/// //   {Ux → 13}  /   \  {Ux → 11}
+/// //   {Uy → 14} 5     4 {Uy → 12}
+/// //            /       \
+/// // {Ux → 0}  /         \  {Ux → 3}
+/// // {Uy → 1} 0-----3-----1 {Uy → 4}
+/// // {Pl → 2}   {Ux → 9}    {Pl → 5}
+/// //            {Uy → 10}
+///
 /// let point_equations = vec![
-///     vec![0, 1],
-///     vec![2, 3],
-///     vec![4, 5],
-///     vec![6, 7],
+///     vec![ 0, 1, 2],
+///     vec![ 3, 4, 5],
+///     vec![ 6, 7, 8],
+///     vec![ 9, 10],
+///     vec![11, 12],
+///     vec![13, 14],
 /// ];
 /// assert_eq!(
 ///     format!("{}", display_point_equations(&point_equations)),
-///     "0 → [0, 1]\n\
-///      1 → [2, 3]\n\
-///      2 → [4, 5]\n\
-///      3 → [6, 7]\n"
+///     "0 → [0, 1, 2]\n\
+///      1 → [3, 4, 5]\n\
+///      2 → [6, 7, 8]\n\
+///      3 → [9, 10]\n\
+///      4 → [11, 12]\n\
+///      5 → [13, 14]\n"
 /// );
 /// ```
 pub type PointEquations = Vec<Vec<usize>>;
