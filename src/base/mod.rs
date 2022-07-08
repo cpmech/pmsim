@@ -1,5 +1,6 @@
 //! Implements the base structures for a finite element simulation
 
+mod alloc;
 mod assemble;
 mod conditions;
 mod config;
@@ -10,6 +11,7 @@ mod equation;
 mod nodal_dofs;
 mod parameters;
 mod sample_meshes;
+pub use crate::base::alloc::*;
 pub use crate::base::assemble::*;
 pub use crate::base::conditions::*;
 pub use crate::base::config::*;
