@@ -95,6 +95,9 @@ pub type PointDofs = Vec<HashSet<Dof>>;
 /// ```
 pub type PointEquations = Vec<Vec<usize>>;
 
+/// Holds all local-to-global mappings (ncell,n_local_equation)
+pub type LocalToGlobal = Vec<Vec<usize>>;
+
 /// Returns a string representing an AttrElement data structure
 pub fn display_attr_element(attr_element: &AttrElement) -> String {
     let mut buffer = String::new();

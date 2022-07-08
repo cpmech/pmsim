@@ -1,4 +1,6 @@
-use super::{AttrDofs, AttrElement, Dof, Element, PointDofs, PointEquations, POROUS_SLD_GEO_KIND_ALLOWED};
+use super::{
+    AttrDofs, AttrElement, Dof, Element, LocalToGlobal, PointDofs, PointEquations, POROUS_SLD_GEO_KIND_ALLOWED,
+};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use gemlab::shapes::GeoKind;
@@ -137,11 +139,29 @@ pub fn alloc_point_equations(point_dofs: &PointDofs) -> (PointEquations, usize) 
     (point_equations, nequation)
 }
 
+/// Allocates the local-to-global mappings
+pub fn alloc_local_to_global(mesh: &Mesh, point_equations: &PointEquations) -> Result<LocalToGlobal, StrError> {
+    let mut local_to_global = vec![Vec::new(); mesh.cells.len()];
+    for cell in &mesh.cells {
+        for point_id in &cell.points {
+            if *point_id >= point_equations.len() {
+                return Err("point_equations is incompatible with mesh");
+            }
+            for eq in &point_equations[*point_id] {
+                local_to_global[cell.id].push(*eq);
+            }
+        }
+    }
+    Ok(local_to_global)
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-    use super::{alloc_attr_dofs, alloc_elem_kind_dofs, alloc_point_dofs, alloc_point_equations};
+    use super::{
+        alloc_attr_dofs, alloc_elem_kind_dofs, alloc_local_to_global, alloc_point_dofs, alloc_point_equations,
+    };
     use crate::base::{AttrDofs, AttrElement, Dof, Element, SampleMeshes};
     use gemlab::shapes::GeoKind;
     use std::collections::{HashMap, HashSet};
@@ -347,5 +367,36 @@ mod tests {
         let (point_equations, nequation) = alloc_point_equations(&point_dofs);
         assert_eq!(nequation, 8);
         assert_eq!(point_equations, [[0, 1], [2, 3], [4, 5], [6, 7]]);
+    }
+
+    #[test]
+    fn alloc_local_to_global_captures_errors() {
+        let mesh = SampleMeshes::three_tri3();
+        let point_equations = vec![vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7]];
+        assert_eq!(
+            alloc_local_to_global(&mesh, &point_equations).err(),
+            Some("point_equations is incompatible with mesh")
+        );
+    }
+
+    #[test]
+    fn alloc_local_to_global_works() {
+        //       {8} 4---.__
+        //       {9}/ \     `--.___3 {6}   [#] indicates id
+        //         /   \          / \{7}   (#) indicates attribute_id
+        //        /     \  [1]   /   \     {#} indicates equation number
+        //       /  [0]  \ (1)  / [2] \
+        // {0}  /   (1)   \    /  (1)  \
+        // {1} 0---.__     \  /      ___2 {4}
+        //            `--.__\/__.---'     {5}
+        //                   1 {2}
+        //                     {3}
+        let mesh = SampleMeshes::three_tri3();
+        let point_equations = vec![vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7], vec![8, 9]];
+        let local_to_global = alloc_local_to_global(&mesh, &point_equations).unwrap();
+        assert_eq!(
+            local_to_global,
+            [[0, 1, 2, 3, 8, 9], [2, 3, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7]]
+        );
     }
 }
