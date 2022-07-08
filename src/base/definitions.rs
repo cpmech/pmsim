@@ -5,15 +5,94 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 /// Holds all attributes/elements; maps CellAttributeId to Element type
+///
+/// # Examples
+///
+/// ```
+/// use pmsim::base::{AttrElement, Element};
+///
+/// let attr_element = AttrElement::from([(1, Element::Solid)]);
+/// ```
 pub type AttrElement = HashMap<CellAttributeId, Element>;
 
 /// Holds all attributes/DOFs; maps (CellAttributeId,GeoKind) to a (nnode,ndof) table
+///
+/// # Examples
+///
+/// ```
+/// use gemlab::shapes::GeoKind;
+/// use pmsim::base::{display_attr_dofs, AttrElement, Dof, Element};
+/// use std::collections::HashMap;
+///
+/// let attr_element = AttrElement::from([(1, Element::Solid), (2, Element::Solid)]);
+/// let attr_dofs = HashMap::from([
+///     (
+///         (1, GeoKind::Tri3),
+///         vec![vec![Dof::Ux, Dof::Uy], vec![Dof::Ux, Dof::Uy], vec![Dof::Ux, Dof::Uy]],
+///     ),
+///     (
+///         (2, GeoKind::Qua4),
+///         vec![
+///             vec![Dof::Ux, Dof::Uy],
+///             vec![Dof::Ux, Dof::Uy],
+///             vec![Dof::Ux, Dof::Uy],
+///             vec![Dof::Ux, Dof::Uy],
+///         ],
+///     ),
+/// ]);
+/// assert_eq!(
+///     format!("{}", display_attr_dofs(&attr_element, &attr_dofs)),
+///     "(1, Tri3) → Solid → [[Ux, Uy], [Ux, Uy], [Ux, Uy]]\n\
+///      (2, Qua4) → Solid → [[Ux, Uy], [Ux, Uy], [Ux, Uy], [Ux, Uy]]\n"
+/// );
+/// ```
 pub type AttrDofs = HashMap<(CellAttributeId, GeoKind), Vec<Vec<Dof>>>;
 
 /// Holds all point DOFs (npoint); maps PointId (index of point) to a set of DOFs
+///
+/// # Examples
+///
+/// ```
+/// use pmsim::base::{display_point_dofs, Dof};
+/// use std::collections::HashSet;
+///
+/// let point_dofs = vec![
+///     HashSet::from([Dof::Ux, Dof::Uy]),
+///     HashSet::from([Dof::Ux, Dof::Uy]),
+///     HashSet::from([Dof::Ux, Dof::Uy]),
+///     HashSet::from([Dof::Ux, Dof::Uy]),
+/// ];
+/// assert_eq!(
+///     format!("{}", display_point_dofs(&point_dofs)),
+///     "0 → [Ux, Uy]\n\
+///      1 → [Ux, Uy]\n\
+///      2 → [Ux, Uy]\n\
+///      3 → [Ux, Uy]\n"
+/// );
+/// ```
 pub type PointDofs = Vec<HashSet<Dof>>;
 
 /// Holds all point equation numbers (npoint); maps PointId (index of point) to a set of equation numbers
+///
+/// # Examples
+///
+/// ```
+/// use pmsim::base::display_point_equations;
+///
+/// let point_equations = vec![
+///     vec![0, 1],
+///     vec![2, 3],
+///     vec![4, 5],
+///     vec![6, 7],
+/// ];
+/// assert_eq!(
+///     format!("{}", display_point_equations(&point_equations)),
+///     "0 → [0, 1]\n\
+///      1 → [2, 3]\n\
+///      2 → [4, 5]\n\
+///      3 → [6, 7]\n"
+/// );
+/// ```
 pub type PointEquations = Vec<Vec<usize>>;
 
 /// Returns a string representing an AttrElement data structure
