@@ -9,9 +9,16 @@ use std::fmt::Write;
 /// # Examples
 ///
 /// ```
-/// use pmsim::base::{AttrElement, Element};
+/// use pmsim::base::{display_attr_element, AttrElement, Element};
 ///
-/// let attr_element = AttrElement::from([(1, Element::Solid)]);
+/// let attr_element = AttrElement::from([
+///     (1, Element::Solid),
+///     (2, Element::PorousSldLiq),
+/// ]);
+/// assert_eq!(format!("{}", display_attr_element(&attr_element)),
+///     "1 → Solid\n\
+///      2 → PorousSldLiq\n"
+/// );
 /// ```
 pub type AttrElement = HashMap<CellAttributeId, Element>;
 
@@ -21,14 +28,17 @@ pub type AttrElement = HashMap<CellAttributeId, Element>;
 ///
 /// ```
 /// use gemlab::shapes::GeoKind;
-/// use pmsim::base::{display_attr_dofs, AttrElement, Dof, Element};
+/// use pmsim::base::{display_attr_dofs, Dof, Element};
 /// use std::collections::HashMap;
 ///
-/// let attr_element = AttrElement::from([(1, Element::Solid), (2, Element::Solid)]);
 /// let attr_dofs = HashMap::from([
 ///     (
 ///         (1, GeoKind::Tri3),
-///         vec![vec![Dof::Ux, Dof::Uy], vec![Dof::Ux, Dof::Uy], vec![Dof::Ux, Dof::Uy]],
+///         vec![
+///             vec![Dof::Ux, Dof::Uy],
+///             vec![Dof::Ux, Dof::Uy],
+///             vec![Dof::Ux, Dof::Uy],
+///         ],
 ///     ),
 ///     (
 ///         (2, GeoKind::Qua4),
@@ -41,9 +51,9 @@ pub type AttrElement = HashMap<CellAttributeId, Element>;
 ///     ),
 /// ]);
 /// assert_eq!(
-///     format!("{}", display_attr_dofs(&attr_element, &attr_dofs)),
-///     "(1, Tri3) → Solid → [[Ux, Uy], [Ux, Uy], [Ux, Uy]]\n\
-///      (2, Qua4) → Solid → [[Ux, Uy], [Ux, Uy], [Ux, Uy], [Ux, Uy]]\n"
+///     format!("{}", display_attr_dofs(&attr_dofs)),
+///     "(1, Tri3) → [[Ux, Uy], [Ux, Uy], [Ux, Uy]]\n\
+///      (2, Qua4) → [[Ux, Uy], [Ux, Uy], [Ux, Uy], [Ux, Uy]]\n"
 /// );
 /// ```
 pub type AttrDofs = HashMap<(CellAttributeId, GeoKind), Vec<Vec<Dof>>>;
@@ -137,20 +147,13 @@ pub fn display_attr_element(attr_element: &AttrElement) -> String {
     buffer
 }
 
-/// Returns a string representing a pair of (AttrElement,AttrDofs)
-///
-/// # Panics
-///
-/// The `attr_element` map must have the keys used in the `attr_dofs` map,
-/// otherwise a panic will occur.
-pub fn display_attr_dofs(attr_element: &AttrElement, attr_dofs: &AttrDofs) -> String {
+/// Returns a string representing an AttrDofs data structure
+pub fn display_attr_dofs(attr_dofs: &AttrDofs) -> String {
     let mut buffer = String::new();
     let mut keys: Vec<_> = attr_dofs.keys().collect();
     keys.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     for key in keys {
-        let elem = attr_element.get(&key.0).unwrap();
-        let dofs = attr_dofs.get(key).unwrap();
-        write!(&mut buffer, "{:?} → {:?} → {:?}\n", key, elem, dofs).unwrap();
+        write!(&mut buffer, "{:?} → {:?}\n", key, attr_dofs.get(key).unwrap()).unwrap();
     }
     buffer
 }
@@ -205,7 +208,6 @@ mod tests {
 
     #[test]
     fn display_attr_dofs_works() {
-        let attr_element = AttrElement::from([(1, Element::Solid), (2, Element::Solid)]);
         let attr_dofs = HashMap::from([
             (
                 (1, GeoKind::Tri3),
@@ -222,9 +224,9 @@ mod tests {
             ),
         ]);
         assert_eq!(
-            format!("{}", display_attr_dofs(&attr_element, &attr_dofs)),
-            "(1, Tri3) → Solid → [[Ux, Uy], [Ux, Uy], [Ux, Uy]]\n\
-             (2, Qua4) → Solid → [[Ux, Uy], [Ux, Uy], [Ux, Uy], [Ux, Uy]]\n"
+            format!("{}", display_attr_dofs(&attr_dofs)),
+            "(1, Tri3) → [[Ux, Uy], [Ux, Uy], [Ux, Uy]]\n\
+             (2, Qua4) → [[Ux, Uy], [Ux, Uy], [Ux, Uy], [Ux, Uy]]\n"
         );
     }
 
