@@ -4,10 +4,10 @@ use gemlab::shapes::GeoKind;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
-/// Holds all attributes; maps CellAttributeId to Element type
+/// Holds all attributes/elements; maps CellAttributeId to Element type
 pub type AttrElement = HashMap<CellAttributeId, Element>;
 
-/// Holds all cell DOFs; maps (CellAttributeId,GeoKind) to a (nnode,ndof) table
+/// Holds all attributes/DOFs; maps (CellAttributeId,GeoKind) to a (nnode,ndof) table
 pub type AttrDofs = HashMap<(CellAttributeId, GeoKind), Vec<Vec<Dof>>>;
 
 /// Holds all point DOFs (npoint); maps PointId (index of point) to a set of DOFs
