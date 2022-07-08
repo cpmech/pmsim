@@ -105,7 +105,7 @@ pub type PointDofs = Vec<HashSet<Dof>>;
 /// ```
 pub type PointEquations = Vec<Vec<usize>>;
 
-/// Holds all local-to-global mappings (ncell,n_local_equation)
+/// Holds all local-to-global equation mappings (ncell,n_local_equation)
 ///
 /// # Examples
 ///
@@ -151,6 +151,20 @@ impl DataMaps {
             point_equations,
             local_to_global,
         })
+    }
+
+    /// Returns the total number of equations and approximated number of non-zeros (nnz)
+    pub fn neq_nnz(&self) -> (usize, usize) {
+        let (mut neq, mut nnz) = (0, 0);
+        if self.local_to_global.len() == 0 {
+            return (neq, nnz);
+        }
+        for eqs in &self.local_to_global {
+            neq = usize::max(neq, *eqs.iter().max().unwrap());
+            nnz += eqs.len() * eqs.len();
+        }
+        neq += 1;
+        (neq, nnz)
     }
 
     /// Allocates the nodal DOFs for a pair of (Element,GeoKind)
@@ -350,7 +364,7 @@ impl fmt::Display for DataMaps {
 mod tests {
     use super::DataMaps;
     use crate::base::{AttrDofs, AttrElement, Dof, Element, SampleMeshes};
-    use gemlab::shapes::GeoKind;
+    use gemlab::{mesh::Mesh, shapes::GeoKind};
     use std::collections::{HashMap, HashSet};
 
     #[test]
@@ -689,5 +703,25 @@ mod tests {
              1 → [2, 3, 1]\n\
              2 → [1, 4, 5, 2]\n"
         );
+    }
+
+    #[test]
+    fn neq_nnz_works() {
+        let mesh = Mesh {
+            ndim: 2,
+            points: Vec::new(),
+            cells: Vec::new(),
+        };
+        let dm = DataMaps::new(&mesh, AttrElement::new()).unwrap();
+        let (neq, nnz) = dm.neq_nnz();
+        assert_eq!(neq, 0);
+        assert_eq!(nnz, 0);
+
+        let mesh = SampleMeshes::three_tri3();
+        let attr_element = AttrElement::from([(1, Element::Solid)]);
+        let dm = DataMaps::new(&mesh, attr_element).unwrap();
+        let (neq, nnz) = dm.neq_nnz();
+        assert_eq!(neq, 10);
+        assert_eq!(nnz, 3 * 6 * 6);
     }
 }
