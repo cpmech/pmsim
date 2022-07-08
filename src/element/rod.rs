@@ -61,9 +61,11 @@ impl Rod {
 #[cfg(test)]
 mod tests {
     use super::Rod;
-    use crate::base::ParamRod;
+    use crate::base::{assemble_matrix, ParamRod};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
+    use gemlab::util::SQRT_2;
+    use russell_sparse::{SparseTriplet, Symmetry};
 
     #[test]
     fn rod_works_2d() {
@@ -163,5 +165,53 @@ mod tests {
                 -2.0, -4.0, -4.0, 2.0, 4.0, 4.0, // 5
             ]
         );
+    }
+
+    #[test]
+    fn rod_works_2d_3() {
+        //             2
+        //           ,'|
+        //    (2)  ,'  |
+        //    [3],'    | (1)
+        //     ,'      | [2]
+        //   ,'        |
+        //  0----------1
+        //       (0)
+        //       [1]
+        #[rustfmt::skip]
+        let mesh = Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, coords: vec![0.0, 0.0] },
+                Point { id: 1, coords: vec![10.0, 0.0] },
+                Point { id: 2, coords: vec![10.0, 10.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 1, attribute_id: 2, kind: GeoKind::Lin2, points: vec![1, 2] },
+                Cell { id: 2, attribute_id: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
+            ],
+        };
+        let param1 = ParamRod {
+            area: 1.0,
+            young: 100.0,
+            density: 1.0,
+        };
+        let param2 = ParamRod {
+            area: 1.0 / 2.0,
+            young: 100.0,
+            density: 1.0,
+        };
+        let param3 = ParamRod {
+            area: 2.0 * SQRT_2,
+            young: 100.0,
+            density: 1.0,
+        };
+        let rod0 = Rod::new(&mesh, 0, &param1);
+        let rod1 = Rod::new(&mesh, 1, &param2);
+        let rod2 = Rod::new(&mesh, 2, &param3);
+        let neq = mesh.points.len() * 2;
+        let mut kk = SparseTriplet::new(neq, neq, neq * neq, Symmetry::No).unwrap();
+        // assemble_matrix(&mut kk, &rod0.ke, 0, l2g, prescribed)
     }
 }
