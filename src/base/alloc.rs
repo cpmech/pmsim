@@ -124,9 +124,7 @@ pub fn alloc_point_dofs(mesh: &Mesh, attr_dofs: &AttrDofs) -> Result<PointDofs, 
 }
 
 /// Allocates the equation numbers for all points/DOFs
-///
-/// Returns also the total number of equations
-pub fn alloc_point_equations(point_dofs: &PointDofs) -> (PointEquations, usize) {
+pub fn alloc_point_equations(point_dofs: &PointDofs) -> PointEquations {
     let npoint = point_dofs.len();
     let mut nequation = 0;
     let mut point_equations = vec![Vec::new(); npoint];
@@ -136,7 +134,7 @@ pub fn alloc_point_equations(point_dofs: &PointDofs) -> (PointEquations, usize) 
             nequation += 1;
         }
     }
-    (point_equations, nequation)
+    point_equations
 }
 
 /// Allocates the local-to-global mappings
@@ -364,8 +362,7 @@ mod tests {
             HashSet::from([Dof::Ux, Dof::Uy]),
             HashSet::from([Dof::Ux, Dof::Uy]),
         ];
-        let (point_equations, nequation) = alloc_point_equations(&point_dofs);
-        assert_eq!(nequation, 8);
+        let point_equations = alloc_point_equations(&point_dofs);
         assert_eq!(point_equations, [[0, 1], [2, 3], [4, 5], [6, 7]]);
     }
 
@@ -393,6 +390,20 @@ mod tests {
         //                     {3}
         let mesh = SampleMeshes::three_tri3();
         let point_equations = vec![vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7], vec![8, 9]];
+        let local_to_global = alloc_local_to_global(&mesh, &point_equations).unwrap();
+        assert_eq!(
+            local_to_global,
+            [[0, 1, 2, 3, 8, 9], [2, 3, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7]]
+        );
+    }
+
+    #[test]
+    fn alloc_functions_work() {
+        let mesh = SampleMeshes::three_tri3();
+        let attr_element = AttrElement::from([(1, Element::Solid)]);
+        let attr_dofs = alloc_attr_dofs(&mesh, &attr_element).unwrap();
+        let point_dofs = alloc_point_dofs(&mesh, &attr_dofs).unwrap();
+        let point_equations = alloc_point_equations(&point_dofs);
         let local_to_global = alloc_local_to_global(&mesh, &point_equations).unwrap();
         assert_eq!(
             local_to_global,

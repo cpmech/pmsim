@@ -96,6 +96,34 @@ pub type PointDofs = Vec<HashSet<Dof>>;
 pub type PointEquations = Vec<Vec<usize>>;
 
 /// Holds all local-to-global mappings (ncell,n_local_equation)
+///
+/// # Examples
+///
+/// ```
+/// use pmsim::base::display_local_to_global;
+///
+/// //       {8} 4---.__
+/// //       {9}/ \     `--.___3 {6}   [#] indicates id
+/// //         /   \          / \{7}   (#) indicates attribute_id
+/// //        /     \  [1]   /   \     {#} indicates equation number
+/// //       /  [0]  \ (1)  / [2] \
+/// // {0}  /   (1)   \    /  (1)  \
+/// // {1} 0---.__     \  /      ___2 {4}
+/// //            `--.__\/__.---'     {5}
+/// //                   1 {2}
+/// //                     {3}
+/// let local_to_global = vec![
+///     vec![0, 1, 2, 3, 8, 9],
+///     vec![2, 3, 6, 7, 8, 9],
+///     vec![2, 3, 4, 5, 6, 7],
+/// ];
+/// assert_eq!(
+///     format!("{}", display_local_to_global(&local_to_global)),
+///     "0 → [0, 1, 2, 3, 8, 9]\n\
+///      1 → [2, 3, 6, 7, 8, 9]\n\
+///      2 → [2, 3, 4, 5, 6, 7]\n"
+/// );
+/// ```
 pub type LocalToGlobal = Vec<Vec<usize>>;
 
 /// Returns a string representing an AttrElement data structure
@@ -148,12 +176,23 @@ pub fn display_point_equations(point_equations: &PointEquations) -> String {
     buffer
 }
 
+/// Returns a string representing a LocalToGlobal data structure
+pub fn display_local_to_global(local_to_global: &LocalToGlobal) -> String {
+    let mut buffer = String::new();
+    for cell_id in 0..local_to_global.len() {
+        let eqs = &local_to_global[cell_id];
+        write!(&mut buffer, "{:?} → {:?}\n", cell_id, eqs).unwrap();
+    }
+    buffer
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
     use super::{
-        display_attr_dofs, display_attr_element, display_point_dofs, display_point_equations, AttrElement, Dof, Element,
+        display_attr_dofs, display_attr_element, display_local_to_global, display_point_dofs, display_point_equations,
+        AttrElement, Dof, Element,
     };
     use gemlab::shapes::GeoKind;
     use std::collections::{HashMap, HashSet};
@@ -215,6 +254,17 @@ mod tests {
              1 → [2, 3]\n\
              2 → [4, 5]\n\
              3 → [6, 7]\n"
+        );
+    }
+
+    #[test]
+    fn display_local_to_global_works() {
+        let local_to_global = vec![vec![0, 1, 2, 3, 8, 9], vec![2, 3, 6, 7, 8, 9], vec![2, 3, 4, 5, 6, 7]];
+        assert_eq!(
+            format!("{}", display_local_to_global(&local_to_global)),
+            "0 → [0, 1, 2, 3, 8, 9]\n\
+             1 → [2, 3, 6, 7, 8, 9]\n\
+             2 → [2, 3, 4, 5, 6, 7]\n"
         );
     }
 }
