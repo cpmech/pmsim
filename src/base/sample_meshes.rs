@@ -1,6 +1,7 @@
 use gemlab::mesh::{Cell, Mesh, Point};
 use gemlab::shapes::GeoKind;
 
+/// Holds sample meshes
 pub struct SampleMeshes {}
 
 impl SampleMeshes {
