@@ -24,9 +24,8 @@ pub type AttrElement = HashMap<CellAttributeId, Element>;
 ///
 /// ```
 /// use gemlab::shapes::GeoKind;
-/// use pmsim::base::{Dof, Element};
-/// use std::collections::HashMap;
-/// let attr_dofs = HashMap::from([
+/// use pmsim::base::{AttrDofs, Dof, Element};
+/// let attr_dofs = AttrDofs::from([
 ///     (
 ///         (1, GeoKind::Tri3),
 ///         vec![
