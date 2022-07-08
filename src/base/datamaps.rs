@@ -354,6 +354,12 @@ impl fmt::Display for DataMaps {
             let eqs = &self.local_to_global[cell_id];
             write!(f, "{:?} → {:?}\n", cell_id, eqs).unwrap();
         }
+
+        let (neq, nnz) = self.neq_nnz();
+        write!(f, "\nNumber of equations (neq) and non-zeros (nnz)\n").unwrap();
+        write!(f, "=============================================\n").unwrap();
+        write!(f, "neq = {:?}\n", neq).unwrap();
+        write!(f, "nnz = {:?}\n", nnz).unwrap();
         Ok(())
     }
 }
@@ -650,7 +656,12 @@ mod tests {
              ========================\n\
              0 → [0, 1, 2, 3, 8, 9]\n\
              1 → [2, 3, 6, 7, 8, 9]\n\
-             2 → [2, 3, 4, 5, 6, 7]\n"
+             2 → [2, 3, 4, 5, 6, 7]\n\
+             \n\
+             Number of equations (neq) and non-zeros (nnz)\n\
+             =============================================\n\
+             neq = 10\n\
+             nnz = 108\n"
         );
     }
 
@@ -701,7 +712,12 @@ mod tests {
              ========================\n\
              0 → [0, 1, 3]\n\
              1 → [2, 3, 1]\n\
-             2 → [1, 4, 5, 2]\n"
+             2 → [1, 4, 5, 2]\n\
+             \n\
+             Number of equations (neq) and non-zeros (nnz)\n\
+             =============================================\n\
+             neq = 6\n\
+             nnz = 34\n"
         );
     }
 
