@@ -227,7 +227,6 @@ impl fmt::Display for Conditions {
 mod tests {
     use super::{zero, Conditions};
     use crate::base::{Dof, Nbc, Pbc, SampleMeshes};
-    use crate::StrError;
     use gemlab::mesh::{At, Extract, Region};
     use std::collections::HashSet;
 
@@ -237,9 +236,9 @@ mod tests {
     }
 
     #[test]
-    fn catch_some_errors_2d() -> Result<(), StrError> {
+    fn catch_some_errors_2d() {
         let mesh = SampleMeshes::two_tri3();
-        let region = Region::with(&mesh, Extract::Boundary)?;
+        let region = Region::with(&mesh, Extract::Boundary).unwrap();
         let mut conditions = Conditions::new();
         let point_ids = HashSet::from([10]);
         let edge_keys = HashSet::from([(8, 80)]);
@@ -280,13 +279,12 @@ mod tests {
                 .err(),
             Some("cannot set face NBC in 2D")
         );
-        Ok(())
     }
 
     #[test]
-    fn catch_some_errors_3d() -> Result<(), StrError> {
+    fn catch_some_errors_3d() {
         let mesh = SampleMeshes::one_hex8();
-        let region = Region::with(&mesh, Extract::Boundary)?;
+        let region = Region::with(&mesh, Extract::Boundary).unwrap();
         let mut conditions = Conditions::new();
         let edge_keys = HashSet::from([(0, 1)]);
         let face_keys = HashSet::from([(100, 200, 300, 400)]);
@@ -308,30 +306,30 @@ mod tests {
                 .err(),
             Some("cannot find face in region.features.faces to set NBC")
         );
-        Ok(())
     }
 
     #[test]
-    fn boundary_conditions_works_2d() -> Result<(), StrError> {
+    #[rustfmt::skip]
+    fn boundary_conditions_works_2d() {
         let mesh = SampleMeshes::two_tri3();
         let region = Region::with(&mesh, Extract::Boundary).unwrap();
 
-        let origin = region.find.points(At::XY(0.0, 0.0))?;
-        let bottom = region.find.edges(At::Y(0.0))?;
-        let left = region.find.edges(At::X(0.0))?;
-        let top = region.find.edges(At::Y(1.0))?;
-        let corner = region.find.points(At::XY(1.0, 1.0))?;
+        let origin = region.find.points(At::XY(0.0, 0.0)).unwrap();
+        let bottom = region.find.edges(At::Y(0.0)).unwrap();
+        let left = region.find.edges(At::X(0.0)).unwrap();
+        let top = region.find.edges(At::Y(1.0)).unwrap();
+        let corner = region.find.points(At::XY(1.0, 1.0)).unwrap();
 
         let fy = |_, _, _| -10.0;
         let qn = |_, _, _| -1.0;
 
         let mut conditions = Conditions::new();
         conditions
-            .set_essential_at_points(&region, &origin, &[Dof::Ux, Dof::Uy], zero)?
-            .set_essential_at_edges(&region, &bottom, &[Dof::Uy], zero)?
-            .set_essential_at_edges(&region, &left, &[Dof::Ux], zero)?
-            .set_natural_at_points(&region, &corner, Pbc::Fy, fy)?
-            .set_natural_at_edges(&region, &top, Nbc::Qn, qn)?;
+            .set_essential_at_points(&region, &origin, &[Dof::Ux, Dof::Uy], zero).unwrap()
+            .set_essential_at_edges(&region, &bottom, &[Dof::Uy], zero).unwrap()
+            .set_essential_at_edges(&region, &left, &[Dof::Ux], zero).unwrap()
+            .set_natural_at_points(&region, &corner, Pbc::Fy, fy).unwrap()
+            .set_natural_at_edges(&region, &top, Nbc::Qn, qn).unwrap();
 
         assert_eq!(
             format!("{}", conditions),
@@ -353,32 +351,32 @@ mod tests {
              Natural boundary conditions at faces\n\
              ====================================\n"
         );
-        Ok(())
     }
 
     #[test]
-    fn boundary_conditions_works_3d() -> Result<(), StrError> {
+    #[rustfmt::skip]
+    fn boundary_conditions_works_3d() {
         let mesh = SampleMeshes::one_hex8();
-        let region = Region::with(&mesh, Extract::Boundary)?;
+        let region = Region::with(&mesh, Extract::Boundary).unwrap();
 
         let fz = |_, _, _| -10.0;
         let qn = |_, _, _| -1.0;
 
-        let origin = region.find.points(At::XYZ(0.0, 0.0, 0.0))?;
-        let x_zero = region.find.faces(At::X(0.0))?;
-        let y_zero = region.find.faces(At::Y(0.0))?;
-        let z_zero = region.find.faces(At::Z(0.0))?;
-        let top = region.find.faces(At::Z(1.0))?;
-        let corner = region.find.points(At::XYZ(1.0, 1.0, 1.0))?;
+        let origin = region.find.points(At::XYZ(0.0, 0.0, 0.0)).unwrap();
+        let x_zero = region.find.faces(At::X(0.0)).unwrap();
+        let y_zero = region.find.faces(At::Y(0.0)).unwrap();
+        let z_zero = region.find.faces(At::Z(0.0)).unwrap();
+        let top = region.find.faces(At::Z(1.0)).unwrap();
+        let corner = region.find.points(At::XYZ(1.0, 1.0, 1.0)).unwrap();
 
         let mut conditions = Conditions::new();
         conditions
-            .set_essential_at_points(&region, &origin, &[Dof::Ux, Dof::Uy, Dof::Uz], zero)?
-            .set_essential_at_faces(&region, &x_zero, &[Dof::Ux], zero)?
-            .set_essential_at_faces(&region, &y_zero, &[Dof::Uy], zero)?
-            .set_essential_at_faces(&region, &z_zero, &[Dof::Uz], zero)?
-            .set_natural_at_faces(&region, &top, Nbc::Qn, qn)?
-            .set_natural_at_points(&region, &corner, Pbc::Fz, fz)?;
+            .set_essential_at_points(&region, &origin, &[Dof::Ux, Dof::Uy, Dof::Uz], zero).unwrap()
+            .set_essential_at_faces(&region, &x_zero, &[Dof::Ux], zero).unwrap()
+            .set_essential_at_faces(&region, &y_zero, &[Dof::Uy], zero).unwrap()
+            .set_essential_at_faces(&region, &z_zero, &[Dof::Uz], zero).unwrap()
+            .set_natural_at_faces(&region, &top, Nbc::Qn, qn).unwrap()
+            .set_natural_at_points(&region, &corner, Pbc::Fz, fz).unwrap();
 
         assert_eq!(
             format!("{}", conditions),
@@ -408,6 +406,5 @@ mod tests {
              ====================================\n\
              ((4, 5, 6, 7), Qn) @ t=0 → -1.0 @ t=1 → -1.0\n"
         );
-        Ok(())
     }
 }
