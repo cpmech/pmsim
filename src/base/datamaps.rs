@@ -95,10 +95,10 @@ pub type PointDofs = Vec<HashSet<Dof>>;
 /// // {Pl → 2}   {Ux → 9}    {Pl → 5}
 /// //            {Uy → 10}
 /// let point_equations = vec![
-///     vec![ 0, 1, 2],
-///     vec![ 3, 4, 5],
-///     vec![ 6, 7, 8],
-///     vec![ 9, 10],
+///     vec![0, 1, 2],
+///     vec![3, 4, 5],
+///     vec![6, 7, 8],
+///     vec![9, 10],
 ///     vec![11, 12],
 ///     vec![13, 14],
 /// ];
