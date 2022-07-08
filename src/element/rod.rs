@@ -3,6 +3,10 @@ use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{Matrix, Vector};
 
 /// Implements a linear-elastic rod element
+///
+/// # References
+///
+/// * Felippa C., Chapter 20: Implementation of One-Dimensional Elements (IFEM.Ch20.pdf)
 pub struct Rod {
     pub fe: Vector,
     pub ke: Matrix,
@@ -93,7 +97,42 @@ mod tests {
     }
 
     #[test]
-    fn rod_works_3d() {
+    fn rod_works_3d_1() {
+        // See Felippa's IFEM.Ch20.pdf page 20-7
+        #[rustfmt::skip]
+        let mesh = Mesh {
+            ndim: 3,
+            points: vec![
+                Point { id: 0, coords: vec![0.0, 0.0, 0.0] },
+                Point { id: 1, coords: vec![2.0, 3.0, 6.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+            ],
+        };
+        let param = ParamRod {
+            area: 10.0,
+            young: 343.0,
+            density: 1.0,
+        };
+        let rod = Rod::new(&mesh, 0, &param);
+        assert_eq!(rod.fe.dim(), 6);
+        assert_eq!(
+            rod.ke.as_data(),
+            &[
+                40.0, 60.0, 120.0, -40.0, -60.0, -120.0, // 0
+                60.0, 90.0, 180.0, -60.0, -90.0, -180.0, // 1
+                120.0, 180.0, 360.0, -120.0, -180.0, -360.0, // 2
+                -40.0, -60.0, -120.0, 40.0, 60.0, 120.0, // 3
+                -60.0, -90.0, -180.0, 60.0, 90.0, 180.0, // 4
+                -120.0, -180.0, -360.0, 120.0, 180.0, 360.0, // 5
+            ]
+        );
+    }
+
+    #[test]
+    fn rod_works_3d_2() {
+        // See Felippa's IFEM.Ch20.pdf page 20-7
         let l = 1.0;
         #[rustfmt::skip]
         let mesh = Mesh {
