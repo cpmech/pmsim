@@ -1,4 +1,4 @@
-use super::{AttrDofs, AttrElement, Dof, Element, PointDofs, POROUS_SLD_GEO_KIND_ALLOWED};
+use super::{AttrDofs, AttrElement, Dof, Element, PointDofs, PointEquations, POROUS_SLD_GEO_KIND_ALLOWED};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use gemlab::shapes::GeoKind;
@@ -121,14 +121,30 @@ pub fn alloc_point_dofs(mesh: &Mesh, attr_dofs: &AttrDofs) -> Result<PointDofs, 
     Ok(point_dofs)
 }
 
+/// Allocates the equation numbers for all points/DOFs
+///
+/// Returns also the total number of equations
+pub fn alloc_point_equations(point_dofs: &PointDofs) -> (PointEquations, usize) {
+    let npoint = point_dofs.len();
+    let mut nequation = 0;
+    let mut point_equations = vec![Vec::new(); npoint];
+    for point_id in 0..npoint {
+        for _ in 0..point_dofs[point_id].len() {
+            point_equations[point_id].push(nequation);
+            nequation += 1;
+        }
+    }
+    (point_equations, nequation)
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-    use super::{alloc_attr_dofs, alloc_elem_kind_dofs, alloc_point_dofs};
+    use super::{alloc_attr_dofs, alloc_elem_kind_dofs, alloc_point_dofs, alloc_point_equations};
     use crate::base::{AttrDofs, AttrElement, Dof, Element, SampleMeshes};
     use gemlab::shapes::GeoKind;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
     fn alloc_elem_kind_dofs_captures_errors() {
@@ -318,5 +334,18 @@ mod tests {
             dd.sort();
             assert_eq!(dd, [Dof::Ux, Dof::Uy]);
         }
+    }
+
+    #[test]
+    fn alloc_point_equations_works() {
+        let point_dofs = vec![
+            HashSet::from([Dof::Ux, Dof::Uy]),
+            HashSet::from([Dof::Ux, Dof::Uy]),
+            HashSet::from([Dof::Ux, Dof::Uy]),
+            HashSet::from([Dof::Ux, Dof::Uy]),
+        ];
+        let (point_equations, nequation) = alloc_point_equations(&point_dofs);
+        assert_eq!(nequation, 8);
+        assert_eq!(point_equations, [[0, 1], [2, 3], [4, 5], [6, 7]]);
     }
 }
