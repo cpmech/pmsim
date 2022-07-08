@@ -61,10 +61,11 @@ impl Rod {
 #[cfg(test)]
 mod tests {
     use super::Rod;
-    use crate::base::{assemble_matrix, ParamRod};
+    use crate::base::{assemble_matrix, AttrElement, DataMaps, Element, ParamRod};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
     use gemlab::util::SQRT_2;
+    use russell_lab::Matrix;
     use russell_sparse::{SparseTriplet, Symmetry};
 
     #[test]
@@ -192,26 +193,44 @@ mod tests {
                 Cell { id: 2, attribute_id: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
             ],
         };
-        let param1 = ParamRod {
+        let param0 = ParamRod {
             area: 1.0,
             young: 100.0,
             density: 1.0,
         };
-        let param2 = ParamRod {
+        let param1 = ParamRod {
             area: 1.0 / 2.0,
             young: 100.0,
             density: 1.0,
         };
-        let param3 = ParamRod {
+        let param2 = ParamRod {
             area: 2.0 * SQRT_2,
             young: 100.0,
             density: 1.0,
         };
-        let rod0 = Rod::new(&mesh, 0, &param1);
-        let rod1 = Rod::new(&mesh, 1, &param2);
-        let rod2 = Rod::new(&mesh, 2, &param3);
-        let neq = mesh.points.len() * 2;
-        let mut kk = SparseTriplet::new(neq, neq, neq * neq, Symmetry::No).unwrap();
-        // assemble_matrix(&mut kk, &rod0.ke, 0, l2g, prescribed)
+        let rod0 = Rod::new(&mesh, 0, &param0);
+        let rod1 = Rod::new(&mesh, 1, &param1);
+        let rod2 = Rod::new(&mesh, 2, &param2);
+        let attr_elem = AttrElement::from([(1, Element::Rod), (2, Element::Rod), (3, Element::Rod)]);
+        let dm = DataMaps::new(&mesh, attr_elem).unwrap();
+        let (neq, nnz) = dm.neq_nnz();
+        let mut kk = SparseTriplet::new(neq, neq, nnz, Symmetry::No).unwrap();
+        let prescribed = vec![false; neq];
+        assemble_matrix(&mut kk, &rod0.ke, 0, &dm.local_to_global, &prescribed);
+        assemble_matrix(&mut kk, &rod1.ke, 1, &dm.local_to_global, &prescribed);
+        assemble_matrix(&mut kk, &rod2.ke, 2, &dm.local_to_global, &prescribed);
+        let mut kk_mat = Matrix::new(neq, neq);
+        kk.to_matrix(&mut kk_mat).unwrap();
+        assert_eq!(
+            format!("{:.2}", kk_mat),
+            "┌                                           ┐\n\
+             │  20.00  10.00 -10.00   0.00 -10.00 -10.00 │\n\
+             │  10.00  10.00   0.00   0.00 -10.00 -10.00 │\n\
+             │ -10.00   0.00  10.00   0.00   0.00   0.00 │\n\
+             │   0.00   0.00   0.00   5.00   0.00  -5.00 │\n\
+             │ -10.00 -10.00   0.00   0.00  10.00  10.00 │\n\
+             │ -10.00 -10.00   0.00  -5.00  10.00  15.00 │\n\
+             └                                           ┘"
+        );
     }
 }
