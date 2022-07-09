@@ -110,6 +110,42 @@ impl SampleMeshes {
         }
     }
 
+    /// Returns a mesh with one Qua8
+    ///
+    /// ```text
+    ///      y
+    ///      ^
+    /// 1.0  3------6------2
+    ///      |             |    [#] indicates id
+    ///      |             |    (#) indicates attribute_id
+    ///      7     [0]     5
+    ///      |     (1)     |
+    ///      |             |
+    /// 0.0  0------4------1 -> x
+    ///     0.0           1.0
+    /// ```
+    ///
+    /// ![one_qua8.svg](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_one_qua8.svg)
+    #[rustfmt::skip]
+    pub fn one_qua8() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, coords: vec![0.0, 0.0] },
+                Point { id: 1, coords: vec![1.0, 0.0] },
+                Point { id: 2, coords: vec![1.0, 1.0] },
+                Point { id: 3, coords: vec![0.0, 1.0] },
+                Point { id: 4, coords: vec![0.5, 0.0] },
+                Point { id: 5, coords: vec![1.0, 0.5] },
+                Point { id: 6, coords: vec![0.5, 1.0] },
+                Point { id: 7, coords: vec![0.0, 0.5] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Qua8, points: vec![0, 1, 2, 3, 4, 5, 6, 7] },
+            ],
+        }
+    }
+
     /// Returns a mesh with one Hex8
     ///
     /// ```text
@@ -211,6 +247,10 @@ mod tests {
         let mesh = SampleMeshes::two_tri3_one_qua4();
         assert_eq!(mesh.cells.len(), 3);
         // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_two_tri3_one_qua4.svg").unwrap();
+
+        let mesh = SampleMeshes::one_qua8();
+        assert_eq!(mesh.cells.len(), 1);
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_one_qua8.svg").unwrap();
 
         let mesh = SampleMeshes::one_hex8();
         assert_eq!(mesh.cells.len(), 1);
