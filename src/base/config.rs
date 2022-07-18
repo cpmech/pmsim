@@ -107,10 +107,10 @@ impl fmt::Display for Config {
 
         write!(f, "\nParameters for Elements\n").unwrap();
         write!(f, "=======================\n").unwrap();
-        let mut keys: Vec<_> = self.param_elements.keys().copied().collect();
+        let mut keys: Vec<_> = self.param_elements.keys().collect();
         keys.sort();
         for key in keys {
-            let p = self.param_elements.get(&key).unwrap();
+            let p = self.param_elements.get(key).unwrap();
             write!(f, "{:?} → {:?}\n", key, p).unwrap();
         }
 
