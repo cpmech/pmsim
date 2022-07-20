@@ -369,8 +369,9 @@ impl fmt::Display for DataMaps {
 #[cfg(test)]
 mod tests {
     use super::DataMaps;
-    use crate::base::{AttrDofs, AttrElement, Dof, Element, SampleMeshes};
-    use gemlab::{mesh::Mesh, shapes::GeoKind};
+    use crate::base::{AttrDofs, AttrElement, Dof, Element};
+    use gemlab::mesh::{Mesh, Samples};
+    use gemlab::shapes::GeoKind;
     use std::collections::{HashMap, HashSet};
 
     #[test]
@@ -510,7 +511,7 @@ mod tests {
 
     #[test]
     fn alloc_attr_dofs_captures_errors() {
-        let mesh = SampleMeshes::two_tri3();
+        let mesh = Samples::two_tri3();
         let attr_element = AttrElement::from([(2, Element::Solid)]);
         assert_eq!(
             DataMaps::alloc_attr_dofs(&mesh, &attr_element).err(),
@@ -525,7 +526,7 @@ mod tests {
 
     #[test]
     fn alloc_attr_dofs_works() {
-        let mesh = SampleMeshes::two_tri3();
+        let mesh = Samples::two_tri3();
         let attr_element = AttrElement::from([(1, Element::Solid)]);
         let attr_dofs = DataMaps::alloc_attr_dofs(&mesh, &attr_element).unwrap();
         assert_eq!(attr_dofs.len(), 1);
@@ -541,7 +542,7 @@ mod tests {
 
     #[test]
     fn alloc_point_dofs_captures_errors() {
-        let mesh = SampleMeshes::two_tri3();
+        let mesh = Samples::two_tri3();
         let attr_dofs: AttrDofs = HashMap::from([((2, GeoKind::Tri3), Vec::new())]);
         assert_eq!(
             DataMaps::alloc_point_dofs(&mesh, &attr_dofs).err(),
@@ -551,7 +552,7 @@ mod tests {
 
     #[test]
     fn alloc_point_dofs_works() {
-        let mesh = SampleMeshes::two_tri3();
+        let mesh = Samples::two_tri3();
         let attr_element = AttrElement::from([(1, Element::Solid)]);
         let attr_dofs = DataMaps::alloc_attr_dofs(&mesh, &attr_element).unwrap();
         let point_dofs = DataMaps::alloc_point_dofs(&mesh, &attr_dofs).unwrap();
@@ -577,7 +578,7 @@ mod tests {
 
     #[test]
     fn alloc_local_to_global_captures_errors() {
-        let mesh = SampleMeshes::three_tri3();
+        let mesh = Samples::three_tri3();
         let point_equations = vec![vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7]];
         assert_eq!(
             DataMaps::alloc_local_to_global(&mesh, &point_equations).err(),
@@ -597,7 +598,7 @@ mod tests {
         //            `--.__\/__.---'     {5}
         //                   1 {2}
         //                     {3}
-        let mesh = SampleMeshes::three_tri3();
+        let mesh = Samples::three_tri3();
         let point_equations = vec![vec![0, 1], vec![2, 3], vec![4, 5], vec![6, 7], vec![8, 9]];
         let local_to_global = DataMaps::alloc_local_to_global(&mesh, &point_equations).unwrap();
         assert_eq!(
@@ -608,7 +609,7 @@ mod tests {
 
     #[test]
     fn new_captures_errors() {
-        let mesh = SampleMeshes::two_tri3();
+        let mesh = Samples::two_tri3();
         let attr_element = AttrElement::from([(2, Element::Solid)]);
         assert_eq!(
             DataMaps::new(&mesh, attr_element).err(),
@@ -623,7 +624,7 @@ mod tests {
 
     #[test]
     fn new_works() {
-        let mesh = SampleMeshes::three_tri3();
+        let mesh = Samples::three_tri3();
         let attr_element = AttrElement::from([(1, Element::Solid)]);
         let dm = DataMaps::new(&mesh, attr_element).unwrap();
         assert_eq!(
@@ -675,7 +676,7 @@ mod tests {
         // | [0]    `.  |            |
         // | (1)      `.|            |
         // 0------------1------------4
-        let mesh = SampleMeshes::two_tri3_one_qua4();
+        let mesh = Samples::two_tri3_one_qua4();
         let attr_element = AttrElement::from([(1, Element::PorousLiq), (2, Element::PorousLiq)]);
         let dm = DataMaps::new(&mesh, attr_element).unwrap();
         assert_eq!(
@@ -733,7 +734,7 @@ mod tests {
         assert_eq!(neq, 0);
         assert_eq!(nnz, 0);
 
-        let mesh = SampleMeshes::three_tri3();
+        let mesh = Samples::three_tri3();
         let attr_element = AttrElement::from([(1, Element::Solid)]);
         let dm = DataMaps::new(&mesh, attr_element).unwrap();
         let (neq, nnz) = dm.neq_nnz();

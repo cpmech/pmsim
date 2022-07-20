@@ -12,7 +12,7 @@ categories = ["mathematics", "science", "simulation"]
 keywords = ["mechanics", "fem"]
 
 [dependencies]
-gemlab = "0.3.1"
+gemlab = "0.4"
 plotpy = "0.3"
 russell_chk = "0.4"
 russell_lab = "0.4"
