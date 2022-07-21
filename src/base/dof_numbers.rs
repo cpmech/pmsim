@@ -12,6 +12,8 @@ use std::fmt;
 pub type ArrayDofNum = Vec<Vec<(Dof, usize)>>;
 
 /// Returns the DOF keys and numbers for each cell node and the total number of local dofs
+///
+/// * The second item in (ArrayDofNum, usize) is the total number of local DOFs
 #[rustfmt::skip]
 fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<(ArrayDofNum, usize), StrError> {
     let rod_or_beam = element == Element::Rod || element == Element::Beam;
@@ -107,42 +109,36 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<(ArrayD
 }
 
 pub struct DofNumbers {
-    /// Maps the combination of attribute ID and kind to the DOFs array
-    ///
-    /// * The DOFs array contains the DOF keys and numbers attached to every cell node.
-    /// * The second item in (ArrayDofNum, usize) is the total number of local DOFs.
-    cell_dofs: HashMap<(CellAttributeId, GeoKind), (ArrayDofNum, usize)>,
-
     /// Holds all points DOFs and numbers
     ///
     /// * The array has a length equal to npoint
     /// * The inner maps have variable lengths according to the number of DOFs at the point
-    point_dofs: Vec<HashMap<Dof, usize>>,
+    pub point_dofs: Vec<HashMap<Dof, usize>>,
 
     /// Holds all DOF numbers, organized in a per Cell fashion
     ///
     /// * The outer array has length equal to ncell
     /// * The inner arrays have variable lengths according to the number of local DOFs of the cell
-    local_to_global: Vec<Vec<usize>>,
+    pub local_to_global: Vec<Vec<usize>>,
 
     /// Holds the total number of DOFs
-    dof_count: usize,
+    pub dof_count: usize,
 }
 
 impl DofNumbers {
     pub fn new(mesh: &Mesh, att_ele: &HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
         // auxiliary memoization data
         let npoint = mesh.points.len();
+        let mut memo_cell_dofs: HashMap<(CellAttributeId, GeoKind), (ArrayDofNum, usize)> = HashMap::new();
         let mut memo_point_dofs = vec![HashSet::new(); npoint];
 
-        // find all cells' (DOFs, local numbers)
-        let mut cell_dofs = HashMap::new();
+        // find all cell (DOFs, local numbers) pairs and add (unique) DOFs to the point DOFs array
         for cell in &mesh.cells {
             let element = match att_ele.get(&cell.attribute_id) {
                 Some(e) => e,
                 None => return Err("cannot find attribute in att_ele map"),
             };
-            let (dofs, _) = cell_dofs
+            let (dofs, _) = memo_cell_dofs
                 .entry((cell.attribute_id, cell.kind))
                 .or_insert(get_cell_dofs(mesh.ndim, *element, cell.kind)?);
             for m in 0..cell.points.len() {
@@ -152,8 +148,8 @@ impl DofNumbers {
             }
         }
 
-        // compute all points' DOFs and global equation ids
-        let mut point_dofs: Vec<HashMap<Dof, usize>> = vec![HashMap::new(); npoint];
+        // compute all point DOF numbers
+        let mut point_dofs = vec![HashMap::new(); npoint];
         let mut dof_count = 0; // total number of DOFs
         for point_id in 0..npoint {
             let mut sorted_dofs: Vec<_> = memo_point_dofs[point_id].iter().collect();
@@ -164,23 +160,22 @@ impl DofNumbers {
             }
         }
 
-        // compute all cells' local_to_global maps
+        // compute all cell local_to_global maps
         let ncell = mesh.cells.len();
         let mut local_to_global: Vec<Vec<usize>> = vec![Vec::new(); ncell];
         for cell in &mesh.cells {
-            let (cell_dofs, n_local_eqn) = cell_dofs.get(&(cell.attribute_id, cell.kind)).unwrap();
-            local_to_global[cell.id] = vec![0; *n_local_eqn];
+            let (cell_dofs, n_local_dof) = memo_cell_dofs.get(&(cell.attribute_id, cell.kind)).unwrap();
+            local_to_global[cell.id] = vec![0; *n_local_dof];
             for m in 0..cell.points.len() {
-                for (dof, local_eid) in &cell_dofs[m] {
-                    let global_eid = *point_dofs[cell.points[m]].get(dof).unwrap();
-                    local_to_global[cell.id][*local_eid] = global_eid;
+                for (dof, local) in &cell_dofs[m] {
+                    let global = *point_dofs[cell.points[m]].get(dof).unwrap();
+                    local_to_global[cell.id][*local] = global;
                 }
             }
         }
 
         // done
         Ok(DofNumbers {
-            cell_dofs,
             point_dofs,
             local_to_global,
             dof_count,
@@ -194,10 +189,10 @@ impl fmt::Display for DofNumbers {
         let thin_line = "--------------------------------------------------------------------------------\n";
 
         f.write_str(thick_line).unwrap();
-        write!(f, "number of equations = {}\n", self.dof_count).unwrap();
+        write!(f, "total number of DOFs (equations) = {}\n", self.dof_count).unwrap();
 
         f.write_str(thin_line).unwrap();
-        write!(f, "PointId: (Dof, EquationId)\n").unwrap();
+        write!(f, "PointId: (DOF, number)\n").unwrap();
         for point_id in 0..self.point_dofs.len() {
             let mut dof_eqn: Vec<_> = self.point_dofs[point_id].iter().collect();
             dof_eqn.sort_by(|a, b| a.0.partial_cmp(b.0).unwrap());
