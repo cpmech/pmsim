@@ -24,7 +24,7 @@ use std::fmt;
 /// // {Ux → 0}  /         \  {Ux → 3}   9 → Uy @ 4 → 12
 /// // {Uy → 1} 0-----3-----1 {Uy → 4}  10 → Ux @ 5 → 13
 /// // {Pl → 2}   {Ux → 9}    {Pl → 5}  11 → Uy @ 5 → 14
-/// //            {Uy → 10}             12 → Pl @ 0 →  2  <<< start_lower_order
+/// //            {Uy → 10}             12 → Pl @ 0 →  2  <<< eq_first_p
 /// //                                  13 → Pl @ 1 →  5
 /// //                                  14 → Pl @ 2 →  8
 /// ```
@@ -40,12 +40,12 @@ pub struct CellDofInfo {
     /// **Note:** This is equal to the total number of DOFs in the cell
     pub n_equation_local: usize,
 
-    /// Local equation number of the first DOF at a "lower-order" node
+    /// Local equation number of the first DOF at a "lower-order" node (e.g. Pl)
     ///
     /// **Note:** If the element has mixed DOFs per node, e.g., "higher-order" nodes with [Ux, Uy],
     /// and "lower-order" nodes with [Ux, Uy, Pl], this index marks the position of the first entry
     /// in the local system of equations corresponding to the first mixed DOF, e.g., Pl.
-    pub eq_lo: Option<usize>,
+    pub eq_first_p: Option<usize>,
 }
 
 /// Returns the DOF keys and local equation numbers for each cell node of (Element,GeoKind)
@@ -62,7 +62,7 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
     let nnode = kind.nnode();
     let mut dofs = vec![Vec::new(); nnode];
     let mut count = 0;
-    let mut eq_lo = None;
+    let mut eq_first_p = None;
     match element {
         Element::Rod => {
             for m in 0..nnode {
@@ -118,7 +118,7 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
                     dofs[m].push((Dof::Uz, count)); count += 1;
                 }
             }
-            eq_lo = Some(count);
+            eq_first_p = Some(count);
             let ncorner = kind.lower_order().unwrap().nnode();
             for m in 0..ncorner {
                 dofs[m].push((Dof::Pl, count)); count += 1;
@@ -135,7 +135,7 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
                     dofs[m].push((Dof::Uz, count)); count += 1;
                 }
             }
-            eq_lo = Some(count);
+            eq_first_p = Some(count);
             let ncorner = kind.lower_order().unwrap().nnode();
             for m in 0..ncorner {
                 dofs[m].push((Dof::Pl, count)); count += 1;
@@ -146,7 +146,7 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
     Ok(CellDofInfo {
         dof_equation_pairs: dofs,
         n_equation_local: count,
-        eq_lo,
+        eq_first_p,
     })
 }
 
@@ -198,6 +198,7 @@ pub struct DofNumbers {
 }
 
 impl DofNumbers {
+    /// Allocates a new instance
     pub fn new(mesh: &Mesh, att_ele: &HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
         // auxiliary memoization data
         let npoint = mesh.points.len();
@@ -267,7 +268,11 @@ impl fmt::Display for DofNumbers {
         keys.sort_by(|a, b| a.0.cmp(&b.0));
         for key in keys {
             let info = self.cell_dofs.get(key).unwrap();
-            write!(f, "{} {:?} eq_lo = {:?}\n", key.0, key.1, info.eq_lo).unwrap();
+            if let Some(eq) = info.eq_first_p {
+                write!(f, "{} {:?} (eq_first_p={:?})\n", key.0, key.1, eq).unwrap();
+            } else {
+                write!(f, "{} {:?}\n", key.0, key.1).unwrap();
+            }
             for m in 0..info.dof_equation_pairs.len() {
                 write!(f, "    {}: {:?}\n", m, info.dof_equation_pairs[m]).unwrap();
             }
@@ -289,8 +294,8 @@ impl fmt::Display for DofNumbers {
 
         write!(f, "\nInformation\n").unwrap();
         write!(f, "===========\n").unwrap();
-        write!(f, "total number of DOFs (equations) = {}\n", self.n_equation).unwrap();
-        write!(f, "supremum of the number of non-zeros (nnz_sup) = {}\n", self.nnz_sup).unwrap();
+        write!(f, "number of equations = {}\n", self.n_equation).unwrap();
+        write!(f, "number of non-zeros = {}\n", self.nnz_sup).unwrap();
         Ok(())
     }
 }
