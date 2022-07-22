@@ -22,7 +22,7 @@ use std::fmt;
 /// {Ux → 0}  /         \  {Ux → 3}   9 → Uy @ 4 → 12
 /// {Uy → 1} 0-----3-----1 {Uy → 4}  10 → Ux @ 5 → 13
 /// {Pl → 2}   {Ux → 9}    {Pl → 5}  11 → Uy @ 5 → 14
-///            {Uy → 10}             12 → Pl @ 0 →  2  <<< eq_first_p
+///            {Uy → 10}             12 → Pl @ 0 →  2  <<< eq_first_pl
 ///                                  13 → Pl @ 1 →  5
 ///                                  14 → Pl @ 2 →  8
 pub struct CellDofInfo {
@@ -37,12 +37,14 @@ pub struct CellDofInfo {
     /// **Note:** This is equal to the total number of DOFs in the cell
     pub n_equation_local: usize,
 
-    /// Local equation number of the first DOF at a "lower-order" node (e.g. Pl)
-    ///
-    /// **Note:** If the element has mixed DOFs per node, e.g., "higher-order" nodes with [Ux, Uy],
-    /// and "lower-order" nodes with [Ux, Uy, Pl], this index marks the position of the first entry
-    /// in the local system of equations corresponding to the first mixed DOF, e.g., Pl.
-    pub eq_first_p: Option<usize>,
+    /// Local equation number of the first Dof::Pl
+    pub eq_first_pl: Option<usize>,
+
+    /// Local equation number of the first Dof::Pg
+    pub eq_first_pg: Option<usize>,
+
+    /// Local equation number of the first Dof::T
+    pub eq_first_tt: Option<usize>,
 }
 
 /// Returns the DOF keys and local equation numbers for each cell node of (Element,GeoKind)
@@ -59,7 +61,9 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
     let nnode = kind.nnode();
     let mut dofs = vec![Vec::new(); nnode];
     let mut count = 0;
-    let mut eq_first_p = None;
+    let mut eq_first_pl = None;
+    let mut eq_first_pg = None;
+    let eq_first_tt = None;
     match element {
         Element::Rod => {
             for m in 0..nnode {
@@ -115,8 +119,8 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
                     dofs[m].push((Dof::Uz, count)); count += 1;
                 }
             }
-            eq_first_p = Some(count);
             let ncorner = kind.lower_order().unwrap().nnode();
+            eq_first_pl = Some(count);
             for m in 0..ncorner {
                 dofs[m].push((Dof::Pl, count)); count += 1;
             }
@@ -132,10 +136,13 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
                     dofs[m].push((Dof::Uz, count)); count += 1;
                 }
             }
-            eq_first_p = Some(count);
             let ncorner = kind.lower_order().unwrap().nnode();
+            eq_first_pl = Some(count);
             for m in 0..ncorner {
                 dofs[m].push((Dof::Pl, count)); count += 1;
+            }
+            eq_first_pg = Some(count);
+            for m in 0..ncorner {
                 dofs[m].push((Dof::Pg, count)); count += 1;
             }
         }
@@ -143,7 +150,9 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
     Ok(CellDofInfo {
         dof_equation_pairs: dofs,
         n_equation_local: count,
-        eq_first_p,
+        eq_first_pl,
+        eq_first_pg,
+        eq_first_tt,
     })
 }
 
@@ -280,11 +289,12 @@ impl fmt::Display for DofNumbers {
         keys.sort_by(|a, b| a.0.cmp(&b.0));
         for key in keys {
             let info = self.cell_dofs.get(key).unwrap();
-            if let Some(eq) = info.eq_first_p {
-                write!(f, "{} {:?} (eq_first_p={:?})\n", key.0, key.1, eq).unwrap();
-            } else {
-                write!(f, "{} {:?}\n", key.0, key.1).unwrap();
-            }
+            write!(
+                f,
+                "{} {:?} (Pl @ {:?}, Pg @ {:?}, T @ {:?})\n",
+                key.0, key.1, info.eq_first_pl, info.eq_first_pg, info.eq_first_tt
+            )
+            .unwrap();
             for m in 0..info.dof_equation_pairs.len() {
                 write!(f, "    {}: {:?}\n", m, info.dof_equation_pairs[m]).unwrap();
             }
@@ -397,9 +407,9 @@ mod tests {
         assert_eq!(
             g.dof_equation_pairs,
             vec![
-                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 12), (Dof::Pg, 13)],
-                vec![(Dof::Ux, 2), (Dof::Uy, 3), (Dof::Pl, 14), (Dof::Pg, 15)],
-                vec![(Dof::Ux, 4), (Dof::Uy, 5), (Dof::Pl, 16), (Dof::Pg, 17)],
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 12), (Dof::Pg, 15)],
+                vec![(Dof::Ux, 2), (Dof::Uy, 3), (Dof::Pl, 13), (Dof::Pg, 16)],
+                vec![(Dof::Ux, 4), (Dof::Uy, 5), (Dof::Pl, 14), (Dof::Pg, 17)],
                 vec![(Dof::Ux, 6), (Dof::Uy, 7)],
                 vec![(Dof::Ux, 8), (Dof::Uy, 9)],
                 vec![(Dof::Ux, 10), (Dof::Uy, 11)]
@@ -475,9 +485,9 @@ mod tests {
         assert_eq!(
             g.dof_equation_pairs,
             vec![
-                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2), (Dof::Pl, 18), (Dof::Pg, 19)],
-                vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5), (Dof::Pl, 20), (Dof::Pg, 21)],
-                vec![(Dof::Ux, 6), (Dof::Uy, 7), (Dof::Uz, 8), (Dof::Pl, 22), (Dof::Pg, 23)],
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2), (Dof::Pl, 18), (Dof::Pg, 21)],
+                vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5), (Dof::Pl, 19), (Dof::Pg, 22)],
+                vec![(Dof::Ux, 6), (Dof::Uy, 7), (Dof::Uz, 8), (Dof::Pl, 20), (Dof::Pg, 23)],
                 vec![(Dof::Ux, 9), (Dof::Uy, 10), (Dof::Uz, 11)],
                 vec![(Dof::Ux, 12), (Dof::Uy, 13), (Dof::Uz, 14)],
                 vec![(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Uz, 17)]
