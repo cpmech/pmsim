@@ -556,6 +556,48 @@ mod tests {
 
     #[test]
     fn display_works() {
+        //       {8} 4---.__
+        //       {9}/ \     `--.___3 {6}   [#] indicates id
+        //         /   \          / \{7}   (#) indicates attribute_id
+        //        /     \  [1]   /   \     {#} indicates equation number
+        //       /  [0]  \ (1)  / [2] \
+        // {0}  /   (1)   \    /  (1)  \
+        // {1} 0---.__     \  /      ___2 {4}
+        //            `--.__\/__.---'     {5}
+        //                   1 {2}
+        //                     {3}
+        let mesh = Samples::three_tri3();
+        let attr_element = HashMap::from([(1, Element::Solid)]);
+        let dn = DofNumbers::new(&mesh, &attr_element).unwrap();
+        assert_eq!(
+            format!("{}", dn),
+            "Cells: DOFs and local equation numbers\n\
+             ======================================\n\
+             1 Tri3 (Pl @ None, Pg @ None, T @ None)\n\
+             \x20\x20\x20\x200: [(Ux, 0), (Uy, 1)]\n\
+             \x20\x20\x20\x201: [(Ux, 2), (Uy, 3)]\n\
+             \x20\x20\x20\x202: [(Ux, 4), (Uy, 5)]\n\
+             \n\
+             Points: DOFs and global equation numbers\n\
+             ========================================\n\
+             0: [(Ux, 0), (Uy, 1)]\n\
+             1: [(Ux, 2), (Uy, 3)]\n\
+             2: [(Ux, 4), (Uy, 5)]\n\
+             3: [(Ux, 6), (Uy, 7)]\n\
+             4: [(Ux, 8), (Uy, 9)]\n\
+             \n\
+             Cells: Local-to-Global\n\
+             ======================\n\
+             0: [0, 1, 2, 3, 8, 9]\n\
+             1: [2, 3, 6, 7, 8, 9]\n\
+             2: [2, 3, 4, 5, 6, 7]\n\
+             \n\
+             Information\n\
+             ===========\n\
+             number of equations = 10\n\
+             number of non-zeros = 108\n"
+        );
+
         // 3------------2------------5
         // |`.      [1] |            |    [#] indicates id
         // |  `.    (1) |            |    (#) indicates attribute_id
