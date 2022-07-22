@@ -283,7 +283,7 @@ impl DofNumbers {
 
 impl fmt::Display for DofNumbers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\nCells: DOFs and local equation numbers\n").unwrap();
+        write!(f, "Cells: DOFs and local equation numbers\n").unwrap();
         write!(f, "======================================\n").unwrap();
         let mut keys: Vec<_> = self.cell_dofs.keys().collect();
         keys.sort_by(|a, b| a.0.cmp(&b.0));
@@ -552,5 +552,54 @@ mod tests {
         let nnz_beam = (3 * 2) * (3 * 2);
         assert_eq!(dn.n_equation, 29);
         assert_eq!(dn.nnz_sup, nnz_porous_qua8 + nnz_solid_tri6 + 2 * nnz_beam);
+    }
+
+    #[test]
+    fn display_works() {
+        // 3------------2------------5
+        // |`.      [1] |            |    [#] indicates id
+        // |  `.    (1) |            |    (#) indicates attribute_id
+        // |    `.      |     [2]    |
+        // |      `.    |     (2)    |
+        // | [0]    `.  |            |
+        // | (1)      `.|            |
+        // 0------------1------------4
+        let mesh = Samples::two_tri3_one_qua4();
+        let attr_element = HashMap::from([(1, Element::PorousLiq), (2, Element::PorousLiq)]);
+        let dn = DofNumbers::new(&mesh, &attr_element).unwrap();
+        assert_eq!(
+            format!("{}", dn),
+            "Cells: DOFs and local equation numbers\n\
+             ======================================\n\
+             1 Tri3 (Pl @ None, Pg @ None, T @ None)\n\
+             \x20\x20\x20\x200: [(Pl, 0)]\n\
+             \x20\x20\x20\x201: [(Pl, 1)]\n\
+             \x20\x20\x20\x202: [(Pl, 2)]\n\
+             2 Qua4 (Pl @ None, Pg @ None, T @ None)\n\
+             \x20\x20\x20\x200: [(Pl, 0)]\n\
+             \x20\x20\x20\x201: [(Pl, 1)]\n\
+             \x20\x20\x20\x202: [(Pl, 2)]\n\
+             \x20\x20\x20\x203: [(Pl, 3)]\n\
+             \n\
+             Points: DOFs and global equation numbers\n\
+             ========================================\n\
+             0: [(Pl, 0)]\n\
+             1: [(Pl, 1)]\n\
+             2: [(Pl, 2)]\n\
+             3: [(Pl, 3)]\n\
+             4: [(Pl, 4)]\n\
+             5: [(Pl, 5)]\n\
+             \n\
+             Cells: Local-to-Global\n\
+             ======================\n\
+             0: [0, 1, 3]\n\
+             1: [2, 3, 1]\n\
+             2: [1, 4, 5, 2]\n\
+             \n\
+             Information\n\
+             ===========\n\
+             number of equations = 6\n\
+             number of non-zeros = 34\n"
+        );
     }
 }
