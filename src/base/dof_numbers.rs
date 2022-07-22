@@ -293,10 +293,12 @@ impl fmt::Display for DofNumbers {
         keys.sort_by(|a, b| a.0.cmp(&b.0));
         for key in keys {
             let info = self.cell_dofs.get(key).unwrap();
+            let (attr, kind) = key;
+            let element = self.attr_element.get(attr).unwrap();
             write!(
                 f,
-                "{} {:?} (Pl @ {:?}, Pg @ {:?}, T @ {:?})\n",
-                key.0, key.1, info.eq_first_pl, info.eq_first_pg, info.eq_first_tt
+                "{} → {:?} → {:?} (Pl @ {:?}, Pg @ {:?}, T @ {:?})\n",
+                attr, element, kind, info.eq_first_pl, info.eq_first_pg, info.eq_first_tt
             )
             .unwrap();
             for m in 0..info.dof_equation_pairs.len() {
@@ -525,7 +527,6 @@ mod tests {
         let mesh = Samples::qua8_tri6_lin2();
         let attr_element = HashMap::from([(1, Element::PorousSldLiq), (2, Element::Solid), (3, Element::Beam)]);
         let dn = DofNumbers::new(&mesh, attr_element).unwrap();
-        assert!(format!("{}", dn).len() > 0);
 
         // check point dofs
         assert_point_dofs(&dn, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
@@ -577,7 +578,7 @@ mod tests {
             format!("{}", dn),
             "Cells: DOFs and local equation numbers\n\
              ======================================\n\
-             1 Tri3 (Pl @ None, Pg @ None, T @ None)\n\
+             1 → Solid → Tri3 (Pl @ None, Pg @ None, T @ None)\n\
              \x20\x20\x20\x200: [(Ux, 0), (Uy, 1)]\n\
              \x20\x20\x20\x201: [(Ux, 2), (Uy, 3)]\n\
              \x20\x20\x20\x202: [(Ux, 4), (Uy, 5)]\n\
@@ -617,11 +618,11 @@ mod tests {
             format!("{}", dn),
             "Cells: DOFs and local equation numbers\n\
              ======================================\n\
-             1 Tri3 (Pl @ None, Pg @ None, T @ None)\n\
+             1 → PorousLiq → Tri3 (Pl @ None, Pg @ None, T @ None)\n\
              \x20\x20\x20\x200: [(Pl, 0)]\n\
              \x20\x20\x20\x201: [(Pl, 1)]\n\
              \x20\x20\x20\x202: [(Pl, 2)]\n\
-             2 Qua4 (Pl @ None, Pg @ None, T @ None)\n\
+             2 → PorousLiq → Qua4 (Pl @ None, Pg @ None, T @ None)\n\
              \x20\x20\x20\x200: [(Pl, 0)]\n\
              \x20\x20\x20\x201: [(Pl, 1)]\n\
              \x20\x20\x20\x202: [(Pl, 2)]\n\
