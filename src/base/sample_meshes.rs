@@ -77,7 +77,10 @@ impl SampleMeshes {
 #[cfg(test)]
 mod tests {
     use super::SampleMeshes;
-    use gemlab::mesh::{check_all, draw_mesh};
+    use gemlab::mesh::check_all;
+
+    #[allow(unused)]
+    use gemlab::mesh::draw_mesh;
 
     #[test]
     fn sample_meshes_are_ok() {
@@ -85,16 +88,12 @@ mod tests {
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 6);
         assert_eq!(mesh.cells.len(), 1);
-        if true {
-            draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_one_tri6.svg").unwrap();
-        }
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_one_tri6.svg").unwrap();
 
         let mesh = SampleMeshes::bhatti_example_1dot4_truss();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 5);
-        if false {
-            draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot4_truss.svg").unwrap();
-        }
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot4_truss.svg").unwrap();
     }
 }

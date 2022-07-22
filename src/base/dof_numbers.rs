@@ -7,27 +7,24 @@ use std::fmt;
 
 /// Holds information about the Cell/Element DOFs
 ///
-/// # Examples
-///
-/// ```
-/// // leq: local equation number       leq   point   geq
-/// // geq: global equation number       ↓        ↓    ↓
-/// //                                   0 → Ux @ 0 →  0
-/// //            {Ux → 6}               1 → Uy @ 0 →  1
-/// //            {Uy → 7}               2 → Ux @ 1 →  3
-/// //            {Pl → 8}               3 → Uy @ 1 →  4
-/// //                2                  4 → Ux @ 2 →  6
-/// //               / \                 5 → Uy @ 2 →  7
-/// //   {Ux → 13}  /   \  {Ux → 11}     6 → Ux @ 3 →  9
-/// //   {Uy → 14} 5     4 {Uy → 12}     7 → Uy @ 3 → 10
-/// //            /       \              8 → Ux @ 4 → 11
-/// // {Ux → 0}  /         \  {Ux → 3}   9 → Uy @ 4 → 12
-/// // {Uy → 1} 0-----3-----1 {Uy → 4}  10 → Ux @ 5 → 13
-/// // {Pl → 2}   {Ux → 9}    {Pl → 5}  11 → Uy @ 5 → 14
-/// //            {Uy → 10}             12 → Pl @ 0 →  2  <<< eq_first_p
-/// //                                  13 → Pl @ 1 →  5
-/// //                                  14 → Pl @ 2 →  8
-/// ```
+/// ```text
+/// leq: local equation number       leq   point   geq
+/// geq: global equation number       ↓        ↓    ↓
+///                                   0 → Ux @ 0 →  0
+///            {Ux → 6}               1 → Uy @ 0 →  1
+///            {Uy → 7}               2 → Ux @ 1 →  3
+///            {Pl → 8}               3 → Uy @ 1 →  4
+///                2                  4 → Ux @ 2 →  6
+///               / \                 5 → Uy @ 2 →  7
+///   {Ux → 13}  /   \  {Ux → 11}     6 → Ux @ 3 →  9
+///   {Uy → 14} 5     4 {Uy → 12}     7 → Uy @ 3 → 10
+///            /       \              8 → Ux @ 4 → 11
+/// {Ux → 0}  /         \  {Ux → 3}   9 → Uy @ 4 → 12
+/// {Uy → 1} 0-----3-----1 {Uy → 4}  10 → Ux @ 5 → 13
+/// {Pl → 2}   {Ux → 9}    {Pl → 5}  11 → Uy @ 5 → 14
+///            {Uy → 10}             12 → Pl @ 0 →  2  <<< eq_first_p
+///                                  13 → Pl @ 1 →  5
+///                                  14 → Pl @ 2 →  8
 pub struct CellDofInfo {
     /// Holds all cell DOF keys and local equation numbers
     ///
@@ -224,7 +221,7 @@ impl DofNumbers {
         for cell in &mesh.cells {
             let element = match attr_element.get(&cell.attribute_id) {
                 Some(e) => e,
-                None => return Err("cannot find attribute in att_ele map"),
+                None => return Err("cannot find CellAttributeId in attr_element map"),
             };
             let info = cell_dofs
                 .entry((cell.attribute_id, cell.kind))
@@ -319,11 +316,189 @@ impl fmt::Display for DofNumbers {
 
 #[cfg(test)]
 mod tests {
-    use super::DofNumbers;
-    use crate::base::{Dof, Element};
+    use super::{get_cell_dofs, DofNumbers};
+    use crate::base::{Dof, Element, SampleMeshes};
     use gemlab::mesh::{PointId, Samples};
-    use gemlab::StrError;
+    use gemlab::shapes::GeoKind;
     use std::collections::HashMap;
+
+    #[test]
+    fn get_cell_dofs_captures_errors() {
+        assert_eq!(
+            get_cell_dofs(2, Element::Rod, GeoKind::Tri3).err(),
+            Some("cannot set Rod or Beam with a non-Lin GeoClass")
+        );
+        assert_eq!(
+            get_cell_dofs(2, Element::Beam, GeoKind::Tri3).err(),
+            Some("cannot set Rod or Beam with a non-Lin GeoClass")
+        );
+        assert_eq!(
+            get_cell_dofs(2, Element::Solid, GeoKind::Lin2).err(),
+            Some("GeoClass::Lin is reserved for Rod or Beam")
+        );
+        assert_eq!(
+            get_cell_dofs(2, Element::PorousSldLiq, GeoKind::Tri3).err(),
+            Some("cannot set PorousSldLiq with given GeoKind")
+        );
+        assert_eq!(
+            get_cell_dofs(2, Element::PorousSldLiqGas, GeoKind::Tri3).err(),
+            Some("cannot set PorousSldLiqGas with given GeoKind")
+        );
+    }
+
+    #[test]
+    fn get_cell_dofs_works_2d() {
+        let a = get_cell_dofs(2, Element::Rod, GeoKind::Lin2).unwrap();
+        let b = get_cell_dofs(2, Element::Beam, GeoKind::Lin2).unwrap();
+        let c = get_cell_dofs(2, Element::Solid, GeoKind::Tri3).unwrap();
+        let d = get_cell_dofs(2, Element::PorousLiq, GeoKind::Tri3).unwrap();
+        let e = get_cell_dofs(2, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
+        let f = get_cell_dofs(2, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
+        let g = get_cell_dofs(2, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
+        assert_eq!(
+            a.dof_equation_pairs,
+            vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
+        );
+        assert_eq!(
+            b.dof_equation_pairs,
+            vec![
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Rz, 2)],
+                vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Rz, 5)]
+            ]
+        );
+        assert_eq!(
+            c.dof_equation_pairs,
+            vec![
+                vec![(Dof::Ux, 0), (Dof::Uy, 1)],
+                vec![(Dof::Ux, 2), (Dof::Uy, 3)],
+                vec![(Dof::Ux, 4), (Dof::Uy, 5)]
+            ]
+        );
+        assert_eq!(d.dof_equation_pairs, &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]);
+        assert_eq!(
+            e.dof_equation_pairs,
+            vec![
+                vec![(Dof::Pl, 0), (Dof::Pg, 1)],
+                vec![(Dof::Pl, 2), (Dof::Pg, 3)],
+                vec![(Dof::Pl, 4), (Dof::Pg, 5)]
+            ]
+        );
+        assert_eq!(
+            f.dof_equation_pairs,
+            vec![
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 12)],
+                vec![(Dof::Ux, 2), (Dof::Uy, 3), (Dof::Pl, 13)],
+                vec![(Dof::Ux, 4), (Dof::Uy, 5), (Dof::Pl, 14)],
+                vec![(Dof::Ux, 6), (Dof::Uy, 7)],
+                vec![(Dof::Ux, 8), (Dof::Uy, 9)],
+                vec![(Dof::Ux, 10), (Dof::Uy, 11)]
+            ]
+        );
+        assert_eq!(
+            g.dof_equation_pairs,
+            vec![
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 12), (Dof::Pg, 13)],
+                vec![(Dof::Ux, 2), (Dof::Uy, 3), (Dof::Pl, 14), (Dof::Pg, 15)],
+                vec![(Dof::Ux, 4), (Dof::Uy, 5), (Dof::Pl, 16), (Dof::Pg, 17)],
+                vec![(Dof::Ux, 6), (Dof::Uy, 7)],
+                vec![(Dof::Ux, 8), (Dof::Uy, 9)],
+                vec![(Dof::Ux, 10), (Dof::Uy, 11)]
+            ]
+        );
+    }
+
+    #[test]
+    fn get_cell_dofs_works_3d() {
+        let a = get_cell_dofs(3, Element::Rod, GeoKind::Lin2).unwrap();
+        let b = get_cell_dofs(3, Element::Beam, GeoKind::Lin2).unwrap();
+        let c = get_cell_dofs(3, Element::Solid, GeoKind::Tri3).unwrap();
+        let d = get_cell_dofs(3, Element::PorousLiq, GeoKind::Tri3).unwrap();
+        let e = get_cell_dofs(3, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
+        let f = get_cell_dofs(3, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
+        let g = get_cell_dofs(3, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
+        assert_eq!(
+            a.dof_equation_pairs,
+            vec![
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2)],
+                vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5)]
+            ]
+        );
+        assert_eq!(
+            b.dof_equation_pairs,
+            vec![
+                vec![
+                    (Dof::Ux, 0),
+                    (Dof::Uy, 1),
+                    (Dof::Uz, 2),
+                    (Dof::Rx, 3),
+                    (Dof::Ry, 4),
+                    (Dof::Rz, 5)
+                ],
+                vec![
+                    (Dof::Ux, 6),
+                    (Dof::Uy, 7),
+                    (Dof::Uz, 8),
+                    (Dof::Rx, 9),
+                    (Dof::Ry, 10),
+                    (Dof::Rz, 11)
+                ]
+            ]
+        );
+        assert_eq!(
+            c.dof_equation_pairs,
+            vec![
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2)],
+                vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5)],
+                vec![(Dof::Ux, 6), (Dof::Uy, 7), (Dof::Uz, 8)]
+            ]
+        );
+        assert_eq!(d.dof_equation_pairs, &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]);
+        assert_eq!(
+            e.dof_equation_pairs,
+            vec![
+                vec![(Dof::Pl, 0), (Dof::Pg, 1)],
+                vec![(Dof::Pl, 2), (Dof::Pg, 3)],
+                vec![(Dof::Pl, 4), (Dof::Pg, 5)]
+            ]
+        );
+        assert_eq!(
+            f.dof_equation_pairs,
+            vec![
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2), (Dof::Pl, 18)],
+                vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5), (Dof::Pl, 19)],
+                vec![(Dof::Ux, 6), (Dof::Uy, 7), (Dof::Uz, 8), (Dof::Pl, 20)],
+                vec![(Dof::Ux, 9), (Dof::Uy, 10), (Dof::Uz, 11)],
+                vec![(Dof::Ux, 12), (Dof::Uy, 13), (Dof::Uz, 14)],
+                vec![(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Uz, 17)]
+            ]
+        );
+        assert_eq!(
+            g.dof_equation_pairs,
+            vec![
+                vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2), (Dof::Pl, 18), (Dof::Pg, 19)],
+                vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5), (Dof::Pl, 20), (Dof::Pg, 21)],
+                vec![(Dof::Ux, 6), (Dof::Uy, 7), (Dof::Uz, 8), (Dof::Pl, 22), (Dof::Pg, 23)],
+                vec![(Dof::Ux, 9), (Dof::Uy, 10), (Dof::Uz, 11)],
+                vec![(Dof::Ux, 12), (Dof::Uy, 13), (Dof::Uz, 14)],
+                vec![(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Uz, 17)]
+            ]
+        );
+    }
+
+    #[test]
+    fn new_captures_errors() {
+        let mesh = SampleMeshes::one_tri6();
+        let attr_element = HashMap::from([(2, Element::Solid)]);
+        assert_eq!(
+            DofNumbers::new(&mesh, &attr_element).err(),
+            Some("cannot find CellAttributeId in attr_element map")
+        );
+        let attr_element = HashMap::from([(1, Element::Rod)]);
+        assert_eq!(
+            DofNumbers::new(&mesh, &attr_element).err(),
+            Some("cannot set Rod or Beam with a non-Lin GeoClass")
+        );
+    }
 
     fn assert_point_dofs(dn: &DofNumbers, p: PointId, correct: &[(Dof, usize)]) {
         let mut dofs: Vec<_> = dn.point_dofs[p].iter().map(|(d, n)| (*d, *n)).collect();
@@ -332,10 +507,10 @@ mod tests {
     }
 
     #[test]
-    fn new_works() -> Result<(), StrError> {
+    fn new_works() {
         let mesh = Samples::qua8_tri6_lin2();
-        let att_ele = HashMap::from([(1, Element::PorousSldLiq), (2, Element::Solid), (3, Element::Beam)]);
-        let dn = DofNumbers::new(&mesh, &att_ele)?;
+        let attr_element = HashMap::from([(1, Element::PorousSldLiq), (2, Element::Solid), (3, Element::Beam)]);
+        let dn = DofNumbers::new(&mesh, &attr_element).unwrap();
         assert!(format!("{}", dn).len() > 0);
 
         // check point dofs
@@ -367,6 +542,5 @@ mod tests {
         let nnz_beam = (3 * 2) * (3 * 2);
         assert_eq!(dn.n_equation, 29);
         assert_eq!(dn.nnz_sup, nnz_porous_qua8 + nnz_solid_tri6 + 2 * nnz_beam);
-        Ok(())
     }
 }
