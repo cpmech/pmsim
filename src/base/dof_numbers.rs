@@ -156,12 +156,6 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
     })
 }
 
-/// Defines a nested array with DOF keys and numbers
-///
-/// * The outer array has length = npoint (or nnode)
-/// * The inner arrays have variable lengths = ndof at the point (or node)
-pub type ArrayDofNum = Vec<Vec<(Dof, usize)>>;
-
 pub struct DofNumbers {
     /// Connects attributes to elements
     pub attr_element: HashMap<CellAttributeId, Element>,
