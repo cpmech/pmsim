@@ -111,18 +111,35 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<(ArrayD
 pub struct DofNumbers {
     /// Holds all points DOFs and numbers
     ///
-    /// * The array has a length equal to npoint
-    /// * The inner maps have variable lengths according to the number of DOFs at the point
+    /// **Notes:**
+    ///
+    /// 1. The array has a length equal to npoint
+    /// 2. The inner maps have variable lengths according to the number of DOFs at the point
     pub point_dofs: Vec<HashMap<Dof, usize>>,
 
     /// Holds all DOF numbers, organized in a per Cell fashion
     ///
-    /// * The outer array has length equal to ncell
-    /// * The inner arrays have variable lengths according to the number of local DOFs of the cell
+    /// **Notes:**
+    ///
+    /// 1. The outer array has length equal to ncell
+    /// 2. The inner arrays have variable lengths according to the number of local DOFs of the cell
     pub local_to_global: Vec<Vec<usize>>,
 
     /// Holds the total number of DOFs
     pub dof_count: usize,
+
+    /// Holds the supremum of the number of nonzero values (nnz) in the global matrix
+    ///
+    /// **Notes:**
+    /// 1. The global matrix is sparse with the number of nonzero values indicated by `nnz`
+    /// 2. The local element matrices add only to parts of the global matrix yielding a banded matrix
+    /// 3. The largest upper bound of nnz is the total number of entries in the global matrix (nrow × ncol).
+    ///    However, the elements share DOFs; therefore, the exact nnz is (much) less than nrow × ncol
+    /// 4. The number of entries in a local matrix is indicated by `ndof_local`; hence,
+    ///    the total number of entries in a local matrix equals ndof_local × ndof_local.
+    /// 5. The least upper bound (supremum) of nnz, indicated here by `nnz_sup`, is equal to the
+    ///    sum of all the number of entries in the local matrices, i.e., Σ (ndof_local × ndof_local)
+    pub nnz_sup: usize,
 }
 
 impl DofNumbers {
@@ -163,15 +180,17 @@ impl DofNumbers {
         // compute all cell local_to_global maps
         let ncell = mesh.cells.len();
         let mut local_to_global: Vec<Vec<usize>> = vec![Vec::new(); ncell];
+        let mut nnz_sup = 0;
         for cell in &mesh.cells {
-            let (cell_dofs, n_local_dof) = memo_cell_dofs.get(&(cell.attribute_id, cell.kind)).unwrap();
-            local_to_global[cell.id] = vec![0; *n_local_dof];
+            let (cell_dofs, ndof_local) = memo_cell_dofs.get(&(cell.attribute_id, cell.kind)).unwrap();
+            local_to_global[cell.id] = vec![0; *ndof_local];
             for m in 0..cell.points.len() {
                 for (dof, local) in &cell_dofs[m] {
                     let global = *point_dofs[cell.points[m]].get(dof).unwrap();
                     local_to_global[cell.id][*local] = global;
                 }
             }
+            nnz_sup += ndof_local * ndof_local;
         }
 
         // done
@@ -179,6 +198,7 @@ impl DofNumbers {
             point_dofs,
             local_to_global,
             dof_count,
+            nnz_sup,
         })
     }
 }
@@ -190,6 +210,7 @@ impl fmt::Display for DofNumbers {
 
         f.write_str(thick_line).unwrap();
         write!(f, "total number of DOFs (equations) = {}\n", self.dof_count).unwrap();
+        write!(f, "supremum of the number of non-zeros (nnz_sup) = {}\n", self.nnz_sup).unwrap();
 
         f.write_str(thin_line).unwrap();
         write!(f, "PointId: (DOF, number)\n").unwrap();
@@ -214,17 +235,52 @@ impl fmt::Display for DofNumbers {
 #[cfg(test)]
 mod tests {
     use super::DofNumbers;
-    use crate::base::Element;
-    use gemlab::mesh::Samples;
+    use crate::base::{Dof, Element};
+    use gemlab::mesh::{PointId, Samples};
     use gemlab::StrError;
     use std::collections::HashMap;
+
+    fn assert_point_dofs(dn: &DofNumbers, p: PointId, correct: &[(Dof, usize)]) {
+        let mut dofs: Vec<_> = dn.point_dofs[p].iter().map(|(d, n)| (*d, *n)).collect();
+        dofs.sort();
+        assert_eq!(dofs, correct);
+    }
 
     #[test]
     fn new_works() -> Result<(), StrError> {
         let mesh = Samples::qua8_tri6_lin2();
         let att_ele = HashMap::from([(1, Element::PorousSldLiq), (2, Element::Solid), (3, Element::Beam)]);
-        let dof_numbers = DofNumbers::new(&mesh, &att_ele)?;
-        println!("{}", dof_numbers);
+        let dn = DofNumbers::new(&mesh, &att_ele)?;
+
+        // check point dofs
+        assert_point_dofs(&dn, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
+        assert_point_dofs(&dn, 1, &[(Dof::Ux, 3), (Dof::Uy, 4)]);
+        assert_point_dofs(&dn, 2, &[(Dof::Ux, 5), (Dof::Uy, 6), (Dof::Rz, 7), (Dof::Pl, 8)]);
+        assert_point_dofs(&dn, 3, &[(Dof::Ux, 9), (Dof::Uy, 10)]);
+        assert_point_dofs(&dn, 4, &[(Dof::Ux, 11), (Dof::Uy, 12)]);
+        assert_point_dofs(&dn, 5, &[(Dof::Ux, 13), (Dof::Uy, 14)]);
+        assert_point_dofs(&dn, 6, &[(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Rz, 17), (Dof::Pl, 18)]);
+        assert_point_dofs(&dn, 7, &[(Dof::Ux, 19), (Dof::Uy, 20)]);
+        assert_point_dofs(&dn, 8, &[(Dof::Ux, 21), (Dof::Uy, 22), (Dof::Pl, 23)]);
+        assert_point_dofs(&dn, 9, &[(Dof::Ux, 24), (Dof::Uy, 25)]);
+        assert_point_dofs(&dn, 10, &[(Dof::Ux, 26), (Dof::Uy, 27), (Dof::Rz, 28)]); // 28 is not Pl, but Rz
+
+        // check local_to_global
+        assert_eq!(
+            dn.local_to_global[0],
+            &[0, 1, 5, 6, 15, 16, 21, 22, 3, 4, 26, 27, 19, 20, 24, 25, 2, 8, 18, 23]
+        );
+        assert_eq!(dn.local_to_global[1], &[5, 6, 11, 12, 15, 16, 9, 10, 13, 14, 26, 27]);
+        assert_eq!(dn.local_to_global[2], &[5, 6, 7, 26, 27, 28]);
+        assert_eq!(dn.local_to_global[3], &[26, 27, 28, 15, 16, 17]);
+
+        // check counters
+        let ndim = 2;
+        let nnz_porous_qua8 = (ndim * 8 + 4) * (ndim * 8 + 4);
+        let nnz_solid_tri6 = (ndim * 6) * (ndim * 6);
+        let nnz_beam = (3 * 2) * (3 * 2);
+        assert_eq!(dn.dof_count, 29);
+        assert_eq!(dn.nnz_sup, nnz_porous_qua8 + nnz_solid_tri6 + 2 * nnz_beam);
         Ok(())
     }
 }
