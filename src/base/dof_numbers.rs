@@ -199,7 +199,22 @@ pub struct DofNumbers {
 
 impl DofNumbers {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, att_ele: &HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
+    ///
+    /// # Input
+    ///
+    /// * `mesh` -- the mesh
+    /// * `attr_element` -- a map connecting attributes to elements; e.g.:
+    ///
+    /// ```
+    /// # use pmsim::base::Element;
+    /// # use std::collections::HashMap;
+    /// let att_ele = HashMap::from([
+    ///     (1, Element::PorousSldLiq),
+    ///     (2, Element::Solid),
+    ///     (3, Element::Beam),
+    /// ]);
+    /// ```
+    pub fn new(mesh: &Mesh, attr_element: &HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
         // auxiliary memoization data
         let npoint = mesh.points.len();
         let mut memo_point_dofs = vec![HashSet::new(); npoint];
@@ -207,7 +222,7 @@ impl DofNumbers {
         // find all cell (DOFs, local numbers) pairs and add (unique) DOFs to the point DOFs array
         let mut cell_dofs = HashMap::new();
         for cell in &mesh.cells {
-            let element = match att_ele.get(&cell.attribute_id) {
+            let element = match attr_element.get(&cell.attribute_id) {
                 Some(e) => e,
                 None => return Err("cannot find attribute in att_ele map"),
             };
@@ -321,8 +336,7 @@ mod tests {
         let mesh = Samples::qua8_tri6_lin2();
         let att_ele = HashMap::from([(1, Element::PorousSldLiq), (2, Element::Solid), (3, Element::Beam)]);
         let dn = DofNumbers::new(&mesh, &att_ele)?;
-
-        println!("{}", dn);
+        assert!(format!("{}", dn).len() > 0);
 
         // check point dofs
         assert_point_dofs(&dn, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
