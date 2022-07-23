@@ -5,7 +5,7 @@ use gemlab::shapes::GeoKind;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-/// Holds information about the Cell/Element DOFs
+/// Holds the DOFs and local equation numbers of an Element/GeoKind pair
 ///
 /// ```text
 /// leq: local equation number       leq   point   geq
@@ -26,7 +26,7 @@ use std::fmt;
 ///                                  13 → Pl @ 1 →  5
 ///                                  14 → Pl @ 2 →  8
 /// ```
-pub struct CellDofInfo {
+pub struct ElementDofs {
     /// Holds all cell DOF keys and local equation numbers
     ///
     /// **Notes:** The outer array has length = nnode.
@@ -50,7 +50,7 @@ pub struct CellDofInfo {
 
 /// Returns the DOF keys and local equation numbers for each cell node of (Element,GeoKind)
 #[rustfmt::skip]
-fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDofInfo, StrError> {
+fn get_ele_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<ElementDofs, StrError> {
     let rod_or_beam = element == Element::Rod || element == Element::Beam;
     let lin_geometry = kind.is_lin();
     if rod_or_beam && !lin_geometry {
@@ -148,7 +148,7 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
             }
         }
     };
-    Ok(CellDofInfo {
+    Ok(ElementDofs {
         dof_equation_pairs: dofs,
         n_equation_local: count,
         eq_first_pl,
@@ -244,9 +244,8 @@ pub struct DofNumbers {
     /// Connects attributes to elements
     pub elements: HashMap<CellAttributeId, Element>,
 
-    /// Holds all combinations of attributes and shapes and associated
-    /// information about DOFs and local equation numbers
-    pub cell_dofs: HashMap<(CellAttributeId, GeoKind), CellDofInfo>,
+    /// Holds all element DOFs for all combinations of attributes and shapes
+    pub element_dofs: HashMap<(CellAttributeId, GeoKind), ElementDofs>,
 
     /// Holds all points DOFs and numbers
     ///
@@ -312,16 +311,16 @@ impl DofNumbers {
         let npoint = mesh.points.len();
         let mut memo_point_dofs = vec![HashSet::new(); npoint];
 
-        // find all cell (DOFs, local numbers) pairs and add (unique) DOFs to the point DOFs array
-        let mut cell_dofs = HashMap::new();
+        // find all element DOFs and local numbers and add (unique) DOF numbers to the point DOFs array
+        let mut element_dofs = HashMap::new();
         for cell in &mesh.cells {
             let element = match elements.get(&cell.attribute_id) {
                 Some(e) => e,
                 None => return Err("cannot find CellAttributeId in elements map"),
             };
-            let info = cell_dofs
+            let info = element_dofs
                 .entry((cell.attribute_id, cell.kind))
-                .or_insert(get_cell_dofs(mesh.ndim, *element, cell.kind)?);
+                .or_insert(get_ele_dofs(mesh.ndim, *element, cell.kind)?);
             for m in 0..cell.points.len() {
                 for (dof, _) in &info.dof_equation_pairs[m] {
                     memo_point_dofs[cell.points[m]].insert(*dof);
@@ -346,7 +345,7 @@ impl DofNumbers {
         let mut local_to_global: Vec<Vec<usize>> = vec![Vec::new(); ncell];
         let mut nnz_sup = 0;
         for cell in &mesh.cells {
-            let info = cell_dofs.get(&(cell.attribute_id, cell.kind)).unwrap();
+            let info = element_dofs.get(&(cell.attribute_id, cell.kind)).unwrap();
             local_to_global[cell.id] = vec![0; info.n_equation_local];
             for m in 0..cell.points.len() {
                 for (dof, local) in &info.dof_equation_pairs[m] {
@@ -360,7 +359,7 @@ impl DofNumbers {
         // done
         Ok(DofNumbers {
             elements,
-            cell_dofs,
+            element_dofs,
             point_dofs,
             local_to_global,
             n_equation,
@@ -396,10 +395,10 @@ impl fmt::Display for DofNumbers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Elements: DOFs and local equation numbers\n").unwrap();
         write!(f, "=========================================\n").unwrap();
-        let mut keys: Vec<_> = self.cell_dofs.keys().collect();
+        let mut keys: Vec<_> = self.element_dofs.keys().collect();
         keys.sort_by(|a, b| a.0.cmp(&b.0));
         for key in keys {
-            let info = self.cell_dofs.get(key).unwrap();
+            let info = self.element_dofs.get(key).unwrap();
             let (attr, kind) = key;
             let element = self.elements.get(attr).unwrap();
             write!(
@@ -448,45 +447,45 @@ impl fmt::Display for DofNumbers {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_cell_dofs, DofNumbers};
+    use super::{get_ele_dofs, DofNumbers};
     use crate::base::{Dof, Element};
     use gemlab::mesh::{PointId, Samples};
     use gemlab::shapes::GeoKind;
     use std::collections::HashMap;
 
     #[test]
-    fn get_cell_dofs_captures_errors() {
+    fn get_ele_dofs_captures_errors() {
         assert_eq!(
-            get_cell_dofs(2, Element::Rod, GeoKind::Tri3).err(),
+            get_ele_dofs(2, Element::Rod, GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
         assert_eq!(
-            get_cell_dofs(2, Element::Beam, GeoKind::Tri3).err(),
+            get_ele_dofs(2, Element::Beam, GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
         assert_eq!(
-            get_cell_dofs(2, Element::Solid, GeoKind::Lin2).err(),
+            get_ele_dofs(2, Element::Solid, GeoKind::Lin2).err(),
             Some("GeoClass::Lin is reserved for Rod or Beam")
         );
         assert_eq!(
-            get_cell_dofs(2, Element::PorousSldLiq, GeoKind::Tri3).err(),
+            get_ele_dofs(2, Element::PorousSldLiq, GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiq with given GeoKind")
         );
         assert_eq!(
-            get_cell_dofs(2, Element::PorousSldLiqGas, GeoKind::Tri3).err(),
+            get_ele_dofs(2, Element::PorousSldLiqGas, GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiqGas with given GeoKind")
         );
     }
 
     #[test]
-    fn get_cell_dofs_works_2d() {
-        let a = get_cell_dofs(2, Element::Rod, GeoKind::Lin2).unwrap();
-        let b = get_cell_dofs(2, Element::Beam, GeoKind::Lin2).unwrap();
-        let c = get_cell_dofs(2, Element::Solid, GeoKind::Tri3).unwrap();
-        let d = get_cell_dofs(2, Element::PorousLiq, GeoKind::Tri3).unwrap();
-        let e = get_cell_dofs(2, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
-        let f = get_cell_dofs(2, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
-        let g = get_cell_dofs(2, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
+    fn get_ele_dofs_works_2d() {
+        let a = get_ele_dofs(2, Element::Rod, GeoKind::Lin2).unwrap();
+        let b = get_ele_dofs(2, Element::Beam, GeoKind::Lin2).unwrap();
+        let c = get_ele_dofs(2, Element::Solid, GeoKind::Tri3).unwrap();
+        let d = get_ele_dofs(2, Element::PorousLiq, GeoKind::Tri3).unwrap();
+        let e = get_ele_dofs(2, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
+        let f = get_ele_dofs(2, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
+        let g = get_ele_dofs(2, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
         assert_eq!(
             a.dof_equation_pairs,
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
@@ -540,14 +539,14 @@ mod tests {
     }
 
     #[test]
-    fn get_cell_dofs_works_3d() {
-        let a = get_cell_dofs(3, Element::Rod, GeoKind::Lin2).unwrap();
-        let b = get_cell_dofs(3, Element::Beam, GeoKind::Lin2).unwrap();
-        let c = get_cell_dofs(3, Element::Solid, GeoKind::Tri3).unwrap();
-        let d = get_cell_dofs(3, Element::PorousLiq, GeoKind::Tri3).unwrap();
-        let e = get_cell_dofs(3, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
-        let f = get_cell_dofs(3, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
-        let g = get_cell_dofs(3, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
+    fn get_ele_dofs_works_3d() {
+        let a = get_ele_dofs(3, Element::Rod, GeoKind::Lin2).unwrap();
+        let b = get_ele_dofs(3, Element::Beam, GeoKind::Lin2).unwrap();
+        let c = get_ele_dofs(3, Element::Solid, GeoKind::Tri3).unwrap();
+        let d = get_ele_dofs(3, Element::PorousLiq, GeoKind::Tri3).unwrap();
+        let e = get_ele_dofs(3, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
+        let f = get_ele_dofs(3, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
+        let g = get_ele_dofs(3, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
         assert_eq!(
             a.dof_equation_pairs,
             vec![
