@@ -157,9 +157,40 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
     })
 }
 
+/// Holds DOF numbers (aka equation numbers)
+///
+/// # Examples
+///
+/// ## Given the mesh:
+///
+/// ```text
+/// leq: local equation number       leq   point   geq
+/// geq: global equation number       ↓        ↓    ↓
+///                                   0 → Ux @ 0 →  0
+///            {Ux → 6}               1 → Uy @ 0 →  1
+///            {Uy → 7}               2 → Ux @ 1 →  3
+///            {Pl → 8}               3 → Uy @ 1 →  4
+///                2                  4 → Ux @ 2 →  6
+///               / \                 5 → Uy @ 2 →  7
+///   {Ux → 13}  /   \  {Ux → 11}     6 → Ux @ 3 →  9
+///   {Uy → 14} 5     4 {Uy → 12}     7 → Uy @ 3 → 10
+///            /       \              8 → Ux @ 4 → 11
+/// {Ux → 0}  /         \  {Ux → 3}   9 → Uy @ 4 → 12
+/// {Uy → 1} 0-----3-----1 {Uy → 4}  10 → Ux @ 5 → 13
+/// {Pl → 2}   {Ux → 9}    {Pl → 5}  11 → Uy @ 5 → 14
+///            {Uy → 10}             12 → Pl @ 0 →  2  <<< eq_first_pl
+///                                  13 → Pl @ 1 →  5
+///                                  14 → Pl @ 2 →  8
+/// ```
+///
+/// ## Print the DOF numbers:
+///
+/// ```
+///  
+/// ```
 pub struct DofNumbers {
     /// Connects attributes to elements
-    pub attr_element: HashMap<CellAttributeId, Element>,
+    pub elements: HashMap<CellAttributeId, Element>,
 
     /// Holds all combinations of attributes and shapes and associated
     /// information about DOFs and local equation numbers
@@ -213,18 +244,18 @@ impl DofNumbers {
     /// # Input
     ///
     /// * `mesh` -- the mesh
-    /// * `attr_element` -- a map connecting attributes to elements; e.g.:
+    /// * `elements` -- a map connecting attributes to elements; e.g.:
     ///
     /// ```
     /// # use pmsim::base::Element;
     /// # use std::collections::HashMap;
-    /// let attr_element = HashMap::from([
+    /// let elements = HashMap::from([
     ///     (1, Element::PorousSldLiq),
     ///     (2, Element::Solid),
     ///     (3, Element::Beam),
     /// ]);
     /// ```
-    pub fn new(mesh: &Mesh, attr_element: HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, elements: HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
         // auxiliary memoization data
         let npoint = mesh.points.len();
         let mut memo_point_dofs = vec![HashSet::new(); npoint];
@@ -232,9 +263,9 @@ impl DofNumbers {
         // find all cell (DOFs, local numbers) pairs and add (unique) DOFs to the point DOFs array
         let mut cell_dofs = HashMap::new();
         for cell in &mesh.cells {
-            let element = match attr_element.get(&cell.attribute_id) {
+            let element = match elements.get(&cell.attribute_id) {
                 Some(e) => e,
-                None => return Err("cannot find CellAttributeId in attr_element map"),
+                None => return Err("cannot find CellAttributeId in elements map"),
             };
             let info = cell_dofs
                 .entry((cell.attribute_id, cell.kind))
@@ -276,7 +307,7 @@ impl DofNumbers {
 
         // done
         Ok(DofNumbers {
-            attr_element,
+            elements,
             cell_dofs,
             point_dofs,
             local_to_global,
@@ -318,7 +349,7 @@ impl fmt::Display for DofNumbers {
         for key in keys {
             let info = self.cell_dofs.get(key).unwrap();
             let (attr, kind) = key;
-            let element = self.attr_element.get(attr).unwrap();
+            let element = self.elements.get(attr).unwrap();
             write!(
                 f,
                 "{} → {:?} → {:?} (Pl @ {:?}, Pg @ {:?}, T @ {:?})\n",
@@ -537,14 +568,14 @@ mod tests {
     #[test]
     fn new_captures_errors() {
         let mesh = Samples::one_tri6();
-        let attr_element = HashMap::from([(2, Element::Solid)]);
+        let elements = HashMap::from([(2, Element::Solid)]);
         assert_eq!(
-            DofNumbers::new(&mesh, attr_element).err(),
-            Some("cannot find CellAttributeId in attr_element map")
+            DofNumbers::new(&mesh, elements).err(),
+            Some("cannot find CellAttributeId in elements map")
         );
-        let attr_element = HashMap::from([(1, Element::Rod)]);
+        let elements = HashMap::from([(1, Element::Rod)]);
         assert_eq!(
-            DofNumbers::new(&mesh, attr_element).err(),
+            DofNumbers::new(&mesh, elements).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
     }
@@ -558,8 +589,8 @@ mod tests {
     #[test]
     fn new_works() {
         let mesh = Samples::qua8_tri6_lin2();
-        let attr_element = HashMap::from([(1, Element::PorousSldLiq), (2, Element::Solid), (3, Element::Beam)]);
-        let dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        let elements = HashMap::from([(1, Element::PorousSldLiq), (2, Element::Solid), (3, Element::Beam)]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
 
         // check point dofs
         assert_point_dofs(&dn, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
@@ -595,8 +626,8 @@ mod tests {
     #[test]
     fn mark_prescribed_works_and_err() {
         let mesh = Samples::one_tri3();
-        let attr_element = HashMap::from([(1, Element::Solid)]);
-        let mut dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        let elements = HashMap::from([(1, Element::Solid)]);
+        let mut dn = DofNumbers::new(&mesh, elements).unwrap();
         assert_eq!(dn.mark_prescribed(3, Dof::Ux), Err("point_id is out of range"));
         assert_eq!(dn.mark_prescribed(0, Dof::Pl), Err("DOF is not available"));
         assert_eq!(dn.mark_prescribed(0, Dof::Ux), Ok(()));
@@ -606,8 +637,8 @@ mod tests {
     #[test]
     fn find_dof_given_eq_works_and_err() {
         let mesh = Samples::one_tri6();
-        let attr_element = HashMap::from([(1, Element::PorousSldLiq)]);
-        let dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        let elements = HashMap::from([(1, Element::PorousSldLiq)]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
         assert_eq!(
             dn.find_dof_given_eq(15),
             Err("equation number is not present in the point_dofs array")
@@ -628,8 +659,8 @@ mod tests {
         //                   1 {2}
         //                     {3}
         let mesh = Samples::three_tri3();
-        let attr_element = HashMap::from([(1, Element::Solid)]);
-        let mut dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        let elements = HashMap::from([(1, Element::Solid)]);
+        let mut dn = DofNumbers::new(&mesh, elements).unwrap();
         dn.mark_prescribed(0, Dof::Ux).unwrap();
         dn.mark_prescribed(0, Dof::Uy).unwrap();
         dn.mark_prescribed(1, Dof::Uy).unwrap();
@@ -679,8 +710,8 @@ mod tests {
         // | (1)      `.|            |
         // 0------------1------------4
         let mesh = Samples::two_tri3_one_qua4();
-        let attr_element = HashMap::from([(1, Element::PorousLiq), (2, Element::PorousLiq)]);
-        let dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        let elements = HashMap::from([(1, Element::PorousLiq), (2, Element::PorousLiq)]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
         assert_eq!(
             format!("{}", dn),
             "Cells: DOFs and local equation numbers\n\
