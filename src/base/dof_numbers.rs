@@ -51,7 +51,7 @@ pub struct ElementDofs {
 
 impl ElementDofs {
     /// Allocates a new instance
-    fn new(ndim: usize, element: Element, kind: GeoKind) -> Result<Self, StrError> {
+    pub fn new(ndim: usize, element: Element, kind: GeoKind) -> Result<Self, StrError> {
         // check
         let rod_or_beam = element == Element::Rod || element == Element::Beam;
         let lin_geometry = kind.is_lin();
