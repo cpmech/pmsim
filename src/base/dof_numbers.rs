@@ -186,7 +186,59 @@ fn get_cell_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<CellDof
 /// ## Print the DOF numbers:
 ///
 /// ```
-///  
+/// use gemlab::mesh::Samples;
+/// use gemlab::StrError;
+/// use pmsim::base::{Dof, DofNumbers, Element};
+/// use std::collections::HashMap;
+///
+/// fn main() -> Result<(), StrError> {
+///     let mesh = Samples::one_tri6();
+///     let elements = HashMap::from([(1, Element::PorousSldLiq)]);
+///     let mut dn = DofNumbers::new(&mesh, elements)?;
+///     dn.mark_prescribed(0, Dof::Ux)?;
+///     dn.mark_prescribed(0, Dof::Uy)?;
+///     dn.mark_prescribed(1, Dof::Uy)?;
+///     dn.mark_prescribed(3, Dof::Uy)?;
+///     assert_eq!(
+///         format!("{}", dn),
+/// r#"Elements: DOFs and local equation numbers
+/// =========================================
+/// 1 → PorousSldLiq → Tri6 (Pl @ Some(12), Pg @ None, T @ None)
+///     0: [(Ux, 0), (Uy, 1), (Pl, 12)]
+///     1: [(Ux, 2), (Uy, 3), (Pl, 13)]
+///     2: [(Ux, 4), (Uy, 5), (Pl, 14)]
+///     3: [(Ux, 6), (Uy, 7)]
+///     4: [(Ux, 8), (Uy, 9)]
+///     5: [(Ux, 10), (Uy, 11)]
+///
+/// Points: DOFs and global equation numbers
+/// ========================================
+/// 0: [(Ux, 0), (Uy, 1), (Pl, 2)]
+/// 1: [(Ux, 3), (Uy, 4), (Pl, 5)]
+/// 2: [(Ux, 6), (Uy, 7), (Pl, 8)]
+/// 3: [(Ux, 9), (Uy, 10)]
+/// 4: [(Ux, 11), (Uy, 12)]
+/// 5: [(Ux, 13), (Uy, 14)]
+///
+/// Cells: Local-to-Global
+/// ======================
+/// 0: [0, 1, 3, 4, 6, 7, 9, 10, 11, 12, 13, 14, 2, 5, 8]
+///
+/// Points: Prescribed DOFs / equations
+/// ===================================
+/// 0: Ux → 0
+/// 0: Uy → 1
+/// 1: Uy → 4
+/// 3: Uy → 10
+///
+/// Information
+/// ===========
+/// number of equations = 15
+/// number of non-zeros = 225
+/// "#
+///     );
+///     Ok(())
+/// }
 /// ```
 pub struct DofNumbers {
     /// Connects attributes to elements
@@ -342,8 +394,8 @@ impl DofNumbers {
 
 impl fmt::Display for DofNumbers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Cells: DOFs and local equation numbers\n").unwrap();
-        write!(f, "======================================\n").unwrap();
+        write!(f, "Elements: DOFs and local equation numbers\n").unwrap();
+        write!(f, "=========================================\n").unwrap();
         let mut keys: Vec<_> = self.cell_dofs.keys().collect();
         keys.sort_by(|a, b| a.0.cmp(&b.0));
         for key in keys {
@@ -667,8 +719,8 @@ mod tests {
         dn.mark_prescribed(2, Dof::Uy).unwrap();
         assert_eq!(
             format!("{}", dn),
-            "Cells: DOFs and local equation numbers\n\
-             ======================================\n\
+            "Elements: DOFs and local equation numbers\n\
+             =========================================\n\
              1 → Solid → Tri3 (Pl @ None, Pg @ None, T @ None)\n\
              \x20\x20\x20\x200: [(Ux, 0), (Uy, 1)]\n\
              \x20\x20\x20\x201: [(Ux, 2), (Uy, 3)]\n\
@@ -714,8 +766,8 @@ mod tests {
         let dn = DofNumbers::new(&mesh, elements).unwrap();
         assert_eq!(
             format!("{}", dn),
-            "Cells: DOFs and local equation numbers\n\
-             ======================================\n\
+            "Elements: DOFs and local equation numbers\n\
+             =========================================\n\
              1 → PorousLiq → Tri3 (Pl @ None, Pg @ None, T @ None)\n\
              \x20\x20\x20\x200: [(Pl, 0)]\n\
              \x20\x20\x20\x201: [(Pl, 1)]\n\
