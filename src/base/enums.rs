@@ -1,9 +1,8 @@
 use gemlab::shapes::GeoKind;
 
-/// Defines the total number of available/possible DOFs per node
-pub const NDOF_PER_NODE_TOTAL: usize = 10;
-
 /// Defines degrees-of-freedom (DOF) types
+///
+/// Note: The fixed numbering scheme assists in sorting the DOFs.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub enum Dof {
     /// Displacement along the first dimension

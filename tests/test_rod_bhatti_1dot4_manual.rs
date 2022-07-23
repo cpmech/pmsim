@@ -1,4 +1,4 @@
-use pmsim::base::{assemble_matrix, assemble_vector, AttrElement, DataMaps, Element, ParamRod, SampleMeshes};
+use pmsim::base::{assemble_matrix, assemble_vector, Dof, DofNumbers, Element, ParamRod, SampleMeshes};
 use pmsim::element::Rod;
 use pmsim::StrError;
 use russell_chk::assert_vec_approx_eq;
@@ -36,15 +36,15 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
 
     // elements
     let mut elements = Vec::new();
-    let mut attr_elem = AttrElement::new();
+    let mut attr_elem = HashMap::new();
     for cell in &mesh.cells {
         elements.push(Rod::new(&mesh, cell.id, attr_param.get(&cell.attribute_id).unwrap()));
         attr_elem.insert(cell.attribute_id, Element::Rod);
     }
 
     // datamaps
-    let dm = DataMaps::new(&mesh, attr_elem)?;
-    let (neq, nnz) = dm.neq_nnz();
+    let dm = DofNumbers::new(&mesh, attr_elem)?;
+    let (neq, nnz) = (dm.n_equation, dm.nnz_sup);
 
     // prescribed equations
     let prescribed = vec![false; neq];
@@ -74,10 +74,10 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
 
     // prescribed equations
     let mut prescribed = vec![false; neq];
-    prescribed[dm.point_equations[0][0]] = true; // Ux
-    prescribed[dm.point_equations[0][1]] = true; // Uy
-    prescribed[dm.point_equations[3][0]] = true; // Ux
-    prescribed[dm.point_equations[3][1]] = true; // Uy
+    prescribed[*dm.point_dofs[0].get(&Dof::Ux).unwrap()] = true; // Ux
+    prescribed[*dm.point_dofs[0].get(&Dof::Uy).unwrap()] = true; // Uy
+    prescribed[*dm.point_dofs[3].get(&Dof::Ux).unwrap()] = true; // Ux
+    prescribed[*dm.point_dofs[3].get(&Dof::Uy).unwrap()] = true; // Uy
 
     // assembly
     kk.reset();
@@ -94,7 +94,7 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
     }
 
     // point loads
-    ff[dm.point_equations[1][1]] = -150000.0;
+    ff[*dm.point_dofs[1].get(&Dof::Uy).unwrap()] = -150000.0;
 
     // solve linear system
     let config = ConfigSolver::new();

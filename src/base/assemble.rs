@@ -1,44 +1,78 @@
-use super::LocalToGlobal;
 use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
 /// Assembles local vector into global vector
 ///
+/// # Output
+///
+/// * `rr_global` -- is the global vector R with length = `n_equation`
+///
+/// # Input
+///
+/// * `r_local` -- is the local vector r with length = `n_equation_local`
+/// * `cell_id` -- is the ID of the cell adding the contribution to R
+/// * `local_to_global` -- is a nested array holding all equation numbers.
+///   The outer length is equal to `ncell` and the inner length varies
+///   from cell to cell according to their `n_equation_local`.
+/// * `prescribed` -- tells whether a global equation number has prescribed
+///   DOF or not. Its length is equal to the total number of DOFs `n_equation`.
+///
 /// # Panics
 ///
 /// This function will panic if the indices are out-of-bounds
 #[inline]
-pub fn assemble_vector(ff: &mut Vector, f: &Vector, cell_id: CellId, l2g: &LocalToGlobal, prescribed: &Vec<bool>) {
-    for l in 0..f.dim() {
-        let g = l2g[cell_id][l];
+pub fn assemble_vector(
+    rr_global: &mut Vector,
+    r_local: &Vector,
+    cell_id: CellId,
+    local_to_global: &Vec<Vec<usize>>,
+    prescribed: &[bool],
+) {
+    let n_equation_local = r_local.dim();
+    for l in 0..n_equation_local {
+        let g = local_to_global[cell_id][l];
         if !prescribed[g] {
-            ff[g] += f[l];
+            rr_global[g] += r_local[l];
         }
     }
 }
 
 /// Assembles local matrix into global matrix
 ///
+/// # Output
+///
+/// * `kk_global` -- is the global square matrix K with dims = (`n_equation`,`n_equation`)
+///
+/// # Input
+///
+/// * `kk_local` -- is the local square matrix K with dims = (`n_equation_local`,`n_equation_local`)
+/// * `cell_id` -- is the ID of the cell adding the contribution to K
+/// * `local_to_global` -- is a nested array holding all equation numbers.
+///   The outer length is equal to `ncell` and the inner length varies
+///   from cell to cell according to their `n_equation_local`.
+/// * `prescribed` -- tells whether a global equation number has prescribed
+///   DOF or not. Its length is equal to the total number of DOFs `n_equation`.
+///
 /// # Panics
 ///
 /// This function will panic if the indices are out-of-bounds
 #[inline]
 pub fn assemble_matrix(
-    kk: &mut SparseTriplet,
-    k: &Matrix,
+    kk_global: &mut SparseTriplet,
+    kk_local: &Matrix,
     cell_id: CellId,
-    l2g: &LocalToGlobal,
-    prescribed: &Vec<bool>,
+    local_to_global: &Vec<Vec<usize>>,
+    prescribed: &[bool],
 ) {
-    let nlocal = k.dims().0;
-    for l in 0..nlocal {
-        let g = l2g[cell_id][l];
+    let n_equation_local = kk_local.dims().0;
+    for l in 0..n_equation_local {
+        let g = local_to_global[cell_id][l];
         if !prescribed[g] {
-            for ll in 0..nlocal {
-                let gg = l2g[cell_id][ll];
+            for ll in 0..n_equation_local {
+                let gg = local_to_global[cell_id][ll];
                 if !prescribed[gg] {
-                    kk.put(g, gg, k[l][ll]).unwrap();
+                    kk_global.put(g, gg, kk_local[l][ll]).unwrap();
                 }
             }
         }
