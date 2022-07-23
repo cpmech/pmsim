@@ -31,6 +31,7 @@ pub struct ElementDofs {
     ///
     /// **Notes:** The outer array has length = nnode.
     /// The inner arrays have variable lengths = ndof at the node.
+    /// The inner arrays contain pairs of Dof and local equation numbers.
     pub dof_equation_pairs: Vec<Vec<(Dof, usize)>>,
 
     /// Dimension of the local system of equations
@@ -48,113 +49,120 @@ pub struct ElementDofs {
     pub eq_first_tt: Option<usize>,
 }
 
-/// Returns the DOF keys and local equation numbers for each cell node of (Element,GeoKind)
-#[rustfmt::skip]
-fn get_ele_dofs(ndim: usize, element: Element, kind: GeoKind) -> Result<ElementDofs, StrError> {
-    let rod_or_beam = element == Element::Rod || element == Element::Beam;
-    let lin_geometry = kind.is_lin();
-    if rod_or_beam && !lin_geometry {
-        return Err("cannot set Rod or Beam with a non-Lin GeoClass"); // inconsistent combination
+impl ElementDofs {
+    /// Allocates a new instance
+    fn new(ndim: usize, element: Element, kind: GeoKind) -> Result<Self, StrError> {
+        // check
+        let rod_or_beam = element == Element::Rod || element == Element::Beam;
+        let lin_geometry = kind.is_lin();
+        if rod_or_beam && !lin_geometry {
+            return Err("cannot set Rod or Beam with a non-Lin GeoClass"); // inconsistent combination
+        }
+        if !rod_or_beam && lin_geometry {
+            return Err("GeoClass::Lin is reserved for Rod or Beam"); // inconsistent combination
+        }
+
+        // auxiliary data
+        let nnode = kind.nnode();
+        let mut dofs = vec![Vec::new(); nnode];
+        let mut count = 0;
+        let mut eq_first_pl = None;
+        let mut eq_first_pg = None;
+        let eq_first_tt = None;
+
+        // handle each combination
+        #[rustfmt::skip]
+        match element {
+            Element::Rod => {
+                for m in 0..nnode {
+                    dofs[m].push((Dof::Ux, count)); count += 1;
+                    dofs[m].push((Dof::Uy, count)); count += 1;
+                    if ndim == 3 {
+                        dofs[m].push((Dof::Uz, count)); count += 1;
+                    }
+                }
+            }
+            Element::Beam => {
+                for m in 0..nnode {
+                    dofs[m].push((Dof::Ux, count)); count += 1;
+                    dofs[m].push((Dof::Uy, count)); count += 1;
+                    if ndim == 2 {
+                        dofs[m].push((Dof::Rz, count)); count += 1;
+                    } else {
+                        dofs[m].push((Dof::Uz, count)); count += 1;
+                        dofs[m].push((Dof::Rx, count)); count += 1;
+                        dofs[m].push((Dof::Ry, count)); count += 1;
+                        dofs[m].push((Dof::Rz, count)); count += 1;
+                    }
+                }
+            }
+            Element::Solid => {
+                for m in 0..nnode {
+                    dofs[m].push((Dof::Ux, count)); count += 1;
+                    dofs[m].push((Dof::Uy, count)); count += 1;
+                    if ndim == 3 {
+                        dofs[m].push((Dof::Uz, count)); count += 1;
+                    }
+                }
+            }
+            Element::PorousLiq => {
+                for m in 0..nnode {
+                    dofs[m].push((Dof::Pl, count)); count += 1;
+                }
+            }
+            Element::PorousLiqGas => {
+                for m in 0..nnode {
+                    dofs[m].push((Dof::Pl, count)); count += 1;
+                    dofs[m].push((Dof::Pg, count)); count += 1;
+                }
+            }
+            Element::PorousSldLiq => {
+                if !POROUS_SLD_GEO_KIND_ALLOWED.contains(&kind) {
+                    return Err("cannot set PorousSldLiq with given GeoKind");
+                };
+                for m in 0..nnode {
+                    dofs[m].push((Dof::Ux, count)); count += 1;
+                    dofs[m].push((Dof::Uy, count)); count += 1;
+                    if ndim == 3 {
+                        dofs[m].push((Dof::Uz, count)); count += 1;
+                    }
+                }
+                let ncorner = kind.lower_order().unwrap().nnode();
+                eq_first_pl = Some(count);
+                for m in 0..ncorner {
+                    dofs[m].push((Dof::Pl, count)); count += 1;
+                }
+            }
+            Element::PorousSldLiqGas => {
+                if !POROUS_SLD_GEO_KIND_ALLOWED.contains(&kind) {
+                    return Err("cannot set PorousSldLiqGas with given GeoKind");
+                };
+                for m in 0..nnode {
+                    dofs[m].push((Dof::Ux, count)); count += 1;
+                    dofs[m].push((Dof::Uy, count)); count += 1;
+                    if ndim == 3 {
+                        dofs[m].push((Dof::Uz, count)); count += 1;
+                    }
+                }
+                let ncorner = kind.lower_order().unwrap().nnode();
+                eq_first_pl = Some(count);
+                for m in 0..ncorner {
+                    dofs[m].push((Dof::Pl, count)); count += 1;
+                }
+                eq_first_pg = Some(count);
+                for m in 0..ncorner {
+                    dofs[m].push((Dof::Pg, count)); count += 1;
+                }
+            }
+        };
+        Ok(ElementDofs {
+            dof_equation_pairs: dofs,
+            n_equation_local: count,
+            eq_first_pl,
+            eq_first_pg,
+            eq_first_tt,
+        })
     }
-    if !rod_or_beam && lin_geometry {
-        return Err("GeoClass::Lin is reserved for Rod or Beam"); // inconsistent combination
-    }
-    let nnode = kind.nnode();
-    let mut dofs = vec![Vec::new(); nnode];
-    let mut count = 0;
-    let mut eq_first_pl = None;
-    let mut eq_first_pg = None;
-    let eq_first_tt = None;
-    match element {
-        Element::Rod => {
-            for m in 0..nnode {
-                dofs[m].push((Dof::Ux, count)); count += 1;
-                dofs[m].push((Dof::Uy, count)); count += 1;
-                if ndim == 3 {
-                    dofs[m].push((Dof::Uz, count)); count += 1;
-                }
-            }
-        }
-        Element::Beam => {
-            for m in 0..nnode {
-                dofs[m].push((Dof::Ux, count)); count += 1;
-                dofs[m].push((Dof::Uy, count)); count += 1;
-                if ndim == 2 {
-                    dofs[m].push((Dof::Rz, count)); count += 1;
-                } else {
-                    dofs[m].push((Dof::Uz, count)); count += 1;
-                    dofs[m].push((Dof::Rx, count)); count += 1;
-                    dofs[m].push((Dof::Ry, count)); count += 1;
-                    dofs[m].push((Dof::Rz, count)); count += 1;
-                }
-            }
-        }
-        Element::Solid => {
-            for m in 0..nnode {
-                dofs[m].push((Dof::Ux, count)); count += 1;
-                dofs[m].push((Dof::Uy, count)); count += 1;
-                if ndim == 3 {
-                    dofs[m].push((Dof::Uz, count)); count += 1;
-                }
-            }
-        }
-        Element::PorousLiq => {
-            for m in 0..nnode {
-                dofs[m].push((Dof::Pl, count)); count += 1;
-            }
-        }
-        Element::PorousLiqGas => {
-            for m in 0..nnode {
-                dofs[m].push((Dof::Pl, count)); count += 1;
-                dofs[m].push((Dof::Pg, count)); count += 1;
-            }
-        }
-        Element::PorousSldLiq => {
-            if !POROUS_SLD_GEO_KIND_ALLOWED.contains(&kind) {
-                return Err("cannot set PorousSldLiq with given GeoKind");
-            };
-            for m in 0..nnode {
-                dofs[m].push((Dof::Ux, count)); count += 1;
-                dofs[m].push((Dof::Uy, count)); count += 1;
-                if ndim == 3 {
-                    dofs[m].push((Dof::Uz, count)); count += 1;
-                }
-            }
-            let ncorner = kind.lower_order().unwrap().nnode();
-            eq_first_pl = Some(count);
-            for m in 0..ncorner {
-                dofs[m].push((Dof::Pl, count)); count += 1;
-            }
-        }
-        Element::PorousSldLiqGas => {
-            if !POROUS_SLD_GEO_KIND_ALLOWED.contains(&kind) {
-                return Err("cannot set PorousSldLiqGas with given GeoKind");
-            };
-            for m in 0..nnode {
-                dofs[m].push((Dof::Ux, count)); count += 1;
-                dofs[m].push((Dof::Uy, count)); count += 1;
-                if ndim == 3 {
-                    dofs[m].push((Dof::Uz, count)); count += 1;
-                }
-            }
-            let ncorner = kind.lower_order().unwrap().nnode();
-            eq_first_pl = Some(count);
-            for m in 0..ncorner {
-                dofs[m].push((Dof::Pl, count)); count += 1;
-            }
-            eq_first_pg = Some(count);
-            for m in 0..ncorner {
-                dofs[m].push((Dof::Pg, count)); count += 1;
-            }
-        }
-    };
-    Ok(ElementDofs {
-        dof_equation_pairs: dofs,
-        n_equation_local: count,
-        eq_first_pl,
-        eq_first_pg,
-        eq_first_tt,
-    })
 }
 
 /// Holds DOF numbers (aka equation numbers)
@@ -320,7 +328,7 @@ impl DofNumbers {
             };
             let info = element_dofs
                 .entry((cell.attribute_id, cell.kind))
-                .or_insert(get_ele_dofs(mesh.ndim, *element, cell.kind)?);
+                .or_insert(ElementDofs::new(mesh.ndim, *element, cell.kind)?);
             for m in 0..cell.points.len() {
                 for (dof, _) in &info.dof_equation_pairs[m] {
                     memo_point_dofs[cell.points[m]].insert(*dof);
@@ -447,45 +455,45 @@ impl fmt::Display for DofNumbers {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_ele_dofs, DofNumbers};
+    use super::{DofNumbers, ElementDofs};
     use crate::base::{Dof, Element};
     use gemlab::mesh::{PointId, Samples};
     use gemlab::shapes::GeoKind;
     use std::collections::HashMap;
 
     #[test]
-    fn get_ele_dofs_captures_errors() {
+    fn element_dofs_new_captures_errors() {
         assert_eq!(
-            get_ele_dofs(2, Element::Rod, GeoKind::Tri3).err(),
+            ElementDofs::new(2, Element::Rod, GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
         assert_eq!(
-            get_ele_dofs(2, Element::Beam, GeoKind::Tri3).err(),
+            ElementDofs::new(2, Element::Beam, GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
         assert_eq!(
-            get_ele_dofs(2, Element::Solid, GeoKind::Lin2).err(),
+            ElementDofs::new(2, Element::Solid, GeoKind::Lin2).err(),
             Some("GeoClass::Lin is reserved for Rod or Beam")
         );
         assert_eq!(
-            get_ele_dofs(2, Element::PorousSldLiq, GeoKind::Tri3).err(),
+            ElementDofs::new(2, Element::PorousSldLiq, GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiq with given GeoKind")
         );
         assert_eq!(
-            get_ele_dofs(2, Element::PorousSldLiqGas, GeoKind::Tri3).err(),
+            ElementDofs::new(2, Element::PorousSldLiqGas, GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiqGas with given GeoKind")
         );
     }
 
     #[test]
-    fn get_ele_dofs_works_2d() {
-        let a = get_ele_dofs(2, Element::Rod, GeoKind::Lin2).unwrap();
-        let b = get_ele_dofs(2, Element::Beam, GeoKind::Lin2).unwrap();
-        let c = get_ele_dofs(2, Element::Solid, GeoKind::Tri3).unwrap();
-        let d = get_ele_dofs(2, Element::PorousLiq, GeoKind::Tri3).unwrap();
-        let e = get_ele_dofs(2, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
-        let f = get_ele_dofs(2, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
-        let g = get_ele_dofs(2, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
+    fn element_dofs_new_works_2d() {
+        let a = ElementDofs::new(2, Element::Rod, GeoKind::Lin2).unwrap();
+        let b = ElementDofs::new(2, Element::Beam, GeoKind::Lin2).unwrap();
+        let c = ElementDofs::new(2, Element::Solid, GeoKind::Tri3).unwrap();
+        let d = ElementDofs::new(2, Element::PorousLiq, GeoKind::Tri3).unwrap();
+        let e = ElementDofs::new(2, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
+        let f = ElementDofs::new(2, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
+        let g = ElementDofs::new(2, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
         assert_eq!(
             a.dof_equation_pairs,
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
@@ -539,14 +547,14 @@ mod tests {
     }
 
     #[test]
-    fn get_ele_dofs_works_3d() {
-        let a = get_ele_dofs(3, Element::Rod, GeoKind::Lin2).unwrap();
-        let b = get_ele_dofs(3, Element::Beam, GeoKind::Lin2).unwrap();
-        let c = get_ele_dofs(3, Element::Solid, GeoKind::Tri3).unwrap();
-        let d = get_ele_dofs(3, Element::PorousLiq, GeoKind::Tri3).unwrap();
-        let e = get_ele_dofs(3, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
-        let f = get_ele_dofs(3, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
-        let g = get_ele_dofs(3, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
+    fn element_dofs_new_works_3d() {
+        let a = ElementDofs::new(3, Element::Rod, GeoKind::Lin2).unwrap();
+        let b = ElementDofs::new(3, Element::Beam, GeoKind::Lin2).unwrap();
+        let c = ElementDofs::new(3, Element::Solid, GeoKind::Tri3).unwrap();
+        let d = ElementDofs::new(3, Element::PorousLiq, GeoKind::Tri3).unwrap();
+        let e = ElementDofs::new(3, Element::PorousLiqGas, GeoKind::Tri3).unwrap();
+        let f = ElementDofs::new(3, Element::PorousSldLiq, GeoKind::Tri6).unwrap();
+        let g = ElementDofs::new(3, Element::PorousSldLiqGas, GeoKind::Tri6).unwrap();
         assert_eq!(
             a.dof_equation_pairs,
             vec![
