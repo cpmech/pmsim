@@ -51,13 +51,15 @@ use std::fmt;
 ///         format!("{}", dn),
 /// r#"Elements: DOFs and local equation numbers
 /// =========================================
-/// 1 → PorousSldLiq → Tri6 (Pl @ Some(12), Pg @ None, T @ None)
-///     0: [(Ux, 0), (Uy, 1), (Pl, 12)]
-///     1: [(Ux, 2), (Uy, 3), (Pl, 13)]
-///     2: [(Ux, 4), (Uy, 5), (Pl, 14)]
-///     3: [(Ux, 6), (Uy, 7)]
-///     4: [(Ux, 8), (Uy, 9)]
-///     5: [(Ux, 10), (Uy, 11)]
+/// 1 → PorousSldLiq → Tri6
+/// 0: [(Ux, 0), (Uy, 1), (Pl, 12)]
+/// 1: [(Ux, 2), (Uy, 3), (Pl, 13)]
+/// 2: [(Ux, 4), (Uy, 5), (Pl, 14)]
+/// 3: [(Ux, 6), (Uy, 7)]
+/// 4: [(Ux, 8), (Uy, 9)]
+/// 5: [(Ux, 10), (Uy, 11)]
+/// (Pl @ Some(12), Pg @ None, T @ None)
+/// -----------------------------------------
 ///
 /// Points: DOFs and global equation numbers
 /// ========================================
@@ -249,15 +251,9 @@ impl fmt::Display for DofNumbers {
             let info = self.element_dofs.get(key).unwrap();
             let (attr, kind) = key;
             let element = self.elements.get(attr).unwrap();
-            write!(
-                f,
-                "{} → {:?} → {:?} (Pl @ {:?}, Pg @ {:?}, T @ {:?})\n",
-                attr, element, kind, info.eq_first_pl, info.eq_first_pg, info.eq_first_tt
-            )
-            .unwrap();
-            for m in 0..info.dof_equation_pairs.len() {
-                write!(f, "    {}: {:?}\n", m, info.dof_equation_pairs[m]).unwrap();
-            }
+            write!(f, "{} → {:?} → {:?}\n", attr, element, kind).unwrap();
+            write!(f, "{}", info).unwrap();
+            write!(f, "-----------------------------------------\n").unwrap();
         }
 
         write!(f, "\nPoints: DOFs and global equation numbers\n").unwrap();
@@ -404,10 +400,12 @@ mod tests {
             format!("{}", dn),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
-             1 → Solid → Tri3 (Pl @ None, Pg @ None, T @ None)\n\
-             \x20\x20\x20\x200: [(Ux, 0), (Uy, 1)]\n\
-             \x20\x20\x20\x201: [(Ux, 2), (Uy, 3)]\n\
-             \x20\x20\x20\x202: [(Ux, 4), (Uy, 5)]\n\
+             1 → Solid → Tri3\n\
+             0: [(Ux, 0), (Uy, 1)]\n\
+             1: [(Ux, 2), (Uy, 3)]\n\
+             2: [(Ux, 4), (Uy, 5)]\n\
+             (Pl @ None, Pg @ None, T @ None)\n\
+             -----------------------------------------\n\
              \n\
              Points: DOFs and global equation numbers\n\
              ========================================\n\
@@ -451,15 +449,19 @@ mod tests {
             format!("{}", dn),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
-             1 → PorousLiq → Tri3 (Pl @ None, Pg @ None, T @ None)\n\
-             \x20\x20\x20\x200: [(Pl, 0)]\n\
-             \x20\x20\x20\x201: [(Pl, 1)]\n\
-             \x20\x20\x20\x202: [(Pl, 2)]\n\
-             2 → PorousLiq → Qua4 (Pl @ None, Pg @ None, T @ None)\n\
-             \x20\x20\x20\x200: [(Pl, 0)]\n\
-             \x20\x20\x20\x201: [(Pl, 1)]\n\
-             \x20\x20\x20\x202: [(Pl, 2)]\n\
-             \x20\x20\x20\x203: [(Pl, 3)]\n\
+             1 → PorousLiq → Tri3\n\
+             0: [(Pl, 0)]\n\
+             1: [(Pl, 1)]\n\
+             2: [(Pl, 2)]\n\
+             (Pl @ None, Pg @ None, T @ None)\n\
+             -----------------------------------------\n\
+             2 → PorousLiq → Qua4\n\
+             0: [(Pl, 0)]\n\
+             1: [(Pl, 1)]\n\
+             2: [(Pl, 2)]\n\
+             3: [(Pl, 3)]\n\
+             (Pl @ None, Pg @ None, T @ None)\n\
+             -----------------------------------------\n\
              \n\
              Points: DOFs and global equation numbers\n\
              ========================================\n\
