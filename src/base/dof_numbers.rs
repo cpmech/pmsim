@@ -1,6 +1,6 @@
 use super::{Dof, Element, POROUS_SLD_GEO_KIND_ALLOWED};
 use crate::StrError;
-use gemlab::mesh::{CellAttributeId, Mesh};
+use gemlab::mesh::{CellAttributeId, Mesh, PointId};
 use gemlab::shapes::GeoKind;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -25,6 +25,7 @@ use std::fmt;
 ///            {Uy → 10}             12 → Pl @ 0 →  2  <<< eq_first_pl
 ///                                  13 → Pl @ 1 →  5
 ///                                  14 → Pl @ 2 →  8
+/// ```
 pub struct CellDofInfo {
     /// Holds all cell DOF keys and local equation numbers
     ///
@@ -198,6 +199,12 @@ pub struct DofNumbers {
     /// 5. The least upper bound (supremum) of nnz, indicated here by `nnz_sup`, is equal to the
     ///    sum of all the number of entries in the local matrices, i.e., Σ (ndof_local × ndof_local)
     pub nnz_sup: usize,
+
+    /// Indicates which DOFs (equations) are prescribed
+    ///
+    /// **Note:** The length of the array is equal to the total number of DOFs
+    /// which is equal to the total number of equations `n_equation`.
+    pub prescribed: Vec<bool>,
 }
 
 impl DofNumbers {
@@ -275,7 +282,30 @@ impl DofNumbers {
             local_to_global,
             n_equation,
             nnz_sup,
+            prescribed: vec![false; n_equation],
         })
+    }
+
+    /// Marks DOF as prescribed
+    pub fn mark_prescribed(&mut self, point_id: PointId, dof: Dof) -> Result<(), StrError> {
+        if point_id >= self.point_dofs.len() {
+            return Err("point_id is out of range");
+        }
+        let eq = self.point_dofs[point_id].get(&dof).ok_or("DOF is not available")?;
+        self.prescribed[*eq] = true;
+        Ok(())
+    }
+
+    /// Finds the point and DOF corresponding to a given equation number
+    fn find_dof_given_eq(&self, eq: usize) -> Result<(PointId, Dof), StrError> {
+        self.point_dofs
+            .iter()
+            .enumerate()
+            .find_map(|(point_id, dofs)| match dofs.iter().find(|(_, &e)| e == eq) {
+                Some((&dof, _)) => Some((point_id, dof)),
+                None => None,
+            })
+            .ok_or("equation number is not present in the point_dofs array")
     }
 }
 
@@ -314,6 +344,15 @@ impl fmt::Display for DofNumbers {
             write!(f, "{:?}: {:?}\n", cell_id, self.local_to_global[cell_id]).unwrap();
         }
 
+        write!(f, "\nPoints: Prescribed DOFs / equations\n").unwrap();
+        write!(f, "===================================\n").unwrap();
+        for eq in 0..self.n_equation {
+            if self.prescribed[eq] {
+                let (point_id, dof) = self.find_dof_given_eq(eq).unwrap();
+                write!(f, "{:?}: {:?} → {:?}\n", point_id, dof, eq).unwrap();
+            }
+        }
+
         write!(f, "\nInformation\n").unwrap();
         write!(f, "===========\n").unwrap();
         write!(f, "number of equations = {}\n", self.n_equation).unwrap();
@@ -327,7 +366,7 @@ impl fmt::Display for DofNumbers {
 #[cfg(test)]
 mod tests {
     use super::{get_cell_dofs, DofNumbers};
-    use crate::base::{Dof, Element, SampleMeshes};
+    use crate::base::{Dof, Element};
     use gemlab::mesh::{PointId, Samples};
     use gemlab::shapes::GeoKind;
     use std::collections::HashMap;
@@ -497,7 +536,7 @@ mod tests {
 
     #[test]
     fn new_captures_errors() {
-        let mesh = SampleMeshes::one_tri6();
+        let mesh = Samples::one_tri6();
         let attr_element = HashMap::from([(2, Element::Solid)]);
         assert_eq!(
             DofNumbers::new(&mesh, attr_element).err(),
@@ -554,6 +593,29 @@ mod tests {
     }
 
     #[test]
+    fn mark_prescribed_works_and_err() {
+        let mesh = Samples::one_tri3();
+        let attr_element = HashMap::from([(1, Element::Solid)]);
+        let mut dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        assert_eq!(dn.mark_prescribed(3, Dof::Ux), Err("point_id is out of range"));
+        assert_eq!(dn.mark_prescribed(0, Dof::Pl), Err("DOF is not available"));
+        assert_eq!(dn.mark_prescribed(0, Dof::Ux), Ok(()));
+        assert_eq!(dn.prescribed, &[true, false, false, false, false, false]);
+    }
+
+    #[test]
+    fn find_dof_given_eq_works_and_err() {
+        let mesh = Samples::one_tri6();
+        let attr_element = HashMap::from([(1, Element::PorousSldLiq)]);
+        let dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        assert_eq!(
+            dn.find_dof_given_eq(15),
+            Err("equation number is not present in the point_dofs array")
+        );
+        assert_eq!(dn.find_dof_given_eq(14), Ok((5, Dof::Uy)));
+    }
+
+    #[test]
     fn display_works() {
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
@@ -567,7 +629,11 @@ mod tests {
         //                     {3}
         let mesh = Samples::three_tri3();
         let attr_element = HashMap::from([(1, Element::Solid)]);
-        let dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        let mut dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        dn.mark_prescribed(0, Dof::Ux).unwrap();
+        dn.mark_prescribed(0, Dof::Uy).unwrap();
+        dn.mark_prescribed(1, Dof::Uy).unwrap();
+        dn.mark_prescribed(2, Dof::Uy).unwrap();
         assert_eq!(
             format!("{}", dn),
             "Cells: DOFs and local equation numbers\n\
@@ -590,6 +656,13 @@ mod tests {
              0: [0, 1, 2, 3, 8, 9]\n\
              1: [2, 3, 6, 7, 8, 9]\n\
              2: [2, 3, 4, 5, 6, 7]\n\
+             \n\
+             Points: Prescribed DOFs / equations\n\
+             ===================================\n\
+             0: Ux → 0\n\
+             0: Uy → 1\n\
+             1: Uy → 3\n\
+             2: Uy → 5\n\
              \n\
              Information\n\
              ===========\n\
@@ -636,6 +709,9 @@ mod tests {
              0: [0, 1, 3]\n\
              1: [2, 3, 1]\n\
              2: [1, 4, 5, 2]\n\
+             \n\
+             Points: Prescribed DOFs / equations\n\
+             ===================================\n\
              \n\
              Information\n\
              ===========\n\
