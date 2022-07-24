@@ -74,17 +74,17 @@ use std::fmt;
 /// ======================
 /// 0: [0, 1, 3, 4, 6, 7, 9, 10, 11, 12, 13, 14, 2, 5, 8]
 ///
+/// Information
+/// ===========
+/// number of equations = 15
+/// number of non-zeros = 225
+///
 /// Points: Prescribed DOFs / equations
 /// ===================================
 /// 0: Ux → 0
 /// 0: Uy → 1
 /// 1: Uy → 4
 /// 3: Uy → 10
-///
-/// Information
-/// ===========
-/// number of equations = 15
-/// number of non-zeros = 225
 /// "#
 ///     );
 ///     Ok(())
@@ -270,6 +270,11 @@ impl fmt::Display for DofNumbers {
             write!(f, "{:?}: {:?}\n", cell_id, self.local_to_global[cell_id]).unwrap();
         }
 
+        write!(f, "\nInformation\n").unwrap();
+        write!(f, "===========\n").unwrap();
+        write!(f, "number of equations = {}\n", self.n_equation).unwrap();
+        write!(f, "number of non-zeros = {}\n", self.nnz_sup).unwrap();
+
         write!(f, "\nPoints: Prescribed DOFs / equations\n").unwrap();
         write!(f, "===================================\n").unwrap();
         for eq in 0..self.n_equation {
@@ -278,11 +283,6 @@ impl fmt::Display for DofNumbers {
                 write!(f, "{:?}: {:?} → {:?}\n", point_id, dof, eq).unwrap();
             }
         }
-
-        write!(f, "\nInformation\n").unwrap();
-        write!(f, "===========\n").unwrap();
-        write!(f, "number of equations = {}\n", self.n_equation).unwrap();
-        write!(f, "number of non-zeros = {}\n", self.nnz_sup).unwrap();
         Ok(())
     }
 }
@@ -421,17 +421,17 @@ mod tests {
              1: [2, 3, 6, 7, 8, 9]\n\
              2: [2, 3, 4, 5, 6, 7]\n\
              \n\
+             Information\n\
+             ===========\n\
+             number of equations = 10\n\
+             number of non-zeros = 108\n\
+             \n\
              Points: Prescribed DOFs / equations\n\
              ===================================\n\
              0: Ux → 0\n\
              0: Uy → 1\n\
              1: Uy → 3\n\
-             2: Uy → 5\n\
-             \n\
-             Information\n\
-             ===========\n\
-             number of equations = 10\n\
-             number of non-zeros = 108\n"
+             2: Uy → 5\n"
         );
 
         // 3------------2------------5
@@ -478,13 +478,13 @@ mod tests {
              1: [2, 3, 1]\n\
              2: [1, 4, 5, 2]\n\
              \n\
-             Points: Prescribed DOFs / equations\n\
-             ===================================\n\
-             \n\
              Information\n\
              ===========\n\
              number of equations = 6\n\
-             number of non-zeros = 34\n"
+             number of non-zeros = 34\n\
+             \n\
+             Points: Prescribed DOFs / equations\n\
+             ===================================\n"
         );
     }
 }
