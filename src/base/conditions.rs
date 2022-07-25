@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn catch_some_errors_2d() {
         let mesh = Samples::two_tri3();
-        let region = Region::with(&mesh, Extract::Boundary).unwrap();
+        let region = Region::new(&mesh, Extract::Boundary).unwrap();
         let mut conditions = Conditions::new();
         let point_ids = HashSet::from([10]);
         let edge_keys = HashSet::from([(8, 80)]);
@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn catch_some_errors_3d() {
         let mesh = Samples::one_hex8();
-        let region = Region::with(&mesh, Extract::Boundary).unwrap();
+        let region = Region::new(&mesh, Extract::Boundary).unwrap();
         let mut conditions = Conditions::new();
         let edge_keys = HashSet::from([(0, 1)]);
         let face_keys = HashSet::from([(100, 200, 300, 400)]);
@@ -312,7 +312,7 @@ mod tests {
     #[rustfmt::skip]
     fn boundary_conditions_works_2d() {
         let mesh = Samples::two_tri3();
-        let region = Region::with(&mesh, Extract::Boundary).unwrap();
+        let region = Region::new(&mesh, Extract::Boundary).unwrap();
 
         let origin = region.find.points(At::XY(0.0, 0.0)).unwrap();
         let bottom = region.find.edges(At::Y(0.0)).unwrap();
@@ -357,7 +357,7 @@ mod tests {
     #[rustfmt::skip]
     fn boundary_conditions_works_3d() {
         let mesh = Samples::one_hex8();
-        let region = Region::with(&mesh, Extract::Boundary).unwrap();
+        let region = Region::new(&mesh, Extract::Boundary).unwrap();
 
         let fz = |_, _, _| -10.0;
         let qn = |_, _, _| -1.0;
