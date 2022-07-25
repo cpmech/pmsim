@@ -1,4 +1,3 @@
-use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
@@ -12,9 +11,7 @@ use russell_sparse::SparseTriplet;
 ///
 /// * `r_local` -- is the local vector r with length = `n_equation_local`
 /// * `cell_id` -- is the ID of the cell adding the contribution to R
-/// * `local_to_global` -- is a nested array holding all equation numbers.
-///   The outer length is equal to `ncell` and the inner length varies
-///   from cell to cell according to their `n_equation_local`.
+/// * `local_to_global` -- is an array holding all equation numbers.
 /// * `prescribed` -- tells whether a global equation number has prescribed
 ///   DOF or not. Its length is equal to the total number of DOFs `n_equation`.
 ///
@@ -22,16 +19,10 @@ use russell_sparse::SparseTriplet;
 ///
 /// This function will panic if the indices are out-of-bounds
 #[inline]
-pub fn assemble_vector(
-    rr_global: &mut Vector,
-    r_local: &Vector,
-    cell_id: CellId,
-    local_to_global: &Vec<Vec<usize>>,
-    prescribed: &[bool],
-) {
+pub fn assemble_vector(rr_global: &mut Vector, r_local: &Vector, local_to_global: &[usize], prescribed: &[bool]) {
     let n_equation_local = r_local.dim();
     for l in 0..n_equation_local {
-        let g = local_to_global[cell_id][l];
+        let g = local_to_global[l];
         if !prescribed[g] {
             rr_global[g] += r_local[l];
         }
@@ -48,9 +39,7 @@ pub fn assemble_vector(
 ///
 /// * `kk_local` -- is the local square matrix K with dims = (`n_equation_local`,`n_equation_local`)
 /// * `cell_id` -- is the ID of the cell adding the contribution to K
-/// * `local_to_global` -- is a nested array holding all equation numbers.
-///   The outer length is equal to `ncell` and the inner length varies
-///   from cell to cell according to their `n_equation_local`.
+/// * `local_to_global` -- is an nested holding all equation numbers.
 /// * `prescribed` -- tells whether a global equation number has prescribed
 ///   DOF or not. Its length is equal to the total number of DOFs `n_equation`.
 ///
@@ -61,16 +50,15 @@ pub fn assemble_vector(
 pub fn assemble_matrix(
     kk_global: &mut SparseTriplet,
     kk_local: &Matrix,
-    cell_id: CellId,
-    local_to_global: &Vec<Vec<usize>>,
+    local_to_global: &[usize],
     prescribed: &[bool],
 ) {
     let n_equation_local = kk_local.dims().0;
     for l in 0..n_equation_local {
-        let g = local_to_global[cell_id][l];
+        let g = local_to_global[l];
         if !prescribed[g] {
             for ll in 0..n_equation_local {
-                let gg = local_to_global[cell_id][ll];
+                let gg = local_to_global[ll];
                 if !prescribed[gg] {
                     kk_global.put(g, gg, kk_local[l][ll]).unwrap();
                 }
@@ -106,9 +94,9 @@ mod tests {
         let f2 = Vector::from(&[/**/ 310000.0, /**/ 320000.0, /**/ 330000.0]);
         let mut prescribed = vec![false; neq];
         prescribed[2] = true;
-        assemble_vector(&mut ff, &f0, 0, &l2g, &prescribed);
-        assemble_vector(&mut ff, &f1, 1, &l2g, &prescribed);
-        assemble_vector(&mut ff, &f2, 2, &l2g, &prescribed);
+        assemble_vector(&mut ff, &f0, &l2g[0], &prescribed);
+        assemble_vector(&mut ff, &f1, &l2g[1], &prescribed);
+        assemble_vector(&mut ff, &f2, &l2g[2], &prescribed);
         assert_eq!(ff.as_data(), &[10.0, 312111.0, /*prescribed*/ 0.0, 332300.0, 2414.0]);
     }
 
@@ -146,9 +134,9 @@ mod tests {
         ]);
         let mut prescribed = vec![false; neq];
         prescribed[2] = true;
-        assemble_matrix(&mut kk, &k0, 0, &l2g, &prescribed);
-        assemble_matrix(&mut kk, &k1, 1, &l2g, &prescribed);
-        assemble_matrix(&mut kk, &k2, 2, &l2g, &prescribed);
+        assemble_matrix(&mut kk, &k0, &l2g[0], &prescribed);
+        assemble_matrix(&mut kk, &k1, &l2g[1], &prescribed);
+        assemble_matrix(&mut kk, &k2, &l2g[2], &prescribed);
         let mut kk_mat = Matrix::new(5, 5);
         kk.to_matrix(&mut kk_mat).unwrap();
         #[rustfmt::skip]

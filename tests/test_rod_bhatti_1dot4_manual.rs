@@ -42,9 +42,9 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
         attr_elem.insert(cell.attribute_id, Element::Rod);
     }
 
-    // datamaps
-    let dm = DofNumbers::new(&mesh, attr_elem)?;
-    let (neq, nnz) = (dm.n_equation, dm.nnz_sup);
+    // DOF numbers
+    let dn = DofNumbers::new(&mesh, attr_elem)?;
+    let (neq, nnz) = (dn.n_equation, dn.nnz_sup);
 
     // prescribed equations
     let prescribed = vec![false; neq];
@@ -53,7 +53,7 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
     let mut kk = SparseTriplet::new(neq, neq, nnz, Symmetry::No).unwrap();
     for i in 0..elements.len() {
         let rod = &elements[i];
-        assemble_matrix(&mut kk, &rod.ke, i, &dm.local_to_global, &prescribed);
+        assemble_matrix(&mut kk, &rod.ke, &dn.local_to_global[i], &prescribed);
     }
     let mut kk_mat = Matrix::new(neq, neq);
     kk.to_matrix(&mut kk_mat).unwrap();
@@ -74,18 +74,18 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
 
     // prescribed equations
     let mut prescribed = vec![false; neq];
-    prescribed[*dm.point_dofs[0].get(&Dof::Ux).unwrap()] = true; // Ux
-    prescribed[*dm.point_dofs[0].get(&Dof::Uy).unwrap()] = true; // Uy
-    prescribed[*dm.point_dofs[3].get(&Dof::Ux).unwrap()] = true; // Ux
-    prescribed[*dm.point_dofs[3].get(&Dof::Uy).unwrap()] = true; // Uy
+    prescribed[*dn.point_dofs[0].get(&Dof::Ux).unwrap()] = true; // Ux
+    prescribed[*dn.point_dofs[0].get(&Dof::Uy).unwrap()] = true; // Uy
+    prescribed[*dn.point_dofs[3].get(&Dof::Ux).unwrap()] = true; // Ux
+    prescribed[*dn.point_dofs[3].get(&Dof::Uy).unwrap()] = true; // Uy
 
     // assembly
     kk.reset();
     let mut ff = Vector::new(neq);
     for i in 0..elements.len() {
         let rod = &elements[i];
-        assemble_matrix(&mut kk, &rod.ke, i, &dm.local_to_global, &prescribed);
-        assemble_vector(&mut ff, &rod.fe, i, &dm.local_to_global, &prescribed);
+        assemble_matrix(&mut kk, &rod.ke, &dn.local_to_global[i], &prescribed);
+        assemble_vector(&mut ff, &rod.fe, &dn.local_to_global[i], &prescribed);
     }
     for i in 0..neq {
         if prescribed[i] {
@@ -94,7 +94,7 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
     }
 
     // point loads
-    ff[*dm.point_dofs[1].get(&Dof::Uy).unwrap()] = -150000.0;
+    ff[*dn.point_dofs[1].get(&Dof::Uy).unwrap()] = -150000.0;
 
     // solve linear system
     let config = ConfigSolver::new();

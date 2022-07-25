@@ -217,9 +217,9 @@ mod tests {
         let (neq, nnz) = (dn.n_equation, dn.nnz_sup);
         let mut kk = SparseTriplet::new(neq, neq, nnz, Symmetry::No).unwrap();
         let prescribed = vec![false; neq];
-        assemble_matrix(&mut kk, &rod0.ke, 0, &dn.local_to_global, &prescribed);
-        assemble_matrix(&mut kk, &rod1.ke, 1, &dn.local_to_global, &prescribed);
-        assemble_matrix(&mut kk, &rod2.ke, 2, &dn.local_to_global, &prescribed);
+        assemble_matrix(&mut kk, &rod0.ke, &dn.local_to_global[0], &prescribed);
+        assemble_matrix(&mut kk, &rod1.ke, &dn.local_to_global[1], &prescribed);
+        assemble_matrix(&mut kk, &rod2.ke, &dn.local_to_global[2], &prescribed);
         let mut kk_mat = Matrix::new(neq, neq);
         kk.to_matrix(&mut kk_mat).unwrap();
         assert_eq!(
