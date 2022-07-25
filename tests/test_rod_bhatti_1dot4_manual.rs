@@ -1,5 +1,5 @@
 use pmsim::base::{assemble_matrix, assemble_vector, Dof, DofNumbers, Element, ParamRod, SampleMeshes};
-use pmsim::element::Rod;
+use pmsim::elements::Rod;
 use pmsim::StrError;
 use russell_chk::assert_vec_approx_eq;
 use russell_lab::{Matrix, Vector};
