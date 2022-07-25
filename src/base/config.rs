@@ -11,7 +11,7 @@ pub struct Config {
     /// Thickness for plane-stress or 1.0 otherwise
     pub thickness: f64,
 
-    /// 2D plane-stress problem, otherwise plane-strain in 2D
+    /// Plane-stress problem instead of plane-strain iff 2D
     pub plane_stress: bool,
 
     /// Total stress analysis (instead of effective stresses)
