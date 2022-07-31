@@ -1,12 +1,11 @@
 #![allow(unused)]
 
-use gemlab::mesh::{Extract, Region};
+use gemlab::mesh::{EdgeKey, Extract, Features, PointId};
 use gemlab::shapes::{GeoKind, Scratchpad};
 use pmsim::base::{
-    assemble_matrix, assemble_vector, zero, Conditions, Dof, DofNumbers, Element, Nbc, ParamSolid, ParamStressStrain,
-    SampleMeshes,
+    assemble_matrix, assemble_vector, BcEssential, BcNatural, Dof, DofNumbers, Element, FnBc, Nbc, ParamSolid,
+    ParamStressStrain, SampleMeshes,
 };
-use pmsim::elements::Solid;
 use pmsim::StrError;
 use russell_chk::assert_vec_approx_eq;
 use russell_lab::{Matrix, Vector};
@@ -58,7 +57,7 @@ fn test_rod_bhatti_1dot6() -> Result<(), StrError> {
     // 0.0  fixed 0----------2---------4   constraints:
     //           0.0        2.0       4.0   fixed on x and y
     let mesh = SampleMeshes::bhatti_example_1dot6_bracket();
-    let region = Region::new(&mesh, Extract::Boundary)?;
+    let features = Features::new(&mesh, Extract::Boundary);
 
     // DOF numbers
     let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid)]))?;
@@ -75,6 +74,19 @@ fn test_rod_bhatti_1dot6() -> Result<(), StrError> {
         thickness: 0.25,
         n_integ_point: None,
     };
+
+    let mut ebc = BcEssential::new();
+    let zero = |_| 0.0;
+    ebc.points(&[0, 1], &[Dof::Ux, Dof::Uy], zero);
+
+    let mut nbc = BcNatural::new();
+    nbc.edge_keys(&features, &[(1, 3), (3, 5)], Nbc::Qn, |_| -20.0)?;
+    // nbcs.edges(
+    //     // &[&feat.edges.get(&(1, 3)).unwrap(), &feat.edges.get(&(3, 5)).unwrap()],
+    //     feat.get_edges([(1, 3), (3, 5)]).unwrap(),
+    //     Nbc::Qn,
+    //     |_| -20.0,
+    // );
 
     // let mut bc = Conditions::new();
     // bc.set_essential_at_points(&region, &HashSet::from([0, 1]), &[Dof::Ux, Dof::Uy], zero)?;

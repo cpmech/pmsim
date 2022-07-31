@@ -1,5 +1,10 @@
 use gemlab::shapes::GeoKind;
 
+/// Defines a function to calculate boundary conditions values
+///
+/// This is a function of (t) where t is time
+pub type FnBc = fn(t: f64) -> f64;
+
 /// Defines degrees-of-freedom (DOF) types
 ///
 /// Note: The fixed numbering scheme assists in sorting the DOFs.

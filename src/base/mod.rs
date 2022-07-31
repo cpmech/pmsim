@@ -1,8 +1,8 @@
 //! Implements the base structures for a finite element simulation
 
 mod assemble;
-// mod bc_natural;
-// mod conditions;
+mod bc_essential;
+mod bc_natural;
 mod config;
 mod control;
 mod dof_numbers;
@@ -12,8 +12,8 @@ mod parameters;
 mod sample_meshes;
 mod sample_params;
 pub use crate::base::assemble::*;
-// pub use crate::base::bc_natural::*;
-// pub use crate::base::conditions::*;
+pub use crate::base::bc_essential::*;
+pub use crate::base::bc_natural::*;
 pub use crate::base::config::*;
 pub use crate::base::control::*;
 pub use crate::base::dof_numbers::*;
