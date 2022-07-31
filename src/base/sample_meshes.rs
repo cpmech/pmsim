@@ -87,6 +87,64 @@ impl SampleMeshes {
             ],
         }
     }
+
+    /// Returns a mesh with quadrilaterals representing a column
+    ///
+    /// ```text
+    /// 3.0   6---------13
+    ///       |    [5]   |
+    ///       |          |   L
+    /// 2.5   5---------12   A
+    ///       |    [4]   |   Y
+    ///       |          |   E
+    /// 2.0   4---------11   R
+    ///       |    [3]   |
+    ///       |          |   2
+    /// 1.5   3---------10
+    ///       |    [2]   |
+    ///       |          |
+    /// 1.0   2----------9   <-- layer separation
+    ///       |    [1]   |   L
+    ///       |          |   A
+    /// 0.5   1----------8   Y
+    ///       |    [0]   |   E
+    ///       |          |   R
+    /// 0.0   0----------7   1
+    ///
+    ///      0.0        1.0
+    /// ```
+    #[rustfmt::skip]
+    pub fn column_two_layers_quads() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id:  0, coords: vec![0.0, 0.0] },
+                Point { id:  1, coords: vec![0.0, 0.5] },
+                Point { id:  2, coords: vec![0.0, 1.0] },
+                Point { id:  3, coords: vec![0.0, 1.5] },
+                Point { id:  4, coords: vec![0.0, 2.0] },
+                Point { id:  5, coords: vec![0.0, 2.5] },
+                Point { id:  6, coords: vec![0.0, 3.0] },
+
+                Point { id:  7, coords: vec![0.5, 0.0] },
+                Point { id:  8, coords: vec![0.5, 0.5] },
+                Point { id:  9, coords: vec![0.5, 1.0] },
+                Point { id: 10, coords: vec![0.5, 1.5] },
+                Point { id: 11, coords: vec![0.5, 2.0] },
+                Point { id: 12, coords: vec![0.5, 2.5] },
+                Point { id: 13, coords: vec![0.5, 3.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Qua4, points: vec![0, 7, 8, 1] },
+                Cell { id: 1, attribute_id: 1, kind: GeoKind::Qua4, points: vec![1, 8, 9, 2] },
+
+                Cell { id: 2, attribute_id: 2, kind: GeoKind::Qua4, points: vec![2,  9, 10, 3] },
+                Cell { id: 3, attribute_id: 2, kind: GeoKind::Qua4, points: vec![3, 10, 11, 4] },
+                Cell { id: 4, attribute_id: 2, kind: GeoKind::Qua4, points: vec![4, 11, 12, 5] },
+                Cell { id: 5, attribute_id: 2, kind: GeoKind::Qua4, points: vec![5, 12, 13, 6] },
+            ],
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -112,5 +170,11 @@ mod tests {
         assert_eq!(mesh.points.len(), 6);
         assert_eq!(mesh.cells.len(), 4);
         // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot6_bracket.svg").unwrap();
+
+        let mesh = SampleMeshes::column_two_layers_quads();
+        check_all(&mesh).unwrap();
+        assert_eq!(mesh.points.len(), 14);
+        assert_eq!(mesh.cells.len(), 6);
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_column_two_layers_quads.svg").unwrap();
     }
 }
