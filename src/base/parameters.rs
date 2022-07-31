@@ -222,6 +222,15 @@ pub struct ParamSolid {
     /// Parameters for the stress-strain model
     pub stress_strain: ParamStressStrain,
 
+    /// Sets the space dimension to 2D instead of 3D
+    pub two_dim: bool,
+
+    /// Iff 2D, sets the plane-stress assumption instead of plane-strain
+    pub plane_stress: bool,
+
+    /// Iff 2D and plane-stress, defines the out-of-plane thickness
+    pub thickness: f64,
+
     /// Alternative number of integration points
     pub n_integ_point: Option<usize>,
 }
@@ -408,12 +417,15 @@ mod tests {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
             },
+            two_dim: true,
+            plane_stress: false,
+            thickness: 1.0,
             n_integ_point: None,
         };
         let q = p.clone();
         p.density = 111.0;
         assert_eq!(q.density, 2.7);
-        let correct = "ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, n_integ_point: None }";
+        let correct = "ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, two_dim: true, plane_stress: false, thickness: 1.0, n_integ_point: None }";
         assert_eq!(format!("{:?}", q), correct);
     }
 

@@ -1,6 +1,8 @@
-use crate::base::{DofNumbers, ParamSolid, ParamStressStrain};
+#![allow(unused)]
+
+use crate::base::{BcNatural, Conditions, DofNumbers, ParamSolid, ParamStressStrain};
 use crate::StrError;
-use gemlab::integ::{default_integ_points, mat_gdg_stiffness, IntegPointData};
+use gemlab::integ::{self, mat_10_gdg, IntegPointData};
 use gemlab::mesh::{set_pad_coords, CellId, Mesh};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{copy_matrix, Matrix, Vector};
@@ -11,9 +13,6 @@ pub struct Solid {
     pub kk_local: Matrix,
     pub pad: Scratchpad,
     pub ips: IntegPointData,
-    pub two_dim: bool,
-    pub plane_stress: bool,
-    pub thickness: f64,
     pub lin_elastic: bool,
 }
 
@@ -23,8 +22,7 @@ impl Solid {
         cell_id: CellId,
         param: &ParamSolid,
         dn: &DofNumbers,
-        plane_stress: bool,
-        thickness: f64,
+        cd: &Conditions,
     ) -> Result<Self, StrError> {
         let cell = &mesh.cells[cell_id];
         let neq = dn.local_to_global[cell_id].len();
@@ -32,13 +30,18 @@ impl Solid {
         let mut kk_local = Matrix::new(neq, neq);
         let mut pad = Scratchpad::new(mesh.ndim, cell.kind)?;
         set_pad_coords(&mut pad, &cell.points, &mesh);
-        let ips = default_integ_points(pad.kind);
-        let two_dim = if mesh.ndim == 2 { true } else { false };
+        let ips = integ::default_points(pad.kind);
         let lin_elastic = match param.stress_strain {
             ParamStressStrain::LinearElastic { young, poisson } => {
-                let le = LinElasticity::new(young, poisson, two_dim, plane_stress);
-                mat_gdg_stiffness(&mut kk_local, &mut pad, ips, thickness, true, |dd, _| {
-                    copy_matrix(&mut dd.mat, &le.get_modulus().mat)
+                let le = LinElasticity::new(young, poisson, param.two_dim, param.plane_stress);
+                integ::mat_10_gdg(&mut kk_local, &mut pad, 0, 0, true, ips, |dd, _| {
+                    // let in_array = model.get_modulus().mat.as_data();
+                    // let out_array = dd.mat.as_mut_data();
+                    // for i in 0..in_array.len() {
+                    //     out_array[i] = th * in_array[i];
+                    // }
+                    // copy_matrix(&mut dd.mat, &le.get_modulus().mat)
+                    Ok(())
                 })?;
                 true
             }
@@ -49,13 +52,15 @@ impl Solid {
             kk_local,
             pad,
             ips,
-            two_dim,
-            plane_stress,
-            thickness,
             lin_elastic,
         })
     }
-    pub fn calc_ke(&mut self) {}
+
+    pub fn calc_r_local(&mut self, bc: &BcNatural) {
+        // todo
+    }
+
+    pub fn calc_kk_local(&mut self) {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -63,7 +68,7 @@ impl Solid {
 #[cfg(test)]
 mod tests {
     use super::Solid;
-    use crate::base::{DofNumbers, Element, ParamSolid, ParamStressStrain, SampleMeshes};
+    use crate::base::{Conditions, DofNumbers, Element, ParamSolid, ParamStressStrain, SampleMeshes};
     use russell_chk::assert_vec_approx_eq;
     use russell_lab::Matrix;
     use std::collections::HashMap;
@@ -78,13 +83,15 @@ mod tests {
                 young: 10_000.0,
                 poisson: 0.2,
             },
+            two_dim: true,
+            plane_stress: true,
+            thickness: 0.25,
             n_integ_point: None,
         };
 
-        let plane_stress = true;
-        let thickness = 0.25;
+        let cd = Conditions::new();
 
-        let elem = Solid::new(&mesh, 0, &param, &dn, plane_stress, thickness).unwrap();
+        let elem = Solid::new(&mesh, 0, &param, &dn, &cd).unwrap();
         assert_eq!(elem.r_local.dim(), 6);
         assert_eq!(elem.kk_local.dims(), (6, 6));
 

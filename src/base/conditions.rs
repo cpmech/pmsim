@@ -6,8 +6,9 @@ use std::fmt;
 
 /// Defines a function to calculate boundary conditions values
 ///
-/// This is a function of (t,u,v) where t is time and (u,v) are
-/// the local (e.g., texture) coordinates on the boundary
+/// This is a function of (t,u,v) where t is time and (u,v)
+/// are the local (e.g., texture) coordinates on the boundary.
+/// `u` and `v` are in `[-1.0, +1.0]` and only `u` is used on edges.
 pub type FnBc = fn(t: f64, u: f64, v: f64) -> f64;
 
 /// Collects all boundary conditions

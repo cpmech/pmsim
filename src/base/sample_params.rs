@@ -66,14 +66,17 @@ impl SampleParams {
         }
     }
 
-    /// Returns sample parameters for a solid medium
-    pub fn param_solid() -> ParamSolid {
+    /// Returns sample parameters for a solid medium (plane-strain or 3D)
+    pub fn param_solid(two_dim: bool) -> ParamSolid {
         ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
             },
+            two_dim,
+            plane_stress: false,
+            thickness: 1.0,
             n_integ_point: None,
         }
     }
@@ -244,7 +247,7 @@ mod tests {
         let p = SampleParams::param_beam();
         assert_eq!(p.density, 2.0);
 
-        let p = SampleParams::param_solid();
+        let p = SampleParams::param_solid(true);
         assert_eq!(p.density, 2.7);
 
         let p = SampleParams::param_porous_sol_liq(0.4, 1.0);

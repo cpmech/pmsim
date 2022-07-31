@@ -147,6 +147,9 @@ mod tests {
                     young: 10_000.0, // kPa
                     poisson: 0.2,    // [-]
                 },
+                two_dim: true,
+                plane_stress: false,
+                thickness: 1.0,
                 n_integ_point: None,
             }),
         );
@@ -181,7 +184,7 @@ mod tests {
              \n\
              Parameters for Elements\n\
              =======================\n\
-             1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, n_integ_point: None })\n\
+             1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, two_dim: true, plane_stress: false, thickness: 1.0, n_integ_point: None })\n\
              \n\
              Parameters for fluids\n\
              =====================\n\
