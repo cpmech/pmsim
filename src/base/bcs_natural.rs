@@ -122,11 +122,11 @@ impl<'a> fmt::Display for BcsNatural<'a> {
 mod tests {
     use super::BcsNatural;
     use crate::base::{Nbc, Pbc};
-    use gemlab::mesh::{Edge, Face};
+    use gemlab::mesh::{Edge, Extract, Face, Features, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
-    fn bcs_natural_works() {
+    fn set_points_edges_faces_work() {
         let mut nbc = BcsNatural::new();
         let edges = &[&Edge {
             kind: GeoKind::Lin2,
@@ -152,6 +152,53 @@ mod tests {
              Natural boundary conditions at faces\n\
              ====================================\n\
              ((3, 4, 5), Qn) @ t=0 → 0.0 @ t=1 → 0.5\n"
+        );
+    }
+
+    #[test]
+    fn set_edge_face_keys_work() {
+        //      4--------------7  1.0
+        //     /.             /|
+        //    / .            / |    [#] indicates id
+        //   /  .           /  |    (#) indicates attribute_id
+        //  /   .          /   |
+        // 5--------------6    |          z
+        // |    .         |    |          ↑
+        // |    0---------|----3  0.0     o → y
+        // |   /  [0]     |   /          ↙
+        // |  /   (1)     |  /          x
+        // | /            | /
+        // |/             |/
+        // 1--------------2   1.0
+        let mesh = Samples::one_hex8();
+        let features = Features::new(&mesh, Extract::Boundary);
+        let mut nbc = BcsNatural::new();
+        let fbc = |t| -10.0 * t;
+        nbc.set_edge_keys(&features, &[(4, 5), (4, 7)], Nbc::Qn, fbc).unwrap();
+        nbc.set_face_keys(&features, &[(0, 1, 4, 5)], Nbc::Qy, fbc).unwrap();
+        assert_eq!(
+            format!("{}", nbc),
+            "Point boundary conditions\n\
+             =========================\n\
+             \n\
+             Natural boundary conditions at edges\n\
+             ====================================\n\
+             ((4, 5), Qn) @ t=0 → -0.0 @ t=1 → -10.0\n\
+             ((4, 7), Qn) @ t=0 → -0.0 @ t=1 → -10.0\n\
+             \n\
+             Natural boundary conditions at faces\n\
+             ====================================\n\
+             ((0, 1, 4, 5), Qy) @ t=0 → -0.0 @ t=1 → -10.0\n"
+        );
+        assert_eq!(fbc(1.0), -10.0);
+
+        assert_eq!(
+            nbc.set_edge_keys(&features, &[(5, 4)], Nbc::Qn, fbc).err(),
+            Some("cannot find edge with given key")
+        );
+        assert_eq!(
+            nbc.set_face_keys(&features, &[(1, 0, 4, 5)], Nbc::Qy, fbc).err(),
+            Some("cannot find face with given key")
         );
     }
 }
