@@ -89,8 +89,7 @@ pub fn assemble_matrix(
 
 #[cfg(test)]
 mod tests {
-    use super::gen_prescribed_array;
-    use super::{assemble_matrix, assemble_vector};
+    use super::{assemble_matrix, assemble_vector, gen_prescribed_array};
     use crate::base::{BcsEssential, Dof, DofNumbers, Element};
     use gemlab::mesh::Samples;
     use russell_lab::{Matrix, Vector};
