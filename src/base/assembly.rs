@@ -1,5 +1,17 @@
+use super::{BcEssential, DofNumbers};
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
+
+/// Generates the array indicating the prescribed DOFs
+pub fn gen_prescribed_array(dn: &DofNumbers, ebc: &BcEssential) -> Vec<bool> {
+    let mut prescribed = vec![false; dn.n_equation];
+    for (point_id, dof) in ebc.all.keys() {
+        if let Some(eq) = dn.point_dofs[*point_id].get(dof) {
+            prescribed[*eq] = true;
+        }
+    }
+    prescribed
+}
 
 /// Assembles local vector into global vector
 ///
@@ -71,9 +83,33 @@ pub fn assemble_matrix(
 
 #[cfg(test)]
 mod tests {
+    use super::gen_prescribed_array;
     use super::{assemble_matrix, assemble_vector};
+    use crate::base::{BcEssential, Dof, DofNumbers, Element};
+    use gemlab::mesh::Samples;
     use russell_lab::{Matrix, Vector};
     use russell_sparse::{SparseTriplet, Symmetry};
+    use std::collections::HashMap;
+
+    #[test]
+    fn gen_prescribed_array_works() {
+        //       {4} 4---.__
+        //          / \     `--.___3 {3}  [#] indicates id
+        //         /   \          / \     (#) indicates attribute_id
+        //        /     \  [1]   /   \    {#} indicates equation id
+        //       /  [0]  \ (1)  / [2] \
+        //      /   (1)   \    /  (1)  \
+        // {0} 0---.__     \  /      ___2 {2}
+        //            `--.__\/__.---'
+        //               {1} 1
+        let mesh = Samples::three_tri3();
+        let elements = HashMap::from([(1, Element::PorousLiq)]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let mut ebc = BcEssential::new();
+        ebc.set_points(&[0, 4], &[Dof::Pl], |_| 0.0);
+        let prescribed = gen_prescribed_array(&dn, &ebc);
+        assert_eq!(prescribed, &[true, false, false, false, true]);
+    }
 
     #[test]
     fn assemble_vector_works() {

@@ -5,7 +5,7 @@ use std::fmt;
 
 /// Holds essential boundary conditions
 pub struct BcEssential {
-    all: HashMap<(PointId, Dof), FnBc>,
+    pub all: HashMap<(PointId, Dof), FnBc>,
 }
 
 impl BcEssential {
