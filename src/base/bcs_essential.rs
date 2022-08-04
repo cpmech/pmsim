@@ -4,14 +4,14 @@ use std::collections::HashMap;
 use std::fmt;
 
 /// Holds essential boundary conditions
-pub struct BcEssential {
+pub struct BcsEssential {
     pub all: HashMap<(PointId, Dof), FnBc>,
 }
 
-impl BcEssential {
+impl BcsEssential {
     /// Allocates a new instance
     pub fn new() -> Self {
-        BcEssential { all: HashMap::new() }
+        BcsEssential { all: HashMap::new() }
     }
 
     /// Sets essential boundary condition at points
@@ -49,7 +49,7 @@ impl BcEssential {
     }
 }
 
-impl fmt::Display for BcEssential {
+impl fmt::Display for BcsEssential {
     /// Prints a formatted summary of Boundary Conditions
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Essential boundary conditions\n").unwrap();
@@ -70,14 +70,14 @@ impl fmt::Display for BcEssential {
 
 #[cfg(test)]
 mod tests {
-    use super::BcEssential;
+    use super::BcsEssential;
     use crate::base::Dof;
     use gemlab::mesh::{Edge, Face};
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn bcs_essential_works() {
-        let mut ebc = BcEssential::new();
+        let mut ebc = BcsEssential::new();
         let edges = &[&Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],

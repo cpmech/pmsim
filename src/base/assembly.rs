@@ -1,4 +1,4 @@
-use super::{BcEssential, DofNumbers};
+use super::{BcsEssential, DofNumbers};
 use crate::StrError;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
@@ -8,7 +8,7 @@ use russell_sparse::SparseTriplet;
 /// Returns the array `prescribed` indicating which DOFs (equations) are prescribed.
 /// The length of the array is equal to the total number of DOFs which is
 /// equal to the total number of equations `n_equation`.
-pub fn gen_prescribed_array(dn: &DofNumbers, ebc: &BcEssential) -> Result<Vec<bool>, StrError> {
+pub fn gen_prescribed_array(dn: &DofNumbers, ebc: &BcsEssential) -> Result<Vec<bool>, StrError> {
     let mut prescribed = vec![false; dn.n_equation];
     for (point_id, dof) in ebc.all.keys() {
         match dn.point_dofs[*point_id].get(dof) {
@@ -91,7 +91,7 @@ pub fn assemble_matrix(
 mod tests {
     use super::gen_prescribed_array;
     use super::{assemble_matrix, assemble_vector};
-    use crate::base::{BcEssential, Dof, DofNumbers, Element};
+    use crate::base::{BcsEssential, Dof, DofNumbers, Element};
     use gemlab::mesh::Samples;
     use russell_lab::{Matrix, Vector};
     use russell_sparse::{SparseTriplet, Symmetry};
@@ -111,7 +111,7 @@ mod tests {
         let mesh = Samples::three_tri3();
         let elements = HashMap::from([(1, Element::PorousLiq)]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
-        let mut ebc = BcEssential::new();
+        let mut ebc = BcsEssential::new();
         let zero = |_| 0.0;
         ebc.set_points(&[0, 4], &[Dof::Pl], zero);
         let prescribed = gen_prescribed_array(&dn, &ebc).unwrap();
@@ -136,7 +136,7 @@ mod tests {
         //                     {3}
         let elements = HashMap::from([(1, Element::Solid)]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
-        let mut ebc = BcEssential::new();
+        let mut ebc = BcsEssential::new();
         ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], zero);
         ebc.set_points(&[1, 2], &[Dof::Uy], zero);
         let prescribed = gen_prescribed_array(&dn, &ebc).unwrap();

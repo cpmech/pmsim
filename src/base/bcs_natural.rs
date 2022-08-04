@@ -5,16 +5,16 @@ use russell_lab::{sort2, sort3, sort4};
 use std::fmt;
 
 /// Holds natural boundary conditions
-pub struct BcNatural<'a> {
+pub struct BcsNatural<'a> {
     all_points: Vec<(PointId, Pbc, FnBc)>,
     all_edges: Vec<(&'a Edge, Nbc, FnBc)>,
     all_faces: Vec<(&'a Face, Nbc, FnBc)>,
 }
 
-impl<'a> BcNatural<'a> {
+impl<'a> BcsNatural<'a> {
     /// Allocates a new instance
     pub fn new() -> Self {
-        BcNatural {
+        BcsNatural {
             all_points: Vec::new(),
             all_edges: Vec::new(),
             all_faces: Vec::new(),
@@ -76,7 +76,7 @@ impl<'a> BcNatural<'a> {
     }
 }
 
-impl<'a> fmt::Display for BcNatural<'a> {
+impl<'a> fmt::Display for BcsNatural<'a> {
     /// Prints a formatted summary of Boundary Conditions
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Point boundary conditions\n").unwrap();
@@ -120,14 +120,14 @@ impl<'a> fmt::Display for BcNatural<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::BcNatural;
+    use super::BcsNatural;
     use crate::base::{Nbc, Pbc};
     use gemlab::mesh::{Edge, Face};
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn bcs_natural_works() {
-        let mut nbc = BcNatural::new();
+        let mut nbc = BcsNatural::new();
         let edges = &[&Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
