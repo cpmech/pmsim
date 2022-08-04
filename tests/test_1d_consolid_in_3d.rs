@@ -19,9 +19,9 @@ fn main() -> Result<(), StrError> {
 
     let zero = |_| 0.0;
     let mut ebc = BcEssential::new();
-    ebc.set_(&left, &[Dof::Ux], zero)
-        .set_(&right, &[Dof::Ux], zero)
-        .set_(&bottom, &[Dof::Uy], zero);
+    ebc.set_faces(&left, &[Dof::Ux], zero)
+        .set_faces(&right, &[Dof::Ux], zero)
+        .set_faces(&bottom, &[Dof::Uy], zero);
 
     Ok(())
 }

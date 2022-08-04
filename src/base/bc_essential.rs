@@ -37,7 +37,7 @@ impl BcEssential {
     }
 
     /// Sets essential boundary condition at faces
-    pub fn set_(&mut self, faces: &[&Face], dofs: &[Dof], f: FnBc) -> &mut Self {
+    pub fn set_faces(&mut self, faces: &[&Face], dofs: &[Dof], f: FnBc) -> &mut Self {
         for face in faces {
             for point_id in &face.points {
                 for dof in dofs {
@@ -88,7 +88,7 @@ mod tests {
         }];
         ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], |_| 0.0)
             .set_edges(edges, &[Dof::Pl], |t| t)
-            .set_(faces, &[Dof::T], |t| t / 2.0);
+            .set_faces(faces, &[Dof::T], |t| t / 2.0);
         assert_eq!(
             format!("{}", ebc),
             "Essential boundary conditions\n\
