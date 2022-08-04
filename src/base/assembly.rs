@@ -110,9 +110,11 @@ mod tests {
         let elements = HashMap::from([(1, Element::PorousLiq)]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
         let mut ebc = BcEssential::new();
-        ebc.set_points(&[0, 4], &[Dof::Pl], |_| 0.0);
+        let zero = |_| 0.0;
+        ebc.set_points(&[0, 4], &[Dof::Pl], zero);
         let prescribed = gen_prescribed_array(&dn, &ebc);
         assert_eq!(prescribed, &[true, false, false, false, true]);
+        assert_eq!(zero(1.0), 0.0);
 
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
@@ -127,8 +129,8 @@ mod tests {
         let elements = HashMap::from([(1, Element::Solid)]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
         let mut ebc = BcEssential::new();
-        ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], |_| 0.0);
-        ebc.set_points(&[1, 2], &[Dof::Uy], |_| 0.0);
+        ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], zero);
+        ebc.set_points(&[1, 2], &[Dof::Uy], zero);
         let prescribed = gen_prescribed_array(&dn, &ebc);
         assert_eq!(
             prescribed,
