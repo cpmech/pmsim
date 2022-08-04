@@ -6,25 +6,25 @@ use std::fmt;
 
 /// Holds natural boundary conditions
 pub struct BcsNatural<'a> {
-    pub all_points: Vec<(PointId, Pbc, FnBc)>,
-    pub all_edges: Vec<(&'a Edge, Nbc, FnBc)>,
-    pub all_faces: Vec<(&'a Face, Nbc, FnBc)>,
+    pub points: Vec<(PointId, Pbc, FnBc)>,
+    pub edges: Vec<(&'a Edge, Nbc, FnBc)>,
+    pub faces: Vec<(&'a Face, Nbc, FnBc)>,
 }
 
 impl<'a> BcsNatural<'a> {
     /// Allocates a new instance
     pub fn new() -> Self {
         BcsNatural {
-            all_points: Vec::new(),
-            all_edges: Vec::new(),
-            all_faces: Vec::new(),
+            points: Vec::new(),
+            edges: Vec::new(),
+            faces: Vec::new(),
         }
     }
 
     /// Sets points boundary condition
     pub fn set_points(&mut self, point_ids: &[PointId], pbc: Pbc, f: FnBc) -> &mut Self {
         for point_id in point_ids {
-            self.all_points.push((*point_id, pbc, f));
+            self.points.push((*point_id, pbc, f));
         }
         self
     }
@@ -32,7 +32,7 @@ impl<'a> BcsNatural<'a> {
     /// Sets natural boundary condition at edges
     pub fn set_edges(&mut self, edges: &[&'a Edge], nbc: Nbc, f: FnBc) -> &mut Self {
         for edge in edges {
-            self.all_edges.push((edge, nbc, f));
+            self.edges.push((edge, nbc, f));
         }
         self
     }
@@ -40,7 +40,7 @@ impl<'a> BcsNatural<'a> {
     /// Sets natural boundary condition at faces
     pub fn set_faces(&mut self, faces: &[&'a Face], nbc: Nbc, f: FnBc) -> &mut Self {
         for face in faces {
-            self.all_faces.push((face, nbc, f));
+            self.faces.push((face, nbc, f));
         }
         self
     }
@@ -55,7 +55,7 @@ impl<'a> BcsNatural<'a> {
     ) -> Result<&mut Self, StrError> {
         for edge_key in keys {
             let edge = features.edges.get(edge_key).ok_or("cannot find edge with given key")?;
-            self.all_edges.push((edge, nbc, f))
+            self.edges.push((edge, nbc, f))
         }
         Ok(self)
     }
@@ -70,7 +70,7 @@ impl<'a> BcsNatural<'a> {
     ) -> Result<&mut Self, StrError> {
         for face_key in keys {
             let face = features.faces.get(face_key).ok_or("cannot find face with given key")?;
-            self.all_faces.push((face, nbc, f))
+            self.faces.push((face, nbc, f))
         }
         Ok(self)
     }
@@ -81,7 +81,7 @@ impl<'a> fmt::Display for BcsNatural<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Point boundary conditions\n").unwrap();
         write!(f, "=========================\n").unwrap();
-        for (id, pbc, fbc) in &self.all_points {
+        for (id, pbc, fbc) in &self.points {
             let f0 = fbc(0.0);
             let f1 = fbc(1.0);
             write!(f, "({:?}, {:?}) @ t=0 → {:?} @ t=1 → {:?}\n", id, pbc, f0, f1).unwrap();
@@ -89,7 +89,7 @@ impl<'a> fmt::Display for BcsNatural<'a> {
 
         write!(f, "\nNatural boundary conditions at edges\n").unwrap();
         write!(f, "====================================\n").unwrap();
-        for (edge, nbc, fbc) in &self.all_edges {
+        for (edge, nbc, fbc) in &self.edges {
             let mut key = (edge.points[0], edge.points[1]);
             sort2(&mut key);
             let f0 = fbc(0.0);
@@ -99,7 +99,7 @@ impl<'a> fmt::Display for BcsNatural<'a> {
 
         write!(f, "\nNatural boundary conditions at faces\n").unwrap();
         write!(f, "====================================\n").unwrap();
-        for (face, nbc, fbc) in &self.all_faces {
+        for (face, nbc, fbc) in &self.faces {
             let f0 = fbc(0.0);
             let f1 = fbc(1.0);
             if face.points.len() > 3 {

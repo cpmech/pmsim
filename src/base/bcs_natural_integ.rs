@@ -8,12 +8,12 @@ use russell_lab::Vector;
 /// Returns the Scratchpads to perform the numerical integrations of the natural boundary conditions
 pub fn get_pads(bcs: &BcsNatural, mesh: &Mesh) -> Result<Vec<(Scratchpad, Nbc, FnBc)>, StrError> {
     let mut results = Vec::new();
-    for (face, nbc, f) in &bcs.all_faces {
+    for (face, nbc, f) in &bcs.faces {
         let mut pad = Scratchpad::new(mesh.ndim, face.kind)?;
         set_pad_coords(&mut pad, &face.points, &mesh);
         results.push((pad, *nbc, *f));
     }
-    for (edge, nbc, f) in &bcs.all_edges {
+    for (edge, nbc, f) in &bcs.edges {
         let mut pad = Scratchpad::new(mesh.ndim, edge.kind)?;
         set_pad_coords(&mut pad, &edge.points, &mesh);
         results.push((pad, *nbc, *f));
