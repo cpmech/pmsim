@@ -4,6 +4,7 @@ use gemlab::mesh::{Edge, EdgeKey, Face, FaceKey, Features, PointId};
 use russell_lab::{sort2, sort3, sort4};
 use std::fmt;
 
+/// Holds natural boundary conditions
 pub struct BcNatural<'a> {
     all_points: Vec<(PointId, Pbc, FnBc)>,
     all_edges: Vec<(&'a Edge, Nbc, FnBc)>,

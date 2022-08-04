@@ -3,6 +3,7 @@ use gemlab::mesh::{Edge, Face, PointId};
 use std::collections::HashMap;
 use std::fmt;
 
+/// Holds essential boundary conditions
 pub struct BcEssential {
     all: HashMap<(PointId, Dof), FnBc>,
 }
