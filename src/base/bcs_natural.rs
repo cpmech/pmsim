@@ -6,9 +6,9 @@ use std::fmt;
 
 /// Holds natural boundary conditions
 pub struct BcsNatural<'a> {
-    all_points: Vec<(PointId, Pbc, FnBc)>,
-    all_edges: Vec<(&'a Edge, Nbc, FnBc)>,
-    all_faces: Vec<(&'a Face, Nbc, FnBc)>,
+    pub all_points: Vec<(PointId, Pbc, FnBc)>,
+    pub all_edges: Vec<(&'a Edge, Nbc, FnBc)>,
+    pub all_faces: Vec<(&'a Face, Nbc, FnBc)>,
 }
 
 impl<'a> BcsNatural<'a> {

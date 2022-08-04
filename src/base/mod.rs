@@ -3,6 +3,7 @@
 mod assembly;
 mod bcs_essential;
 mod bcs_natural;
+mod bcs_natural_integ;
 mod config;
 mod control;
 mod dof_numbers;
@@ -14,6 +15,7 @@ mod sample_params;
 pub use crate::base::assembly::*;
 pub use crate::base::bcs_essential::*;
 pub use crate::base::bcs_natural::*;
+pub use crate::base::bcs_natural_integ::*;
 pub use crate::base::config::*;
 pub use crate::base::control::*;
 pub use crate::base::dof_numbers::*;
