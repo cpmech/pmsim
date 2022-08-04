@@ -3,6 +3,10 @@ use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
 /// Generates the array indicating the prescribed DOFs
+///
+/// Returns the array `prescribed` indicating which DOFs (equations) are prescribed.
+/// The length of the array is equal to the total number of DOFs which is
+/// equal to the total number of equations `n_equation`.
 pub fn gen_prescribed_array(dn: &DofNumbers, ebc: &BcEssential) -> Vec<bool> {
     let mut prescribed = vec![false; dn.n_equation];
     for (point_id, dof) in ebc.all.keys() {
@@ -109,6 +113,28 @@ mod tests {
         ebc.set_points(&[0, 4], &[Dof::Pl], |_| 0.0);
         let prescribed = gen_prescribed_array(&dn, &ebc);
         assert_eq!(prescribed, &[true, false, false, false, true]);
+
+        //       {8} 4---.__
+        //       {9}/ \     `--.___3 {6}   [#] indicates id
+        //         /   \          / \{7}   (#) indicates attribute_id
+        //        /     \  [1]   /   \     {#} indicates equation number
+        //       /  [0]  \ (1)  / [2] \
+        // {0}  /   (1)   \    /  (1)  \
+        // {1} 0---.__     \  /      ___2 {4}
+        //            `--.__\/__.---'     {5}
+        //                   1 {2}
+        //                     {3}
+        let elements = HashMap::from([(1, Element::Solid)]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let mut ebc = BcEssential::new();
+        ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], |_| 0.0);
+        ebc.set_points(&[1, 2], &[Dof::Uy], |_| 0.0);
+        let prescribed = gen_prescribed_array(&dn, &ebc);
+        assert_eq!(
+            prescribed,
+            //   0     1      2     3      4     5      6      7      8      9
+            &[true, true, false, true, false, true, false, false, false, false]
+        );
     }
 
     #[test]
