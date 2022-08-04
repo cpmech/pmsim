@@ -22,7 +22,7 @@ impl<'a> BcNatural<'a> {
     }
 
     /// Sets points boundary condition
-    pub fn points(&mut self, point_ids: &[PointId], pbc: Pbc, f: FnBc) -> &mut Self {
+    pub fn set_points(&mut self, point_ids: &[PointId], pbc: Pbc, f: FnBc) -> &mut Self {
         for point_id in point_ids {
             self.all_points.push((*point_id, pbc, f));
         }
@@ -30,7 +30,7 @@ impl<'a> BcNatural<'a> {
     }
 
     /// Sets natural boundary condition at edges
-    pub fn edges(&mut self, edges: &[&'a Edge], nbc: Nbc, f: FnBc) -> &mut Self {
+    pub fn set_edges(&mut self, edges: &[&'a Edge], nbc: Nbc, f: FnBc) -> &mut Self {
         for edge in edges {
             self.all_edges.push((edge, nbc, f));
         }
@@ -38,7 +38,7 @@ impl<'a> BcNatural<'a> {
     }
 
     /// Sets natural boundary condition at faces
-    pub fn faces(&mut self, faces: &[&'a Face], nbc: Nbc, f: FnBc) -> &mut Self {
+    pub fn set_faces(&mut self, faces: &[&'a Face], nbc: Nbc, f: FnBc) -> &mut Self {
         for face in faces {
             self.all_faces.push((face, nbc, f));
         }
@@ -46,7 +46,7 @@ impl<'a> BcNatural<'a> {
     }
 
     /// Sets natural boundary condition at edges with given keys
-    pub fn edge_keys(
+    pub fn set_edge_keys(
         &mut self,
         features: &'a Features,
         keys: &[EdgeKey],
@@ -61,7 +61,7 @@ impl<'a> BcNatural<'a> {
     }
 
     /// Sets natural boundary condition at faces with given keys
-    pub fn face_keys(
+    pub fn set_face_keys(
         &mut self,
         features: &'a Features,
         keys: &[FaceKey],
@@ -136,9 +136,9 @@ mod tests {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
-        nbc.points(&[10], Pbc::Fy, |_| -100.0)
-            .edges(edges, Nbc::Qy, |t| t)
-            .faces(faces, Nbc::Qn, |t| t / 2.0);
+        nbc.set_points(&[10], Pbc::Fy, |_| -100.0)
+            .set_edges(edges, Nbc::Qy, |t| t)
+            .set_faces(faces, Nbc::Qn, |t| t / 2.0);
         assert_eq!(
             format!("{}", nbc),
             "Point boundary conditions\n\

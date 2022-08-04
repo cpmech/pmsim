@@ -77,10 +77,10 @@ fn test_rod_bhatti_1dot6() -> Result<(), StrError> {
 
     let mut ebc = BcEssential::new();
     let zero = |_| 0.0;
-    ebc.points(&[0, 1], &[Dof::Ux, Dof::Uy], zero);
+    ebc.set_points(&[0, 1], &[Dof::Ux, Dof::Uy], zero);
 
     let mut nbc = BcNatural::new();
-    nbc.edge_keys(&features, &[(1, 3), (3, 5)], Nbc::Qn, |_| -20.0)?;
+    nbc.set_edge_keys(&features, &[(1, 3), (3, 5)], Nbc::Qn, |_| -20.0)?;
     // nbcs.edges(
     //     // &[&feat.edges.get(&(1, 3)).unwrap(), &feat.edges.get(&(3, 5)).unwrap()],
     //     feat.get_edges([(1, 3), (3, 5)]).unwrap(),

@@ -15,7 +15,7 @@ impl BcEssential {
     }
 
     /// Sets essential boundary condition at points
-    pub fn points(&mut self, point_ids: &[PointId], dofs: &[Dof], f: FnBc) -> &mut Self {
+    pub fn set_points(&mut self, point_ids: &[PointId], dofs: &[Dof], f: FnBc) -> &mut Self {
         for point_id in point_ids {
             for dof in dofs {
                 self.all.insert((*point_id, *dof), f);
@@ -25,7 +25,7 @@ impl BcEssential {
     }
 
     /// Sets essential boundary condition at edges
-    pub fn edges(&mut self, edges: &[&Edge], dofs: &[Dof], f: FnBc) -> &mut Self {
+    pub fn set_edges(&mut self, edges: &[&Edge], dofs: &[Dof], f: FnBc) -> &mut Self {
         for edge in edges {
             for point_id in &edge.points {
                 for dof in dofs {
@@ -37,7 +37,7 @@ impl BcEssential {
     }
 
     /// Sets essential boundary condition at faces
-    pub fn faces(&mut self, faces: &[&Face], dofs: &[Dof], f: FnBc) -> &mut Self {
+    pub fn set_(&mut self, faces: &[&Face], dofs: &[Dof], f: FnBc) -> &mut Self {
         for face in faces {
             for point_id in &face.points {
                 for dof in dofs {
@@ -86,9 +86,9 @@ mod tests {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
-        ebc.points(&[0], &[Dof::Ux, Dof::Uy], |_| 0.0)
-            .edges(edges, &[Dof::Pl], |t| t)
-            .faces(faces, &[Dof::T], |t| t / 2.0);
+        ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], |_| 0.0)
+            .set_edges(edges, &[Dof::Pl], |t| t)
+            .set_(faces, &[Dof::T], |t| t / 2.0);
         assert_eq!(
             format!("{}", ebc),
             "Essential boundary conditions\n\

@@ -17,9 +17,9 @@ fn main() -> Result<(), StrError> {
 
     let zero = |_| 0.0;
     let mut ebc = BcEssential::new();
-    ebc.edges(&left, &[Dof::Ux], zero);
-    ebc.edges(&right, &[Dof::Ux], zero);
-    ebc.edges(&bottom, &[Dof::Uy], zero);
+    ebc.set_edges(&left, &[Dof::Ux], zero)
+        .set_edges(&right, &[Dof::Ux], zero)
+        .set_edges(&bottom, &[Dof::Uy], zero);
 
     Ok(())
 }
