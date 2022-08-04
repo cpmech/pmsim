@@ -1,4 +1,5 @@
 use super::{BcEssential, DofNumbers};
+use crate::StrError;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
@@ -7,14 +8,15 @@ use russell_sparse::SparseTriplet;
 /// Returns the array `prescribed` indicating which DOFs (equations) are prescribed.
 /// The length of the array is equal to the total number of DOFs which is
 /// equal to the total number of equations `n_equation`.
-pub fn gen_prescribed_array(dn: &DofNumbers, ebc: &BcEssential) -> Vec<bool> {
+pub fn gen_prescribed_array(dn: &DofNumbers, ebc: &BcEssential) -> Result<Vec<bool>, StrError> {
     let mut prescribed = vec![false; dn.n_equation];
     for (point_id, dof) in ebc.all.keys() {
-        if let Some(eq) = dn.point_dofs[*point_id].get(dof) {
-            prescribed[*eq] = true;
+        match dn.point_dofs[*point_id].get(dof) {
+            Some(eq) => prescribed[*eq] = true,
+            None => return Err("EBC dof is not present in point_dofs array"),
         }
     }
-    prescribed
+    Ok(prescribed)
 }
 
 /// Assembles local vector into global vector
@@ -112,9 +114,15 @@ mod tests {
         let mut ebc = BcEssential::new();
         let zero = |_| 0.0;
         ebc.set_points(&[0, 4], &[Dof::Pl], zero);
-        let prescribed = gen_prescribed_array(&dn, &ebc);
+        let prescribed = gen_prescribed_array(&dn, &ebc).unwrap();
         assert_eq!(prescribed, &[true, false, false, false, true]);
         assert_eq!(zero(1.0), 0.0);
+
+        ebc.set_points(&[3], &[Dof::T], zero);
+        assert_eq!(
+            gen_prescribed_array(&dn, &ebc).err(),
+            Some("EBC dof is not present in point_dofs array")
+        );
 
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
@@ -131,7 +139,7 @@ mod tests {
         let mut ebc = BcEssential::new();
         ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], zero);
         ebc.set_points(&[1, 2], &[Dof::Uy], zero);
-        let prescribed = gen_prescribed_array(&dn, &ebc);
+        let prescribed = gen_prescribed_array(&dn, &ebc).unwrap();
         assert_eq!(
             prescribed,
             //   0     1      2     3      4     5      6      7      8      9
