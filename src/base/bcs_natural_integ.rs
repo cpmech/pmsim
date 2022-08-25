@@ -1,25 +1,9 @@
-use super::{BcsNatural, FnBc, Nbc};
+use super::{FnBc, Nbc};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{set_pad_coords, Mesh};
+use gemlab::mesh::Mesh;
 use gemlab::shapes::Scratchpad;
 use russell_lab::Vector;
-
-/// Returns the Scratchpads to perform the numerical integrations of the natural boundary conditions
-pub fn get_pads(bcs: &BcsNatural, mesh: &Mesh) -> Result<Vec<(Scratchpad, Nbc, FnBc)>, StrError> {
-    let mut results = Vec::new();
-    for (face, nbc, f) in &bcs.faces {
-        let mut pad = Scratchpad::new(mesh.ndim, face.kind)?;
-        set_pad_coords(&mut pad, &face.points, &mesh);
-        results.push((pad, *nbc, *f));
-    }
-    for (edge, nbc, f) in &bcs.edges {
-        let mut pad = Scratchpad::new(mesh.ndim, edge.kind)?;
-        set_pad_coords(&mut pad, &edge.points, &mesh);
-        results.push((pad, *nbc, *f));
-    }
-    Ok(results)
-}
 
 pub fn calculate(
     t: f64,

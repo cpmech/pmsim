@@ -1,6 +1,7 @@
 use super::{FnBc, Nbc, Pbc};
 use crate::StrError;
-use gemlab::mesh::{Edge, EdgeKey, Face, FaceKey, Features, PointId};
+use gemlab::mesh::{set_pad_coords, Edge, EdgeKey, Face, FaceKey, Features, Mesh, PointId};
+use gemlab::shapes::Scratchpad;
 use russell_lab::{sort2, sort3, sort4};
 use std::fmt;
 
@@ -73,6 +74,22 @@ impl<'a> BcsNatural<'a> {
             self.faces.push((face, nbc, f))
         }
         Ok(self)
+    }
+
+    /// Returns the Scratchpads to perform numerical integrations
+    pub fn get_pads(&self, mesh: &Mesh) -> Result<Vec<(Scratchpad, Nbc, FnBc)>, StrError> {
+        let mut results = Vec::new();
+        for (face, nbc, f) in &self.faces {
+            let mut pad = Scratchpad::new(mesh.ndim, face.kind)?;
+            set_pad_coords(&mut pad, &face.points, &mesh);
+            results.push((pad, *nbc, *f));
+        }
+        for (edge, nbc, f) in &self.edges {
+            let mut pad = Scratchpad::new(mesh.ndim, edge.kind)?;
+            set_pad_coords(&mut pad, &edge.points, &mesh);
+            results.push((pad, *nbc, *f));
+        }
+        Ok(results)
     }
 }
 
@@ -200,5 +217,25 @@ mod tests {
             nbc.set_face_keys(&features, &[(1, 0, 4, 5)], Nbc::Qy, fbc).err(),
             Some("cannot find face with given key")
         );
+    }
+
+    #[test]
+    fn get_pads_works() {
+        let mesh = Samples::one_hex8();
+        let features = Features::new(&mesh, Extract::Boundary);
+        let mut nbc = BcsNatural::new();
+        let fbc = |t| -10.0 * t;
+        nbc.set_edge_keys(&features, &[(4, 5), (4, 7)], Nbc::Qn, fbc).unwrap();
+        nbc.set_face_keys(&features, &[(0, 1, 4, 5)], Nbc::Qy, fbc).unwrap();
+        let pads = nbc.get_pads(&mesh).unwrap();
+        for (pad, nbc, f) in &pads {
+            assert_eq!(f(1.0), -10.0);
+            if *nbc == Nbc::Qn {
+                assert_eq!(pad.kind, GeoKind::Lin2);
+            }
+            if *nbc == Nbc::Qy {
+                assert_eq!(pad.kind, GeoKind::Qua4);
+            }
+        }
     }
 }
