@@ -19,7 +19,7 @@ pub struct NbcData {
 
 impl NbcData {
     pub fn new(mesh: &Mesh, kind: GeoKind, points: &Vec<usize>, nbc: Nbc, f: FnBc) -> Self {
-        let mut l2g = Vec::new();
+        let l2g = Vec::new();
         let mut pad = Scratchpad::new(mesh.ndim, kind).unwrap();
         set_pad_coords(&mut pad, &points, &mesh);
         let ips = default_points(pad.kind);
@@ -36,7 +36,7 @@ impl NbcData {
 }
 
 /// Returns the data to perform numerical integrations
-pub fn get_nbc_data(mesh: &Mesh, dn: &DofNumbers, nbc: &BcsNatural) -> Vec<NbcData> {
+pub fn get_nbc_data(mesh: &Mesh, _dn: &DofNumbers, nbc: &BcsNatural) -> Vec<NbcData> {
     let mut nbc_data = Vec::new();
     for (face, nbc, f) in &nbc.faces {
         nbc_data.push(NbcData::new(mesh, face.kind, &face.points, *nbc, *f));
