@@ -1,22 +1,8 @@
 use super::{FnBc, Nbc, Pbc};
 use crate::StrError;
-use gemlab::integ;
-use gemlab::integ::{default_points, IntegPointData};
-use gemlab::mesh::{set_pad_coords, Edge, EdgeKey, Face, FaceKey, Features, Mesh, PointId};
-use gemlab::shapes::Scratchpad;
-use rayon::prelude::*;
-use russell_lab::Vector;
+use gemlab::mesh::{Edge, EdgeKey, Face, FaceKey, Features, PointId};
 use russell_lab::{sort2, sort3, sort4};
 use std::fmt;
-
-/// Holds data for calculating NBC values via numerical integration
-pub struct NbcData {
-    pub f: FnBc,
-    pub nbc: Nbc,
-    pub pad: Scratchpad,
-    pub ips: IntegPointData,
-    pub out: Vector,
-}
 
 /// Holds natural boundary conditions
 pub struct BcsNatural<'a> {
@@ -88,38 +74,6 @@ impl<'a> BcsNatural<'a> {
         }
         Ok(self)
     }
-
-    /// Returns the data to perform numerical integrations
-    pub fn get_nbc_data(&self, mesh: &Mesh) -> Vec<NbcData> {
-        let mut nbc_data = Vec::new();
-        for (face, nbc, f) in &self.faces {
-            let mut pad = Scratchpad::new(mesh.ndim, face.kind).unwrap();
-            set_pad_coords(&mut pad, &face.points, &mesh);
-            let ips = default_points(pad.kind);
-            let (ndim, nnode) = pad.xxt.dims();
-            nbc_data.push(NbcData {
-                f: *f,
-                nbc: *nbc,
-                pad,
-                ips,
-                out: Vector::new(nnode * ndim),
-            });
-        }
-        for (edge, nbc, f) in &self.edges {
-            let mut pad = Scratchpad::new(mesh.ndim, edge.kind).unwrap();
-            set_pad_coords(&mut pad, &edge.points, &mesh);
-            let ips = default_points(pad.kind);
-            let (ndim, nnode) = pad.xxt.dims();
-            nbc_data.push(NbcData {
-                f: *f,
-                nbc: *nbc,
-                pad,
-                ips,
-                out: Vector::new(nnode * ndim),
-            });
-        }
-        nbc_data
-    }
 }
 
 impl<'a> fmt::Display for BcsNatural<'a> {
@@ -162,49 +116,14 @@ impl<'a> fmt::Display for BcsNatural<'a> {
     }
 }
 
-/// Calculates natural BC value via numerical integration along the boundary
-fn calc_nbc_value(data: &mut NbcData, time: f64, thickness: f64) -> Result<(), StrError> {
-    let (ndim, _) = data.pad.xxt.dims();
-    if ndim == 3 && data.nbc == Nbc::Qn {
-        return Err("Qn natural boundary condition is not available for 3D edge");
-    }
-    match data.nbc {
-        Nbc::Qn => integ::vec_02_nv_bry(&mut data.out, &mut data.pad, 0, true, data.ips, |v, _, un| {
-            for i in 0..ndim {
-                v[i] = thickness * (data.f)(time) * un[i];
-            }
-            Ok(())
-        })?,
-        Nbc::Qx => {
-            // todo
-        }
-        Nbc::Qy => {
-            // todo
-        }
-        Nbc::Qz => {
-            // todo
-        }
-    }
-    Ok(())
-}
-
-/// Calculates all natural BC values via numerical integration along the boundaries
-pub fn calc_nbc_values(data: &mut Vec<NbcData>, time: f64, thickness: f64) {
-    data.par_iter_mut()
-        .for_each(|d| calc_nbc_value(d, time, thickness).unwrap());
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-    use super::{calc_nbc_value, BcsNatural, NbcData};
+    use super::BcsNatural;
     use crate::base::{Nbc, Pbc};
-    use gemlab::integ;
     use gemlab::mesh::{Edge, Extract, Face, Features, Samples};
-    use gemlab::shapes::{GeoKind, Scratchpad};
-    use russell_chk::assert_vec_approx_eq;
-    use russell_lab::Vector;
+    use gemlab::shapes::GeoKind;
 
     #[test]
     fn set_points_edges_faces_work() {
@@ -281,47 +200,5 @@ mod tests {
             nbc.set_face_keys(&features, &[(1, 0, 4, 5)], Nbc::Qy, fbc).err(),
             Some("cannot find face with given key")
         );
-    }
-
-    #[test]
-    fn get_nbc_data_works() {
-        let mesh = Samples::one_hex8();
-        let features = Features::new(&mesh, Extract::Boundary);
-        let mut nbc = BcsNatural::new();
-        let fbc = |t| -10.0 * t;
-        nbc.set_edge_keys(&features, &[(4, 5), (4, 7)], Nbc::Qn, fbc).unwrap();
-        nbc.set_face_keys(&features, &[(0, 1, 4, 5)], Nbc::Qy, fbc).unwrap();
-        let nbc_data = nbc.get_nbc_data(&mesh);
-        for data in &nbc_data {
-            assert_eq!((data.f)(1.0), -10.0);
-            if data.nbc == Nbc::Qn {
-                assert_eq!(data.pad.kind, GeoKind::Lin2);
-                assert_eq!(data.ips.len(), 2);
-            }
-            if data.nbc == Nbc::Qy {
-                assert_eq!(data.pad.kind, GeoKind::Qua4);
-                assert_eq!(data.ips.len(), 4);
-            }
-        }
-    }
-
-    #[test]
-    fn calc_nbc_value_works() {
-        let mut pad = Scratchpad::new(2, GeoKind::Lin2).unwrap();
-        pad.set_xx(0, 0, 0.0);
-        pad.set_xx(0, 1, 0.0);
-        pad.set_xx(1, 0, 4.0);
-        pad.set_xx(1, 1, 0.0);
-        let ips = integ::default_points(pad.kind);
-        let (ndim, nnode) = pad.xxt.dims();
-        let mut data = NbcData {
-            f: |_| -10.0,
-            nbc: Nbc::Qn,
-            pad,
-            ips,
-            out: Vector::new(nnode * ndim),
-        };
-        calc_nbc_value(&mut data, 1.0, 1.0).unwrap();
-        assert_vec_approx_eq!(data.out.as_data(), &[0.0, -20.0, 0.0, -20.0], 1e-15);
     }
 }

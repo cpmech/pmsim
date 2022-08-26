@@ -1,4 +1,4 @@
-use crate::base::{gen_prescribed_array, BcsEssential, BcsNatural, DofNumbers, NbcData};
+use crate::base::{gen_prescribed_array, get_nbc_data, BcsEssential, BcsNatural, DofNumbers, NbcData};
 use gemlab::mesh::Mesh;
 
 pub struct SimData {
@@ -24,7 +24,7 @@ impl SimData {
             ndim: mesh.ndim,
             thickness: 1.0,
             prescribed: gen_prescribed_array(dn, ebc).unwrap(),
-            nbc_data: nbc.get_nbc_data(mesh),
+            nbc_data: get_nbc_data(mesh, dn, nbc),
         }
     }
 }
