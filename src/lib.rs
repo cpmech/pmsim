@@ -3,3 +3,4 @@ pub type StrError = &'static str;
 
 pub mod base;
 pub mod elements;
+pub mod fem;
