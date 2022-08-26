@@ -1,9 +1,18 @@
 use super::{FnBc, Nbc, Pbc};
 use crate::StrError;
+use gemlab::integ::{default_points, IntegPointData};
 use gemlab::mesh::{set_pad_coords, Edge, EdgeKey, Face, FaceKey, Features, Mesh, PointId};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{sort2, sort3, sort4};
 use std::fmt;
+
+/// Holds data for calculating NBC values via numerical integration
+pub struct NbcData {
+    pub pad: Scratchpad,
+    pub ips: IntegPointData,
+    pub nbc: Nbc,
+    pub f: FnBc,
+}
 
 /// Holds natural boundary conditions
 pub struct BcsNatural<'a> {
@@ -76,20 +85,32 @@ impl<'a> BcsNatural<'a> {
         Ok(self)
     }
 
-    /// Returns the Scratchpads to perform numerical integrations
-    pub fn get_pads(&self, mesh: &Mesh) -> Result<Vec<(Scratchpad, Nbc, FnBc)>, StrError> {
-        let mut results = Vec::new();
+    /// Returns the data to perform numerical integrations
+    pub fn get_nbc_data(&self, mesh: &Mesh) -> Vec<NbcData> {
+        let mut nbc_data = Vec::new();
         for (face, nbc, f) in &self.faces {
-            let mut pad = Scratchpad::new(mesh.ndim, face.kind)?;
+            let mut pad = Scratchpad::new(mesh.ndim, face.kind).unwrap();
             set_pad_coords(&mut pad, &face.points, &mesh);
-            results.push((pad, *nbc, *f));
+            let ips = default_points(pad.kind);
+            nbc_data.push(NbcData {
+                pad,
+                ips,
+                nbc: *nbc,
+                f: *f,
+            });
         }
         for (edge, nbc, f) in &self.edges {
-            let mut pad = Scratchpad::new(mesh.ndim, edge.kind)?;
+            let mut pad = Scratchpad::new(mesh.ndim, edge.kind).unwrap();
             set_pad_coords(&mut pad, &edge.points, &mesh);
-            results.push((pad, *nbc, *f));
+            let ips = default_points(pad.kind);
+            nbc_data.push(NbcData {
+                pad,
+                ips,
+                nbc: *nbc,
+                f: *f,
+            });
         }
-        Ok(results)
+        nbc_data
     }
 }
 
@@ -220,21 +241,23 @@ mod tests {
     }
 
     #[test]
-    fn get_pads_works() {
+    fn get_nbc_data_works() {
         let mesh = Samples::one_hex8();
         let features = Features::new(&mesh, Extract::Boundary);
         let mut nbc = BcsNatural::new();
         let fbc = |t| -10.0 * t;
         nbc.set_edge_keys(&features, &[(4, 5), (4, 7)], Nbc::Qn, fbc).unwrap();
         nbc.set_face_keys(&features, &[(0, 1, 4, 5)], Nbc::Qy, fbc).unwrap();
-        let pads = nbc.get_pads(&mesh).unwrap();
-        for (pad, nbc, f) in &pads {
-            assert_eq!(f(1.0), -10.0);
-            if *nbc == Nbc::Qn {
-                assert_eq!(pad.kind, GeoKind::Lin2);
+        let nbc_data = nbc.get_nbc_data(&mesh);
+        for data in &nbc_data {
+            assert_eq!((data.f)(1.0), -10.0);
+            if data.nbc == Nbc::Qn {
+                assert_eq!(data.pad.kind, GeoKind::Lin2);
+                assert_eq!(data.ips.len(), 2);
             }
-            if *nbc == Nbc::Qy {
-                assert_eq!(pad.kind, GeoKind::Qua4);
+            if data.nbc == Nbc::Qy {
+                assert_eq!(data.pad.kind, GeoKind::Qua4);
+                assert_eq!(data.ips.len(), 4);
             }
         }
     }
