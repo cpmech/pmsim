@@ -111,6 +111,19 @@ impl Nbc {
         }
         dofs
     }
+
+    /// Indicates whether this NBC contributes to the Jacobian matrix or not
+    pub fn contributes_to_jacobian_matrix(&self) -> bool {
+        match self {
+            Nbc::Qn(..) => false,
+            Nbc::Qx(..) => false,
+            Nbc::Qy(..) => false,
+            Nbc::Qz(..) => false,
+            Nbc::Ql(..) => false,
+            Nbc::Qg(..) => false,
+            Nbc::Cv(..) => true,
+        }
+    }
 }
 
 impl fmt::Display for Nbc {
@@ -293,12 +306,13 @@ mod tests {
     }
 
     #[test]
-    fn nbc_dof_equation_pairs_works() {
+    fn nbc_methods_work() {
         let qn = Nbc::Qn(|_| -10.0);
         assert_eq!(
             qn.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
+        assert_eq!(qn.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", qn), "Qn(0) = -10.0, Qn(1) = -10.0");
 
         let qx = Nbc::Qx(|_| -10.0);
@@ -306,6 +320,7 @@ mod tests {
             qx.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
+        assert_eq!(qx.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", qx), "Qx(0) = -10.0, Qx(1) = -10.0");
 
         let qy = Nbc::Qy(|_| -10.0);
@@ -313,6 +328,7 @@ mod tests {
             qy.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
+        assert_eq!(qy.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", qy), "Qy(0) = -10.0, Qy(1) = -10.0");
 
         let qn = Nbc::Qn(|_| -10.0);
@@ -323,6 +339,7 @@ mod tests {
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5)]
             ]
         );
+        assert_eq!(qn.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", qn), "Qn(0) = -10.0, Qn(1) = -10.0");
 
         let qx = Nbc::Qx(|_| -10.0);
@@ -333,6 +350,7 @@ mod tests {
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5)]
             ]
         );
+        assert_eq!(qx.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", qx), "Qx(0) = -10.0, Qx(1) = -10.0");
 
         let qy = Nbc::Qy(|_| -10.0);
@@ -343,6 +361,7 @@ mod tests {
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5)]
             ]
         );
+        assert_eq!(qy.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", qy), "Qy(0) = -10.0, Qy(1) = -10.0");
 
         let qz = Nbc::Qz(|_| -10.0);
@@ -353,6 +372,7 @@ mod tests {
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5)]
             ]
         );
+        assert_eq!(qz.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", qz), "Qz(0) = -10.0, Qz(1) = -10.0");
 
         let ql = Nbc::Ql(|_| -10.0);
@@ -360,6 +380,7 @@ mod tests {
             ql.dof_equation_pairs(2, 3),
             &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]
         );
+        assert_eq!(ql.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", ql), "Ql(0) = -10.0, Ql(1) = -10.0");
 
         let qg = Nbc::Qg(|_| -10.0);
@@ -367,6 +388,7 @@ mod tests {
             qg.dof_equation_pairs(2, 3),
             &[[(Dof::Pg, 0)], [(Dof::Pg, 1)], [(Dof::Pg, 2)]]
         );
+        assert_eq!(qg.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", qg), "Qg(0) = -10.0, Qg(1) = -10.0");
 
         let cv = Nbc::Cv(0.5, |_| 25.0);
@@ -374,6 +396,7 @@ mod tests {
             cv.dof_equation_pairs(2, 3),
             &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]
         );
+        assert_eq!(cv.contributes_to_jacobian_matrix(), true);
         assert_eq!(format!("{}", cv), "cc = 0.5, T(0) = 25.0, T(1) = 25.0");
     }
 
