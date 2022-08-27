@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::base::{DofNumbers, FnBc, Nbc};
+use crate::base::{BcsNatural, DofNumbers, FnBc, Nbc};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::integ::{default_points, IntegPointData};
@@ -10,7 +10,6 @@ use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
 
 pub struct CalcDataBry {
-    pub f: FnBc,
     pub nbc: Nbc,
     pub pad: Scratchpad,
     pub ips: IntegPointData,
@@ -21,7 +20,7 @@ pub struct CalcDataBry {
 
 impl CalcDataBry {
     // Allocates new instance
-    pub fn new(mesh: &Mesh, dn: &DofNumbers, feature: &Feature, nbc: Nbc, f: FnBc) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, dn: &DofNumbers, feature: &Feature, nbc: Nbc) -> Result<Self, StrError> {
         // check
         if mesh.ndim == 3 {
             let is_3d_edge = feature.kind.ndim() == 1;
@@ -60,7 +59,6 @@ impl CalcDataBry {
 
         // new instance
         Ok(CalcDataBry {
-            f,
             nbc,
             pad,
             ips,
@@ -72,6 +70,16 @@ impl CalcDataBry {
             },
             local_to_global,
         })
+    }
+
+    /// Returns a new collection of CalcDataBry
+    pub fn new_collection(mesh: &Mesh, dn: &DofNumbers, bcs_natural: &BcsNatural) -> Result<Vec<Self>, StrError> {
+        let res: Result<Vec<_>, _> = bcs_natural
+            .distributed
+            .iter()
+            .map(|(feature, nbc)| CalcDataBry::new(mesh, dn, feature, *nbc))
+            .collect();
+        res
     }
 
     /// Calculates the residual vector at given time
@@ -126,5 +134,39 @@ impl CalcDataBry {
             _ => (),
         }
         Ok(())
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::CalcDataBry;
+    use crate::base::{BcsNatural, DofNumbers, Element, Nbc};
+    use gemlab::mesh::{Feature, Samples};
+    use gemlab::shapes::GeoKind;
+    use rayon::prelude::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn calc_residual_works() {
+        let mesh = Samples::one_hex8();
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid)])).unwrap();
+        let mut bcs_natural = BcsNatural::new();
+        // let edges = &[&Feature {
+        //     kind: GeoKind::Lin2,
+        //     points: vec![1, 2],
+        // }];
+        let faces = &[&Feature {
+            kind: GeoKind::Tri3,
+            points: vec![3, 4, 5],
+        }];
+        bcs_natural
+            // .on(edges, Nbc::Qy(|t| -10.0 * (1.0 * t)))
+            .on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
+        let mut data = CalcDataBry::new_collection(&mesh, &dn, &bcs_natural).unwrap();
+        data.par_iter_mut().for_each(|data| {
+            data.calc_residual(0.0, 1.0).unwrap();
+        })
     }
 }
