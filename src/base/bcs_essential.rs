@@ -1,5 +1,5 @@
 use super::{Dof, FnBc};
-use gemlab::mesh::{Edge, Face, PointId};
+use gemlab::mesh::{Feature, PointId};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -15,8 +15,8 @@ impl BcsEssential {
     }
 
     /// Sets essential boundary condition at points
-    pub fn set_points(&mut self, point_ids: &[PointId], dofs: &[Dof], f: FnBc) -> &mut Self {
-        for point_id in point_ids {
+    pub fn at(&mut self, points: &[PointId], dofs: &[Dof], f: FnBc) -> &mut Self {
+        for point_id in points {
             for dof in dofs {
                 self.all.insert((*point_id, *dof), f);
             }
@@ -24,22 +24,10 @@ impl BcsEssential {
         self
     }
 
-    /// Sets essential boundary condition at edges
-    pub fn set_edges(&mut self, edges: &[&Edge], dofs: &[Dof], f: FnBc) -> &mut Self {
-        for edge in edges {
+    /// Sets essential boundary condition on edges or faces
+    pub fn on(&mut self, features: &[&Feature], dofs: &[Dof], f: FnBc) -> &mut Self {
+        for edge in features {
             for point_id in &edge.points {
-                for dof in dofs {
-                    self.all.insert((*point_id, *dof), f);
-                }
-            }
-        }
-        self
-    }
-
-    /// Sets essential boundary condition at faces
-    pub fn set_faces(&mut self, faces: &[&Face], dofs: &[Dof], f: FnBc) -> &mut Self {
-        for face in faces {
-            for point_id in &face.points {
                 for dof in dofs {
                     self.all.insert((*point_id, *dof), f);
                 }
@@ -60,7 +48,7 @@ impl fmt::Display for BcsEssential {
             let fbc = self.all.get(key).unwrap();
             let f0 = fbc(0.0);
             let f1 = fbc(1.0);
-            write!(f, "{:?} @ t=0 → {:?} @ t=1 → {:?}\n", key, f0, f1).unwrap();
+            write!(f, "{:?} : {:?} @ t=0 → {:?} @ t=1 → {:?}\n", key.0, key.1, f0, f1).unwrap();
         }
         Ok(())
     }
@@ -72,34 +60,35 @@ impl fmt::Display for BcsEssential {
 mod tests {
     use super::BcsEssential;
     use crate::base::Dof;
-    use gemlab::mesh::{Edge, Face};
+    use gemlab::mesh::Feature;
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn bcs_essential_works() {
-        let mut ebc = BcsEssential::new();
-        let edges = &[&Edge {
+        let mut bcs_essential = BcsEssential::new();
+        let edges = &[&Feature {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
         }];
-        let faces = &[&Face {
+        let faces = &[&Feature {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
-        ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], |_| 0.0)
-            .set_edges(edges, &[Dof::Pl], |t| t)
-            .set_faces(faces, &[Dof::T], |t| t / 2.0);
+        bcs_essential
+            .at(&[0], &[Dof::Ux, Dof::Uy], |_| 0.0)
+            .on(edges, &[Dof::Pl], |t| t)
+            .on(faces, &[Dof::T], |t| t / 2.0);
         assert_eq!(
-            format!("{}", ebc),
+            format!("{}", bcs_essential),
             "Essential boundary conditions\n\
              =============================\n\
-             (0, Ux) @ t=0 → 0.0 @ t=1 → 0.0\n\
-             (0, Uy) @ t=0 → 0.0 @ t=1 → 0.0\n\
-             (1, Pl) @ t=0 → 0.0 @ t=1 → 1.0\n\
-             (2, Pl) @ t=0 → 0.0 @ t=1 → 1.0\n\
-             (3, T) @ t=0 → 0.0 @ t=1 → 0.5\n\
-             (4, T) @ t=0 → 0.0 @ t=1 → 0.5\n\
-             (5, T) @ t=0 → 0.0 @ t=1 → 0.5\n"
+             0 : Ux @ t=0 → 0.0 @ t=1 → 0.0\n\
+             0 : Uy @ t=0 → 0.0 @ t=1 → 0.0\n\
+             1 : Pl @ t=0 → 0.0 @ t=1 → 1.0\n\
+             2 : Pl @ t=0 → 0.0 @ t=1 → 1.0\n\
+             3 : T @ t=0 → 0.0 @ t=1 → 0.5\n\
+             4 : T @ t=0 → 0.0 @ t=1 → 0.5\n\
+             5 : T @ t=0 → 0.0 @ t=1 → 0.5\n"
         );
     }
 }

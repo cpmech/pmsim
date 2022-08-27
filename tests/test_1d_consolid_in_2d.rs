@@ -16,10 +16,11 @@ fn main() -> Result<(), StrError> {
     let top = find.edges(At::Y(3.0))?;
 
     let zero = |_| 0.0;
-    let mut ebcs = BcsEssential::new();
-    ebcs.set_edges(&left, &[Dof::Ux], zero)
-        .set_edges(&right, &[Dof::Ux], zero)
-        .set_edges(&bottom, &[Dof::Uy], zero);
+    let mut bcs_essential = BcsEssential::new();
+    bcs_essential
+        .on(&left, &[Dof::Ux], zero)
+        .on(&right, &[Dof::Ux], zero)
+        .on(&bottom, &[Dof::Uy], zero);
 
     Ok(())
 }

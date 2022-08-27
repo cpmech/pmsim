@@ -18,10 +18,11 @@ fn main() -> Result<(), StrError> {
     let top = find.faces(At::Y(3.0))?;
 
     let zero = |_| 0.0;
-    let mut ebcs = BcsEssential::new();
-    ebcs.set_faces(&left, &[Dof::Ux], zero)
-        .set_faces(&right, &[Dof::Ux], zero)
-        .set_faces(&bottom, &[Dof::Uy], zero);
+    let mut bcs_essential = BcsEssential::new();
+    bcs_essential
+        .on(&left, &[Dof::Ux], zero)
+        .on(&right, &[Dof::Ux], zero)
+        .on(&bottom, &[Dof::Uy], zero);
 
     Ok(())
 }

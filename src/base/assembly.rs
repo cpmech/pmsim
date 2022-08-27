@@ -112,12 +112,12 @@ mod tests {
         let dn = DofNumbers::new(&mesh, elements).unwrap();
         let mut ebc = BcsEssential::new();
         let zero = |_| 0.0;
-        ebc.set_points(&[0, 4], &[Dof::Pl], zero);
+        ebc.at(&[0, 4], &[Dof::Pl], zero);
         let prescribed = gen_prescribed_array(&dn, &ebc).unwrap();
         assert_eq!(prescribed, &[true, false, false, false, true]);
         assert_eq!(zero(1.0), 0.0);
 
-        ebc.set_points(&[3], &[Dof::T], zero);
+        ebc.at(&[3], &[Dof::T], zero);
         assert_eq!(
             gen_prescribed_array(&dn, &ebc).err(),
             Some("EBC dof is not present in point_dofs array")
@@ -136,8 +136,8 @@ mod tests {
         let elements = HashMap::from([(1, Element::Solid)]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
         let mut ebc = BcsEssential::new();
-        ebc.set_points(&[0], &[Dof::Ux, Dof::Uy], zero);
-        ebc.set_points(&[1, 2], &[Dof::Uy], zero);
+        ebc.at(&[0], &[Dof::Ux, Dof::Uy], zero);
+        ebc.at(&[1, 2], &[Dof::Uy], zero);
         let prescribed = gen_prescribed_array(&dn, &ebc).unwrap();
         assert_eq!(
             prescribed,
