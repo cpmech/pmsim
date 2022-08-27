@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use super::{DofNumbers, FnBc, Nbc};
+use crate::base::{DofNumbers, FnBc, Nbc};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::integ::{default_points, IntegPointData};
@@ -74,6 +74,7 @@ impl CalcDataBry {
         })
     }
 
+    /// Calculates the residual vector at given time
     pub fn calc_residual(&mut self, time: f64, thickness: f64) -> Result<(), StrError> {
         let (ndim, _) = self.pad.xxt.dims();
         match self.nbc {
@@ -115,6 +116,7 @@ impl CalcDataBry {
         Ok(())
     }
 
+    /// Calculates the Jacobian matrix at given time
     pub fn calc_jacobian(&mut self, time: f64, thickness: f64) -> Result<(), StrError> {
         match self.nbc {
             Nbc::Cv(cc, _) => {

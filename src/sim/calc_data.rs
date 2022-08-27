@@ -1,6 +1,7 @@
 #![allow(unused)]
 
-use super::{DofNumbers, Element};
+use crate::base::{DofNumbers, Element};
+use crate::element;
 use crate::StrError;
 use gemlab::integ;
 use gemlab::integ::{default_points, IntegPointData};
@@ -9,6 +10,8 @@ use gemlab::shapes::{GeoKind, Scratchpad};
 use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
 
+pub type FnResidual = fn(time: f64, thickness: f64) -> Result<(), StrError>;
+
 pub struct CalcData {
     pub element: Element,
     pub pad: Scratchpad,
@@ -16,6 +19,7 @@ pub struct CalcData {
     pub residual: Vector,
     pub jacobian: Matrix,
     pub local_to_global: Vec<usize>,
+    pub fn_residual: FnResidual,
 }
 
 impl CalcData {
@@ -39,6 +43,16 @@ impl CalcData {
             }
         }
 
+        let fn_residual = match element {
+            Element::Rod => element::Rod::fn_residual,
+            Element::Beam => panic!("TODO"),
+            Element::Solid => panic!("TODO"),
+            Element::PorousLiq => panic!("TODO"),
+            Element::PorousLiqGas => panic!("TODO"),
+            Element::PorousSldLiq => panic!("TODO"),
+            Element::PorousSldLiqGas => panic!("TODO"),
+        };
+
         // new instance
         Ok(CalcData {
             element,
@@ -47,6 +61,12 @@ impl CalcData {
             residual: Vector::new(info.n_equation_local),
             jacobian: Matrix::new(info.n_equation_local, info.n_equation_local),
             local_to_global,
+            fn_residual,
         })
+    }
+
+    /// Calculates the residual vector at given time
+    pub fn calc_residual(&mut self, time: f64, thickness: f64) -> Result<(), StrError> {
+        Err("stop")
     }
 }

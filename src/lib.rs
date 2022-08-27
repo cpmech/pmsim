@@ -2,5 +2,5 @@
 pub type StrError = &'static str;
 
 pub mod base;
-pub mod elements;
-pub mod fem;
+pub mod element;
+pub mod sim;
