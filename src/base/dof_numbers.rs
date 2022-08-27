@@ -36,12 +36,13 @@ use std::fmt;
 /// ```
 /// use gemlab::mesh::Samples;
 /// use gemlab::StrError;
-/// use pmsim::base::{Dof, DofNumbers, Element};
+/// use pmsim::base::{Dof, DofNumbers, Element, SampleParams};
 /// use std::collections::HashMap;
 ///
 /// fn main() -> Result<(), StrError> {
 ///     let mesh = Samples::one_tri6();
-///     let elements = HashMap::from([(1, Element::PorousSldLiq)]);
+///     let p1 = SampleParams::param_porous_sld_liq();
+///     let elements = HashMap::from([(1, Element::PorousSldLiq(p1))]);
 ///     let mut dn = DofNumbers::new(&mesh, elements)?;
 ///     assert_eq!(
 ///         format!("{}", dn),
@@ -131,12 +132,15 @@ impl DofNumbers {
     /// * `elements` -- a map connecting attributes to elements; e.g.:
     ///
     /// ```
-    /// # use pmsim::base::Element;
+    /// # use pmsim::base::{Element, SampleParams};
     /// # use std::collections::HashMap;
+    /// let p1 = SampleParams::param_porous_sld_liq();
+    /// let p2 = SampleParams::param_solid();
+    /// let p3 = SampleParams::param_beam();
     /// let elements = HashMap::from([
-    ///     (1, Element::PorousSldLiq),
-    ///     (2, Element::Solid),
-    ///     (3, Element::Beam),
+    ///     (1, Element::PorousSldLiq(p1)),
+    ///     (2, Element::Solid(p2)),
+    ///     (3, Element::Beam(p3)),
     /// ]);
     /// ```
     pub fn new(mesh: &Mesh, elements: HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
@@ -211,7 +215,7 @@ impl fmt::Display for DofNumbers {
             let info = self.element_dofs.get(key).unwrap();
             let (attr, kind) = key;
             let element = self.elements.get(attr).unwrap();
-            write!(f, "{} → {:?} → {:?}\n", attr, element, kind).unwrap();
+            write!(f, "{} → {} → {:?}\n", attr, element.name(), kind).unwrap();
             write!(f, "{}", info).unwrap();
             write!(f, "-----------------------------------------\n").unwrap();
         }
@@ -243,19 +247,21 @@ impl fmt::Display for DofNumbers {
 #[cfg(test)]
 mod tests {
     use super::DofNumbers;
-    use crate::base::{Dof, Element};
+    use crate::base::{Dof, Element, SampleParams};
     use gemlab::mesh::{PointId, Samples};
     use std::collections::HashMap;
 
     #[test]
     fn new_captures_errors() {
         let mesh = Samples::one_tri6();
-        let elements = HashMap::from([(2, Element::Solid)]);
+        let p2 = SampleParams::param_solid();
+        let elements = HashMap::from([(2, Element::Solid(p2))]);
         assert_eq!(
             DofNumbers::new(&mesh, elements).err(),
             Some("cannot find CellAttributeId in elements map")
         );
-        let elements = HashMap::from([(1, Element::Rod)]);
+        let p1 = SampleParams::param_rod();
+        let elements = HashMap::from([(1, Element::Rod(p1))]);
         assert_eq!(
             DofNumbers::new(&mesh, elements).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
@@ -271,7 +277,14 @@ mod tests {
     #[test]
     fn new_works() {
         let mesh = Samples::qua8_tri6_lin2();
-        let elements = HashMap::from([(1, Element::PorousSldLiq), (2, Element::Solid), (3, Element::Beam)]);
+        let p1 = SampleParams::param_porous_sld_liq();
+        let p2 = SampleParams::param_solid();
+        let p3 = SampleParams::param_beam();
+        let elements = HashMap::from([
+            (1, Element::PorousSldLiq(p1)),
+            (2, Element::Solid(p2)),
+            (3, Element::Beam(p3)),
+        ]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
 
         // check point dofs
@@ -318,7 +331,8 @@ mod tests {
         //                   1 {2}
         //                     {3}
         let mesh = Samples::three_tri3();
-        let elements = HashMap::from([(1, Element::Solid)]);
+        let p1 = SampleParams::param_solid();
+        let elements = HashMap::from([(1, Element::Solid(p1))]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
         assert_eq!(
             format!("{}", dn),
@@ -360,7 +374,8 @@ mod tests {
         // | (1)      `.|            |
         // 0------------1------------4
         let mesh = Samples::two_tri3_one_qua4();
-        let elements = HashMap::from([(1, Element::PorousLiq), (2, Element::PorousLiq)]);
+        let p = SampleParams::param_porous_liq();
+        let elements = HashMap::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
         assert_eq!(
             format!("{}", dn),

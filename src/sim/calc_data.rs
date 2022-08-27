@@ -1,33 +1,42 @@
 #![allow(unused)]
 
-use crate::base::{DofNumbers, Element};
-use crate::element;
+use crate::base::{Config, DofNumbers, Element};
+use crate::element::{self, Calculate};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::integ::{default_points, IntegPointData};
-use gemlab::mesh::{set_pad_coords, Cell, Feature, Mesh};
+use gemlab::mesh::{set_pad_coords, Cell, CellId, Feature, Mesh};
 use gemlab::shapes::{GeoKind, Scratchpad};
 use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
 
-pub type FnResidual = fn(residual: &mut Vector, time: f64, thickness: f64) -> Result<(), StrError>;
-pub type FnJacobian = fn(jacobian: &mut Matrix, time: f64, thickness: f64) -> Result<(), StrError>;
+// pub type FnResidual = fn(residual: &mut Vector, time: f64, thickness: f64) -> Result<(), StrError>;
+// pub type FnJacobian = fn(jacobian: &mut Matrix, time: f64, thickness: f64) -> Result<(), StrError>;
 
 pub struct CalcData {
-    pub element: Element,
+    // pub element: Element,
     pub pad: Scratchpad,
     pub ips: IntegPointData,
     pub residual: Vector,
     pub jacobian: Matrix,
     pub local_to_global: Vec<usize>,
-    pub fn_residual: FnResidual,
-    pub fn_jacobian: FnJacobian,
+    // pub fn_residual: FnResidual,
+    // pub fn_jacobian: FnJacobian,
+    // pub calculate: Box<dyn Calculate>,
 }
 
 impl CalcData {
     // Allocates new instance
-    pub fn new(mesh: &Mesh, dn: &DofNumbers, cell: &Cell, element: Element) -> Result<Self, StrError> {
+    pub fn new(
+        mesh: &Mesh,
+        dn: &DofNumbers,
+        config: &Config,
+        cell_id: CellId,
+        // element: Element,
+        // calculate: Box<dyn Calculate>,
+    ) -> Result<Self, StrError> {
         // pad and ips
+        let cell = &mesh.cells[cell_id];
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(mesh.ndim, kind).unwrap();
         set_pad_coords(&mut pad, &points, &mesh);
@@ -45,6 +54,18 @@ impl CalcData {
             }
         }
 
+        let element = dn.elements.get(&cell.attribute_id).unwrap();
+        match element {
+            Element::Rod(..) => (),
+            Element::Beam(..) => (),
+            Element::Solid(..) => (),
+            Element::PorousLiq(..) => (),
+            Element::PorousLiqGas(..) => (),
+            Element::PorousSldLiq(..) => (),
+            Element::PorousSldLiqGas(..) => (),
+        }
+
+        /*
         // function to compute the residual vector
         let fn_residual = match element {
             Element::Rod => element::Rod::fn_residual,
@@ -66,23 +87,27 @@ impl CalcData {
             Element::PorousSldLiq => panic!("TODO"),
             Element::PorousSldLiqGas => panic!("TODO"),
         };
+        */
 
         // new instance
         Ok(CalcData {
-            element,
+            // element,
             pad,
             ips,
             residual: Vector::new(info.n_equation_local),
             jacobian: Matrix::new(info.n_equation_local, info.n_equation_local),
             local_to_global,
-            fn_residual,
-            fn_jacobian,
+            // calculate,
+            // fn_residual,
+            // fn_jacobian,
         })
     }
 
     /// Calculates the residual vector at given time
     pub fn calc_residual(&mut self, time: f64, thickness: f64) -> Result<(), StrError> {
-        (self.fn_residual)(&mut self.residual, time, thickness)
+        // (self.fn_residual)(&mut self.residual, time, thickness)
+        // self.calculate.residual()
+        Err("not yet")
     }
 }
 
@@ -91,7 +116,8 @@ impl CalcData {
 #[cfg(test)]
 mod tests {
     use super::CalcData;
-    use crate::base::{DofNumbers, Element};
+    use crate::base::{Config, DofNumbers, Element, SampleParams};
+    use crate::element;
     use gemlab::mesh::Samples;
     use rayon::prelude::*;
     use std::collections::HashMap;
@@ -99,14 +125,19 @@ mod tests {
     #[test]
     fn calc_residual_works() {
         let mesh = Samples::three_tri3();
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid)])).unwrap();
-        let mut data: Vec<_> = mesh
-            .cells
-            .iter()
-            .map(|cell| CalcData::new(&mesh, &dn, &mesh.cells[0], Element::Solid).unwrap())
-            .collect();
-        data.par_iter_mut().for_each(|data| {
-            data.calc_residual(0.0, 1.0).unwrap();
-        })
+        let p1 = SampleParams::param_solid();
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        // let mut data: Vec<_> = mesh
+        //     .cells
+        //     .iter()
+        //     .map(|cell| CalcData::new(&mesh, &dn, &mesh.cells[0], Element::Solid).unwrap())
+        //     .collect();
+        // data.par_iter_mut().for_each(|data| {
+        //     data.calc_residual(0.0, 1.0).unwrap();
+        // })
+        let p1 = SampleParams::param_solid();
+        let calculate = Box::new(element::Solid::new(p1));
+        let config = Config::new();
+        let calc_data = CalcData::new(&mesh, &dn, &config, 0).unwrap();
     }
 }

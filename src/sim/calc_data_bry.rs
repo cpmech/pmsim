@@ -142,7 +142,7 @@ impl CalcDataBry {
 #[cfg(test)]
 mod tests {
     use super::CalcDataBry;
-    use crate::base::{BcsNatural, DofNumbers, Element, Nbc};
+    use crate::base::{BcsNatural, DofNumbers, Element, Nbc, SampleParams};
     use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
@@ -151,7 +151,8 @@ mod tests {
     #[test]
     fn calc_residual_works() {
         let mesh = Samples::one_hex8();
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid)])).unwrap();
+        let p1 = SampleParams::param_solid();
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bcs_natural = BcsNatural::new();
         // let edges = &[&Feature {
         //     kind: GeoKind::Lin2,

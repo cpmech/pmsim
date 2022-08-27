@@ -1,3 +1,6 @@
+use super::{
+    ParamBeam, ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid,
+};
 use gemlab::shapes::GeoKind;
 use std::fmt;
 
@@ -196,15 +199,30 @@ pub enum Init {
 }
 
 /// Defines the element type
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug)]
 pub enum Element {
-    Rod,
-    Beam,
-    Solid,
-    PorousLiq,
-    PorousLiqGas,
-    PorousSldLiq,
-    PorousSldLiqGas,
+    Rod(ParamRod),
+    Beam(ParamBeam),
+    Solid(ParamSolid),
+    PorousLiq(ParamPorousLiq),
+    PorousLiqGas(ParamPorousLiqGas),
+    PorousSldLiq(ParamPorousSldLiq),
+    PorousSldLiqGas(ParamPorousSldLiqGas),
+}
+
+impl Element {
+    /// Returns the name of the Element
+    pub fn name(&self) -> String {
+        match self {
+            Element::Rod(..) => "Rod".to_string(),
+            Element::Beam(..) => "Beam".to_string(),
+            Element::Solid(..) => "Solid".to_string(),
+            Element::PorousLiq(..) => "PorousLiq".to_string(),
+            Element::PorousLiqGas(..) => "PorousLiqGas".to_string(),
+            Element::PorousSldLiq(..) => "PorousSldLiq".to_string(),
+            Element::PorousSldLiqGas(..) => "PorousSldLiqGas".to_string(),
+        }
+    }
 }
 
 /// Defines the allowed GeoKinds that can be used with PorousSld{...} elements
@@ -226,6 +244,8 @@ pub const POROUS_SLD_GEO_KIND_ALLOWED: [GeoKind; 7] = [
 
 #[cfg(test)]
 mod tests {
+    use crate::base::SampleParams;
+
     use super::{Dof, Element, Init, Nbc, Pbc};
     use std::{cmp::Ordering, collections::HashSet};
 
@@ -291,18 +311,44 @@ mod tests {
 
     #[test]
     fn element_derive_works() {
-        let rod = Element::Rod;
-        let rod_clone = rod.clone();
-        assert_eq!(format!("{:?}", rod), "Rod");
-        assert_eq!(rod, rod_clone);
+        let p = SampleParams::param_rod();
+        let e = Element::Rod(p);
+        let e_clone = e.clone();
+        assert_eq!(
+            format!("{:?}", e),
+            "Rod(ParamRod { density: 2.0, young: 1000.0, area: 1.0 })"
+        );
+        assert_eq!(format!("{}", e_clone.name()), "Rod");
 
-        let beam = Element::Beam;
-        assert!(rod < beam);
-        assert_eq!(rod.cmp(&beam), Ordering::Less);
+        let p = SampleParams::param_beam();
+        let e = Element::Beam(p);
+        let e_clone = e.clone();
+        assert_eq!(format!("{}", e_clone.name()), "Beam");
 
-        let mut set = HashSet::new();
-        set.insert(rod);
-        assert_eq!(set.len(), 1);
+        let p = SampleParams::param_solid();
+        let e = Element::Solid(p);
+        let e_clone = e.clone();
+        assert_eq!(format!("{}", e_clone.name()), "Solid");
+
+        let p = SampleParams::param_porous_liq();
+        let e = Element::PorousLiq(p);
+        let e_clone = e.clone();
+        assert_eq!(format!("{}", e_clone.name()), "PorousLiq");
+
+        let p = SampleParams::param_porous_liq_gas();
+        let e = Element::PorousLiqGas(p);
+        let e_clone = e.clone();
+        assert_eq!(format!("{}", e_clone.name()), "PorousLiqGas");
+
+        let p = SampleParams::param_porous_sld_liq();
+        let e = Element::PorousSldLiq(p);
+        let e_clone = e.clone();
+        assert_eq!(format!("{}", e_clone.name()), "PorousSldLiq");
+
+        let p = SampleParams::param_porous_sld_liq_gas();
+        let e = Element::PorousSldLiqGas(p);
+        let e_clone = e.clone();
+        assert_eq!(format!("{}", e_clone.name()), "PorousSldLiqGas");
     }
 
     #[test]

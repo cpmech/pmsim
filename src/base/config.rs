@@ -1,6 +1,4 @@
-use super::{Init, ParamElement, ParamFluids};
-use gemlab::mesh::CellAttributeId;
-use std::collections::HashMap;
+use super::{Init, ParamFluids};
 use std::fmt;
 
 /// Holds configuration data such as boundary conditions and element attributes
@@ -20,9 +18,6 @@ pub struct Config {
     /// Option to initialize stress state
     pub initialization: Init,
 
-    /// Parameters for elements
-    pub param_elements: HashMap<CellAttributeId, ParamElement>,
-
     /// Parameters for fluids
     pub param_fluids: Option<ParamFluids>,
 }
@@ -36,7 +31,6 @@ impl Config {
             plane_stress: false,
             total_stress: false,
             initialization: Init::Zero,
-            param_elements: HashMap::new(),
             param_fluids: None,
         }
     }
@@ -105,15 +99,6 @@ impl fmt::Display for Config {
         write!(f, "total_stress = {:?}\n", self.total_stress).unwrap();
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
 
-        write!(f, "\nParameters for Elements\n").unwrap();
-        write!(f, "=======================\n").unwrap();
-        let mut keys: Vec<_> = self.param_elements.keys().collect();
-        keys.sort();
-        for key in keys {
-            let p = self.param_elements.get(key).unwrap();
-            write!(f, "{:?} → {:?}\n", key, p).unwrap();
-        }
-
         write!(f, "\nParameters for fluids\n").unwrap();
         write!(f, "=====================\n").unwrap();
         write!(f, "{:?}\n", self.param_fluids).unwrap();
@@ -126,7 +111,7 @@ impl fmt::Display for Config {
 #[cfg(test)]
 mod tests {
     use super::Config;
-    use crate::base::{Init, ParamElement, ParamFluids, ParamRealDensity, ParamSolid, ParamStressStrain};
+    use crate::base::{Init, ParamFluids, ParamRealDensity};
 
     #[test]
     fn new_works() {
@@ -138,21 +123,6 @@ mod tests {
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
         let mut config = Config::new();
-
-        config.param_elements.insert(
-            1, // attribute_id
-            ParamElement::Solid(ParamSolid {
-                density: 2.7, // Mg/m²
-                stress_strain: ParamStressStrain::LinearElastic {
-                    young: 10_000.0, // kPa
-                    poisson: 0.2,    // [-]
-                },
-                two_dim: true,
-                plane_stress: false,
-                thickness: 1.0,
-                n_integ_point: None,
-            }),
-        );
 
         config.param_fluids = Some(ParamFluids {
             density_liquid: ParamRealDensity {
@@ -181,10 +151,6 @@ mod tests {
              plane_stress = true\n\
              total_stress = true\n\
              initialization = Geostatic(-123.0)\n\
-             \n\
-             Parameters for Elements\n\
-             =======================\n\
-             1 → Solid(ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, two_dim: true, plane_stress: false, thickness: 1.0, n_integ_point: None })\n\
              \n\
              Parameters for fluids\n\
              =====================\n\
