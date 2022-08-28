@@ -1,5 +1,7 @@
+use super::ElementEquations;
 use crate::base::ParamRod;
-use gemlab::mesh::{CellId, Mesh};
+use crate::StrError;
+use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{Matrix, Vector};
 
 /// Implements a linear-elastic rod element
@@ -7,25 +9,27 @@ use russell_lab::{Matrix, Vector};
 /// # References
 ///
 /// * Felippa C., Chapter 20: Implementation of One-Dimensional Elements (IFEM.Ch20.pdf)
-pub struct Rod {
-    pub fe: Vector,
-    pub ke: Matrix,
+pub struct ElementRod {
+    pub residual: Vector,
+    pub jacobian: Matrix,
 }
 
-impl Rod {
-    /// Allocates a new instance
+impl ElementRod {
     #[rustfmt::skip]
-    pub fn new(mesh: &Mesh, cell_id: CellId, param: &ParamRod) -> Self {
+    pub fn new(mesh: &Mesh, cell: &Cell, param: &ParamRod) -> Result<Self, StrError> {
         let ndim = mesh.ndim;
-        let pp = &mesh.cells[cell_id].points;
-        assert_eq!(pp.len(), 2);
+        let pp = &cell.points;
+        if pp.len() != 2 {
+            return Err("number of nodes for Rod must be 2");
+        }
+        // let param = dn.elements.
         let xa = mesh.points[pp[0]].coords[0];
         let ya = mesh.points[pp[0]].coords[1];
         let xb = mesh.points[pp[1]].coords[0];
         let yb = mesh.points[pp[1]].coords[1];
         let dx = xb - xa;
         let dy = yb - ya;
-        let ke = if ndim == 2 {
+        let jacobian = if ndim == 2 {
             let l = f64::sqrt(dx * dx + dy * dy);
             let m = param.young * param.area / (l * l * l);
             Matrix::from(&[
@@ -49,10 +53,19 @@ impl Rod {
                 [-dz*dx*m, -dz*dy*m, -dz*dz*m,  dz*dx*m,  dz*dy*m,  dz*dz*m],
             ])
         };
-        Rod {
-            fe: Vector::new(ndim * 2),
-            ke,
-        }
+        Ok(ElementRod {
+            residual: Vector::new(2 * ndim),
+            jacobian,
+        })
+    }
+}
+
+impl ElementEquations for ElementRod {
+    fn residual(&mut self) -> Result<(), StrError> {
+        Err("stop")
+    }
+    fn jacobian(&mut self) -> Result<(), StrError> {
+        Err("stop")
     }
 }
 
@@ -60,7 +73,7 @@ impl Rod {
 
 #[cfg(test)]
 mod tests {
-    use super::Rod;
+    use super::ElementRod;
     use crate::base::{assemble_matrix, DofNumbers, Element, ParamRod};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
@@ -68,6 +81,31 @@ mod tests {
     use russell_lab::Matrix;
     use russell_sparse::{SparseTriplet, Symmetry};
     use std::collections::HashMap;
+
+    #[test]
+    fn new_captures_errors() {
+        #[rustfmt::skip]
+        let mesh = Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, coords: vec![ 0.0,  0.0] },
+                Point { id: 1, coords: vec![30.0, 40.0] },
+                Point { id: 2, coords: vec![60.0, 80.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin3, points: vec![0, 1, 2] },
+            ],
+        };
+        let param = ParamRod {
+            area: 5.0,
+            young: 1_000.0,
+            density: 1.0,
+        };
+        assert_eq!(
+            ElementRod::new(&mesh, &mesh.cells[0], &param).err(),
+            Some("number of nodes for Rod must be 2")
+        );
+    }
 
     #[test]
     fn rod_works_2d() {
@@ -87,10 +125,10 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let rod = Rod::new(&mesh, 0, &param);
-        assert_eq!(rod.fe.dim(), 4);
+        let rod = ElementRod::new(&mesh, &mesh.cells[0], &param).unwrap();
+        assert_eq!(rod.residual.dim(), 4);
         assert_eq!(
-            rod.ke.as_data(),
+            rod.jacobian.as_data(),
             &[
                 36.0, 48.0, -36.0, -48.0, // 0
                 48.0, 64.0, -48.0, -64.0, // 1
@@ -119,10 +157,10 @@ mod tests {
             young: 343.0,
             density: 1.0,
         };
-        let rod = Rod::new(&mesh, 0, &param);
-        assert_eq!(rod.fe.dim(), 6);
+        let rod = ElementRod::new(&mesh, &mesh.cells[0], &param).unwrap();
+        assert_eq!(rod.residual.dim(), 6);
         assert_eq!(
-            rod.ke.as_data(),
+            rod.jacobian.as_data(),
             &[
                 40.0, 60.0, 120.0, -40.0, -60.0, -120.0, // 0
                 60.0, 90.0, 180.0, -60.0, -90.0, -180.0, // 1
@@ -154,10 +192,10 @@ mod tests {
             young: 1.0,
             density: 1.0,
         };
-        let rod = Rod::new(&mesh, 0, &param);
-        assert_eq!(rod.fe.dim(), 6);
+        let rod = ElementRod::new(&mesh, &mesh.cells[0], &param).unwrap();
+        assert_eq!(rod.residual.dim(), 6);
         assert_eq!(
-            rod.ke.as_data(),
+            rod.jacobian.as_data(),
             &[
                 1.0, 2.0, 2.0, -1.0, -2.0, -2.0, // 0
                 2.0, 4.0, 4.0, -2.0, -4.0, -4.0, // 1
@@ -194,32 +232,32 @@ mod tests {
                 Cell { id: 2, attribute_id: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
             ],
         };
-        let param0 = ParamRod {
+        let p1 = ParamRod {
             area: 1.0,
             young: 100.0,
             density: 1.0,
         };
-        let param1 = ParamRod {
+        let p2 = ParamRod {
             area: 1.0 / 2.0,
             young: 100.0,
             density: 1.0,
         };
-        let param2 = ParamRod {
+        let p3 = ParamRod {
             area: 2.0 * SQRT_2,
             young: 100.0,
             density: 1.0,
         };
-        let rod0 = Rod::new(&mesh, 0, &param0);
-        let rod1 = Rod::new(&mesh, 1, &param1);
-        let rod2 = Rod::new(&mesh, 2, &param2);
-        let attr_element = HashMap::from([(1, Element::Rod), (2, Element::Rod), (3, Element::Rod)]);
-        let dn = DofNumbers::new(&mesh, attr_element).unwrap();
+        let elements = HashMap::from([(1, Element::Rod(p1)), (2, Element::Rod(p2)), (3, Element::Rod(p3))]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let rod0 = ElementRod::new(&mesh, &mesh.cells[0], &p1).unwrap();
+        let rod1 = ElementRod::new(&mesh, &mesh.cells[1], &p2).unwrap();
+        let rod2 = ElementRod::new(&mesh, &mesh.cells[2], &p3).unwrap();
         let (neq, nnz) = (dn.n_equation, dn.nnz_sup);
         let mut kk = SparseTriplet::new(neq, neq, nnz, Symmetry::No).unwrap();
         let prescribed = vec![false; neq];
-        assemble_matrix(&mut kk, &rod0.ke, &dn.local_to_global[0], &prescribed);
-        assemble_matrix(&mut kk, &rod1.ke, &dn.local_to_global[1], &prescribed);
-        assemble_matrix(&mut kk, &rod2.ke, &dn.local_to_global[2], &prescribed);
+        assemble_matrix(&mut kk, &rod0.jacobian, &dn.local_to_global[0], &prescribed);
+        assemble_matrix(&mut kk, &rod1.jacobian, &dn.local_to_global[1], &prescribed);
+        assemble_matrix(&mut kk, &rod2.jacobian, &dn.local_to_global[2], &prescribed);
         let mut kk_mat = Matrix::new(neq, neq);
         kk.to_matrix(&mut kk_mat).unwrap();
         assert_eq!(
