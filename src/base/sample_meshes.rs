@@ -47,6 +47,46 @@ impl SampleMeshes {
         }
     }
 
+    /// Returns the mesh from Bhatti's Example 1.5 (page 28)
+    ///
+    /// Reference: Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
+    ///
+    /// ```text
+    ///               .2
+    ///             .'/|
+    ///           .' / |
+    ///         .'  /  |
+    ///       .'   /   |
+    ///     .'[2] /    |
+    ///   .'     /     |
+    ///  3------4  [1] |
+    ///  |[3] .' '.    |
+    ///  |  .'     '.  |
+    ///  |.'   [0]   '.|
+    ///  0-------------1
+    /// ```
+    ///
+    /// ![bhatti_example_1dot5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_1dot5_heat.svg)
+    #[rustfmt::skip]
+    pub fn bhatti_example_1dot5_heat() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, coords: vec![0.0, 0.0] },
+                Point { id: 1, coords: vec![0.2, 0.0] },
+                Point { id: 2, coords: vec![0.2, 0.3] },
+                Point { id: 3, coords: vec![0.0, 0.1] },
+                Point { id: 4, coords: vec![0.1, 0.1] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Tri3, points: vec![0, 1, 4] },
+                Cell { id: 1, attribute_id: 1, kind: GeoKind::Tri3, points: vec![1, 2, 4] },
+                Cell { id: 2, attribute_id: 1, kind: GeoKind::Tri3, points: vec![3, 4, 2] },
+                Cell { id: 3, attribute_id: 1, kind: GeoKind::Tri3, points: vec![0, 4, 3] },
+            ],
+        }
+    }
+
     /// Returns the mesh from Bhatti's Example 1.6 (page 32)
     ///
     /// Reference: Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
@@ -163,6 +203,12 @@ mod tests {
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 5);
         // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot4_truss.svg").unwrap();
+
+        let mesh = SampleMeshes::bhatti_example_1dot5_heat();
+        check_all(&mesh).unwrap();
+        assert_eq!(mesh.points.len(), 5);
+        assert_eq!(mesh.cells.len(), 4);
+        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot5_heat.svg").unwrap();
 
         let mesh = SampleMeshes::bhatti_example_1dot6_bracket();
         check_all(&mesh).unwrap();
