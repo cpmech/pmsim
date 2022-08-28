@@ -34,7 +34,7 @@ impl BcsNaturalInteg {
 
         // pad and ips
         let (kind, points) = (feature.kind, &feature.points);
-        let mut pad = Scratchpad::new(mesh.ndim, kind).unwrap();
+        let mut pad = Scratchpad::new(mesh.ndim, kind)?;
         set_pad_coords(&mut pad, &points, &mesh);
         let ips = default_points(pad.kind);
 
@@ -49,7 +49,7 @@ impl BcsNaturalInteg {
             for (dof, local) in &dofs[m] {
                 let global = *dn.point_dofs[points[m]]
                     .get(dof)
-                    .ok_or("cannot find DOF for CalcDataBry")?;
+                    .ok_or("cannot find DOF to allocate BcsNaturalInteg")?;
                 local_to_global[*local] = global;
             }
         }
@@ -144,6 +144,36 @@ mod tests {
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
     use std::collections::HashMap;
+
+    #[test]
+    fn new_captures_errors() {
+        let mut mesh = Samples::one_hex8();
+        let p1 = SampleParams::param_solid();
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let edge = Feature {
+            kind: GeoKind::Lin2,
+            points: vec![4, 5],
+        };
+        assert_eq!(
+            BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Qn(|_| -10.0)).err(),
+            Some("Qn natural boundary condition is not available for 3D edge")
+        );
+        assert_eq!(BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Qz(|_| -10.0)).err(), None); // Qz is OK
+        let face = Feature {
+            kind: GeoKind::Qua4,
+            points: vec![4, 5, 6, 7],
+        };
+        mesh.ndim = 5; // << never do this!
+        assert_eq!(
+            BcsNaturalInteg::new(&mesh, &dn, &face, Nbc::Qn(|_| -10.0)).err(),
+            Some("space_ndim must be 2 or 3")
+        );
+        mesh.ndim = 3;
+        assert_eq!(
+            BcsNaturalInteg::new(&mesh, &dn, &face, Nbc::Ql(|_| 1.0)).err(), // << flux
+            Some("cannot find DOF to allocate BcsNaturalInteg")
+        );
+    }
 
     #[test]
     fn calc_residual_works() {
