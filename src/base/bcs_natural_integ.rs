@@ -140,7 +140,7 @@ impl BcsNaturalInteg {
 mod tests {
     use super::BcsNaturalInteg;
     use crate::base::{BcsNatural, DofNumbers, Element, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
-    use gemlab::mesh::{Feature, Samples};
+    use gemlab::mesh;
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
     use russell_chk::assert_vec_approx_eq;
@@ -148,10 +148,10 @@ mod tests {
 
     #[test]
     fn new_captures_errors() {
-        let mut mesh = Samples::one_hex8();
+        let mut mesh = mesh::Samples::one_hex8();
         let p1 = SampleParams::param_solid();
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
-        let edge = Feature {
+        let edge = mesh::Feature {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
         };
@@ -160,7 +160,7 @@ mod tests {
             Some("Qn natural boundary condition is not available for 3D edge")
         );
         assert_eq!(BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Qz(|_| -10.0)).err(), None); // Qz is OK
-        let face = Feature {
+        let face = mesh::Feature {
             kind: GeoKind::Qua4,
             points: vec![4, 5, 6, 7],
         };
@@ -178,11 +178,11 @@ mod tests {
 
     #[test]
     fn new_collection_and_par_iter_work() {
-        let mesh = Samples::one_hex8();
+        let mesh = mesh::Samples::one_hex8();
         let p1 = SampleParams::param_solid();
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bcs_natural = BcsNatural::new();
-        let faces = &[&Feature {
+        let faces = &[&mesh::Feature {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
@@ -195,7 +195,103 @@ mod tests {
     }
 
     #[test]
-    fn integration_works() {
+    fn integration_works_1() {
+        let mesh = mesh::Samples::one_qua8();
+        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
+        let left = features.edges.get(&(0, 3)).ok_or("cannot get edge").unwrap();
+        let right = features.edges.get(&(1, 2)).ok_or("cannot get edge").unwrap();
+        let bottom = features.edges.get(&(0, 1)).ok_or("cannot get edge").unwrap();
+        let p1 = SampleParams::param_solid();
+
+        // Qn
+
+        const Q: f64 = 25.0;
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qn(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qn(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qn(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qn(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        // Qx
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qx(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qx(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qx(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qx(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        // Qy
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qy(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qy(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qy(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qy(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+    }
+
+    #[test]
+    fn integration_works_2() {
+        let mesh = mesh::Samples::one_qua8();
+        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
+        let left = features.edges.get(&(0, 3)).ok_or("cannot get edge").unwrap();
+        let right = features.edges.get(&(1, 2)).ok_or("cannot get edge").unwrap();
+        let bottom = features.edges.get(&(0, 1)).ok_or("cannot get edge").unwrap();
+        let p1 = SampleParams::param_porous_liq_gas();
+        // TODO
+    }
+
+    #[test]
+    fn integration_works_3() {
         let mesh = SampleMeshes::bhatti_example_1dot5_heat();
         let p1 = ParamDiffusion {
             kx: 0.1,
@@ -203,15 +299,15 @@ mod tests {
             kz: 0.3,
         };
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Diffusion(p1))])).unwrap();
-        let edge = Feature {
+        let edge = mesh::Feature {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
         };
-        let mut data = BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Cv(27.0, |_| 20.0)).unwrap();
-        data.calc_residual(0.0, 1.0).unwrap();
-        assert_vec_approx_eq!(data.residual.as_data(), &[81.0, 81.0], 1e-15);
-        data.calc_jacobian(0.0, 1.0).unwrap();
-        let jac = data.jacobian.ok_or("error").unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Cv(27.0, |_| 20.0)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), &[81.0, 81.0], 1e-15);
+        bry.calc_jacobian(0.0, 1.0).unwrap();
+        let jac = bry.jacobian.ok_or("error").unwrap();
         assert_vec_approx_eq!(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
     }
 }
