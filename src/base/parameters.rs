@@ -351,6 +351,25 @@ mod tests {
     }
 
     #[test]
+    fn param_stress_strain_methods_work() {
+        let p = ParamStressStrain::LinearElastic {
+            young: 1000.0,
+            poisson: 0.2,
+        };
+        assert_eq!(p.n_internal_values(), 0);
+        assert_eq!(p.elasto_plastic(), false);
+        let p = ParamStressStrain::DruckerPrager {
+            young: 10_000.0, // kPa
+            poisson: 0.2,    // [-]
+            c: 0.0,          // kPa
+            phi: 25.0,       // degree
+            hh: 0.0,         // [-]
+        };
+        assert_eq!(p.n_internal_values(), 1);
+        assert_eq!(p.elasto_plastic(), true);
+    }
+
+    #[test]
     fn param_liquid_retention_derive_works() {
         let p = ParamLiquidRetention::BrooksCorey {
             lambda: 1.0,
@@ -361,6 +380,40 @@ mod tests {
         let q = p.clone();
         let correct = "BrooksCorey { lambda: 1.0, pc_ae: 2.0, sl_min: 0.1, sl_max: 0.99 }";
         assert_eq!(format!("{:?}", q), correct);
+    }
+
+    #[test]
+    fn param_liquid_retention_methods_work() {
+        let p = ParamLiquidRetention::BrooksCorey {
+            lambda: 1.0,
+            pc_ae: 2.0,
+            sl_min: 0.1,
+            sl_max: 0.99,
+        };
+        assert_eq!(p.max_liquid_saturation(), 0.99);
+        let p = ParamLiquidRetention::VanGenuchten {
+            alpha: 1.0,
+            m: 2.0,
+            n: 3.0,
+            sl_min: 0.1,
+            sl_max: 0.95,
+            pc_min: 1.0,
+        };
+        assert_eq!(p.max_liquid_saturation(), 0.95);
+        let p = ParamLiquidRetention::PedrosoWilliams {
+            with_hysteresis: true,
+            lambda_d: 3.0,
+            lambda_w: 3.0,
+            beta_d: 6.0,
+            beta_w: 6.0,
+            beta_1: 6.0,
+            beta_2: 6.0,
+            x_rd: 2.0,
+            x_rw: 2.0,
+            y_0: 1.0,
+            y_r: 0.005,
+        };
+        assert_eq!(p.max_liquid_saturation(), 1.0);
     }
 
     #[test]
