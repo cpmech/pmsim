@@ -21,7 +21,7 @@ impl<'a> Simulation<'a> {
         };
         Ok(Simulation {
             element_equations,
-            state: State::new(mesh, dn, config)?,
+            state: State::new(mesh, dn, config).unwrap(), // cannot fail because allocate_element_equations already checked
         })
     }
 }
@@ -34,6 +34,26 @@ mod tests {
     use crate::base::{Config, DofNumbers, Element, SampleParams};
     use gemlab::mesh::Samples;
     use std::collections::HashMap;
+
+    #[test]
+    fn new_handles_errors() {
+        let mut mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_solid();
+        let elements = HashMap::from([(1, Element::Solid(p1))]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let mut config = Config::new();
+        mesh.cells[0].attribute_id = 100; // << never do this!
+        assert_eq!(
+            Simulation::new(&mesh, &dn, &config).err(),
+            Some("cannot extract CellAttributeId to allocate ElementEquations")
+        );
+        mesh.cells[0].attribute_id = 1;
+        config.n_integ_point.insert(1, 100); // wrong
+        assert_eq!(
+            Simulation::new(&mesh, &dn, &config).err(),
+            Some("desired number of integration points is not available for Tri class")
+        );
+    }
 
     #[test]
     fn new_works() {

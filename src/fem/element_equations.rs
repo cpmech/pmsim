@@ -21,7 +21,7 @@ pub fn allocate_element_equations<'a>(
     let element = dn
         .elements
         .get(&cell.attribute_id)
-        .ok_or("cannot extract CellAttributeId from to allocate ElementEquations")?;
+        .ok_or("cannot extract CellAttributeId to allocate ElementEquations")?;
     let element_equations: Box<dyn ElementEquations> = match element {
         Element::Rod(..) => panic!("TODO: Rod"),
         Element::Beam(..) => panic!("TODO: Beam"),
@@ -53,7 +53,7 @@ mod tests {
         mesh.cells[0].attribute_id = 100; // << never do this!
         assert_eq!(
             allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).err(),
-            Some("cannot extract CellAttributeId from to allocate ElementEquations")
+            Some("cannot extract CellAttributeId to allocate ElementEquations")
         );
         mesh.cells[0].attribute_id = 1;
         mesh.ndim = 5; // << never do this!

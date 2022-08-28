@@ -32,7 +32,7 @@ impl<'a> ElementSolid<'a> {
         let info = dn
             .element_dofs
             .get(&(cell.attribute_id, cell.kind))
-            .ok_or("cannot find CellAttributeId to allocate ElementSolid")?;
+            .ok_or("cannot extract CellAttributeId to allocate ElementSolid")?;
 
         // pad and ips
         let (kind, points) = (cell.kind, &cell.points);
@@ -84,13 +84,33 @@ impl<'a> ElementEquations for ElementSolid<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementSolid;
-    use crate::base::{Config, DofNumbers, Element, ParamSolid, ParamStressStrain};
+    use crate::base::{Config, DofNumbers, Element, ParamSolid, ParamStressStrain, SampleParams};
     use crate::fem::element_equations::ElementEquations;
     use crate::fem::State;
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_chk::assert_vec_approx_eq;
     use std::collections::HashMap;
+
+    #[test]
+    fn new_handles_errors() {
+        let mut mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_solid();
+        let elements = HashMap::from([(1, Element::Solid(p1))]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let mut config = Config::new();
+        mesh.cells[0].attribute_id = 100; // << never do this!
+        assert_eq!(
+            ElementSolid::new(&mesh, &dn, &config, &mesh.cells[0], &p1).err(),
+            Some("cannot extract CellAttributeId to allocate ElementSolid")
+        );
+        mesh.cells[0].attribute_id = 1;
+        config.n_integ_point.insert(1, 100); // wrong
+        assert_eq!(
+            ElementSolid::new(&mesh, &dn, &config, &mesh.cells[0], &p1).err(),
+            Some("desired number of integration points is not available for Tri class")
+        );
+    }
 
     #[test]
     fn element_solid_works() {
