@@ -55,6 +55,12 @@ mod tests {
             allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).err(),
             Some("cannot extract CellAttributeId from to allocate ElementEquations")
         );
+        mesh.cells[0].attribute_id = 1;
+        mesh.ndim = 5; // << never do this!
+        assert_eq!(
+            allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).err(),
+            Some("space_ndim must be 2 or 3")
+        );
     }
 
     #[test]
