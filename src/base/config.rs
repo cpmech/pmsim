@@ -97,7 +97,7 @@ impl Config {
     }
 
     /// Returns the integration (Gauss) points data
-    pub fn get_integ_point_data(&self, cell: &Cell) -> Result<integ::IntegPointData, StrError> {
+    pub fn integ_point_data(&self, cell: &Cell) -> Result<integ::IntegPointData, StrError> {
         match self.n_integ_point.get(&cell.attribute_id) {
             Some(n) => integ::points(cell.kind.class(), *n),
             None => Ok(integ::default_points(cell.kind)),
@@ -132,6 +132,8 @@ impl fmt::Display for Config {
 
 #[cfg(test)]
 mod tests {
+    use gemlab::mesh::Samples;
+
     use super::Config;
     use crate::base::{Init, ParamFluids, ParamRealDensity};
     use std::collections::HashMap;
@@ -162,9 +164,13 @@ mod tests {
         config.plane_stress = true;
         config.total_stress = true;
         config.initialization = Init::Geostatic(-123.0);
-        config.n_integ_point = HashMap::from([(1, 3), (2, 6)]);
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
+
+        let mesh = Samples::one_lin2();
+        assert_eq!(config.integ_point_data(&mesh.cells[0]).unwrap().len(), 2);
+        config.n_integ_point = HashMap::from([(1, 3), (2, 6)]);
+        assert_eq!(config.integ_point_data(&mesh.cells[0]).unwrap().len(), 3);
 
         assert_eq!(
             format!("{}", config),
