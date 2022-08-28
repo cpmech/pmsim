@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use super::Calculate;
+use super::ElementEquations;
 use crate::base::ParamSolid;
 use crate::StrError;
 use russell_lab::{Matrix, Vector};
@@ -27,7 +27,7 @@ impl Solid {
     }
 }
 
-impl Calculate for Solid {
+impl ElementEquations for Solid {
     fn residual(&mut self) -> Result<(), StrError> {
         Err("stop")
     }

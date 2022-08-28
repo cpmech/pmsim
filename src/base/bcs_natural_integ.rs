@@ -1,15 +1,12 @@
-#![allow(unused)]
-
-use crate::base::{BcsNatural, DofNumbers, FnBc, Nbc};
+use crate::base::{BcsNatural, DofNumbers, Nbc};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::integ::{default_points, IntegPointData};
 use gemlab::mesh::{set_pad_coords, Feature, Mesh};
-use gemlab::shapes::{GeoKind, Scratchpad};
-use rayon::prelude::*;
+use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
 
-pub struct CalcDataBry {
+pub struct BcsNaturalInteg {
     pub nbc: Nbc,
     pub pad: Scratchpad,
     pub ips: IntegPointData,
@@ -18,7 +15,7 @@ pub struct CalcDataBry {
     pub local_to_global: Vec<usize>,
 }
 
-impl CalcDataBry {
+impl BcsNaturalInteg {
     // Allocates new instance
     pub fn new(mesh: &Mesh, dn: &DofNumbers, feature: &Feature, nbc: Nbc) -> Result<Self, StrError> {
         // check
@@ -58,7 +55,7 @@ impl CalcDataBry {
         }
 
         // new instance
-        Ok(CalcDataBry {
+        Ok(BcsNaturalInteg {
             nbc,
             pad,
             ips,
@@ -77,7 +74,7 @@ impl CalcDataBry {
         let res: Result<Vec<_>, _> = bcs_natural
             .distributed
             .iter()
-            .map(|(feature, nbc)| CalcDataBry::new(mesh, dn, feature, *nbc))
+            .map(|(feature, nbc)| BcsNaturalInteg::new(mesh, dn, feature, *nbc))
             .collect();
         res
     }
@@ -125,7 +122,7 @@ impl CalcDataBry {
     }
 
     /// Calculates the Jacobian matrix at given time
-    pub fn calc_jacobian(&mut self, time: f64, thickness: f64) -> Result<(), StrError> {
+    pub fn calc_jacobian(&mut self, _time: f64, _thickness: f64) -> Result<(), StrError> {
         match self.nbc {
             Nbc::Cv(cc, _) => {
                 let kk = self.jacobian.as_mut().unwrap();
@@ -141,7 +138,7 @@ impl CalcDataBry {
 
 #[cfg(test)]
 mod tests {
-    use super::CalcDataBry;
+    use super::BcsNaturalInteg;
     use crate::base::{BcsNatural, DofNumbers, Element, Nbc, SampleParams};
     use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
@@ -165,7 +162,7 @@ mod tests {
         bcs_natural
             // .on(edges, Nbc::Qy(|t| -10.0 * (1.0 * t)))
             .on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
-        let mut data = CalcDataBry::new_collection(&mesh, &dn, &bcs_natural).unwrap();
+        let mut data = BcsNaturalInteg::new_collection(&mesh, &dn, &bcs_natural).unwrap();
         data.par_iter_mut().for_each(|data| {
             data.calc_residual(0.0, 1.0).unwrap();
         })

@@ -1,7 +1,7 @@
 #![allow(unused)]
 
+use super::ElementEquations;
 use crate::base::{Config, DofNumbers, Element};
-use crate::element::{self, Calculate};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::integ::{default_points, IntegPointData};
@@ -117,7 +117,6 @@ impl CalcData {
 mod tests {
     use super::CalcData;
     use crate::base::{Config, DofNumbers, Element, SampleParams};
-    use crate::element;
     use gemlab::mesh::Samples;
     use rayon::prelude::*;
     use std::collections::HashMap;
@@ -136,7 +135,6 @@ mod tests {
         //     data.calc_residual(0.0, 1.0).unwrap();
         // })
         let p1 = SampleParams::param_solid();
-        let calculate = Box::new(element::Solid::new(p1));
         let config = Config::new();
         let calc_data = CalcData::new(&mesh, &dn, &config, 0).unwrap();
     }
