@@ -1,4 +1,8 @@
 use super::{Init, ParamFluids};
+use crate::StrError;
+use gemlab::integ;
+use gemlab::mesh::{Cell, CellAttributeId};
+use std::collections::HashMap;
 use std::fmt;
 
 /// Holds configuration data such as boundary conditions and element attributes
@@ -20,6 +24,9 @@ pub struct Config {
 
     /// Parameters for fluids
     pub param_fluids: Option<ParamFluids>,
+
+    /// Number of integration points
+    pub n_integ_point: HashMap<CellAttributeId, usize>,
 }
 
 impl Config {
@@ -32,6 +39,7 @@ impl Config {
             total_stress: false,
             initialization: Init::Zero,
             param_fluids: None,
+            n_integ_point: HashMap::new(),
         }
     }
 
@@ -87,6 +95,14 @@ impl Config {
             _ => 0.0,
         }
     }
+
+    /// Returns the integration (Gauss) points data
+    pub fn get_integ_point_data(&self, cell: &Cell) -> Result<integ::IntegPointData, StrError> {
+        match self.n_integ_point.get(&cell.attribute_id) {
+            Some(n) => integ::points(cell.kind.class(), *n),
+            None => Ok(integ::default_points(cell.kind)),
+        }
+    }
 }
 
 impl fmt::Display for Config {
@@ -98,7 +114,13 @@ impl fmt::Display for Config {
         write!(f, "plane_stress = {:?}\n", self.plane_stress).unwrap();
         write!(f, "total_stress = {:?}\n", self.total_stress).unwrap();
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
-
+        write!(f, "\nSpecified number of integration points\n").unwrap();
+        write!(f, "======================================\n").unwrap();
+        let mut key_val: Vec<_> = self.n_integ_point.iter().map(|x| x).collect();
+        key_val.sort();
+        for (key, val) in key_val {
+            write!(f, "{}: {}\n", key, val).unwrap();
+        }
         write!(f, "\nParameters for fluids\n").unwrap();
         write!(f, "=====================\n").unwrap();
         write!(f, "{:?}\n", self.param_fluids).unwrap();
@@ -112,6 +134,7 @@ impl fmt::Display for Config {
 mod tests {
     use super::Config;
     use crate::base::{Init, ParamFluids, ParamRealDensity};
+    use std::collections::HashMap;
 
     #[test]
     fn new_works() {
@@ -139,6 +162,7 @@ mod tests {
         config.plane_stress = true;
         config.total_stress = true;
         config.initialization = Init::Geostatic(-123.0);
+        config.n_integ_point = HashMap::from([(1, 3), (2, 6)]);
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
 
@@ -151,6 +175,11 @@ mod tests {
              plane_stress = true\n\
              total_stress = true\n\
              initialization = Geostatic(-123.0)\n\
+             \n\
+             Specified number of integration points\n\
+             ======================================\n\
+             1: 3\n\
+             2: 6\n\
              \n\
              Parameters for fluids\n\
              =====================\n\
