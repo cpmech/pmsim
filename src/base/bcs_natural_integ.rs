@@ -139,10 +139,11 @@ impl BcsNaturalInteg {
 #[cfg(test)]
 mod tests {
     use super::BcsNaturalInteg;
-    use crate::base::{BcsNatural, DofNumbers, Element, Nbc, SampleMeshes, SampleParams};
+    use crate::base::{BcsNatural, DofNumbers, Element, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
     use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
+    use russell_chk::assert_vec_approx_eq;
     use std::collections::HashMap;
 
     #[test]
@@ -189,11 +190,28 @@ mod tests {
         let mut data = BcsNaturalInteg::new_collection(&mesh, &dn, &bcs_natural).unwrap();
         data.par_iter_mut().for_each(|data| {
             data.calc_residual(0.0, 1.0).unwrap();
+            data.calc_jacobian(0.0, 1.0).unwrap();
         });
     }
 
     #[test]
     fn integration_works() {
         let mesh = SampleMeshes::bhatti_example_1dot5_heat();
+        let p1 = ParamDiffusion {
+            kx: 0.1,
+            ky: 0.2,
+            kz: 0.3,
+        };
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Diffusion(p1))])).unwrap();
+        let edge = Feature {
+            kind: GeoKind::Lin2,
+            points: vec![1, 2],
+        };
+        let mut data = BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Cv(27.0, |_| 20.0)).unwrap();
+        data.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(data.residual.as_data(), &[81.0, 81.0], 1e-15);
+        data.calc_jacobian(0.0, 1.0).unwrap();
+        let jac = data.jacobian.ok_or("error").unwrap();
+        assert_vec_approx_eq!(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
     }
 }
