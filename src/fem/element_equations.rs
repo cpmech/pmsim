@@ -1,27 +1,30 @@
-use super::{ElementRod, ElementSolid};
+#![allow(unused)]
+
+use super::{ElementRod, ElementSolid, State};
 use crate::base::{Config, DofNumbers, Element};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
 
 /// Defines the trait for element equations
 pub trait ElementEquations {
-    fn residual(&mut self) -> Result<(), StrError>;
-    fn jacobian(&mut self) -> Result<(), StrError>;
+    fn residual(&mut self, state: &State) -> Result<(), StrError>;
+    fn jacobian(&mut self, state: &State) -> Result<(), StrError>;
 }
 
 /// Allocates element equations
-pub fn allocate_element_equations(
-    mesh: &Mesh,
-    dn: &DofNumbers,
-    config: &Config,
-    cell: &Cell,
-) -> Result<Box<dyn ElementEquations>, StrError> {
+pub fn allocate_element_equations<'a>(
+    mesh: &'a Mesh,
+    dn: &'a DofNumbers,
+    config: &'a Config,
+    cell: &'a Cell,
+) -> Result<Box<dyn ElementEquations + 'a>, StrError> {
     let element = dn
         .elements
         .get(&cell.attribute_id)
         .ok_or("cannot extract cell.attribute_id from dn.elements to allocate ElementEquations")?;
     let element_equations: Box<dyn ElementEquations> = match element {
-        Element::Rod(p) => Box::new(ElementRod::new(mesh, cell, p)?),
+        Element::Rod(..) => panic!("TODO"),
+        // Element::Rod(p) => Box::new(ElementRod::new(mesh, cell, p)?),
         Element::Beam(..) => panic!("TODO"),
         Element::Solid(p) => Box::new(ElementSolid::new(mesh, dn, config, cell, p)?),
         Element::PorousLiq(..) => panic!("TODO"),

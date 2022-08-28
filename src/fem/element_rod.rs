@@ -1,4 +1,4 @@
-use super::ElementEquations;
+// use super::ElementEquations;
 use crate::base::ParamRod;
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
@@ -60,14 +60,14 @@ impl ElementRod {
     }
 }
 
-impl ElementEquations for ElementRod {
-    fn residual(&mut self) -> Result<(), StrError> {
-        Err("stop")
-    }
-    fn jacobian(&mut self) -> Result<(), StrError> {
-        Err("stop")
-    }
-}
+// impl ElementEquations for ElementRod {
+//     fn residual(&mut self) -> Result<(), StrError> {
+//         Err("stop")
+//     }
+//     fn jacobian(&mut self) -> Result<(), StrError> {
+//         Err("stop")
+//     }
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
