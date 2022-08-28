@@ -23,6 +23,7 @@ impl State {
     pub fn new(mesh: &Mesh, dn: &DofNumbers, config: &Config) -> Result<State, StrError> {
         // gather information about element types
         let mut rods_and_beams_only = true;
+        let mut has_diffusion = false;
         let mut has_solid = false;
         let mut has_porous = false;
         for cell in &mesh.cells {
@@ -31,6 +32,9 @@ impl State {
                 .get(&cell.attribute_id)
                 .ok_or("cannot extract CellAttributeId to allocate State")?;
             match element {
+                Element::Diffusion(..) => {
+                    has_diffusion = true;
+                }
                 Element::Rod(..) => (),
                 Element::Beam(..) => (),
                 Element::Solid(..) => {
@@ -58,8 +62,10 @@ impl State {
             };
         }
 
+        // TODO: check compatibility of flags
+
         // return state with most vectors empty
-        if rods_and_beams_only {
+        if rods_and_beams_only || has_diffusion {
             return Ok(State {
                 time: 0.0,
                 primary_unknowns: Vector::new(dn.n_equation),
@@ -132,6 +138,7 @@ impl State {
             let n_integ_point = ips.len();
             let element = dn.elements.get(&cell.attribute_id).unwrap(); // already checked above
             match element {
+                Element::Diffusion(..) => (), // this will not happen
                 Element::Rod(..) => (),
                 Element::Beam(..) => (),
                 Element::Solid(p) => solid(cell.id, n_integ_point, &p.stress_strain),
@@ -216,6 +223,24 @@ mod tests {
         assert_eq!(state.wetting[1].len(), 0 /*n_integ_point*/);
         assert_eq!(state.wetting[2].len(), 0 /*n_integ_point*/);
         assert_eq!(state.wetting[3].len(), 0 /*n_integ_point*/);
+    }
+
+    #[test]
+    fn new_works_diffusion() {
+        let mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_diffusion();
+        let elements = HashMap::from([(1, Element::Diffusion(p1))]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let config = Config::new();
+        let state = State::new(&mesh, &dn, &config).unwrap();
+        assert_eq!(state.time, 0.0);
+        assert_eq!(state.primary_unknowns.dim(), dn.n_equation);
+        assert_eq!(state.effective_stress.len(), 0);
+        assert_eq!(state.int_values_solid.len(), 0);
+        assert_eq!(state.loading.len(), 0);
+        assert_eq!(state.liquid_saturation.len(), 0);
+        assert_eq!(state.int_values_porous.len(), 0);
+        assert_eq!(state.wetting.len(), 0);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use super::{
-    ParamBeam, ParamConductivity, ParamFluids, ParamLiquidRetention, ParamPorousLiq, ParamPorousLiqGas,
+    ParamBeam, ParamConductivity, ParamDiffusion, ParamFluids, ParamLiquidRetention, ParamPorousLiq, ParamPorousLiqGas,
     ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
 };
 
@@ -41,6 +41,15 @@ impl SampleParams {
         ParamFluids {
             density_liquid: SampleParams::param_density_water(incompressible),
             density_gas: Some(SampleParams::param_density_dry_air()),
+        }
+    }
+
+    /// Returns sample parameters for diffusion problems
+    pub fn param_diffusion() -> ParamDiffusion {
+        ParamDiffusion {
+            kx: 0.1,
+            ky: 0.2,
+            kz: 0.3,
         }
     }
 
@@ -244,6 +253,9 @@ mod tests {
 
         let p = SampleParams::param_water_and_dry_air(false);
         assert_eq!(p.density_liquid.cc, 4.53e-7);
+
+        let p = SampleParams::param_diffusion();
+        assert_eq!(p.kx, 0.1);
 
         let p = SampleParams::param_rod();
         assert_eq!(p.density, 2.0);

@@ -23,6 +23,7 @@ pub fn allocate_element_equations<'a>(
         .get(&cell.attribute_id)
         .ok_or("cannot extract CellAttributeId to allocate ElementEquations")?;
     let element_equations: Box<dyn ElementEquations> = match element {
+        Element::Diffusion(..) => panic!("TODO: Diffusion"),
         Element::Rod(..) => panic!("TODO: Rod"),
         Element::Beam(..) => panic!("TODO: Beam"),
         Element::Solid(p) => Box::new(ElementSolid::new(mesh, dn, config, cell, p)?),
@@ -68,6 +69,17 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let elements = HashMap::from([(1, Element::Solid(p1))]);
+        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let config = Config::new();
+        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "TODO: Diffusion")]
+    fn allocate_element_panics_0() {
+        let mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_diffusion();
+        let elements = HashMap::from([(1, Element::Diffusion(p1))]);
         let dn = DofNumbers::new(&mesh, elements).unwrap();
         let config = Config::new();
         allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();

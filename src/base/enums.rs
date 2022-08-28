@@ -1,5 +1,6 @@
 use super::{
-    ParamBeam, ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid,
+    ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod,
+    ParamSolid,
 };
 use gemlab::shapes::GeoKind;
 use std::fmt;
@@ -201,6 +202,7 @@ pub enum Init {
 /// Defines the element type
 #[derive(Clone, Copy, Debug)]
 pub enum Element {
+    Diffusion(ParamDiffusion),
     Rod(ParamRod),
     Beam(ParamBeam),
     Solid(ParamSolid),
@@ -214,6 +216,7 @@ impl Element {
     /// Returns the name of the Element
     pub fn name(&self) -> String {
         match self {
+            Element::Diffusion(..) => "Diffusion".to_string(),
             Element::Rod(..) => "Rod".to_string(),
             Element::Beam(..) => "Beam".to_string(),
             Element::Solid(..) => "Solid".to_string(),
@@ -311,6 +314,11 @@ mod tests {
 
     #[test]
     fn element_derive_works() {
+        let p = SampleParams::param_diffusion();
+        let e = Element::Diffusion(p);
+        let e_clone = e.clone();
+        assert_eq!(format!("{}", e_clone.name()), "Diffusion");
+
         let p = SampleParams::param_rod();
         let e = Element::Rod(p);
         let e_clone = e.clone();

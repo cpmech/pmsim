@@ -75,6 +75,11 @@ impl ElementDofs {
         // handle each combination
         #[rustfmt::skip]
         match element {
+            Element::Diffusion(..) => {
+                for m in 0..nnode {
+                    dofs[m].push((Dof::T, count)); count += 1;
+                }
+            }
             Element::Rod(..) => {
                 for m in 0..nnode {
                     dofs[m].push((Dof::Ux, count)); count += 1;
@@ -219,6 +224,7 @@ mod tests {
 
     #[test]
     fn element_dofs_new_works_2d() {
+        let pa0 = SampleParams::param_diffusion();
         let pa = SampleParams::param_rod();
         let pb = SampleParams::param_beam();
         let pc = SampleParams::param_solid();
@@ -226,6 +232,7 @@ mod tests {
         let pe = SampleParams::param_porous_liq_gas();
         let pf = SampleParams::param_porous_sld_liq();
         let pg = SampleParams::param_porous_sld_liq_gas();
+        let a0 = ElementDofs::new(2, Element::Diffusion(pa0), GeoKind::Tri3).unwrap();
         let a = ElementDofs::new(2, Element::Rod(pa), GeoKind::Lin2).unwrap();
         let b = ElementDofs::new(2, Element::Beam(pb), GeoKind::Lin2).unwrap();
         let c = ElementDofs::new(2, Element::Solid(pc), GeoKind::Tri3).unwrap();
@@ -233,6 +240,7 @@ mod tests {
         let e = ElementDofs::new(2, Element::PorousLiqGas(pe), GeoKind::Tri3).unwrap();
         let f = ElementDofs::new(2, Element::PorousSldLiq(pf), GeoKind::Tri6).unwrap();
         let g = ElementDofs::new(2, Element::PorousSldLiqGas(pg), GeoKind::Tri6).unwrap();
+        assert_eq!(a0.dof_equation_pairs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
         assert_eq!(
             a.dof_equation_pairs,
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
@@ -287,6 +295,7 @@ mod tests {
 
     #[test]
     fn element_dofs_new_works_3d() {
+        let pa0 = SampleParams::param_diffusion();
         let pa = SampleParams::param_rod();
         let pb = SampleParams::param_beam();
         let pc = SampleParams::param_solid();
@@ -294,6 +303,7 @@ mod tests {
         let pe = SampleParams::param_porous_liq_gas();
         let pf = SampleParams::param_porous_sld_liq();
         let pg = SampleParams::param_porous_sld_liq_gas();
+        let a0 = ElementDofs::new(3, Element::Diffusion(pa0), GeoKind::Tri3).unwrap();
         let a = ElementDofs::new(3, Element::Rod(pa), GeoKind::Lin2).unwrap();
         let b = ElementDofs::new(3, Element::Beam(pb), GeoKind::Lin2).unwrap();
         let c = ElementDofs::new(3, Element::Solid(pc), GeoKind::Tri3).unwrap();
@@ -301,6 +311,7 @@ mod tests {
         let e = ElementDofs::new(3, Element::PorousLiqGas(pe), GeoKind::Tri3).unwrap();
         let f = ElementDofs::new(3, Element::PorousSldLiq(pf), GeoKind::Tri6).unwrap();
         let g = ElementDofs::new(3, Element::PorousSldLiqGas(pg), GeoKind::Tri6).unwrap();
+        assert_eq!(a0.dof_equation_pairs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
         assert_eq!(
             a.dof_equation_pairs,
             vec![

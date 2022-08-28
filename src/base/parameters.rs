@@ -204,6 +204,19 @@ pub struct ParamFluids {
 
 // parameters for elements ------------------------------------------------------------------------
 
+/// Holds parameters for diffusion problems
+#[derive(Clone, Copy, Debug)]
+pub struct ParamDiffusion {
+    /// x-component of the conductivity tensor
+    pub kx: f64,
+
+    /// y-component of the conductivity tensor
+    pub ky: f64,
+
+    /// z-component of the conductivity tensor
+    pub kz: f64,
+}
+
 /// Holds parameters for (linear-elastic) rods
 #[derive(Clone, Copy, Debug)]
 pub struct ParamRod {
@@ -335,8 +348,9 @@ pub struct ParamPorousSldLiqGas {
 #[cfg(test)]
 mod tests {
     use super::{
-        ParamBeam, ParamConductivity, ParamFluids, ParamLiquidRetention, ParamPorousLiq, ParamPorousLiqGas,
-        ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
+        ParamBeam, ParamConductivity, ParamDiffusion, ParamFluids, ParamLiquidRetention, ParamPorousLiq,
+        ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid,
+        ParamStressStrain,
     };
 
     #[test]
@@ -454,6 +468,20 @@ mod tests {
         };
         let q = p.clone();
         let correct = "ParamFluids { density_liquid: ParamRealDensity { cc: 1.0, p_ref: 2.0, rho_ref: 3.0, tt_ref: 4.0 }, density_gas: None }";
+        assert_eq!(format!("{:?}", q), correct);
+    }
+
+    #[test]
+    fn param_diffusion_derive_works() {
+        let mut p = ParamDiffusion {
+            kx: 1.0,
+            ky: 2.0,
+            kz: 3.0,
+        };
+        let q = p.clone();
+        p.ky = 111.0;
+        assert_eq!(q.ky, 2.0);
+        let correct = "ParamDiffusion { kx: 1.0, ky: 2.0, kz: 3.0 }";
         assert_eq!(format!("{:?}", q), correct);
     }
 

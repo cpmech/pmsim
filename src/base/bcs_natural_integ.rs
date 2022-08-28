@@ -139,7 +139,7 @@ impl BcsNaturalInteg {
 #[cfg(test)]
 mod tests {
     use super::BcsNaturalInteg;
-    use crate::base::{BcsNatural, DofNumbers, Element, Nbc, SampleParams};
+    use crate::base::{BcsNatural, DofNumbers, Element, Nbc, SampleMeshes, SampleParams};
     use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
@@ -176,25 +176,24 @@ mod tests {
     }
 
     #[test]
-    fn calc_residual_works() {
+    fn new_collection_and_par_iter_work() {
         let mesh = Samples::one_hex8();
         let p1 = SampleParams::param_solid();
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bcs_natural = BcsNatural::new();
-        // let edges = &[&Feature {
-        //     kind: GeoKind::Lin2,
-        //     points: vec![1, 2],
-        // }];
         let faces = &[&Feature {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
-        bcs_natural
-            // .on(edges, Nbc::Qy(|t| -10.0 * (1.0 * t)))
-            .on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
+        bcs_natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
         let mut data = BcsNaturalInteg::new_collection(&mesh, &dn, &bcs_natural).unwrap();
         data.par_iter_mut().for_each(|data| {
             data.calc_residual(0.0, 1.0).unwrap();
-        })
+        });
+    }
+
+    #[test]
+    fn integration_works() {
+        let mesh = SampleMeshes::bhatti_example_1dot5_heat();
     }
 }
