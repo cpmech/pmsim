@@ -3,11 +3,14 @@
 use super::ElementEquations;
 use crate::base::{Config, DofNumbers, ParamSolid};
 use crate::StrError;
-use gemlab::mesh::{Cell, Mesh};
+use gemlab::integ;
+use gemlab::mesh::{set_pad_coords, Cell, Mesh};
+use gemlab::shapes::Scratchpad;
 use russell_tensor::Tensor2;
 
 pub struct ElementSolid {
-    pub sigma: Vec<Tensor2>, // (nip)
+    pub pad: Scratchpad,
+    pub ips: integ::IntegPointData,
 }
 
 impl ElementSolid {
@@ -18,9 +21,14 @@ impl ElementSolid {
         cell: &Cell,
         param: &ParamSolid,
     ) -> Result<Self, StrError> {
-        let zero_sigma = Tensor2::new(true, true);
-        Ok(ElementSolid {
-            sigma: vec![zero_sigma; 1],
+        let (kind, points) = (cell.kind, &cell.points);
+        let mut pad = Scratchpad::new(mesh.ndim, kind).unwrap();
+        set_pad_coords(&mut pad, &points, &mesh);
+        Ok({
+            ElementSolid {
+                pad,
+                ips: config.integ_point_data(cell)?,
+            }
         })
     }
 }
