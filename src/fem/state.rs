@@ -29,7 +29,7 @@ impl State {
             let element = dn
                 .elements
                 .get(&cell.attribute_id)
-                .ok_or("cannot extract cell.attribute_id from dn.elements to allocate State")?;
+                .ok_or("cannot extract CellAttributeId to allocate State")?;
             match element {
                 Element::Rod(..) => (),
                 Element::Beam(..) => (),
@@ -344,7 +344,7 @@ mod tests {
         let mut config = Config::new();
         assert_eq!(
             State::new(&mesh, &dn, &config).err(),
-            Some("cannot extract cell.attribute_id from dn.elements to allocate State")
+            Some("cannot extract CellAttributeId to allocate State")
         );
         mesh.cells[0].attribute_id = 1;
         config.n_integ_point.insert(1, 100); // wrong number
