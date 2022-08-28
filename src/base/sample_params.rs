@@ -77,6 +77,20 @@ impl SampleParams {
         }
     }
 
+    /// Returns sample parameters for a solid medium (Drucker-Prager)
+    pub fn param_solid_drucker_prager() -> ParamSolid {
+        ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: ParamStressStrain::DruckerPrager {
+                young: 10_000.0, // kPa
+                poisson: 0.2,    // [-]
+                c: 0.0,          // kPa
+                phi: 25.0,       // degree
+                hh: 0.0,         // [-]
+            },
+        }
+    }
+
     /// Returns sample parameters for seepage models with liquid only
     pub fn param_porous_liq() -> ParamPorousLiq {
         ParamPorousLiq {
@@ -238,6 +252,9 @@ mod tests {
         assert_eq!(p.density, 2.0);
 
         let p = SampleParams::param_solid();
+        assert_eq!(p.density, 2.7);
+
+        let p = SampleParams::param_solid_drucker_prager();
         assert_eq!(p.density, 2.7);
 
         let p = SampleParams::param_porous_liq();

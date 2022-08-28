@@ -17,7 +17,7 @@ pub fn allocate_element_equations(
     let element = dn
         .elements
         .get(&cell.attribute_id)
-        .ok_or("cannot extract cell.attribute_id from dn.elements")?;
+        .ok_or("cannot extract cell.attribute_id from dn.elements to allocate ElementEquations")?;
     let element_equations: Box<dyn ElementEquations> = match element {
         Element::Rod(p) => Box::new(ElementRod::new(mesh, cell, p)?),
         Element::Beam(..) => panic!("TODO"),

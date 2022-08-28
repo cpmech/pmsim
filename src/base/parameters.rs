@@ -27,10 +27,19 @@ pub enum ParamStressStrain {
 }
 
 impl ParamStressStrain {
+    /// Returns the number of internal values
     pub fn n_internal_values(&self) -> usize {
         match self {
             ParamStressStrain::LinearElastic { .. } => 0,
             ParamStressStrain::DruckerPrager { .. } => 1,
+        }
+    }
+
+    /// Returns whether the model is elasto-plastic or not
+    pub fn elasto_plastic(&self) -> bool {
+        match self {
+            ParamStressStrain::LinearElastic { .. } => false,
+            ParamStressStrain::DruckerPrager { .. } => true,
         }
     }
 }
@@ -104,6 +113,17 @@ pub enum ParamLiquidRetention {
         /// yr parameter
         y_r: f64,
     },
+}
+
+impl ParamLiquidRetention {
+    /// Returns the maximum liquid saturation
+    pub fn max_liquid_saturation(&self) -> f64 {
+        match self {
+            ParamLiquidRetention::BrooksCorey { sl_max, .. } => *sl_max,
+            ParamLiquidRetention::VanGenuchten { sl_max, .. } => *sl_max,
+            ParamLiquidRetention::PedrosoWilliams { y_0, .. } => *y_0,
+        }
+    }
 }
 
 /// Holds parameters for liquid or gas conductivity
