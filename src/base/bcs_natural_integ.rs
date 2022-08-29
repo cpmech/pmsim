@@ -283,11 +283,18 @@ mod tests {
         let mesh = mesh::Samples::one_qua8();
         let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
-        let left = features.edges.get(&(0, 3)).ok_or("cannot get edge").unwrap();
-        let right = features.edges.get(&(1, 2)).ok_or("cannot get edge").unwrap();
-        let bottom = features.edges.get(&(0, 1)).ok_or("cannot get edge").unwrap();
         let p1 = SampleParams::param_porous_liq_gas();
-        // TODO
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::PorousLiqGas(p1))])).unwrap();
+
+        const Q: f64 = -10.0;
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Ql(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        let correct = &[Q / 6.0, Q / 6.0, 2.0 * Q / 3.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qg(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
     }
 
     #[test]
