@@ -89,21 +89,22 @@ impl BcsNaturalInteg {
                 }
                 Ok(())
             })?,
-            Nbc::Qx(f) => integ::vec_02_nv_bry(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _, _| {
+            Nbc::Qx(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
+                // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
                 v[0] = thickness * f(time);
                 Ok(())
             })?,
-            Nbc::Qy(f) => integ::vec_02_nv_bry(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _, _| {
+            Nbc::Qy(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
                 v[1] = thickness * f(time);
                 Ok(())
             })?,
-            Nbc::Qz(f) => integ::vec_02_nv_bry(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _, _| {
+            Nbc::Qz(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
@@ -195,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn integration_works_1() {
+    fn integration_works_qn_qx_qy_qz() {
         let mesh = mesh::Samples::one_qua8();
         let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
@@ -276,10 +277,22 @@ mod tests {
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0).unwrap();
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        // Qz
+
+        let mesh = mesh::Samples::one_hex8();
+        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
+        let p1 = SampleParams::param_solid();
+        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qz(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0).unwrap();
+        let correct = &[0.0, 0.0, Q / 2.0, 0.0, 0.0, Q / 2.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
     }
 
     #[test]
-    fn integration_works_2() {
+    fn integration_works_ql_qg() {
         let mesh = mesh::Samples::one_qua8();
         let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
@@ -298,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn integration_works_3() {
+    fn integration_works_cv() {
         let mesh = SampleMeshes::bhatti_example_1dot5_heat();
         let p1 = ParamDiffusion {
             kx: 0.1,
