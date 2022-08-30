@@ -164,23 +164,25 @@ mod tests {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
         };
+        let minus_ten = |_| -10.0;
+        assert_eq!(minus_ten(0.0), -10.0);
         assert_eq!(
-            BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Qn(|_| -10.0)).err(),
+            BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Qn(minus_ten)).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
-        assert_eq!(BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Qz(|_| -10.0)).err(), None); // Qz is OK
+        assert_eq!(BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Qz(minus_ten)).err(), None); // Qz is OK
         let face = mesh::Feature {
             kind: GeoKind::Qua4,
             points: vec![4, 5, 6, 7],
         };
         mesh.ndim = 5; // << never do this!
         assert_eq!(
-            BcsNaturalInteg::new(&mesh, &dn, &face, Nbc::Qn(|_| -10.0)).err(),
+            BcsNaturalInteg::new(&mesh, &dn, &face, Nbc::Qn(minus_ten)).err(),
             Some("space_ndim must be 2 or 3")
         );
         mesh.ndim = 3;
         assert_eq!(
-            BcsNaturalInteg::new(&mesh, &dn, &face, Nbc::Ql(|_| 1.0)).err(), // << flux
+            BcsNaturalInteg::new(&mesh, &dn, &face, Nbc::Ql(minus_ten)).err(), // << flux
             Some("cannot find DOF to allocate BcsNaturalInteg")
         );
     }
