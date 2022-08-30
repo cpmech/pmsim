@@ -80,7 +80,7 @@ impl BcsNaturalInteg {
     }
 
     /// Calculates the residual vector at given time
-    pub fn calc_residual(&mut self, time: f64, thickness: f64) -> Result<(), StrError> {
+    pub fn calc_residual(&mut self, time: f64, thickness: f64) {
         let (ndim, _) = self.pad.xxt.dims();
         match self.nbc {
             Nbc::Qn(f) => integ::vec_02_nv_bry(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _, un| {
@@ -88,7 +88,8 @@ impl BcsNaturalInteg {
                     v[i] = thickness * f(time) * un[i];
                 }
                 Ok(())
-            })?,
+            })
+            .unwrap(), // no user errors expected here
             Nbc::Qx(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
@@ -96,42 +97,49 @@ impl BcsNaturalInteg {
                 }
                 v[0] = thickness * f(time);
                 Ok(())
-            })?,
+            })
+            .unwrap(),
             Nbc::Qy(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
                 v[1] = thickness * f(time);
                 Ok(())
-            })?,
+            })
+            .unwrap(),
             Nbc::Qz(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
                 v[2] = thickness * f(time);
                 Ok(())
-            })?,
-            Nbc::Ql(f) => integ::vec_01_ns(&mut self.residual, &mut self.pad, 0, true, self.ips, |_| Ok(f(time)))?,
-            Nbc::Qg(f) => integ::vec_01_ns(&mut self.residual, &mut self.pad, 0, true, self.ips, |_| Ok(f(time)))?,
+            })
+            .unwrap(),
+            Nbc::Ql(f) => {
+                integ::vec_01_ns(&mut self.residual, &mut self.pad, 0, true, self.ips, |_| Ok(f(time))).unwrap()
+            }
+            Nbc::Qg(f) => {
+                integ::vec_01_ns(&mut self.residual, &mut self.pad, 0, true, self.ips, |_| Ok(f(time))).unwrap()
+            }
             Nbc::Cv(cc, temp_environment) => {
                 integ::vec_01_ns(&mut self.residual, &mut self.pad, 0, true, self.ips, |_| {
                     Ok(cc * temp_environment(time))
-                })?
+                })
+                .unwrap()
             }
         }
-        Ok(())
     }
 
     /// Calculates the Jacobian matrix at given time
-    pub fn calc_jacobian(&mut self, _time: f64, _thickness: f64) -> Result<(), StrError> {
+    pub fn calc_jacobian(&mut self, _time: f64, _thickness: f64) {
         match self.nbc {
             Nbc::Cv(cc, _) => {
                 let kk = self.jacobian.as_mut().unwrap();
-                integ::mat_01_nsn_bry(kk, &mut self.pad, 0, 0, true, self.ips, |_| Ok(cc))?;
+                integ::mat_01_nsn_bry(kk, &mut self.pad, 0, 0, true, self.ips, |_| Ok(cc)).unwrap();
+                // no user errors expected here
             }
             _ => (),
         }
-        Ok(())
     }
 }
 
@@ -190,8 +198,8 @@ mod tests {
         bcs_natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
         let mut data = BcsNaturalInteg::new_collection(&mesh, &dn, &bcs_natural).unwrap();
         data.par_iter_mut().for_each(|data| {
-            data.calc_residual(0.0, 1.0).unwrap();
-            data.calc_jacobian(0.0, 1.0).unwrap();
+            data.calc_residual(0.0, 1.0);
+            data.calc_jacobian(0.0, 1.0);
         });
     }
 
@@ -210,25 +218,25 @@ mod tests {
         const Q: f64 = 25.0;
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qn(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qn(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qn(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qn(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
@@ -236,46 +244,46 @@ mod tests {
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qx(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qx(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qx(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qx(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         // Qy
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qy(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qy(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qy(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qy(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         // Qz
@@ -286,7 +294,7 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qz(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         let correct = &[0.0, 0.0, Q / 2.0, 0.0, 0.0, Q / 2.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
     }
@@ -301,12 +309,12 @@ mod tests {
 
         const Q: f64 = -10.0;
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Ql(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         let correct = &[Q / 6.0, Q / 6.0, 2.0 * Q / 3.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qg(|_| Q)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
     }
 
@@ -324,9 +332,9 @@ mod tests {
             points: vec![1, 2],
         };
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Cv(27.0, |_| 20.0)).unwrap();
-        bry.calc_residual(0.0, 1.0).unwrap();
+        bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), &[81.0, 81.0], 1e-15);
-        bry.calc_jacobian(0.0, 1.0).unwrap();
+        bry.calc_jacobian(0.0, 1.0);
         let jac = bry.jacobian.ok_or("error").unwrap();
         assert_vec_approx_eq!(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
     }
