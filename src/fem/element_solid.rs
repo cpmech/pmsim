@@ -1,6 +1,6 @@
 use super::{ElementEquations, State};
-use crate::base::{Config, DofNumbers, ElementDofs, ParamSolid, ParamStressStrain};
-use crate::model::{LinearElastic, StressStrain};
+use crate::base::{Config, DofNumbers, ElementDofs, ParamSolid};
+use crate::model::{allocate_stress_strain_model, StressStrain};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Cell, Mesh};
@@ -40,12 +40,9 @@ impl<'a> ElementSolid<'a> {
         set_pad_coords(&mut pad, &points, &mesh);
 
         // model
-        let d2 = mesh.ndim == 2;
-        let ps = config.plane_stress;
-        let model: Box<dyn StressStrain> = match param.stress_strain {
-            ParamStressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(young, poisson, d2, ps)),
-            ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
-        };
+        let two_dim = mesh.ndim == 2;
+        let plane_stress = config.plane_stress;
+        let model = allocate_stress_strain_model(param, two_dim, plane_stress);
 
         // done
         Ok({
