@@ -47,9 +47,11 @@ impl SampleParams {
     /// Returns sample parameters for diffusion problems
     pub fn param_diffusion() -> ParamDiffusion {
         ParamDiffusion {
+            rho: 1.0,
             kx: 0.1,
             ky: 0.2,
             kz: 0.3,
+            source: None,
         }
     }
 

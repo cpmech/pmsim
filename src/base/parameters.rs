@@ -207,6 +207,9 @@ pub struct ParamFluids {
 /// Holds parameters for diffusion problems
 #[derive(Clone, Copy, Debug)]
 pub struct ParamDiffusion {
+    /// Transient coefficient (e.g., MassDensity times SpecificHeatCapacity)
+    pub rho: f64,
+
     /// x-component of the conductivity tensor
     pub kx: f64,
 
@@ -215,6 +218,9 @@ pub struct ParamDiffusion {
 
     /// z-component of the conductivity tensor
     pub kz: f64,
+
+    /// Source term
+    pub source: Option<f64>,
 }
 
 /// Holds parameters for (linear-elastic) rods
@@ -474,14 +480,16 @@ mod tests {
     #[test]
     fn param_diffusion_derive_works() {
         let mut p = ParamDiffusion {
+            rho: 1.0,
             kx: 1.0,
             ky: 2.0,
             kz: 3.0,
+            source: None,
         };
         let q = p.clone();
         p.ky = 111.0;
         assert_eq!(q.ky, 2.0);
-        let correct = "ParamDiffusion { kx: 1.0, ky: 2.0, kz: 3.0 }";
+        let correct = "ParamDiffusion { rho: 1.0, kx: 1.0, ky: 2.0, kz: 3.0, source: None }";
         assert_eq!(format!("{:?}", q), correct);
     }
 

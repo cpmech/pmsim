@@ -336,9 +336,11 @@ mod tests {
     fn integration_works_cv() {
         let mesh = SampleMeshes::bhatti_example_1dot5_heat();
         let p1 = ParamDiffusion {
+            rho: 0.0,
             kx: 0.1,
             ky: 0.2,
             kz: 0.3,
+            source: None,
         };
         let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Diffusion(p1))])).unwrap();
         let edge = mesh::Feature {

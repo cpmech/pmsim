@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct State {
     pub time: f64,
+    pub delta_time: f64,
     pub primary_unknowns: Vector, // (n_equation)
 
     pub effective_stress: Vec<Vec<Tensor2>>, // (ncell,n_integ_point)
@@ -68,6 +69,7 @@ impl State {
         if rods_and_beams_only || has_diffusion {
             return Ok(State {
                 time: 0.0,
+                delta_time: 0.0,
                 primary_unknowns: Vector::new(dn.n_equation),
 
                 effective_stress: Vec::new(),
@@ -158,6 +160,7 @@ impl State {
         // general state
         Ok(State {
             time: 0.0,
+            delta_time: 0.0,
             primary_unknowns: Vector::new(dn.n_equation),
 
             effective_stress,
@@ -196,6 +199,7 @@ mod tests {
         let state = State::new(&mesh, &dn, &config).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.time, 0.0);
+        assert_eq!(state.delta_time, 0.0);
         assert_eq!(state.primary_unknowns.dim(), dn.n_equation);
         assert_eq!(state.effective_stress.len(), ncell);
         assert_eq!(state.int_values_solid.len(), ncell);
@@ -350,7 +354,7 @@ mod tests {
         let config = Config::new();
         let state_ori = State::new(&mesh, &dn, &config).unwrap();
         let state = state_ori.clone();
-        let correct ="State { time: 0.0, primary_unknowns: NumVector { data: [0.0, 0.0, 0.0, 0.0] }, effective_stress: [], int_values_solid: [], loading: [], liquid_saturation: [], int_values_porous: [], wetting: [] }";
+        let correct ="State { time: 0.0, delta_time: 0.0, primary_unknowns: NumVector { data: [0.0, 0.0, 0.0, 0.0] }, effective_stress: [], int_values_solid: [], loading: [], liquid_saturation: [], int_values_porous: [], wetting: [] }";
         assert_eq!(format!("{:?}", state), correct);
         // serialize
         let json = serde_json::to_string(&state).unwrap();

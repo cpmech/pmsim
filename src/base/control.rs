@@ -12,8 +12,8 @@ pub struct Control {
     /// Linear problem
     pub linear_problem: bool,
 
-    /// Quasi-static analysis
-    pub quasi_static: bool,
+    /// Transient analysis
+    pub transient: bool,
 
     /// Pseudo-Newton method with constant-tangent operator
     pub constant_tangent: bool,
@@ -69,7 +69,7 @@ impl Control {
     pub fn new() -> Self {
         Control {
             linear_problem: false,
-            quasi_static: false,
+            transient: false,
             constant_tangent: false,
             t_ini: 0.0,
             t_fin: 1.0,
@@ -155,7 +155,7 @@ mod tests {
     fn new_works() {
         let control = Control::new();
         assert_eq!(control.linear_problem, false);
-        assert_eq!(control.quasi_static, false);
+        assert_eq!(control.transient, false);
         assert_eq!(control.constant_tangent, false);
         assert_eq!(control.t_ini, 0.0);
         assert_eq!(control.t_fin, 1.0);

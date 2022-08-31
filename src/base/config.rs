@@ -1,4 +1,4 @@
-use super::{Init, ParamFluids};
+use super::{Control, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{Cell, CellAttributeId};
@@ -7,6 +7,9 @@ use std::fmt;
 
 /// Holds configuration data such as boundary conditions and element attributes
 pub struct Config {
+    /// Holds control variables for the (pseudo) time integration over the simulation period
+    pub control: Control,
+
     /// Gravity acceleration
     pub gravity: f64,
 
@@ -33,6 +36,7 @@ impl Config {
     /// Allocates a new instance
     pub fn new() -> Self {
         Config {
+            control: Control::new(),
             gravity: 0.0,
             thickness: 1.0,
             plane_stress: false,
@@ -47,6 +51,10 @@ impl Config {
     ///
     /// Returns a message with the inconsistent data, or returns None if everything is all right.
     pub fn validate(&self, ndim: usize) -> Option<String> {
+        match self.control.validate() {
+            Some(err) => return Some(err),
+            None => (),
+        }
         if self.gravity < 0.0 {
             return Some(format!("gravity = {:?} is incorrect; it must be ≥ 0.0", self.gravity));
         }
