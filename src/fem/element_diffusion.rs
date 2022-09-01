@@ -1,4 +1,4 @@
-use super::{Data, LocalEquations, State};
+use super::{Data, ElementTrait, State};
 use crate::base::{Config, ParamDiffusion};
 use crate::StrError;
 use gemlab::integ;
@@ -60,7 +60,7 @@ impl<'a> ElementDiffusion<'a> {
     }
 }
 
-impl<'a> LocalEquations for ElementDiffusion<'a> {
+impl<'a> ElementTrait for ElementDiffusion<'a> {
     fn residual(&mut self, state: &State) -> Result<(), StrError> {
         integ::vec_03_vg(&mut self.residual, &mut self.pad, 0, true, self.ips, |_w, _| {
             // todo
@@ -94,7 +94,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 mod tests {
     use super::ElementDiffusion;
     use crate::base::{Config, Element, ParamDiffusion, SampleParams};
-    use crate::fem::{Data, LocalEquations, State};
+    use crate::fem::{Data, ElementTrait, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_chk::assert_vec_approx_eq;
