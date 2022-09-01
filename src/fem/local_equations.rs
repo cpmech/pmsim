@@ -10,7 +10,7 @@ pub trait LocalEquations {
 }
 
 /// Allocates element equations
-pub fn allocate_element_equations<'a>(
+pub fn allocate_local_equations<'a>(
     data: &'a Data,
     config: &'a Config,
     cell: &'a Cell,
@@ -33,7 +33,7 @@ pub fn allocate_element_equations<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::allocate_element_equations;
+    use super::allocate_local_equations;
     use crate::base::{Config, Element, SampleParams};
     use crate::fem::Data;
     use gemlab::mesh::Samples;
@@ -69,7 +69,7 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
+        allocate_local_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -79,7 +79,7 @@ mod tests {
         let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
+        allocate_local_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -89,7 +89,7 @@ mod tests {
         let p1 = SampleParams::param_rod();
         let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
+        allocate_local_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -99,7 +99,7 @@ mod tests {
         let p1 = SampleParams::param_beam();
         let data = Data::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
+        allocate_local_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -109,7 +109,7 @@ mod tests {
         let p1 = SampleParams::param_porous_liq();
         let data = Data::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
+        allocate_local_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -119,7 +119,7 @@ mod tests {
         let p1 = SampleParams::param_porous_liq_gas();
         let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
+        allocate_local_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -129,7 +129,7 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq();
         let data = Data::new(&mesh, [(1, Element::PorousSldLiq(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
+        allocate_local_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -139,6 +139,6 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq_gas();
         let data = Data::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
+        allocate_local_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 }

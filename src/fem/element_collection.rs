@@ -1,4 +1,4 @@
-use super::{allocate_element_equations, Data, LocalEquations};
+use super::{allocate_local_equations, Data, LocalEquations};
 use crate::base::Config;
 use crate::StrError;
 
@@ -12,7 +12,7 @@ impl<'a> ElementCollection<'a> {
             .mesh
             .cells
             .iter()
-            .map(|cell| allocate_element_equations(data, config, cell))
+            .map(|cell| allocate_local_equations(data, config, cell))
             .collect();
         let all = match res {
             Ok(v) => v,
