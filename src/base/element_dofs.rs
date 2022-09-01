@@ -461,6 +461,72 @@ mod tests {
 
     #[test]
     fn new_collection_works() {
+        //       {8} 4---.__
+        //       {9}/ \     `--.___3 {6}   [#] indicates id
+        //         /   \          / \{7}   (#) indicates attribute_id
+        //        /     \  [1]   /   \     {#} indicates equation number
+        //       /  [0]  \ (1)  / [2] \
+        // {0}  /   (1)   \    /  (1)  \
+        // {1} 0---.__     \  /      ___2 {4}
+        //            `--.__\/__.---'     {5}
+        //                   1 {2}
+        //                     {3}
+        let mesh = Samples::three_tri3();
+        let p1 = SampleParams::param_solid();
+        let elements = HashMap::from([(1, Element::Solid(p1))]);
+        let collection = ElementDofs::new_collection(&mesh, &elements).unwrap();
+        let s = string_element_dofs_collection(&elements, &collection);
+        assert_eq!(
+            format!("{}", s),
+            "Elements: DOFs and local equation numbers\n\
+             =========================================\n\
+             1 → Solid → Tri3\n\
+             0: [(Ux, 0), (Uy, 1)]\n\
+             1: [(Ux, 2), (Uy, 3)]\n\
+             2: [(Ux, 4), (Uy, 5)]\n\
+             (Pl @ None, Pg @ None, T @ None)\n\
+             -----------------------------------------\n"
+        );
+
+        // 3------------2------------5
+        // |`.      [1] |            |    [#] indicates id
+        // |  `.    (1) |            |    (#) indicates attribute_id
+        // |    `.      |     [2]    |
+        // |      `.    |     (2)    |
+        // | [0]    `.  |            |
+        // | (1)      `.|            |
+        // 0------------1------------4
+        let mesh = Samples::two_tri3_one_qua4();
+        let p = SampleParams::param_porous_liq();
+        let elements = HashMap::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
+        let collection = ElementDofs::new_collection(&mesh, &elements).unwrap();
+        let s = string_element_dofs_collection(&elements, &collection);
+        assert_eq!(
+            format!("{}", s),
+            "Elements: DOFs and local equation numbers\n\
+             =========================================\n\
+             1 → PorousLiq → Tri3\n\
+             0: [(Pl, 0)]\n\
+             1: [(Pl, 1)]\n\
+             2: [(Pl, 2)]\n\
+             (Pl @ None, Pg @ None, T @ None)\n\
+             -----------------------------------------\n\
+             2 → PorousLiq → Qua4\n\
+             0: [(Pl, 0)]\n\
+             1: [(Pl, 1)]\n\
+             2: [(Pl, 2)]\n\
+             3: [(Pl, 3)]\n\
+             (Pl @ None, Pg @ None, T @ None)\n\
+             -----------------------------------------\n"
+        );
+
+        // 8------7------6._
+        // |       [3](3)|  '-.5
+        // |  [0]        |     '-._
+        // 9  (1)       10  [1]    '4
+        // |             |  (2)  .-'
+        // |       [2](3)|   _.3'
+        // 0------1------2.-'
         let mesh = Samples::qua8_tri6_lin2();
         let p1 = SampleParams::param_porous_sld_liq();
         let p2 = SampleParams::param_solid();

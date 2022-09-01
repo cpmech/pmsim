@@ -110,7 +110,7 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_porous_liq();
         let elements = HashMap::from([(1, Element::PorousLiq(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let mut ebc = BcsEssential::new();
         let zero = |_| 0.0;
         ebc.at(&[0, 4], &[Dof::Pl], zero);
@@ -136,7 +136,7 @@ mod tests {
         //                     {3}
         let p1 = SampleParams::param_solid();
         let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let mut ebc = BcsEssential::new();
         ebc.at(&[0], &[Dof::Ux, Dof::Uy], zero);
         ebc.at(&[1, 2], &[Dof::Uy], zero);

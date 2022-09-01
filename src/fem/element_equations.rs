@@ -1,9 +1,11 @@
 #![allow(unused)]
 
+use std::collections::HashMap;
+
 use super::{ElementRod, ElementSolid, State};
 use crate::base::{Config, DofNumbers, Element};
 use crate::StrError;
-use gemlab::mesh::{Cell, Mesh};
+use gemlab::mesh::{Cell, CellAttributeId, Mesh};
 
 /// Defines the trait for element equations
 pub trait ElementEquations {
@@ -14,12 +16,12 @@ pub trait ElementEquations {
 /// Allocates element equations
 pub fn allocate_element_equations<'a>(
     mesh: &'a Mesh,
+    elements: &'a HashMap<CellAttributeId, Element>,
     dn: &'a DofNumbers,
     config: &'a Config,
     cell: &'a Cell,
 ) -> Result<Box<dyn ElementEquations + 'a>, StrError> {
-    let element = dn
-        .elements
+    let element = elements
         .get(&cell.attribute_id)
         .ok_or("cannot extract CellAttributeId to allocate ElementEquations")?;
     let element_equations: Box<dyn ElementEquations> = match element {
@@ -49,17 +51,17 @@ mod tests {
         let mut mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
         mesh.cells[0].attribute_id = 100; // << never do this!
         assert_eq!(
-            allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).err(),
+            allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).err(),
             Some("cannot extract CellAttributeId to allocate ElementEquations")
         );
         mesh.cells[0].attribute_id = 1;
         mesh.ndim = 5; // << never do this!
         assert_eq!(
-            allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).err(),
+            allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).err(),
             Some("space_ndim must be 2 or 3")
         );
     }
@@ -69,9 +71,9 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -80,9 +82,9 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
         let elements = HashMap::from([(1, Element::Diffusion(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -91,9 +93,9 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_rod();
         let elements = HashMap::from([(1, Element::Rod(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -102,9 +104,9 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_beam();
         let elements = HashMap::from([(1, Element::Beam(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -113,9 +115,9 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_porous_liq();
         let elements = HashMap::from([(1, Element::PorousLiq(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -124,9 +126,9 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_porous_liq_gas();
         let elements = HashMap::from([(1, Element::PorousLiqGas(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -135,9 +137,9 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq();
         let elements = HashMap::from([(1, Element::PorousSldLiq(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -146,8 +148,8 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq_gas();
         let elements = HashMap::from([(1, Element::PorousSldLiqGas(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
     }
 }

@@ -43,22 +43,10 @@ use std::fmt;
 ///     let mesh = Samples::one_tri6();
 ///     let p1 = SampleParams::param_porous_sld_liq();
 ///     let elements = HashMap::from([(1, Element::PorousSldLiq(p1))]);
-///     let mut dn = DofNumbers::new(&mesh, elements)?;
+///     let mut dn = DofNumbers::new(&mesh, &elements)?;
 ///     assert_eq!(
 ///         format!("{}", dn),
-/// r#"Elements: DOFs and local equation numbers
-/// =========================================
-/// 1 → PorousSldLiq → Tri6
-/// 0: [(Ux, 0), (Uy, 1), (Pl, 12)]
-/// 1: [(Ux, 2), (Uy, 3), (Pl, 13)]
-/// 2: [(Ux, 4), (Uy, 5), (Pl, 14)]
-/// 3: [(Ux, 6), (Uy, 7)]
-/// 4: [(Ux, 8), (Uy, 9)]
-/// 5: [(Ux, 10), (Uy, 11)]
-/// (Pl @ Some(12), Pg @ None, T @ None)
-/// -----------------------------------------
-///
-/// Points: DOFs and global equation numbers
+/// r#"Points: DOFs and global equation numbers
 /// ========================================
 /// 0: [(Ux, 0), (Uy, 1), (Pl, 2)]
 /// 1: [(Ux, 3), (Uy, 4), (Pl, 5)]
@@ -81,9 +69,6 @@ use std::fmt;
 /// }
 /// ```
 pub struct DofNumbers {
-    /// Connects attributes to elements
-    pub elements: HashMap<CellAttributeId, Element>,
-
     /// Holds all element DOFs for all combinations of attributes and shapes
     pub element_dofs: HashMap<(CellAttributeId, GeoKind), ElementDofs>,
 
@@ -143,7 +128,7 @@ impl DofNumbers {
     ///     (3, Element::Beam(p3)),
     /// ]);
     /// ```
-    pub fn new(mesh: &Mesh, elements: HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, elements: &HashMap<CellAttributeId, Element>) -> Result<Self, StrError> {
         // auxiliary memoization data
         let npoint = mesh.points.len();
         let mut memo_point_dofs = vec![HashSet::new(); npoint];
@@ -195,7 +180,6 @@ impl DofNumbers {
 
         // done
         Ok(DofNumbers {
-            elements,
             element_dofs,
             point_dofs,
             local_to_global,
@@ -207,20 +191,7 @@ impl DofNumbers {
 
 impl fmt::Display for DofNumbers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Elements: DOFs and local equation numbers\n").unwrap();
-        write!(f, "=========================================\n").unwrap();
-        let mut keys: Vec<_> = self.element_dofs.keys().collect();
-        keys.sort_by(|a, b| a.0.cmp(&b.0));
-        for key in keys {
-            let info = self.element_dofs.get(key).unwrap();
-            let (attr, kind) = key;
-            let element = self.elements.get(attr).unwrap();
-            write!(f, "{} → {} → {:?}\n", attr, element.name(), kind).unwrap();
-            write!(f, "{}", info).unwrap();
-            write!(f, "-----------------------------------------\n").unwrap();
-        }
-
-        write!(f, "\nPoints: DOFs and global equation numbers\n").unwrap();
+        write!(f, "Points: DOFs and global equation numbers\n").unwrap();
         write!(f, "========================================\n").unwrap();
         for point_id in 0..self.point_dofs.len() {
             let mut dof_eqn: Vec<_> = self.point_dofs[point_id].iter().collect();
@@ -257,13 +228,13 @@ mod tests {
         let p2 = SampleParams::param_solid();
         let elements = HashMap::from([(2, Element::Solid(p2))]);
         assert_eq!(
-            DofNumbers::new(&mesh, elements).err(),
+            DofNumbers::new(&mesh, &elements).err(),
             Some("cannot find CellAttributeId in elements map")
         );
         let p1 = SampleParams::param_rod();
         let elements = HashMap::from([(1, Element::Rod(p1))]);
         assert_eq!(
-            DofNumbers::new(&mesh, elements).err(),
+            DofNumbers::new(&mesh, &elements).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
     }
@@ -285,7 +256,7 @@ mod tests {
             (2, Element::Solid(p2)),
             (3, Element::Beam(p3)),
         ]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
 
         // check point dofs
         assert_point_dofs(&dn, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
@@ -333,19 +304,10 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
         let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         assert_eq!(
             format!("{}", dn),
-            "Elements: DOFs and local equation numbers\n\
-             =========================================\n\
-             1 → Solid → Tri3\n\
-             0: [(Ux, 0), (Uy, 1)]\n\
-             1: [(Ux, 2), (Uy, 3)]\n\
-             2: [(Ux, 4), (Uy, 5)]\n\
-             (Pl @ None, Pg @ None, T @ None)\n\
-             -----------------------------------------\n\
-             \n\
-             Points: DOFs and global equation numbers\n\
+            "Points: DOFs and global equation numbers\n\
              ========================================\n\
              0: [(Ux, 0), (Uy, 1)]\n\
              1: [(Ux, 2), (Uy, 3)]\n\
@@ -376,26 +338,10 @@ mod tests {
         let mesh = Samples::two_tri3_one_qua4();
         let p = SampleParams::param_porous_liq();
         let elements = HashMap::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         assert_eq!(
             format!("{}", dn),
-            "Elements: DOFs and local equation numbers\n\
-             =========================================\n\
-             1 → PorousLiq → Tri3\n\
-             0: [(Pl, 0)]\n\
-             1: [(Pl, 1)]\n\
-             2: [(Pl, 2)]\n\
-             (Pl @ None, Pg @ None, T @ None)\n\
-             -----------------------------------------\n\
-             2 → PorousLiq → Qua4\n\
-             0: [(Pl, 0)]\n\
-             1: [(Pl, 1)]\n\
-             2: [(Pl, 2)]\n\
-             3: [(Pl, 3)]\n\
-             (Pl @ None, Pg @ None, T @ None)\n\
-             -----------------------------------------\n\
-             \n\
-             Points: DOFs and global equation numbers\n\
+            "Points: DOFs and global equation numbers\n\
              ========================================\n\
              0: [(Pl, 0)]\n\
              1: [(Pl, 1)]\n\

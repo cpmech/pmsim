@@ -171,7 +171,7 @@ mod tests {
     fn new_captures_errors() {
         let mut mesh = mesh::Samples::one_hex8();
         let p1 = SampleParams::param_solid();
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let edge = mesh::Feature {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
@@ -203,7 +203,7 @@ mod tests {
     fn new_collection_and_par_iter_work() {
         let mesh = mesh::Samples::one_hex8();
         let p1 = SampleParams::param_solid();
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bcs_natural = BcsNatural::new();
         let faces = &[&mesh::Feature {
             kind: GeoKind::Tri3,
@@ -230,25 +230,25 @@ mod tests {
         // Qn
 
         const Q: f64 = 25.0;
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qn(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qn(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qn(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qn(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
@@ -256,46 +256,46 @@ mod tests {
 
         // Qx
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qx(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qx(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qx(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qx(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         // Qy
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &left, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &right, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &bottom, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
@@ -306,7 +306,7 @@ mod tests {
         let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
         let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
         let p1 = SampleParams::param_solid();
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Solid(p1))])).unwrap();
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qz(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
         let correct = &[0.0, 0.0, -Q / 2.0, 0.0, 0.0, -Q / 2.0];
@@ -319,7 +319,7 @@ mod tests {
         let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
         let p1 = SampleParams::param_porous_liq_gas();
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::PorousLiqGas(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::PorousLiqGas(p1))])).unwrap();
 
         const Q: f64 = -10.0;
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Ql(|_| Q)).unwrap();
@@ -342,7 +342,7 @@ mod tests {
             kz: 0.3,
             source: None,
         };
-        let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Diffusion(p1))])).unwrap();
+        let dn = DofNumbers::new(&mesh, &HashMap::from([(1, Element::Diffusion(p1))])).unwrap();
         let edge = mesh::Feature {
             kind: GeoKind::Lin2,
             points: vec![1, 2],

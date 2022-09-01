@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use crate::base::{Config, DofNumbers, Element, ParamLiquidRetention, ParamStressStrain};
 use crate::StrError;
-use gemlab::mesh::Mesh;
+use gemlab::mesh::{CellAttributeId, Mesh};
 use russell_lab::Vector;
 use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
@@ -21,15 +23,19 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(mesh: &Mesh, dn: &DofNumbers, config: &Config) -> Result<State, StrError> {
+    pub fn new(
+        mesh: &Mesh,
+        elements: &HashMap<CellAttributeId, Element>,
+        dn: &DofNumbers,
+        config: &Config,
+    ) -> Result<State, StrError> {
         // gather information about element types
         let mut rods_and_beams_only = true;
         let mut has_diffusion = false;
         let mut has_solid = false;
         let mut has_porous = false;
         for cell in &mesh.cells {
-            let element = dn
-                .elements
+            let element = elements
                 .get(&cell.attribute_id)
                 .ok_or("cannot extract CellAttributeId to allocate State")?;
             match element {
@@ -138,7 +144,7 @@ impl State {
         for cell in &mesh.cells {
             let ips = config.integ_point_data(cell)?;
             let n_integ_point = ips.len();
-            let element = dn.elements.get(&cell.attribute_id).unwrap(); // already checked above
+            let element = elements.get(&cell.attribute_id).unwrap(); // already checked above
             match element {
                 Element::Diffusion(..) => (), // this will not happen
                 Element::Rod(..) => (),
@@ -194,9 +200,9 @@ mod tests {
             (2, Element::Solid(p2)),
             (3, Element::Beam(p3)),
         ]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        let state = State::new(&mesh, &dn, &config).unwrap();
+        let state = State::new(&mesh, &elements, &dn, &config).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.time, 0.0);
         assert_eq!(state.delta_time, 0.0);
@@ -234,9 +240,9 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
         let elements = HashMap::from([(1, Element::Diffusion(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        let state = State::new(&mesh, &dn, &config).unwrap();
+        let state = State::new(&mesh, &elements, &dn, &config).unwrap();
         assert_eq!(state.time, 0.0);
         assert_eq!(state.primary_unknowns.dim(), dn.n_equation);
         assert_eq!(state.effective_stress.len(), 0);
@@ -252,9 +258,9 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_rod();
         let elements = HashMap::from([(1, Element::Rod(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        let state = State::new(&mesh, &dn, &config).unwrap();
+        let state = State::new(&mesh, &elements, &dn, &config).unwrap();
         assert_eq!(state.time, 0.0);
         assert_eq!(state.primary_unknowns.dim(), dn.n_equation);
         assert_eq!(state.effective_stress.len(), 0);
@@ -270,9 +276,9 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_liq();
         let elements = HashMap::from([(1, Element::PorousLiq(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        let state = State::new(&mesh, &dn, &config).unwrap();
+        let state = State::new(&mesh, &elements, &dn, &config).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.time, 0.0);
         assert_eq!(state.primary_unknowns.dim(), dn.n_equation);
@@ -290,9 +296,9 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_liq_gas();
         let elements = HashMap::from([(1, Element::PorousLiqGas(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        let state = State::new(&mesh, &dn, &config).unwrap();
+        let state = State::new(&mesh, &elements, &dn, &config).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.time, 0.0);
         assert_eq!(state.primary_unknowns.dim(), dn.n_equation);
@@ -310,9 +316,9 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq_gas();
         let elements = HashMap::from([(1, Element::PorousSldLiqGas(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        let state = State::new(&mesh, &dn, &config).unwrap();
+        let state = State::new(&mesh, &elements, &dn, &config).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.time, 0.0);
         assert_eq!(state.primary_unknowns.dim(), dn.n_equation);
@@ -331,9 +337,9 @@ mod tests {
         let p1 = SampleParams::param_rod();
         let p2 = SampleParams::param_solid();
         let elements = HashMap::from([(1, Element::Rod(p1)), (2, Element::Solid(p2))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        let state = State::new(&mesh, &dn, &config).unwrap();
+        let state = State::new(&mesh, &elements, &dn, &config).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.time, 0.0);
         assert_eq!(state.primary_unknowns.dim(), dn.n_equation);
@@ -350,9 +356,9 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_rod();
         let elements = HashMap::from([(1, Element::Rod(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let config = Config::new();
-        let state_ori = State::new(&mesh, &dn, &config).unwrap();
+        let state_ori = State::new(&mesh, &elements, &dn, &config).unwrap();
         let state = state_ori.clone();
         let correct ="State { time: 0.0, delta_time: 0.0, primary_unknowns: NumVector { data: [0.0, 0.0, 0.0, 0.0] }, effective_stress: [], int_values_solid: [], loading: [], liquid_saturation: [], int_values_porous: [], wetting: [] }";
         assert_eq!(format!("{:?}", state), correct);
@@ -368,17 +374,17 @@ mod tests {
         let mut mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         mesh.cells[0].attribute_id = 100; // << never do this!
         let mut config = Config::new();
         assert_eq!(
-            State::new(&mesh, &dn, &config).err(),
+            State::new(&mesh, &elements, &dn, &config).err(),
             Some("cannot extract CellAttributeId to allocate State")
         );
         mesh.cells[0].attribute_id = 1;
         config.n_integ_point.insert(1, 100); // wrong number
         assert_eq!(
-            State::new(&mesh, &dn, &config).err(),
+            State::new(&mesh, &elements, &dn, &config).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }

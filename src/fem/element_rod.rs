@@ -248,7 +248,7 @@ mod tests {
             density: 1.0,
         };
         let elements = HashMap::from([(1, Element::Rod(p1)), (2, Element::Rod(p2)), (3, Element::Rod(p3))]);
-        let dn = DofNumbers::new(&mesh, elements).unwrap();
+        let dn = DofNumbers::new(&mesh, &elements).unwrap();
         let rod0 = ElementRod::new(&mesh, &mesh.cells[0], &p1).unwrap();
         let rod1 = ElementRod::new(&mesh, &mesh.cells[1], &p2).unwrap();
         let rod2 = ElementRod::new(&mesh, &mesh.cells[2], &p3).unwrap();
