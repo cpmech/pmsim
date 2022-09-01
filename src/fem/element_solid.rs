@@ -75,8 +75,7 @@ impl<'a> ElementEquations for ElementSolid<'a> {
 mod tests {
     use super::ElementSolid;
     use crate::base::{Config, Element, ParamSolid, ParamStressStrain};
-    use crate::fem::element_equations::ElementEquations;
-    use crate::fem::{Data, State};
+    use crate::fem::{Data, ElementEquations, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_chk::assert_vec_approx_eq;
