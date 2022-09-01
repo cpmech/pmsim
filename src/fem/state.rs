@@ -28,7 +28,7 @@ impl State {
         let mut has_solid = false;
         let mut has_porous = false;
         for cell in &data.mesh.cells {
-            let element = data.attributes.get(cell)?;
+            let element = data.attributes.get(cell).unwrap(); // already checked by Data
             match element {
                 Element::Diffusion(..) => {
                     has_diffusion = true;
@@ -360,27 +360,16 @@ mod tests {
         assert_eq!(format!("{:?}", read), correct);
     }
 
-    /*
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let mut mesh_wrong = mesh.clone();
-        mesh_wrong.cells[0].attribute_id = 100; // << never do this!
-
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh_wrong, [(1, Element::Solid(p1))]).unwrap();
-        let mut config = Config::new();
-        assert_eq!(
-            State::new(&data, &config).err(),
-            Some("cannot extract CellAttributeId to allocate State")
-        );
-
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let mut config = Config::new();
         config.n_integ_point.insert(1, 100); // wrong number
         assert_eq!(
             State::new(&data, &config).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
-    */
 }
