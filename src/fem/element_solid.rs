@@ -24,7 +24,7 @@ impl<'a> ElementSolid<'a> {
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell, param: &'a ParamSolid) -> Result<Self, StrError> {
         // constants
         let ndim = data.mesh.ndim;
-        let neq = data.element_dofs_map.get(cell)?.n_equation_local;
+        let neq = data.element_dofs.get(cell).unwrap().n_equation_local;
 
         // pad and ips
         let (kind, points) = (cell.kind, &cell.points);
@@ -74,33 +74,24 @@ impl<'a> LocalEquations for ElementSolid<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementSolid;
-    use crate::base::{Config, Element, ParamSolid, ParamStressStrain};
+    use crate::base::{Config, Element, ParamSolid, ParamStressStrain, SampleParams};
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_chk::assert_vec_approx_eq;
 
-    /*
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let mut mesh_wrong = mesh.clone();
-        mesh_wrong.cells[0].attribute_id = 100; // << never do this!
-
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh_wrong, [(1, Element::Solid(p1))]).unwrap();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new();
-        assert_eq!(
-            ElementSolid::new(&data, &config, &mesh.cells[0], &p1).err(),
-            Some("cannot extract CellAttributeId to allocate ElementSolid")
-        );
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
             ElementSolid::new(&data, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
-    */
 
     #[test]
     fn element_solid_works() {

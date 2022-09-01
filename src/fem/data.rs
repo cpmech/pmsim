@@ -5,7 +5,7 @@ use gemlab::mesh::{CellAttributeId, Mesh};
 pub struct Data<'a> {
     pub mesh: &'a Mesh,
     pub attributes: Attributes,
-    pub element_dofs_map: ElementDofsMap,
+    pub element_dofs: ElementDofsMap,
     pub dof_numbers: DofNumbers,
 }
 
@@ -13,12 +13,12 @@ impl<'a> Data<'a> {
     /// Allocate new instance
     pub fn new<const N: usize>(mesh: &'a Mesh, arr: [(CellAttributeId, Element); N]) -> Result<Self, StrError> {
         let attributes = Attributes::from(arr);
-        let element_dofs_map = ElementDofsMap::new(&mesh, &attributes)?;
-        let dof_numbers = DofNumbers::new(&mesh, &element_dofs_map).unwrap(); // cannot fail
+        let element_dofs = ElementDofsMap::new(&mesh, &attributes)?;
+        let dof_numbers = DofNumbers::new(&mesh, &element_dofs).unwrap(); // cannot fail
         Ok(Data {
             mesh,
             attributes,
-            element_dofs_map,
+            element_dofs,
             dof_numbers,
         })
     }

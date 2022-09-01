@@ -28,7 +28,7 @@ impl<'a> ElementDiffusion<'a> {
     ) -> Result<Self, StrError> {
         // constants
         let ndim = data.mesh.ndim;
-        let neq = data.element_dofs_map.get(cell)?.n_equation_local;
+        let neq = data.element_dofs.get(cell).unwrap().n_equation_local;
 
         // pad and ips
         let (kind, points) = (cell.kind, &cell.points);
@@ -93,34 +93,24 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Config, Element, ParamDiffusion};
+    use crate::base::{Config, Element, ParamDiffusion, SampleParams};
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_chk::assert_vec_approx_eq;
 
-    /*
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let mut mesh_wrong = mesh.clone();
-        mesh_wrong.cells[0].attribute_id = 100; // << never do this!
-
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh_wrong, [(1, Element::Diffusion(p1))]).unwrap();
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut config = Config::new();
-        assert_eq!(
-            ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).err(),
-            Some("cannot extract CellAttributeId to allocate ElementDiffusion")
-        );
-
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
             ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
-    */
 
     // #[test]
     fn _element_diffusion_works() {
