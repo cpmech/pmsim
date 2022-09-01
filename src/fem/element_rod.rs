@@ -74,13 +74,13 @@ impl ElementRod {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, DofNumbers, Element, ParamRod};
+    use crate::base::{assemble_matrix, Element, ParamRod};
+    use crate::fem::Data;
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
     use gemlab::util::SQRT_2;
     use russell_lab::Matrix;
     use russell_sparse::{SparseTriplet, Symmetry};
-    use std::collections::HashMap;
 
     #[test]
     fn new_captures_errors() {
@@ -247,8 +247,12 @@ mod tests {
             young: 100.0,
             density: 1.0,
         };
-        let elements = HashMap::from([(1, Element::Rod(p1)), (2, Element::Rod(p2)), (3, Element::Rod(p3))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(
+            &mesh,
+            [(1, Element::Rod(p1)), (2, Element::Rod(p2)), (3, Element::Rod(p3))],
+        )
+        .unwrap();
+        let dn = &data.dof_numbers;
         let rod0 = ElementRod::new(&mesh, &mesh.cells[0], &p1).unwrap();
         let rod1 = ElementRod::new(&mesh, &mesh.cells[1], &p2).unwrap();
         let rod2 = ElementRod::new(&mesh, &mesh.cells[2], &p3).unwrap();

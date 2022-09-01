@@ -1,6 +1,7 @@
 //! Implements the base structures for a finite element simulation
 
 mod assembly;
+mod attributes;
 mod bcs_essential;
 mod bcs_natural;
 mod bcs_natural_integ;
@@ -13,6 +14,7 @@ mod parameters;
 mod sample_meshes;
 mod sample_params;
 pub use crate::base::assembly::*;
+pub use crate::base::attributes::*;
 pub use crate::base::bcs_essential::*;
 pub use crate::base::bcs_natural::*;
 pub use crate::base::bcs_natural_integ::*;

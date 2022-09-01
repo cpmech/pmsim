@@ -1,15 +1,15 @@
-use super::{ElementEquations, State};
-use crate::base::{Config, DofNumbers, ElementDofs, ParamSolid};
+use super::{Data, ElementEquations, State};
+use crate::base::{Config, ParamSolid};
 use crate::model::{allocate_stress_strain_model, StressStrain};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{set_pad_coords, Cell, Mesh};
+use gemlab::mesh::{set_pad_coords, Cell};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::copy_tensor2;
 
 pub struct ElementSolid<'a> {
-    pub info: &'a ElementDofs,
+    pub data: &'a Data<'a>,
     pub config: &'a Config,
     pub cell: &'a Cell,
     pub param: &'a ParamSolid,
@@ -21,40 +21,32 @@ pub struct ElementSolid<'a> {
 }
 
 impl<'a> ElementSolid<'a> {
-    pub fn new(
-        mesh: &'a Mesh,
-        dn: &'a DofNumbers,
-        config: &'a Config,
-        cell: &'a Cell,
-        param: &'a ParamSolid,
-    ) -> Result<Self, StrError> {
-        // extract element info
-        let info = dn
-            .element_dofs
-            .get(&(cell.attribute_id, cell.kind))
-            .ok_or("cannot extract CellAttributeId to allocate ElementSolid")?;
+    pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell, param: &'a ParamSolid) -> Result<Self, StrError> {
+        // constants
+        let ndim = data.mesh.ndim;
+        let neq = data.element_dofs_map.get(cell)?.n_equation_local;
 
         // pad and ips
         let (kind, points) = (cell.kind, &cell.points);
-        let mut pad = Scratchpad::new(mesh.ndim, kind)?;
-        set_pad_coords(&mut pad, &points, &mesh);
+        let mut pad = Scratchpad::new(ndim, kind)?;
+        set_pad_coords(&mut pad, &points, data.mesh);
 
         // model
-        let two_dim = mesh.ndim == 2;
+        let two_dim = ndim == 2;
         let plane_stress = config.plane_stress;
         let model = allocate_stress_strain_model(param, two_dim, plane_stress);
 
         // done
         Ok({
             ElementSolid {
-                info,
+                data,
                 config,
                 cell,
                 param,
                 pad,
                 ips: config.integ_point_data(cell)?,
-                residual: Vector::new(info.n_equation_local),
-                jacobian: Matrix::new(info.n_equation_local, info.n_equation_local),
+                residual: Vector::new(neq),
+                jacobian: Matrix::new(neq, neq),
                 model,
             }
         })
@@ -68,6 +60,7 @@ impl<'a> ElementEquations for ElementSolid<'a> {
             copy_tensor2(sig, &sigma[p])
         })
     }
+
     fn jacobian(&mut self, state: &State) -> Result<(), StrError> {
         let sigma = &state.effective_stress[self.cell.id];
         integ::mat_10_gdg(&mut self.jacobian, &mut self.pad, 0, 0, true, self.ips, |dd, p| {
@@ -81,33 +74,34 @@ impl<'a> ElementEquations for ElementSolid<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementSolid;
-    use crate::base::{Config, DofNumbers, Element, ParamSolid, ParamStressStrain, SampleParams};
+    use crate::base::{Config, Element, ParamSolid, ParamStressStrain};
     use crate::fem::element_equations::ElementEquations;
-    use crate::fem::State;
+    use crate::fem::{Data, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_chk::assert_vec_approx_eq;
-    use std::collections::HashMap;
 
+    /*
     #[test]
     fn new_handles_errors() {
-        let mut mesh = Samples::one_tri3();
+        let mesh = Samples::one_tri3();
+        let mut mesh_wrong = mesh.clone();
+        mesh_wrong.cells[0].attribute_id = 100; // << never do this!
+
         let p1 = SampleParams::param_solid();
-        let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh_wrong, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new();
-        mesh.cells[0].attribute_id = 100; // << never do this!
         assert_eq!(
-            ElementSolid::new(&mesh, &dn, &config, &mesh.cells[0], &p1).err(),
+            ElementSolid::new(&data, &config, &mesh.cells[0], &p1).err(),
             Some("cannot extract CellAttributeId to allocate ElementSolid")
         );
-        mesh.cells[0].attribute_id = 1;
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
-            ElementSolid::new(&mesh, &dn, &config, &mesh.cells[0], &p1).err(),
+            ElementSolid::new(&data, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
+    */
 
     #[test]
     fn element_solid_works() {
@@ -118,14 +112,13 @@ mod tests {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
         };
-        let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementSolid::new(&mesh, &dn, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
 
         // check residual vector
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
-        let mut state = State::new(&mesh, &elements, &dn, &config).unwrap();
+        let mut state = State::new(&data, &config).unwrap();
         for sigma in &mut state.effective_stress[0] {
             sigma.sym_set(0, 0, s00);
             sigma.sym_set(1, 1, s11);

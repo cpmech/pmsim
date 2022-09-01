@@ -2,7 +2,6 @@ use super::{
     ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod,
     ParamSolid,
 };
-use gemlab::shapes::GeoKind;
 use std::fmt;
 
 /// Defines a function to calculate boundary conditions values
@@ -227,21 +226,6 @@ impl Element {
         }
     }
 }
-
-/// Defines the allowed GeoKinds that can be used with PorousSld{...} elements
-pub const POROUS_SLD_GEO_KIND_ALLOWED: [GeoKind; 7] = [
-    // Tri
-    GeoKind::Tri6,
-    GeoKind::Tri15,
-    // Qua
-    GeoKind::Qua8,
-    GeoKind::Qua9,
-    GeoKind::Qua17,
-    // Tet
-    GeoKind::Tet10,
-    // Hex
-    GeoKind::Hex20,
-];
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

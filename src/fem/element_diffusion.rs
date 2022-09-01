@@ -1,14 +1,14 @@
-use super::{ElementEquations, State};
-use crate::base::{Config, DofNumbers, ElementDofs, ParamDiffusion};
+use super::{Data, ElementEquations, State};
+use crate::base::{Config, ParamDiffusion};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{set_pad_coords, Cell, Mesh};
+use gemlab::mesh::{set_pad_coords, Cell};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::{copy_tensor2, Tensor2};
 
 pub struct ElementDiffusion<'a> {
-    pub info: &'a ElementDofs,
+    pub data: &'a Data<'a>,
     pub config: &'a Config,
     pub cell: &'a Cell,
     pub param: &'a ParamDiffusion,
@@ -21,42 +21,39 @@ pub struct ElementDiffusion<'a> {
 
 impl<'a> ElementDiffusion<'a> {
     pub fn new(
-        mesh: &'a Mesh,
-        dn: &'a DofNumbers,
+        data: &'a Data,
         config: &'a Config,
         cell: &'a Cell,
         param: &'a ParamDiffusion,
     ) -> Result<Self, StrError> {
-        // extract element info
-        let info = dn
-            .element_dofs
-            .get(&(cell.attribute_id, cell.kind))
-            .ok_or("cannot extract CellAttributeId to allocate ElementDiffusion")?;
+        // constants
+        let ndim = data.mesh.ndim;
+        let neq = data.element_dofs_map.get(cell)?.n_equation_local;
 
         // pad and ips
         let (kind, points) = (cell.kind, &cell.points);
-        let mut pad = Scratchpad::new(mesh.ndim, kind)?;
-        set_pad_coords(&mut pad, &points, &mesh);
+        let mut pad = Scratchpad::new(ndim, kind)?;
+        set_pad_coords(&mut pad, &points, data.mesh);
 
         // conductivity
-        let mut conductivity = Tensor2::new(true, mesh.ndim == 2);
+        let mut conductivity = Tensor2::new(true, ndim == 2);
         conductivity.sym_set(0, 0, param.kx);
         conductivity.sym_set(1, 1, param.ky);
-        if mesh.ndim == 3 {
+        if ndim == 3 {
             conductivity.sym_set(2, 2, param.kz);
         }
 
         // done
         Ok({
             ElementDiffusion {
-                info,
+                data,
                 config,
                 cell,
                 param,
                 pad,
                 ips: config.integ_point_data(cell)?,
-                residual: Vector::new(info.n_equation_local),
-                jacobian: Matrix::new(info.n_equation_local, info.n_equation_local),
+                residual: Vector::new(neq),
+                jacobian: Matrix::new(neq, neq),
                 conductivity,
             }
         })
@@ -96,33 +93,35 @@ impl<'a> ElementEquations for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Config, DofNumbers, Element, ParamDiffusion, SampleParams};
+    use crate::base::{Config, Element, ParamDiffusion};
     use crate::fem::element_equations::ElementEquations;
-    use crate::fem::State;
+    use crate::fem::{Data, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_chk::assert_vec_approx_eq;
-    use std::collections::HashMap;
 
+    /*
     #[test]
     fn new_handles_errors() {
-        let mut mesh = Samples::one_tri3();
+        let mesh = Samples::one_tri3();
+        let mut mesh_wrong = mesh.clone();
+        mesh_wrong.cells[0].attribute_id = 100; // << never do this!
+
         let p1 = SampleParams::param_diffusion();
-        let elements = HashMap::from([(1, Element::Diffusion(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh_wrong, [(1, Element::Diffusion(p1))]).unwrap();
         let mut config = Config::new();
-        mesh.cells[0].attribute_id = 100; // << never do this!
         assert_eq!(
-            ElementDiffusion::new(&mesh, &dn, &config, &mesh.cells[0], &p1).err(),
+            ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).err(),
             Some("cannot extract CellAttributeId to allocate ElementDiffusion")
         );
-        mesh.cells[0].attribute_id = 1;
+
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
-            ElementDiffusion::new(&mesh, &dn, &config, &mesh.cells[0], &p1).err(),
+            ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
+    */
 
     // #[test]
     fn _element_diffusion_works() {
@@ -138,13 +137,12 @@ mod tests {
             kz: 0.0,
             source: Some(source),
         };
-        let elements = HashMap::from([(1, Element::Diffusion(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&mesh, &dn, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
 
         // check residual vector
-        let mut state = State::new(&mesh, &elements, &dn, &config).unwrap();
+        let mut state = State::new(&data, &config).unwrap();
         state.primary_unknowns[0] = 0.1;
         state.primary_unknowns[1] = 0.2;
         state.primary_unknowns[2] = 0.3;

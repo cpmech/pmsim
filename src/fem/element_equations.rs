@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use super::{ElementRod, ElementSolid, State};
+use super::{Data, ElementRod, ElementSolid, State};
 use crate::base::{Config, DofNumbers, Element};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttributeId, Mesh};
@@ -15,20 +15,16 @@ pub trait ElementEquations {
 
 /// Allocates element equations
 pub fn allocate_element_equations<'a>(
-    mesh: &'a Mesh,
-    elements: &'a HashMap<CellAttributeId, Element>,
-    dn: &'a DofNumbers,
+    data: &'a Data,
     config: &'a Config,
     cell: &'a Cell,
 ) -> Result<Box<dyn ElementEquations + 'a>, StrError> {
-    let element = elements
-        .get(&cell.attribute_id)
-        .ok_or("cannot extract CellAttributeId to allocate ElementEquations")?;
+    let element = data.attributes.get(cell)?;
     let element_equations: Box<dyn ElementEquations> = match element {
         Element::Diffusion(..) => panic!("TODO: Diffusion"),
         Element::Rod(..) => panic!("TODO: Rod"),
         Element::Beam(..) => panic!("TODO: Beam"),
-        Element::Solid(p) => Box::new(ElementSolid::new(mesh, dn, config, cell, p)?),
+        Element::Solid(p) => Box::new(ElementSolid::new(data, config, cell, p)?),
         Element::PorousLiq(..) => panic!("TODO: PorousLiq"),
         Element::PorousLiqGas(..) => panic!("TODO: PorousLiqGas"),
         Element::PorousSldLiq(..) => panic!("TODO: PorousSldLiq"),
@@ -42,38 +38,43 @@ pub fn allocate_element_equations<'a>(
 #[cfg(test)]
 mod tests {
     use super::allocate_element_equations;
-    use crate::base::{Config, DofNumbers, Element, SampleParams};
+    use crate::base::{Config, Element, SampleParams};
+    use crate::fem::Data;
     use gemlab::mesh::Samples;
     use std::collections::HashMap;
 
+    /*
     #[test]
     fn allocate_element_handles_errors() {
-        let mut mesh = Samples::one_tri3();
+        let mesh = Samples::one_tri3();
+        let mut mesh_wrong = mesh.clone();
+        let mut mesh_wrong_ndim = mesh.clone();
+        mesh_wrong.cells[0].attribute_id = 100; // << never do this!
+        mesh_wrong_ndim.ndim = 5; // << never do this!
+
         let p1 = SampleParams::param_solid();
-        let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh_wrong, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        mesh.cells[0].attribute_id = 100; // << never do this!
         assert_eq!(
-            allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).err(),
+            allocate_element_equations(&data, &config, &mesh.cells[0]).err(),
             Some("cannot extract CellAttributeId to allocate ElementEquations")
         );
-        mesh.cells[0].attribute_id = 1;
-        mesh.ndim = 5; // << never do this!
+
+        let data = Data::new(&mesh_wrong_ndim, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
-            allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).err(),
+            allocate_element_equations(&data, &config, &mesh.cells[0]).err(),
             Some("space_ndim must be 2 or 3")
         );
     }
+    */
 
     #[test]
     fn allocate_element_equations_works() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
-        let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -81,10 +82,9 @@ mod tests {
     fn allocate_element_panics_0() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let elements = HashMap::from([(1, Element::Diffusion(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -92,10 +92,9 @@ mod tests {
     fn allocate_element_panics_1() {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_rod();
-        let elements = HashMap::from([(1, Element::Rod(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -103,10 +102,9 @@ mod tests {
     fn allocate_element_panics_2() {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_beam();
-        let elements = HashMap::from([(1, Element::Beam(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -114,10 +112,9 @@ mod tests {
     fn allocate_element_panics_3() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_porous_liq();
-        let elements = HashMap::from([(1, Element::PorousLiq(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -125,10 +122,9 @@ mod tests {
     fn allocate_element_panics_4() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_porous_liq_gas();
-        let elements = HashMap::from([(1, Element::PorousLiqGas(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -136,10 +132,9 @@ mod tests {
     fn allocate_element_panics_5() {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq();
-        let elements = HashMap::from([(1, Element::PorousSldLiq(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::PorousSldLiq(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -147,9 +142,8 @@ mod tests {
     fn allocate_element_panics_6() {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq_gas();
-        let elements = HashMap::from([(1, Element::PorousSldLiqGas(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let data = Data::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new();
-        allocate_element_equations(&mesh, &elements, &dn, &config, &mesh.cells[0]).unwrap();
+        allocate_element_equations(&data, &config, &mesh.cells[0]).unwrap();
     }
 }

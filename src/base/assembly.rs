@@ -90,11 +90,10 @@ pub fn assemble_matrix(
 #[cfg(test)]
 mod tests {
     use super::{assemble_matrix, assemble_vector, gen_prescribed_array};
-    use crate::base::{BcsEssential, Dof, DofNumbers, Element, SampleParams};
+    use crate::base::{Attributes, BcsEssential, Dof, DofNumbers, Element, ElementDofsMap, SampleParams};
     use gemlab::mesh::Samples;
     use russell_lab::{Matrix, Vector};
     use russell_sparse::{SparseTriplet, Symmetry};
-    use std::collections::HashMap;
 
     #[test]
     fn gen_prescribed_array_works() {
@@ -109,8 +108,9 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_porous_liq();
-        let elements = HashMap::from([(1, Element::PorousLiq(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let att = Attributes::from([(1, Element::PorousLiq(p1))]);
+        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        let dn = DofNumbers::new(&mesh, &edm).unwrap();
         let mut ebc = BcsEssential::new();
         let zero = |_| 0.0;
         ebc.at(&[0, 4], &[Dof::Pl], zero);
@@ -135,8 +135,9 @@ mod tests {
         //                   1 {2}
         //                     {3}
         let p1 = SampleParams::param_solid();
-        let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let dn = DofNumbers::new(&mesh, &elements).unwrap();
+        let att = Attributes::from([(1, Element::Solid(p1))]);
+        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        let dn = DofNumbers::new(&mesh, &edm).unwrap();
         let mut ebc = BcsEssential::new();
         ebc.at(&[0], &[Dof::Ux, Dof::Uy], zero);
         ebc.at(&[1, 2], &[Dof::Uy], zero);

@@ -1,9 +1,24 @@
-use super::{Dof, Element, POROUS_SLD_GEO_KIND_ALLOWED};
+use super::{Attributes, Dof, Element};
 use crate::StrError;
-use gemlab::mesh::{CellAttributeId, Mesh};
+use gemlab::mesh::{Cell, CellAttributeId, Mesh};
 use gemlab::shapes::GeoKind;
 use std::collections::HashMap;
-use std::fmt::{self, Write};
+use std::fmt;
+
+/// Defines the allowed GeoKinds that can be used with PorousSld{...} elements
+pub const POROUS_SLD_GEO_KIND_ALLOWED: [GeoKind; 7] = [
+    // Tri
+    GeoKind::Tri6,
+    GeoKind::Tri15,
+    // Qua
+    GeoKind::Qua8,
+    GeoKind::Qua9,
+    GeoKind::Qua17,
+    // Tet
+    GeoKind::Tet10,
+    // Hex
+    GeoKind::Hex20,
+];
 
 /// Holds the DOFs and local equation numbers of an Element/GeoKind pair
 ///
@@ -172,29 +187,39 @@ impl ElementDofs {
             eq_first_tt,
         })
     }
+}
 
-    /// Allocates a new collection of ElementDofs
-    pub fn new_collection(
-        mesh: &Mesh,
-        elements: &HashMap<CellAttributeId, Element>,
-    ) -> Result<HashMap<(CellAttributeId, GeoKind), ElementDofs>, StrError> {
-        let mut collection = HashMap::new();
+/// Maps (CellAttributeId, GeoKind) to ElementDofs
+pub struct ElementDofsMap {
+    all: HashMap<(CellAttributeId, GeoKind), ElementDofs>,
+    names: HashMap<(CellAttributeId, GeoKind), String>,
+}
+
+impl ElementDofsMap {
+    /// Allocates a new instance
+    pub fn new(mesh: &Mesh, att: &Attributes) -> Result<Self, StrError> {
+        let mut all = HashMap::new();
+        let mut names = HashMap::new();
         for cell in &mesh.cells {
-            let element = match elements.get(&cell.attribute_id) {
-                Some(e) => e,
-                None => return Err("cannot find CellAttributeId in elements map to create new ElementDofs collection"),
-            };
-            collection.insert(
+            let element = att.get(cell)?;
+            all.insert(
                 (cell.attribute_id, cell.kind),
                 ElementDofs::new(mesh.ndim, *element, cell.kind)?,
             );
+            names.insert((cell.attribute_id, cell.kind), element.name());
         }
-        Ok(collection)
+        Ok(ElementDofsMap { all, names })
+    }
+
+    /// Returns the ElementDofs corresponding to Cell
+    pub fn get(&self, cell: &Cell) -> Result<&ElementDofs, StrError> {
+        self.all
+            .get(&(cell.attribute_id, cell.kind))
+            .ok_or("cannot find (CellAttributeId, GeoKind) in ElementDofsMap")
     }
 }
 
 impl fmt::Display for ElementDofs {
-    /// Displays an ElementDofs
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for m in 0..self.dof_equation_pairs.len() {
             write!(f, "{}: {:?}\n", m, self.dof_equation_pairs[m]).unwrap();
@@ -207,35 +232,30 @@ impl fmt::Display for ElementDofs {
     }
 }
 
-/// Returns a string to display a collection of ElementDofs
-pub fn string_element_dofs_collection(
-    elements: &HashMap<CellAttributeId, Element>,
-    collection: &HashMap<(CellAttributeId, GeoKind), ElementDofs>,
-) -> String {
-    let mut b = String::new();
-    write!(&mut b, "Elements: DOFs and local equation numbers\n").unwrap();
-    write!(&mut b, "=========================================\n").unwrap();
-    let mut keys: Vec<_> = collection.keys().collect();
-    keys.sort_by(|a, b| a.0.cmp(&b.0));
-    for key in keys {
-        let element_dofs = collection.get(key).unwrap();
-        let (attr, kind) = key;
-        let element = elements.get(attr).unwrap();
-        write!(&mut b, "{} → {} → {:?}\n", attr, element.name(), kind).unwrap();
-        write!(&mut b, "{}", element_dofs).unwrap();
-        write!(&mut b, "-----------------------------------------\n").unwrap();
+impl fmt::Display for ElementDofsMap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Elements: DOFs and local equation numbers\n").unwrap();
+        write!(f, "=========================================\n").unwrap();
+        let mut keys: Vec<_> = self.all.keys().collect();
+        keys.sort_by(|a, b| a.0.cmp(&b.0));
+        for key in keys {
+            let element_dofs = self.all.get(key).unwrap();
+            let name = self.names.get(key).unwrap();
+            let (id, kind) = key;
+            write!(f, "{} → {} → {:?}\n", id, name, kind).unwrap();
+            write!(f, "{}", element_dofs).unwrap();
+            write!(f, "-----------------------------------------\n").unwrap();
+        }
+        Ok(())
     }
-    b
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use super::{string_element_dofs_collection, ElementDofs};
-    use crate::base::{Dof, Element, SampleParams};
+    use super::{ElementDofs, ElementDofsMap};
+    use crate::base::{Attributes, Dof, Element, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
 
     #[test]
@@ -427,23 +447,6 @@ mod tests {
     }
 
     #[test]
-    fn new_collection_handles_errors() {
-        let mesh = Samples::one_tri6();
-        let p2 = SampleParams::param_solid();
-        let elements = HashMap::from([(2, Element::Solid(p2))]);
-        assert_eq!(
-            ElementDofs::new_collection(&mesh, &elements).err(),
-            Some("cannot find CellAttributeId in elements map to create new ElementDofs collection")
-        );
-        let p1 = SampleParams::param_rod();
-        let elements = HashMap::from([(1, Element::Rod(p1))]);
-        assert_eq!(
-            ElementDofs::new_collection(&mesh, &elements).err(),
-            Some("cannot set Rod or Beam with a non-Lin GeoClass")
-        );
-    }
-
-    #[test]
     fn display_works() {
         let p = SampleParams::param_porous_sld_liq();
         let ed = ElementDofs::new(1, Element::PorousSldLiq(p), GeoKind::Tri6).unwrap();
@@ -460,7 +463,39 @@ mod tests {
     }
 
     #[test]
-    fn new_collection_works() {
+    fn new_map_handles_errors() {
+        let mesh = Samples::one_tri6();
+        let p2 = SampleParams::param_solid();
+        let att = Attributes::from([(2, Element::Solid(p2))]);
+        assert_eq!(
+            ElementDofsMap::new(&mesh, &att).err(),
+            Some("cannot find CellAttributeId in Attributes map")
+        );
+        let p1 = SampleParams::param_rod();
+        let att = Attributes::from([(1, Element::Rod(p1))]);
+        assert_eq!(
+            ElementDofsMap::new(&mesh, &att).err(),
+            Some("cannot set Rod or Beam with a non-Lin GeoClass")
+        );
+    }
+
+    #[test]
+    fn new_map_and_get_work() {
+        let mesh = Samples::three_tri3();
+        let mut mesh_wrong = mesh.clone();
+        let p1 = SampleParams::param_solid();
+        let att = Attributes::from([(1, Element::Solid(p1))]);
+        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        assert_eq!(edm.get(&mesh.cells[0]).unwrap().n_equation_local, 6);
+        mesh_wrong.cells[0].attribute_id = 100; // never do this
+        assert_eq!(
+            edm.get(&mesh_wrong.cells[0]).err(),
+            Some("cannot find (CellAttributeId, GeoKind) in ElementDofsMap")
+        );
+    }
+
+    #[test]
+    fn new_map_display_works() {
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
         //         /   \          / \{7}   (#) indicates attribute_id
@@ -473,11 +508,10 @@ mod tests {
         //                     {3}
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
-        let elements = HashMap::from([(1, Element::Solid(p1))]);
-        let collection = ElementDofs::new_collection(&mesh, &elements).unwrap();
-        let s = string_element_dofs_collection(&elements, &collection);
+        let att = Attributes::from([(1, Element::Solid(p1))]);
+        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
-            format!("{}", s),
+            format!("{}", edm),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
              1 → Solid → Tri3\n\
@@ -498,11 +532,10 @@ mod tests {
         // 0------------1------------4
         let mesh = Samples::two_tri3_one_qua4();
         let p = SampleParams::param_porous_liq();
-        let elements = HashMap::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
-        let collection = ElementDofs::new_collection(&mesh, &elements).unwrap();
-        let s = string_element_dofs_collection(&elements, &collection);
+        let att = Attributes::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
+        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
-            format!("{}", s),
+            format!("{}", edm),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
              1 → PorousLiq → Tri3\n\
@@ -531,15 +564,14 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq();
         let p2 = SampleParams::param_solid();
         let p3 = SampleParams::param_beam();
-        let elements = HashMap::from([
+        let att = Attributes::from([
             (1, Element::PorousSldLiq(p1)),
             (2, Element::Solid(p2)),
             (3, Element::Beam(p3)),
         ]);
-        let collection = ElementDofs::new_collection(&mesh, &elements).unwrap();
-        let s = string_element_dofs_collection(&elements, &collection);
+        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
-            format!("{}", s),
+            format!("{}", edm),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
              1 → PorousSldLiq → Qua8\n\

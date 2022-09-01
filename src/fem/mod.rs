@@ -1,5 +1,6 @@
 //! Implements the finite element method
 
+mod data;
 mod element_collection;
 mod element_diffusion;
 mod element_equations;
@@ -7,6 +8,7 @@ mod element_rod;
 mod element_solid;
 mod linear_system;
 mod state;
+pub use crate::fem::data::*;
 pub use crate::fem::element_collection::*;
 pub use crate::fem::element_diffusion::*;
 pub use crate::fem::element_equations::*;
