@@ -1,7 +1,9 @@
 use super::{Dof, Element, POROUS_SLD_GEO_KIND_ALLOWED};
 use crate::StrError;
+use gemlab::mesh::{CellAttributeId, Mesh};
 use gemlab::shapes::GeoKind;
-use std::fmt;
+use std::collections::HashMap;
+use std::fmt::{self, Write};
 
 /// Holds the DOFs and local equation numbers of an Element/GeoKind pair
 ///
@@ -170,9 +172,29 @@ impl ElementDofs {
             eq_first_tt,
         })
     }
+
+    /// Allocates a new collection of ElementDofs
+    pub fn new_collection(
+        mesh: &Mesh,
+        elements: &HashMap<CellAttributeId, Element>,
+    ) -> Result<HashMap<(CellAttributeId, GeoKind), ElementDofs>, StrError> {
+        let mut collection = HashMap::new();
+        for cell in &mesh.cells {
+            let element = match elements.get(&cell.attribute_id) {
+                Some(e) => e,
+                None => return Err("cannot find CellAttributeId in elements map to create new ElementDofs collection"),
+            };
+            collection.insert(
+                (cell.attribute_id, cell.kind),
+                ElementDofs::new(mesh.ndim, *element, cell.kind)?,
+            );
+        }
+        Ok(collection)
+    }
 }
 
 impl fmt::Display for ElementDofs {
+    /// Displays an ElementDofs
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for m in 0..self.dof_equation_pairs.len() {
             write!(f, "{}: {:?}\n", m, self.dof_equation_pairs[m]).unwrap();
@@ -185,16 +207,39 @@ impl fmt::Display for ElementDofs {
     }
 }
 
+/// Returns a string to display a collection of ElementDofs
+pub fn string_element_dofs_collection(
+    elements: &HashMap<CellAttributeId, Element>,
+    collection: &HashMap<(CellAttributeId, GeoKind), ElementDofs>,
+) -> String {
+    let mut b = String::new();
+    write!(&mut b, "Elements: DOFs and local equation numbers\n").unwrap();
+    write!(&mut b, "=========================================\n").unwrap();
+    let mut keys: Vec<_> = collection.keys().collect();
+    keys.sort_by(|a, b| a.0.cmp(&b.0));
+    for key in keys {
+        let element_dofs = collection.get(key).unwrap();
+        let (attr, kind) = key;
+        let element = elements.get(attr).unwrap();
+        write!(&mut b, "{} → {} → {:?}\n", attr, element.name(), kind).unwrap();
+        write!(&mut b, "{}", element_dofs).unwrap();
+        write!(&mut b, "-----------------------------------------\n").unwrap();
+    }
+    b
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-    use super::ElementDofs;
+    use std::collections::HashMap;
+
+    use super::{string_element_dofs_collection, ElementDofs};
     use crate::base::{Dof, Element, SampleParams};
-    use gemlab::shapes::GeoKind;
+    use gemlab::{mesh::Samples, shapes::GeoKind};
 
     #[test]
-    fn element_dofs_new_captures_errors() {
+    fn new_handles_errors() {
         let p = SampleParams::param_rod();
         assert_eq!(
             ElementDofs::new(2, Element::Rod(p), GeoKind::Tri3).err(),
@@ -223,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn element_dofs_new_works_2d() {
+    fn new_works_2d() {
         let pa0 = SampleParams::param_diffusion();
         let pa = SampleParams::param_rod();
         let pb = SampleParams::param_beam();
@@ -294,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn element_dofs_new_works_3d() {
+    fn new_works_3d() {
         let pa0 = SampleParams::param_diffusion();
         let pa = SampleParams::param_rod();
         let pb = SampleParams::param_beam();
@@ -382,6 +427,23 @@ mod tests {
     }
 
     #[test]
+    fn new_collection_handles_errors() {
+        let mesh = Samples::one_tri6();
+        let p2 = SampleParams::param_solid();
+        let elements = HashMap::from([(2, Element::Solid(p2))]);
+        assert_eq!(
+            ElementDofs::new_collection(&mesh, &elements).err(),
+            Some("cannot find CellAttributeId in elements map to create new ElementDofs collection")
+        );
+        let p1 = SampleParams::param_rod();
+        let elements = HashMap::from([(1, Element::Rod(p1))]);
+        assert_eq!(
+            ElementDofs::new_collection(&mesh, &elements).err(),
+            Some("cannot set Rod or Beam with a non-Lin GeoClass")
+        );
+    }
+
+    #[test]
     fn display_works() {
         let p = SampleParams::param_porous_sld_liq();
         let ed = ElementDofs::new(1, Element::PorousSldLiq(p), GeoKind::Tri6).unwrap();
@@ -394,6 +456,51 @@ mod tests {
              4: [(Ux, 8), (Uy, 9)]\n\
              5: [(Ux, 10), (Uy, 11)]\n\
              (Pl @ Some(12), Pg @ None, T @ None)\n"
+        );
+    }
+
+    #[test]
+    fn new_collection_works() {
+        let mesh = Samples::qua8_tri6_lin2();
+        let p1 = SampleParams::param_porous_sld_liq();
+        let p2 = SampleParams::param_solid();
+        let p3 = SampleParams::param_beam();
+        let elements = HashMap::from([
+            (1, Element::PorousSldLiq(p1)),
+            (2, Element::Solid(p2)),
+            (3, Element::Beam(p3)),
+        ]);
+        let collection = ElementDofs::new_collection(&mesh, &elements).unwrap();
+        let s = string_element_dofs_collection(&elements, &collection);
+        assert_eq!(
+            format!("{}", s),
+            "Elements: DOFs and local equation numbers\n\
+             =========================================\n\
+             1 → PorousSldLiq → Qua8\n\
+             0: [(Ux, 0), (Uy, 1), (Pl, 16)]\n\
+             1: [(Ux, 2), (Uy, 3), (Pl, 17)]\n\
+             2: [(Ux, 4), (Uy, 5), (Pl, 18)]\n\
+             3: [(Ux, 6), (Uy, 7), (Pl, 19)]\n\
+             4: [(Ux, 8), (Uy, 9)]\n\
+             5: [(Ux, 10), (Uy, 11)]\n\
+             6: [(Ux, 12), (Uy, 13)]\n\
+             7: [(Ux, 14), (Uy, 15)]\n\
+             (Pl @ Some(16), Pg @ None, T @ None)\n\
+             -----------------------------------------\n\
+             2 → Solid → Tri6\n\
+             0: [(Ux, 0), (Uy, 1)]\n\
+             1: [(Ux, 2), (Uy, 3)]\n\
+             2: [(Ux, 4), (Uy, 5)]\n\
+             3: [(Ux, 6), (Uy, 7)]\n\
+             4: [(Ux, 8), (Uy, 9)]\n\
+             5: [(Ux, 10), (Uy, 11)]\n\
+             (Pl @ None, Pg @ None, T @ None)\n\
+             -----------------------------------------\n\
+             3 → Beam → Lin2\n\
+             0: [(Ux, 0), (Uy, 1), (Rz, 2)]\n\
+             1: [(Ux, 3), (Uy, 4), (Rz, 5)]\n\
+             (Pl @ None, Pg @ None, T @ None)\n\
+             -----------------------------------------\n"
         );
     }
 }
