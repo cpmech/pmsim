@@ -169,13 +169,11 @@ impl fmt::Display for DofNumbers {
             dof_eqn.sort_by(|a, b| a.0.partial_cmp(b.0).unwrap());
             write!(f, "{:?}: {:?}\n", point_id, dof_eqn).unwrap();
         }
-
         write!(f, "\nCells: Local-to-Global\n").unwrap();
         write!(f, "======================\n").unwrap();
         for cell_id in 0..self.local_to_global.len() {
             write!(f, "{:?}: {:?}\n", cell_id, self.local_to_global[cell_id]).unwrap();
         }
-
         write!(f, "\nInformation\n").unwrap();
         write!(f, "===========\n").unwrap();
         write!(f, "number of equations = {}\n", self.n_equation).unwrap();
