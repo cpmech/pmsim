@@ -32,7 +32,7 @@ impl<'a> ElementDiffusion<'a> {
 
         // pad and ips
         let (kind, points) = (cell.kind, &cell.points);
-        let mut pad = Scratchpad::new(ndim, kind)?;
+        let mut pad = Scratchpad::new(ndim, kind).unwrap();
         set_pad_coords(&mut pad, &points, data.mesh);
 
         // conductivity
