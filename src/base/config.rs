@@ -205,6 +205,13 @@ mod tests {
     fn validate_works() {
         let mut config = Config::new();
 
+        config.control.t_ini = -1.0;
+        assert_eq!(
+            config.validate(2),
+            Some("t_ini = -1.0 is incorrect; it must be ≥ 0.0".to_string())
+        );
+        config.control.t_ini = 0.0;
+
         config.gravity = -10.0;
         assert_eq!(
             config.validate(2),
