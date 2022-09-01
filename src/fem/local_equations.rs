@@ -1,14 +1,10 @@
-#![allow(unused)]
-
-use std::collections::HashMap;
-
-use super::{Data, ElementRod, ElementSolid, State};
-use crate::base::{Config, DofNumbers, Element};
+use super::{Data, ElementSolid, State};
+use crate::base::{Config, Element};
 use crate::StrError;
-use gemlab::mesh::{Cell, CellAttributeId, Mesh};
+use gemlab::mesh::Cell;
 
-/// Defines the trait for element equations
-pub trait ElementEquations {
+/// Defines the trait for local (element) equations
+pub trait LocalEquations {
     fn residual(&mut self, state: &State) -> Result<(), StrError>;
     fn jacobian(&mut self, state: &State) -> Result<(), StrError>;
 }
@@ -18,9 +14,9 @@ pub fn allocate_element_equations<'a>(
     data: &'a Data,
     config: &'a Config,
     cell: &'a Cell,
-) -> Result<Box<dyn ElementEquations + 'a>, StrError> {
+) -> Result<Box<dyn LocalEquations + 'a>, StrError> {
     let element = data.attributes.get(cell)?;
-    let element_equations: Box<dyn ElementEquations> = match element {
+    let element_equations: Box<dyn LocalEquations> = match element {
         Element::Diffusion(..) => panic!("TODO: Diffusion"),
         Element::Rod(..) => panic!("TODO: Rod"),
         Element::Beam(..) => panic!("TODO: Beam"),
@@ -41,7 +37,6 @@ mod tests {
     use crate::base::{Config, Element, SampleParams};
     use crate::fem::Data;
     use gemlab::mesh::Samples;
-    use std::collections::HashMap;
 
     /*
     #[test]

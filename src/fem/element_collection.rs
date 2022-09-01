@@ -1,9 +1,9 @@
-use super::{allocate_element_equations, Data, ElementEquations};
+use super::{allocate_element_equations, Data, LocalEquations};
 use crate::base::Config;
 use crate::StrError;
 
 pub struct ElementCollection<'a> {
-    pub all: Vec<Box<dyn ElementEquations + 'a>>,
+    pub all: Vec<Box<dyn LocalEquations + 'a>>,
 }
 
 impl<'a> ElementCollection<'a> {

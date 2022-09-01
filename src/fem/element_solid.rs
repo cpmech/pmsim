@@ -1,4 +1,4 @@
-use super::{Data, ElementEquations, State};
+use super::{Data, LocalEquations, State};
 use crate::base::{Config, ParamSolid};
 use crate::model::{allocate_stress_strain_model, StressStrain};
 use crate::StrError;
@@ -53,7 +53,7 @@ impl<'a> ElementSolid<'a> {
     }
 }
 
-impl<'a> ElementEquations for ElementSolid<'a> {
+impl<'a> LocalEquations for ElementSolid<'a> {
     fn residual(&mut self, state: &State) -> Result<(), StrError> {
         let sigma = &state.effective_stress[self.cell.id];
         integ::vec_04_tg(&mut self.residual, &mut self.pad, 0, true, self.ips, |sig, p| {
@@ -75,7 +75,7 @@ impl<'a> ElementEquations for ElementSolid<'a> {
 mod tests {
     use super::ElementSolid;
     use crate::base::{Config, Element, ParamSolid, ParamStressStrain};
-    use crate::fem::{Data, ElementEquations, State};
+    use crate::fem::{Data, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_chk::assert_vec_approx_eq;
