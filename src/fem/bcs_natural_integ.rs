@@ -133,7 +133,6 @@ impl BcsNaturalInteg {
             Nbc::Qg(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.time))).unwrap(),
             Nbc::Qt(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.time))).unwrap(),
             Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, nn| {
-                // todo
                 let mut tt = 0.0;
                 for m in 0..nnode {
                     tt += nn[m] * state.primary_unknowns[self.local_to_global[m]];
