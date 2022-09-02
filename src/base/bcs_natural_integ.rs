@@ -82,8 +82,10 @@ impl BcsNaturalInteg {
     /// Calculates the residual vector at given time
     pub fn calc_residual(&mut self, time: f64, thickness: f64) {
         let (ndim, _) = self.pad.xxt.dims();
+        let res = &mut self.residual;
+        let pad = &mut self.pad;
         match self.nbc {
-            Nbc::Qn(f) => integ::vec_02_nv_bry(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _, un| {
+            Nbc::Qn(f) => integ::vec_02_nv_bry(res, pad, 0, true, self.ips, |v, _, un| {
                 // note the negative sign
                 //                 |
                 //                 v
@@ -99,7 +101,7 @@ impl BcsNaturalInteg {
                 Ok(())
             })
             .unwrap(), // no user errors expected here
-            Nbc::Qx(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
+            Nbc::Qx(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
@@ -108,7 +110,7 @@ impl BcsNaturalInteg {
                 Ok(())
             })
             .unwrap(),
-            Nbc::Qy(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
+            Nbc::Qy(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
@@ -116,7 +118,7 @@ impl BcsNaturalInteg {
                 Ok(())
             })
             .unwrap(),
-            Nbc::Qz(f) => integ::vec_02_nv(&mut self.residual, &mut self.pad, 0, true, self.ips, |v, _| {
+            Nbc::Qz(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
@@ -124,21 +126,10 @@ impl BcsNaturalInteg {
                 Ok(())
             })
             .unwrap(),
-            Nbc::Ql(f) => {
-                // TODO: check sign
-                integ::vec_01_ns(&mut self.residual, &mut self.pad, 0, true, self.ips, |_| Ok(f(time))).unwrap()
-            }
-            Nbc::Qg(f) => {
-                // TODO: check sign
-                integ::vec_01_ns(&mut self.residual, &mut self.pad, 0, true, self.ips, |_| Ok(f(time))).unwrap()
-            }
-            Nbc::Cv(cc, temp_environment) => {
-                // TODO: check sign
-                integ::vec_01_ns(&mut self.residual, &mut self.pad, 0, true, self.ips, |_| {
-                    Ok(cc * temp_environment(time))
-                })
-                .unwrap()
-            }
+            Nbc::Ql(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_| Ok(-f(time))).unwrap(),
+            Nbc::Qg(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_| Ok(-f(time))).unwrap(),
+            Nbc::Qt(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_| Ok(-f(time))).unwrap(),
+            Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_| Ok(-cc * tt_env(time))).unwrap(),
         }
     }
 
@@ -333,7 +324,7 @@ mod tests {
         const Q: f64 = -10.0;
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Ql(|_| Q)).unwrap();
         bry.calc_residual(0.0, 1.0);
-        let correct = &[Q / 6.0, Q / 6.0, 2.0 * Q / 3.0];
+        let correct = &[-Q / 6.0, -Q / 6.0, 2.0 * -Q / 3.0];
         assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &top, Nbc::Qg(|_| Q)).unwrap();
@@ -342,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn integration_works_cv() {
+    fn integration_works_qt_cv() {
         let mesh = SampleMeshes::bhatti_example_1dot5_heat();
         let p1 = ParamDiffusion {
             rho: 0.0,
@@ -358,9 +349,19 @@ mod tests {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
         };
+
+        // flux: not present in Bhatti's example but we can check the flux BC here
+        const Q: f64 = 10.0;
+        const L: f64 = 0.3;
+        let mut bry = BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Qt(|_| Q)).unwrap();
+        bry.calc_residual(0.0, 1.0);
+        let correct = &[-Q * L / 2.0, -Q * L / 2.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        // convection BC
         let mut bry = BcsNaturalInteg::new(&mesh, &dn, &edge, Nbc::Cv(27.0, |_| 20.0)).unwrap();
         bry.calc_residual(0.0, 1.0);
-        assert_vec_approx_eq!(bry.residual.as_data(), &[81.0, 81.0], 1e-15);
+        assert_vec_approx_eq!(bry.residual.as_data(), &[-81.0, -81.0], 1e-15);
         bry.calc_jacobian(0.0, 1.0);
         let jac = bry.jacobian.ok_or("error").unwrap();
         assert_vec_approx_eq!(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);

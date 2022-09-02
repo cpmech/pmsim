@@ -66,7 +66,10 @@ pub enum Nbc {
     /// Gas flux
     Qg(FnBc),
 
-    /// Convection
+    /// Temperature flux
+    Qt(FnBc),
+
+    /// Temperature convection
     ///
     /// The first value is the convection coefficient `cc`
     /// The second value is the environment temperature `T`
@@ -106,6 +109,11 @@ impl Nbc {
                     dofs[m].push((Dof::Pg, count)); count += 1;
                 }
             }
+            Nbc::Qt(..) => {
+                for m in 0..nnode {
+                    dofs[m].push((Dof::T, count)); count += 1;
+                }
+            }
             Nbc::Cv(..) => {
                 for m in 0..nnode {
                     dofs[m].push((Dof::T, count)); count += 1;
@@ -124,6 +132,7 @@ impl Nbc {
             Nbc::Qz(..) => false,
             Nbc::Ql(..) => false,
             Nbc::Qg(..) => false,
+            Nbc::Qt(..) => false,
             Nbc::Cv(..) => true,
         }
     }
@@ -138,6 +147,7 @@ impl fmt::Display for Nbc {
             Nbc::Qz(f) => write!(b, "Qz(0) = {:?}, Qz(1) = {:?}", f(0.0), f(1.0)).unwrap(),
             Nbc::Ql(f) => write!(b, "Ql(0) = {:?}, Ql(1) = {:?}", f(0.0), f(1.0)).unwrap(),
             Nbc::Qg(f) => write!(b, "Qg(0) = {:?}, Qg(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Nbc::Qt(f) => write!(b, "Qt(0) = {:?}, Qt(1) = {:?}", f(0.0), f(1.0)).unwrap(),
             Nbc::Cv(cc, f) => write!(b, "cc = {:?}, T(0) = {:?}, T(1) = {:?}", cc, f(0.0), f(1.0)).unwrap(),
         }
         Ok(())
@@ -273,6 +283,9 @@ mod tests {
 
         let qg = Nbc::Qg(|t| -20.0 * (1.0 + t));
         assert_eq!(format!("{}", qg), "Qg(0) = -20.0, Qg(1) = -40.0");
+
+        let qt = Nbc::Qt(|t| -20.0 * (1.0 + t));
+        assert_eq!(format!("{}", qt), "Qt(0) = -20.0, Qt(1) = -40.0");
 
         let cv = Nbc::Cv(0.5, |t| 50.0 * (1.0 + t));
         assert_eq!(format!("{}", cv), "cc = 0.5, T(0) = 50.0, T(1) = 100.0");
@@ -420,6 +433,14 @@ mod tests {
         );
         assert_eq!(ql.contributes_to_jacobian_matrix(), false);
         assert_eq!(format!("{}", ql), "Ql(0) = -10.0, Ql(1) = -10.0");
+
+        let qt = Nbc::Qt(|_| -10.0);
+        assert_eq!(
+            qt.dof_equation_pairs(2, 3),
+            &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]
+        );
+        assert_eq!(qt.contributes_to_jacobian_matrix(), false);
+        assert_eq!(format!("{}", qt), "Qt(0) = -10.0, Qt(1) = -10.0");
 
         let qg = Nbc::Qg(|_| -10.0);
         assert_eq!(
