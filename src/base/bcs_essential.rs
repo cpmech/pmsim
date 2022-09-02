@@ -1,4 +1,5 @@
-use super::{Dof, FnBc};
+use super::{Dof, DofNumbers, FnBc};
+use crate::StrError;
 use gemlab::mesh::{Feature, PointId};
 use std::collections::HashMap;
 use std::fmt;
@@ -35,6 +36,28 @@ impl BcsEssential {
         }
         self
     }
+
+    /// Generates two arrays to handle prescribed DOFs
+    ///
+    /// # Output
+    ///
+    /// * `prescribed` -- Is an `n_equation` array of `bool` indicating which DOFs (equations) are prescribed.
+    ///   The length of `prescribed` is equal to the total number of DOFs (total number of equations).
+    /// * `p_equations` -- Is a "smaller" array with only the DOFs numbers of the prescribed equations.
+    pub fn prescribed(&self, dn: &DofNumbers) -> Result<(Vec<bool>, Vec<usize>), StrError> {
+        let mut prescribed = vec![false; dn.n_equation];
+        let mut p_equations = Vec::new();
+        for (point_id, dof) in self.all.keys() {
+            match dn.point_dofs[*point_id].get(dof) {
+                Some(eq) => {
+                    prescribed[*eq] = true;
+                    p_equations.push(*eq)
+                }
+                None => return Err("EBC dof is not present in point_dofs array"),
+            }
+        }
+        Ok((prescribed, p_equations))
+    }
 }
 
 impl fmt::Display for BcsEssential {
@@ -59,8 +82,8 @@ impl fmt::Display for BcsEssential {
 #[cfg(test)]
 mod tests {
     use super::BcsEssential;
-    use crate::base::Dof;
-    use gemlab::mesh::Feature;
+    use crate::base::{Attributes, Dof, DofNumbers, Element, ElementDofsMap, SampleParams};
+    use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
@@ -90,5 +113,63 @@ mod tests {
              4 : T @ t=0 → 0.0 @ t=1 → 0.5\n\
              5 : T @ t=0 → 0.0 @ t=1 → 0.5\n"
         );
+    }
+
+    #[test]
+    fn prescribed_works() {
+        //       {4} 4---.__
+        //          / \     `--.___3 {3}  [#] indicates id
+        //         /   \          / \     (#) indicates attribute_id
+        //        /     \  [1]   /   \    {#} indicates equation id
+        //       /  [0]  \ (1)  / [2] \
+        //      /   (1)   \    /  (1)  \
+        // {0} 0---.__     \  /      ___2 {2}
+        //            `--.__\/__.---'
+        //               {1} 1
+        let mesh = Samples::three_tri3();
+        let p1 = SampleParams::param_porous_liq();
+        let att = Attributes::from([(1, Element::PorousLiq(p1))]);
+        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        let dn = DofNumbers::new(&mesh, &edm).unwrap();
+        let mut bcs_essential = BcsEssential::new();
+        let zero = |_| 0.0;
+        assert_eq!(zero(1.0), 0.0);
+        bcs_essential.at(&[0, 4], &[Dof::Pl], zero);
+        let (prescribed, mut p_equations) = bcs_essential.prescribed(&dn).unwrap();
+        assert_eq!(prescribed, &[true, false, false, false, true]);
+        p_equations.sort();
+        assert_eq!(p_equations, &[0, 4]);
+
+        bcs_essential.at(&[3], &[Dof::T], zero);
+        assert_eq!(
+            bcs_essential.prescribed(&dn).err(),
+            Some("EBC dof is not present in point_dofs array")
+        );
+
+        //       {8} 4---.__
+        //       {9}/ \     `--.___3 {6}   [#] indicates id
+        //         /   \          / \{7}   (#) indicates attribute_id
+        //        /     \  [1]   /   \     {#} indicates equation number
+        //       /  [0]  \ (1)  / [2] \
+        // {0}  /   (1)   \    /  (1)  \
+        // {1} 0---.__     \  /      ___2 {4}
+        //            `--.__\/__.---'     {5}
+        //                   1 {2}
+        //                     {3}
+        let p1 = SampleParams::param_solid();
+        let att = Attributes::from([(1, Element::Solid(p1))]);
+        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        let dn = DofNumbers::new(&mesh, &edm).unwrap();
+        let mut bcs_essential = BcsEssential::new();
+        bcs_essential.at(&[0], &[Dof::Ux, Dof::Uy], zero);
+        bcs_essential.at(&[1, 2], &[Dof::Uy], zero);
+        let (prescribed, mut p_equations) = bcs_essential.prescribed(&dn).unwrap();
+        assert_eq!(
+            prescribed,
+            //   0     1      2     3      4     5      6      7      8      9
+            &[true, true, false, true, false, true, false, false, false, false]
+        );
+        p_equations.sort();
+        assert_eq!(p_equations, &[0, 1, 3, 5]);
     }
 }
