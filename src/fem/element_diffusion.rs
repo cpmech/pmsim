@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use super::{Data, ElementTrait, State};
+use super::{Data, LocalEquations, State};
 use crate::base::{Config, ParamDiffusion};
 use crate::StrError;
 use gemlab::integ;
@@ -67,7 +67,7 @@ impl<'a> ElementDiffusion<'a> {
     }
 }
 
-impl<'a> ElementTrait for ElementDiffusion<'a> {
+impl<'a> LocalEquations for ElementDiffusion<'a> {
     fn residual(&mut self, state: &State) -> Result<(), StrError> {
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
@@ -117,7 +117,7 @@ mod tests {
         assemble_matrix, assemble_vector, BcsEssential, BcsNatural, Config, Dof, Element, Nbc, ParamDiffusion,
         SampleMeshes, SampleParams,
     };
-    use crate::fem::{BcsNaturalInteg, Data, ElementTrait, LinearSystem, State};
+    use crate::fem::{BcsNaturalInteg, Data, LinearSystem, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::{At, Extract, Features, Find, Samples};
     use russell_chk::assert_vec_approx_eq;

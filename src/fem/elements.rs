@@ -1,9 +1,9 @@
-use super::{Data, ElementDiffusion, ElementSolid, ElementTrait};
+use super::{Data, ElementDiffusion, ElementSolid, LocalEquations};
 use crate::base::{Config, Element};
 use crate::StrError;
 
 pub struct Elements<'a> {
-    pub all: Vec<Box<dyn ElementTrait + 'a>>,
+    pub all: Vec<Box<dyn LocalEquations + 'a>>,
 }
 
 impl<'a> Elements<'a> {
@@ -11,7 +11,7 @@ impl<'a> Elements<'a> {
         let mut all = Vec::new();
         for cell in &data.mesh.cells {
             let element = data.attributes.get(cell).unwrap(); // already checked in Data
-            let le: Box<dyn ElementTrait> = match element {
+            let le: Box<dyn LocalEquations> = match element {
                 Element::Diffusion(p) => Box::new(ElementDiffusion::new(data, config, cell, p)?),
                 Element::Rod(..) => panic!("TODO: Rod"),
                 Element::Beam(..) => panic!("TODO: Beam"),
