@@ -56,14 +56,14 @@ impl<'a> ElementSolid<'a> {
 impl<'a> ElementTrait for ElementSolid<'a> {
     fn residual(&mut self, state: &State) -> Result<(), StrError> {
         let sigma = &state.effective_stress[self.cell.id];
-        integ::vec_04_tg(&mut self.residual, &mut self.pad, 0, true, self.ips, |sig, p| {
+        integ::vec_04_tg(&mut self.residual, &mut self.pad, 0, true, self.ips, |sig, p, _| {
             copy_tensor2(sig, &sigma[p])
         })
     }
 
     fn jacobian(&mut self, state: &State) -> Result<(), StrError> {
         let sigma = &state.effective_stress[self.cell.id];
-        integ::mat_10_gdg(&mut self.jacobian, &mut self.pad, 0, 0, true, self.ips, |dd, p| {
+        integ::mat_10_gdg(&mut self.jacobian, &mut self.pad, 0, 0, true, self.ips, |dd, p, _| {
             self.model.stiffness(dd, &sigma[p])
         })
     }

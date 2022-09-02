@@ -9,7 +9,7 @@ fn main() -> Result<(), StrError> {
     let mesh = SampleMeshes::column_two_layers_quads();
     let features = Features::new(&mesh, Extract::Boundary);
 
-    let find = Find::new(&mesh, &features)?;
+    let find = Find::new(&mesh, None);
     let left = find.faces(At::X(0.0))?;
     let right = find.faces(At::X(0.5))?;
     let back = find.faces(At::X(0.0))?;

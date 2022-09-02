@@ -1,5 +1,6 @@
 //! Implements the finite element method
 
+mod bcs_natural_integ;
 mod data;
 mod element_diffusion;
 mod element_rod;
@@ -8,6 +9,7 @@ mod element_trait;
 mod elements;
 mod linear_system;
 mod state;
+pub use crate::fem::bcs_natural_integ::*;
 pub use crate::fem::data::*;
 pub use crate::fem::element_diffusion::*;
 pub use crate::fem::element_rod::*;
