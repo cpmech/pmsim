@@ -221,15 +221,22 @@ mod tests {
         ]);
         assert_vec_approx_eq!(elements[1].jacobian.as_data(), bhatti_kk1.as_data(), 1e-12);
 
-        // assemble system
+        // must set prescribed unknowns before calculating residuals
         let (neq, nnz) = (data.dof_numbers.n_equation, data.dof_numbers.nnz_sup); // TODO: check nnz_sup with no prescribed
-        let mut lin_sys = LinearSystem::new(neq, nnz);
-        let rr = &mut lin_sys.residual;
-        let kk = &mut lin_sys.jacobian;
         let mut prescribed = vec![false; neq];
         prescribed[8] = true;
         prescribed[9] = true;
         prescribed[10] = true;
+        for i in 0..neq {
+            if prescribed[i] {
+                state.primary_unknowns[i] = 110.0;
+            }
+        }
+
+        // assemble system
+        let mut lin_sys = LinearSystem::new(neq, nnz);
+        let rr = &mut lin_sys.residual;
+        let kk = &mut lin_sys.jacobian;
         elements.iter_mut().for_each(|e| {
             e.residual(&state).unwrap();
             e.jacobian(&state).unwrap();
@@ -249,10 +256,8 @@ mod tests {
                 None => (),
             }
         });
-
         for i in 0..neq {
             if prescribed[i] {
-                state.primary_unknowns[i] = 110.0;
                 kk.put(i, i, 1.0);
             }
         }
@@ -278,9 +283,6 @@ mod tests {
         add_vectors(uu_new, 1.0, uu, -1.0, &mdu);
         println!("uu_new =\n{}", uu_new);
 
-        rr.fill(0.0);
-        kk.reset();
-        // copy_vector(&mut state.primary_unknowns, &uu_new);
         let tt_bhatti = Vector::from(&[
             156.4451416316945,
             150.75534475609425,
@@ -296,30 +298,19 @@ mod tests {
             144.67722333158,
             129.13353090328047,
         ]);
-        copy_vector(&mut state.primary_unknowns, &tt_bhatti);
+        assert_vec_approx_eq!(uu_new.as_data(), tt_bhatti.as_data(), 1e-12);
+        copy_vector(&mut state.primary_unknowns, &uu_new);
+
+        rr.fill(0.0);
         elements.iter_mut().for_each(|e| {
             e.residual(&state).unwrap();
-            e.jacobian(&state).unwrap();
             assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
-            assemble_matrix(kk, &e.jacobian, &e.local_to_global, &prescribed);
         });
         nbcs.iter_mut().for_each(|e| {
             e.calc_residual(&state, 1.0);
-            e.calc_jacobian(&state, 1.0);
             assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
-            match &e.jacobian {
-                Some(jj) => {
-                    assemble_matrix(kk, jj, &e.local_to_global, &prescribed);
-                }
-                None => (),
-            }
         });
-        for i in 0..neq {
-            if prescribed[i] {
-                kk.put(i, i, 1.0);
-            }
-        }
-        println!("rr =\n{}", rr);
+        println!("rr_new =\n{}", rr);
     }
 
     #[test]
