@@ -68,7 +68,7 @@ impl<'a> ElementDiffusion<'a> {
 }
 
 impl<'a> LocalEquations for ElementDiffusion<'a> {
-    fn residual(&mut self, state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
@@ -101,7 +101,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         Ok(())
     }
 
-    fn jacobian(&mut self, _state: &State) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, _state: &State) -> Result<(), StrError> {
         integ::mat_03_gtg(&mut self.jacobian, &mut self.pad, 0, 0, true, self.ips, |k, _, _| {
             copy_tensor2(k, &self.conductivity)
         })
@@ -188,8 +188,8 @@ mod tests {
         let mut state = State::new(&data, &config).unwrap();
         let neg_b = Vector::from(&[250.0, 312.5, 312.5, 250.0, -1125., -1000.0, -1125., -1250.0]);
         elements.iter_mut().for_each(|e| {
-            e.residual(&state).unwrap();
-            e.jacobian(&state).unwrap();
+            e.calc_residual(&state).unwrap();
+            e.calc_jacobian(&state).unwrap();
         });
         // assert_vec_approx_eq!(elements[0].residual.as_data(), neg_b.as_data(), 1e-12);
 
@@ -238,8 +238,8 @@ mod tests {
         let rr = &mut lin_sys.residual;
         let kk = &mut lin_sys.jacobian;
         elements.iter_mut().for_each(|e| {
-            e.residual(&state).unwrap();
-            e.jacobian(&state).unwrap();
+            e.calc_residual(&state).unwrap();
+            e.calc_jacobian(&state).unwrap();
             assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
             assemble_matrix(kk, &e.jacobian, &e.local_to_global, &prescribed);
         });
@@ -303,7 +303,7 @@ mod tests {
 
         rr.fill(0.0);
         elements.iter_mut().for_each(|e| {
-            e.residual(&state).unwrap();
+            e.calc_residual(&state).unwrap();
             assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
         });
         nbcs.iter_mut().for_each(|e| {
@@ -335,7 +335,7 @@ mod tests {
         state.primary_unknowns[0] = 0.1;
         state.primary_unknowns[1] = 0.2;
         state.primary_unknowns[2] = 0.3;
-        elem.residual(&state).unwrap();
+        elem.calc_residual(&state).unwrap();
         let ana = integ::AnalyticalTri3::new(&elem.pad);
         let (w0, w1) = (1.0, 2.0);
         let correct_r = ana.vec_03_vg(-w0, -w1);
@@ -344,7 +344,7 @@ mod tests {
         // assert_vec_approx_eq!(elem.residual.as_data(), correct_r, 1e-15);
 
         // check Jacobian matrix
-        elem.jacobian(&state).unwrap();
+        elem.calc_jacobian(&state).unwrap();
         let correct_kk = ana.mat_03_gtg(kx, ky);
         // assert_vec_approx_eq!(elem.jacobian.as_data(), correct_kk.as_data(), 1e-12);
 

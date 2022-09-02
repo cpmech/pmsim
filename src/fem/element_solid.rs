@@ -54,14 +54,14 @@ impl<'a> ElementSolid<'a> {
 }
 
 impl<'a> LocalEquations for ElementSolid<'a> {
-    fn residual(&mut self, state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
         let sigma = &state.effective_stress[self.cell.id];
         integ::vec_04_tg(&mut self.residual, &mut self.pad, 0, true, self.ips, |sig, p, _| {
             copy_tensor2(sig, &sigma[p])
         })
     }
 
-    fn jacobian(&mut self, state: &State) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, state: &State) -> Result<(), StrError> {
         let sigma = &state.effective_stress[self.cell.id];
         integ::mat_10_gdg(&mut self.jacobian, &mut self.pad, 0, 0, true, self.ips, |dd, p, _| {
             self.model.stiffness(dd, &sigma[p])
@@ -114,13 +114,13 @@ mod tests {
             sigma.sym_set(1, 1, s11);
             sigma.sym_set(0, 1, s01);
         }
-        elem.residual(&state).unwrap();
+        elem.calc_residual(&state).unwrap();
         let ana = integ::AnalyticalTri3::new(&elem.pad);
         let correct = ana.vec_04_tg(s00, s11, s01);
         assert_vec_approx_eq!(elem.residual.as_data(), correct, 1e-15);
 
         // check Jacobian matrix
-        elem.jacobian(&state).unwrap();
+        elem.calc_jacobian(&state).unwrap();
         let correct = ana
             .mat_10_gdg(young, poisson, config.plane_stress, config.thickness)
             .unwrap();
