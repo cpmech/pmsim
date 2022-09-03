@@ -54,7 +54,7 @@ impl BoundaryElement {
 
         // pad and ips
         let (kind, points) = (feature.kind, &feature.points);
-        let mut pad = Scratchpad::new(ndim, kind)?;
+        let mut pad = Scratchpad::new(ndim, kind).unwrap();
         set_pad_coords(&mut pad, &points, &data.mesh);
         let ips = integ::default_points(pad.kind);
 
@@ -140,6 +140,7 @@ impl LocalEquations for BoundaryElement {
             Nbc::Qg(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.time))),
             Nbc::Qt(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.time))),
             Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, nn| {
+                // interpolate T from nodes to integration point
                 let mut tt = 0.0;
                 for m in 0..nnode {
                     tt += nn[m] * state.primary_unknowns[self.local_to_global[m]];
@@ -158,5 +159,275 @@ impl LocalEquations for BoundaryElement {
             }
             _ => Ok(()),
         }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::{BoundaryElement, BoundaryElementVec};
+    use crate::base::{BcsNatural, Config, Element, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
+    use crate::fem::{Data, LocalEquations, State};
+    use gemlab::mesh;
+    use gemlab::shapes::GeoKind;
+    use rayon::prelude::*;
+    use russell_chk::assert_vec_approx_eq;
+
+    #[test]
+    fn new_captures_errors() {
+        let mesh = mesh::Samples::one_hex8();
+        let edge = mesh::Feature {
+            kind: GeoKind::Lin2,
+            points: vec![4, 5],
+        };
+
+        let p1 = SampleParams::param_solid();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let config = Config::new();
+        let minus_ten = |_| -10.0;
+        assert_eq!(minus_ten(0.0), -10.0);
+
+        assert_eq!(
+            BoundaryElement::new(&data, &config, &edge, Nbc::Qn(minus_ten)).err(),
+            Some("Qn natural boundary condition is not available for 3D edge")
+        );
+        assert_eq!(
+            BoundaryElement::new(&data, &config, &edge, Nbc::Qz(minus_ten)).err(),
+            None
+        ); // Qz is OK
+        let face = mesh::Feature {
+            kind: GeoKind::Qua4,
+            points: vec![4, 5, 6, 7],
+        };
+        assert_eq!(
+            BoundaryElement::new(&data, &config, &face, Nbc::Ql(minus_ten)).err(), // << flux
+            Some("cannot find DOF to allocate BoundaryElement")
+        );
+
+        let mut bcs_natural = BcsNatural::new();
+        bcs_natural.on(&[&edge], Nbc::Qn(minus_ten));
+        assert_eq!(
+            BoundaryElementVec::new(&data, &config, &bcs_natural).err(),
+            Some("Qn natural boundary condition is not available for 3D edge")
+        );
+    }
+
+    #[test]
+    fn new_vec_and_par_iter_work() {
+        let mesh = mesh::Samples::one_hex8();
+        let faces = &[&mesh::Feature {
+            kind: GeoKind::Tri3,
+            points: vec![3, 4, 5],
+        }];
+
+        let p1 = SampleParams::param_solid();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let config = Config::new();
+
+        let mut bcs_natural = BcsNatural::new();
+        bcs_natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
+        let mut b_elements = BoundaryElementVec::new(&data, &config, &bcs_natural).unwrap();
+        let state = State::new(&data, &config).unwrap();
+        b_elements.all.par_iter_mut().for_each(|d| {
+            d.calc_residual(&state).unwrap();
+            d.calc_jacobian(&state).unwrap();
+        });
+    }
+
+    #[test]
+    fn integration_works_qn_qx_qy_qz() {
+        let mesh = mesh::Samples::one_qua8();
+        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
+        let left = features.edges.get(&(0, 3)).ok_or("cannot get edge").unwrap();
+        let right = features.edges.get(&(1, 2)).ok_or("cannot get edge").unwrap();
+        let bottom = features.edges.get(&(0, 1)).ok_or("cannot get edge").unwrap();
+
+        let p1 = SampleParams::param_solid();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let config = Config::new();
+        let state = State::new(&data, &config).unwrap();
+
+        // Qn
+
+        const Q: f64 = 25.0;
+        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qn(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let res = bry.residual.as_data();
+        let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
+        assert_vec_approx_eq!(res, correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qn(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let res = bry.residual.as_data();
+        let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
+        assert_vec_approx_eq!(res, correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qn(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let res = bry.residual.as_data();
+        let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
+        assert_vec_approx_eq!(res, correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qn(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let res = bry.residual.as_data();
+        let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
+        assert_vec_approx_eq!(res, correct, 1e-14);
+
+        // Qx
+
+        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qx(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qx(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qx(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qx(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        // Qy
+
+        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qy(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qy(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qy(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qy(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        // Qz
+
+        let mesh = mesh::Samples::one_hex8();
+        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
+
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let config = Config::new();
+        let state = State::new(&data, &config).unwrap();
+
+        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qz(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let correct = &[0.0, 0.0, -Q / 2.0, 0.0, 0.0, -Q / 2.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+    }
+
+    #[test]
+    fn integration_works_ql_qg() {
+        let mesh = mesh::Samples::one_qua8();
+        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
+
+        let p1 = SampleParams::param_porous_liq_gas();
+        let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
+        let config = Config::new();
+        let state = State::new(&data, &config).unwrap();
+
+        const Q: f64 = -10.0;
+        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Ql(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let correct = &[-Q / 6.0, -Q / 6.0, 2.0 * -Q / 3.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qg(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+    }
+
+    #[test]
+    fn integration_works_qt_cv_bhatti_1dot5_() {
+        let mesh = SampleMeshes::bhatti_example_1dot5_heat();
+        let edge = mesh::Feature {
+            kind: GeoKind::Lin2,
+            points: vec![1, 2],
+        };
+
+        let p1 = ParamDiffusion {
+            rho: 0.0,
+            kx: 0.1,
+            ky: 0.2,
+            kz: 0.3,
+            source: None,
+        };
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
+        let state = State::new(&data, &config).unwrap();
+
+        // flux: not present in Bhatti's example but we can check the flux BC here
+        const Q: f64 = 10.0;
+        const L: f64 = 0.3;
+        let mut bry = BoundaryElement::new(&data, &config, &edge, Nbc::Qt(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let correct = &[-Q * L / 2.0, -Q * L / 2.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+
+        // convection BC
+        let mut bry = BoundaryElement::new(&data, &config, &edge, Nbc::Cv(27.0, |_| 20.0)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), &[-81.0, -81.0], 1e-15);
+        bry.calc_jacobian(&state).unwrap();
+        let jac = bry.jacobian.ok_or("error").unwrap();
+        assert_vec_approx_eq!(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
+    }
+
+    #[test]
+    fn integration_works_qt_cv_bhatti_6dot22() {
+        let mesh = SampleMeshes::bhatti_example_6dot22_heat();
+        let edge_flux = mesh::Feature {
+            kind: GeoKind::Lin3,
+            points: vec![10, 0, 11],
+        };
+        let edge_conv = mesh::Feature {
+            kind: GeoKind::Lin3,
+            points: vec![0, 2, 1],
+        };
+
+        let p1 = ParamDiffusion {
+            rho: 0.0,
+            kx: 0.1,
+            ky: 0.2,
+            kz: 0.3,
+            source: None,
+        };
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
+        let state = State::new(&data, &config).unwrap();
+
+        const Q: f64 = 5e6;
+        const L: f64 = 0.03;
+        let mut bry = BoundaryElement::new(&data, &config, &edge_flux, Nbc::Qt(|_| Q)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        let correct = &[-Q * L / 6.0, -Q * L / 6.0, 2.0 * -Q * L / 3.0];
+        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-10);
+
+        // convection BC
+        let mut bry = BoundaryElement::new(&data, &config, &edge_conv, Nbc::Cv(55.0, |_| 20.0)).unwrap();
+        bry.calc_residual(&state).unwrap();
+        assert_vec_approx_eq!(bry.residual.as_data(), &[-5.5, -5.5, -22.0], 1e-14);
+        bry.calc_jacobian(&state).unwrap();
+        match bry.jacobian {
+            Some(jj) => println!("{}", jj),
+            None => (),
+        }
+        // let jac = bry.jacobian.ok_or("error").unwrap();
+        // assert_vec_approx_eq!(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
     }
 }

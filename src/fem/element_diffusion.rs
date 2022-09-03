@@ -117,7 +117,7 @@ mod tests {
         assemble_matrix, assemble_vector, BcsEssential, BcsNatural, Config, Dof, Element, Nbc, ParamDiffusion,
         SampleMeshes, SampleParams,
     };
-    use crate::fem::{BcsNaturalInteg, Data, LinearSystem, LocalEquations, State};
+    use crate::fem::{BoundaryElementVec, Data, LinearSystem, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::{At, Extract, Features, Find, Samples};
     use russell_chk::assert_vec_approx_eq;
@@ -181,7 +181,7 @@ mod tests {
             ElementDiffusion::new(&data, &config, &mesh.cells[1], &p1).unwrap(),
         ];
 
-        let mut nbcs = BcsNaturalInteg::new_collection(&mesh, &data.dof_numbers, &bcs_natural).unwrap();
+        let mut nbcs = BoundaryElementVec::new(&data, &config, &bcs_natural).unwrap();
 
         // check residual of first element
         // with state = 0, the residual is equal to -b (negative of integral of source term)
@@ -243,9 +243,9 @@ mod tests {
             assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
             assemble_matrix(kk, &e.jacobian, &e.local_to_global, &prescribed);
         });
-        nbcs.iter_mut().for_each(|e| {
-            e.calc_residual(&state, 1.0);
-            e.calc_jacobian(&state, 1.0);
+        nbcs.all.iter_mut().for_each(|e| {
+            e.calc_residual(&state);
+            e.calc_jacobian(&state);
             // println!("{}", e.residual);
             assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
             match &e.jacobian {
@@ -306,8 +306,8 @@ mod tests {
             e.calc_residual(&state).unwrap();
             assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
         });
-        nbcs.iter_mut().for_each(|e| {
-            e.calc_residual(&state, 1.0);
+        nbcs.all.iter_mut().for_each(|e| {
+            e.calc_residual(&state);
             assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
         });
         println!("rr_new =\n{}", rr);

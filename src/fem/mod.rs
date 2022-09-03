@@ -1,6 +1,5 @@
 //! Implements the finite element method
 
-mod bcs_natural_integ;
 mod boundary_element;
 mod data;
 mod element_diffusion;
@@ -10,7 +9,6 @@ mod interior_element;
 mod linear_system;
 mod local_equations;
 mod state;
-pub use crate::fem::bcs_natural_integ::*;
 pub use crate::fem::boundary_element::*;
 pub use crate::fem::data::*;
 pub use crate::fem::element_diffusion::*;
