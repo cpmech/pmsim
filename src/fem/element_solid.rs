@@ -78,7 +78,7 @@ mod tests {
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
-    use russell_chk::assert_vec_approx_eq;
+    use russell_chk::vec_approx_eq;
 
     #[test]
     fn new_handles_errors() {
@@ -117,13 +117,13 @@ mod tests {
         elem.calc_residual(&state).unwrap();
         let ana = integ::AnalyticalTri3::new(&elem.pad);
         let correct = ana.vec_04_tg(s00, s11, s01);
-        assert_vec_approx_eq!(elem.residual.as_data(), correct, 1e-15);
+        vec_approx_eq(elem.residual.as_data(), &correct, 1e-15);
 
         // check Jacobian matrix
         elem.calc_jacobian(&state).unwrap();
         let correct = ana
             .mat_10_gdg(young, poisson, config.plane_stress, config.thickness)
             .unwrap();
-        assert_vec_approx_eq!(elem.jacobian.as_data(), correct.as_data(), 1e-12);
+        vec_approx_eq(elem.jacobian.as_data(), correct.as_data(), 1e-12);
     }
 }

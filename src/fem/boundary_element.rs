@@ -172,7 +172,7 @@ mod tests {
     use gemlab::mesh;
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
-    use russell_chk::assert_vec_approx_eq;
+    use russell_chk::vec_approx_eq;
 
     #[test]
     fn new_captures_errors() {
@@ -256,63 +256,63 @@ mod tests {
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
-        assert_vec_approx_eq!(res, correct, 1e-14);
+        vec_approx_eq(res, correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qn(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
-        assert_vec_approx_eq!(res, correct, 1e-14);
+        vec_approx_eq(res, correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qn(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
-        assert_vec_approx_eq!(res, correct, 1e-14);
+        vec_approx_eq(res, correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qn(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
-        assert_vec_approx_eq!(res, correct, 1e-14);
+        vec_approx_eq(res, correct, 1e-14);
 
         // Qx
 
         let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qx(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qx(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qx(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qx(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         // Qy
 
         let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qy(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         // Qz
 
@@ -327,7 +327,7 @@ mod tests {
         let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qz(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, 0.0, -Q / 2.0, 0.0, 0.0, -Q / 2.0];
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
     }
 
     #[test]
@@ -345,11 +345,11 @@ mod tests {
         let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Ql(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, -Q / 6.0, 2.0 * -Q / 3.0];
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qg(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
     }
 
     #[test]
@@ -377,15 +377,15 @@ mod tests {
         let mut bry = BoundaryElement::new(&data, &config, &edge, Nbc::Qt(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 2.0, -Q * L / 2.0];
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-14);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         // convection BC
         let mut bry = BoundaryElement::new(&data, &config, &edge, Nbc::Cv(27.0, |_| 20.0)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), &[-81.0, -81.0], 1e-15);
+        vec_approx_eq(bry.residual.as_data(), &[-81.0, -81.0], 1e-15);
         bry.calc_jacobian(&state).unwrap();
         let jac = bry.jacobian.ok_or("error").unwrap();
-        assert_vec_approx_eq!(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
+        vec_approx_eq(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
     }
 
     #[test]
@@ -416,18 +416,18 @@ mod tests {
         let mut bry = BoundaryElement::new(&data, &config, &edge_flux, Nbc::Qt(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 6.0, -Q * L / 6.0, 2.0 * -Q * L / 3.0];
-        assert_vec_approx_eq!(bry.residual.as_data(), correct, 1e-10);
+        vec_approx_eq(bry.residual.as_data(), correct, 1e-10);
 
         // convection BC
         let mut bry = BoundaryElement::new(&data, &config, &edge_conv, Nbc::Cv(55.0, |_| 20.0)).unwrap();
         bry.calc_residual(&state).unwrap();
-        assert_vec_approx_eq!(bry.residual.as_data(), &[-5.5, -5.5, -22.0], 1e-14);
+        vec_approx_eq(bry.residual.as_data(), &[-5.5, -5.5, -22.0], 1e-14);
         bry.calc_jacobian(&state).unwrap();
         match bry.jacobian {
             Some(jj) => println!("{}", jj),
             None => (),
         }
         // let jac = bry.jacobian.ok_or("error").unwrap();
-        // assert_vec_approx_eq!(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
+        // vec_approx_eq(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
     }
 }

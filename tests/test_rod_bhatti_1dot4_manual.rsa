@@ -1,7 +1,7 @@
 use pmsim::base::{assemble_matrix, assemble_vector, Dof, DofNumbers, Element, ParamRod, SampleMeshes};
 use pmsim::elements::Rod;
 use pmsim::StrError;
-use russell_chk::assert_vec_approx_eq;
+use vec_approx_eq;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::{ConfigSolver, Solver};
 use russell_sparse::{SparseTriplet, Symmetry};
@@ -70,7 +70,7 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
           0.0000000000000000e+00,  0.0000000000000000e+00, -1.7749007476210775e+05, -7.6067174898046171e+04, -1.2000000000000000e+05,  0.0000000000000000e+00,  2.9749007476210775e+05,  7.6067174898046171e+04, // 6
           0.0000000000000000e+00,  0.0000000000000000e+00, -7.6067174898046171e+04, -3.2600217813448358e+04,  0.0000000000000000e+00,  0.0000000000000000e+00,  7.6067174898046171e+04,  3.2600217813448358e+04, // 7
     ];
-    assert_vec_approx_eq!(kk_mat.as_data(), kk_correct, 1e-10);
+    vec_approx_eq(kk_mat.as_data(), kk_correct, 1e-10);
 
     // prescribed equations
     let mut prescribed = vec![false; neq];
@@ -108,6 +108,6 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
         2.647036149579491e-01, -2.647036149579491e-01, // 2: Ux,Uy
         0.000000000000000e+00,  0.000000000000000e+00, // 3: Ux,Uy
     ];
-    assert_vec_approx_eq!(uu.as_data(), uu_correct, 1e-15);
+    vec_approx_eq(uu.as_data(), uu_correct, 1e-15);
     Ok(())
 }

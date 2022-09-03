@@ -7,7 +7,7 @@ use pmsim::base::{
     ParamStressStrain, SampleMeshes,
 };
 use pmsim::StrError;
-use russell_chk::assert_vec_approx_eq;
+use vec_approx_eq;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::{ConfigSolver, Solver};
 use russell_sparse::{SparseTriplet, Symmetry};

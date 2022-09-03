@@ -120,7 +120,7 @@ mod tests {
     use crate::fem::{BoundaryElementVec, Data, LinearSystem, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::{At, Extract, Features, Find, Samples};
-    use russell_chk::assert_vec_approx_eq;
+    use russell_chk::vec_approx_eq;
     use russell_lab::{add_vectors, copy_vector, Matrix, Vector};
 
     #[test]
@@ -191,7 +191,7 @@ mod tests {
             e.calc_residual(&state).unwrap();
             e.calc_jacobian(&state).unwrap();
         });
-        // assert_vec_approx_eq!(elements[0].residual.as_data(), neg_b.as_data(), 1e-12);
+        // vec_approx_eq(elements[0].residual.as_data(), neg_b.as_data(), 1e-12);
 
         // check Jacobian of first element (independent of state)
         #[rustfmt::skip]
@@ -205,7 +205,7 @@ mod tests {
             [-14.682539682539685 , -28.015873015873005 , -20.63492063492062  , -33.49206349206349  , -5.079365079365089  , 3.650793650793652   , 95.07936507936506   , 3.174603174603193  ],
             [-39.293650793650784 , -33.65079365079365  , -28.412698412698408 , -46.67460317460315  , -23.174603174603188 , 42.06349206349206   , 3.1746031746031935  , 125.96825396825392 ],
         ]);
-        assert_vec_approx_eq!(elements[0].jacobian.as_data(), bhatti_kk0.as_data(), 1e-13);
+        vec_approx_eq(elements[0].jacobian.as_data(), bhatti_kk0.as_data(), 1e-13);
 
         // check Jacobian of second element (independent of state)
         #[rustfmt::skip]
@@ -219,7 +219,7 @@ mod tests {
             [-21.269841269841265 , -42.22222222222221  , -27.460317460317462 , -85.55555555555557  , -36.50793650793649  , 14.60317460317459   , 133.01587301587304  , 65.39682539682536  ], 
             [-91.98412698412692  , -55.3174603174603   , -56.031746031745996 , -129.36507936507928 , -92.6984126984127   , 101.11111111111107  , 65.39682539682536   , 258.8888888888888  ], 
         ]);
-        assert_vec_approx_eq!(elements[1].jacobian.as_data(), bhatti_kk1.as_data(), 1e-12);
+        vec_approx_eq(elements[1].jacobian.as_data(), bhatti_kk1.as_data(), 1e-12);
 
         // must set prescribed unknowns before calculating residuals
         let (neq, nnz) = (data.dof_numbers.n_equation, data.dof_numbers.nnz_sup); // TODO: check nnz_sup with no prescribed
@@ -270,7 +270,7 @@ mod tests {
         let bhatti_rr = &[
             204.5, -1147.0, 304.25, -1011.0, 616.75, -1022.0, 307.0, -1125.0, 0.0, 0.0, 0.0, -1410.0, -2250.0,
         ];
-        // assert_vec_approx_eq!(rr.as_data(), bhatti_rr, 1e-12);
+        // vec_approx_eq(rr.as_data(), bhatti_rr, 1e-12);
 
         let mut mdu = Vector::new(neq);
         lin_sys.solver.initialize(&kk).unwrap();
@@ -298,7 +298,7 @@ mod tests {
             144.67542222443012,
             129.13200798820264,
         ]);
-        assert_vec_approx_eq!(uu_new.as_data(), tt_bhatti.as_data(), 1e-12);
+        vec_approx_eq(uu_new.as_data(), tt_bhatti.as_data(), 1e-12);
         copy_vector(&mut state.primary_unknowns, &uu_new);
 
         rr.fill(0.0);
@@ -341,12 +341,12 @@ mod tests {
         let correct_r = ana.vec_03_vg(-w0, -w1);
         println!("{}", elem.residual);
         println!("{:?}", correct_r);
-        // assert_vec_approx_eq!(elem.residual.as_data(), correct_r, 1e-15);
+        // vec_approx_eq(elem.residual.as_data(), correct_r, 1e-15);
 
         // check Jacobian matrix
         elem.calc_jacobian(&state).unwrap();
         let correct_kk = ana.mat_03_gtg(kx, ky);
-        // assert_vec_approx_eq!(elem.jacobian.as_data(), correct_kk.as_data(), 1e-12);
+        // vec_approx_eq(elem.jacobian.as_data(), correct_kk.as_data(), 1e-12);
 
         // let source = 4.0;
         // let p1 = ParamDiffusion {
