@@ -173,6 +173,7 @@ mod tests {
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
     use russell_chk::vec_approx_eq;
+    use russell_lab::mat_approx_eq;
 
     #[test]
     fn new_captures_errors() {
@@ -423,11 +424,15 @@ mod tests {
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), &[-5.5, -5.5, -22.0], 1e-14);
         bry.calc_jacobian(&state).unwrap();
+        #[rustfmt::skip]
+        let correct = &[
+            [ 0.22,  -0.055,  0.11],
+            [-0.055,  0.22 ,  0.11],
+            [ 0.11,   0.11 ,  0.88],
+        ];
         match bry.jacobian {
-            Some(jj) => println!("{}", jj),
+            Some(jj) => mat_approx_eq(&jj, correct, 1e-15),
             None => (),
         }
-        // let jac = bry.jacobian.ok_or("error").unwrap();
-        // vec_approx_eq(jac.as_data(), &[2.7, 1.35, 1.35, 2.7], 1e-15);
     }
 }
