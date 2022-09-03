@@ -38,8 +38,7 @@ impl BcsNaturalInteg {
         let (kind, points) = (feature.kind, &feature.points);
         let mut pad = Scratchpad::new(mesh.ndim, kind)?;
         set_pad_coords(&mut pad, &points, &mesh);
-        // let ips = default_points(pad.kind);
-        let ips = integ::points(pad.kind.class(), 2).unwrap();
+        let ips = integ::default_points(pad.kind);
 
         // dofs
         let (ndim, nnode) = pad.xxt.dims();
