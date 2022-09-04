@@ -2,11 +2,21 @@ use super::{Data, ElementDiffusion, ElementSolid, LocalEquations, State};
 use crate::base::{Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
+use russell_lab::{Matrix, Vector};
 
+/// Defines a generic element for interior cells (opposite to boundary cells)
 pub struct InteriorElement<'a> {
+    /// Connects to the "actual" implementation of local equations
     pub actual: Box<dyn LocalEquations + 'a>,
+
+    /// Implements the residual vector
+    pub residual: Vector,
+
+    /// Implements the Jacobian matrix
+    pub jacobian: Matrix,
 }
 
+/// Holds a collection of interior elements
 pub struct InteriorElementVec<'a> {
     pub all: Vec<InteriorElement<'a>>,
 }
@@ -27,6 +37,7 @@ impl<'a> InteriorElementVec<'a> {
 }
 
 impl<'a> InteriorElement<'a> {
+    /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
         let element = data.attributes.get(cell).unwrap(); // already checked in Data
         let actual: Box<dyn LocalEquations> = match element {
@@ -39,18 +50,22 @@ impl<'a> InteriorElement<'a> {
             Element::PorousSldLiq(..) => panic!("TODO: PorousSldLiq"),
             Element::PorousSldLiqGas(..) => panic!("TODO: PorousSldLiqGas"),
         };
-        Ok(InteriorElement { actual })
+        let neq = data.element_dofs.get(cell).unwrap().n_equation_local;
+        Ok(InteriorElement {
+            actual,
+            residual: Vector::new(neq),
+            jacobian: Matrix::new(neq, neq),
+        })
     }
-}
 
-impl<'a> LocalEquations for InteriorElement<'a> {
     #[inline]
     fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
-        self.actual.calc_residual(state)
+        self.actual.calc_residual(&mut self.residual, state)
     }
+
     #[inline]
     fn calc_jacobian(&mut self, state: &State) -> Result<(), StrError> {
-        self.actual.calc_jacobian(state)
+        self.actual.calc_jacobian(&mut self.jacobian, state)
     }
 }
 
