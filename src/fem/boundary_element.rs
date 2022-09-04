@@ -1,4 +1,4 @@
-use super::{Data, LocalEquations, State};
+use super::{Data, State};
 use crate::base::{BcsNatural, Config, Nbc};
 use crate::StrError;
 use gemlab::integ;
@@ -89,11 +89,9 @@ impl BoundaryElement {
             thickness: config.thickness,
         })
     }
-}
 
-impl LocalEquations for BoundaryElement {
     /// Calculates the residual vector at given time
-    fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
         let (ndim, nnode) = self.pad.xxt.dims();
         let res = &mut self.residual;
         let pad = &mut self.pad;
@@ -151,7 +149,7 @@ impl LocalEquations for BoundaryElement {
     }
 
     /// Calculates the Jacobian matrix at given time
-    fn calc_jacobian(&mut self, _state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobian(&mut self, _state: &State) -> Result<(), StrError> {
         match self.nbc {
             Nbc::Cv(cc, _) => {
                 let kk = self.jacobian.as_mut().unwrap();
@@ -168,7 +166,7 @@ impl LocalEquations for BoundaryElement {
 mod tests {
     use super::{BoundaryElement, BoundaryElementVec};
     use crate::base::{BcsNatural, Config, Element, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
-    use crate::fem::{Data, LocalEquations, State};
+    use crate::fem::{Data, State};
     use gemlab::mesh;
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
