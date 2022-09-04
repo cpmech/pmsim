@@ -120,6 +120,8 @@ impl State {
         let n_equation = data.dof_numbers.n_equation;
 
         // primary variables
+        let t = config.control.t_ini;
+        let dt = (config.control.dt)(t);
         let uu = Vector::new(n_equation);
         let (uu_old, vv, vv_old) = if config.transient || config.dynamics {
             (
@@ -141,8 +143,8 @@ impl State {
         // return state with most vectors empty
         if rods_and_beams_only || has_diffusion {
             return Ok(State {
-                t: 0.0,
-                dt: 0.0,
+                t,
+                dt,
                 uu,
                 vv,
                 aa,
@@ -236,8 +238,8 @@ impl State {
 
         // general state
         Ok(State {
-            t: 0.0,
-            dt: 0.0,
+            t,
+            dt,
             uu,
             vv,
             aa,

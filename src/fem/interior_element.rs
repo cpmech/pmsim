@@ -173,6 +173,22 @@ mod tests {
         ele.calc_jacobian(&state).unwrap();
         let num_jacobian = ele.numerical_jacobian(&state);
         vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-12);
+
+        // transient simulation
+        let mut config = Config::new();
+        config.transient = true;
+        let mut ele = InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        let mut state = State::new(&data, &config).unwrap();
+        let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.uu_old[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.uu_old[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.uu_old[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        ele.calc_jacobian(&state).unwrap();
+        let num_jacobian = ele.numerical_jacobian(&state);
+        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-10);
     }
 
     // ----------------- temporary ----------------------------------------

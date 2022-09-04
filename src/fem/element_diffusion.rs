@@ -122,10 +122,18 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
     }
 
     /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &State) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
         integ::mat_03_gtg(jacobian, &mut self.pad, 0, 0, true, self.ips, |k, _, _| {
             copy_tensor2(k, &self.conductivity)
-        })
+        })?;
+        if self.config.transient {
+            let theta = self.config.control.theta;
+            let alpha_1 = 1.0 / (theta * state.dt);
+            integ::mat_01_nsn(jacobian, &mut self.pad, 0, 0, false, self.ips, |_, _, _| {
+                Ok(self.param.rho * alpha_1)
+            })?;
+        }
+        Ok(())
     }
 }
 
