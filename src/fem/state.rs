@@ -7,17 +7,56 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct State {
-    pub time: f64,
-    pub delta_time: f64,
-    pub primary_unknowns: Vector, // (n_equation)
+    /// Time
+    pub t: f64,
 
-    pub effective_stress: Vec<Vec<Tensor2>>, // (ncell,n_integ_point)
-    pub int_values_solid: Vec<Vec<Vector>>,  // (ncell,n_integ_point)
-    pub loading: Vec<Vec<bool>>,             // (ncell,n_integ_point)
+    /// Delta time
+    pub dt: f64,
 
-    pub liquid_saturation: Vec<Vec<f64>>,    // (ncell,n_integ_point)
-    pub int_values_porous: Vec<Vec<Vector>>, // (ncell,n_integ_point)
-    pub wetting: Vec<Vec<bool>>,             // (ncell,n_integ_point)
+    /// Primary unknowns {U}
+    ///
+    /// (n_equation)
+    pub uu: Vector,
+
+    /// First time derivative of primary unknowns d{U}/dt
+    ///
+    /// (n_equation)
+    pub vv: Vector,
+
+    /// Second time derivative of primary unknowns d²{U}/dt²
+    ///
+    /// (n_equation)
+    pub aa: Vector,
+
+    /// Effective stress of all cells and all integration points
+    ///
+    /// (ncell,n_integ_point)
+    pub sigma: Vec<Vec<Tensor2>>,
+
+    /// Internal values of all cells and all integration points
+    ///
+    /// (ncell,n_integ_point)
+    pub ivs: Vec<Vec<Vector>>,
+
+    /// Loading flags of all cells and all integration points
+    ///
+    /// (ncell,n_integ_point)
+    pub loading: Vec<Vec<bool>>,
+
+    /// Liquid saturation of all cells and all integration points
+    ///
+    /// (ncell,n_integ_point)
+    pub sl: Vec<Vec<f64>>,
+
+    /// Internal values for porous media of all cells and all integration points
+    ///
+    /// (ncell,n_integ_point)
+    pub ivs_porous: Vec<Vec<Vector>>,
+
+    /// wetting flags of all cells and all integration points
+    ///
+    /// (ncell,n_integ_point)
+    pub wetting: Vec<Vec<bool>>,
 }
 
 impl State {
@@ -65,21 +104,36 @@ impl State {
         let ncell = data.mesh.cells.len();
         let n_equation = data.dof_numbers.n_equation;
 
+        // primary variables
+        let uu = Vector::new(n_equation);
+        let vv = if config.transient || config.dynamics {
+            Vector::new(n_equation)
+        } else {
+            Vector::new(n_equation)
+        };
+        let aa = if config.dynamics {
+            Vector::new(n_equation)
+        } else {
+            Vector::new(n_equation)
+        };
+
         // TODO: check compatibility of flags
 
         // return state with most vectors empty
         if rods_and_beams_only || has_diffusion {
             return Ok(State {
-                time: 0.0,
-                delta_time: 0.0,
-                primary_unknowns: Vector::new(n_equation),
+                t: 0.0,
+                dt: 0.0,
+                uu,
+                vv,
+                aa,
 
-                effective_stress: Vec::new(),
-                int_values_solid: Vec::new(),
+                sigma: Vec::new(),
+                ivs: Vec::new(),
                 loading: Vec::new(),
 
-                liquid_saturation: Vec::new(),
-                int_values_porous: Vec::new(),
+                sl: Vec::new(),
+                ivs_porous: Vec::new(),
                 wetting: Vec::new(),
             });
         }
@@ -160,16 +214,18 @@ impl State {
 
         // general state
         Ok(State {
-            time: 0.0,
-            delta_time: 0.0,
-            primary_unknowns: Vector::new(n_equation),
+            t: 0.0,
+            dt: 0.0,
+            uu,
+            vv,
+            aa,
 
-            effective_stress,
-            int_values_solid,
+            sigma: effective_stress,
+            ivs: int_values_solid,
             loading,
 
-            liquid_saturation,
-            int_values_porous,
+            sl: liquid_saturation,
+            ivs_porous: int_values_porous,
             wetting,
         })
     }
@@ -202,31 +258,31 @@ mod tests {
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
         let ncell = mesh.cells.len();
-        assert_eq!(state.time, 0.0);
-        assert_eq!(state.delta_time, 0.0);
-        assert_eq!(state.primary_unknowns.dim(), data.dof_numbers.n_equation);
-        assert_eq!(state.effective_stress.len(), ncell);
-        assert_eq!(state.int_values_solid.len(), ncell);
+        assert_eq!(state.t, 0.0);
+        assert_eq!(state.dt, 0.0);
+        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.sigma.len(), ncell);
+        assert_eq!(state.ivs.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
-        assert_eq!(state.liquid_saturation.len(), ncell);
-        assert_eq!(state.int_values_porous.len(), ncell);
+        assert_eq!(state.sl.len(), ncell);
+        assert_eq!(state.ivs_porous.len(), ncell);
         assert_eq!(state.wetting.len(), ncell);
-        assert_eq!(state.effective_stress[0].len(), 9 /*n_integ_point*/);
-        assert_eq!(state.effective_stress[1].len(), 7 /*n_integ_point*/);
-        assert_eq!(state.effective_stress[2].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.effective_stress[3].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.int_values_solid[0].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.int_values_solid[1].len(), 7 /*n_integ_point*/);
-        assert_eq!(state.int_values_solid[2].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.int_values_solid[3].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.sigma[0].len(), 9 /*n_integ_point*/);
+        assert_eq!(state.sigma[1].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.sigma[2].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.sigma[3].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.ivs[0].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.ivs[1].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.ivs[2].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.ivs[3].len(), 0 /*n_integ_point*/);
         assert_eq!(state.loading[0].len(), 0 /*n_integ_point*/);
         assert_eq!(state.loading[1].len(), 7 /*n_integ_point*/);
         assert_eq!(state.loading[2].len(), 0 /*n_integ_point*/);
         assert_eq!(state.loading[3].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.liquid_saturation[0].len(), 9 /*n_integ_point*/);
-        assert_eq!(state.liquid_saturation[1].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.liquid_saturation[2].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.liquid_saturation[3].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.sl[0].len(), 9 /*n_integ_point*/);
+        assert_eq!(state.sl[1].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.sl[2].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.sl[3].len(), 0 /*n_integ_point*/);
         assert_eq!(state.wetting[0].len(), 9 /*n_integ_point*/);
         assert_eq!(state.wetting[1].len(), 0 /*n_integ_point*/);
         assert_eq!(state.wetting[2].len(), 0 /*n_integ_point*/);
@@ -240,13 +296,13 @@ mod tests {
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
-        assert_eq!(state.time, 0.0);
-        assert_eq!(state.primary_unknowns.dim(), data.dof_numbers.n_equation);
-        assert_eq!(state.effective_stress.len(), 0);
-        assert_eq!(state.int_values_solid.len(), 0);
+        assert_eq!(state.t, 0.0);
+        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.sigma.len(), 0);
+        assert_eq!(state.ivs.len(), 0);
         assert_eq!(state.loading.len(), 0);
-        assert_eq!(state.liquid_saturation.len(), 0);
-        assert_eq!(state.int_values_porous.len(), 0);
+        assert_eq!(state.sl.len(), 0);
+        assert_eq!(state.ivs_porous.len(), 0);
         assert_eq!(state.wetting.len(), 0);
     }
 
@@ -257,13 +313,13 @@ mod tests {
         let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
-        assert_eq!(state.time, 0.0);
-        assert_eq!(state.primary_unknowns.dim(), data.dof_numbers.n_equation);
-        assert_eq!(state.effective_stress.len(), 0);
-        assert_eq!(state.int_values_solid.len(), 0);
+        assert_eq!(state.t, 0.0);
+        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.sigma.len(), 0);
+        assert_eq!(state.ivs.len(), 0);
         assert_eq!(state.loading.len(), 0);
-        assert_eq!(state.liquid_saturation.len(), 0);
-        assert_eq!(state.int_values_porous.len(), 0);
+        assert_eq!(state.sl.len(), 0);
+        assert_eq!(state.ivs_porous.len(), 0);
         assert_eq!(state.wetting.len(), 0);
     }
 
@@ -275,15 +331,15 @@ mod tests {
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
         let ncell = mesh.cells.len();
-        assert_eq!(state.time, 0.0);
-        assert_eq!(state.primary_unknowns.dim(), data.dof_numbers.n_equation);
-        assert_eq!(state.effective_stress.len(), 0);
-        assert_eq!(state.int_values_solid.len(), 0);
+        assert_eq!(state.t, 0.0);
+        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.sigma.len(), 0);
+        assert_eq!(state.ivs.len(), 0);
         assert_eq!(state.loading.len(), 0);
-        assert_eq!(state.liquid_saturation.len(), ncell);
-        assert_eq!(state.int_values_porous.len(), ncell);
+        assert_eq!(state.sl.len(), ncell);
+        assert_eq!(state.ivs_porous.len(), ncell);
         assert_eq!(state.wetting.len(), ncell);
-        assert_eq!(state.liquid_saturation[0].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.sl[0].len(), 7 /*n_integ_point*/);
     }
 
     #[test]
@@ -294,15 +350,15 @@ mod tests {
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
         let ncell = mesh.cells.len();
-        assert_eq!(state.time, 0.0);
-        assert_eq!(state.primary_unknowns.dim(), data.dof_numbers.n_equation);
-        assert_eq!(state.effective_stress.len(), 0);
-        assert_eq!(state.int_values_solid.len(), 0);
+        assert_eq!(state.t, 0.0);
+        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.sigma.len(), 0);
+        assert_eq!(state.ivs.len(), 0);
         assert_eq!(state.loading.len(), 0);
-        assert_eq!(state.liquid_saturation.len(), ncell);
-        assert_eq!(state.int_values_porous.len(), ncell);
+        assert_eq!(state.sl.len(), ncell);
+        assert_eq!(state.ivs_porous.len(), ncell);
         assert_eq!(state.wetting.len(), ncell);
-        assert_eq!(state.liquid_saturation[0].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.sl[0].len(), 7 /*n_integ_point*/);
     }
 
     #[test]
@@ -313,15 +369,15 @@ mod tests {
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
         let ncell = mesh.cells.len();
-        assert_eq!(state.time, 0.0);
-        assert_eq!(state.primary_unknowns.dim(), data.dof_numbers.n_equation);
-        assert_eq!(state.effective_stress.len(), ncell);
-        assert_eq!(state.int_values_solid.len(), ncell);
+        assert_eq!(state.t, 0.0);
+        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.sigma.len(), ncell);
+        assert_eq!(state.ivs.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
-        assert_eq!(state.liquid_saturation.len(), ncell);
-        assert_eq!(state.int_values_porous.len(), ncell);
+        assert_eq!(state.sl.len(), ncell);
+        assert_eq!(state.ivs_porous.len(), ncell);
         assert_eq!(state.wetting.len(), ncell);
-        assert_eq!(state.liquid_saturation[0].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.sl[0].len(), 7 /*n_integ_point*/);
     }
 
     #[test]
@@ -333,13 +389,13 @@ mod tests {
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
         let ncell = mesh.cells.len();
-        assert_eq!(state.time, 0.0);
-        assert_eq!(state.primary_unknowns.dim(), data.dof_numbers.n_equation);
-        assert_eq!(state.effective_stress.len(), ncell);
-        assert_eq!(state.int_values_solid.len(), ncell);
+        assert_eq!(state.t, 0.0);
+        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.sigma.len(), ncell);
+        assert_eq!(state.ivs.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
-        assert_eq!(state.liquid_saturation.len(), 0);
-        assert_eq!(state.int_values_porous.len(), 0);
+        assert_eq!(state.sl.len(), 0);
+        assert_eq!(state.ivs_porous.len(), 0);
         assert_eq!(state.wetting.len(), 0);
     }
 
@@ -351,13 +407,13 @@ mod tests {
         let config = Config::new();
         let state_ori = State::new(&data, &config).unwrap();
         let state = state_ori.clone();
-        let correct ="State { time: 0.0, delta_time: 0.0, primary_unknowns: NumVector { data: [0.0, 0.0, 0.0, 0.0] }, effective_stress: [], int_values_solid: [], loading: [], liquid_saturation: [], int_values_porous: [], wetting: [] }";
-        assert_eq!(format!("{:?}", state), correct);
+        let str_ori = format!("{:?}", state).to_string();
+        assert!(str_ori.len() > 0);
         // serialize
         let json = serde_json::to_string(&state).unwrap();
         // deserialize
         let read: State = serde_json::from_str(&json).unwrap();
-        assert_eq!(format!("{:?}", read), correct);
+        assert_eq!(format!("{:?}", read), str_ori);
     }
 
     #[test]

@@ -62,7 +62,7 @@ impl<'a> ElementSolid<'a> {
 impl<'a> LocalEquations for ElementSolid<'a> {
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
-        let sigma = &state.effective_stress[self.cell.id];
+        let sigma = &state.sigma[self.cell.id];
         integ::vec_04_tg(residual, &mut self.pad, 0, true, self.ips, |sig, p, _| {
             copy_tensor2(sig, &sigma[p])
         })
@@ -70,7 +70,7 @@ impl<'a> LocalEquations for ElementSolid<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
-        let sigma = &state.effective_stress[self.cell.id];
+        let sigma = &state.sigma[self.cell.id];
         integ::mat_10_gdg(jacobian, &mut self.pad, 0, 0, true, self.ips, |dd, p, _| {
             self.model.stiffness(dd, &sigma[p])
         })
@@ -119,7 +119,7 @@ mod tests {
         // set stress state
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
         let mut state = State::new(&data, &config).unwrap();
-        for sigma in &mut state.effective_stress[0] {
+        for sigma in &mut state.sigma[0] {
             sigma.sym_set(0, 0, s00);
             sigma.sym_set(1, 1, s11);
             sigma.sym_set(0, 1, s01);

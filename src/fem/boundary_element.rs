@@ -108,7 +108,7 @@ impl BoundaryElement {
                 //                \_____________/
                 //                we compute this
                 for i in 0..ndim {
-                    v[i] = -th * f(state.time) * un[i];
+                    v[i] = -th * f(state.t) * un[i];
                 }
                 Ok(())
             }),
@@ -117,33 +117,33 @@ impl BoundaryElement {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[0] = -th * f(state.time);
+                v[0] = -th * f(state.t);
                 Ok(())
             }),
             Nbc::Qy(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[1] = -th * f(state.time);
+                v[1] = -th * f(state.t);
                 Ok(())
             }),
             Nbc::Qz(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[2] = -th * f(state.time);
+                v[2] = -th * f(state.t);
                 Ok(())
             }),
-            Nbc::Ql(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.time))),
-            Nbc::Qg(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.time))),
-            Nbc::Qt(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.time))),
+            Nbc::Ql(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t))),
+            Nbc::Qg(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t))),
+            Nbc::Qt(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t))),
             Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, nn| {
                 // interpolate T from nodes to integration point
                 let mut tt = 0.0;
                 for m in 0..nnode {
-                    tt += nn[m] * state.primary_unknowns[self.local_to_global[m]];
+                    tt += nn[m] * state.uu[self.local_to_global[m]];
                 }
-                Ok(cc * (tt - tt_env(state.time)))
+                Ok(cc * (tt - tt_env(state.t)))
             }),
         }
     }

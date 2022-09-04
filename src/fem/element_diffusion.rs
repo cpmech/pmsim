@@ -84,7 +84,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let pad = &mut self.pad;
-        let tt = &state.primary_unknowns;
+        let tt = &state.uu;
         integ::vec_03_vg(residual, pad, 0, true, self.ips, |w, _, gg| {
             // interpolate ∇T to ip
             for i in 0..ndim {
@@ -100,9 +100,9 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         if let Some(s) = self.param.source {
             integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| Ok(-s))?;
         }
-        if self.config.control.transient {
+        if self.config.transient {
             let theta = self.config.control.theta;
-            let dt = state.delta_time;
+            let dt = state.dt;
             let alpha_1 = 1.0 / (theta * dt);
             integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| {
                 // TODO
@@ -158,9 +158,9 @@ mod tests {
         // set heat flow from the right to the left
         let mut state = State::new(&data, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
-        state.primary_unknowns[0] = tt_field(mesh.points[0].coords[0]);
-        state.primary_unknowns[1] = tt_field(mesh.points[1].coords[0]);
-        state.primary_unknowns[2] = tt_field(mesh.points[2].coords[0]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0]);
 
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
@@ -214,10 +214,10 @@ mod tests {
         // set heat flow from the top to bottom and right to left
         let mut state = State::new(&data, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
-        state.primary_unknowns[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
-        state.primary_unknowns[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
-        state.primary_unknowns[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[2]);
-        state.primary_unknowns[3] = tt_field(mesh.points[3].coords[0], mesh.points[3].coords[2]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[2]);
+        state.uu[3] = tt_field(mesh.points[3].coords[0], mesh.points[3].coords[2]);
 
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);

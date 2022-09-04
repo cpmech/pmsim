@@ -7,6 +7,18 @@ use std::fmt;
 
 /// Holds configuration data such as boundary conditions and element attributes
 pub struct Config {
+    /// Linear problem
+    pub linear_problem: bool,
+
+    /// Transient analysis (with first time derivative of primary variables)
+    pub transient: bool,
+
+    /// Dynamics analysis (with second time derivative of primary variables)
+    pub dynamics: bool,
+
+    /// Pseudo-Newton method with constant-tangent operator
+    pub constant_tangent: bool,
+
     /// Holds control variables for the (pseudo) time integration over the simulation period
     pub control: Control,
 
@@ -36,6 +48,10 @@ impl Config {
     /// Allocates a new instance
     pub fn new() -> Self {
         Config {
+            linear_problem: false,
+            transient: false,
+            dynamics: false,
+            constant_tangent: false,
             control: Control::new(),
             gravity: 0.0,
             thickness: 1.0,
@@ -149,6 +165,10 @@ mod tests {
     #[test]
     fn new_works() {
         let config = Config::new();
+        assert_eq!(config.linear_problem, false);
+        assert_eq!(config.transient, false);
+        assert_eq!(config.dynamics, false);
+        assert_eq!(config.constant_tangent, false);
         assert_eq!(config.gravity, 0.0);
         assert_eq!(config.thickness, 1.0);
         assert_eq!(config.plane_stress, false);

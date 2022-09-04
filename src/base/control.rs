@@ -9,15 +9,6 @@ pub const CONTROL_MIN_THETA: f64 = 0.0001;
 
 /// Holds the (time-loop) options to control the simulation
 pub struct Control {
-    /// Linear problem
-    pub linear_problem: bool,
-
-    /// Transient analysis
-    pub transient: bool,
-
-    /// Pseudo-Newton method with constant-tangent operator
-    pub constant_tangent: bool,
-
     /// Initial time
     pub t_ini: f64,
 
@@ -68,9 +59,6 @@ impl Control {
     /// Allocates a new instance with default values
     pub fn new() -> Self {
         Control {
-            linear_problem: false,
-            transient: false,
-            constant_tangent: false,
             t_ini: 0.0,
             t_fin: 1.0,
             dt: |_| 0.1,
@@ -154,9 +142,6 @@ mod tests {
     #[test]
     fn new_works() {
         let control = Control::new();
-        assert_eq!(control.linear_problem, false);
-        assert_eq!(control.transient, false);
-        assert_eq!(control.constant_tangent, false);
         assert_eq!(control.t_ini, 0.0);
         assert_eq!(control.t_fin, 1.0);
         assert_eq!((control.dt)(123.0), 0.1);

@@ -83,12 +83,12 @@ impl<'a> InteriorElement<'a> {
         };
         let mut num_jacobian = Matrix::new(neq, neq);
         for i in 0..neq {
-            let at_u = state.primary_unknowns[i];
+            let at_u = state.uu[i];
             for j in 0..neq {
                 num_jacobian[i][j] = deriv_central5(
                     at_u,
                     |u, a| {
-                        a.state.primary_unknowns[j] = u;
+                        a.state.uu[j] = u;
                         self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
                         a.residual[i]
                     },
@@ -166,9 +166,9 @@ mod tests {
         // set heat flow from the top to bottom and right to left
         let mut state = State::new(&data, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
-        state.primary_unknowns[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.primary_unknowns[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.primary_unknowns[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         ele.calc_jacobian(&state).unwrap();
         let num_jacobian = ele.numerical_jacobian(&state);
