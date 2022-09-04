@@ -286,7 +286,7 @@ mod tests {
         let state = State::new(&data, &config).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.dt, 0.0);
+        assert_eq!(state.dt, 0.1);
         assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
         assert_eq!(state.sigma.len(), ncell);
         assert_eq!(state.ivs.len(), ncell);
