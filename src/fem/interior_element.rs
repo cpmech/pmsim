@@ -2,6 +2,7 @@ use super::{Data, ElementDiffusion, ElementSolid, LocalEquations, State};
 use crate::base::{Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
+use russell_chk::deriv_central5;
 use russell_lab::{Matrix, Vector};
 
 /// Defines a generic element for interior cells (opposite to boundary cells)
@@ -36,6 +37,12 @@ impl<'a> InteriorElementVec<'a> {
     }
 }
 
+/// Define auxiliary arguments structure for numerical Jacobian
+struct ArgsForNumericalJacobian {
+    pub residual: Vector,
+    pub state: State,
+}
+
 impl<'a> InteriorElement<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
@@ -67,6 +74,30 @@ impl<'a> InteriorElement<'a> {
     pub fn calc_jacobian(&mut self, state: &State) -> Result<(), StrError> {
         self.actual.calc_jacobian(&mut self.jacobian, state)
     }
+
+    pub fn numerical_jacobian(&mut self, state: &State) -> Matrix {
+        let neq = self.residual.dim();
+        let mut args = ArgsForNumericalJacobian {
+            residual: Vector::new(neq),
+            state: state.clone(),
+        };
+        let mut num_jacobian = Matrix::new(neq, neq);
+        for i in 0..neq {
+            let at_u = state.primary_unknowns[i];
+            for j in 0..neq {
+                num_jacobian[i][j] = deriv_central5(
+                    at_u,
+                    |u, a| {
+                        a.state.primary_unknowns[j] = u;
+                        self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
+                        a.residual[i]
+                    },
+                    &mut args,
+                );
+            }
+        }
+        num_jacobian
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -75,8 +106,9 @@ impl<'a> InteriorElement<'a> {
 mod tests {
     use super::{InteriorElement, InteriorElementVec};
     use crate::base::{Config, Element, SampleParams};
-    use crate::fem::Data;
+    use crate::fem::{Data, State};
     use gemlab::mesh::Samples;
+    use russell_chk::vec_approx_eq;
 
     #[test]
     fn new_handles_errors() {
@@ -121,6 +153,26 @@ mod tests {
         InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
 
         InteriorElementVec::new(&data, &config).unwrap();
+    }
+
+    #[test]
+    fn num_jacobian_diffusion() {
+        let mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_diffusion();
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
+        let mut ele = InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+
+        // set heat flow from the top to bottom and right to left
+        let mut state = State::new(&data, &config).unwrap();
+        let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
+        state.primary_unknowns[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.primary_unknowns[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.primary_unknowns[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+
+        ele.calc_jacobian(&state).unwrap();
+        let num_jacobian = ele.numerical_jacobian(&state);
+        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-12);
     }
 
     // ----------------- temporary ----------------------------------------

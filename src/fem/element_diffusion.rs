@@ -129,7 +129,7 @@ mod tests {
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
-    use russell_chk::{deriv_central5, vec_approx_eq};
+    use russell_chk::vec_approx_eq;
     use russell_lab::{add_vectors, Matrix, Vector};
     use russell_tensor::Tensor2;
 
@@ -226,51 +226,19 @@ mod tests {
         let neq = 4;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
-        println!("{}", residual);
         let (dtt_dx, dtt_dz) = (7.0, 3.0);
         let w0 = -p1.kx * dtt_dx;
         let w1 = 0.0;
         let w2 = -p1.kz * dtt_dz;
         let correct_r = Vector::from(&ana.vec_03_vg(-w0, -w1, -w2));
-        println!("{}", correct_r);
         vec_approx_eq(residual.as_data(), correct_r.as_data(), 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
-        println!("{}", jacobian);
-
-        // numerical Jacobian
-        struct Args {
-            pub residual: Vector,
-            pub state: State,
-        }
-        let mut args = Args {
-            residual: Vector::new(neq),
-            state: state.clone(),
-        };
-        let mut num_jacobian = Matrix::new(neq, neq);
-        for i in 0..4 {
-            let at_tt = state.primary_unknowns[i];
-            for j in 0..4 {
-                num_jacobian[i][j] = deriv_central5(
-                    at_tt,
-                    |tt, a| {
-                        a.state.primary_unknowns[j] = tt;
-                        elem.calc_residual(&mut a.residual, &a.state).unwrap();
-                        a.residual[i]
-                    },
-                    &mut args,
-                );
-            }
-        }
-        println!("num_jacobian =\n{}", num_jacobian);
-        vec_approx_eq(jacobian.as_data(), num_jacobian.as_data(), 1e-12);
-
         let conductivity =
             Tensor2::from_matrix(&[[p1.kx, 0.0, 0.0], [0.0, p1.ky, 0.0], [0.0, 0.0, p1.kz]], true, false).unwrap();
         let correct_kk = ana.mat_03_gtg(&conductivity);
-        println!("{}", correct_kk);
         vec_approx_eq(jacobian.as_data(), correct_kk.as_data(), 1e-15);
 
         // with source term -------------------------------------------------
@@ -285,11 +253,9 @@ mod tests {
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();
-        println!("{}", residual);
-        // let correct_src = Vector::from(&ana.vec_01_ns(-source));
-        // let mut correct_r_new = Vector::new(neq);
-        // add_vectors(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
-        // println!("{}", correct_r_new);
-        // vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
+        let correct_src = Vector::from(&ana.vec_01_ns(-source));
+        let mut correct_r_new = Vector::new(neq);
+        add_vectors(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
+        vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
     }
 }
