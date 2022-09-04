@@ -84,30 +84,39 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let pad = &mut self.pad;
-        let tt = &state.uu;
         integ::vec_03_vg(residual, pad, 0, true, self.ips, |w, _, gg| {
-            // interpolate ∇T to ip
+            // interpolate ∇T to integration point
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
                 for m in 0..npoint {
-                    self.grad_tt[i] += gg[m][i] * tt[l2g[m]];
+                    self.grad_tt[i] += gg[m][i] * state.uu[l2g[m]];
                 }
             }
             // w must be negative as in the residual, however, w := -k.∇T
-            // so the double negative is necessary to obtain -w = -(-k.∇T)
-            t2_dot_vec(w, -(-1.0), &self.conductivity, &self.grad_tt)
+            // so the double negative is necessary to obtain -w = -(-k.∇T) = k.∇T
+            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt)
         })?;
-        if let Some(s) = self.param.source {
-            integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| Ok(-s))?;
-        }
         if self.config.transient {
             let theta = self.config.control.theta;
-            let dt = state.dt;
-            let alpha_1 = 1.0 / (theta * dt);
-            integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| {
-                // TODO
-                Ok(self.param.rho * (alpha_1 * 0.0))
+            let alpha_1 = 1.0 / (theta * state.dt);
+            let alpha_2 = (1.0 - theta) / theta;
+            let s = match self.param.source {
+                Some(val) => val,
+                None => 0.0,
+            };
+            integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, nn| {
+                // interpolate T and T★ to integration point
+                let (mut tt, mut tt_star) = (0.0, 0.0);
+                for m in 0..npoint {
+                    tt += nn[m] * state.uu[m];
+                    tt_star += nn[m] * (alpha_1 * state.uu_old[m] + alpha_2 * state.vv_old[m]);
+                }
+                Ok(self.param.rho * (alpha_1 * tt - tt_star) - s)
             })?;
+        } else {
+            if let Some(s) = self.param.source {
+                integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| Ok(-s))?;
+            }
         }
         Ok(())
     }
@@ -169,7 +178,6 @@ mod tests {
         let neq = 3;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
-        println!("{}", residual);
         let dtt_dx = 5.0;
         let w0 = -p1.kx * dtt_dx;
         let w1 = 0.0;
@@ -194,11 +202,9 @@ mod tests {
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();
-        println!("{}", residual);
         let correct_src = Vector::from(&ana.vec_01_ns(-source));
         let mut correct_r_new = Vector::new(neq);
         add_vectors(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
-        println!("{}", correct_r_new);
         vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
     }
 

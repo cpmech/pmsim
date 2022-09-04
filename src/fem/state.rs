@@ -28,6 +28,21 @@ pub struct State {
     /// (n_equation)
     pub aa: Vector,
 
+    /// Primary unknowns {U} at the beginning of the time step
+    ///
+    /// (n_equation)
+    pub uu_old: Vector,
+
+    /// First time derivative d{U}/dt at the beginning of the time step
+    ///
+    /// (n_equation)
+    pub vv_old: Vector,
+
+    /// Second time derivative d²{U}/dt² at the beginning of the time step
+    ///
+    /// (n_equation)
+    pub aa_old: Vector,
+
     /// Effective stress of all cells and all integration points
     ///
     /// (ncell,n_integ_point)
@@ -106,15 +121,19 @@ impl State {
 
         // primary variables
         let uu = Vector::new(n_equation);
-        let vv = if config.transient || config.dynamics {
-            Vector::new(n_equation)
+        let (uu_old, vv, vv_old) = if config.transient || config.dynamics {
+            (
+                Vector::new(n_equation),
+                Vector::new(n_equation),
+                Vector::new(n_equation),
+            )
         } else {
-            Vector::new(n_equation)
+            (Vector::new(0), Vector::new(0), Vector::new(0))
         };
-        let aa = if config.dynamics {
-            Vector::new(n_equation)
+        let (aa, aa_old) = if config.dynamics {
+            (Vector::new(n_equation), Vector::new(n_equation))
         } else {
-            Vector::new(n_equation)
+            (Vector::new(0), Vector::new(0))
         };
 
         // TODO: check compatibility of flags
@@ -127,6 +146,9 @@ impl State {
                 uu,
                 vv,
                 aa,
+                uu_old,
+                vv_old,
+                aa_old,
 
                 sigma: Vec::new(),
                 ivs: Vec::new(),
@@ -219,6 +241,9 @@ impl State {
             uu,
             vv,
             aa,
+            uu_old,
+            vv_old,
+            aa_old,
 
             sigma: effective_stress,
             ivs: int_values_solid,
