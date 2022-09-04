@@ -59,12 +59,12 @@ impl<'a> InteriorElement<'a> {
     }
 
     #[inline]
-    fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
         self.actual.calc_residual(&mut self.residual, state)
     }
 
     #[inline]
-    fn calc_jacobian(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobian(&mut self, state: &State) -> Result<(), StrError> {
         self.actual.calc_jacobian(&mut self.jacobian, state)
     }
 }
