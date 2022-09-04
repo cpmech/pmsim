@@ -430,9 +430,8 @@ mod tests {
             [-0.055,  0.22 ,  0.11],
             [ 0.11,   0.11 ,  0.88],
         ];
-        match bry.jacobian {
-            Some(jj) => mat_approx_eq(&jj, correct, 1e-15),
-            None => (),
+        if let Some(jj) = bry.jacobian {
+            mat_approx_eq(&jj, correct, 1e-15);
         }
     }
 }
