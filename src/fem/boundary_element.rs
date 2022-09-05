@@ -57,9 +57,7 @@ impl BoundaryElement {
         let mut local_to_global = vec![0; n_equation_local];
         for m in 0..nnode {
             for (dof, local) in &dofs[m] {
-                let global = *data.equations.all[points[m]]
-                    .get(dof)
-                    .ok_or("cannot find DOF to allocate BoundaryElement")?;
+                let global = data.equations.eq(points[m], *dof)?;
                 local_to_global[*local] = global;
             }
         }
@@ -262,7 +260,7 @@ mod tests {
         };
         assert_eq!(
             BoundaryElement::new(&data, &config, &face, Nbc::Ql(minus_ten)).err(), // << flux
-            Some("cannot find DOF to allocate BoundaryElement")
+            Some("cannot find equation corresponding to (PointId,DOF)")
         );
 
         let mut natural = Natural::new();
