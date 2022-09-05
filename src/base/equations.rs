@@ -110,11 +110,11 @@ impl Equations {
     /// Returns the (global) equation number of a (PointId,DOF) pair
     pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         if point_id >= self.all.len() {
-            return Err("point_id is out of bounds");
+            return Err("cannot find equation number because point_id is out of bounds");
         }
         let eq = self.all[point_id]
             .get(&dof)
-            .ok_or("cannot find equation corresponding to (PointId,DOF)")?;
+            .ok_or("cannot find equation number corresponding to (PointId,DOF)")?;
         Ok(*eq)
     }
 }
@@ -161,14 +161,22 @@ mod tests {
     }
 
     #[test]
-    fn new_works() {
-        // 8------7------6._
-        // |       [3](3)|  '-.5
-        // |  [0]        |     '-._
-        // 9  (1)       10  [1]    '4
-        // |             |  (2)  .-'
-        // |       [2](3)|   _.3'
-        // 0------1------2.-'
+    fn new_and_eq_works() {
+        //                   {15}
+        //     {21}          {16}
+        //     {22}   {19}   {17}
+        //     {23}   {20}   {18}  {13}
+        //      8------7------6._  {14}
+        //      |       [3](3)|  '-.5
+        //      |  [0]        |     '-._
+        // {24} 9  (1)      *10  [1]    '4 {11}
+        // {25} |             |  (2)  .-'  {12}
+        //      |       [2](3)|   _.3'
+        //      0------1------2.-' {9}
+        //     {0}    {3}    {5}   {10}
+        //     {1}    {4}    {6}
+        //     {2}           {7}
+        //                   {8}  *10 => {26,27,28}
         let mesh = Samples::qua8_tri6_lin2();
         let p1 = SampleParams::param_porous_sld_liq();
         let p2 = SampleParams::param_solid();
@@ -193,6 +201,19 @@ mod tests {
         assert_equations(&eqs, 8, &[(Dof::Ux, 21), (Dof::Uy, 22), (Dof::Pl, 23)]);
         assert_equations(&eqs, 9, &[(Dof::Ux, 24), (Dof::Uy, 25)]);
         assert_equations(&eqs, 10, &[(Dof::Ux, 26), (Dof::Uy, 27), (Dof::Rz, 28)]);
+
+        // check eq
+        assert_eq!(eqs.eq(0, Dof::Ux).unwrap(), 0);
+        assert_eq!(eqs.eq(6, Dof::Rz).unwrap(), 17);
+        assert_eq!(eqs.eq(8, Dof::Pl).unwrap(), 23);
+        assert_eq!(
+            eqs.eq(111, Dof::Ux).err(),
+            Some("cannot find equation number because point_id is out of bounds")
+        );
+        assert_eq!(
+            eqs.eq(0, Dof::T).err(),
+            Some("cannot find equation number corresponding to (PointId,DOF)")
+        );
     }
 
     #[test]

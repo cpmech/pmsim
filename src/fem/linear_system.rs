@@ -101,8 +101,37 @@ mod tests {
     use super::LinearSystem;
     use crate::base::{Config, Dof, Element, Essential, Natural, Nbc, SampleParams};
     use crate::fem::{BoundaryElementVec, Data, InteriorElementVec};
-    use gemlab::mesh::{Feature, Samples};
+    use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
+
+    #[test]
+    fn new_handles_errors() {
+        let mesh = Samples::three_tri3();
+        let p1 = SampleParams::param_diffusion();
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
+        let mut essential = Essential::new();
+        essential.at(&[0], &[Dof::Ux], |_| 0.0); // << Ux is not available for Diffusion
+        let natural = Natural::new();
+        let interior_elements = InteriorElementVec::new(&data, &config).unwrap();
+        let boundary_elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
+        assert_eq!(
+            LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).err(),
+            Some("cannot find equation number corresponding to (PointId,DOF)")
+        );
+
+        let empty_mesh = Mesh {
+            ndim: 2,
+            points: Vec::new(),
+            cells: Vec::new(),
+        };
+        let data = Data::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
+        assert_eq!(
+            LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).err(),
+            Some("nrow, ncol, and max must all be greater than zero")
+        );
+    }
 
     #[test]
     fn new_works() {

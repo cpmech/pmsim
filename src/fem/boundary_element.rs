@@ -260,7 +260,7 @@ mod tests {
         };
         assert_eq!(
             BoundaryElement::new(&data, &config, &face, Nbc::Ql(minus_ten)).err(), // << flux
-            Some("cannot find equation corresponding to (PointId,DOF)")
+            Some("cannot find equation number corresponding to (PointId,DOF)")
         );
 
         let mut natural = Natural::new();
