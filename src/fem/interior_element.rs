@@ -1,12 +1,17 @@
 use super::{Data, ElementDiffusion, ElementSolid, LocalEquations, State};
-use crate::base::{Config, Element};
+use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
+use rayon::prelude::*;
 use russell_chk::deriv_central5;
 use russell_lab::{Matrix, Vector};
+use russell_sparse::SparseTriplet;
 
 /// Defines a generic element for interior cells (opposite to boundary cells)
 pub struct InteriorElement<'a> {
+    /// Local to global mapping
+    pub local_to_global: &'a Vec<usize>,
+
     /// Connects to the "actual" implementation of local equations
     pub actual: Box<dyn LocalEquations + 'a>,
 
@@ -22,30 +27,19 @@ pub struct InteriorElementVec<'a> {
     pub all: Vec<InteriorElement<'a>>,
 }
 
-impl<'a> InteriorElementVec<'a> {
-    pub fn new(data: &'a Data, config: &'a Config) -> Result<Self, StrError> {
-        let res: Result<Vec<_>, _> = data
-            .mesh
-            .cells
-            .iter()
-            .map(|cell| InteriorElement::new(data, config, cell))
-            .collect();
-        match res {
-            Ok(all) => Ok(InteriorElementVec { all }),
-            Err(e) => Err(e),
-        }
-    }
-}
-
 /// Define auxiliary arguments structure for numerical Jacobian
 struct ArgsForNumericalJacobian {
+    /// Holds the residual vector
     pub residual: Vector,
+
+    /// Holds the current state
     pub state: State,
 }
 
 impl<'a> InteriorElement<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
+        let local_to_global = &data.equations.local_to_global[cell.id];
         let element = data.attributes.get(cell).unwrap(); // already checked in Data
         let actual: Box<dyn LocalEquations> = match element {
             Element::Diffusion(p) => Box::new(ElementDiffusion::new(data, config, cell, p)?),
@@ -59,22 +53,26 @@ impl<'a> InteriorElement<'a> {
         };
         let neq = data.n_local_eq(cell).unwrap();
         Ok(InteriorElement {
+            local_to_global,
             actual,
             residual: Vector::new(neq),
             jacobian: Matrix::new(neq, neq),
         })
     }
 
+    /// Calculates the residual vector
     #[inline]
     pub fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
         self.actual.calc_residual(&mut self.residual, state)
     }
 
+    /// Calculates the Jacobian matrix
     #[inline]
     pub fn calc_jacobian(&mut self, state: &State) -> Result<(), StrError> {
         self.actual.calc_jacobian(&mut self.jacobian, state)
     }
 
+    /// Calculates a numerical Jacobian matrix
     pub fn numerical_jacobian(&mut self, state: &State) -> Matrix {
         let neq = self.residual.dim();
         let mut args = ArgsForNumericalJacobian {
@@ -97,6 +95,78 @@ impl<'a> InteriorElement<'a> {
             }
         }
         num_jacobian
+    }
+}
+
+impl<'a> InteriorElementVec<'a> {
+    /// Allocates new instance
+    pub fn new(data: &'a Data, config: &'a Config) -> Result<Self, StrError> {
+        let res: Result<Vec<_>, _> = data
+            .mesh
+            .cells
+            .iter()
+            .map(|cell| InteriorElement::new(data, config, cell))
+            .collect();
+        match res {
+            Ok(all) => Ok(InteriorElementVec { all }),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Computes the residual vectors
+    #[inline]
+    pub fn calc_residuals(&mut self, state: &State) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
+    }
+
+    /// Computes the Jacobian matrices
+    #[inline]
+    pub fn calc_jacobians(&mut self, state: &State) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
+    }
+
+    /// Computes the residual vectors in parallel
+    #[inline]
+    pub fn calc_residuals_parallel(&mut self, state: &State) -> Result<(), StrError> {
+        self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
+    }
+
+    /// Computes the Jacobian matrices in parallel
+    #[inline]
+    pub fn calc_jacobians_parallel(&mut self, state: &State) -> Result<(), StrError> {
+        self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
+    }
+
+    /// Assembles residual vectors
+    ///
+    /// **Notes:**
+    ///
+    /// 1. You must call calc residuals first
+    /// 2. The global vector R will be cleared (with zeros) at the beginning
+    ///
+    /// **Important:** You must call the BoundaryElementVec assemble_residuals after InteriorElementVec
+    #[inline]
+    pub fn assemble_residuals(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
+        rr.fill(0.0); // << important
+        self.all
+            .iter()
+            .for_each(|e| assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed));
+    }
+
+    /// Assembles jacobian matrices
+    ///
+    /// **Notes:**
+    ///
+    /// 1. You must call calc jacobians first
+    /// 2. The SparseTriplet position in the global matrix K will be reset at the beginning
+    ///
+    /// **Important:** You must call the BoundaryElementVec assemble_jacobians after InteriorElementVec
+    #[inline]
+    pub fn assemble_jacobians(&self, kk: &mut SparseTriplet, prescribed: &Vec<bool>) {
+        kk.reset(); // << important
+        self.all
+            .iter()
+            .for_each(|e| assemble_matrix(kk, &e.jacobian, &e.local_to_global, &prescribed));
     }
 }
 

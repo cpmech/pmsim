@@ -1,11 +1,14 @@
 use super::{Data, State};
-use crate::base::{Config, Natural, Nbc};
+use crate::base::{assemble_matrix, assemble_vector, Config, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Feature};
 use gemlab::shapes::Scratchpad;
+use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
+use russell_sparse::SparseTriplet;
 
+/// Defines an element to calculate natural boundary conditions
 pub struct BoundaryElement {
     pub nbc: Nbc,
     pub pad: Scratchpad,
@@ -16,22 +19,9 @@ pub struct BoundaryElement {
     pub thickness: f64,
 }
 
+/// Holds a collection of boundary elements
 pub struct BoundaryElementVec {
     pub all: Vec<BoundaryElement>,
-}
-
-impl BoundaryElementVec {
-    pub fn new(data: &Data, config: &Config, bcs: &Natural) -> Result<Self, StrError> {
-        let res: Result<Vec<_>, _> = bcs
-            .distributed
-            .iter()
-            .map(|(feature, nbc)| BoundaryElement::new(data, config, feature, *nbc))
-            .collect();
-        match res {
-            Ok(all) => Ok(BoundaryElementVec { all }),
-            Err(e) => Err(e),
-        }
-    }
 }
 
 impl BoundaryElement {
@@ -157,6 +147,77 @@ impl BoundaryElement {
             }
             _ => Ok(()),
         }
+    }
+}
+
+impl BoundaryElementVec {
+    // Allocates new instance
+    pub fn new(data: &Data, config: &Config, bcs: &Natural) -> Result<Self, StrError> {
+        let res: Result<Vec<_>, _> = bcs
+            .distributed
+            .iter()
+            .map(|(feature, nbc)| BoundaryElement::new(data, config, feature, *nbc))
+            .collect();
+        match res {
+            Ok(all) => Ok(BoundaryElementVec { all }),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Computes the residual vectors
+    #[inline]
+    pub fn calc_residuals(&mut self, state: &State) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
+    }
+
+    /// Computes the Jacobian matrices
+    #[inline]
+    pub fn calc_jacobians(&mut self, state: &State) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
+    }
+
+    /// Computes the residual vectors in parallel
+    #[inline]
+    pub fn calc_residuals_parallel(&mut self, state: &State) -> Result<(), StrError> {
+        self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
+    }
+
+    /// Computes the Jacobian matrices in parallel
+    #[inline]
+    pub fn calc_jacobians_parallel(&mut self, state: &State) -> Result<(), StrError> {
+        self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
+    }
+
+    /// Assembles residual vectors
+    ///
+    /// **Notes:**
+    ///
+    /// 1. You must call calc residuals first
+    /// 2. The global vector R will **not** be cleared
+    ///
+    /// **Important:** You must call the BoundaryElementVec assemble_residuals after InteriorElementVec
+    #[inline]
+    pub fn assemble_residuals(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
+        self.all
+            .iter()
+            .for_each(|e| assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed));
+    }
+
+    /// Assembles jacobian matrices
+    ///
+    /// **Notes:**
+    ///
+    /// 1. You must call calc jacobians first
+    /// 2. The SparseTriplet position in the global matrix K will **not** be reset
+    ///
+    /// **Important:** You must call the BoundaryElementVec assemble_jacobians after InteriorElementVec
+    #[inline]
+    pub fn assemble_jacobians(&self, kk: &mut SparseTriplet, prescribed: &Vec<bool>) {
+        self.all.iter().for_each(|e| {
+            if let Some(jj) = &e.jacobian {
+                assemble_matrix(kk, &jj, &e.local_to_global, &prescribed);
+            }
+        });
     }
 }
 

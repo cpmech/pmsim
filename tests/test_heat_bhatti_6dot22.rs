@@ -1,7 +1,9 @@
 #![allow(unused)]
 
 use gemlab::mesh::{At, Find};
-use pmsim::base::{Config, Dof, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
+use pmsim::base::{
+    assemble_matrix, assemble_vector, Config, Dof, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes,
+};
 use pmsim::fem::{BoundaryElementVec, Data, InteriorElementVec, LinearSystem, State};
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
@@ -44,8 +46,14 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         find.edges(At::Y(0.015))?.as_slice(), // middle-horizontal
     ]
     .concat();
-    println!("flux: {:?}", edges_flux);
-    println!("conv: {:?}", edges_conv);
+    let points_flux: Vec<_> = edges_flux.iter().map(|f| &f.points).collect();
+    let points_conv: Vec<_> = edges_conv.iter().map(|f| &f.points).collect();
+    println!("flux: {:?}", points_flux);
+    println!("conv: {:?}", points_conv);
+    assert_eq!(points_flux[0], &[10, 0, 11]);
+    assert_eq!(points_conv[0], &[0, 2, 1]);
+    assert_eq!(points_conv[1], &[2, 4, 3]);
+    assert_eq!(points_conv[2], &[4, 6, 5]);
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -121,45 +129,45 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         state.uu[*eq] = 110.0;
     }
 
-    /*
-    // assemble system
+    // compute residuals in parallel
+    interior_elements.calc_residuals(&state)?;
+    boundary_elements.calc_residuals(&state)?;
+
+    // assemble residuals
     let mut lin_sys = LinearSystem::new(&data);
     let rr = &mut lin_sys.residual;
     let kk = &mut lin_sys.jacobian;
-    elements.iter_mut().for_each(|e| {
-        e.calc_residual(&state)?;
-        e.calc_jacobian(&state)?;
-        assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
-        assemble_matrix(kk, &e.jacobian, &e.local_to_global, &prescribed);
-    });
-    nbcs.all.iter_mut().for_each(|e| {
-        e.calc_residual(&state);
-        e.calc_jacobian(&state);
-        // println!("{}", e.residual);
-        assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
-        match &e.jacobian {
-            Some(jj) => {
-                // println!("{}", jj);
-                assemble_matrix(kk, jj, &e.local_to_global, &prescribed);
-            }
-            None => (),
-        }
-    });
+    interior_elements.assemble_residuals(rr, &prescribed);
+    boundary_elements.assemble_residuals(rr, &prescribed);
+    println!("rr =\n{}", rr);
+    let bhatti_rr = &[
+        2627.5555555555547,
+        -2762.079365079365,
+        2665.757936507936,
+        -4411.396825396825,
+        11968.138888888885,
+        -12021.999999999995,
+        7456.9999999999945,
+        -20924.99999999999,
+        0.0,
+        0.0,
+        0.0,
+        -5732.301587301586,
+        -30884.92063492062,
+    ];
+    vec_approx_eq(rr.as_data(), bhatti_rr, 1e-10);
+
+    /*
     for i in 0..neq {
         if prescribed[i] {
             kk.put(i, i, 1.0);
         }
     }
 
-    println!("rr =\n{}", rr);
     // let mut kk_mat = Matrix::new(neq, neq);
     // kk.to_matrix(&mut kk_mat);
     // println!("kk =\n{:.4}", kk_mat);
 
-    let bhatti_rr = &[
-        204.5, -1147.0, 304.25, -1011.0, 616.75, -1022.0, 307.0, -1125.0, 0.0, 0.0, 0.0, -1410.0, -2250.0,
-    ];
-    // vec_approx_eq(rr.as_data(), bhatti_rr, 1e-12);
 
     let mut mdu = Vector::new(neq);
     lin_sys.solver.initialize(&kk)?;
