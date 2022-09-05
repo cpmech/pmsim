@@ -57,7 +57,7 @@ impl<'a> InteriorElement<'a> {
             Element::PorousSldLiq(..) => panic!("TODO: PorousSldLiq"),
             Element::PorousSldLiqGas(..) => panic!("TODO: PorousSldLiqGas"),
         };
-        let neq = data.element_dofs.get(cell).unwrap().n_equation_local;
+        let neq = data.n_local_eq(cell).unwrap();
         Ok(InteriorElement {
             actual,
             residual: Vector::new(neq),
@@ -105,7 +105,7 @@ impl<'a> InteriorElement<'a> {
 #[cfg(test)]
 mod tests {
     use super::{InteriorElement, InteriorElementVec};
-    use crate::base::{Config, Element, SampleParams};
+    use crate::base::{Config, Element, Essential, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::Samples;
     use russell_chk::vec_approx_eq;
@@ -164,7 +164,8 @@ mod tests {
         let mut ele = InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let mut state = State::new(&data, &config, &essential).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
@@ -178,7 +179,7 @@ mod tests {
         let mut config = Config::new();
         config.transient = true;
         let mut ele = InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
-        let mut state = State::new(&data, &config).unwrap();
+        let mut state = State::new(&data, &config, &essential).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);

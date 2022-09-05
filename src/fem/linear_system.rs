@@ -1,3 +1,4 @@
+use super::Data;
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
@@ -10,7 +11,8 @@ pub struct LinearSystem {
 }
 
 impl LinearSystem {
-    pub fn new(neq: usize, nnz: usize) -> Self {
+    pub fn new(data: &Data) -> Self {
+        let (neq, nnz) = (data.equations.n_equation, data.equations.nnz_sup); // TODO: check nnz_sup with no prescribed
         let config = ConfigSolver::new();
         LinearSystem {
             residual: Vector::new(neq),

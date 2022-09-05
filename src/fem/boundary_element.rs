@@ -1,5 +1,5 @@
 use super::{Data, State};
-use crate::base::{BcsNatural, Config, Nbc};
+use crate::base::{Config, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Feature};
@@ -21,7 +21,7 @@ pub struct BoundaryElementVec {
 }
 
 impl BoundaryElementVec {
-    pub fn new(data: &Data, config: &Config, bcs: &BcsNatural) -> Result<Self, StrError> {
+    pub fn new(data: &Data, config: &Config, bcs: &Natural) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = bcs
             .distributed
             .iter()
@@ -67,7 +67,7 @@ impl BoundaryElement {
         let mut local_to_global = vec![0; n_equation_local];
         for m in 0..nnode {
             for (dof, local) in &dofs[m] {
-                let global = *data.dof_numbers.point_dofs[points[m]]
+                let global = *data.equations.points[points[m]]
                     .get(dof)
                     .ok_or("cannot find DOF to allocate BoundaryElement")?;
                 local_to_global[*local] = global;
@@ -165,7 +165,7 @@ impl BoundaryElement {
 #[cfg(test)]
 mod tests {
     use super::{BoundaryElement, BoundaryElementVec};
-    use crate::base::{BcsNatural, Config, Element, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
+    use crate::base::{Config, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh;
     use gemlab::shapes::GeoKind;
@@ -204,10 +204,10 @@ mod tests {
             Some("cannot find DOF to allocate BoundaryElement")
         );
 
-        let mut bcs_natural = BcsNatural::new();
-        bcs_natural.on(&[&edge], Nbc::Qn(minus_ten));
+        let mut natural = Natural::new();
+        natural.on(&[&edge], Nbc::Qn(minus_ten));
         assert_eq!(
-            BoundaryElementVec::new(&data, &config, &bcs_natural).err(),
+            BoundaryElementVec::new(&data, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -224,10 +224,11 @@ mod tests {
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
 
-        let mut bcs_natural = BcsNatural::new();
-        bcs_natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
-        let mut b_elements = BoundaryElementVec::new(&data, &config, &bcs_natural).unwrap();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let mut natural = Natural::new();
+        natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
+        let mut b_elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
+        let state = State::new(&data, &config, &essential).unwrap();
         b_elements.all.par_iter_mut().for_each(|d| {
             d.calc_residual(&state).unwrap();
             d.calc_jacobian(&state).unwrap();
@@ -246,7 +247,8 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
 
         // Qn
 
@@ -321,7 +323,8 @@ mod tests {
 
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
 
         let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qz(|_| Q)).unwrap();
         bry.calc_residual(&state).unwrap();
@@ -338,7 +341,8 @@ mod tests {
         let p1 = SampleParams::param_porous_liq_gas();
         let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
 
         const Q: f64 = -10.0;
         let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Ql(|_| Q)).unwrap();
@@ -368,7 +372,8 @@ mod tests {
         };
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
 
         // flux: not present in Bhatti's example but we can check the flux BC here
         const Q: f64 = 10.0;
@@ -408,7 +413,8 @@ mod tests {
         };
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
 
         const Q: f64 = 5e6;
         const L: f64 = 0.03;

@@ -1,4 +1,4 @@
-use pmsim::base::{assemble_matrix, assemble_vector, Dof, DofNumbers, Element, ParamRod, SampleMeshes};
+use pmsim::base::{assemble_matrix, assemble_vector, Dof, Equations, Element, ParamRod, SampleMeshes};
 use pmsim::elements::Rod;
 use pmsim::StrError;
 use vec_approx_eq;
@@ -43,7 +43,7 @@ fn test_rod_bhatti_1dot4_manual() -> Result<(), StrError> {
     }
 
     // DOF numbers
-    let dn = DofNumbers::new(&mesh, attr_elem)?;
+    let dn = Equations::new(&mesh, attr_elem)?;
     let (neq, nnz) = (dn.n_equation, dn.nnz_sup);
 
     // prescribed equations

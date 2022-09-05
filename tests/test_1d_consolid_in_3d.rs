@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 
 use gemlab::mesh::{At, Extract, Features, Find};
-use pmsim::base::{BcsEssential, BcsNatural, Dof, SampleMeshes};
+use pmsim::base::{Dof, Essential, Natural, SampleMeshes};
 use pmsim::StrError;
 
 fn main() -> Result<(), StrError> {
@@ -18,8 +18,8 @@ fn main() -> Result<(), StrError> {
     let top = find.faces(At::Y(3.0))?;
 
     let zero = |_| 0.0;
-    let mut bcs_essential = BcsEssential::new();
-    bcs_essential
+    let mut essential = Essential::new();
+    essential
         .on(&left, &[Dof::Ux], zero)
         .on(&right, &[Dof::Ux], zero)
         .on(&bottom, &[Dof::Uy], zero);

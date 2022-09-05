@@ -20,7 +20,7 @@ pub const POROUS_SLD_GEO_KIND_ALLOWED: [GeoKind; 7] = [
     GeoKind::Hex20,
 ];
 
-/// Holds the DOFs and local equation numbers of an Element/GeoKind pair
+/// Holds information of an (Element,GeoKind) pair such as DOFs and local equation numbers
 ///
 /// ```text
 /// leq: local equation number       leq   point   geq
@@ -41,18 +41,18 @@ pub const POROUS_SLD_GEO_KIND_ALLOWED: [GeoKind; 7] = [
 ///                                  13 → Pl @ 1 →  5
 ///                                  14 → Pl @ 2 →  8
 /// ```
-pub struct ElementDofs {
+pub struct ElementInfo {
     /// Holds all cell DOF keys and local equation numbers
     ///
     /// **Notes:** The outer array has length = nnode.
     /// The inner arrays have variable lengths = ndof at the node.
     /// The inner arrays contain pairs of Dof and local equation numbers.
-    pub dof_equation_pairs: Vec<Vec<(Dof, usize)>>,
+    pub dofs: Vec<Vec<(Dof, usize)>>,
 
     /// Dimension of the local system of equations
     ///
     /// **Note:** This is equal to the total number of DOFs in the cell
-    pub n_equation_local: usize,
+    pub n_equation: usize,
 
     /// Local equation number of the first Dof::Pl
     pub eq_first_pl: Option<usize>,
@@ -64,7 +64,7 @@ pub struct ElementDofs {
     pub eq_first_tt: Option<usize>,
 }
 
-impl ElementDofs {
+impl ElementInfo {
     /// Allocates a new instance
     pub fn new(ndim: usize, element: Element, kind: GeoKind) -> Result<Self, StrError> {
         // check
@@ -179,9 +179,9 @@ impl ElementDofs {
                 }
             }
         };
-        Ok(ElementDofs {
-            dof_equation_pairs: dofs,
-            n_equation_local: count,
+        Ok(ElementInfo {
+            dofs,
+            n_equation: count,
             eq_first_pl,
             eq_first_pg,
             eq_first_tt,
@@ -189,13 +189,13 @@ impl ElementDofs {
     }
 }
 
-/// Maps (CellAttributeId, GeoKind) to ElementDofs
-pub struct ElementDofsMap {
-    all: HashMap<(CellAttributeId, GeoKind), ElementDofs>,
+/// Maps (CellAttributeId, GeoKind) to ElementInfo
+pub struct ElementInfoMap {
+    all: HashMap<(CellAttributeId, GeoKind), ElementInfo>,
     names: HashMap<(CellAttributeId, GeoKind), String>,
 }
 
-impl ElementDofsMap {
+impl ElementInfoMap {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, att: &Attributes) -> Result<Self, StrError> {
         let mut all = HashMap::new();
@@ -204,25 +204,25 @@ impl ElementDofsMap {
             let element = att.get(cell)?;
             all.insert(
                 (cell.attribute_id, cell.kind),
-                ElementDofs::new(mesh.ndim, *element, cell.kind)?,
+                ElementInfo::new(mesh.ndim, *element, cell.kind)?,
             );
             names.insert((cell.attribute_id, cell.kind), element.name());
         }
-        Ok(ElementDofsMap { all, names })
+        Ok(ElementInfoMap { all, names })
     }
 
-    /// Returns the ElementDofs corresponding to Cell
-    pub fn get(&self, cell: &Cell) -> Result<&ElementDofs, StrError> {
+    /// Returns the ElementInfo corresponding to Cell
+    pub fn get(&self, cell: &Cell) -> Result<&ElementInfo, StrError> {
         self.all
             .get(&(cell.attribute_id, cell.kind))
-            .ok_or("cannot find (CellAttributeId, GeoKind) in ElementDofsMap")
+            .ok_or("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
     }
 }
 
-impl fmt::Display for ElementDofs {
+impl fmt::Display for ElementInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for m in 0..self.dof_equation_pairs.len() {
-            write!(f, "{}: {:?}\n", m, self.dof_equation_pairs[m]).unwrap();
+        for m in 0..self.dofs.len() {
+            write!(f, "{}: {:?}\n", m, self.dofs[m]).unwrap();
         }
         write!(
             f,
@@ -232,18 +232,18 @@ impl fmt::Display for ElementDofs {
     }
 }
 
-impl fmt::Display for ElementDofsMap {
+impl fmt::Display for ElementInfoMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Elements: DOFs and local equation numbers\n").unwrap();
         write!(f, "=========================================\n").unwrap();
         let mut keys: Vec<_> = self.all.keys().collect();
         keys.sort_by(|a, b| a.0.cmp(&b.0));
         for key in keys {
-            let element_dofs = self.all.get(key).unwrap();
+            let info = self.all.get(key).unwrap();
             let name = self.names.get(key).unwrap();
             let (id, kind) = key;
             write!(f, "{} → {} → {:?}\n", id, name, kind).unwrap();
-            write!(f, "{}", element_dofs).unwrap();
+            write!(f, "{}", info).unwrap();
             write!(f, "-----------------------------------------\n").unwrap();
         }
         Ok(())
@@ -254,7 +254,7 @@ impl fmt::Display for ElementDofsMap {
 
 #[cfg(test)]
 mod tests {
-    use super::{ElementDofs, ElementDofsMap};
+    use super::{ElementInfo, ElementInfoMap};
     use crate::base::{Attributes, Dof, Element, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
 
@@ -262,72 +262,72 @@ mod tests {
     fn new_handles_errors() {
         let p = SampleParams::param_rod();
         assert_eq!(
-            ElementDofs::new(2, Element::Rod(p), GeoKind::Tri3).err(),
+            ElementInfo::new(2, Element::Rod(p), GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
         let p = SampleParams::param_beam();
         assert_eq!(
-            ElementDofs::new(2, Element::Beam(p), GeoKind::Tri3).err(),
+            ElementInfo::new(2, Element::Beam(p), GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
         let p = SampleParams::param_solid();
         assert_eq!(
-            ElementDofs::new(2, Element::Solid(p), GeoKind::Lin2).err(),
+            ElementInfo::new(2, Element::Solid(p), GeoKind::Lin2).err(),
             Some("GeoClass::Lin is reserved for Rod or Beam")
         );
         let p = SampleParams::param_porous_sld_liq();
         assert_eq!(
-            ElementDofs::new(2, Element::PorousSldLiq(p), GeoKind::Tri3).err(),
+            ElementInfo::new(2, Element::PorousSldLiq(p), GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiq with given GeoKind")
         );
         let p = SampleParams::param_porous_sld_liq_gas();
         assert_eq!(
-            ElementDofs::new(2, Element::PorousSldLiqGas(p), GeoKind::Tri3).err(),
+            ElementInfo::new(2, Element::PorousSldLiqGas(p), GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiqGas with given GeoKind")
         );
     }
 
     #[test]
     fn new_works_2d() {
-        let pa0 = SampleParams::param_diffusion();
-        let pa = SampleParams::param_rod();
-        let pb = SampleParams::param_beam();
-        let pc = SampleParams::param_solid();
-        let pd = SampleParams::param_porous_liq();
-        let pe = SampleParams::param_porous_liq_gas();
-        let pf = SampleParams::param_porous_sld_liq();
-        let pg = SampleParams::param_porous_sld_liq_gas();
-        let a0 = ElementDofs::new(2, Element::Diffusion(pa0), GeoKind::Tri3).unwrap();
-        let a = ElementDofs::new(2, Element::Rod(pa), GeoKind::Lin2).unwrap();
-        let b = ElementDofs::new(2, Element::Beam(pb), GeoKind::Lin2).unwrap();
-        let c = ElementDofs::new(2, Element::Solid(pc), GeoKind::Tri3).unwrap();
-        let d = ElementDofs::new(2, Element::PorousLiq(pd), GeoKind::Tri3).unwrap();
-        let e = ElementDofs::new(2, Element::PorousLiqGas(pe), GeoKind::Tri3).unwrap();
-        let f = ElementDofs::new(2, Element::PorousSldLiq(pf), GeoKind::Tri6).unwrap();
-        let g = ElementDofs::new(2, Element::PorousSldLiqGas(pg), GeoKind::Tri6).unwrap();
-        assert_eq!(a0.dof_equation_pairs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
+        let pa = SampleParams::param_diffusion();
+        let pb = SampleParams::param_rod();
+        let pc = SampleParams::param_beam();
+        let pd = SampleParams::param_solid();
+        let pe = SampleParams::param_porous_liq();
+        let pf = SampleParams::param_porous_liq_gas();
+        let pg = SampleParams::param_porous_sld_liq();
+        let ph = SampleParams::param_porous_sld_liq_gas();
+        let a = ElementInfo::new(2, Element::Diffusion(pa), GeoKind::Tri3).unwrap();
+        let b = ElementInfo::new(2, Element::Rod(pb), GeoKind::Lin2).unwrap();
+        let c = ElementInfo::new(2, Element::Beam(pc), GeoKind::Lin2).unwrap();
+        let d = ElementInfo::new(2, Element::Solid(pd), GeoKind::Tri3).unwrap();
+        let e = ElementInfo::new(2, Element::PorousLiq(pe), GeoKind::Tri3).unwrap();
+        let f = ElementInfo::new(2, Element::PorousLiqGas(pf), GeoKind::Tri3).unwrap();
+        let g = ElementInfo::new(2, Element::PorousSldLiq(pg), GeoKind::Tri6).unwrap();
+        let h = ElementInfo::new(2, Element::PorousSldLiqGas(ph), GeoKind::Tri6).unwrap();
+        assert_eq!(a.dofs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
         assert_eq!(
-            a.dof_equation_pairs,
+            b.dofs,
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
         assert_eq!(
-            b.dof_equation_pairs,
+            c.dofs,
             vec![
                 vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Rz, 2)],
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Rz, 5)]
             ]
         );
         assert_eq!(
-            c.dof_equation_pairs,
+            d.dofs,
             vec![
                 vec![(Dof::Ux, 0), (Dof::Uy, 1)],
                 vec![(Dof::Ux, 2), (Dof::Uy, 3)],
                 vec![(Dof::Ux, 4), (Dof::Uy, 5)]
             ]
         );
-        assert_eq!(d.dof_equation_pairs, &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]);
+        assert_eq!(e.dofs, &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]);
         assert_eq!(
-            e.dof_equation_pairs,
+            f.dofs,
             vec![
                 vec![(Dof::Pl, 0), (Dof::Pg, 1)],
                 vec![(Dof::Pl, 2), (Dof::Pg, 3)],
@@ -335,7 +335,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            f.dof_equation_pairs,
+            g.dofs,
             vec![
                 vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 12)],
                 vec![(Dof::Ux, 2), (Dof::Uy, 3), (Dof::Pl, 13)],
@@ -346,7 +346,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            g.dof_equation_pairs,
+            h.dofs,
             vec![
                 vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 12), (Dof::Pg, 15)],
                 vec![(Dof::Ux, 2), (Dof::Uy, 3), (Dof::Pl, 13), (Dof::Pg, 16)],
@@ -360,32 +360,32 @@ mod tests {
 
     #[test]
     fn new_works_3d() {
-        let pa0 = SampleParams::param_diffusion();
-        let pa = SampleParams::param_rod();
-        let pb = SampleParams::param_beam();
-        let pc = SampleParams::param_solid();
-        let pd = SampleParams::param_porous_liq();
-        let pe = SampleParams::param_porous_liq_gas();
-        let pf = SampleParams::param_porous_sld_liq();
-        let pg = SampleParams::param_porous_sld_liq_gas();
-        let a0 = ElementDofs::new(3, Element::Diffusion(pa0), GeoKind::Tri3).unwrap();
-        let a = ElementDofs::new(3, Element::Rod(pa), GeoKind::Lin2).unwrap();
-        let b = ElementDofs::new(3, Element::Beam(pb), GeoKind::Lin2).unwrap();
-        let c = ElementDofs::new(3, Element::Solid(pc), GeoKind::Tri3).unwrap();
-        let d = ElementDofs::new(3, Element::PorousLiq(pd), GeoKind::Tri3).unwrap();
-        let e = ElementDofs::new(3, Element::PorousLiqGas(pe), GeoKind::Tri3).unwrap();
-        let f = ElementDofs::new(3, Element::PorousSldLiq(pf), GeoKind::Tri6).unwrap();
-        let g = ElementDofs::new(3, Element::PorousSldLiqGas(pg), GeoKind::Tri6).unwrap();
-        assert_eq!(a0.dof_equation_pairs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
+        let pa = SampleParams::param_diffusion();
+        let pb = SampleParams::param_rod();
+        let pc = SampleParams::param_beam();
+        let pd = SampleParams::param_solid();
+        let pe = SampleParams::param_porous_liq();
+        let pf = SampleParams::param_porous_liq_gas();
+        let pg = SampleParams::param_porous_sld_liq();
+        let ph = SampleParams::param_porous_sld_liq_gas();
+        let a = ElementInfo::new(3, Element::Diffusion(pa), GeoKind::Tri3).unwrap();
+        let b = ElementInfo::new(3, Element::Rod(pb), GeoKind::Lin2).unwrap();
+        let c = ElementInfo::new(3, Element::Beam(pc), GeoKind::Lin2).unwrap();
+        let d = ElementInfo::new(3, Element::Solid(pd), GeoKind::Tri3).unwrap();
+        let e = ElementInfo::new(3, Element::PorousLiq(pe), GeoKind::Tri3).unwrap();
+        let f = ElementInfo::new(3, Element::PorousLiqGas(pf), GeoKind::Tri3).unwrap();
+        let g = ElementInfo::new(3, Element::PorousSldLiq(pg), GeoKind::Tri6).unwrap();
+        let h = ElementInfo::new(3, Element::PorousSldLiqGas(ph), GeoKind::Tri6).unwrap();
+        assert_eq!(a.dofs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
         assert_eq!(
-            a.dof_equation_pairs,
+            b.dofs,
             vec![
                 vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2)],
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5)]
             ]
         );
         assert_eq!(
-            b.dof_equation_pairs,
+            c.dofs,
             vec![
                 vec![
                     (Dof::Ux, 0),
@@ -406,16 +406,16 @@ mod tests {
             ]
         );
         assert_eq!(
-            c.dof_equation_pairs,
+            d.dofs,
             vec![
                 vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2)],
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5)],
                 vec![(Dof::Ux, 6), (Dof::Uy, 7), (Dof::Uz, 8)]
             ]
         );
-        assert_eq!(d.dof_equation_pairs, &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]);
+        assert_eq!(e.dofs, &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]);
         assert_eq!(
-            e.dof_equation_pairs,
+            f.dofs,
             vec![
                 vec![(Dof::Pl, 0), (Dof::Pg, 1)],
                 vec![(Dof::Pl, 2), (Dof::Pg, 3)],
@@ -423,7 +423,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            f.dof_equation_pairs,
+            g.dofs,
             vec![
                 vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2), (Dof::Pl, 18)],
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5), (Dof::Pl, 19)],
@@ -434,7 +434,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            g.dof_equation_pairs,
+            h.dofs,
             vec![
                 vec![(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Uz, 2), (Dof::Pl, 18), (Dof::Pg, 21)],
                 vec![(Dof::Ux, 3), (Dof::Uy, 4), (Dof::Uz, 5), (Dof::Pl, 19), (Dof::Pg, 22)],
@@ -449,7 +449,7 @@ mod tests {
     #[test]
     fn display_works() {
         let p = SampleParams::param_porous_sld_liq();
-        let ed = ElementDofs::new(1, Element::PorousSldLiq(p), GeoKind::Tri6).unwrap();
+        let ed = ElementInfo::new(1, Element::PorousSldLiq(p), GeoKind::Tri6).unwrap();
         assert_eq!(
             format!("{}", ed),
             "0: [(Ux, 0), (Uy, 1), (Pl, 12)]\n\
@@ -468,13 +468,13 @@ mod tests {
         let p2 = SampleParams::param_solid();
         let att = Attributes::from([(2, Element::Solid(p2))]);
         assert_eq!(
-            ElementDofsMap::new(&mesh, &att).err(),
+            ElementInfoMap::new(&mesh, &att).err(),
             Some("cannot find CellAttributeId in Attributes map")
         );
         let p1 = SampleParams::param_rod();
         let att = Attributes::from([(1, Element::Rod(p1))]);
         assert_eq!(
-            ElementDofsMap::new(&mesh, &att).err(),
+            ElementInfoMap::new(&mesh, &att).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
     }
@@ -485,12 +485,12 @@ mod tests {
         let mut mesh_wrong = mesh.clone();
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
-        assert_eq!(edm.get(&mesh.cells[0]).unwrap().n_equation_local, 6);
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        assert_eq!(emap.get(&mesh.cells[0]).unwrap().n_equation, 6);
         mesh_wrong.cells[0].attribute_id = 100; // never do this
         assert_eq!(
-            edm.get(&mesh_wrong.cells[0]).err(),
-            Some("cannot find (CellAttributeId, GeoKind) in ElementDofsMap")
+            emap.get(&mesh_wrong.cells[0]).err(),
+            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
         );
     }
 
@@ -509,9 +509,9 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
         assert_eq!(
-            format!("{}", edm),
+            format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
              1 → Solid → Tri3\n\
@@ -533,9 +533,9 @@ mod tests {
         let mesh = Samples::two_tri3_one_qua4();
         let p = SampleParams::param_porous_liq();
         let att = Attributes::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
-        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
         assert_eq!(
-            format!("{}", edm),
+            format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
              1 → PorousLiq → Tri3\n\
@@ -569,9 +569,9 @@ mod tests {
             (2, Element::Solid(p2)),
             (3, Element::Beam(p3)),
         ]);
-        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
         assert_eq!(
-            format!("{}", edm),
+            format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
              1 → PorousSldLiq → Qua8\n\

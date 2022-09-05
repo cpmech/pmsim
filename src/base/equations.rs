@@ -1,10 +1,10 @@
-use super::{Dof, ElementDofsMap};
+use super::{Dof, ElementInfoMap};
 use crate::StrError;
-use gemlab::mesh::Mesh;
+use gemlab::mesh::{Mesh, PointId};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-/// Holds DOF numbers (aka equation numbers)
+/// Holds equation numbers (DOF numbers)
 ///
 /// # Examples
 ///
@@ -35,17 +35,17 @@ use std::fmt;
 /// ```
 /// use gemlab::mesh::Samples;
 /// use gemlab::StrError;
-/// use pmsim::base::{Attributes, Dof, DofNumbers, Element, ElementDofsMap, SampleParams};
+/// use pmsim::base::{Attributes, Dof, Equations, Element, ElementInfoMap, SampleParams};
 /// use std::collections::HashMap;
 ///
 /// fn main() -> Result<(), StrError> {
 ///     let mesh = Samples::one_tri6();
 ///     let p1 = SampleParams::param_porous_sld_liq();
 ///     let att = Attributes::from([(1, Element::PorousSldLiq(p1))]);
-///     let edm = ElementDofsMap::new(&mesh, &att)?;
-///     let mut dn = DofNumbers::new(&mesh, &edm)?;
+///     let emap = ElementInfoMap::new(&mesh, &att)?;
+///     let mut eqs = Equations::new(&mesh, &emap)?;
 ///     assert_eq!(
-///         format!("{}", dn),
+///         format!("{}", eqs),
 /// r#"Points: DOFs and global equation numbers
 /// ========================================
 /// 0: [(Ux, 0), (Uy, 1), (Pl, 2)]
@@ -68,14 +68,14 @@ use std::fmt;
 ///     Ok(())
 /// }
 /// ```
-pub struct DofNumbers {
+pub struct Equations {
     /// Holds all points DOFs and numbers
     ///
     /// **Notes:**
     ///
     /// 1. The array has a length equal to npoint
     /// 2. The inner maps have variable lengths according to the number of DOFs at the point
-    pub point_dofs: Vec<HashMap<Dof, usize>>,
+    pub points: Vec<HashMap<Dof, usize>>,
 
     /// Holds all DOF numbers, organized in a per Cell fashion
     ///
@@ -90,7 +90,7 @@ pub struct DofNumbers {
     /// **Note:** This is equal to the total number of DOFs
     pub n_equation: usize,
 
-    /// Holds the supremum of the number of nonzero values (nnz) in the global matrix
+    /// Holds the supremum of the number of nonzero values (nnz) in the global matrix (without the prescribed equations)
     ///
     /// **Notes:**
     ///
@@ -105,18 +105,18 @@ pub struct DofNumbers {
     pub nnz_sup: usize,
 }
 
-impl DofNumbers {
+impl Equations {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, edm: &ElementDofsMap) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, emap: &ElementInfoMap) -> Result<Self, StrError> {
         // auxiliary memoization data
         let npoint = mesh.points.len();
         let mut memo_point_dofs = vec![HashSet::new(); npoint];
 
         // find all element DOFs and local numbers and add (unique) DOF numbers to the point DOFs array
         for cell in &mesh.cells {
-            let info = edm.get(cell)?;
+            let info = emap.get(cell)?;
             for m in 0..cell.points.len() {
-                for (dof, _) in &info.dof_equation_pairs[m] {
+                for (dof, _) in &info.dofs[m] {
                     memo_point_dofs[cell.points[m]].insert(*dof);
                 }
             }
@@ -139,33 +139,44 @@ impl DofNumbers {
         let mut local_to_global: Vec<Vec<usize>> = vec![Vec::new(); ncell];
         let mut nnz_sup = 0;
         for cell in &mesh.cells {
-            let info = edm.get(cell).unwrap();
-            local_to_global[cell.id] = vec![0; info.n_equation_local];
+            let info = emap.get(cell).unwrap();
+            local_to_global[cell.id] = vec![0; info.n_equation];
             for m in 0..cell.points.len() {
-                for (dof, local) in &info.dof_equation_pairs[m] {
+                for (dof, local) in &info.dofs[m] {
                     let global = *point_dofs[cell.points[m]].get(dof).unwrap();
                     local_to_global[cell.id][*local] = global;
                 }
             }
-            nnz_sup += info.n_equation_local * info.n_equation_local;
+            nnz_sup += info.n_equation * info.n_equation;
         }
 
         // done
-        Ok(DofNumbers {
-            point_dofs,
+        Ok(Equations {
+            points: point_dofs,
             local_to_global,
             n_equation,
             nnz_sup,
         })
     }
+
+    /// Returns the (global) equation number of a (PointId,DOF) pair
+    pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+        if point_id >= self.points.len() {
+            return Err("point_id is out of bounds");
+        }
+        let eq = self.points[point_id]
+            .get(&dof)
+            .ok_or("cannot find equation corresponding to (PointId,DOF)")?;
+        Ok(*eq)
+    }
 }
 
-impl fmt::Display for DofNumbers {
+impl fmt::Display for Equations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Points: DOFs and global equation numbers\n").unwrap();
         write!(f, "========================================\n").unwrap();
-        for point_id in 0..self.point_dofs.len() {
-            let mut dof_eqn: Vec<_> = self.point_dofs[point_id].iter().collect();
+        for point_id in 0..self.points.len() {
+            let mut dof_eqn: Vec<_> = self.points[point_id].iter().collect();
             dof_eqn.sort_by(|a, b| a.0.partial_cmp(b.0).unwrap());
             write!(f, "{:?}: {:?}\n", point_id, dof_eqn).unwrap();
         }
@@ -186,8 +197,8 @@ impl fmt::Display for DofNumbers {
 
 #[cfg(test)]
 mod tests {
-    use super::DofNumbers;
-    use crate::base::{Attributes, Dof, Element, ElementDofsMap, SampleParams};
+    use super::Equations;
+    use crate::base::{Attributes, Dof, Element, ElementInfoMap, SampleParams};
     use gemlab::mesh::{PointId, Samples};
 
     #[test]
@@ -197,15 +208,15 @@ mod tests {
         mesh_wrong.cells[0].attribute_id = 100; // << never do this!
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
         assert_eq!(
-            DofNumbers::new(&mesh_wrong, &edm).err(),
-            Some("cannot find (CellAttributeId, GeoKind) in ElementDofsMap")
+            Equations::new(&mesh_wrong, &emap).err(),
+            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
         );
     }
 
-    fn assert_point_dofs(dn: &DofNumbers, p: PointId, correct: &[(Dof, usize)]) {
-        let mut dofs: Vec<_> = dn.point_dofs[p].iter().map(|(d, n)| (*d, *n)).collect();
+    fn assert_point_dofs(dn: &Equations, p: PointId, correct: &[(Dof, usize)]) {
+        let mut dofs: Vec<_> = dn.points[p].iter().map(|(d, n)| (*d, *n)).collect();
         dofs.sort();
         assert_eq!(dofs, correct);
     }
@@ -221,38 +232,38 @@ mod tests {
             (2, Element::Solid(p2)),
             (3, Element::Beam(p3)),
         ]);
-        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
-        let dn = DofNumbers::new(&mesh, &edm).unwrap();
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let eqs = Equations::new(&mesh, &emap).unwrap();
 
         // check point dofs
-        assert_point_dofs(&dn, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
-        assert_point_dofs(&dn, 1, &[(Dof::Ux, 3), (Dof::Uy, 4)]);
-        assert_point_dofs(&dn, 2, &[(Dof::Ux, 5), (Dof::Uy, 6), (Dof::Rz, 7), (Dof::Pl, 8)]);
-        assert_point_dofs(&dn, 3, &[(Dof::Ux, 9), (Dof::Uy, 10)]);
-        assert_point_dofs(&dn, 4, &[(Dof::Ux, 11), (Dof::Uy, 12)]);
-        assert_point_dofs(&dn, 5, &[(Dof::Ux, 13), (Dof::Uy, 14)]);
-        assert_point_dofs(&dn, 6, &[(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Rz, 17), (Dof::Pl, 18)]);
-        assert_point_dofs(&dn, 7, &[(Dof::Ux, 19), (Dof::Uy, 20)]);
-        assert_point_dofs(&dn, 8, &[(Dof::Ux, 21), (Dof::Uy, 22), (Dof::Pl, 23)]);
-        assert_point_dofs(&dn, 9, &[(Dof::Ux, 24), (Dof::Uy, 25)]);
-        assert_point_dofs(&dn, 10, &[(Dof::Ux, 26), (Dof::Uy, 27), (Dof::Rz, 28)]);
+        assert_point_dofs(&eqs, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
+        assert_point_dofs(&eqs, 1, &[(Dof::Ux, 3), (Dof::Uy, 4)]);
+        assert_point_dofs(&eqs, 2, &[(Dof::Ux, 5), (Dof::Uy, 6), (Dof::Rz, 7), (Dof::Pl, 8)]);
+        assert_point_dofs(&eqs, 3, &[(Dof::Ux, 9), (Dof::Uy, 10)]);
+        assert_point_dofs(&eqs, 4, &[(Dof::Ux, 11), (Dof::Uy, 12)]);
+        assert_point_dofs(&eqs, 5, &[(Dof::Ux, 13), (Dof::Uy, 14)]);
+        assert_point_dofs(&eqs, 6, &[(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Rz, 17), (Dof::Pl, 18)]);
+        assert_point_dofs(&eqs, 7, &[(Dof::Ux, 19), (Dof::Uy, 20)]);
+        assert_point_dofs(&eqs, 8, &[(Dof::Ux, 21), (Dof::Uy, 22), (Dof::Pl, 23)]);
+        assert_point_dofs(&eqs, 9, &[(Dof::Ux, 24), (Dof::Uy, 25)]);
+        assert_point_dofs(&eqs, 10, &[(Dof::Ux, 26), (Dof::Uy, 27), (Dof::Rz, 28)]);
 
         // check local_to_global
         assert_eq!(
-            dn.local_to_global[0],
+            eqs.local_to_global[0],
             &[0, 1, 5, 6, 15, 16, 21, 22, 3, 4, 26, 27, 19, 20, 24, 25, 2, 8, 18, 23]
         );
-        assert_eq!(dn.local_to_global[1], &[5, 6, 11, 12, 15, 16, 9, 10, 13, 14, 26, 27]);
-        assert_eq!(dn.local_to_global[2], &[5, 6, 7, 26, 27, 28]);
-        assert_eq!(dn.local_to_global[3], &[26, 27, 28, 15, 16, 17]);
+        assert_eq!(eqs.local_to_global[1], &[5, 6, 11, 12, 15, 16, 9, 10, 13, 14, 26, 27]);
+        assert_eq!(eqs.local_to_global[2], &[5, 6, 7, 26, 27, 28]);
+        assert_eq!(eqs.local_to_global[3], &[26, 27, 28, 15, 16, 17]);
 
         // check counters
         let ndim = 2;
         let nnz_porous_qua8 = (ndim * 8 + 4) * (ndim * 8 + 4);
         let nnz_solid_tri6 = (ndim * 6) * (ndim * 6);
         let nnz_beam = (3 * 2) * (3 * 2);
-        assert_eq!(dn.n_equation, 29);
-        assert_eq!(dn.nnz_sup, nnz_porous_qua8 + nnz_solid_tri6 + 2 * nnz_beam);
+        assert_eq!(eqs.n_equation, 29);
+        assert_eq!(eqs.nnz_sup, nnz_porous_qua8 + nnz_solid_tri6 + 2 * nnz_beam);
     }
 
     #[test]
@@ -270,10 +281,10 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
-        let dn = DofNumbers::new(&mesh, &edm).unwrap();
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let eqs = Equations::new(&mesh, &emap).unwrap();
         assert_eq!(
-            format!("{}", dn),
+            format!("{}", eqs),
             "Points: DOFs and global equation numbers\n\
              ========================================\n\
              0: [(Ux, 0), (Uy, 1)]\n\
@@ -305,10 +316,10 @@ mod tests {
         let mesh = Samples::two_tri3_one_qua4();
         let p = SampleParams::param_porous_liq();
         let att = Attributes::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
-        let edm = ElementDofsMap::new(&mesh, &att).unwrap();
-        let dn = DofNumbers::new(&mesh, &edm).unwrap();
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let eqs = Equations::new(&mesh, &emap).unwrap();
         assert_eq!(
-            format!("{}", dn),
+            format!("{}", eqs),
             "Points: DOFs and global equation numbers\n\
              ========================================\n\
              0: [(Pl, 0)]\n\

@@ -3,7 +3,7 @@
 use gemlab::mesh::{EdgeKey, Extract, Features, PointId};
 use gemlab::shapes::{GeoKind, Scratchpad};
 use pmsim::base::{
-    assemble_matrix, assemble_vector, BcEssential, BcNatural, Dof, DofNumbers, Element, FnBc, Nbc, ParamSolid,
+    assemble_matrix, assemble_vector, BcEssential, BcNatural, Dof, Equations, Element, FnBc, Nbc, ParamSolid,
     ParamStressStrain, SampleMeshes,
 };
 use pmsim::StrError;
@@ -14,7 +14,7 @@ use russell_sparse::{SparseTriplet, Symmetry};
 use std::collections::{HashMap, HashSet};
 
 /*
-fn linear_solution(dn: &DofNumbers, bc: &Conditions, elements: &[Solid]) -> Result<(), StrError> {
+fn linear_solution(dn: &Equations, bc: &Conditions, elements: &[Solid]) -> Result<(), StrError> {
     // allocate coefficient matrix and rhs vector
     let neq = dn.n_equation;
     let nnz = dn.nnz_sup;
@@ -60,7 +60,7 @@ fn test_rod_bhatti_1dot6() -> Result<(), StrError> {
     let features = Features::new(&mesh, Extract::Boundary);
 
     // DOF numbers
-    let dn = DofNumbers::new(&mesh, HashMap::from([(1, Element::Solid)]))?;
+    let dn = Equations::new(&mesh, HashMap::from([(1, Element::Solid)]))?;
 
     // parameters
     let param = ParamSolid {

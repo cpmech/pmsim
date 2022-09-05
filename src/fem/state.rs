@@ -1,5 +1,5 @@
 use super::Data;
-use crate::base::{Config, Element, ParamLiquidRetention, ParamStressStrain};
+use crate::base::{Config, Element, Essential, ParamLiquidRetention, ParamStressStrain};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::Tensor2;
@@ -75,7 +75,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(data: &Data, config: &Config) -> Result<State, StrError> {
+    pub fn new(data: &Data, config: &Config, essential: &Essential) -> Result<State, StrError> {
         // gather information about element types
         let mut rods_and_beams_only = true;
         let mut has_diffusion = false;
@@ -114,15 +114,17 @@ impl State {
             };
         }
 
+        // TODO: check compatibility of flags
+
         // constants
         let ndim = data.mesh.ndim;
         let ncell = data.mesh.cells.len();
-        let n_equation = data.dof_numbers.n_equation;
+        let n_equation = data.equations.n_equation;
 
         // primary variables
         let t = config.control.t_ini;
         let dt = (config.control.dt)(t);
-        let uu = Vector::new(n_equation);
+        let mut uu = Vector::new(n_equation);
         let (uu_old, vv, vv_old) = if config.transient || config.dynamics {
             (
                 Vector::new(n_equation),
@@ -138,7 +140,11 @@ impl State {
             (Vector::new(0), Vector::new(0))
         };
 
-        // TODO: check compatibility of flags
+        // initialize primary variables with prescribed values
+        for ((point_id, dof), f) in &essential.all {
+            let eq = data.equations.eq(*point_id, *dof).unwrap();
+            uu[eq] = f(t);
+        }
 
         // return state with most vectors empty
         if rods_and_beams_only || has_diffusion {
@@ -263,7 +269,7 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::State;
-    use crate::base::{Config, Element, SampleParams};
+    use crate::base::{Config, Element, Essential, SampleParams};
     use crate::fem::Data;
     use gemlab::mesh::Samples;
 
@@ -283,11 +289,12 @@ mod tests {
         )
         .unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.dt, 0.1);
-        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), ncell);
         assert_eq!(state.ivs.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
@@ -322,9 +329,10 @@ mod tests {
         let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), 0);
         assert_eq!(state.ivs.len(), 0);
         assert_eq!(state.loading.len(), 0);
@@ -339,9 +347,10 @@ mod tests {
         let p1 = SampleParams::param_rod();
         let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), 0);
         assert_eq!(state.ivs.len(), 0);
         assert_eq!(state.loading.len(), 0);
@@ -356,10 +365,11 @@ mod tests {
         let p1 = SampleParams::param_porous_liq();
         let data = Data::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), 0);
         assert_eq!(state.ivs.len(), 0);
         assert_eq!(state.loading.len(), 0);
@@ -375,10 +385,11 @@ mod tests {
         let p1 = SampleParams::param_porous_liq_gas();
         let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), 0);
         assert_eq!(state.ivs.len(), 0);
         assert_eq!(state.loading.len(), 0);
@@ -394,10 +405,11 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq_gas();
         let data = Data::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), ncell);
         assert_eq!(state.ivs.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
@@ -414,10 +426,11 @@ mod tests {
         let p2 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Rod(p1)), (2, Element::Solid(p2))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state = State::new(&data, &config, &essential).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.dof_numbers.n_equation);
+        assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), ncell);
         assert_eq!(state.ivs.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
@@ -432,7 +445,8 @@ mod tests {
         let p1 = SampleParams::param_rod();
         let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        let state_ori = State::new(&data, &config).unwrap();
+        let essential = Essential::new();
+        let state_ori = State::new(&data, &config, &essential).unwrap();
         let state = state_ori.clone();
         let str_ori = format!("{:?}", state).to_string();
         assert!(str_ori.len() > 0);
@@ -449,9 +463,10 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new();
+        let essential = Essential::new();
         config.n_integ_point.insert(1, 100); // wrong number
         assert_eq!(
-            State::new(&data, &config).err(),
+            State::new(&data, &config, &essential).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }

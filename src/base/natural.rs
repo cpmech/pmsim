@@ -3,15 +3,15 @@ use gemlab::mesh::{Feature, PointId};
 use std::fmt;
 
 /// Holds natural boundary conditions
-pub struct BcsNatural<'a> {
+pub struct Natural<'a> {
     pub concentrated: Vec<(PointId, Pbc)>,
     pub distributed: Vec<(&'a Feature, Nbc)>,
 }
 
-impl<'a> BcsNatural<'a> {
+impl<'a> Natural<'a> {
     /// Allocates a new instance
     pub fn new() -> Self {
-        BcsNatural {
+        Natural {
             concentrated: Vec::new(),
             distributed: Vec::new(),
         }
@@ -34,7 +34,7 @@ impl<'a> BcsNatural<'a> {
     }
 }
 
-impl<'a> fmt::Display for BcsNatural<'a> {
+impl<'a> fmt::Display for Natural<'a> {
     /// Prints a formatted summary of Boundary Conditions
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Concentrated boundary conditions\n").unwrap();
@@ -57,14 +57,14 @@ impl<'a> fmt::Display for BcsNatural<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::BcsNatural;
+    use super::Natural;
     use crate::base::{Nbc, Pbc};
     use gemlab::mesh::{Extract, Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn set_points_edges_faces_work() {
-        let mut bcs_natural = BcsNatural::new();
+        let mut natural = Natural::new();
         let edges = &[&Feature {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -73,12 +73,12 @@ mod tests {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
-        bcs_natural
+        natural
             .at(&[10], Pbc::Fy(|_| -100.0))
             .on(edges, Nbc::Qy(|t| t))
             .on(faces, Nbc::Qn(|t| t / 2.0));
         assert_eq!(
-            format!("{}", bcs_natural),
+            format!("{}", natural),
             "Concentrated boundary conditions\n\
              ================================\n\
              10 : Fy(0) = -100.0, Fy(1) = -100.0\n\
@@ -90,13 +90,13 @@ mod tests {
         );
 
         // note that Display follows the setting order
-        let mut bcs_natural = BcsNatural::new();
-        bcs_natural
+        let mut natural = Natural::new();
+        natural
             .at(&[10], Pbc::Fy(|_| -100.0))
             .on(faces, Nbc::Qn(|t| t / 2.0))
             .on(edges, Nbc::Qy(|t| t));
         assert_eq!(
-            format!("{}", bcs_natural),
+            format!("{}", natural),
             "Concentrated boundary conditions\n\
              ================================\n\
              10 : Fy(0) = -100.0, Fy(1) = -100.0\n\
@@ -125,17 +125,17 @@ mod tests {
         // 1--------------2   1.0
         let mesh = Samples::one_hex8();
         let features = Features::new(&mesh, Extract::Boundary);
-        let mut bcs_natural = BcsNatural::new();
+        let mut natural = Natural::new();
         let fbc = |t| -10.0 * t;
         let top_edges = [
             features.edges.get(&(4, 5)).unwrap(),
             features.edges.get(&(6, 7)).unwrap(),
         ];
         let top_face = features.faces.get(&(0, 1, 4, 5)).unwrap();
-        bcs_natural.on(&top_edges, Nbc::Qn(fbc));
-        bcs_natural.on(&[&top_face], Nbc::Qy(fbc));
+        natural.on(&top_edges, Nbc::Qn(fbc));
+        natural.on(&[&top_face], Nbc::Qy(fbc));
         assert_eq!(
-            format!("{}", bcs_natural),
+            format!("{}", natural),
             "Concentrated boundary conditions\n\
              ================================\n\
              \n\
