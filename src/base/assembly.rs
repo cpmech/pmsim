@@ -89,9 +89,29 @@ pub fn assemble_matrix(
 mod tests {
     use super::{assemble_matrix, assemble_vector};
     use crate::base::{compute_local_to_global, Attributes, Element, ElementInfoMap, Equations, SampleParams};
-    use gemlab::mesh::Samples;
+    use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{Matrix, Vector};
     use russell_sparse::{SparseTriplet, Symmetry};
+
+    #[test]
+    fn compute_local_to_global_handles_errors() {
+        let mut mesh = Samples::three_tri3();
+        let p1 = SampleParams::param_solid();
+        let att = Attributes::from([(1, Element::Solid(p1))]);
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let eqs = Equations::new(&mesh, &emap).unwrap();
+        mesh.cells[0].kind = GeoKind::Qua4; // never do this!
+        assert_eq!(
+            compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
+            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
+        );
+        mesh.cells[0].kind = GeoKind::Tri3;
+        mesh.cells[0].points[0] = 100; // never do this!
+        assert_eq!(
+            compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
+            Some("cannot find equation number because point_id is out of bounds")
+        );
+    }
 
     #[test]
     fn compute_local_to_global_works() {
