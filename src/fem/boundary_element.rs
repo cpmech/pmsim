@@ -57,7 +57,7 @@ impl BoundaryElement {
         let mut local_to_global = vec![0; n_equation_local];
         for m in 0..nnode {
             for (dof, local) in &dofs[m] {
-                let global = *data.equations.points[points[m]]
+                let global = *data.equations.all[points[m]]
                     .get(dof)
                     .ok_or("cannot find DOF to allocate BoundaryElement")?;
                 local_to_global[*local] = global;

@@ -66,7 +66,7 @@ pub struct Equations {
     ///
     /// 1. The array has a length equal to npoint
     /// 2. The inner maps have variable lengths according to the number of DOFs at the point
-    pub points: Vec<HashMap<Dof, usize>>,
+    pub all: Vec<HashMap<Dof, usize>>,
 
     /// Holds the total number of global equations
     ///
@@ -92,27 +92,27 @@ impl Equations {
         }
 
         // compute all point DOF numbers
-        let mut points = vec![HashMap::new(); npoint];
+        let mut all = vec![HashMap::new(); npoint];
         let mut n_equation = 0; // equals the total number of DOFs
         for point_id in 0..npoint {
             let mut sorted_dofs: Vec<_> = memo_point_dofs[point_id].iter().collect();
             sorted_dofs.sort();
             for dof in sorted_dofs {
-                points[point_id].insert(*dof, n_equation);
+                all[point_id].insert(*dof, n_equation);
                 n_equation += 1;
             }
         }
 
         // done
-        Ok(Equations { points, n_equation })
+        Ok(Equations { all, n_equation })
     }
 
     /// Returns the (global) equation number of a (PointId,DOF) pair
     pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
-        if point_id >= self.points.len() {
+        if point_id >= self.all.len() {
             return Err("point_id is out of bounds");
         }
-        let eq = self.points[point_id]
+        let eq = self.all[point_id]
             .get(&dof)
             .ok_or("cannot find equation corresponding to (PointId,DOF)")?;
         Ok(*eq)
@@ -123,8 +123,8 @@ impl fmt::Display for Equations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Points: DOFs and global equation numbers\n").unwrap();
         write!(f, "========================================\n").unwrap();
-        for point_id in 0..self.points.len() {
-            let mut dof_eqn: Vec<_> = self.points[point_id].iter().collect();
+        for point_id in 0..self.all.len() {
+            let mut dof_eqn: Vec<_> = self.all[point_id].iter().collect();
             dof_eqn.sort_by(|a, b| a.0.partial_cmp(b.0).unwrap());
             write!(f, "{:?}: {:?}\n", point_id, dof_eqn).unwrap();
         }
@@ -154,8 +154,8 @@ mod tests {
         );
     }
 
-    fn assert_point_dofs(dn: &Equations, p: PointId, correct: &[(Dof, usize)]) {
-        let mut dofs: Vec<_> = dn.points[p].iter().map(|(d, n)| (*d, *n)).collect();
+    fn assert_equations(eqs: &Equations, p: PointId, correct: &[(Dof, usize)]) {
+        let mut dofs: Vec<_> = eqs.all[p].iter().map(|(d, n)| (*d, *n)).collect();
         dofs.sort();
         assert_eq!(dofs, correct);
     }
@@ -182,17 +182,17 @@ mod tests {
         let eqs = Equations::new(&mesh, &emap).unwrap();
 
         // check point dofs
-        assert_point_dofs(&eqs, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
-        assert_point_dofs(&eqs, 1, &[(Dof::Ux, 3), (Dof::Uy, 4)]);
-        assert_point_dofs(&eqs, 2, &[(Dof::Ux, 5), (Dof::Uy, 6), (Dof::Rz, 7), (Dof::Pl, 8)]);
-        assert_point_dofs(&eqs, 3, &[(Dof::Ux, 9), (Dof::Uy, 10)]);
-        assert_point_dofs(&eqs, 4, &[(Dof::Ux, 11), (Dof::Uy, 12)]);
-        assert_point_dofs(&eqs, 5, &[(Dof::Ux, 13), (Dof::Uy, 14)]);
-        assert_point_dofs(&eqs, 6, &[(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Rz, 17), (Dof::Pl, 18)]);
-        assert_point_dofs(&eqs, 7, &[(Dof::Ux, 19), (Dof::Uy, 20)]);
-        assert_point_dofs(&eqs, 8, &[(Dof::Ux, 21), (Dof::Uy, 22), (Dof::Pl, 23)]);
-        assert_point_dofs(&eqs, 9, &[(Dof::Ux, 24), (Dof::Uy, 25)]);
-        assert_point_dofs(&eqs, 10, &[(Dof::Ux, 26), (Dof::Uy, 27), (Dof::Rz, 28)]);
+        assert_equations(&eqs, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
+        assert_equations(&eqs, 1, &[(Dof::Ux, 3), (Dof::Uy, 4)]);
+        assert_equations(&eqs, 2, &[(Dof::Ux, 5), (Dof::Uy, 6), (Dof::Rz, 7), (Dof::Pl, 8)]);
+        assert_equations(&eqs, 3, &[(Dof::Ux, 9), (Dof::Uy, 10)]);
+        assert_equations(&eqs, 4, &[(Dof::Ux, 11), (Dof::Uy, 12)]);
+        assert_equations(&eqs, 5, &[(Dof::Ux, 13), (Dof::Uy, 14)]);
+        assert_equations(&eqs, 6, &[(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Rz, 17), (Dof::Pl, 18)]);
+        assert_equations(&eqs, 7, &[(Dof::Ux, 19), (Dof::Uy, 20)]);
+        assert_equations(&eqs, 8, &[(Dof::Ux, 21), (Dof::Uy, 22), (Dof::Pl, 23)]);
+        assert_equations(&eqs, 9, &[(Dof::Ux, 24), (Dof::Uy, 25)]);
+        assert_equations(&eqs, 10, &[(Dof::Ux, 26), (Dof::Uy, 27), (Dof::Rz, 28)]);
     }
 
     #[test]
