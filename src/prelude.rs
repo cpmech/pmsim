@@ -9,4 +9,3 @@ pub use crate::base::{
     ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
 };
 pub use crate::fem::{BoundaryElementVec, Data, InteriorElementVec, LinearSystem, State};
-pub use crate::StrError;
