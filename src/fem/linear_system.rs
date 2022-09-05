@@ -84,14 +84,6 @@ impl LinearSystem {
             mdu: Vector::new(n_equation),
         })
     }
-
-    pub fn solve(&mut self) -> Result<(), StrError> {
-        let x = &mut self.mdu;
-        let rhs = &self.residual;
-        self.solver.initialize(&self.jacobian)?;
-        self.solver.factorize()?;
-        self.solver.solve(x, rhs)
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

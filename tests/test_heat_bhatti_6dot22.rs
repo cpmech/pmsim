@@ -1,13 +1,9 @@
-#![allow(unused)]
-
 use gemlab::mesh::{At, Find};
-use pmsim::base::{
-    assemble_matrix, assemble_vector, Config, Dof, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes,
-};
+use pmsim::base::{Config, Dof, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{BoundaryElementVec, Data, InteriorElementVec, LinearSystem, State};
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
-use russell_lab::{copy_vector, Matrix, Vector};
+use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, NormVec, Vector};
 
 #[test]
 fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
@@ -80,22 +76,11 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     state.uu.fill(0.0);
     // with state = 0, the residual is equal to -b (negative of integral of source term)
     let neg_b = Vector::from(&[250.0, 312.5, 312.5, 250.0, -1125., -1000.0, -1125., -1250.0]);
-    let res: Result<(), _> = interior_elements
-        .all
-        .iter_mut()
-        .map(|e| {
-            e.calc_residual(&state)?;
-            e.calc_jacobian(&state)
-        })
-        .collect();
-    if let Some(err) = res.err() {
-        return Err(err);
-    }
-    let elem0 = &interior_elements.all[0];
-    let elem1 = &interior_elements.all[1];
-    vec_approx_eq(elem0.residual.as_data(), neg_b.as_data(), 1e-12);
+    interior_elements.calc_residuals(&state)?;
+    vec_approx_eq(interior_elements.all[0].residual.as_data(), neg_b.as_data(), 1e-12);
 
     // check Jacobian of first element (independent of state)
+    interior_elements.calc_jacobians(&state)?;
     #[rustfmt::skip]
     let bhatti_kk0 = Matrix::from(&[
         [38.515873015873005  , 23.194444444444443  , 21.46825396825396   , 22.02777777777777   , -20.317460317460306 , -30.91269841269842  , -14.682539682539685 , -39.293650793650784],
@@ -107,21 +92,21 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         [-14.682539682539685 , -28.015873015873005 , -20.63492063492062  , -33.49206349206349  , -5.079365079365089  , 3.650793650793652   , 95.07936507936506   , 3.174603174603193  ],
         [-39.293650793650784 , -33.65079365079365  , -28.412698412698408 , -46.67460317460315  , -23.174603174603188 , 42.06349206349206   , 3.1746031746031935  , 125.96825396825392 ],
     ]);
-    vec_approx_eq(elem0.jacobian.as_data(), bhatti_kk0.as_data(), 1e-13);
+    mat_approx_eq(&interior_elements.all[0].jacobian, &bhatti_kk0, 1e-13);
 
     // check Jacobian of second element (independent of state)
     #[rustfmt::skip]
-        let bhatti_kk1 = Matrix::from(&[
-            [43.05158730158727   , 25.313492063492063  , 26.646825396825385  , 49.623015873015845  , 16.634920634920615  , -48.015873015873005 , -21.26984126984126  , -91.98412698412692 ], 
-            [25.313492063492063  , 117.57539682539678  , 49.62301587301586   , 62.599206349206334  , -12.888888888888902 , -144.68253968253964 , -42.22222222222222  , -55.3174603174603  ], 
-            [26.646825396825385  , 49.623015873015845  , 70.45634920634916   , 52.00396825396825   , -11.269841269841278 , -103.96825396825392 , -27.460317460317462 , -56.031746031745996], 
-            [49.623015873015845  , 62.599206349206334  , 52.00396825396825   , 173.5515873015872   , -32.222222222222214 , -90.63492063492062  , -85.55555555555557  , -129.36507936507928], 
-            [16.634920634920615  , -12.888888888888909 , -11.269841269841281 , -32.222222222222214 , 156.25396825396825  , 12.698412698412731  , -36.50793650793649  , -92.69841269841268 ], 
-            [-48.015873015873005 , -144.6825396825396  , -103.96825396825393 , -90.63492063492062  , 12.698412698412724  , 258.8888888888888   , 14.603174603174601  , 101.11111111111106 ], 
-            [-21.269841269841265 , -42.22222222222221  , -27.460317460317462 , -85.55555555555557  , -36.50793650793649  , 14.60317460317459   , 133.01587301587304  , 65.39682539682536  ], 
-            [-91.98412698412692  , -55.3174603174603   , -56.031746031745996 , -129.36507936507928 , -92.6984126984127   , 101.11111111111107  , 65.39682539682536   , 258.8888888888888  ], 
-        ]);
-    vec_approx_eq(elem1.jacobian.as_data(), bhatti_kk1.as_data(), 1e-12);
+    let bhatti_kk1 = Matrix::from(&[
+        [43.05158730158727   , 25.313492063492063  , 26.646825396825385  , 49.623015873015845  , 16.634920634920615  , -48.015873015873005 , -21.26984126984126  , -91.98412698412692 ], 
+        [25.313492063492063  , 117.57539682539678  , 49.62301587301586   , 62.599206349206334  , -12.888888888888902 , -144.68253968253964 , -42.22222222222222  , -55.3174603174603  ], 
+        [26.646825396825385  , 49.623015873015845  , 70.45634920634916   , 52.00396825396825   , -11.269841269841278 , -103.96825396825392 , -27.460317460317462 , -56.031746031745996], 
+        [49.623015873015845  , 62.599206349206334  , 52.00396825396825   , 173.5515873015872   , -32.222222222222214 , -90.63492063492062  , -85.55555555555557  , -129.36507936507928], 
+        [16.634920634920615  , -12.888888888888909 , -11.269841269841281 , -32.222222222222214 , 156.25396825396825  , 12.698412698412731  , -36.50793650793649  , -92.69841269841268 ], 
+        [-48.015873015873005 , -144.6825396825396  , -103.96825396825393 , -90.63492063492062  , 12.698412698412724  , 258.8888888888888   , 14.603174603174601  , 101.11111111111106 ], 
+        [-21.269841269841265 , -42.22222222222221  , -27.460317460317462 , -85.55555555555557  , -36.50793650793649  , 14.60317460317459   , 133.01587301587304  , 65.39682539682536  ], 
+        [-91.98412698412692  , -55.3174603174603   , -56.031746031745996 , -129.36507936507928 , -92.6984126984127   , 101.11111111111107  , 65.39682539682536   , 258.8888888888888  ], 
+    ]);
+    mat_approx_eq(&interior_elements.all[1].jacobian, &bhatti_kk1, 1e-12);
 
     // allocate linear system
     let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
@@ -132,12 +117,11 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     }
 
     // compute residuals in parallel
-    interior_elements.calc_residuals(&state)?;
-    boundary_elements.calc_residuals(&state)?;
+    interior_elements.calc_residuals_parallel(&state)?;
+    boundary_elements.calc_residuals_parallel(&state)?;
 
     // assemble residuals
     let rr = &mut lin_sys.residual;
-    let kk = &mut lin_sys.jacobian;
     interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
     boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
     println!("rr =\n{}", rr);
@@ -158,29 +142,55 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     ];
     vec_approx_eq(rr.as_data(), bhatti_rr, 1e-10);
 
-    /*
-    for i in 0..neq {
-        if prescribed[i] {
-            kk.put(i, i, 1.0);
-        }
-    }
+    // compute jacobians in parallel
+    interior_elements.calc_jacobians_parallel(&state)?;
+    boundary_elements.calc_jacobians_parallel(&state)?;
 
-    // let mut kk_mat = Matrix::new(neq, neq);
-    // kk.to_matrix(&mut kk_mat);
+    // assemble jacobians matrices
+    let kk = &mut lin_sys.jacobian;
+    interior_elements.assemble_jacobians(kk, &lin_sys.prescribed);
+    boundary_elements.assemble_jacobians(kk, &lin_sys.prescribed);
+    let mut kk_mat = Matrix::new(lin_sys.n_equation, lin_sys.n_equation);
+    kk.to_matrix(&mut kk_mat)?;
     // println!("kk =\n{:.4}", kk_mat);
 
+    // check global Jacobian matrix
+    #[rustfmt::skip]
+    let bhatti_kk = Matrix::from(&[
+        [57.36682539682538   , -33.38206349206349  , 23.13944444444444   , -36.150793650793645 , 30.456349206349195  , 0.0                 , 0.0                 , 0.0                 , 0.0 , 0.0, 0.0 , -46.67460317460315  , -16.507936507936492],
+        [-33.38206349206349  , 95.95936507936506   , -20.52492063492062  , 3.650793650793652   , -28.015873015873005 , 0.0                 , 0.0                 , 0.0                 , 0.0 , 0.0, 0.0 , 3.174603174603193   , -5.079365079365089 ],
+        [23.13944444444444   , -20.52492063492062  , 58.643492063492054  , -68.11960317460317  , 33.5836111111111    , 0.0                 , 0.0                 , 0.0                 , 0.0 , 0.0, 0.0 , -28.412698412698408 , -19.36507936507935 ],
+        [-36.15079365079365  , 3.650793650793659   , -68.11960317460317  , 156.31301587301584  , -82.64341269841265  , 0.0                 , 0.0                 , 0.0                 , 0.0 , 0.0, 0.0 , 42.06349206349206   , 16.34920634920633  ],
+        [30.456349206349195  , -28.015873015873005 , 33.5836111111111    , -82.64341269841265  , 257.9688888888887   , -85.44555555555557  , 51.94896825396825   , -90.63492063492062  , 0.0 , 0.0, 0.0 , -33.650793650793645 , -156.34920634920627],
+        [0.0                 , 0.0                 , 0.0                 , 0.0                 , -85.44555555555557  , 133.89587301587304  , -27.350317460317463 , 14.60317460317459   , 0.0 , 0.0, 0.0 , 0.0                 , 65.39682539682536  ],
+        [0.0                 , 0.0                 , 0.0                 , 0.0                 , 51.94896825396825   , -27.350317460317463 , 70.67634920634916   , -103.96825396825392 , 0.0 , 0.0, 0.0 , 0.0                 , -56.031746031745996],
+        [0.0                 , 0.0                 , 0.0                 , 0.0                 , -90.63492063492062  , 14.603174603174601  , -103.96825396825393 , 258.8888888888888   , 0.0 , 0.0, 0.0 , 0.0                 , 101.11111111111106 ],
+        [0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0 , 0.0, 0.0 , 0.0                 , 0.0                ],
+        [0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0 , 0.0, 0.0 , 0.0                 , 0.0                ],
+        [0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0                 , 0.0 , 0.0, 0.0 , 0.0                 , 0.0                ],
+        [-46.67460317460315  , 3.1746031746031935  , -28.412698412698408 , 42.06349206349206   , -33.65079365079365  , 0.0                 , 0.0                 , 0.0                 , 0.0 , 0.0, 0.0 , 125.96825396825392  , -23.174603174603188],
+        [-16.507936507936492 , -5.0793650793650915 , -19.365079365079353 , 16.349206349206334  , -156.34920634920624 , 65.39682539682536   , -56.031746031745996 , 101.11111111111107  , 0.0 , 0.0, 0.0 , -23.174603174603188 , 353.96825396825386 ],
+    ]);
+    mat_approx_eq(&kk_mat, &bhatti_kk, 1e-12);
 
-    let mut mdu = Vector::new(neq);
+    // augment global Jacobian matrix
+    for eq in &lin_sys.p_equations {
+        kk.put(*eq, *eq, 1.0)?;
+    }
+
+    // solver linear system
+    // let mut mdu = Vector::new(neq);
+    let mdu = &mut lin_sys.mdu;
     lin_sys.solver.initialize(&kk)?;
     lin_sys.solver.factorize()?;
-    lin_sys.solver.solve(&mut mdu, &rr);
+    lin_sys.solver.solve(mdu, &rr)?;
 
-    let uu = &state.primary_unknowns;
-    // println!("uu =\n{}", uu);
-    let uu_new = &mut Vector::new(neq);
-    add_vectors(uu_new, 1.0, uu, -1.0, &mdu);
+    // update U vector
+    let mut uu_new = Vector::new(lin_sys.n_equation);
+    add_vectors(&mut uu_new, 1.0, &state.uu, -1.0, &mdu)?;
     println!("uu_new =\n{}", uu_new);
 
+    // check U vector
     let tt_bhatti = Vector::from(&[
         156.440502466202,
         150.75605418729847,
@@ -197,18 +207,15 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         129.13200798820264,
     ]);
     vec_approx_eq(uu_new.as_data(), tt_bhatti.as_data(), 1e-12);
-    copy_vector(&mut state.primary_unknowns, &uu_new);
 
+    // set state with new U vector and check the residuals
+    copy_vector(&mut state.uu, &uu_new)?;
     rr.fill(0.0);
-    elements.iter_mut().for_each(|e| {
-        e.calc_residual(&state)?;
-        assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
-    });
-    nbcs.all.iter_mut().for_each(|e| {
-        e.calc_residual(&state);
-        assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed);
-    });
-    println!("rr_new =\n{}", rr);
-    */
+    interior_elements.calc_residuals(&state)?;
+    boundary_elements.calc_residuals(&state)?;
+    interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
+    boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
+    println!("rr_new =\n{:?}", rr);
+    assert!(vector_norm(rr, NormVec::Max) < 1e-10);
     Ok(())
 }

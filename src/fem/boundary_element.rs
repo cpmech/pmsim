@@ -171,7 +171,7 @@ impl BoundaryElementVec {
     /// Computes the Jacobian matrices
     #[inline]
     pub fn calc_jacobians(&mut self, state: &State) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
+        self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
     /// Computes the residual vectors in parallel
@@ -183,7 +183,7 @@ impl BoundaryElementVec {
     /// Computes the Jacobian matrices in parallel
     #[inline]
     pub fn calc_jacobians_parallel(&mut self, state: &State) -> Result<(), StrError> {
-        self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
+        self.all.par_iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
     /// Assembles residual vectors
@@ -497,4 +497,7 @@ mod tests {
             mat_approx_eq(&jj, correct, 1e-15);
         }
     }
+
+    #[test]
+    fn boundary_element_vec_methods_work() {}
 }
