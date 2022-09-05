@@ -123,9 +123,11 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         ]);
     vec_approx_eq(elem1.jacobian.as_data(), bhatti_kk1.as_data(), 1e-12);
 
+    // allocate linear system
+    let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
+
     // fix state.uu (must do this before calculating residuals)
-    let (prescribed, p_equations) = data.prescribed(&essential)?;
-    for eq in &p_equations {
+    for eq in &lin_sys.p_equations {
         state.uu[*eq] = 110.0;
     }
 
@@ -133,20 +135,11 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     interior_elements.calc_residuals(&state)?;
     boundary_elements.calc_residuals(&state)?;
 
-    // allocate linear system
-    let mut lin_sys = LinearSystem::new(
-        data.equations.n_equation,
-        &interior_elements,
-        &boundary_elements,
-        &p_equations,
-    )
-    .unwrap();
-
     // assemble residuals
     let rr = &mut lin_sys.residual;
     let kk = &mut lin_sys.jacobian;
-    interior_elements.assemble_residuals(rr, &prescribed);
-    boundary_elements.assemble_residuals(rr, &prescribed);
+    interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
+    boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
     println!("rr =\n{}", rr);
     let bhatti_rr = &[
         2627.5555555555547,

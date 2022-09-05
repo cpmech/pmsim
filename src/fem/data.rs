@@ -2,10 +2,18 @@ use crate::base::{Attributes, Element, ElementInfoMap, Equations, Essential};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttributeId, Mesh};
 
+/// Data holds the basic data for a FEM simulation
 pub struct Data<'a> {
+    /// Holds an access to the Mesh
     pub mesh: &'a Mesh,
+
+    /// Holds all attributes
     pub attributes: Attributes,
+
+    /// Holds the element information such as local DOFs and equation numbers
     pub information: ElementInfoMap,
+
+    /// Holds all DOF numbers
     pub equations: Equations,
 }
 
