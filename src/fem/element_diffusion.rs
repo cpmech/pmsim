@@ -1,5 +1,5 @@
 use super::{Data, LocalEquations, State};
-use crate::base::{Config, ParamDiffusion};
+use crate::base::{compute_local_to_global, Config, ParamDiffusion};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Cell};
@@ -12,9 +12,6 @@ pub struct ElementDiffusion<'a> {
     /// Number of space dimensions
     pub ndim: usize,
 
-    /// Local-to-global mapping
-    pub local_to_global: &'a Vec<usize>,
-
     /// Global configuration
     pub config: &'a Config,
 
@@ -23,6 +20,9 @@ pub struct ElementDiffusion<'a> {
 
     /// Material parameters
     pub param: &'a ParamDiffusion,
+
+    /// Local-to-global mapping
+    pub local_to_global: Vec<usize>,
 
     /// Temporary variables for numerical integration
     pub pad: Scratchpad,
@@ -64,10 +64,10 @@ impl<'a> ElementDiffusion<'a> {
         Ok({
             ElementDiffusion {
                 ndim,
-                local_to_global: &data.equations.local_to_global[cell.id],
                 config,
                 cell,
                 param,
+                local_to_global: compute_local_to_global(&data.information, &data.equations, cell)?,
                 pad,
                 ips: config.integ_point_data(cell)?,
                 conductivity,
@@ -78,6 +78,11 @@ impl<'a> ElementDiffusion<'a> {
 }
 
 impl<'a> LocalEquations for ElementDiffusion<'a> {
+    /// Returns the local-to-global mapping
+    fn local_to_global(&self) -> &Vec<usize> {
+        &self.local_to_global
+    }
+
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
         let ndim = self.ndim;

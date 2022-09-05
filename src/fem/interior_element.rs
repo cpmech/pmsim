@@ -1,4 +1,4 @@
-use super::{Data, ElementDiffusion, ElementSolid, LocalEquations, State};
+use super::{Data, ElementDiffusion, ElementRod, ElementSolid, LocalEquations, State};
 use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
@@ -9,9 +9,6 @@ use russell_sparse::SparseTriplet;
 
 /// Defines a generic element for interior cells (opposite to boundary cells)
 pub struct InteriorElement<'a> {
-    /// Local to global mapping
-    pub local_to_global: &'a Vec<usize>,
-
     /// Connects to the "actual" implementation of local equations
     pub actual: Box<dyn LocalEquations + 'a>,
 
@@ -39,11 +36,10 @@ struct ArgsForNumericalJacobian {
 impl<'a> InteriorElement<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
-        let local_to_global = &data.equations.local_to_global[cell.id];
         let element = data.attributes.get(cell).unwrap(); // already checked in Data
         let actual: Box<dyn LocalEquations> = match element {
             Element::Diffusion(p) => Box::new(ElementDiffusion::new(data, config, cell, p)?),
-            Element::Rod(..) => panic!("TODO: Rod"),
+            Element::Rod(p) => Box::new(ElementRod::new(data, config, cell, p)?),
             Element::Beam(..) => panic!("TODO: Beam"),
             Element::Solid(p) => Box::new(ElementSolid::new(data, config, cell, p)?),
             Element::PorousLiq(..) => panic!("TODO: PorousLiq"),
@@ -53,7 +49,6 @@ impl<'a> InteriorElement<'a> {
         };
         let neq = data.n_local_eq(cell).unwrap();
         Ok(InteriorElement {
-            local_to_global,
             actual,
             residual: Vector::new(neq),
             jacobian: Matrix::new(neq, neq),
@@ -150,7 +145,7 @@ impl<'a> InteriorElementVec<'a> {
         rr.fill(0.0); // << important
         self.all
             .iter()
-            .for_each(|e| assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed));
+            .for_each(|e| assemble_vector(rr, &e.residual, &e.actual.local_to_global(), &prescribed));
     }
 
     /// Assembles jacobian matrices
@@ -166,7 +161,7 @@ impl<'a> InteriorElementVec<'a> {
         kk.reset(); // << important
         self.all
             .iter()
-            .for_each(|e| assemble_matrix(kk, &e.jacobian, &e.local_to_global, &prescribed));
+            .for_each(|e| assemble_matrix(kk, &e.jacobian, &e.actual.local_to_global(), &prescribed));
     }
 }
 
@@ -263,16 +258,6 @@ mod tests {
     }
 
     // ----------------- temporary ----------------------------------------
-
-    #[test]
-    #[should_panic(expected = "TODO: Rod")]
-    fn new_panics_rod() {
-        let mesh = Samples::one_lin2();
-        let p1 = SampleParams::param_rod();
-        let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
-        let config = Config::new();
-        InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
-    }
 
     #[test]
     #[should_panic(expected = "TODO: Beam")]

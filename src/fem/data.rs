@@ -100,7 +100,7 @@ mod tests {
         essential.at(&[3], &[Dof::T], zero);
         assert_eq!(
             data.prescribed(&essential).err(),
-            Some("EBC dof is not present in point_dofs array")
+            Some("cannot find equation corresponding to (PointId,DOF)")
         );
 
         //       {8} 4---.__

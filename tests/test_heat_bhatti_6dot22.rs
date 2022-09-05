@@ -133,8 +133,16 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     interior_elements.calc_residuals(&state)?;
     boundary_elements.calc_residuals(&state)?;
 
+    // allocate linear system
+    let mut lin_sys = LinearSystem::new(
+        data.equations.n_equation,
+        &interior_elements,
+        &boundary_elements,
+        &p_equations,
+    )
+    .unwrap();
+
     // assemble residuals
-    let mut lin_sys = LinearSystem::new(&data);
     let rr = &mut lin_sys.residual;
     let kk = &mut lin_sys.jacobian;
     interior_elements.assemble_residuals(rr, &prescribed);

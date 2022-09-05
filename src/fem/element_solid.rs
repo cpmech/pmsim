@@ -1,5 +1,5 @@
 use super::{Data, LocalEquations, State};
-use crate::base::{Config, ParamSolid};
+use crate::base::{compute_local_to_global, Config, ParamSolid};
 use crate::model::{allocate_stress_strain_model, StressStrain};
 use crate::StrError;
 use gemlab::integ;
@@ -13,9 +13,6 @@ pub struct ElementSolid<'a> {
     /// Number of space dimensions
     pub ndim: usize,
 
-    /// Local-to-global mapping
-    pub local_to_global: &'a Vec<usize>,
-
     /// Global configuration
     pub config: &'a Config,
 
@@ -24,6 +21,9 @@ pub struct ElementSolid<'a> {
 
     /// Material parameters
     pub param: &'a ParamSolid,
+
+    /// Local-to-global mapping
+    pub local_to_global: Vec<usize>,
 
     /// Temporary variables for numerical integration
     pub pad: Scratchpad,
@@ -38,19 +38,17 @@ pub struct ElementSolid<'a> {
 impl<'a> ElementSolid<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell, param: &'a ParamSolid) -> Result<Self, StrError> {
-        // scratchpad for numerical integration
         let ndim = data.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
         set_pad_coords(&mut pad, &points, data.mesh);
-
         Ok({
             ElementSolid {
                 ndim,
-                local_to_global: &data.equations.local_to_global[cell.id],
                 config,
                 cell,
                 param,
+                local_to_global: compute_local_to_global(&data.information, &data.equations, cell)?,
                 pad,
                 ips: config.integ_point_data(cell)?,
                 model: allocate_stress_strain_model(param, ndim == 2, config.plane_stress),
@@ -60,6 +58,11 @@ impl<'a> ElementSolid<'a> {
 }
 
 impl<'a> LocalEquations for ElementSolid<'a> {
+    /// Returns the local-to-global mapping
+    fn local_to_global(&self) -> &Vec<usize> {
+        &self.local_to_global
+    }
+
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
         let sigma = &state.sigma[self.cell.id];
