@@ -178,8 +178,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         kk.put(*eq, *eq, 1.0)?;
     }
 
-    // solver linear system
-    // let mut mdu = Vector::new(neq);
+    // solve linear system
     let mdu = &mut lin_sys.mdu;
     lin_sys.solver.initialize(&kk)?;
     lin_sys.solver.factorize()?;

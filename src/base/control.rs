@@ -24,6 +24,9 @@ pub struct Control {
     /// Minimum allowed time increment min(Δt)
     pub dt_min: f64,
 
+    /// Maximum number of time steps
+    pub n_max_time_steps: usize,
+
     /// Divergence control
     pub divergence_control: bool,
 
@@ -64,6 +67,7 @@ impl Control {
             dt: |_| 0.1,
             dt_out: |_| 0.1,
             dt_min: CONTROL_MIN_DT_MIN,
+            n_max_time_steps: 1_000,
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
