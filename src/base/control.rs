@@ -262,4 +262,24 @@ mod tests {
 
         assert_eq!(control.validate(), None);
     }
+
+    #[test]
+    fn alphas_transient_works() {
+        let mut control = Control::new();
+
+        control.theta = 1.0;
+        let (alpha_1, alpha_2) = control.alphas_transient(1.0).unwrap();
+        assert_eq!(alpha_1, 1.0);
+        assert_eq!(alpha_2, 0.0);
+
+        control.theta = 0.5;
+        let (alpha_1, alpha_2) = control.alphas_transient(1.0).unwrap();
+        assert_eq!(alpha_1, 2.0);
+        assert_eq!(alpha_2, 1.0);
+
+        assert_eq!(
+            control.alphas_transient(0.0).err(),
+            Some("Δt is smaller than the allowed minimum")
+        );
+    }
 }
