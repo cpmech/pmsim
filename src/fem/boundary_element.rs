@@ -226,7 +226,7 @@ mod tests {
     use super::{BoundaryElement, BoundaryElementVec};
     use crate::base::{Config, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
     use crate::fem::{Data, State};
-    use gemlab::mesh;
+    use gemlab::mesh::{Extract, Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
     use russell_chk::vec_approx_eq;
@@ -234,8 +234,8 @@ mod tests {
 
     #[test]
     fn new_captures_errors() {
-        let mesh = mesh::Samples::one_hex8();
-        let edge = mesh::Feature {
+        let mesh = Samples::one_hex8();
+        let edge = Feature {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
         };
@@ -254,7 +254,7 @@ mod tests {
             BoundaryElement::new(&data, &config, &edge, Nbc::Qz(minus_ten)).err(),
             None
         ); // Qz is OK
-        let face = mesh::Feature {
+        let face = Feature {
             kind: GeoKind::Qua4,
             points: vec![4, 5, 6, 7],
         };
@@ -273,8 +273,8 @@ mod tests {
 
     #[test]
     fn new_vec_and_par_iter_work() {
-        let mesh = mesh::Samples::one_hex8();
-        let faces = &[&mesh::Feature {
+        let mesh = Samples::one_hex8();
+        let faces = &[&Feature {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
@@ -296,8 +296,8 @@ mod tests {
 
     #[test]
     fn integration_works_qn_qx_qy_qz() {
-        let mesh = mesh::Samples::one_qua8();
-        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let mesh = Samples::one_qua8();
+        let features = Features::new(&mesh, Extract::Boundary);
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
         let left = features.edges.get(&(0, 3)).ok_or("cannot get edge").unwrap();
         let right = features.edges.get(&(1, 2)).ok_or("cannot get edge").unwrap();
@@ -376,8 +376,8 @@ mod tests {
 
         // Qz
 
-        let mesh = mesh::Samples::one_hex8();
-        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let mesh = Samples::one_hex8();
+        let features = Features::new(&mesh, Extract::Boundary);
         let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
 
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
@@ -393,8 +393,8 @@ mod tests {
 
     #[test]
     fn integration_works_ql_qg() {
-        let mesh = mesh::Samples::one_qua8();
-        let features = mesh::Features::new(&mesh, mesh::Extract::Boundary);
+        let mesh = Samples::one_qua8();
+        let features = Features::new(&mesh, Extract::Boundary);
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
 
         let p1 = SampleParams::param_porous_liq_gas();
@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn integration_works_qt_cv_bhatti_1dot5_() {
         let mesh = SampleMeshes::bhatti_example_1dot5_heat();
-        let edge = mesh::Feature {
+        let edge = Feature {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
         };
@@ -454,11 +454,11 @@ mod tests {
     #[test]
     fn integration_works_qt_cv_bhatti_6dot22() {
         let mesh = SampleMeshes::bhatti_example_6dot22_heat();
-        let edge_flux = mesh::Feature {
+        let edge_flux = Feature {
             kind: GeoKind::Lin3,
             points: vec![10, 0, 11],
         };
-        let edge_conv = mesh::Feature {
+        let edge_conv = Feature {
             kind: GeoKind::Lin3,
             points: vec![0, 2, 1],
         };
@@ -499,5 +499,23 @@ mod tests {
     }
 
     #[test]
-    fn boundary_element_vec_methods_work() {}
+    fn calc_methods_work() {
+        let mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_diffusion();
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
+        let essential = Essential::new();
+        let mut natural = Natural::new();
+        let edge = Feature {
+            kind: GeoKind::Lin2,
+            points: vec![0, 2],
+        };
+        natural.on(&[&edge], Nbc::Cv(40.0, |_| 20.0));
+        let mut elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
+        let state = State::new(&data, &config, &essential).unwrap();
+        elements.calc_residuals(&state).unwrap();
+        elements.calc_jacobians(&state).unwrap();
+        elements.calc_residuals_parallel(&state).unwrap();
+        elements.calc_jacobians_parallel(&state).unwrap();
+    }
 }
