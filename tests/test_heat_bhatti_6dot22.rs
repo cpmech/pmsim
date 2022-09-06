@@ -7,7 +7,7 @@ use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, 
 
 #[test]
 fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
-    // mesh, parameters, DOFs, and configuration
+    // mesh and boundary features
     //       0.0    0.015    0.03
     // 0.03   0-------1-------2
     //        |               |
@@ -20,19 +20,6 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     // 0.0   10---------------9---------------8 0.0
     //       0.0             0.03            0.06
     let mesh = SampleMeshes::bhatti_example_6dot22_heat();
-    let (kx, ky) = (45.0, 45.0);
-    let source = 5e6;
-    let p1 = ParamDiffusion {
-        rho: 0.0,
-        kx,
-        ky,
-        kz: 0.0,
-        source: Some(source),
-    };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let config = Config::new();
-
-    // boundary features
     let find = Find::new(&mesh, None); // boundary only
     let bottom = find.edges(At::Y(0.0))?;
     let edges_flux = find.edges(At::X(0.0))?;
@@ -51,6 +38,19 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     assert_eq!(points_conv[1], &[2, 4, 3]);
     assert_eq!(points_conv[2], &[4, 6, 5]);
 
+    // parameters, DOFs, and configuration
+    let (kx, ky) = (45.0, 45.0);
+    let source = 5e6;
+    let p1 = ParamDiffusion {
+        rho: 0.0,
+        kx,
+        ky,
+        kz: 0.0,
+        source: Some(source),
+    };
+    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let config = Config::new();
+
     // essential boundary conditions
     let mut essential = Essential::new();
     essential.on(&bottom, &[Dof::T], |_| 110.0);
@@ -63,11 +63,11 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
     println!("{}", natural);
 
-    // boundary elements
-    let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
-
     // interior elements
     let mut interior_elements = InteriorElementVec::new(&data, &config)?;
+
+    // boundary elements
+    let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
 
     // simulation state
     let mut state = State::new(&data, &config, &essential)?;
@@ -108,7 +108,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     ]);
     mat_approx_eq(&interior_elements.all[1].jacobian, &bhatti_kk1, 1e-12);
 
-    // allocate linear system
+    // linear system
     let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
 
     // fix state.uu (must do this before calculating residuals)
