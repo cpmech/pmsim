@@ -35,13 +35,15 @@ pub fn sim_transient(
         add_vectors(&mut phi_star, alpha_1, &state.uu_old, alpha_2, &state.vv_old)?;
 
         // output
-        println!("timestep = {:?}, t = {:?}, Δt = {:?}", timestep, state.t, state.dt);
+        println!("{:>10} {:>13} {:>13}", "timestep", "t", "Δt");
+        println!("{:>10} {:>13} {:>13}", timestep, state.t, state.dt);
+        println!("{:>10} {:>13} {:>13}", "iteration", "norm(R)", "norm(R₀)·tol");
 
         // Note: we enter the iterations with an updated time, thus the boundary
         // conditions will contribute with updated residuals. However the primary
         // variables are still at the old time step. In summary, we start the
         // iterations with the old primary variables and new boundary values.
-        let mut first_norm_rr = f64::MAX;
+        let mut norm_rr0 = f64::MAX;
         for iteration in 0..control.n_max_iterations {
             // compute residuals in parallel
             interior_elements.calc_residuals_parallel(&state)?;
@@ -53,12 +55,20 @@ pub fn sim_transient(
 
             // check norm of residual
             let norm_rr = vector_norm(rr, NormVec::Max);
-            println!("iteration = {:?}, norm_rr = {:?}", iteration, norm_rr);
             if iteration == 0 {
-                first_norm_rr = norm_rr;
+                println!("{:>10} {:>13.6e} {:>13}", iteration, norm_rr, "?");
+            }
+            if norm_rr < control.tol_abs_residual {
+                println!("...converged on absolute residuals...");
+                break;
+            }
+            if iteration == 0 {
+                norm_rr0 = norm_rr;
             } else {
-                if norm_rr <= first_norm_rr * control.tol_rel_residual {
-                    println!("converged on residuals");
+                let rel = norm_rr0 * control.tol_rel_residual;
+                println!("{:>10} {:>13.6e} {:>13.6e}", iteration, norm_rr, rel);
+                if norm_rr < rel {
+                    println!("...converged on relative residuals...");
                     break;
                 }
             }

@@ -1,6 +1,6 @@
 use gemlab::mesh::{At, Find};
 use pmsim::base::{Config, Dof, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
-use pmsim::fem::{BoundaryElementVec, Data, InteriorElementVec, LinearSystem, State};
+use pmsim::fem::{sim_transient, BoundaryElementVec, Data, InteriorElementVec, LinearSystem, State};
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
 use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, NormVec, Vector};
@@ -141,6 +141,8 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         -30884.92063492062,
     ];
     vec_approx_eq(rr.as_data(), bhatti_rr, 1e-10);
+    let norm_rr = vector_norm(rr, NormVec::Max);
+    println!("norm_rr = {:?}", norm_rr);
 
     // compute jacobians in parallel
     interior_elements.calc_jacobians_parallel(&state)?;
@@ -215,6 +217,69 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
     boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
     println!("rr_new =\n{:?}", rr);
-    assert!(vector_norm(rr, NormVec::Max) < 1e-10);
+    let norm_rr = vector_norm(rr, NormVec::Max);
+    println!("norm_rr = {:?}", norm_rr);
+    assert!(norm_rr < 1e-10);
     Ok(())
+}
+
+#[test]
+fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
+    // mesh and boundary features
+    let mesh = SampleMeshes::bhatti_example_6dot22_heat();
+    let find = Find::new(&mesh, None); // boundary only
+    let bottom = find.edges(At::Y(0.0))?;
+    let edges_flux = find.edges(At::X(0.0))?;
+    let edges_conv = vec![
+        find.edges(At::Y(0.03))?.as_slice(),  // top-horizontal
+        find.edges(At::X(0.03))?.as_slice(),  // middle-vertical
+        find.edges(At::Y(0.015))?.as_slice(), // middle-horizontal
+    ]
+    .concat();
+
+    // parameters, DOFs, and configuration
+    let (kx, ky) = (45.0, 45.0);
+    let source = 5e6;
+    let p1 = ParamDiffusion {
+        rho: 1.0,
+        kx,
+        ky,
+        kz: 0.0,
+        source: Some(source),
+    };
+    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let mut config = Config::new();
+    config.transient = true;
+    config.control.n_max_time_steps = 2;
+
+    // essential boundary conditions
+    let mut essential = Essential::new();
+    essential.on(&bottom, &[Dof::T], |_| 110.0);
+
+    // natural boundary conditions
+    let mut natural = Natural::new();
+    natural
+        .on(&edges_flux, Nbc::Qt(|_| 8000.0))
+        .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
+
+    // interior elements
+    let mut interior_elements = InteriorElementVec::new(&data, &config)?;
+
+    // boundary elements
+    let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
+
+    // simulation state
+    let mut state = State::new(&data, &config, &essential)?;
+
+    // linear system
+    let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
+
+    // run simulation
+    sim_transient(
+        &mut interior_elements,
+        &mut boundary_elements,
+        &mut state,
+        &mut lin_sys,
+        &config,
+    )
 }

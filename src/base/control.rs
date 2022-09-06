@@ -38,6 +38,9 @@ pub struct Control {
     /// Maximum number of iterations
     pub n_max_iterations: usize,
 
+    /// Absolute tolerance for the residual vector
+    pub tol_abs_residual: f64,
+
     /// Relative tolerance for the residual vector
     pub tol_rel_residual: f64,
 
@@ -73,8 +76,9 @@ impl Control {
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_rel_residual: 1e-6,
-            tol_rel_mdu: 1e-10,
+            tol_abs_residual: 1e-8,
+            tol_rel_residual: 1e-5,
+            tol_rel_mdu: 1e-5,
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
