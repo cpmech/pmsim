@@ -31,6 +31,7 @@ impl BoundaryPoint {
             Pbc::Fy(f) => f(time),
             Pbc::Fz(f) => f(time),
         };
+        // note the negative sign
         residual[self.eq] -= value;
     }
 }
@@ -103,9 +104,9 @@ mod tests {
         assert_eq!(
             residual.as_data(),
             &[
-                -20.0, 0.0, 0.0, // 0
-                0.0, -20.0, 0.0, // 1
-                0.0, 0.0, -20.0, // 2
+                20.0, 0.0, 0.0, // 0
+                0.0, 20.0, 0.0, // 1
+                0.0, 0.0, 20.0, // 2
                 0.0, 0.0, 0.0, // 3
             ]
         );
