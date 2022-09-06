@@ -16,6 +16,9 @@ pub fn sim_transient(
     let kk = &mut lin_sys.jacobian;
     let mdu = &mut lin_sys.mdu;
 
+    // output
+    print_header();
+
     // time loop
     let control = &config.control;
     for timestep in 0..control.n_max_time_steps {
@@ -31,9 +34,7 @@ pub fn sim_transient(
         add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv)?;
 
         // output
-        println!("{:>10} {:>13} {:>13}", "timestep", "t", "Δt");
-        println!("{:>10} {:>13} {:>13}", timestep, state.t, state.dt);
-        println!("{:>10} {:>13} {:>13}", "iteration", "norm(R)", "norm(R₀)·tol");
+        print_timestep(timestep, state.t, state.dt);
 
         // Note: we enter the iterations with an updated time, thus the boundary
         // conditions will contribute with updated residuals. However the primary
@@ -49,25 +50,19 @@ pub fn sim_transient(
             interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
             boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
 
-            // output
-            let norm_rr = vector_norm(rr, NormVec::Max);
-            if iteration == 0 {
-                println!("{:>10} {:>13.6e} {:>13}", iteration, norm_rr, "?");
-            } else {
-                let rel = norm_rr0 * control.tol_rel_residual;
-                println!("{:>10} {:>13.6e} {:>13.6e}", iteration, norm_rr, rel);
-            }
-
             // check convergence on residual
+            let norm_rr = vector_norm(rr, NormVec::Max);
+            let tol_norm_rr0 = control.tol_rel_residual * norm_rr0;
             if norm_rr < control.tol_abs_residual {
-                println!("...converged on absolute residuals...");
+                print_iteration(iteration, norm_rr, tol_norm_rr0, true, false);
                 break;
             }
             if iteration == 0 {
+                print_iteration(iteration, norm_rr, tol_norm_rr0, false, false);
                 norm_rr0 = norm_rr;
             } else {
-                if norm_rr < norm_rr0 * control.tol_rel_residual {
-                    println!("...converged on relative residuals...");
+                if norm_rr < tol_norm_rr0 {
+                    print_iteration(iteration, norm_rr, tol_norm_rr0, false, true);
                     break;
                 }
             }
@@ -97,6 +92,11 @@ pub fn sim_transient(
 
             // update V vector
             add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star)?;
+
+            // check convergence
+            if iteration == control.n_max_iterations - 1 {
+                return Err("Newton-Raphson did not converge");
+            }
         }
 
         // final time step
@@ -105,4 +105,49 @@ pub fn sim_transient(
         }
     }
     Ok(())
+}
+
+#[inline]
+fn print_header() {
+    println!(
+        "{:>8} {:>13} {:>13} {:>5} {:>8}   {:>8}  ",
+        "timestep", "t", "Δt", "iter", "|R|", "tol·|R₀|"
+    );
+}
+
+#[inline]
+#[rustfmt::skip]
+fn print_timestep(timestep: usize, t: f64, dt: f64) {
+    println!(
+        "{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}   {:>8}  ",
+        timestep+1, t, dt, ".", ".", "."
+    );
+}
+
+#[inline]
+#[rustfmt::skip]
+fn print_iteration(it: usize, norm_rr: f64, tol_norm_rr0: f64, converged_abs: bool, converged_rel: bool) {
+    if converged_abs {
+        println!(
+            "{:>8} {:>13} {:>13} {:>5} {:>8.2e}✅ {:>8.2e}  ",
+            ".", ".", ".", it+1, norm_rr, tol_norm_rr0
+        );
+    } else if converged_rel {
+        println!(
+            "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8.2e}✅",
+            ".", ".", ".", it+1, norm_rr, tol_norm_rr0
+        );
+    } else {
+        if it == 0 {
+            println!(
+                "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8}  ",
+                ".", ".", ".", it+1, norm_rr, "?"
+            );
+        } else {
+            println!(
+                "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8.2e}  ",
+                ".", ".", ".", it+1, norm_rr, tol_norm_rr0
+            );
+        }
+    }
 }

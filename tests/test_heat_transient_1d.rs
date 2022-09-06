@@ -19,7 +19,6 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
     let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
     let mut config = Config::new();
     config.transient = true;
-    config.control.n_max_time_steps = 2;
 
     // essential boundary conditions
     let essential = Essential::new();
