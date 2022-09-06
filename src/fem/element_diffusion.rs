@@ -102,7 +102,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt)
         })?;
         if self.config.transient {
-            let (alpha_1, alpha_2) = self.config.control.alphas_transient(state.dt)?;
+            let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
             let s = match self.param.source {
                 Some(val) => val,
                 None => 0.0,
@@ -112,7 +112,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
                 let (mut tt, mut tt_star) = (0.0, 0.0);
                 for m in 0..npoint {
                     tt += nn[m] * state.uu[m];
-                    tt_star += nn[m] * (alpha_1 * state.uu_old[m] + alpha_2 * state.vv_old[m]);
+                    tt_star += nn[m] * state.uu_star[m];
                 }
                 Ok(self.param.rho * (alpha_1 * tt - tt_star) - s)
             })?;

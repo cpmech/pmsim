@@ -76,9 +76,9 @@ impl Control {
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_abs_residual: 1e-8,
-            tol_rel_residual: 1e-5,
-            tol_rel_mdu: 1e-5,
+            tol_abs_residual: 1e-9,
+            tol_rel_residual: 1e-7,
+            tol_rel_mdu: 1e-7,
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
@@ -170,8 +170,8 @@ mod tests {
         assert_eq!(control.divergence_control, false);
         assert_eq!(control.div_ctrl_max_steps, 10);
         assert_eq!(control.n_max_iterations, 10);
-        assert_eq!(control.tol_rel_residual, 1e-6);
-        assert_eq!(control.tol_rel_mdu, 1e-10);
+        assert_eq!(control.tol_rel_residual, 1e-7);
+        assert_eq!(control.tol_rel_mdu, 1e-7);
         assert_eq!(control.theta, 0.5);
         assert_eq!(control.theta1, 0.5);
         assert_eq!(control.theta2, 0.5);

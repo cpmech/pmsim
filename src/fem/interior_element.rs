@@ -249,9 +249,10 @@ mod tests {
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
-        state.uu_old[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.uu_old[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.uu_old[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        let (alpha_1, alpha_2) = config.control.alphas_transient(state.dt).unwrap();
+        state.uu_star[0] = alpha_1 * state.uu[0] + alpha_2 * state.uu[0];
+        state.uu_star[1] = alpha_1 * state.uu[1] + alpha_2 * state.uu[1];
+        state.uu_star[2] = alpha_1 * state.uu[2] + alpha_2 * state.uu[2];
         ele.calc_jacobian(&state).unwrap();
         let num_jacobian = ele.numerical_jacobian(&state);
         vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-10);

@@ -1,7 +1,7 @@
 use super::{BoundaryElementVec, InteriorElementVec, LinearSystem, State};
 use crate::base::Config;
 use crate::StrError;
-use russell_lab::{add_vectors, copy_vector, vector_norm, NormVec, Vector};
+use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
 
 /// Simulates transient process
 pub fn sim_transient(
@@ -11,12 +11,10 @@ pub fn sim_transient(
     lin_sys: &mut LinearSystem,
     config: &Config,
 ) -> Result<(), StrError> {
-    // auxiliary
+    // accessors
     let rr = &mut lin_sys.residual;
     let kk = &mut lin_sys.jacobian;
     let mdu = &mut lin_sys.mdu;
-    let mut uu_new = Vector::new(lin_sys.n_equation);
-    let mut phi_star = Vector::new(lin_sys.n_equation);
 
     // time loop
     let control = &config.control;
@@ -30,9 +28,7 @@ pub fn sim_transient(
 
         // old state variables
         let (alpha_1, alpha_2) = config.control.alphas_transient(state.dt)?;
-        copy_vector(&mut state.uu_old, &state.uu)?;
-        copy_vector(&mut state.vv_old, &state.vv)?;
-        add_vectors(&mut phi_star, alpha_1, &state.uu_old, alpha_2, &state.vv_old)?;
+        add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv)?;
 
         // output
         println!("{:>10} {:>13} {:>13}", "timestep", "t", "Δt");
@@ -53,11 +49,16 @@ pub fn sim_transient(
             interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
             boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
 
-            // check norm of residual
+            // output
             let norm_rr = vector_norm(rr, NormVec::Max);
             if iteration == 0 {
                 println!("{:>10} {:>13.6e} {:>13}", iteration, norm_rr, "?");
+            } else {
+                let rel = norm_rr0 * control.tol_rel_residual;
+                println!("{:>10} {:>13.6e} {:>13.6e}", iteration, norm_rr, rel);
             }
+
+            // check convergence on residual
             if norm_rr < control.tol_abs_residual {
                 println!("...converged on absolute residuals...");
                 break;
@@ -65,9 +66,7 @@ pub fn sim_transient(
             if iteration == 0 {
                 norm_rr0 = norm_rr;
             } else {
-                let rel = norm_rr0 * control.tol_rel_residual;
-                println!("{:>10} {:>13.6e} {:>13.6e}", iteration, norm_rr, rel);
-                if norm_rr < rel {
+                if norm_rr < norm_rr0 * control.tol_rel_residual {
                     println!("...converged on relative residuals...");
                     break;
                 }
@@ -94,11 +93,10 @@ pub fn sim_transient(
             lin_sys.solver.solve(mdu, &rr)?;
 
             // update U vector
-            add_vectors(&mut uu_new, 1.0, &state.uu, -1.0, &mdu)?;
-            copy_vector(&mut state.uu, &uu_new)?;
+            update_vector(&mut state.uu, -1.0, &mdu)?;
 
             // update V vector
-            add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &phi_star)?;
+            add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star)?;
         }
 
         // final time step

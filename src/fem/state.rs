@@ -28,20 +28,20 @@ pub struct State {
     /// (n_equation)
     pub aa: Vector,
 
-    /// Primary unknowns {U} at the beginning of the time step
+    /// Auxiliary time-discretization variable (Theta method)
     ///
     /// (n_equation)
-    pub uu_old: Vector,
+    pub uu_star: Vector,
 
-    /// First time derivative d{U}/dt at the beginning of the time step
+    /// Auxiliary time-discretization variable (Newmark method)
     ///
     /// (n_equation)
-    pub vv_old: Vector,
+    pub vv_star: Vector,
 
-    /// Second time derivative d²{U}/dt² at the beginning of the time step
+    /// Auxiliary time-discretization variable (Newmark method)
     ///
     /// (n_equation)
-    pub aa_old: Vector,
+    pub aa_star: Vector,
 
     /// Effective stress of all cells and all integration points
     ///
@@ -125,7 +125,7 @@ impl State {
         let t = config.control.t_ini;
         let dt = (config.control.dt)(t);
         let mut uu = Vector::new(n_equation);
-        let (uu_old, vv, vv_old) = if config.transient || config.dynamics {
+        let (uu_star, vv, vv_star) = if config.transient || config.dynamics {
             (
                 Vector::new(n_equation),
                 Vector::new(n_equation),
@@ -134,7 +134,7 @@ impl State {
         } else {
             (Vector::new(0), Vector::new(0), Vector::new(0))
         };
-        let (aa, aa_old) = if config.dynamics {
+        let (aa, aa_star) = if config.dynamics {
             (Vector::new(n_equation), Vector::new(n_equation))
         } else {
             (Vector::new(0), Vector::new(0))
@@ -154,9 +154,9 @@ impl State {
                 uu,
                 vv,
                 aa,
-                uu_old,
-                vv_old,
-                aa_old,
+                uu_star,
+                vv_star,
+                aa_star,
 
                 sigma: Vec::new(),
                 ivs: Vec::new(),
@@ -249,9 +249,9 @@ impl State {
             uu,
             vv,
             aa,
-            uu_old,
-            vv_old,
-            aa_old,
+            uu_star,
+            vv_star,
+            aa_star,
 
             sigma: effective_stress,
             ivs: int_values_solid,
