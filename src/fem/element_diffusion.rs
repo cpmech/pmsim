@@ -130,7 +130,8 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
         integ::mat_03_gtg(jacobian, &mut self.pad, 0, 0, true, self.ips, |k, _, _| {
             copy_tensor2(k, &self.conductivity)
-        })?;
+        })
+        .unwrap();
         if self.config.transient {
             let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
             integ::mat_01_nsn(jacobian, &mut self.pad, 0, 0, false, self.ips, |_, _, _| {
