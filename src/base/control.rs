@@ -1,3 +1,5 @@
+use crate::StrError;
+
 /// Defines the smallest allowed dt_min (Control)
 pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
 
@@ -134,6 +136,16 @@ impl Control {
             ));
         }
         None // all good
+    }
+
+    /// Calculates alpha coefficients for transient method
+    pub fn alphas_transient(&self, dt: f64) -> Result<(f64, f64), StrError> {
+        if f64::abs(dt) < self.dt_min {
+            return Err("Δt is smaller than the allowed minimum");
+        }
+        let alpha_1 = 1.0 / (self.theta * dt);
+        let alpha_2 = (1.0 - self.theta) / self.theta;
+        Ok((alpha_1, alpha_2))
     }
 }
 

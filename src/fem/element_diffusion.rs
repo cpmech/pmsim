@@ -102,9 +102,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt)
         })?;
         if self.config.transient {
-            let theta = self.config.control.theta;
-            let alpha_1 = 1.0 / (theta * state.dt);
-            let alpha_2 = (1.0 - theta) / theta;
+            let (alpha_1, alpha_2) = self.config.control.alphas_transient(state.dt)?;
             let s = match self.param.source {
                 Some(val) => val,
                 None => 0.0,
@@ -132,8 +130,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             copy_tensor2(k, &self.conductivity)
         })?;
         if self.config.transient {
-            let theta = self.config.control.theta;
-            let alpha_1 = 1.0 / (theta * state.dt);
+            let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
             integ::mat_01_nsn(jacobian, &mut self.pad, 0, 0, false, self.ips, |_, _, _| {
                 Ok(self.param.rho * alpha_1)
             })?;
