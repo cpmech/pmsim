@@ -103,7 +103,7 @@ mod tests {
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
-    use gemlab::util::SQRT_2;
+    use russell_lab::math::SQRT_2;
     use russell_lab::{mat_approx_eq, Matrix, Vector};
     use russell_sparse::{SparseTriplet, Symmetry};
 
