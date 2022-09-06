@@ -109,7 +109,7 @@ mod tests {
         mesh.cells[0].points[0] = 100; // never do this!
         assert_eq!(
             compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
-            Some("cannot find equation number because point_id is out of bounds")
+            Some("cannot find equation number because PointId is out-of-bounds")
         );
     }
 

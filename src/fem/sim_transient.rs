@@ -1,12 +1,13 @@
-use super::{BoundaryElementVec, InteriorElementVec, LinearSystem, State};
+use super::{BoundaryElementVec, BoundaryPointVec, InteriorElementVec, LinearSystem, State};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
 
 /// Simulates transient process
 pub fn sim_transient(
-    interior_elements: &mut InteriorElementVec,
+    boundary_points: Option<&BoundaryPointVec>,
     boundary_elements: &mut BoundaryElementVec,
+    interior_elements: &mut InteriorElementVec,
     state: &mut State,
     lin_sys: &mut LinearSystem,
     config: &Config,
@@ -31,7 +32,9 @@ pub fn sim_transient(
 
         // old state variables
         let (alpha_1, alpha_2) = config.control.alphas_transient(state.dt)?;
-        add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv)?;
+        if config.transient {
+            add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv)?;
+        }
 
         // output
         print_timestep(timestep, state.t, state.dt);
@@ -49,6 +52,11 @@ pub fn sim_transient(
             // assemble residuals
             interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
             boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
+
+            // add concentrated loads
+            if let Some(b_points) = boundary_points {
+                b_points.add_to_residual(rr, state.t);
+            }
 
             // check convergence on residual
             let norm_rr = vector_norm(rr, NormVec::Max);
@@ -91,7 +99,9 @@ pub fn sim_transient(
             update_vector(&mut state.uu, -1.0, &mdu)?;
 
             // update V vector
-            add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star)?;
+            if config.transient {
+                add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star)?;
+            }
 
             // check convergence
             if iteration == control.n_max_iterations - 1 {

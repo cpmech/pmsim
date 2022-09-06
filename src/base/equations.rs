@@ -110,7 +110,7 @@ impl Equations {
     /// Returns the (global) equation number of a (PointId,DOF) pair
     pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         if point_id >= self.all.len() {
-            return Err("cannot find equation number because point_id is out of bounds");
+            return Err("cannot find equation number because PointId is out-of-bounds");
         }
         let eq = self.all[point_id]
             .get(&dof)
@@ -208,7 +208,7 @@ mod tests {
         assert_eq!(eqs.eq(8, Dof::Pl).unwrap(), 23);
         assert_eq!(
             eqs.eq(111, Dof::Ux).err(),
-            Some("cannot find equation number because point_id is out of bounds")
+            Some("cannot find equation number because PointId is out-of-bounds")
         );
         assert_eq!(
             eqs.eq(0, Dof::T).err(),

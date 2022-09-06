@@ -2,7 +2,7 @@ use super::{Data, LocalEquations, State};
 use crate::base::{compute_local_to_global, Config, ParamRod};
 use crate::StrError;
 use gemlab::mesh::Cell;
-use russell_lab::{Matrix, Vector};
+use russell_lab::{copy_matrix, mat_vec_mul, Matrix, Vector};
 
 /// Implements a linear-elastic rod element
 ///
@@ -12,9 +12,6 @@ use russell_lab::{Matrix, Vector};
 pub struct ElementRod<'a> {
     /// Number of space dimensions
     pub ndim: usize,
-
-    /// FEM Data
-    pub data: &'a Data<'a>,
 
     /// Global configuration
     pub config: &'a Config,
@@ -27,22 +24,61 @@ pub struct ElementRod<'a> {
 
     /// Local-to-global mapping
     pub local_to_global: Vec<usize>,
+
+    /// Pre-computed stiffness matrix
+    pub stiffness: Matrix,
+
+    /// Local displacements
+    pub uu: Vector,
 }
 
 impl<'a> ElementRod<'a> {
     /// Allocates a new instance
+    #[rustfmt::skip]
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell, param: &'a ParamRod) -> Result<Self, StrError> {
         let ndim = data.mesh.ndim;
-        if cell.points.len() != 2 {
+        let pp = &cell.points;
+        if pp.len() != 2 {
             return Err("number of nodes for Rod must be 2");
         }
+        let xa = data.mesh.points[pp[0]].coords[0];
+        let ya = data.mesh.points[pp[0]].coords[1];
+        let xb = data.mesh.points[pp[1]].coords[0];
+        let yb = data.mesh.points[pp[1]].coords[1];
+        let dx = xb - xa;
+        let dy = yb - ya;
+        let stiffness = if ndim == 2 {
+            let l = f64::sqrt(dx * dx + dy * dy);
+            let m = param.young * param.area / (l * l * l);
+            Matrix::from(&[
+                [ dx*dx*m,  dx*dy*m, -dx*dx*m, -dx*dy*m],
+                [ dy*dx*m,  dy*dy*m, -dy*dx*m, -dy*dy*m],
+                [-dx*dx*m, -dx*dy*m,  dx*dx*m,  dx*dy*m],
+                [-dy*dx*m, -dy*dy*m,  dy*dx*m,  dy*dy*m],
+            ])
+        } else {
+            let za = data.mesh.points[pp[0]].coords[2];
+            let zb = data.mesh.points[pp[1]].coords[2];
+            let dz = zb - za;
+            let l = f64::sqrt(dx * dx + dy * dy + dz * dz);
+            let m = param.young * param.area / (l * l * l);
+            Matrix::from(&[
+                [ dx*dx*m,  dx*dy*m,  dx*dz*m, -dx*dx*m, -dx*dy*m, -dx*dz*m],
+                [ dy*dx*m,  dy*dy*m,  dy*dz*m, -dy*dx*m, -dy*dy*m, -dy*dz*m],
+                [ dz*dx*m,  dz*dy*m,  dz*dz*m, -dz*dx*m, -dz*dy*m, -dz*dz*m],
+                [-dx*dx*m, -dx*dy*m, -dx*dz*m,  dx*dx*m,  dx*dy*m,  dx*dz*m],
+                [-dy*dx*m, -dy*dy*m, -dy*dz*m,  dy*dx*m,  dy*dy*m,  dy*dz*m],
+                [-dz*dx*m, -dz*dy*m, -dz*dz*m,  dz*dx*m,  dz*dy*m,  dz*dz*m],
+            ])
+        };
         Ok(ElementRod {
             ndim,
-            data,
             config,
             cell,
             param,
             local_to_global: compute_local_to_global(&data.information, &data.equations, cell)?,
+            stiffness,
+            uu:Vector::new(2*ndim),
         })
     }
 }
@@ -54,43 +90,19 @@ impl<'a> LocalEquations for ElementRod<'a> {
     }
 
     /// Calculates the residual vector
-    fn calc_residual(&mut self, _residual: &mut Vector, _state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
+        for local in 0..self.local_to_global.len() {
+            let global = self.local_to_global[local];
+            self.uu[local] = state.uu[global];
+        }
+        mat_vec_mul(residual, -1.0, &self.stiffness, &self.uu)?;
         Ok(())
     }
 
     /// Calculates the Jacobian matrix
     #[rustfmt::skip]
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &State) -> Result<(), StrError> {
-        let ndim = self.data.mesh.ndim;
-        let pp = &self.cell.points;
-        let xa = self.data.mesh.points[pp[0]].coords[0];
-        let ya = self.data.mesh.points[pp[0]].coords[1];
-        let xb = self.data.mesh.points[pp[1]].coords[0];
-        let yb = self.data.mesh.points[pp[1]].coords[1];
-        let dx = xb - xa;
-        let dy = yb - ya;
-        let jj = jacobian;
-        if ndim == 2 {
-            let l = f64::sqrt(dx * dx + dy * dy);
-            let m = self.param.young * self.param.area / (l * l * l);
-            jj[0][0]= dx*dx*m; jj[0][1]= dx*dy*m; jj[0][2]=-dx*dx*m; jj[0][3]=-dx*dy*m;
-            jj[1][0]= dy*dx*m; jj[1][1]= dy*dy*m; jj[1][2]=-dy*dx*m; jj[1][3]=-dy*dy*m;
-            jj[2][0]=-dx*dx*m; jj[2][1]=-dx*dy*m; jj[2][2]= dx*dx*m; jj[2][3]= dx*dy*m;
-            jj[3][0]=-dy*dx*m; jj[3][1]=-dy*dy*m; jj[3][2]= dy*dx*m; jj[3][3]= dy*dy*m;
-        } else {
-            let za = self.data.mesh.points[pp[0]].coords[2];
-            let zb = self.data.mesh.points[pp[1]].coords[2];
-            let dz = zb - za;
-            let l = f64::sqrt(dx * dx + dy * dy + dz * dz);
-            let m = self.param.young * self.param.area / (l * l * l);
-            jj[0][0]= dx*dx*m; jj[0][1]= dx*dy*m; jj[0][2]= dx*dz*m; jj[0][3]=-dx*dx*m; jj[0][4]=-dx*dy*m; jj[0][5]=-dx*dz*m;
-            jj[1][0]= dy*dx*m; jj[1][1]= dy*dy*m; jj[1][2]= dy*dz*m; jj[1][3]=-dy*dx*m; jj[1][4]=-dy*dy*m; jj[1][5]=-dy*dz*m;
-            jj[2][0]= dz*dx*m; jj[2][1]= dz*dy*m; jj[2][2]= dz*dz*m; jj[2][3]=-dz*dx*m; jj[2][4]=-dz*dy*m; jj[2][5]=-dz*dz*m;
-            jj[3][0]=-dx*dx*m; jj[3][1]=-dx*dy*m; jj[3][2]=-dx*dz*m; jj[3][3]= dx*dx*m; jj[3][4]= dx*dy*m; jj[3][5]= dx*dz*m;
-            jj[4][0]=-dy*dx*m; jj[4][1]=-dy*dy*m; jj[4][2]=-dy*dz*m; jj[4][3]= dy*dx*m; jj[4][4]= dy*dy*m; jj[4][5]= dy*dz*m;
-            jj[5][0]=-dz*dx*m; jj[5][1]=-dz*dy*m; jj[5][2]=-dz*dz*m; jj[5][3]= dz*dx*m; jj[5][4]= dz*dy*m; jj[5][5]= dz*dz*m;
-        };
-        Ok(())
+        copy_matrix(jacobian, &self.stiffness)
     }
 }
 

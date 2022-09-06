@@ -260,11 +260,11 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
         .on(&edges_flux, Nbc::Qt(|_| 8000.0))
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
 
-    // interior elements
-    let mut interior_elements = InteriorElementVec::new(&data, &config)?;
-
     // boundary elements
     let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
+
+    // interior elements
+    let mut interior_elements = InteriorElementVec::new(&data, &config)?;
 
     // simulation state
     let mut state = State::new(&data, &config, &essential)?;
@@ -274,8 +274,9 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
 
     // run simulation
     sim_transient(
-        &mut interior_elements,
+        None,
         &mut boundary_elements,
+        &mut interior_elements,
         &mut state,
         &mut lin_sys,
         &config,
