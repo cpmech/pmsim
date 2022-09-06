@@ -111,8 +111,8 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
                 // interpolate T and T★ to integration point
                 let (mut tt, mut tt_star) = (0.0, 0.0);
                 for m in 0..npoint {
-                    tt += nn[m] * state.uu[m];
-                    tt_star += nn[m] * state.uu_star[m];
+                    tt += nn[m] * state.uu[l2g[m]];
+                    tt_star += nn[m] * state.uu_star[l2g[m]];
                 }
                 Ok(self.param.rho * (alpha_1 * tt - tt_star) - s)
             })?;
