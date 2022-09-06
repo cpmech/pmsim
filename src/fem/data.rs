@@ -62,7 +62,8 @@ impl<'a> Data<'a> {
 mod tests {
     use super::Data;
     use crate::base::{Dof, Element, Essential, SampleParams};
-    use gemlab::mesh::Samples;
+    use gemlab::mesh::{Cell, Samples};
+    use gemlab::shapes::GeoKind;
 
     #[test]
     fn new_handles_errors() {
@@ -80,6 +81,25 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(data.equations.n_equation, 6);
+    }
+
+    #[test]
+    fn n_local_eq_works() {
+        let mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_diffusion();
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        assert_eq!(data.n_local_eq(&mesh.cells[0]).unwrap(), 3);
+
+        let wrong_cell = Cell {
+            id: 0,
+            attribute_id: 1,
+            kind: GeoKind::Qua4,
+            points: vec![0, 1, 2, 3],
+        };
+        assert_eq!(
+            data.n_local_eq(&wrong_cell).err(),
+            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
+        );
     }
 
     #[test]
