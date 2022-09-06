@@ -95,7 +95,7 @@ impl<'a> LocalEquations for ElementRod<'a> {
             let global = self.local_to_global[local];
             self.uu[local] = state.uu[global];
         }
-        mat_vec_mul(residual, 1.0, &self.stiffness, &self.uu)?;
+        mat_vec_mul(residual, 1.0, &self.stiffness, &self.uu).unwrap();
         Ok(())
     }
 
@@ -140,10 +140,19 @@ mod tests {
         };
         let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        let cell = &mesh.cells[0];
         assert_eq!(
-            ElementRod::new(&data, &config, cell, &p1).err(),
+            ElementRod::new(&data, &config, &mesh.cells[0], &p1).err(),
             Some("number of nodes for Rod must be 2")
+        );
+        let wrong_cell = Cell {
+            id: 0,
+            attribute_id: 2,
+            kind: GeoKind::Lin2,
+            points: vec![0, 1],
+        };
+        assert_eq!(
+            ElementRod::new(&data, &config, &wrong_cell, &p1).err(),
+            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
         );
     }
 
