@@ -146,7 +146,7 @@ mod tests {
         );
         let wrong_cell = Cell {
             id: 0,
-            attribute_id: 2,
+            attribute_id: 2, // wrong
             kind: GeoKind::Lin2,
             points: vec![0, 1],
         };

@@ -100,7 +100,8 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             // w must be negative as in the residual, however, w := -k.∇T
             // so the double negative is necessary to obtain -w = -(-k.∇T) = k.∇T
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt)
-        })?;
+        })
+        .unwrap();
         if self.config.transient {
             let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
             let s = match self.param.source {
@@ -115,10 +116,11 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
                     tt_star += nn[m] * state.uu_star[l2g[m]];
                 }
                 Ok(self.param.rho * (alpha_1 * tt - tt_star) - s)
-            })?;
+            })
+            .unwrap();
         } else {
             if let Some(s) = self.param.source {
-                integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| Ok(-s))?;
+                integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| Ok(-s)).unwrap();
             }
         }
         Ok(())
@@ -133,7 +135,8 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
             integ::mat_01_nsn(jacobian, &mut self.pad, 0, 0, false, self.ips, |_, _, _| {
                 Ok(self.param.rho * alpha_1)
-            })?;
+            })
+            .unwrap();
         }
         Ok(())
     }
@@ -147,7 +150,8 @@ mod tests {
     use crate::base::{Config, Element, Essential, SampleParams};
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::integ;
-    use gemlab::mesh::Samples;
+    use gemlab::mesh::{Cell, Samples};
+    use gemlab::shapes::GeoKind;
     use russell_chk::vec_approx_eq;
     use russell_lab::{add_vectors, Matrix, Vector};
     use russell_tensor::Tensor2;
@@ -162,6 +166,17 @@ mod tests {
         assert_eq!(
             ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
+        );
+        config.n_integ_point.insert(1, 3);
+        let wrong_cell = Cell {
+            id: 0,
+            attribute_id: 2, // wrong
+            kind: GeoKind::Tri3,
+            points: vec![0, 1, 2],
+        };
+        assert_eq!(
+            ElementDiffusion::new(&data, &config, &wrong_cell, &p1).err(),
+            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
         );
     }
 
@@ -217,6 +232,21 @@ mod tests {
         let mut correct_r_new = Vector::new(neq);
         add_vectors(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
         vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
+
+        // error in transient -----------------------------------------------
+
+        let mut config = Config::new();
+        config.transient = true;
+        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        state.dt = 0.0; // wrong
+        assert_eq!(
+            elem.calc_residual(&mut residual, &state).err(),
+            Some("Δt is smaller than the allowed minimum")
+        );
+        assert_eq!(
+            elem.calc_jacobian(&mut jacobian, &state).err(),
+            Some("Δt is smaller than the allowed minimum")
+        );
     }
 
     #[test]
