@@ -103,7 +103,9 @@ mod tests {
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
         let mut essential = Essential::new();
-        essential.at(&[0], &[Dof::Ux], |_| 0.0); // << Ux is not available for Diffusion
+        let zero = |_| 0.0;
+        assert_eq!(zero(0.0), 0.0);
+        essential.at(&[0], &[Dof::Ux], zero); // << Ux is not available for Diffusion
         let natural = Natural::new();
         let interior_elements = InteriorElementVec::new(&data, &config).unwrap();
         let boundary_elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
@@ -142,12 +144,14 @@ mod tests {
         let config = Config::new();
         let mut essential = Essential::new();
         let mut natural = Natural::new();
-        essential.at(&[0, 4], &[Dof::T], |_| 110.0);
+        let f = |_| 123.0;
+        assert_eq!(f(0.0), 123.0);
+        essential.at(&[0, 4], &[Dof::T], f);
         let edge_conv = Feature {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
         };
-        natural.on(&[&edge_conv], Nbc::Cv(55.0, |_| 20.0));
+        natural.on(&[&edge_conv], Nbc::Cv(55.0, f));
         let interior_elements = InteriorElementVec::new(&data, &config).unwrap();
         let boundary_elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
         let lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
@@ -160,77 +164,4 @@ mod tests {
             + n_equation_convection * n_equation_convection;
         assert_eq!(lin_sys.nnz_sup, nnz_correct);
     }
-
-    /*
-    // check counters
-    let ndim = 2;
-    let nnz_porous_qua8 = (ndim * 8 + 4) * (ndim * 8 + 4);
-    let nnz_solid_tri6 = (ndim * 6) * (ndim * 6);
-    let nnz_beam = (3 * 2) * (3 * 2);
-    assert_eq!(eqs.n_equation, 29);
-    assert_eq!(eqs.nnz_sup, nnz_porous_qua8 + nnz_solid_tri6 + 2 * nnz_beam);
-    */
-
-    /*
-    #[test]
-    fn display_works() {
-        assert_eq!(
-            format!("{}", eqs),
-            "Points: DOFs and global equation numbers\n\
-             ========================================\n\
-             0: [(Ux, 0), (Uy, 1)]\n\
-             1: [(Ux, 2), (Uy, 3)]\n\
-             2: [(Ux, 4), (Uy, 5)]\n\
-             3: [(Ux, 6), (Uy, 7)]\n\
-             4: [(Ux, 8), (Uy, 9)]\n\
-             \n\
-             Cells: Local-to-Global\n\
-             ======================\n\
-             0: [0, 1, 2, 3, 8, 9]\n\
-             1: [2, 3, 6, 7, 8, 9]\n\
-             2: [2, 3, 4, 5, 6, 7]\n\
-             \n\
-             Information\n\
-             ===========\n\
-             number of equations = 10\n\
-             number of non-zeros = 108\n"
-        );
-
-        // 3------------2------------5
-        // |`.      [1] |            |    [#] indicates id
-        // |  `.    (1) |            |    (#) indicates attribute_id
-        // |    `.      |     [2]    |
-        // |      `.    |     (2)    |
-        // | [0]    `.  |            |
-        // | (1)      `.|            |
-        // 0------------1------------4
-        let mesh = Samples::two_tri3_one_qua4();
-        let p = SampleParams::param_porous_liq();
-        let att = Attributes::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
-        assert_eq!(
-            format!("{}", eqs),
-            "Points: DOFs and global equation numbers\n\
-             ========================================\n\
-             0: [(Pl, 0)]\n\
-             1: [(Pl, 1)]\n\
-             2: [(Pl, 2)]\n\
-             3: [(Pl, 3)]\n\
-             4: [(Pl, 4)]\n\
-             5: [(Pl, 5)]\n\
-             \n\
-             Cells: Local-to-Global\n\
-             ======================\n\
-             0: [0, 1, 3]\n\
-             1: [2, 3, 1]\n\
-             2: [1, 4, 5, 2]\n\
-             \n\
-             Information\n\
-             ===========\n\
-             number of equations = 6\n\
-             number of non-zeros = 34\n"
-        );
-    }
-    */
 }
