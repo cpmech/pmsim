@@ -95,7 +95,7 @@ impl<'a> LocalEquations for ElementRod<'a> {
             let global = self.local_to_global[local];
             self.uu[local] = state.uu[global];
         }
-        mat_vec_mul(residual, -1.0, &self.stiffness, &self.uu)?;
+        mat_vec_mul(residual, 1.0, &self.stiffness, &self.uu)?;
         Ok(())
     }
 

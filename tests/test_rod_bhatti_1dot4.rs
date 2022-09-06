@@ -30,7 +30,8 @@ fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
         (2, Element::Rod(ParamRod { area: 3_000.0, young: 200_000.0, density: 1.0 })),
         (3, Element::Rod(ParamRod { area: 2_000.0, young:  70_000.0, density: 1.0 })),
     ])?;
-    let config = Config::new();
+    let mut config = Config::new();
+    config.control.n_max_time_steps = 2;
 
     // essential boundary conditions
     let mut essential = Essential::new();
