@@ -1,7 +1,5 @@
-use gemlab::mesh::{At, Find};
-use pmsim::base::{Config, Dof, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
-use pmsim::fem::{sim_transient, BoundaryElementVec, Data, InteriorElementVec, LinearSystem, State};
-use pmsim::StrError;
+use gemlab::prelude::*;
+use pmsim::{base::SampleMeshes, fem::sim_transient, prelude::*, StrError};
 use russell_chk::vec_approx_eq;
 use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, NormVec, Vector};
 
