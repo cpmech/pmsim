@@ -56,10 +56,10 @@ pub struct Control {
     /// Coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
     pub theta2: f64,
 
-    /// Verbose mode
-    pub verbose: bool,
+    /// Verbose mode during timesteps
+    pub verbose_timesteps: bool,
 
-    /// Verbose mode for iterations
+    /// Verbose mode during iterations
     pub verbose_iterations: bool,
 }
 
@@ -82,8 +82,8 @@ impl Control {
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
-            verbose: false,
-            verbose_iterations: false,
+            verbose_timesteps: true,
+            verbose_iterations: true,
         }
     }
 
@@ -144,7 +144,7 @@ impl Control {
 
     /// Calculates alpha coefficients for transient method
     pub fn alphas_transient(&self, dt: f64) -> Result<(f64, f64), StrError> {
-        if f64::abs(dt) < self.dt_min {
+        if dt < self.dt_min {
             return Err("Δt is smaller than the allowed minimum");
         }
         let alpha_1 = 1.0 / (self.theta * dt);
@@ -175,8 +175,8 @@ mod tests {
         assert_eq!(control.theta, 0.5);
         assert_eq!(control.theta1, 0.5);
         assert_eq!(control.theta2, 0.5);
-        assert_eq!(control.verbose, false);
-        assert_eq!(control.verbose_iterations, false);
+        assert_eq!(control.verbose_timesteps, true);
+        assert_eq!(control.verbose_iterations, true);
     }
 
     #[test]
