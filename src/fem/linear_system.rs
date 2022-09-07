@@ -1,4 +1,4 @@
-use super::{BoundaryElements, Data, InteriorElementVec};
+use super::{BoundaryElements, Data, InteriorElements};
 use crate::{base::Essential, StrError};
 use russell_lab::Vector;
 use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
@@ -52,7 +52,7 @@ impl LinearSystem {
     pub fn new(
         data: &Data,
         essential: &Essential,
-        interior_elements: &InteriorElementVec,
+        interior_elements: &InteriorElements,
         boundary_elements: &BoundaryElements,
     ) -> Result<Self, StrError> {
         // equation (DOF) numbers
@@ -92,7 +92,7 @@ impl LinearSystem {
 mod tests {
     use super::LinearSystem;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, SampleParams};
-    use crate::fem::{BoundaryElements, Data, InteriorElementVec};
+    use crate::fem::{BoundaryElements, Data, InteriorElements};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -107,7 +107,7 @@ mod tests {
         assert_eq!(zero(0.0), 0.0);
         essential.at(&[0], Ebc::Ux(zero)); // << Ux is not available for Diffusion
         let natural = Natural::new();
-        let interior_elements = InteriorElementVec::new(&data, &config).unwrap();
+        let interior_elements = InteriorElements::new(&data, &config).unwrap();
         let boundary_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
         assert_eq!(
             LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).err(),
@@ -152,7 +152,7 @@ mod tests {
             points: vec![2, 3],
         };
         natural.on(&[&edge_conv], Nbc::Cv(55.0, f));
-        let interior_elements = InteriorElementVec::new(&data, &config).unwrap();
+        let interior_elements = InteriorElements::new(&data, &config).unwrap();
         let boundary_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
         let lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
         let n_prescribed = 2;

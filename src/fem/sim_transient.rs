@@ -1,4 +1,4 @@
-use super::{BoundaryElements, ConcentratedLoads, InteriorElementVec, LinearSystem, State};
+use super::{BoundaryElements, ConcentratedLoads, InteriorElements, LinearSystem, State};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
@@ -7,7 +7,7 @@ use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
 pub fn sim_transient(
     concentrated_loads: Option<&ConcentratedLoads>,
     boundary_elements: &mut BoundaryElements,
-    interior_elements: &mut InteriorElementVec,
+    interior_elements: &mut InteriorElements,
     state: &mut State,
     lin_sys: &mut LinearSystem,
     config: &Config,

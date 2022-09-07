@@ -20,7 +20,7 @@ pub struct InteriorElement<'a> {
 }
 
 /// Holds a collection of interior elements
-pub struct InteriorElementVec<'a> {
+pub struct InteriorElements<'a> {
     pub all: Vec<InteriorElement<'a>>,
 }
 
@@ -93,7 +93,7 @@ impl<'a> InteriorElement<'a> {
     }
 }
 
-impl<'a> InteriorElementVec<'a> {
+impl<'a> InteriorElements<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = data
@@ -103,7 +103,7 @@ impl<'a> InteriorElementVec<'a> {
             .map(|cell| InteriorElement::new(data, config, cell))
             .collect();
         match res {
-            Ok(all) => Ok(InteriorElementVec { all }),
+            Ok(all) => Ok(InteriorElements { all }),
             Err(e) => Err(e),
         }
     }
@@ -169,7 +169,7 @@ impl<'a> InteriorElementVec<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{InteriorElement, InteriorElementVec};
+    use super::{InteriorElement, InteriorElements};
     use crate::base::{Config, Element, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::Samples;
@@ -188,7 +188,7 @@ mod tests {
             Some("desired number of integration points is not available for Tri class")
         );
         assert_eq!(
-            InteriorElementVec::new(&data, &config).err(),
+            InteriorElements::new(&data, &config).err(),
             Some("desired number of integration points is not available for Tri class")
         );
 
@@ -199,7 +199,7 @@ mod tests {
             Some("desired number of integration points is not available for Tri class")
         );
         assert_eq!(
-            InteriorElementVec::new(&data, &config).err(),
+            InteriorElements::new(&data, &config).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
@@ -217,7 +217,7 @@ mod tests {
         let config = Config::new();
         InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
 
-        InteriorElementVec::new(&data, &config).unwrap();
+        InteriorElements::new(&data, &config).unwrap();
     }
 
     #[test]

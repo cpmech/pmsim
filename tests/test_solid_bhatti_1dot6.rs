@@ -49,7 +49,7 @@ fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
     let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
 
     // interior elements
-    let mut interior_elements = InteriorElementVec::new(&data, &config)?;
+    let mut interior_elements = InteriorElements::new(&data, &config)?;
 
     // simulation state
     let mut state = State::new(&data, &config)?;

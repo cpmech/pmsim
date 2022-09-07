@@ -33,7 +33,7 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
     let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
 
     // interior elements
-    let mut interior_elements = InteriorElementVec::new(&data, &config)?;
+    let mut interior_elements = InteriorElements::new(&data, &config)?;
 
     // simulation state
     let mut state = State::new(&data, &config)?;

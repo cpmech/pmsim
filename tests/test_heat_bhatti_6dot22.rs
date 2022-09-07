@@ -62,7 +62,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     println!("{}", natural);
 
     // interior elements
-    let mut interior_elements = InteriorElementVec::new(&data, &config)?;
+    let mut interior_elements = InteriorElements::new(&data, &config)?;
 
     // boundary elements
     let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
@@ -264,7 +264,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
 
     // interior elements
-    let mut interior_elements = InteriorElementVec::new(&data, &config)?;
+    let mut interior_elements = InteriorElements::new(&data, &config)?;
 
     // simulation state
     let mut state = State::new(&data, &config)?;
