@@ -1,5 +1,7 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*, StrError};
+use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
+use pmsim::fem::{BoundaryElements, Data, InteriorElements, LinearSystem, PrescribedValues, Simulation, State};
+use pmsim::StrError;
 use russell_chk::vec_approx_eq;
 use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, NormVec, Vector};
 
@@ -263,31 +265,12 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
         .on(&edges_flux, Nbc::Qt(|_| 8000.0))
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
 
-    // prescribed values
-    let prescribed_values = PrescribedValues::new(&data, &essential)?;
-
-    // boundary elements
-    let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
-
-    // interior elements
-    let mut interior_elements = InteriorElements::new(&data, &config)?;
-
     // simulation state
     let mut state = State::new(&data, &config)?;
 
-    // linear system
-    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
-
     // run simulation
-    simulation(
-        None,
-        &prescribed_values,
-        &mut boundary_elements,
-        &mut interior_elements,
-        &mut state,
-        &mut lin_sys,
-        &config,
-    )?;
+    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    sim.run(&mut state)?;
 
     // check U vector
     let tt_bhatti = Vector::from(&[

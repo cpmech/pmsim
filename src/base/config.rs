@@ -5,7 +5,7 @@ use gemlab::mesh::{Cell, CellAttributeId};
 use std::collections::HashMap;
 use std::fmt;
 
-/// Holds configuration data such as boundary conditions and element attributes
+/// Holds configuration parameters
 pub struct Config {
     /// Linear problem
     pub linear_problem: bool,

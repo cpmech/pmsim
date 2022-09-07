@@ -5,6 +5,7 @@ use russell_lab::Vector;
 use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
 
+/// Holds state of a simulation, including primary and secondary variables
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct State {
     /// Time

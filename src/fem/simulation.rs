@@ -1,124 +1,156 @@
-use super::{BoundaryElements, ConcentratedLoads, InteriorElements, LinearSystem, PrescribedValues, State};
-use crate::base::Config;
+use super::{BoundaryElements, ConcentratedLoads, Data, InteriorElements, LinearSystem, PrescribedValues, State};
+use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
 
-/// Simulates transient process
-pub fn simulation(
-    concentrated_loads: Option<&ConcentratedLoads>,
-    prescribed_values: &PrescribedValues,
-    boundary_elements: &mut BoundaryElements,
-    interior_elements: &mut InteriorElements,
-    state: &mut State,
-    lin_sys: &mut LinearSystem,
-    config: &Config,
-) -> Result<(), StrError> {
-    // accessors
-    let rr = &mut lin_sys.residual;
-    let kk = &mut lin_sys.jacobian;
-    let mdu = &mut lin_sys.mdu;
+/// Performs a finite element simulation
+pub struct Simulation<'a> {
+    /// Holds configuration parameters
+    pub config: &'a Config,
 
-    // output
-    print_header();
+    /// Holds a collection of prescribed (primary) values
+    pub prescribed_values: PrescribedValues<'a>,
 
-    // time loop
-    let control = &config.control;
-    for timestep in 0..control.n_max_time_steps {
-        // update time
-        state.dt = (control.dt)(state.t);
-        if state.t + state.dt > control.t_fin {
-            break;
-        }
-        state.t += state.dt;
+    // Holds a collection of concentrated loads
+    pub concentrated_loads: ConcentratedLoads,
 
-        // old state variables
-        let (alpha_1, alpha_2) = config.control.alphas_transient(state.dt)?;
-        if config.transient {
-            add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv)?;
-        }
+    /// Holds a collection of interior elements
+    pub interior_elements: InteriorElements<'a>,
 
-        // set primary prescribed values
-        prescribed_values.apply(&mut state.uu, state.t);
+    // Holds a collection of boundary elements
+    pub boundary_elements: BoundaryElements,
+
+    /// Holds variables to solve the global linear system
+    pub linear_system: LinearSystem,
+}
+
+impl<'a> Simulation<'a> {
+    /// Allocate new instance
+    pub fn new(data: &'a Data, config: &'a Config, essential: &Essential, natural: &Natural) -> Result<Self, StrError> {
+        let prescribed_values = PrescribedValues::new(&data, &essential)?;
+        let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
+        let interior_elements = InteriorElements::new(&data, &config)?;
+        let boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
+        let linear_system = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
+        Ok(Simulation {
+            config,
+            prescribed_values,
+            concentrated_loads,
+            interior_elements,
+            boundary_elements,
+            linear_system,
+        })
+    }
+
+    /// Runs simulation
+    pub fn run(&mut self, state: &mut State) -> Result<(), StrError> {
+        // accessors
+        let config = &self.config;
+        let control = &self.config.control;
+        let prescribed = &self.prescribed_values.flags;
+        let rr = &mut self.linear_system.residual;
+        let kk = &mut self.linear_system.jacobian;
+        let mdu = &mut self.linear_system.mdu;
 
         // output
-        print_timestep(timestep, state.t, state.dt);
+        print_header();
 
-        // Note: we enter the iterations with an updated time, thus the boundary
-        // conditions will contribute with updated residuals. However the primary
-        // variables are still at the old time step. In summary, we start the
-        // iterations with the old primary variables and new boundary values.
-        let mut norm_rr0 = f64::MAX;
-        for iteration in 0..control.n_max_iterations {
-            // compute residuals in parallel
-            interior_elements.calc_residuals_parallel(&state)?;
-            boundary_elements.calc_residuals_parallel(&state)?;
-
-            // assemble residuals
-            interior_elements.assemble_residuals(rr, &prescribed_values.flags);
-            boundary_elements.assemble_residuals(rr, &prescribed_values.flags);
-
-            // add concentrated loads
-            if let Some(point_loads) = concentrated_loads {
-                point_loads.add_to_residual(rr, state.t);
-            }
-
-            // check convergence on residual
-            let norm_rr = vector_norm(rr, NormVec::Max);
-            let tol_norm_rr0 = control.tol_rel_residual * norm_rr0;
-            if norm_rr < control.tol_abs_residual {
-                print_iteration(iteration, norm_rr, tol_norm_rr0, true, false);
+        // time loop
+        for timestep in 0..control.n_max_time_steps {
+            // update time
+            state.dt = (control.dt)(state.t);
+            if state.t + state.dt > control.t_fin {
                 break;
             }
-            if iteration == 0 {
-                print_iteration(iteration, norm_rr, tol_norm_rr0, false, false);
-                norm_rr0 = norm_rr;
-            } else {
-                if norm_rr < tol_norm_rr0 {
-                    print_iteration(iteration, norm_rr, tol_norm_rr0, false, true);
+            state.t += state.dt;
+
+            // old state variables
+            let (alpha_1, alpha_2) = control.alphas_transient(state.dt)?;
+            if config.transient {
+                add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv)?;
+            }
+
+            // set primary prescribed values
+            self.prescribed_values.apply(&mut state.uu, state.t);
+
+            // output
+            print_timestep(timestep, state.t, state.dt);
+
+            // Note: we enter the iterations with an updated time, thus the boundary
+            // conditions will contribute with updated residuals. However the primary
+            // variables are still at the old time step. In summary, we start the
+            // iterations with the old primary variables and new boundary values.
+            let mut norm_rr0 = f64::MAX;
+            for iteration in 0..control.n_max_iterations {
+                // compute residuals in parallel
+                self.interior_elements.calc_residuals_parallel(&state)?;
+                self.boundary_elements.calc_residuals_parallel(&state)?;
+
+                // assemble residuals
+                self.interior_elements.assemble_residuals(rr, prescribed);
+                self.boundary_elements.assemble_residuals(rr, prescribed);
+
+                // add concentrated loads
+                self.concentrated_loads.add_to_residual(rr, state.t);
+
+                // check convergence on residual
+                let norm_rr = vector_norm(rr, NormVec::Max);
+                let tol_norm_rr0 = control.tol_rel_residual * norm_rr0;
+                if norm_rr < control.tol_abs_residual {
+                    print_iteration(iteration, norm_rr, tol_norm_rr0, true, false);
                     break;
+                }
+                if iteration == 0 {
+                    print_iteration(iteration, norm_rr, tol_norm_rr0, false, false);
+                    norm_rr0 = norm_rr;
+                } else {
+                    if norm_rr < tol_norm_rr0 {
+                        print_iteration(iteration, norm_rr, tol_norm_rr0, false, true);
+                        break;
+                    }
+                }
+
+                // compute jacobians in parallel
+                self.interior_elements.calc_jacobians_parallel(&state)?;
+                self.boundary_elements.calc_jacobians_parallel(&state)?;
+
+                // assemble jacobians matrices
+                self.interior_elements.assemble_jacobians(kk, prescribed);
+                self.boundary_elements.assemble_jacobians(kk, prescribed);
+
+                // augment global Jacobian matrix
+                for eq in &self.prescribed_values.equations {
+                    kk.put(*eq, *eq, 1.0)?;
+                }
+
+                // solve linear system
+                if timestep == 0 && iteration == 0 {
+                    self.linear_system.solver.initialize(&kk)?;
+                }
+                self.linear_system.solver.factorize()?;
+                self.linear_system.solver.solve(mdu, &rr)?;
+
+                // update U vector
+                update_vector(&mut state.uu, -1.0, &mdu)?;
+
+                // update V vector
+                if config.transient {
+                    add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star)?;
+                }
+
+                // check convergence
+                if iteration == control.n_max_iterations - 1 {
+                    return Err("Newton-Raphson did not converge");
                 }
             }
 
-            // compute jacobians in parallel
-            interior_elements.calc_jacobians_parallel(&state)?;
-            boundary_elements.calc_jacobians_parallel(&state)?;
-
-            // assemble jacobians matrices
-            interior_elements.assemble_jacobians(kk, &prescribed_values.flags);
-            boundary_elements.assemble_jacobians(kk, &prescribed_values.flags);
-
-            // augment global Jacobian matrix
-            for eq in &prescribed_values.equations {
-                kk.put(*eq, *eq, 1.0)?;
-            }
-
-            // solve linear system
-            if timestep == 0 && iteration == 0 {
-                lin_sys.solver.initialize(&kk)?;
-            }
-            lin_sys.solver.factorize()?;
-            lin_sys.solver.solve(mdu, &rr)?;
-
-            // update U vector
-            update_vector(&mut state.uu, -1.0, &mdu)?;
-
-            // update V vector
-            if config.transient {
-                add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star)?;
-            }
-
-            // check convergence
-            if iteration == control.n_max_iterations - 1 {
-                return Err("Newton-Raphson did not converge");
+            // final time step
+            if state.t >= control.t_fin {
+                break;
             }
         }
-
-        // final time step
-        if state.t >= control.t_fin {
-            break;
-        }
+        Ok(())
     }
-    Ok(())
 }
 
 #[inline]
@@ -131,7 +163,7 @@ fn print_header() {
 
 #[inline]
 #[rustfmt::skip]
-fn print_timestep(timestep: usize, t: f64, dt: f64) {
+    fn print_timestep(timestep: usize, t: f64, dt: f64) {
     println!(
         "{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}   {:>8}  ",
         timestep+1, t, dt, ".", ".", "."
@@ -140,7 +172,7 @@ fn print_timestep(timestep: usize, t: f64, dt: f64) {
 
 #[inline]
 #[rustfmt::skip]
-fn print_iteration(it: usize, norm_rr: f64, tol_norm_rr0: f64, converged_abs: bool, converged_rel: bool) {
+    fn print_iteration(it: usize, norm_rr: f64, tol_norm_rr0: f64, converged_abs: bool, converged_rel: bool) {
     if converged_abs {
         println!(
             "{:>8} {:>13} {:>13} {:>5} {:>8.2e}✅ {:>8.2e}  ",

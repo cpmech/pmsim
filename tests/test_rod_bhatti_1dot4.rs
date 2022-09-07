@@ -42,34 +42,12 @@ fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
-    // point loads
-    let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
-
-    // prescribed values
-    let prescribed_values = PrescribedValues::new(&data, &essential)?;
-
-    // boundary elements
-    let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
-
-    // interior elements
-    let mut interior_elements = InteriorElements::new(&data, &config)?;
-
     // simulation state
     let mut state = State::new(&data, &config)?;
 
-    // linear system
-    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
-
     // run simulation
-    simulation(
-        Some(&concentrated_loads),
-        &prescribed_values,
-        &mut boundary_elements,
-        &mut interior_elements,
-        &mut state,
-        &mut lin_sys,
-        &config,
-    )?;
+    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    sim.run(&mut state)?;
 
     // check displacements
     #[rustfmt::skip]
