@@ -45,6 +45,71 @@ pub enum Dof {
     Fso = 9,
 }
 
+/// Defines essential boundary conditions (EBC)
+#[derive(Clone, Copy)]
+pub enum Ebc {
+    /// Displacement along the first dimension
+    Ux(FnBc),
+
+    /// Displacement along the second dimension
+    Uy(FnBc),
+
+    /// Displacement along the third dimension
+    Uz(FnBc),
+
+    /// Rotation around the first axis
+    Rx(FnBc),
+
+    /// Rotation around the second axis
+    Ry(FnBc),
+
+    /// Rotation around the third axis
+    Rz(FnBc),
+
+    /// Temperature
+    T(FnBc),
+
+    /// Liquid pressure
+    Pl(FnBc),
+
+    /// Gas pressure
+    Pg(FnBc),
+}
+
+impl Ebc {
+    /// Returns the DOF corresponding to the essential boundary condition
+    pub fn dof(&self) -> Dof {
+        match self {
+            Ebc::Ux(..) => Dof::Ux,
+            Ebc::Uy(..) => Dof::Uy,
+            Ebc::Uz(..) => Dof::Uz,
+            Ebc::Rx(..) => Dof::Rx,
+            Ebc::Ry(..) => Dof::Ry,
+            Ebc::Rz(..) => Dof::Rz,
+            Ebc::T(..) => Dof::T,
+            Ebc::Pl(..) => Dof::Pl,
+            Ebc::Pg(..) => Dof::Pg,
+        }
+    }
+}
+
+impl fmt::Display for Ebc {
+    fn fmt(&self, b: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Ebc::Ux(f) => write!(b, "Ux(0) = {:?}, Ux(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::Uy(f) => write!(b, "Uy(0) = {:?}, Uy(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::Uz(f) => write!(b, "Uz(0) = {:?}, Uz(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::Rx(f) => write!(b, "Rx(0) = {:?}, Rx(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::Ry(f) => write!(b, "Ry(0) = {:?}, Ry(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::Rz(f) => write!(b, "Rz(0) = {:?}, Rz(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::T(f) => write!(b, "T(0) = {:?}, T(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::Pl(f) => write!(b, "Pl(0) = {:?}, Pl(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::Pg(f) => write!(b, "Pg(0) = {:?}, Pg(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+        }
+        Ok(())
+    }
+}
+
 /// Defines natural boundary conditions (NBC)
 #[derive(Clone, Copy)]
 pub enum Nbc {
@@ -168,7 +233,7 @@ pub enum Pbc {
 }
 
 impl Pbc {
-    /// Returns the DOF corresponding to concentrated load
+    /// Returns the DOF corresponding to the concentrated load
     pub fn dof(&self) -> Dof {
         match self {
             Pbc::Fx(..) => Dof::Ux,
@@ -241,13 +306,13 @@ impl Element {
 
 #[cfg(test)]
 mod tests {
+    use super::{Dof, Ebc, Element, Init, Nbc, Pbc};
     use crate::base::SampleParams;
-
-    use super::{Dof, Element, Init, Nbc, Pbc};
     use std::{cmp::Ordering, collections::HashSet};
 
     #[test]
-    fn dof_derive_works() {
+    fn dof_ebc_nbc_pbc_derives_work() {
+        // dof
         let ux = Dof::Ux;
         let ux_clone = ux.clone();
         assert_eq!(format!("{:?}", ux), "Ux");
@@ -260,46 +325,21 @@ mod tests {
         let mut set = HashSet::new();
         set.insert(ux);
         assert_eq!(set.len(), 1);
-    }
 
-    #[test]
-    fn nbc_and_pbc_deriv_works() {
+        // ebc
+        let ebc_ux_ori = Ebc::Ux(|_| 10.0);
+        let ebc_ux = ebc_ux_ori.clone();
+        assert_eq!(format!("{}", ebc_ux), "Ux(0) = 10.0, Ux(1) = 10.0");
+
+        // nbc
         let qn_ori = Nbc::Qn(|t| -10.0 * (1.0 + t));
         let qn = qn_ori.clone();
         assert_eq!(format!("{}", qn), "Qn(0) = -10.0, Qn(1) = -20.0");
 
-        let qx_ori = Nbc::Qx(|t| -20.0 * (1.0 + t));
-        let qx = qx_ori;
-        assert_eq!(format!("{}", qx), "Qx(0) = -20.0, Qx(1) = -40.0");
-
-        let qy = Nbc::Qy(|t| -20.0 * (1.0 + t));
-        assert_eq!(format!("{}", qy), "Qy(0) = -20.0, Qy(1) = -40.0");
-
-        let qz = Nbc::Qz(|t| -20.0 * (1.0 + t));
-        assert_eq!(format!("{}", qz), "Qz(0) = -20.0, Qz(1) = -40.0");
-
-        let ql = Nbc::Ql(|t| -20.0 * (1.0 + t));
-        assert_eq!(format!("{}", ql), "Ql(0) = -20.0, Ql(1) = -40.0");
-
-        let qg = Nbc::Qg(|t| -20.0 * (1.0 + t));
-        assert_eq!(format!("{}", qg), "Qg(0) = -20.0, Qg(1) = -40.0");
-
-        let qt = Nbc::Qt(|t| -20.0 * (1.0 + t));
-        assert_eq!(format!("{}", qt), "Qt(0) = -20.0, Qt(1) = -40.0");
-
-        let cv = Nbc::Cv(0.5, |t| 50.0 * (1.0 + t));
-        assert_eq!(format!("{}", cv), "cc = 0.5, T(0) = 50.0, T(1) = 100.0");
-
+        // pbc
         let fx_ori = Pbc::Fx(|t| -1.0 * (1.0 + t));
         let fx = fx_ori.clone();
         assert_eq!(format!("{}", fx), "Fx(0) = -1.0, Fx(1) = -2.0");
-
-        let fy_ori = Pbc::Fy(|t| -1.0 * (1.0 + t));
-        let fy = fy_ori;
-        assert_eq!(format!("{}", fy), "Fy(0) = -1.0, Fy(1) = -2.0");
-
-        let fz = Pbc::Fz(|t| -1.0 * (1.0 + t));
-        assert_eq!(format!("{}", fz), "Fz(0) = -1.0, Fz(1) = -2.0");
     }
 
     #[test]
@@ -354,6 +394,45 @@ mod tests {
         let e = Element::PorousSldLiqGas(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousSldLiqGas");
+    }
+
+    #[test]
+    fn ebc_methods_work() {
+        let ux = Ebc::Ux(|t| 10.0 + 10.0 * t);
+        assert_eq!(ux.dof(), Dof::Ux);
+        assert_eq!(format!("{}", ux), "Ux(0) = 10.0, Ux(1) = 20.0");
+
+        let uy = Ebc::Uy(|t| 10.0 + 10.0 * t);
+        assert_eq!(uy.dof(), Dof::Uy);
+        assert_eq!(format!("{}", uy), "Uy(0) = 10.0, Uy(1) = 20.0");
+
+        let uz = Ebc::Uz(|t| 10.0 + 10.0 * t);
+        assert_eq!(uz.dof(), Dof::Uz);
+        assert_eq!(format!("{}", uz), "Uz(0) = 10.0, Uz(1) = 20.0");
+
+        let rx = Ebc::Rx(|t| 10.0 + 10.0 * t);
+        assert_eq!(rx.dof(), Dof::Rx);
+        assert_eq!(format!("{}", rx), "Rx(0) = 10.0, Rx(1) = 20.0");
+
+        let ry = Ebc::Ry(|t| 10.0 + 10.0 * t);
+        assert_eq!(ry.dof(), Dof::Ry);
+        assert_eq!(format!("{}", ry), "Ry(0) = 10.0, Ry(1) = 20.0");
+
+        let rz = Ebc::Rz(|t| 10.0 + 10.0 * t);
+        assert_eq!(rz.dof(), Dof::Rz);
+        assert_eq!(format!("{}", rz), "Rz(0) = 10.0, Rz(1) = 20.0");
+
+        let pl = Ebc::Pl(|t| 10.0 + 10.0 * t);
+        assert_eq!(pl.dof(), Dof::Pl);
+        assert_eq!(format!("{}", pl), "Pl(0) = 10.0, Pl(1) = 20.0");
+
+        let pg = Ebc::Pg(|t| 10.0 + 10.0 * t);
+        assert_eq!(pg.dof(), Dof::Pg);
+        assert_eq!(format!("{}", pg), "Pg(0) = 10.0, Pg(1) = 20.0");
+
+        let tt = Ebc::T(|t| 10.0 + 10.0 * t);
+        assert_eq!(tt.dof(), Dof::T);
+        assert_eq!(format!("{}", tt), "T(0) = 10.0, T(1) = 20.0");
     }
 
     #[test]
@@ -460,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    fn pbc_dof_works() {
+    fn pbc_methods_work() {
         let fx = Pbc::Fx(|_| -1.0);
         assert_eq!(fx.dof(), Dof::Ux);
         assert_eq!(format!("{}", fx), "Fx(0) = -1.0, Fx(1) = -1.0");
