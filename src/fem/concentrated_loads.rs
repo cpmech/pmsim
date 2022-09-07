@@ -4,19 +4,19 @@ use crate::StrError;
 use gemlab::mesh::PointId;
 use russell_lab::Vector;
 
-/// Defines a boundary point to calculate concentrated loads
+/// Assists in calculating concentrated loads
 pub struct ConcentratedLoad {
     pub pbc: Pbc,
     pub eq: usize,
 }
 
-/// Holds a collection of boundary points
+/// Holds a collection of concentrated loads
 pub struct ConcentratedLoads {
     pub all: Vec<ConcentratedLoad>,
 }
 
 impl ConcentratedLoad {
-    // Allocates new instance
+    /// Allocates new instance
     pub fn new(data: &Data, point_id: PointId, pbc: Pbc) -> Result<Self, StrError> {
         Ok(ConcentratedLoad {
             pbc,
@@ -37,7 +37,7 @@ impl ConcentratedLoad {
 }
 
 impl ConcentratedLoads {
-    // Allocates new instance
+    /// Allocates new instance
     pub fn new(data: &Data, bcs: &Natural) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = bcs
             .concentrated
