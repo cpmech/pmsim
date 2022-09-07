@@ -111,6 +111,17 @@ impl Config {
         None // all good
     }
 
+    /// Validate data or panics
+    #[inline]
+    pub fn validate_or_panic(&self, ndim: usize, verbose: bool) {
+        if let Some(err) = self.validate(ndim) {
+            if verbose {
+                println!("{}", err);
+            }
+            panic!("config.validate() failed");
+        }
+    }
+
     /// Returns the initial overburden stress (negative means compression)
     #[inline]
     pub fn initial_overburden_stress(&self) -> f64 {
@@ -285,5 +296,19 @@ mod tests {
 
         config.initialization = Init::Zero;
         assert_eq!(config.validate(2), None);
+    }
+
+    #[test]
+    fn validate_or_panic_works() {
+        let config = Config::new();
+        config.validate_or_panic(2, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "config.validate() failed")]
+    fn validate_or_panic_panics() {
+        let mut config = Config::new();
+        config.control.t_ini = -1.0;
+        config.validate_or_panic(3, false);
     }
 }

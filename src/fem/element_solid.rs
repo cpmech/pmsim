@@ -85,7 +85,7 @@ impl<'a> LocalEquations for ElementSolid<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementSolid;
-    use crate::base::{Config, Element, Essential, ParamSolid, ParamStressStrain, SampleParams};
+    use crate::base::{Config, Element, ParamSolid, ParamStressStrain, SampleParams};
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::Samples;
@@ -121,8 +121,7 @@ mod tests {
 
         // set stress state
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
-        let essential = Essential::new();
-        let mut state = State::new(&data, &config, &essential).unwrap();
+        let mut state = State::new(&data, &config).unwrap();
         for sigma in &mut state.sigma[0] {
             sigma.sym_set(0, 0, s00);
             sigma.sym_set(1, 1, s11);

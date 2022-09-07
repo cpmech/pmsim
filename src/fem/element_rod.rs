@@ -111,7 +111,7 @@ impl<'a> LocalEquations for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, Element, Essential, ParamRod};
+    use crate::base::{assemble_matrix, Config, Element, ParamRod};
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
@@ -178,8 +178,7 @@ mod tests {
         let config = Config::new();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&data, &config, cell, &p1).unwrap();
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
         let neq = 4;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -217,8 +216,7 @@ mod tests {
         let config = Config::new();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&data, &config, cell, &p1).unwrap();
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
         let neq = 6;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -259,8 +257,7 @@ mod tests {
         let config = Config::new();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&data, &config, cell, &p1).unwrap();
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
         let neq = 6;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -330,8 +327,7 @@ mod tests {
         let neq = 4;
         let mut jacobian = Matrix::new(neq, neq);
 
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
         let (neq_global, nnz) = (6, 3 * neq * neq);
 
         let mut kk = SparseTriplet::new(neq_global, neq_global, nnz, Symmetry::No).unwrap();

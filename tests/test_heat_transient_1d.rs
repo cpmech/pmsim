@@ -36,7 +36,7 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
     let mut interior_elements = InteriorElementVec::new(&data, &config)?;
 
     // simulation state
-    let mut state = State::new(&data, &config, &essential)?;
+    let mut state = State::new(&data, &config)?;
 
     // linear system
     let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();

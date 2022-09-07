@@ -68,7 +68,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
 
     // simulation state
-    let mut state = State::new(&data, &config, &essential)?;
+    let mut state = State::new(&data, &config)?;
 
     // check residual of first element
     state.uu.fill(0.0);
@@ -267,7 +267,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     let mut interior_elements = InteriorElementVec::new(&data, &config)?;
 
     // simulation state
-    let mut state = State::new(&data, &config, &essential)?;
+    let mut state = State::new(&data, &config)?;
 
     // linear system
     let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
@@ -280,5 +280,24 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
         &mut state,
         &mut lin_sys,
         &config,
-    )
+    )?;
+
+    // check U vector
+    let tt_bhatti = Vector::from(&[
+        156.440502466202,
+        150.75605418729847,
+        149.19646294563637,
+        144.2245542836661,
+        133.8432701060946,
+        124.00195294431063,
+        121.74635727622194,
+        119.14813150652589,
+        110.0,
+        110.0,
+        110.0,
+        144.67542222443012,
+        129.13200798820264,
+    ]);
+    // vec_approx_eq(state.uu.as_data(), tt_bhatti.as_data(), 1e-12);
+    Ok(())
 }

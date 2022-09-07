@@ -148,7 +148,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Config, Element, Essential, SampleParams};
+    use crate::base::{Config, Element, SampleParams};
     use crate::fem::{Data, LocalEquations, State};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
@@ -191,8 +191,7 @@ mod tests {
         let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the right to the left
-        let essential = Essential::new();
-        let mut state = State::new(&data, &config, &essential).unwrap();
+        let mut state = State::new(&data, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -260,8 +259,7 @@ mod tests {
         let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let essential = Essential::new();
-        let mut state = State::new(&data, &config, &essential).unwrap();
+        let mut state = State::new(&data, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);

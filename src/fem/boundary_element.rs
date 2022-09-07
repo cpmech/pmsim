@@ -224,7 +224,7 @@ impl BoundaryElementVec {
 #[cfg(test)]
 mod tests {
     use super::{BoundaryElement, BoundaryElementVec};
-    use crate::base::{Config, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
+    use crate::base::{Config, Element, Natural, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::{Extract, Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
@@ -283,11 +283,10 @@ mod tests {
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
 
-        let essential = Essential::new();
         let mut natural = Natural::new();
         natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
         let mut b_elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
         b_elements.all.par_iter_mut().for_each(|d| {
             d.calc_residual(&state).unwrap();
             d.calc_jacobian(&state).unwrap();
@@ -306,8 +305,7 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
 
         const Q: f64 = 25.0;
         let fq = |_| Q;
@@ -385,8 +383,7 @@ mod tests {
 
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
 
         let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qz(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
@@ -403,8 +400,7 @@ mod tests {
         let p1 = SampleParams::param_porous_liq_gas();
         let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
 
         const Q: f64 = -10.0;
         let fq = |_| Q;
@@ -437,8 +433,7 @@ mod tests {
         };
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
 
         const Q: f64 = 10.0;
         let fq = |_| Q;
@@ -484,8 +479,7 @@ mod tests {
         };
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let essential = Essential::new();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
 
         const Q: f64 = 5e6;
         let fq = |_| Q;
@@ -522,7 +516,6 @@ mod tests {
         let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let essential = Essential::new();
         let mut natural = Natural::new();
         let edge = Feature {
             kind: GeoKind::Lin2,
@@ -534,7 +527,7 @@ mod tests {
 
         natural.on(&[&edge], Nbc::Cv(40.0, ft));
         let mut elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
-        let state = State::new(&data, &config, &essential).unwrap();
+        let state = State::new(&data, &config).unwrap();
         elements.calc_residuals(&state).unwrap();
         elements.calc_jacobians(&state).unwrap();
         elements.calc_residuals_parallel(&state).unwrap();

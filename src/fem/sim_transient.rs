@@ -36,6 +36,12 @@ pub fn sim_transient(
             add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv)?;
         }
 
+        // set primary prescribed values
+        // for ((point_id, dof), f) in &essential.all {
+        //     let eq = data.equations.eq(*point_id, *dof).unwrap();
+        //     uu[eq] = f(t);
+        // }
+
         // output
         print_timestep(timestep, state.t, state.dt);
 

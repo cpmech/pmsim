@@ -4,9 +4,10 @@ use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
 
-// Bhatti's Example 1.4 example
+// Bhatti's Example 1.4 on page 25
 #[test]
 fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
+    // mesh and boundary features
     //               (3)
     //               [2]
     //     2----------------------3
@@ -51,7 +52,7 @@ fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
     let mut interior_elements = InteriorElementVec::new(&data, &config)?;
 
     // simulation state
-    let mut state = State::new(&data, &config, &essential)?;
+    let mut state = State::new(&data, &config)?;
 
     // linear system
     let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
