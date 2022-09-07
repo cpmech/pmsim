@@ -197,3 +197,77 @@ fn print_header() {
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::Simulation;
+    use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
+    use crate::fem::Data;
+    use gemlab::mesh::{Feature, Mesh, Samples};
+    use gemlab::shapes::GeoKind;
+
+    #[test]
+    fn new_captures_errors() {
+        let mesh = Samples::one_hex8();
+        let p1 = SampleParams::param_solid();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let config = Config::new();
+
+        // error due to prescribed_values
+        let f = |_| 123.0;
+        assert_eq!(f(0.0), 123.0);
+        let mut essential = Essential::new();
+        essential.at(&[123], Ebc::Ux(f));
+        let natural = Natural::new();
+        assert_eq!(
+            Simulation::new(&data, &config, &essential, &natural).err(),
+            Some("cannot find equation number because PointId is out-of-bounds")
+        );
+        let essential = Essential::new();
+
+        // error due to concentrated_loads
+        let mut natural = Natural::new();
+        natural.at(&[100], Pbc::Fx(f));
+        assert_eq!(
+            Simulation::new(&data, &config, &essential, &natural).err(),
+            Some("cannot find equation number because PointId is out-of-bounds")
+        );
+        let natural = Natural::new();
+
+        // error due to interior_elements
+        let mut config = Config::new();
+        config.n_integ_point.insert(1, 100); // wrong
+        assert_eq!(
+            Simulation::new(&data, &config, &essential, &natural).err(),
+            Some("desired number of integration points is not available for Hex class")
+        );
+        let config = Config::new();
+
+        // error due to boundary_elements
+        let mut natural = Natural::new();
+        let edge = Feature {
+            kind: GeoKind::Lin2,
+            points: vec![4, 5],
+        };
+        natural.on(&[&edge], Nbc::Qn(f));
+        assert_eq!(
+            Simulation::new(&data, &config, &essential, &natural).err(),
+            Some("Qn natural boundary condition is not available for 3D edge")
+        );
+        let natural = Natural::new();
+
+        // error due to linear_system
+        let empty_mesh = Mesh {
+            ndim: 2,
+            points: Vec::new(),
+            cells: Vec::new(),
+        };
+        let data = Data::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
+        assert_eq!(
+            Simulation::new(&data, &config, &essential, &natural).err(),
+            Some("nrow, ncol, and max must all be greater than zero")
+        );
+    }
+}
