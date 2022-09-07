@@ -61,7 +61,7 @@ fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
     let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
 
     // run simulation
-    sim_transient(
+    simulation(
         Some(&concentrated_loads),
         &prescribed_values,
         &mut boundary_elements,

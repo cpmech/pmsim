@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
 
 /// Simulates transient process
-pub fn sim_transient(
+pub fn simulation(
     concentrated_loads: Option<&ConcentratedLoads>,
     prescribed_values: &PrescribedValues,
     boundary_elements: &mut BoundaryElements,
@@ -38,10 +38,7 @@ pub fn sim_transient(
         }
 
         // set primary prescribed values
-        // for ((point_id, dof), f) in &essential.all {
-        //     let eq = data.equations.eq(*point_id, *dof).unwrap();
-        //     uu[eq] = f(t);
-        // }
+        prescribed_values.apply(&mut state.uu, state.t);
 
         // output
         print_timestep(timestep, state.t, state.dt);

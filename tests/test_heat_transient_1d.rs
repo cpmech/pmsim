@@ -45,7 +45,7 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
     let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
 
     // run simulation
-    sim_transient(
+    simulation(
         None,
         &prescribed_values,
         &mut boundary_elements,

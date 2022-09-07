@@ -250,7 +250,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     };
     let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
     let mut config = Config::new();
-    config.transient = true;
+    config.transient = false;
     config.control.n_max_time_steps = 2;
 
     // essential boundary conditions
@@ -279,7 +279,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
 
     // run simulation
-    sim_transient(
+    simulation(
         None,
         &prescribed_values,
         &mut boundary_elements,
@@ -290,7 +290,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     )?;
 
     // check U vector
-    let _tt_bhatti = Vector::from(&[
+    let tt_bhatti = Vector::from(&[
         156.440502466202,
         150.75605418729847,
         149.19646294563637,
@@ -305,6 +305,6 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
         144.67542222443012,
         129.13200798820264,
     ]);
-    // vec_approx_eq(state.uu.as_data(), tt_bhatti.as_data(), 1e-12);
+    vec_approx_eq(state.uu.as_data(), tt_bhatti.as_data(), 1e-12);
     Ok(())
 }

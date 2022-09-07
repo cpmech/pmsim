@@ -9,5 +9,5 @@ pub use crate::base::{
     ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
 };
 pub use crate::fem::{
-    sim_transient, BoundaryElements, ConcentratedLoads, Data, InteriorElements, LinearSystem, PrescribedValues, State,
+    simulation, BoundaryElements, ConcentratedLoads, Data, InteriorElements, LinearSystem, PrescribedValues, State,
 };

@@ -60,7 +60,7 @@ fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
     let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
 
     // run simulation
-    sim_transient(
+    simulation(
         None,
         &prescribed_values,
         &mut boundary_elements,
