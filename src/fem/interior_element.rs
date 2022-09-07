@@ -258,7 +258,7 @@ mod tests {
     }
 
     // #[test]
-    fn num_jacobian_solid() {
+    fn _num_jacobian_solid() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();

@@ -283,7 +283,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     )?;
 
     // check U vector
-    let tt_bhatti = Vector::from(&[
+    let _tt_bhatti = Vector::from(&[
         156.440502466202,
         150.75605418729847,
         149.19646294563637,
