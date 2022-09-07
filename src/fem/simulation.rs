@@ -144,11 +144,11 @@ impl<'a> Simulation<'a> {
                 self.linear_system.solver.solve(mdu, &rr)?;
 
                 // update U vector
-                update_vector(&mut state.uu, -1.0, &mdu)?;
+                update_vector(&mut state.uu, -1.0, &mdu).unwrap();
 
                 // update V vector
                 if config.transient {
-                    add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star)?;
+                    add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star).unwrap();
                 }
 
                 // check convergence
