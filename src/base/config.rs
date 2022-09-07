@@ -167,10 +167,9 @@ impl fmt::Display for Config {
 
 #[cfg(test)]
 mod tests {
-    use gemlab::mesh::Samples;
-
     use super::Config;
     use crate::base::{Init, ParamFluids, ParamRealDensity};
+    use gemlab::mesh::Samples;
     use std::collections::HashMap;
 
     #[test]
@@ -310,5 +309,13 @@ mod tests {
         let mut config = Config::new();
         config.control.t_ini = -1.0;
         config.validate_or_panic(3, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "config.validate() failed")]
+    fn validate_or_panic_panics_verbose() {
+        let mut config = Config::new();
+        config.control.t_ini = -1.0;
+        config.validate_or_panic(3, true);
     }
 }
