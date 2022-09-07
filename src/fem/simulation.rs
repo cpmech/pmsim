@@ -27,6 +27,9 @@ pub struct Simulation<'a> {
 impl<'a> Simulation<'a> {
     /// Allocate new instance
     pub fn new(data: &'a Data, config: &'a Config, essential: &Essential, natural: &Natural) -> Result<Self, StrError> {
+        if let Some(_) = config.validate(data.mesh.ndim) {
+            return Err("cannot allocate simulation because config.validate() failed");
+        }
         let prescribed_values = PrescribedValues::new(&data, &essential)?;
         let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
         let interior_elements = InteriorElements::new(&data, &config)?;
@@ -53,7 +56,9 @@ impl<'a> Simulation<'a> {
         let mdu = &mut self.linear_system.mdu;
 
         // output
-        print_header();
+        if control.verbose_timesteps {
+            print_header();
+        }
 
         // time loop
         for timestep in 0..control.n_max_time_steps {
@@ -67,14 +72,16 @@ impl<'a> Simulation<'a> {
             // old state variables
             let (alpha_1, alpha_2) = control.alphas_transient(state.dt)?;
             if config.transient {
-                add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv)?;
+                add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv).unwrap();
             }
 
             // set primary prescribed values
             self.prescribed_values.apply(&mut state.uu, state.t);
 
             // output
-            print_timestep(timestep, state.t, state.dt);
+            if control.verbose_timesteps {
+                print_timestep(timestep, state.t, state.dt);
+            }
 
             // Note: we enter the iterations with an updated time, thus the boundary
             // conditions will contribute with updated residuals. However the primary
@@ -97,15 +104,21 @@ impl<'a> Simulation<'a> {
                 let norm_rr = vector_norm(rr, NormVec::Max);
                 let tol_norm_rr0 = control.tol_rel_residual * norm_rr0;
                 if norm_rr < control.tol_abs_residual {
-                    print_iteration(iteration, norm_rr, tol_norm_rr0, true, false);
+                    if control.verbose_iterations {
+                        print_iteration(iteration, norm_rr, tol_norm_rr0, true, false);
+                    }
                     break;
                 }
                 if iteration == 0 {
-                    print_iteration(iteration, norm_rr, tol_norm_rr0, false, false);
+                    if control.verbose_iterations {
+                        print_iteration(iteration, norm_rr, tol_norm_rr0, false, false);
+                    }
                     norm_rr0 = norm_rr;
                 } else {
                     if norm_rr < tol_norm_rr0 {
-                        print_iteration(iteration, norm_rr, tol_norm_rr0, false, true);
+                        if control.verbose_iterations {
+                            print_iteration(iteration, norm_rr, tol_norm_rr0, false, true);
+                        }
                         break;
                     }
                 }
@@ -204,7 +217,7 @@ fn print_header() {
 mod tests {
     use super::Simulation;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
-    use crate::fem::Data;
+    use crate::fem::{Data, State};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -213,6 +226,16 @@ mod tests {
         let mesh = Samples::one_hex8();
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let essential = Essential::new();
+        let natural = Natural::new();
+
+        // error due to config.validate
+        let mut config = Config::new();
+        config.control.dt_min = -1.0;
+        assert_eq!(
+            Simulation::new(&data, &config, &essential, &natural).err(),
+            Some("cannot allocate simulation because config.validate() failed")
+        );
         let config = Config::new();
 
         // error due to prescribed_values
@@ -220,7 +243,6 @@ mod tests {
         assert_eq!(f(0.0), 123.0);
         let mut essential = Essential::new();
         essential.at(&[123], Ebc::Ux(f));
-        let natural = Natural::new();
         assert_eq!(
             Simulation::new(&data, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
@@ -268,6 +290,23 @@ mod tests {
         assert_eq!(
             Simulation::new(&data, &config, &essential, &natural).err(),
             Some("nrow, ncol, and max must all be greater than zero")
+        );
+    }
+
+    #[test]
+    fn run_captures_errors() {
+        let mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_solid();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let mut config = Config::new();
+        config.control.dt = |_| -1.0; // wrong
+        let essential = Essential::new();
+        let natural = Natural::new();
+        let mut sim = Simulation::new(&data, &config, &essential, &natural).unwrap();
+        let mut state = State::new(&data, &config).unwrap();
+        assert_eq!(
+            sim.run(&mut state).err(),
+            Some("Δt is smaller than the allowed minimum")
         );
     }
 }
