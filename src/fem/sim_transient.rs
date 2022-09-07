@@ -1,11 +1,11 @@
-use super::{BoundaryElementVec, BoundaryPointVec, InteriorElementVec, LinearSystem, State};
+use super::{BoundaryElementVec, ConcentratedLoads, InteriorElementVec, LinearSystem, State};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
 
 /// Simulates transient process
 pub fn sim_transient(
-    boundary_points: Option<&BoundaryPointVec>,
+    concentrated_loads: Option<&ConcentratedLoads>,
     boundary_elements: &mut BoundaryElementVec,
     interior_elements: &mut InteriorElementVec,
     state: &mut State,
@@ -60,8 +60,8 @@ pub fn sim_transient(
             boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
 
             // add concentrated loads
-            if let Some(b_points) = boundary_points {
-                b_points.add_to_residual(rr, state.t);
+            if let Some(point_loads) = concentrated_loads {
+                point_loads.add_to_residual(rr, state.t);
             }
 
             // check convergence on residual

@@ -1,7 +1,7 @@
 //! Implements the finite element method
 
 mod boundary_element;
-mod boundary_point;
+mod concentrated_loads;
 mod data;
 mod element_diffusion;
 mod element_rod;
@@ -12,7 +12,7 @@ mod local_equations;
 mod sim_transient;
 mod state;
 pub use crate::fem::boundary_element::*;
-pub use crate::fem::boundary_point::*;
+pub use crate::fem::concentrated_loads::*;
 pub use crate::fem::data::*;
 pub use crate::fem::element_diffusion::*;
 pub use crate::fem::element_rod::*;

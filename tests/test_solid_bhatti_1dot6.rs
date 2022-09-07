@@ -1,13 +1,13 @@
 use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
-use pmsim::fem::{sim_transient, BoundaryPointVec};
+use pmsim::fem::sim_transient;
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
 
 // Bhatti's Example 1.6 on page 32
 // #[test]
-fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
+fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
     // mesh and boundary features
     // 2.0  fixed 1'-,_load                connectivity:
     //            |     '-,_      load      eid : vertices
@@ -45,9 +45,6 @@ fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
-    // boundary points
-    let boundary_points = BoundaryPointVec::new(&data, &natural)?;
-
     // boundary elements
     let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
 
@@ -62,7 +59,7 @@ fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
 
     // run simulation
     sim_transient(
-        Some(&boundary_points),
+        None,
         &mut boundary_elements,
         &mut interior_elements,
         &mut state,

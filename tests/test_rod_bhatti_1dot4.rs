@@ -1,5 +1,5 @@
 use pmsim::base::SampleMeshes;
-use pmsim::fem::{sim_transient, BoundaryPointVec};
+use pmsim::fem::{sim_transient, ConcentratedLoads};
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
@@ -43,8 +43,8 @@ fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
-    // boundary points
-    let boundary_points = BoundaryPointVec::new(&data, &natural)?;
+    // point loads
+    let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
 
     // boundary elements
     let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
@@ -60,7 +60,7 @@ fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
 
     // run simulation
     sim_transient(
-        Some(&boundary_points),
+        Some(&concentrated_loads),
         &mut boundary_elements,
         &mut interior_elements,
         &mut state,

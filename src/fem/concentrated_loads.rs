@@ -5,20 +5,20 @@ use gemlab::mesh::PointId;
 use russell_lab::Vector;
 
 /// Defines a boundary point to calculate concentrated loads
-pub struct BoundaryPoint {
+pub struct ConcentratedLoad {
     pub pbc: Pbc,
     pub eq: usize,
 }
 
 /// Holds a collection of boundary points
-pub struct BoundaryPointVec {
-    pub all: Vec<BoundaryPoint>,
+pub struct ConcentratedLoads {
+    pub all: Vec<ConcentratedLoad>,
 }
 
-impl BoundaryPoint {
+impl ConcentratedLoad {
     // Allocates new instance
     pub fn new(data: &Data, point_id: PointId, pbc: Pbc) -> Result<Self, StrError> {
-        Ok(BoundaryPoint {
+        Ok(ConcentratedLoad {
             pbc,
             eq: data.equations.eq(point_id, pbc.dof())?,
         })
@@ -36,16 +36,16 @@ impl BoundaryPoint {
     }
 }
 
-impl BoundaryPointVec {
+impl ConcentratedLoads {
     // Allocates new instance
     pub fn new(data: &Data, bcs: &Natural) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = bcs
             .concentrated
             .iter()
-            .map(|(point_id, pbc)| BoundaryPoint::new(data, *point_id, *pbc))
+            .map(|(point_id, pbc)| ConcentratedLoad::new(data, *point_id, *pbc))
             .collect();
         match res {
-            Ok(all) => Ok(BoundaryPointVec { all }),
+            Ok(all) => Ok(ConcentratedLoads { all }),
             Err(e) => Err(e),
         }
     }
@@ -61,7 +61,7 @@ impl BoundaryPointVec {
 
 #[cfg(test)]
 mod tests {
-    use super::{BoundaryPoint, BoundaryPointVec};
+    use super::{ConcentratedLoad, ConcentratedLoads};
     use crate::base::{Element, Natural, Pbc, SampleParams};
     use crate::fem::Data;
     use gemlab::mesh::Samples;
@@ -75,14 +75,14 @@ mod tests {
         let minus_ten = |_| -10.0;
         assert_eq!(minus_ten(0.0), -10.0);
         assert_eq!(
-            BoundaryPoint::new(&data, 123, Pbc::Fy(minus_ten)).err(),
+            ConcentratedLoad::new(&data, 123, Pbc::Fy(minus_ten)).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
 
         let mut natural = Natural::new();
         natural.at(&[100], Pbc::Fx(minus_ten));
         assert_eq!(
-            BoundaryPointVec::new(&data, &natural).err(),
+            ConcentratedLoads::new(&data, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
     }
@@ -98,7 +98,7 @@ mod tests {
         natural.at(&[0], Pbc::Fx(f));
         natural.at(&[1], Pbc::Fy(f));
         natural.at(&[2], Pbc::Fz(f));
-        let b_points = BoundaryPointVec::new(&data, &natural).unwrap();
+        let b_points = ConcentratedLoads::new(&data, &natural).unwrap();
         let mut residual = Vector::new(4 * 3);
         b_points.add_to_residual(&mut residual, 0.0);
         assert_eq!(
