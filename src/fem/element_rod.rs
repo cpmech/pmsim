@@ -102,7 +102,8 @@ impl<'a> LocalEquations for ElementRod<'a> {
     /// Calculates the Jacobian matrix
     #[rustfmt::skip]
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &State) -> Result<(), StrError> {
-        copy_matrix(jacobian, &self.stiffness)
+        copy_matrix(jacobian, &self.stiffness).unwrap();
+        Ok(())
     }
 }
 
