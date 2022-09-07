@@ -74,7 +74,8 @@ mod tests {
     use super::{PrescribedValue, PrescribedValues};
     use crate::base::{Ebc, Element, Essential, SampleParams};
     use crate::fem::Data;
-    use gemlab::mesh::Samples;
+    use gemlab::mesh::{Cell, Mesh, Point, Samples};
+    use gemlab::shapes::GeoKind;
     use russell_lab::Vector;
 
     #[test]
@@ -108,7 +109,55 @@ mod tests {
     }
 
     #[test]
-    fn set_values_works() {
+    fn set_values_works_diffusion() {
+        let mesh = Samples::one_tri3();
+        let p1 = SampleParams::param_diffusion();
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let mut essential = Essential::new();
+        essential.at(&[0], Ebc::T(|_| 110.0));
+        let mut uu = Vector::new(data.equations.n_equation);
+        let values = PrescribedValues::new(&data, &essential).unwrap();
+        values.set_values(&mut uu, 0.0);
+        let correct = &[110.0, 0.0, 0.0];
+        assert_eq!(uu.as_data(), correct);
+    }
+
+    #[test]
+    fn set_values_works_beam_3d() {
+        #[rustfmt::skip]
+        let mesh = Mesh {
+            ndim: 3,
+            points: vec![
+                Point { id: 0, coords: vec![0.0, 0.0, 0.0] },
+                Point { id: 1, coords: vec![1.0, 1.0, 1.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+            ],
+        };
+        let p1 = SampleParams::param_beam();
+        let data = Data::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
+        let mut essential = Essential::new();
+        essential
+            .at(&[0], Ebc::Ux(|_| 1.0))
+            .at(&[0], Ebc::Uy(|_| 2.0))
+            .at(&[0], Ebc::Uz(|_| 3.0))
+            .at(&[0], Ebc::Rx(|_| 4.0))
+            .at(&[0], Ebc::Ry(|_| 5.0))
+            .at(&[0], Ebc::Rz(|_| 6.0));
+        let mut uu = Vector::new(data.equations.n_equation);
+        let values = PrescribedValues::new(&data, &essential).unwrap();
+        values.set_values(&mut uu, 0.0);
+        #[rustfmt::skip]
+        let correct = &[
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, //  0 Ux,Uy,Uz, Rx,Ry,Rz
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, //  1 Ux,Uy,Uz, Rx,Ry,Rz
+        ];
+        assert_eq!(uu.as_data(), correct);
+    }
+
+    #[test]
+    fn set_values_works_mixed() {
         //                     {Ux→15}
         //    {Ux→21}          {Uy→16}
         //    {Uy→22}  {Ux→19} {Rz→17}
@@ -185,6 +234,40 @@ mod tests {
             21.0, 22.0, 23.0,       //  8 (Ux,21) (Uy,22) (Pl,23)
             24.0, 25.0,             //  9 (Ux,24) (Uy,25)
             26.0, 27.0, 28.0,       // 10 (Ux,26) (Uy,27) (Rz,28)
+        ];
+        assert_eq!(uu.as_data(), correct);
+    }
+
+    #[test]
+    fn set_values_works_porous_sld_liq_gas() {
+        let mesh = Samples::one_tri6();
+        let p1 = SampleParams::param_porous_sld_liq_gas();
+        let data = Data::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
+        let mut essential = Essential::new();
+        essential
+            .at(&[0], Ebc::Ux(|_| 1.0))
+            .at(&[0], Ebc::Uy(|_| 2.0))
+            .at(&[0], Ebc::Pl(|_| 3.0))
+            .at(&[0], Ebc::Pg(|_| 4.0))
+            .at(&[1], Ebc::Ux(|_| 5.0))
+            .at(&[1], Ebc::Uy(|_| 6.0))
+            .at(&[1], Ebc::Pl(|_| 7.0))
+            .at(&[1], Ebc::Pg(|_| 8.0))
+            .at(&[2], Ebc::Ux(|_| 9.0))
+            .at(&[2], Ebc::Uy(|_| 10.0))
+            .at(&[2], Ebc::Pl(|_| 11.0))
+            .at(&[2], Ebc::Pg(|_| 12.0));
+        let mut uu = Vector::new(data.equations.n_equation);
+        let values = PrescribedValues::new(&data, &essential).unwrap();
+        values.set_values(&mut uu, 0.0);
+        #[rustfmt::skip]
+        let correct = &[
+            1.0,  2.0,  3.0,  4.0, // 0 Ux,Uy,Pl,Pg
+            5.0,  6.0,  7.0,  8.0, // 1 Ux,Uy,Pl,Pg
+            9.0, 10.0, 11.0, 12.0, // 2 Ux,Uy,Pl,Pg
+            0.0,  0.0,             // 3 Ux,Uy
+            0.0,  0.0,             // 4 Ux,Uy
+            0.0,  0.0,             // 5 Ux,Uy
         ];
         assert_eq!(uu.as_data(), correct);
     }
