@@ -257,7 +257,7 @@ impl fmt::Display for Pbc {
 /// Defines how stresses are initialized
 #[derive(Clone, Copy, Debug)]
 pub enum Init {
-    /// Geostatic initial state with data = (overburden,total_stress)
+    /// Geostatic initial state with data = (overburden)
     ///
     /// # Note
     ///
@@ -266,7 +266,9 @@ pub enum Init {
     /// * The water table is at y=y_max=height (2D) or z=z_max=height (3D), thus only fully water-saturated states are considered
     Geostatic(f64),
 
-    /// Initial isotropic stress state with σ_xx = σ_yy = σ_zz = value
+    /// Initial homogeneous AND isotropic stress state with σ_xx = σ_yy = σ_zz = value
+    ///
+    /// All points in the mesh will be set with the same isotropic stress
     Isotropic(f64),
 
     /// Zero initial stress state

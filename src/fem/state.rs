@@ -44,7 +44,7 @@ pub struct State {
     /// (n_equation)
     pub aa_star: Vector,
 
-    /// Effective stress of all cells and all integration points
+    /// Total or effective stress of all cells and all integration points
     ///
     /// (ncell,n_integ_point)
     pub sigma: Vec<Vec<Tensor2>>,
@@ -52,7 +52,7 @@ pub struct State {
     /// Internal values of all cells and all integration points
     ///
     /// (ncell,n_integ_point)
-    pub ivs: Vec<Vec<Vector>>,
+    pub ivs_solid: Vec<Vec<Vector>>,
 
     /// Loading flags of all cells and all integration points
     ///
@@ -62,7 +62,7 @@ pub struct State {
     /// Liquid saturation of all cells and all integration points
     ///
     /// (ncell,n_integ_point)
-    pub sl: Vec<Vec<f64>>,
+    pub liquid_saturation: Vec<Vec<f64>>,
 
     /// Internal values for porous media of all cells and all integration points
     ///
@@ -77,45 +77,38 @@ pub struct State {
 
 impl State {
     pub fn new(data: &Data, config: &Config) -> Result<State, StrError> {
+        // check number of cells
+        if data.mesh.cells.len() == 0 {
+            return Err("there are no cells in the mesh");
+        }
+
         // gather information about element types
-        let mut rods_and_beams_only = true;
         let mut has_diffusion = false;
+        let mut has_rod_or_beam = false;
         let mut has_solid = false;
-        let mut has_porous = false;
+        let mut has_porous_fluid = false;
+        let mut has_porous_solid = false;
         for cell in &data.mesh.cells {
             let element = data.attributes.get(cell).unwrap(); // already checked by Data
             match element {
-                Element::Diffusion(..) => {
-                    has_diffusion = true;
-                }
-                Element::Rod(..) => (),
-                Element::Beam(..) => (),
-                Element::Solid(..) => {
-                    rods_and_beams_only = false;
-                    has_solid = true;
-                }
-                Element::PorousLiq(..) => {
-                    rods_and_beams_only = false;
-                    has_porous = true;
-                }
-                Element::PorousLiqGas(..) => {
-                    rods_and_beams_only = false;
-                    has_porous = true;
-                }
-                Element::PorousSldLiq(..) => {
-                    rods_and_beams_only = false;
-                    has_solid = true;
-                    has_porous = true;
-                }
-                Element::PorousSldLiqGas(..) => {
-                    rods_and_beams_only = false;
-                    has_solid = true;
-                    has_porous = true;
-                }
+                Element::Diffusion(..) => has_diffusion = true,
+                Element::Rod(..) => has_rod_or_beam = true,
+                Element::Beam(..) => has_rod_or_beam = true,
+                Element::Solid(..) => has_solid = true,
+                Element::PorousLiq(..) => has_porous_fluid = true,
+                Element::PorousLiqGas(..) => has_porous_fluid = true,
+                Element::PorousSldLiq(..) => has_porous_solid = true,
+                Element::PorousSldLiqGas(..) => has_porous_solid = true,
             };
         }
 
-        // TODO: check compatibility of flags
+        // check elements
+        if has_diffusion && (has_rod_or_beam || has_solid || has_porous_fluid || has_porous_solid) {
+            return Err("cannot combine Diffusion elements with other elements");
+        }
+        if has_porous_fluid && (has_diffusion || has_rod_or_beam || has_solid || has_porous_solid) {
+            return Err("cannot combine PorousLiq or PorousLiqGas with other elements");
+        }
 
         // constants
         let ndim = data.mesh.ndim;
@@ -141,8 +134,8 @@ impl State {
             (Vector::new(0), Vector::new(0))
         };
 
-        // return state with most vectors empty
-        if rods_and_beams_only || has_diffusion {
+        // return state with no secondary variables
+        if !has_solid && !has_porous_fluid && !has_porous_solid {
             return Ok(State {
                 t,
                 dt,
@@ -154,54 +147,60 @@ impl State {
                 aa_star,
 
                 sigma: Vec::new(),
-                ivs: Vec::new(),
+                ivs_solid: Vec::new(),
                 loading: Vec::new(),
 
-                sl: Vec::new(),
+                liquid_saturation: Vec::new(),
                 ivs_porous: Vec::new(),
                 wetting: Vec::new(),
             });
         }
 
-        // pre-allocate data for solid/porous elements
-        let mut effective_stress: Vec<Vec<Tensor2>>;
-        let mut int_values_solid: Vec<Vec<Vector>>;
+        // pre-allocate secondary arrays for solid/porous elements
+        let mut sigma: Vec<Vec<Tensor2>>;
+        let mut ivs_solid: Vec<Vec<Vector>>;
         let mut loading: Vec<Vec<bool>>;
-        if has_solid {
-            effective_stress = vec![Vec::new(); ncell];
-            int_values_solid = vec![Vec::new(); ncell];
+        if has_solid || has_porous_solid {
+            sigma = vec![Vec::new(); ncell];
+            ivs_solid = vec![Vec::new(); ncell];
             loading = vec![Vec::new(); ncell];
         } else {
-            effective_stress = Vec::new();
-            int_values_solid = Vec::new();
+            sigma = Vec::new();
+            ivs_solid = Vec::new();
             loading = Vec::new();
         }
 
-        // pre-allocate data for porous elements
+        // pre-allocate secondary arrays for porous elements
         let mut liquid_saturation: Vec<Vec<f64>>;
-        let int_values_porous: Vec<Vec<Vector>>;
+        let ivs_porous: Vec<Vec<Vector>>;
         let mut wetting: Vec<Vec<bool>>;
-        if has_porous {
+        if has_porous_fluid || has_porous_solid {
             liquid_saturation = vec![Vec::new(); ncell];
-            int_values_porous = vec![Vec::new(); ncell];
+            ivs_porous = vec![Vec::new(); ncell];
             wetting = vec![Vec::new(); ncell];
         } else {
             liquid_saturation = Vec::new();
-            int_values_porous = Vec::new();
+            ivs_porous = Vec::new();
             wetting = Vec::new();
         }
 
-        // allocate template stress tensor
-        let zero_sigma = Tensor2::new(true, ndim == 2);
-
         // function to generate integration point variables for solid/porous elements
+        let two_dim = ndim == 2;
         let mut solid = |cell_id, n_integ_point, stress_strain: &ParamStressStrain| {
-            effective_stress[cell_id] = vec![zero_sigma.clone(); n_integ_point];
+            // stresses
+            sigma[cell_id] = (0..n_integ_point)
+                .into_iter()
+                .map(|_| Tensor2::new(true, two_dim))
+                .collect();
+            // internal values
             let n_internal_values = stress_strain.n_internal_values();
             if n_internal_values > 0 {
-                let zero_internal_values = Vector::new(n_internal_values);
-                int_values_solid[cell_id] = vec![zero_internal_values.clone(); n_integ_point];
+                ivs_solid[cell_id] = (0..n_integ_point)
+                    .into_iter()
+                    .map(|_| Vector::new(n_internal_values))
+                    .collect();
             }
+            // loading flags
             if stress_strain.elasto_plastic() {
                 loading[cell_id] = vec![false; n_integ_point];
             }
@@ -214,15 +213,15 @@ impl State {
             wetting[cell_id] = vec![false; n_integ_point];
         };
 
-        // update state vectors with varied sub-vectors (n_integ_point)
+        // append (various n_integ_point) sub-vectors to secondary vectors
         for cell in &data.mesh.cells {
             let ips = config.integ_point_data(cell)?;
             let n_integ_point = ips.len();
-            let element = data.attributes.get(cell).unwrap(); // already checked above
+            let element = data.attributes.get(cell).unwrap(); // already checked by Data
             match element {
-                Element::Diffusion(..) => (), // this will not happen
-                Element::Rod(..) => (),
-                Element::Beam(..) => (),
+                Element::Diffusion(..) => (), // skipped because of previous return command
+                Element::Rod(..) => (),       // skipped because of previous return command
+                Element::Beam(..) => (),      // skipped because of previous return command
                 Element::Solid(p) => solid(cell.id, n_integ_point, &p.stress_strain),
                 Element::PorousLiq(p) => porous(cell.id, n_integ_point, &p.retention_liquid),
                 Element::PorousLiqGas(p) => porous(cell.id, n_integ_point, &p.retention_liquid),
@@ -237,6 +236,9 @@ impl State {
             };
         }
 
+        // initialize stresses
+        if has_solid || has_porous_solid {}
+
         // general state
         Ok(State {
             t,
@@ -248,12 +250,12 @@ impl State {
             vv_star,
             aa_star,
 
-            sigma: effective_stress,
-            ivs: int_values_solid,
+            sigma,
+            ivs_solid,
             loading,
 
-            sl: liquid_saturation,
-            ivs_porous: int_values_porous,
+            liquid_saturation,
+            ivs_porous,
             wetting,
         })
     }
@@ -266,7 +268,29 @@ mod tests {
     use super::State;
     use crate::base::{Config, Element, SampleParams};
     use crate::fem::Data;
-    use gemlab::mesh::Samples;
+    use gemlab::mesh::{Mesh, Samples};
+
+    #[test]
+    fn new_handles_errors() {
+        let empty_mesh = Mesh {
+            ndim: 2,
+            points: Vec::new(),
+            cells: Vec::new(),
+        };
+        let p1 = SampleParams::param_solid();
+        let data = Data::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
+        let config = Config::new();
+        assert_eq!(State::new(&data, &config).err(), Some("there are no cells in the mesh"));
+
+        let mesh = Samples::one_tri3();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let mut config = Config::new();
+        config.n_integ_point.insert(1, 100); // wrong number
+        assert_eq!(
+            State::new(&data, &config).err(),
+            Some("desired number of integration points is not available for Tri class")
+        );
+    }
 
     #[test]
     fn new_works_mixed() {
@@ -290,27 +314,27 @@ mod tests {
         assert_eq!(state.dt, 0.1);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), ncell);
-        assert_eq!(state.ivs.len(), ncell);
+        assert_eq!(state.ivs_solid.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
-        assert_eq!(state.sl.len(), ncell);
+        assert_eq!(state.liquid_saturation.len(), ncell);
         assert_eq!(state.ivs_porous.len(), ncell);
         assert_eq!(state.wetting.len(), ncell);
         assert_eq!(state.sigma[0].len(), 9 /*n_integ_point*/);
         assert_eq!(state.sigma[1].len(), 7 /*n_integ_point*/);
         assert_eq!(state.sigma[2].len(), 0 /*n_integ_point*/);
         assert_eq!(state.sigma[3].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.ivs[0].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.ivs[1].len(), 7 /*n_integ_point*/);
-        assert_eq!(state.ivs[2].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.ivs[3].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.ivs_solid[0].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.ivs_solid[1].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.ivs_solid[2].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.ivs_solid[3].len(), 0 /*n_integ_point*/);
         assert_eq!(state.loading[0].len(), 0 /*n_integ_point*/);
         assert_eq!(state.loading[1].len(), 7 /*n_integ_point*/);
         assert_eq!(state.loading[2].len(), 0 /*n_integ_point*/);
         assert_eq!(state.loading[3].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.sl[0].len(), 9 /*n_integ_point*/);
-        assert_eq!(state.sl[1].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.sl[2].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.sl[3].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.liquid_saturation[0].len(), 9 /*n_integ_point*/);
+        assert_eq!(state.liquid_saturation[1].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.liquid_saturation[2].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.liquid_saturation[3].len(), 0 /*n_integ_point*/);
         assert_eq!(state.wetting[0].len(), 9 /*n_integ_point*/);
         assert_eq!(state.wetting[1].len(), 0 /*n_integ_point*/);
         assert_eq!(state.wetting[2].len(), 0 /*n_integ_point*/);
@@ -327,9 +351,9 @@ mod tests {
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), 0);
-        assert_eq!(state.ivs.len(), 0);
+        assert_eq!(state.ivs_solid.len(), 0);
         assert_eq!(state.loading.len(), 0);
-        assert_eq!(state.sl.len(), 0);
+        assert_eq!(state.liquid_saturation.len(), 0);
         assert_eq!(state.ivs_porous.len(), 0);
         assert_eq!(state.wetting.len(), 0);
     }
@@ -344,9 +368,9 @@ mod tests {
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), 0);
-        assert_eq!(state.ivs.len(), 0);
+        assert_eq!(state.ivs_solid.len(), 0);
         assert_eq!(state.loading.len(), 0);
-        assert_eq!(state.sl.len(), 0);
+        assert_eq!(state.liquid_saturation.len(), 0);
         assert_eq!(state.ivs_porous.len(), 0);
         assert_eq!(state.wetting.len(), 0);
     }
@@ -362,12 +386,12 @@ mod tests {
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), 0);
-        assert_eq!(state.ivs.len(), 0);
+        assert_eq!(state.ivs_solid.len(), 0);
         assert_eq!(state.loading.len(), 0);
-        assert_eq!(state.sl.len(), ncell);
+        assert_eq!(state.liquid_saturation.len(), ncell);
         assert_eq!(state.ivs_porous.len(), ncell);
         assert_eq!(state.wetting.len(), ncell);
-        assert_eq!(state.sl[0].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.liquid_saturation[0].len(), 7 /*n_integ_point*/);
     }
 
     #[test]
@@ -381,12 +405,12 @@ mod tests {
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), 0);
-        assert_eq!(state.ivs.len(), 0);
+        assert_eq!(state.ivs_solid.len(), 0);
         assert_eq!(state.loading.len(), 0);
-        assert_eq!(state.sl.len(), ncell);
+        assert_eq!(state.liquid_saturation.len(), ncell);
         assert_eq!(state.ivs_porous.len(), ncell);
         assert_eq!(state.wetting.len(), ncell);
-        assert_eq!(state.sl[0].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.liquid_saturation[0].len(), 7 /*n_integ_point*/);
     }
 
     #[test]
@@ -400,12 +424,12 @@ mod tests {
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), ncell);
-        assert_eq!(state.ivs.len(), ncell);
+        assert_eq!(state.ivs_solid.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
-        assert_eq!(state.sl.len(), ncell);
+        assert_eq!(state.liquid_saturation.len(), ncell);
         assert_eq!(state.ivs_porous.len(), ncell);
         assert_eq!(state.wetting.len(), ncell);
-        assert_eq!(state.sl[0].len(), 7 /*n_integ_point*/);
+        assert_eq!(state.liquid_saturation[0].len(), 7 /*n_integ_point*/);
     }
 
     #[test]
@@ -420,9 +444,9 @@ mod tests {
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), ncell);
-        assert_eq!(state.ivs.len(), ncell);
+        assert_eq!(state.ivs_solid.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
-        assert_eq!(state.sl.len(), 0);
+        assert_eq!(state.liquid_saturation.len(), 0);
         assert_eq!(state.ivs_porous.len(), 0);
         assert_eq!(state.wetting.len(), 0);
     }
@@ -442,18 +466,5 @@ mod tests {
         // deserialize
         let read: State = serde_json::from_str(&json).unwrap();
         assert_eq!(format!("{:?}", read), str_ori);
-    }
-
-    #[test]
-    fn new_handles_errors() {
-        let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let mut config = Config::new();
-        config.n_integ_point.insert(1, 100); // wrong number
-        assert_eq!(
-            State::new(&data, &config).err(),
-            Some("desired number of integration points is not available for Tri class")
-        );
     }
 }
