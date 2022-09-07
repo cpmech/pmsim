@@ -57,8 +57,8 @@ pub fn sim_transient(
             boundary_elements.calc_residuals_parallel(&state)?;
 
             // assemble residuals
-            interior_elements.assemble_residuals(rr, &prescribed_values.prescribed);
-            boundary_elements.assemble_residuals(rr, &prescribed_values.prescribed);
+            interior_elements.assemble_residuals(rr, &prescribed_values.flags);
+            boundary_elements.assemble_residuals(rr, &prescribed_values.flags);
 
             // add concentrated loads
             if let Some(point_loads) = concentrated_loads {
@@ -87,11 +87,11 @@ pub fn sim_transient(
             boundary_elements.calc_jacobians_parallel(&state)?;
 
             // assemble jacobians matrices
-            interior_elements.assemble_jacobians(kk, &prescribed_values.prescribed);
-            boundary_elements.assemble_jacobians(kk, &prescribed_values.prescribed);
+            interior_elements.assemble_jacobians(kk, &prescribed_values.flags);
+            boundary_elements.assemble_jacobians(kk, &prescribed_values.flags);
 
             // augment global Jacobian matrix
-            for eq in &prescribed_values.p_equations {
+            for eq in &prescribed_values.equations {
                 kk.put(*eq, *eq, 1.0)?;
             }
 

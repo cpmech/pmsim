@@ -49,7 +49,7 @@ impl LinearSystem {
         let n_equation = data.equations.n_equation;
 
         // compute the number of non-zero values
-        let mut nnz_sup = prescribed_values.p_equations.len();
+        let mut nnz_sup = prescribed_values.equations.len();
         nnz_sup += interior_elements.all.iter().fold(0, |acc, e| {
             // interior elements always have a Jacobian matrix
             acc + e.actual.local_to_global().len() * e.actual.local_to_global().len()

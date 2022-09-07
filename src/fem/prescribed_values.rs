@@ -23,13 +23,13 @@ pub struct PrescribedValues<'a> {
 
     /// An array indicating which DOFs (equations) are prescribed
     ///
-    /// The length of `prescribed` is equal to `n_equation`, the total number of DOFs (total number of equations).
-    pub prescribed: Vec<bool>,
+    /// The length of `flags` is equal to `n_equation`, the total number of DOFs (total number of equations).
+    pub flags: Vec<bool>,
 
     /// Array with only the DOFs numbers of the prescribed equations
     ///
-    /// Compared to the array `prescribed`, this is a "smaller" array with only the prescribed DOFs numbers.
-    pub p_equations: Vec<usize>,
+    /// Compared to the array `flags`, this is a "smaller" array with only the prescribed DOFs numbers.
+    pub equations: Vec<usize>,
 }
 
 impl<'a> PrescribedValue<'a> {
@@ -66,24 +66,20 @@ impl<'a> PrescribedValues<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, essential: &Essential) -> Result<Self, StrError> {
         let mut all = Vec::new();
-        let mut prescribed = vec![false; data.equations.n_equation];
-        let mut p_equations = Vec::new();
+        let mut flags = vec![false; data.equations.n_equation];
+        let mut equations = Vec::new();
         for ((point_id, dof), ebc) in &essential.all {
             let eq = data.equations.eq(*point_id, *dof)?;
             all.push(PrescribedValue::new(data, *point_id, *ebc).unwrap()); // already checked
-            prescribed[eq] = true;
-            p_equations.push(eq);
+            flags[eq] = true;
+            equations.push(eq);
         }
-        Ok(PrescribedValues {
-            all,
-            prescribed,
-            p_equations,
-        })
+        Ok(PrescribedValues { all, flags, equations })
     }
 
     /// Sets all prescribed values in the solution vector
     #[inline]
-    pub fn prescribe(&self, uu: &mut Vector, time: f64) {
+    pub fn apply(&self, uu: &mut Vector, time: f64) {
         self.all.iter().for_each(|e| e.set_value(uu, time));
     }
 }
@@ -138,7 +134,7 @@ mod tests {
         essential.at(&[0], Ebc::T(|_| 110.0));
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.prescribe(&mut uu, 0.0);
+        values.apply(&mut uu, 0.0);
         let correct = &[110.0, 0.0, 0.0];
         assert_eq!(uu.as_data(), correct);
     }
@@ -168,7 +164,7 @@ mod tests {
             .at(&[0], Ebc::Rz(|_| 6.0));
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.prescribe(&mut uu, 0.0);
+        values.apply(&mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
             1.0, 2.0, 3.0, 4.0, 5.0, 6.0, //  0 Ux,Uy,Uz, Rx,Ry,Rz
@@ -241,7 +237,7 @@ mod tests {
             .at(&[10], Ebc::Rz(|_| 28.0));
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.prescribe(&mut uu, 0.0);
+        values.apply(&mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[            // point
              0.0,  1.0,  2.0,       //  0 (Ux, 0) (Uy, 1) (Pl,2)
@@ -280,7 +276,7 @@ mod tests {
             .at(&[2], Ebc::Pg(|_| 12.0));
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.prescribe(&mut uu, 0.0);
+        values.apply(&mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
             1.0,  2.0,  3.0,  4.0, // 0 Ux,Uy,Pl,Pg
@@ -312,8 +308,8 @@ mod tests {
         assert_eq!(zero(1.0), 0.0);
         essential.at(&[0, 4], Ebc::Pl(zero));
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        assert_eq!(values.prescribed, &[true, false, false, false, true]);
-        let mut eqs = values.p_equations.clone();
+        assert_eq!(values.flags, &[true, false, false, false, true]);
+        let mut eqs = values.equations.clone();
         eqs.sort();
         assert_eq!(eqs, &[0, 4]);
 
@@ -336,11 +332,11 @@ mod tests {
             .at(&[1, 2], Ebc::Uy(zero));
         let values = PrescribedValues::new(&data, &essential).unwrap();
         assert_eq!(
-            values.prescribed,
+            values.flags,
             //   0     1      2     3      4     5      6      7      8      9
             &[true, true, false, true, false, true, false, false, false, false]
         );
-        let mut eqs = values.p_equations.clone();
+        let mut eqs = values.equations.clone();
         eqs.sort();
         assert_eq!(eqs, &[0, 1, 3, 5]);
     }
