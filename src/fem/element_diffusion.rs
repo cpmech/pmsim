@@ -141,6 +141,13 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         }
         Ok(())
     }
+
+    /// Updates secondary variables such as stresses and internal values
+    ///
+    /// Note that state.uu, state.vv, and state.aa have been updated already
+    fn update_state(&mut self, _state: &mut State, _delta_uu: &Vector) -> Result<(), StrError> {
+        Ok(())
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

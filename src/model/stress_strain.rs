@@ -1,10 +1,19 @@
 use super::LinearElastic;
 use crate::base::{ParamSolid, ParamStressStrain};
 use crate::StrError;
+use russell_lab::Vector;
 use russell_tensor::{Tensor2, Tensor4};
 
 pub trait StressStrain: Send + Sync {
-    fn stiffness(&self, dd: &mut Tensor4, sigma: &Tensor2) -> Result<(), StrError>;
+    fn stiffness(&mut self, dd: &mut Tensor4, sigma: &Tensor2, ivs: &Vector, loading: bool) -> Result<(), StrError>;
+
+    fn update_stress(
+        &mut self,
+        sigma: &mut Tensor2,
+        ivs: &mut Vector,
+        loading: &mut bool,
+        delta_eps: &Tensor2,
+    ) -> Result<(), StrError>;
 }
 
 /// Allocates stress-strain model

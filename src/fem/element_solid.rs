@@ -6,7 +6,7 @@ use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Cell};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
-use russell_tensor::copy_tensor2;
+use russell_tensor::{copy_tensor2, Tensor2};
 
 /// Implements the local Solid Element equations
 pub struct ElementSolid<'a> {
@@ -33,6 +33,9 @@ pub struct ElementSolid<'a> {
 
     /// Stress-strain model
     pub model: Box<dyn StressStrain>,
+
+    /// Auxiliary
+    delta_eps: Tensor2,
 }
 
 impl<'a> ElementSolid<'a> {
@@ -52,6 +55,7 @@ impl<'a> ElementSolid<'a> {
                 pad,
                 ips: config.integ_point_data(cell)?,
                 model: allocate_stress_strain_model(param, ndim == 2, config.plane_stress),
+                delta_eps: Tensor2::new(true, ndim == 2),
             }
         })
     }
@@ -74,9 +78,56 @@ impl<'a> LocalEquations for ElementSolid<'a> {
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
         let sigma = &state.sigma[self.cell.id];
+        let ivs = &state.ivs_solid[self.cell.id];
+        let loading = &state.loading[self.cell.id];
         integ::mat_10_gdg(jacobian, &mut self.pad, 0, 0, true, self.ips, |dd, p, _| {
-            self.model.stiffness(dd, &sigma[p])
+            self.model.stiffness(dd, &sigma[p], &ivs[p], loading[p])
         })
+    }
+
+    /// Updates secondary variables such as stresses and internal values
+    ///
+    /// Note that state.uu, state.vv, and state.aa have been updated already
+    fn update_state(&mut self, state: &mut State, delta_uu: &Vector) -> Result<(), StrError> {
+        let sigma = &mut state.sigma[self.cell.id];
+        let ivs = &mut state.ivs_solid[self.cell.id];
+        let loading = &mut state.loading[self.cell.id];
+        let delta_eps = &mut self.delta_eps;
+        let ndim = self.ndim;
+        let nnode = self.cell.points.len();
+        let l2g = &self.local_to_global;
+        for p in 0..self.ips.len() {
+            // interpolate increment of strains
+            self.pad.calc_gradient(&self.ips[p])?;
+            let gg = &self.pad.gradient;
+            calc_delta_eps(delta_eps, delta_uu, gg, l2g, ndim, nnode);
+            // perform stress-update
+            self.model
+                .update_stress(&mut sigma[p], &mut ivs[p], &mut loading[p], delta_eps)?;
+        }
+        Ok(())
+    }
+}
+
+#[inline]
+#[rustfmt::skip]
+fn calc_delta_eps(delta_eps: &mut Tensor2, delta_uu: &Vector, gg: &Matrix, l2g: &Vec<usize>, ndim: usize, nnode: usize) {
+    delta_eps.clear();
+    if ndim == 2 {
+        for m in 0..nnode {
+            delta_eps.sym_update(0, 0, 1.0,  delta_uu[l2g[0+2*m]] * gg[m][0]);
+            delta_eps.sym_update(1, 1, 1.0,  delta_uu[l2g[1+2*m]] * gg[m][1]);
+            delta_eps.sym_update(0, 1, 1.0, (delta_uu[l2g[0+2*m]] * gg[m][1] + delta_uu[l2g[1+2*m]] * gg[m][0])/2.0);
+        }
+    } else {
+        for m in 0..nnode {
+            delta_eps.sym_update(0, 0, 1.0,  delta_uu[l2g[0+3*m]] * gg[m][0]);
+            delta_eps.sym_update(1, 1, 1.0,  delta_uu[l2g[1+3*m]] * gg[m][1]);
+            delta_eps.sym_update(2, 2, 1.0,  delta_uu[l2g[2+3*m]] * gg[m][2]);
+            delta_eps.sym_update(0, 1, 1.0, (delta_uu[l2g[0+3*m]] * gg[m][1] + delta_uu[l2g[1+3*m]] * gg[m][0])/2.0);
+            delta_eps.sym_update(1, 2, 1.0, (delta_uu[l2g[1+3*m]] * gg[m][2] + delta_uu[l2g[2+3*m]] * gg[m][1])/2.0);
+            delta_eps.sym_update(0, 2, 1.0, (delta_uu[l2g[0+3*m]] * gg[m][2] + delta_uu[l2g[2+3*m]] * gg[m][0])/2.0);
+        }
     }
 }
 

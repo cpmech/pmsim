@@ -194,16 +194,16 @@ impl State {
                 .collect();
             // internal values
             let n_internal_values = stress_strain.n_internal_values();
-            if n_internal_values > 0 {
-                ivs_solid[cell_id] = (0..n_integ_point)
-                    .into_iter()
-                    .map(|_| Vector::new(n_internal_values))
-                    .collect();
-            }
+            // if n_internal_values > 0 {
+            ivs_solid[cell_id] = (0..n_integ_point)
+                .into_iter()
+                .map(|_| Vector::new(n_internal_values))
+                .collect();
+            // }
             // loading flags
-            if stress_strain.elasto_plastic() {
-                loading[cell_id] = vec![false; n_integ_point];
-            }
+            // if stress_strain.elasto_plastic() {
+            loading[cell_id] = vec![false; n_integ_point];
+            // }
         };
 
         // function to generate integration point variables for porous elements

@@ -5,7 +5,7 @@ use pmsim::StrError;
 use russell_chk::vec_approx_eq;
 
 // Bhatti's Example 1.6 on page 32
-// #[test]
+#[test]
 fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
     // mesh and boundary features
     // 2.0  fixed 1'-,_load                connectivity:

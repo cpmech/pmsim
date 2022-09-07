@@ -1,7 +1,7 @@
 use super::{BoundaryElements, ConcentratedLoads, Data, InteriorElements, LinearSystem, PrescribedValues, State};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
-use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
+use russell_lab::{add_vectors, update_vector, vector_norm, NormVec, Vector};
 
 /// Performs a finite element simulation
 pub struct Simulation<'a> {
@@ -55,6 +55,9 @@ impl<'a> Simulation<'a> {
         let kk = &mut self.linear_system.jacobian;
         let mdu = &mut self.linear_system.mdu;
 
+        // cumulated primary variables
+        let mut delta_uu = Vector::new(mdu.dim());
+
         // output
         if control.verbose_timesteps {
             print_header();
@@ -82,6 +85,9 @@ impl<'a> Simulation<'a> {
             if control.verbose_timesteps {
                 print_timestep(timestep, state.t, state.dt);
             }
+
+            // reset cumulated U vector
+            delta_uu.fill(0.0);
 
             // Note: we enter the iterations with an updated time, thus the boundary
             // conditions will contribute with updated residuals. However the primary
@@ -150,6 +156,10 @@ impl<'a> Simulation<'a> {
                 if config.transient {
                     add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star).unwrap();
                 }
+
+                // update ΔU and secondary variables
+                update_vector(&mut delta_uu, -1.0, &mdu).unwrap();
+                self.interior_elements.update_state(state, &delta_uu)?;
 
                 // check convergence
                 if iteration == control.n_max_iterations - 1 {

@@ -91,6 +91,14 @@ impl<'a> InteriorElement<'a> {
         }
         num_jacobian
     }
+
+    /// Updates secondary variables such as stresses and internal values
+    ///
+    /// Note that state.uu, state.vv, and state.aa have been updated already
+    #[inline]
+    pub fn update_state(&mut self, state: &mut State, delta_uu: &Vector) -> Result<(), StrError> {
+        self.actual.update_state(state, delta_uu)
+    }
 }
 
 impl<'a> InteriorElements<'a> {
@@ -162,6 +170,14 @@ impl<'a> InteriorElements<'a> {
         self.all
             .iter()
             .for_each(|e| assemble_matrix(kk, &e.jacobian, &e.actual.local_to_global(), &prescribed));
+    }
+
+    /// Updates secondary variables such as stresses and internal values
+    ///
+    /// Note that state.uu, state.vv, and state.aa have been updated already
+    #[inline]
+    pub fn update_state(&mut self, state: &mut State, delta_uu: &Vector) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.update_state(state, delta_uu)).collect()
     }
 }
 
