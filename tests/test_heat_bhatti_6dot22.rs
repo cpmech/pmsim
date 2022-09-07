@@ -51,7 +51,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&bottom, &[Dof::T], |_| 110.0);
+    essential.on(&bottom, Ebc::T(|_| 110.0));
     println!("\n{}", essential);
 
     // natural boundary conditions
@@ -252,7 +252,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&bottom, &[Dof::T], |_| 110.0);
+    essential.on(&bottom, Ebc::T(|_| 110.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();

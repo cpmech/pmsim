@@ -38,7 +38,8 @@ fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.at(&[0, 1], &[Dof::Ux, Dof::Uy], |_| 0.0);
+    let zero = |_| 0.0;
+    essential.at(&[0, 1], Ebc::Ux(zero)).at(&[0, 1], Ebc::Uy(zero));
 
     // natural boundary conditions
     let mut natural = Natural::new();

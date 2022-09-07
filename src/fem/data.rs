@@ -61,7 +61,7 @@ impl<'a> Data<'a> {
 #[cfg(test)]
 mod tests {
     use super::Data;
-    use crate::base::{Dof, Element, Essential, SampleParams};
+    use crate::base::{Ebc, Element, Essential, SampleParams};
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -119,13 +119,13 @@ mod tests {
         let mut essential = Essential::new();
         let zero = |_| 0.0;
         assert_eq!(zero(1.0), 0.0);
-        essential.at(&[0, 4], &[Dof::Pl], zero);
+        essential.at(&[0, 4], Ebc::Pl(zero));
         let (prescribed, mut p_equations) = data.prescribed(&essential).unwrap();
         assert_eq!(prescribed, &[true, false, false, false, true]);
         p_equations.sort();
         assert_eq!(p_equations, &[0, 4]);
 
-        essential.at(&[3], &[Dof::T], zero);
+        essential.at(&[3], Ebc::T(zero));
         assert_eq!(
             data.prescribed(&essential).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
@@ -144,8 +144,10 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut essential = Essential::new();
-        essential.at(&[0], &[Dof::Ux, Dof::Uy], zero);
-        essential.at(&[1, 2], &[Dof::Uy], zero);
+        essential
+            .at(&[0], Ebc::Ux(zero))
+            .at(&[0], Ebc::Uy(zero))
+            .at(&[1, 2], Ebc::Uy(zero));
         let (prescribed, mut p_equations) = data.prescribed(&essential).unwrap();
         assert_eq!(
             prescribed,

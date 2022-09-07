@@ -1,8 +1,8 @@
-#![allow(unused_variables)]
-#![allow(unused_imports)]
+#![allow(unused)]
 
-use gemlab::mesh::{At, Extract, Features, Find};
-use pmsim::base::{Dof, Essential, Natural, SampleMeshes};
+use gemlab::prelude::*;
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
 use pmsim::StrError;
 
 fn main() -> Result<(), StrError> {
@@ -18,9 +18,9 @@ fn main() -> Result<(), StrError> {
     let zero = |_| 0.0;
     let mut essential = Essential::new();
     essential
-        .on(&left, &[Dof::Ux], zero)
-        .on(&right, &[Dof::Ux], zero)
-        .on(&bottom, &[Dof::Uy], zero);
+        .on(&left, Ebc::Ux(zero))
+        .on(&right, Ebc::Ux(zero))
+        .on(&bottom, Ebc::Uy(zero));
 
     Ok(())
 }

@@ -91,7 +91,7 @@ impl LinearSystem {
 #[cfg(test)]
 mod tests {
     use super::LinearSystem;
-    use crate::base::{Config, Dof, Element, Essential, Natural, Nbc, SampleParams};
+    use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, SampleParams};
     use crate::fem::{BoundaryElementVec, Data, InteriorElementVec};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
@@ -105,7 +105,7 @@ mod tests {
         let mut essential = Essential::new();
         let zero = |_| 0.0;
         assert_eq!(zero(0.0), 0.0);
-        essential.at(&[0], &[Dof::Ux], zero); // << Ux is not available for Diffusion
+        essential.at(&[0], Ebc::Ux(zero)); // << Ux is not available for Diffusion
         let natural = Natural::new();
         let interior_elements = InteriorElementVec::new(&data, &config).unwrap();
         let boundary_elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
@@ -146,7 +146,7 @@ mod tests {
         let mut natural = Natural::new();
         let f = |_| 123.0;
         assert_eq!(f(0.0), 123.0);
-        essential.at(&[0, 4], &[Dof::T], f);
+        essential.at(&[0, 4], Ebc::T(f));
         let edge_conv = Feature {
             kind: GeoKind::Lin2,
             points: vec![2, 3],

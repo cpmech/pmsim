@@ -1,11 +1,11 @@
-use super::{Dof, FnBc};
+use super::{Dof, Ebc};
 use gemlab::mesh::{Feature, PointId};
 use std::collections::HashMap;
 use std::fmt;
 
 /// Holds essential boundary conditions
 pub struct Essential {
-    pub all: HashMap<(PointId, Dof), FnBc>,
+    pub all: HashMap<(PointId, Dof), Ebc>,
 }
 
 impl Essential {
@@ -15,22 +15,18 @@ impl Essential {
     }
 
     /// Sets essential boundary condition at points
-    pub fn at(&mut self, points: &[PointId], dofs: &[Dof], f: FnBc) -> &mut Self {
+    pub fn at(&mut self, points: &[PointId], ebc: Ebc) -> &mut Self {
         for point_id in points {
-            for dof in dofs {
-                self.all.insert((*point_id, *dof), f);
-            }
+            self.all.insert((*point_id, ebc.dof()), ebc);
         }
         self
     }
 
     /// Sets essential boundary condition on edges or faces
-    pub fn on(&mut self, features: &[&Feature], dofs: &[Dof], f: FnBc) -> &mut Self {
+    pub fn on(&mut self, features: &[&Feature], ebc: Ebc) -> &mut Self {
         for edge in features {
             for point_id in &edge.points {
-                for dof in dofs {
-                    self.all.insert((*point_id, *dof), f);
-                }
+                self.all.insert((*point_id, ebc.dof()), ebc);
             }
         }
         self
@@ -45,10 +41,8 @@ impl fmt::Display for Essential {
         let mut keys: Vec<_> = self.all.keys().collect();
         keys.sort();
         for key in keys {
-            let fbc = self.all.get(key).unwrap();
-            let f0 = fbc(0.0);
-            let f1 = fbc(1.0);
-            write!(f, "{:?} : {:?} @ t=0 → {:?} @ t=1 → {:?}\n", key.0, key.1, f0, f1).unwrap();
+            let ebc = self.all.get(key).unwrap();
+            write!(f, "{:?} : {}\n", key.0, ebc).unwrap();
         }
         Ok(())
     }
@@ -59,7 +53,7 @@ impl fmt::Display for Essential {
 #[cfg(test)]
 mod tests {
     use super::Essential;
-    use crate::base::Dof;
+    use crate::base::Ebc;
     use gemlab::mesh::Feature;
     use gemlab::shapes::GeoKind;
 
@@ -75,20 +69,22 @@ mod tests {
             points: vec![3, 4, 5],
         }];
         essential
-            .at(&[0], &[Dof::Ux, Dof::Uy], |_| 0.0)
-            .on(edges, &[Dof::Pl], |t| t)
-            .on(faces, &[Dof::T], |t| t / 2.0);
+            .at(&[0], Ebc::Ux(|_| 0.0))
+            .at(&[0], Ebc::Uy(|_| 0.0))
+            .on(edges, Ebc::Pl(|t| t))
+            .on(faces, Ebc::T(|t| t / 2.0));
+        print!("{}", essential);
         assert_eq!(
             format!("{}", essential),
             "Essential boundary conditions\n\
              =============================\n\
-             0 : Ux @ t=0 → 0.0 @ t=1 → 0.0\n\
-             0 : Uy @ t=0 → 0.0 @ t=1 → 0.0\n\
-             1 : Pl @ t=0 → 0.0 @ t=1 → 1.0\n\
-             2 : Pl @ t=0 → 0.0 @ t=1 → 1.0\n\
-             3 : T @ t=0 → 0.0 @ t=1 → 0.5\n\
-             4 : T @ t=0 → 0.0 @ t=1 → 0.5\n\
-             5 : T @ t=0 → 0.0 @ t=1 → 0.5\n"
+             0 : Ux(0) = 0.0, Ux(1) = 0.0\n\
+             0 : Uy(0) = 0.0, Uy(1) = 0.0\n\
+             1 : Pl(0) = 0.0, Pl(1) = 1.0\n\
+             2 : Pl(0) = 0.0, Pl(1) = 1.0\n\
+             3 : T(0) = 0.0, T(1) = 0.5\n\
+             4 : T(0) = 0.0, T(1) = 0.5\n\
+             5 : T(0) = 0.0, T(1) = 0.5\n"
         );
     }
 }

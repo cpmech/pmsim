@@ -36,7 +36,8 @@ fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.at(&[0, 3], &[Dof::Ux, Dof::Uy], |_| 0.0);
+    let zero = |_| 0.0;
+    essential.at(&[0, 3], Ebc::Ux(zero)).at(&[0, 3], Ebc::Uy(zero));
 
     // natural boundary conditions
     let mut natural = Natural::new();
