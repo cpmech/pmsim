@@ -46,7 +46,7 @@ fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
     // boundary elements
-    let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
+    let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
 
     // interior elements
     let mut interior_elements = InteriorElementVec::new(&data, &config)?;

@@ -47,7 +47,7 @@ fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
     let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
 
     // boundary elements
-    let mut boundary_elements = BoundaryElementVec::new(&data, &config, &natural)?;
+    let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
 
     // interior elements
     let mut interior_elements = InteriorElementVec::new(&data, &config)?;

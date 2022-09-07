@@ -20,7 +20,7 @@ pub struct BoundaryElement {
 }
 
 /// Holds a collection of boundary elements
-pub struct BoundaryElementVec {
+pub struct BoundaryElements {
     pub all: Vec<BoundaryElement>,
 }
 
@@ -148,7 +148,7 @@ impl BoundaryElement {
     }
 }
 
-impl BoundaryElementVec {
+impl BoundaryElements {
     // Allocates new instance
     pub fn new(data: &Data, config: &Config, bcs: &Natural) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = bcs
@@ -157,7 +157,7 @@ impl BoundaryElementVec {
             .map(|(feature, nbc)| BoundaryElement::new(data, config, feature, *nbc))
             .collect();
         match res {
-            Ok(all) => Ok(BoundaryElementVec { all }),
+            Ok(all) => Ok(BoundaryElements { all }),
             Err(e) => Err(e),
         }
     }
@@ -223,7 +223,7 @@ impl BoundaryElementVec {
 
 #[cfg(test)]
 mod tests {
-    use super::{BoundaryElement, BoundaryElementVec};
+    use super::{BoundaryElement, BoundaryElements};
     use crate::base::{Config, Element, Natural, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::{Extract, Feature, Features, Samples};
@@ -266,7 +266,7 @@ mod tests {
         let mut natural = Natural::new();
         natural.on(&[&edge], Nbc::Qn(minus_ten));
         assert_eq!(
-            BoundaryElementVec::new(&data, &config, &natural).err(),
+            BoundaryElements::new(&data, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -285,7 +285,7 @@ mod tests {
 
         let mut natural = Natural::new();
         natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
-        let mut b_elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
+        let mut b_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
         let state = State::new(&data, &config).unwrap();
         b_elements.all.par_iter_mut().for_each(|d| {
             d.calc_residual(&state).unwrap();
@@ -526,7 +526,7 @@ mod tests {
         assert_eq!(ft(0.0), 20.0);
 
         natural.on(&[&edge], Nbc::Cv(40.0, ft));
-        let mut elements = BoundaryElementVec::new(&data, &config, &natural).unwrap();
+        let mut elements = BoundaryElements::new(&data, &config, &natural).unwrap();
         let state = State::new(&data, &config).unwrap();
         elements.calc_residuals(&state).unwrap();
         elements.calc_jacobians(&state).unwrap();
