@@ -6,12 +6,16 @@ use russell_lab::Vector;
 
 /// Assists in calculating concentrated loads
 pub struct ConcentratedLoad {
+    /// Point boundary condition
     pub pbc: Pbc,
+
+    /// Equation corresponding to the concentrated load
     pub eq: usize,
 }
 
 /// Holds a collection of concentrated loads
 pub struct ConcentratedLoads {
+    /// All values
     pub all: Vec<ConcentratedLoad>,
 }
 
@@ -38,8 +42,8 @@ impl ConcentratedLoad {
 
 impl ConcentratedLoads {
     /// Allocates new instance
-    pub fn new(data: &Data, bcs: &Natural) -> Result<Self, StrError> {
-        let res: Result<Vec<_>, _> = bcs
+    pub fn new(data: &Data, natural: &Natural) -> Result<Self, StrError> {
+        let res: Result<Vec<_>, _> = natural
             .concentrated
             .iter()
             .map(|(point_id, pbc)| ConcentratedLoad::new(data, *point_id, *pbc))

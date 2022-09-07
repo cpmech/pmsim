@@ -150,8 +150,8 @@ impl BoundaryElement {
 
 impl BoundaryElements {
     // Allocates new instance
-    pub fn new(data: &Data, config: &Config, bcs: &Natural) -> Result<Self, StrError> {
-        let res: Result<Vec<_>, _> = bcs
+    pub fn new(data: &Data, config: &Config, natural: &Natural) -> Result<Self, StrError> {
+        let res: Result<Vec<_>, _> = natural
             .distributed
             .iter()
             .map(|(feature, nbc)| BoundaryElement::new(data, config, feature, *nbc))
