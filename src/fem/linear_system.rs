@@ -1,5 +1,5 @@
-use super::{BoundaryElements, Data, InteriorElements};
-use crate::{base::Essential, StrError};
+use super::{BoundaryElements, Data, InteriorElements, PrescribedValues};
+use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
 
@@ -7,16 +7,6 @@ use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
 pub struct LinearSystem {
     /// Total number of global equations (total number of DOFs)
     pub n_equation: usize,
-
-    /// Is an array indicating which DOFs (equations) are prescribed
-    ///
-    /// The length of `prescribed` is equal to `n_equation`, the total number of DOFs (total number of equations).
-    pub prescribed: Vec<bool>,
-
-    /// Is an array with only the DOFs numbers of the prescribed equations
-    ///
-    /// Compared to the array `prescribed`, this is a "smaller" array with only the prescribed DOFs numbers.
-    pub p_equations: Vec<usize>,
 
     /// Holds the supremum of the number of nonzero values (nnz) in the global matrix
     ///
@@ -51,16 +41,15 @@ impl LinearSystem {
     /// Allocates new instance
     pub fn new(
         data: &Data,
-        essential: &Essential,
+        prescribed_values: &PrescribedValues,
         interior_elements: &InteriorElements,
         boundary_elements: &BoundaryElements,
     ) -> Result<Self, StrError> {
         // equation (DOF) numbers
         let n_equation = data.equations.n_equation;
-        let (prescribed, p_equations) = data.prescribed(essential)?;
 
         // compute the number of non-zero values
-        let mut nnz_sup = p_equations.len();
+        let mut nnz_sup = prescribed_values.p_equations.len();
         nnz_sup += interior_elements.all.iter().fold(0, |acc, e| {
             // interior elements always have a Jacobian matrix
             acc + e.actual.local_to_global().len() * e.actual.local_to_global().len()
@@ -75,8 +64,6 @@ impl LinearSystem {
         let config = ConfigSolver::new();
         Ok(LinearSystem {
             n_equation,
-            prescribed,
-            p_equations,
             nnz_sup,
             residual: Vector::new(n_equation),
             jacobian: SparseTriplet::new(n_equation, n_equation, nnz_sup, Symmetry::No)?,
@@ -92,37 +79,27 @@ impl LinearSystem {
 mod tests {
     use super::LinearSystem;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, SampleParams};
-    use crate::fem::{BoundaryElements, Data, InteriorElements};
+    use crate::fem::{BoundaryElements, Data, InteriorElements, PrescribedValues};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn new_handles_errors() {
-        let mesh = Samples::three_tri3();
-        let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
-        let mut essential = Essential::new();
-        let zero = |_| 0.0;
-        assert_eq!(zero(0.0), 0.0);
-        essential.at(&[0], Ebc::Ux(zero)); // << Ux is not available for Diffusion
-        let natural = Natural::new();
-        let interior_elements = InteriorElements::new(&data, &config).unwrap();
-        let boundary_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
-        assert_eq!(
-            LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).err(),
-            Some("cannot find equation number corresponding to (PointId,DOF)")
-        );
-
         let empty_mesh = Mesh {
             ndim: 2,
             points: Vec::new(),
             cells: Vec::new(),
         };
+        let p1 = SampleParams::param_diffusion();
         let data = Data::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
         let essential = Essential::new();
+        let natural = Natural::new();
+        let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
+        let interior_elements = InteriorElements::new(&data, &config).unwrap();
+        let boundary_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
         assert_eq!(
-            LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).err(),
+            LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements).err(),
             Some("nrow, ncol, and max must all be greater than zero")
         );
     }
@@ -152,9 +129,10 @@ mod tests {
             points: vec![2, 3],
         };
         natural.on(&[&edge_conv], Nbc::Cv(55.0, f));
+        let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
         let interior_elements = InteriorElements::new(&data, &config).unwrap();
         let boundary_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
+        let lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements).unwrap();
         let n_prescribed = 2;
         let n_element = 3;
         let n_equation_local = 3;

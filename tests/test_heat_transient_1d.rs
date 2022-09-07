@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::{fem::sim_transient, prelude::*, StrError};
+use pmsim::{prelude::*, StrError};
 use russell_lab::math::{erfc, PI};
 
 #[test]
@@ -29,6 +29,9 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&left, Nbc::Qt(|_| 1.0));
 
+    // prescribed values
+    let prescribed_values = PrescribedValues::new(&data, &essential)?;
+
     // boundary elements
     let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
 
@@ -39,11 +42,12 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
     let mut state = State::new(&data, &config)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
+    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
 
     // run simulation
     sim_transient(
         None,
+        &prescribed_values,
         &mut boundary_elements,
         &mut interior_elements,
         &mut state,

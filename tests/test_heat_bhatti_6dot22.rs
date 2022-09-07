@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, fem::sim_transient, prelude::*, StrError};
+use pmsim::{base::SampleMeshes, prelude::*, StrError};
 use russell_chk::vec_approx_eq;
 use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, NormVec, Vector};
 
@@ -106,11 +106,14 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     ]);
     mat_approx_eq(&interior_elements.all[1].jacobian, &bhatti_kk1, 1e-12);
 
+    // prescribed values
+    let prescribed_values = PrescribedValues::new(&data, &essential)?;
+
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
+    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
 
     // fix state.uu (must do this before calculating residuals)
-    for eq in &lin_sys.p_equations {
+    for eq in &prescribed_values.p_equations {
         state.uu[*eq] = 110.0;
     }
 
@@ -120,8 +123,8 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
 
     // assemble residuals
     let rr = &mut lin_sys.residual;
-    interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
-    boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
+    interior_elements.assemble_residuals(rr, &prescribed_values.prescribed);
+    boundary_elements.assemble_residuals(rr, &prescribed_values.prescribed);
     println!("rr =\n{}", rr);
     let bhatti_rr = &[
         2627.5555555555547,
@@ -148,8 +151,8 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
 
     // assemble jacobians matrices
     let kk = &mut lin_sys.jacobian;
-    interior_elements.assemble_jacobians(kk, &lin_sys.prescribed);
-    boundary_elements.assemble_jacobians(kk, &lin_sys.prescribed);
+    interior_elements.assemble_jacobians(kk, &prescribed_values.prescribed);
+    boundary_elements.assemble_jacobians(kk, &prescribed_values.prescribed);
     let mut kk_mat = Matrix::new(lin_sys.n_equation, lin_sys.n_equation);
     kk.to_matrix(&mut kk_mat)?;
     // println!("kk =\n{:.4}", kk_mat);
@@ -174,7 +177,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     mat_approx_eq(&kk_mat, &bhatti_kk, 1e-12);
 
     // augment global Jacobian matrix
-    for eq in &lin_sys.p_equations {
+    for eq in &prescribed_values.p_equations {
         kk.put(*eq, *eq, 1.0)?;
     }
 
@@ -212,8 +215,8 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     rr.fill(0.0);
     interior_elements.calc_residuals(&state)?;
     boundary_elements.calc_residuals(&state)?;
-    interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
-    boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
+    interior_elements.assemble_residuals(rr, &prescribed_values.prescribed);
+    boundary_elements.assemble_residuals(rr, &prescribed_values.prescribed);
     println!("rr_new =\n{:?}", rr);
     let norm_rr = vector_norm(rr, NormVec::Max);
     println!("norm_rr = {:?}", norm_rr);
@@ -260,6 +263,9 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
         .on(&edges_flux, Nbc::Qt(|_| 8000.0))
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
 
+    // prescribed values
+    let prescribed_values = PrescribedValues::new(&data, &essential)?;
+
     // boundary elements
     let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
 
@@ -270,11 +276,12 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     let mut state = State::new(&data, &config)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
+    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
 
     // run simulation
     sim_transient(
         None,
+        &prescribed_values,
         &mut boundary_elements,
         &mut interior_elements,
         &mut state,

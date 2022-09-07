@@ -6,14 +6,30 @@ use russell_lab::Vector;
 
 /// Assists in calculating prescribed values
 pub struct PrescribedValue<'a> {
+    /// Point corresponding to the prescribed value
     pub point: &'a Point,
+
+    /// Essential boundary condition
     pub ebc: Ebc,
+
+    /// Equation corresponding to the prescribed value
     pub eq: usize,
 }
 
 /// Holds a collection of prescribed (primary) values
 pub struct PrescribedValues<'a> {
+    /// All values
     pub all: Vec<PrescribedValue<'a>>,
+
+    /// An array indicating which DOFs (equations) are prescribed
+    ///
+    /// The length of `prescribed` is equal to `n_equation`, the total number of DOFs (total number of equations).
+    pub prescribed: Vec<bool>,
+
+    /// Array with only the DOFs numbers of the prescribed equations
+    ///
+    /// Compared to the array `prescribed`, this is a "smaller" array with only the prescribed DOFs numbers.
+    pub p_equations: Vec<usize>,
 }
 
 impl<'a> PrescribedValue<'a> {
@@ -48,21 +64,26 @@ impl<'a> PrescribedValue<'a> {
 
 impl<'a> PrescribedValues<'a> {
     /// Allocates new instance
-    pub fn new(data: &'a Data, bcs: &Essential) -> Result<Self, StrError> {
-        let res: Result<Vec<_>, _> = bcs
-            .all
-            .iter()
-            .map(|((point_id, _), ebc)| PrescribedValue::new(data, *point_id, *ebc))
-            .collect();
-        match res {
-            Ok(all) => Ok(PrescribedValues { all }),
-            Err(e) => Err(e),
+    pub fn new(data: &'a Data, essential: &Essential) -> Result<Self, StrError> {
+        let mut all = Vec::new();
+        let mut prescribed = vec![false; data.equations.n_equation];
+        let mut p_equations = Vec::new();
+        for ((point_id, dof), ebc) in &essential.all {
+            let eq = data.equations.eq(*point_id, *dof)?;
+            all.push(PrescribedValue::new(data, *point_id, *ebc).unwrap()); // already checked
+            prescribed[eq] = true;
+            p_equations.push(eq);
         }
+        Ok(PrescribedValues {
+            all,
+            prescribed,
+            p_equations,
+        })
     }
 
     /// Sets all prescribed values in the solution vector
     #[inline]
-    pub fn set_values(&self, uu: &mut Vector, time: f64) {
+    pub fn prescribe(&self, uu: &mut Vector, time: f64) {
         self.all.iter().for_each(|e| e.set_value(uu, time));
     }
 }
@@ -98,7 +119,7 @@ mod tests {
         essential.at(&[100], Ebc::Ux(f));
         assert_eq!(
             PrescribedValues::new(&data, &essential).err(),
-            Some("cannot initialize prescribed value because PointId is out-of-bounds")
+            Some("cannot find equation number because PointId is out-of-bounds")
         );
         let mut essential = Essential::new();
         essential.at(&[0], Ebc::T(f));
@@ -117,7 +138,7 @@ mod tests {
         essential.at(&[0], Ebc::T(|_| 110.0));
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.set_values(&mut uu, 0.0);
+        values.prescribe(&mut uu, 0.0);
         let correct = &[110.0, 0.0, 0.0];
         assert_eq!(uu.as_data(), correct);
     }
@@ -147,7 +168,7 @@ mod tests {
             .at(&[0], Ebc::Rz(|_| 6.0));
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.set_values(&mut uu, 0.0);
+        values.prescribe(&mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
             1.0, 2.0, 3.0, 4.0, 5.0, 6.0, //  0 Ux,Uy,Uz, Rx,Ry,Rz
@@ -220,7 +241,7 @@ mod tests {
             .at(&[10], Ebc::Rz(|_| 28.0));
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.set_values(&mut uu, 0.0);
+        values.prescribe(&mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[            // point
              0.0,  1.0,  2.0,       //  0 (Ux, 0) (Uy, 1) (Pl,2)
@@ -259,7 +280,7 @@ mod tests {
             .at(&[2], Ebc::Pg(|_| 12.0));
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.set_values(&mut uu, 0.0);
+        values.prescribe(&mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
             1.0,  2.0,  3.0,  4.0, // 0 Ux,Uy,Pl,Pg
@@ -270,5 +291,57 @@ mod tests {
             0.0,  0.0,             // 5 Ux,Uy
         ];
         assert_eq!(uu.as_data(), correct);
+    }
+
+    #[test]
+    fn prescribed_arrays_are_correct() {
+        //       {4} 4---.__
+        //          / \     `--.___3 {3}  [#] indicates id
+        //         /   \          / \     (#) indicates attribute_id
+        //        /     \  [1]   /   \    {#} indicates equation id
+        //       /  [0]  \ (1)  / [2] \
+        //      /   (1)   \    /  (1)  \
+        // {0} 0---.__     \  /      ___2 {2}
+        //            `--.__\/__.---'
+        //               {1} 1
+        let mesh = Samples::three_tri3();
+        let p1 = SampleParams::param_porous_liq();
+        let data = Data::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
+        let mut essential = Essential::new();
+        let zero = |_| 0.0;
+        assert_eq!(zero(1.0), 0.0);
+        essential.at(&[0, 4], Ebc::Pl(zero));
+        let values = PrescribedValues::new(&data, &essential).unwrap();
+        assert_eq!(values.prescribed, &[true, false, false, false, true]);
+        let mut eqs = values.p_equations.clone();
+        eqs.sort();
+        assert_eq!(eqs, &[0, 4]);
+
+        //       {8} 4---.__
+        //       {9}/ \     `--.___3 {6}   [#] indicates id
+        //         /   \          / \{7}   (#) indicates attribute_id
+        //        /     \  [1]   /   \     {#} indicates equation number
+        //       /  [0]  \ (1)  / [2] \
+        // {0}  /   (1)   \    /  (1)  \
+        // {1} 0---.__     \  /      ___2 {4}
+        //            `--.__\/__.---'     {5}
+        //                   1 {2}
+        //                     {3}
+        let p1 = SampleParams::param_solid();
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let mut essential = Essential::new();
+        essential
+            .at(&[0], Ebc::Ux(zero))
+            .at(&[0], Ebc::Uy(zero))
+            .at(&[1, 2], Ebc::Uy(zero));
+        let values = PrescribedValues::new(&data, &essential).unwrap();
+        assert_eq!(
+            values.prescribed,
+            //   0     1      2     3      4     5      6      7      8      9
+            &[true, true, false, true, false, true, false, false, false, false]
+        );
+        let mut eqs = values.p_equations.clone();
+        eqs.sort();
+        assert_eq!(eqs, &[0, 1, 3, 5]);
     }
 }

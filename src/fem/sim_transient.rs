@@ -1,4 +1,4 @@
-use super::{BoundaryElements, ConcentratedLoads, InteriorElements, LinearSystem, State};
+use super::{BoundaryElements, ConcentratedLoads, InteriorElements, LinearSystem, PrescribedValues, State};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
@@ -6,6 +6,7 @@ use russell_lab::{add_vectors, update_vector, vector_norm, NormVec};
 /// Simulates transient process
 pub fn sim_transient(
     concentrated_loads: Option<&ConcentratedLoads>,
+    prescribed_values: &PrescribedValues,
     boundary_elements: &mut BoundaryElements,
     interior_elements: &mut InteriorElements,
     state: &mut State,
@@ -56,8 +57,8 @@ pub fn sim_transient(
             boundary_elements.calc_residuals_parallel(&state)?;
 
             // assemble residuals
-            interior_elements.assemble_residuals(rr, &lin_sys.prescribed);
-            boundary_elements.assemble_residuals(rr, &lin_sys.prescribed);
+            interior_elements.assemble_residuals(rr, &prescribed_values.prescribed);
+            boundary_elements.assemble_residuals(rr, &prescribed_values.prescribed);
 
             // add concentrated loads
             if let Some(point_loads) = concentrated_loads {
@@ -86,11 +87,11 @@ pub fn sim_transient(
             boundary_elements.calc_jacobians_parallel(&state)?;
 
             // assemble jacobians matrices
-            interior_elements.assemble_jacobians(kk, &lin_sys.prescribed);
-            boundary_elements.assemble_jacobians(kk, &lin_sys.prescribed);
+            interior_elements.assemble_jacobians(kk, &prescribed_values.prescribed);
+            boundary_elements.assemble_jacobians(kk, &prescribed_values.prescribed);
 
             // augment global Jacobian matrix
-            for eq in &lin_sys.p_equations {
+            for eq in &prescribed_values.p_equations {
                 kk.put(*eq, *eq, 1.0)?;
             }
 

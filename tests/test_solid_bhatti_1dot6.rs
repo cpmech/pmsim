@@ -1,6 +1,5 @@
 use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
-use pmsim::fem::sim_transient;
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
@@ -45,6 +44,9 @@ fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
+    // prescribed values
+    let prescribed_values = PrescribedValues::new(&data, &essential)?;
+
     // boundary elements
     let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
 
@@ -55,11 +57,12 @@ fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
     let mut state = State::new(&data, &config)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &essential, &interior_elements, &boundary_elements).unwrap();
+    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
 
     // run simulation
     sim_transient(
         None,
+        &prescribed_values,
         &mut boundary_elements,
         &mut interior_elements,
         &mut state,
