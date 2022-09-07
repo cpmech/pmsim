@@ -219,9 +219,9 @@ impl State {
             let n_integ_point = ips.len();
             let element = data.attributes.get(cell).unwrap(); // already checked by Data
             match element {
-                Element::Diffusion(..) => (), // skipped because of previous return command
-                Element::Rod(..) => (),       // skipped because of previous return command
-                Element::Beam(..) => (),      // skipped because of previous return command
+                Element::Diffusion(..) => (), // unreachable because of the previous return command
+                Element::Rod(..) => (),
+                Element::Beam(..) => (),
                 Element::Solid(p) => solid(cell.id, n_integ_point, &p.stress_strain),
                 Element::PorousLiq(p) => porous(cell.id, n_integ_point, &p.retention_liquid),
                 Element::PorousLiqGas(p) => porous(cell.id, n_integ_point, &p.retention_liquid),
@@ -272,6 +272,57 @@ mod tests {
 
     #[test]
     fn new_handles_errors() {
+        let mesh = Samples::qua8_tri6_lin2();
+        let p1 = SampleParams::param_diffusion();
+        let p2 = SampleParams::param_solid();
+        let p3 = SampleParams::param_rod();
+        let data = Data::new(
+            &mesh,
+            [
+                (1, Element::Diffusion(p1)),
+                (2, Element::Solid(p2)),
+                (3, Element::Rod(p3)),
+            ],
+        )
+        .unwrap();
+        let config = Config::new();
+        assert_eq!(
+            State::new(&data, &config).err(),
+            Some("cannot combine Diffusion elements with other elements")
+        );
+
+        let p1 = SampleParams::param_porous_liq();
+        let data = Data::new(
+            &mesh,
+            [
+                (1, Element::PorousLiq(p1)),
+                (2, Element::Solid(p2)),
+                (3, Element::Rod(p3)),
+            ],
+        )
+        .unwrap();
+        let config = Config::new();
+        assert_eq!(
+            State::new(&data, &config).err(),
+            Some("cannot combine PorousLiq or PorousLiqGas with other elements")
+        );
+
+        let p1 = SampleParams::param_porous_liq_gas();
+        let data = Data::new(
+            &mesh,
+            [
+                (1, Element::PorousLiqGas(p1)),
+                (2, Element::Solid(p2)),
+                (3, Element::Rod(p3)),
+            ],
+        )
+        .unwrap();
+        let config = Config::new();
+        assert_eq!(
+            State::new(&data, &config).err(),
+            Some("cannot combine PorousLiq or PorousLiqGas with other elements")
+        );
+
         let empty_mesh = Mesh {
             ndim: 2,
             points: Vec::new(),
@@ -346,10 +397,16 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let mut config = Config::new();
+        config.transient = true;
         let state = State::new(&data, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
+        assert_eq!(state.vv.dim(), data.equations.n_equation);
+        assert_eq!(state.aa.dim(), 0);
+        assert_eq!(state.uu_star.dim(), data.equations.n_equation);
+        assert_eq!(state.vv_star.dim(), data.equations.n_equation);
+        assert_eq!(state.aa_star.dim(), 0);
         assert_eq!(state.sigma.len(), 0);
         assert_eq!(state.ivs_solid.len(), 0);
         assert_eq!(state.loading.len(), 0);
@@ -367,6 +424,11 @@ mod tests {
         let state = State::new(&data, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
+        assert_eq!(state.vv.dim(), 0);
+        assert_eq!(state.aa.dim(), 0);
+        assert_eq!(state.uu_star.dim(), 0);
+        assert_eq!(state.vv_star.dim(), 0);
+        assert_eq!(state.aa_star.dim(), 0);
         assert_eq!(state.sigma.len(), 0);
         assert_eq!(state.ivs_solid.len(), 0);
         assert_eq!(state.loading.len(), 0);
@@ -438,11 +500,17 @@ mod tests {
         let p1 = SampleParams::param_rod();
         let p2 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Rod(p1)), (2, Element::Solid(p2))]).unwrap();
-        let config = Config::new();
+        let mut config = Config::new();
+        config.dynamics = true;
         let state = State::new(&data, &config).unwrap();
         let ncell = mesh.cells.len();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), data.equations.n_equation);
+        assert_eq!(state.vv.dim(), data.equations.n_equation);
+        assert_eq!(state.aa.dim(), data.equations.n_equation);
+        assert_eq!(state.uu_star.dim(), data.equations.n_equation);
+        assert_eq!(state.vv_star.dim(), data.equations.n_equation);
+        assert_eq!(state.aa_star.dim(), data.equations.n_equation);
         assert_eq!(state.sigma.len(), ncell);
         assert_eq!(state.ivs_solid.len(), ncell);
         assert_eq!(state.loading.len(), ncell);
