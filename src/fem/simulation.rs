@@ -133,7 +133,7 @@ impl<'a> Simulation<'a> {
 
                 // augment global Jacobian matrix
                 for eq in &self.prescribed_values.equations {
-                    kk.put(*eq, *eq, 1.0)?;
+                    kk.put(*eq, *eq, 1.0).unwrap();
                 }
 
                 // solve linear system
