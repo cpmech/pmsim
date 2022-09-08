@@ -1,12 +1,15 @@
 use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
+use pmsim::fem::InteriorElements;
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
+use russell_lab::mat_approx_eq;
+use russell_lab::Matrix;
 
 // Bhatti's Example 1.6 on page 32
 #[test]
-fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
+fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
     // mesh and boundary features
     // 2.0  fixed 1'-,_load                connectivity:
     //            |     '-,_      load      eid : vertices
@@ -44,8 +47,24 @@ fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
+    // interior elements
+    let mut interior_elements = InteriorElements::new(&data, &config)?;
+
     // simulation state
     let mut state = State::new(&data, &config)?;
+
+    // check Jacobian matrix of first element
+    interior_elements.calc_jacobians(&state)?;
+    #[rustfmt::skip]
+    let bhatti_kk0 = Matrix::from(&[
+      [ 9.765625000000001e+02,  0.000000000000000e+00, -9.765625000000001e+02,  2.604166666666667e+02,  0.000000000000000e+00, -2.604166666666667e+02],
+      [ 0.000000000000000e+00,  3.906250000000000e+02,  5.208333333333334e+02, -3.906250000000000e+02, -5.208333333333334e+02,  0.000000000000000e+00],
+      [-9.765625000000001e+02,  5.208333333333334e+02,  1.671006944444445e+03, -7.812500000000000e+02, -6.944444444444445e+02,  2.604166666666667e+02],
+      [ 2.604166666666667e+02, -3.906250000000000e+02, -7.812500000000000e+02,  2.126736111111111e+03,  5.208333333333334e+02, -1.736111111111111e+03],
+      [ 0.000000000000000e+00, -5.208333333333334e+02, -6.944444444444445e+02,  5.208333333333334e+02,  6.944444444444445e+02,  0.000000000000000e+00],
+      [-2.604166666666667e+02,  0.000000000000000e+00,  2.604166666666667e+02, -1.736111111111111e+03,  0.000000000000000e+00,  1.736111111111111e+03],
+    ]);
+    mat_approx_eq(&interior_elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
     // run simulation
     let mut sim = Simulation::new(&data, &config, &essential, &natural)?;

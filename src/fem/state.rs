@@ -194,16 +194,12 @@ impl State {
                 .collect();
             // internal values
             let n_internal_values = stress_strain.n_internal_values();
-            // if n_internal_values > 0 {
             ivs_solid[cell_id] = (0..n_integ_point)
                 .into_iter()
                 .map(|_| Vector::new(n_internal_values))
                 .collect();
-            // }
             // loading flags
-            // if stress_strain.elasto_plastic() {
             loading[cell_id] = vec![false; n_integ_point];
-            // }
         };
 
         // function to generate integration point variables for porous elements
@@ -374,11 +370,11 @@ mod tests {
         assert_eq!(state.sigma[1].len(), 7 /*n_integ_point*/);
         assert_eq!(state.sigma[2].len(), 0 /*n_integ_point*/);
         assert_eq!(state.sigma[3].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.ivs_solid[0].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.ivs_solid[0].len(), 9 /*n_integ_point*/);
         assert_eq!(state.ivs_solid[1].len(), 7 /*n_integ_point*/);
         assert_eq!(state.ivs_solid[2].len(), 0 /*n_integ_point*/);
         assert_eq!(state.ivs_solid[3].len(), 0 /*n_integ_point*/);
-        assert_eq!(state.loading[0].len(), 0 /*n_integ_point*/);
+        assert_eq!(state.loading[0].len(), 9 /*n_integ_point*/);
         assert_eq!(state.loading[1].len(), 7 /*n_integ_point*/);
         assert_eq!(state.loading[2].len(), 0 /*n_integ_point*/);
         assert_eq!(state.loading[3].len(), 0 /*n_integ_point*/);

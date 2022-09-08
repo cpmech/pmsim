@@ -89,7 +89,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let pad = &mut self.pad;
-        integ::vec_03_vg(residual, pad, 0, true, self.ips, |w, _, gg| {
+        integ::vec_03_vg(residual, pad, 0, true, self.ips, |w, _, _, gg| {
             // interpolate ∇T to integration point
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
@@ -99,7 +99,8 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             }
             // w must be negative as in the residual, however, w := -k.∇T
             // so the double negative is necessary to obtain -w = -(-k.∇T) = k.∇T
-            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt)
+            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt).unwrap();
+            Ok(self.config.thickness)
         })
         .unwrap();
         if self.config.transient {
@@ -115,12 +116,12 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
                     tt += nn[m] * state.uu[l2g[m]];
                     tt_star += nn[m] * state.uu_star[l2g[m]];
                 }
-                Ok(self.param.rho * (alpha_1 * tt - tt_star) - s)
+                Ok(self.config.thickness * self.param.rho * (alpha_1 * tt - tt_star) - s)
             })
             .unwrap();
         } else {
             if let Some(s) = self.param.source {
-                integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| Ok(-s)).unwrap();
+                integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| Ok(-s * self.config.thickness)).unwrap();
             }
         }
         Ok(())
@@ -128,14 +129,15 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
-        integ::mat_03_gtg(jacobian, &mut self.pad, 0, 0, true, self.ips, |k, _, _| {
-            copy_tensor2(k, &self.conductivity)
+        integ::mat_03_gtg(jacobian, &mut self.pad, 0, 0, true, self.ips, |k, _, _, _| {
+            copy_tensor2(k, &self.conductivity).unwrap();
+            Ok(self.config.thickness)
         })
         .unwrap();
         if self.config.transient {
             let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
             integ::mat_01_nsn(jacobian, &mut self.pad, 0, 0, false, self.ips, |_, _, _| {
-                Ok(self.param.rho * alpha_1)
+                Ok(self.config.thickness * self.param.rho * alpha_1)
             })
             .unwrap();
         }

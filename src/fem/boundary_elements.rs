@@ -10,12 +10,25 @@ use russell_sparse::SparseTriplet;
 
 /// Defines an element to calculate natural boundary conditions
 pub struct BoundaryElement {
+    /// Natural boundary condition
     pub nbc: Nbc,
+
+    /// Scratchpad to perform numerical integration
     pub pad: Scratchpad,
+
+    /// Integration (Gauss) points
     pub ips: integ::IntegPointData,
+
+    /// Residual vector
     pub residual: Vector,
+
+    /// Optional Jacobian matrix (e.g., from convection model)
     pub jacobian: Option<Matrix>,
+
+    /// Local-to-global mapping
     pub local_to_global: Vec<usize>,
+
+    /// Thickness (e.g., for plane-stress)
     pub thickness: f64,
 }
 
@@ -83,7 +96,6 @@ impl BoundaryElement {
         let (ndim, nnode) = self.pad.xxt.dims();
         let res = &mut self.residual;
         let pad = &mut self.pad;
-        let th = self.thickness;
         match self.nbc {
             Nbc::Qn(f) => integ::vec_02_nv_bry(res, pad, 0, true, self.ips, |v, _, un, _| {
                 // note the negative sign
@@ -96,42 +108,42 @@ impl BoundaryElement {
                 //                \_____________/
                 //                we compute this
                 for i in 0..ndim {
-                    v[i] = -th * f(state.t) * un[i];
+                    v[i] = -f(state.t) * un[i];
                 }
-                Ok(())
+                Ok(self.thickness)
             }),
             Nbc::Qx(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[0] = -th * f(state.t);
-                Ok(())
+                v[0] = -f(state.t);
+                Ok(self.thickness)
             }),
             Nbc::Qy(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[1] = -th * f(state.t);
-                Ok(())
+                v[1] = -f(state.t);
+                Ok(self.thickness)
             }),
             Nbc::Qz(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _, _| {
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[2] = -th * f(state.t);
-                Ok(())
+                v[2] = -f(state.t);
+                Ok(self.thickness)
             }),
-            Nbc::Ql(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t))),
-            Nbc::Qg(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t))),
-            Nbc::Qt(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t))),
+            Nbc::Ql(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t) * self.thickness)),
+            Nbc::Qg(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t) * self.thickness)),
+            Nbc::Qt(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t) * self.thickness)),
             Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, nn| {
                 // interpolate T from nodes to integration point
                 let mut tt = 0.0;
                 for m in 0..nnode {
                     tt += nn[m] * state.uu[self.local_to_global[m]];
                 }
-                Ok(cc * (tt - tt_env(state.t)))
+                Ok(cc * (tt - tt_env(state.t)) * self.thickness)
             }),
         }
     }
