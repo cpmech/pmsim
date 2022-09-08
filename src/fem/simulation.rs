@@ -64,6 +64,7 @@ impl<'a> Simulation<'a> {
         }
 
         // time loop
+        let steady = !config.transient && !config.dynamics;
         for timestep in 0..control.n_max_time_steps {
             // update time
             state.dt = (control.dt)(state.t);
@@ -168,7 +169,7 @@ impl<'a> Simulation<'a> {
             }
 
             // final time step
-            if state.t >= control.t_fin {
+            if state.t >= control.t_fin || steady {
                 break;
             }
         }

@@ -61,6 +61,7 @@ fn _test_solid_bhatti_1dot6() -> Result<(), StrError> {
         -1.313941349422282e-02, -5.549310752960183e-02,
          8.389015766816341e-05, -5.556637423271112e-02
     ];
+    println!("{}", state.uu);
     vec_approx_eq(state.uu.as_data(), uu_correct, 1e-15);
     Ok(())
 }
