@@ -226,6 +226,7 @@ mod tests {
 
     // Generates a displacement field corresponding to a simple shear deformation
     // (only works for a homogeneous mesh; with same element kinds)
+    // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
     fn generate_shear_displacement_field(mesh: &Mesh, strain: f64) -> Vector {
         let npoint = mesh.points.len();
         let mut uu = Vector::new(mesh.ndim * npoint);
@@ -300,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn update_state_works() {
+    fn update_state_works_plane_strain() {
         // parameters
         let young = 1.0;
         let poisson = 0.25;
@@ -330,16 +331,16 @@ mod tests {
             let ndim = mesh.ndim;
             let solution_h = if ndim == 2 {
                 vec![
-                    strain * c * (1.0 - poisson),
-                    strain * c * poisson,
-                    strain * c * poisson,
+                    c * strain * (1.0 - poisson),
+                    c * strain * poisson,
+                    c * strain * poisson,
                     0.0,
                 ]
             } else {
                 vec![
-                    strain * c * (1.0 - poisson),
-                    strain * c * poisson,
-                    strain * c * poisson,
+                    c * strain * (1.0 - poisson),
+                    c * strain * poisson,
+                    c * strain * poisson,
                     0.0,
                     0.0,
                     0.0,
@@ -347,33 +348,99 @@ mod tests {
             };
             let solution_v = if ndim == 2 {
                 vec![
-                    strain * c * poisson,
-                    strain * c * (1.0 - poisson),
-                    strain * c * poisson,
+                    c * strain * poisson,
+                    c * strain * (1.0 - poisson),
+                    c * strain * poisson,
                     0.0,
                 ]
             } else {
                 vec![
-                    strain * c * poisson,
-                    strain * c * (1.0 - poisson),
-                    strain * c * poisson,
+                    c * strain * poisson,
+                    c * strain * (1.0 - poisson),
+                    c * strain * poisson,
                     0.0,
                     0.0,
                     0.0,
                 ]
             };
             let solution_s = if ndim == 2 {
-                vec![0.0, 0.0, 0.0, c * (1.0 - 2.0 * poisson) * strain * SQRT_2 / 2.0]
+                // ε = 𝛾/2 = strain/2
+                vec![0.0, 0.0, 0.0, c * (1.0 - 2.0 * poisson) * (strain / 2.0) * SQRT_2]
             } else {
                 vec![
                     0.0,
                     0.0,
                     0.0,
-                    c * (1.0 - 2.0 * poisson) * strain * SQRT_2 / 2.0,
+                    c * (1.0 - 2.0 * poisson) * (strain / 2.0) * SQRT_2,
                     0.0,
                     0.0,
                 ]
             };
+
+            // check the first cell/element only
+            let cell = &mesh.cells[0];
+            let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+            let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
+
+            // check stress update (horizontal displacement field)
+            let mut state = State::new(&data, &config).unwrap();
+            update_vector(&mut state.uu, 1.0, &duu_h).unwrap();
+            element.update_state(&mut state, &duu_h).unwrap();
+            for p in 0..element.ips.len() {
+                vec_approx_eq(state.sigma[cell.id][p].vec.as_data(), &solution_h, 1e-13);
+            }
+
+            // check stress update (vertical displacement field)
+            let mut state = State::new(&data, &config).unwrap();
+            update_vector(&mut state.uu, 1.0, &duu_v).unwrap();
+            element.update_state(&mut state, &duu_v).unwrap();
+            for p in 0..element.ips.len() {
+                vec_approx_eq(state.sigma[cell.id][p].vec.as_data(), &solution_v, 1e-13);
+            }
+
+            // check stress update (shear displacement field)
+            let mut state = State::new(&data, &config).unwrap();
+            update_vector(&mut state.uu, 1.0, &duu_s).unwrap();
+            element.update_state(&mut state, &duu_s).unwrap();
+            for p in 0..element.ips.len() {
+                vec_approx_eq(state.sigma[cell.id][p].vec.as_data(), &solution_s, 1e-13);
+            }
+        }
+    }
+
+    #[test]
+    fn update_state_works_plane_stress() {
+        // parameters
+        let young = 1.0;
+        let poisson = 0.25;
+        let c = young / (1.0 - poisson * poisson);
+        let p1 = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+        };
+        let mut config = Config::new();
+        config.plane_stress = true;
+
+        // loop over meshes
+        let meshes = &[
+            Samples::one_qua4(),
+            Samples::three_tri3(),
+            Samples::ring_eight_qua8_rad1_thick1(),
+        ];
+        for mesh in meshes {
+            assert_eq!(mesh.ndim, 2); // no 3D! (plane-stress)
+
+            // incremental displacement field
+            // (equal total displacements because initial displacements are zero)
+            let strain = 4.56;
+            let duu_h = generate_horizontal_displacement_field(&mesh, strain);
+            let duu_v = generate_vertical_displacement_field(&mesh, strain);
+            let duu_s = generate_shear_displacement_field(&mesh, strain);
+
+            // correct stress
+            let solution_h = vec![c * strain, c * strain * poisson, 0.0, 0.0];
+            let solution_v = vec![c * strain * poisson, c * strain, 0.0, 0.0];
+            let solution_s = vec![0.0, 0.0, 0.0, c * (strain / 2.0) * (1.0 - poisson) * SQRT_2];
 
             // check the first cell/element only
             let cell = &mesh.cells[0];
