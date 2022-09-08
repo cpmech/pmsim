@@ -141,6 +141,7 @@ mod tests {
     use gemlab::integ;
     use gemlab::mesh::{Mesh, Samples};
     use russell_chk::vec_approx_eq;
+    use russell_lab::math::SQRT_2;
     use russell_lab::{update_vector, Matrix, Vector};
     use russell_tensor::Tensor2;
 
@@ -223,6 +224,18 @@ mod tests {
         uu
     }
 
+    // Generates a displacement field corresponding to a simple shear deformation
+    // (only works for a homogeneous mesh; with same element kinds)
+    fn generate_shear_displacement_field(mesh: &Mesh, strain: f64) -> Vector {
+        let npoint = mesh.points.len();
+        let mut uu = Vector::new(mesh.ndim * npoint);
+        for p in 0..npoint {
+            let y = mesh.points[p].coords[1];
+            uu[0 + mesh.ndim * p] = strain * y;
+        }
+        uu
+    }
+
     #[test]
     fn calc_delta_eps_works() {
         // parameters (not relevant to this test though)
@@ -242,6 +255,7 @@ mod tests {
             let strain = 4.56;
             let duu_h = generate_horizontal_displacement_field(&mesh, strain);
             let duu_v = generate_vertical_displacement_field(&mesh, strain);
+            let duu_s = generate_shear_displacement_field(&mesh, strain);
 
             // correct increments of strain
             let ndim = mesh.ndim;
@@ -254,6 +268,11 @@ mod tests {
                 vec![0.0, strain, 0.0, 0.0]
             } else {
                 vec![0.0, strain, 0.0, 0.0, 0.0, 0.0]
+            };
+            let solution_s = if ndim == 2 {
+                vec![0.0, 0.0, 0.0, strain * SQRT_2 / 2.0]
+            } else {
+                vec![0.0, 0.0, 0.0, strain * SQRT_2 / 2.0, 0.0, 0.0]
             };
 
             // check the first cell/element only
@@ -273,6 +292,9 @@ mod tests {
                 // vertical strain
                 calc_delta_eps(&mut deps, &duu_v, &element.pad.gradient, &l2g, ndim, nnode);
                 vec_approx_eq(deps.vec.as_data(), &solution_v, 1e-13);
+                // shear strain
+                calc_delta_eps(&mut deps, &duu_s, &element.pad.gradient, &l2g, ndim, nnode);
+                vec_approx_eq(deps.vec.as_data(), &solution_s, 1e-13);
             }
         }
     }
@@ -302,6 +324,7 @@ mod tests {
             let strain = 4.56;
             let duu_h = generate_horizontal_displacement_field(&mesh, strain);
             let duu_v = generate_vertical_displacement_field(&mesh, strain);
+            let duu_s = generate_shear_displacement_field(&mesh, strain);
 
             // correct stress
             let ndim = mesh.ndim;
@@ -339,6 +362,18 @@ mod tests {
                     0.0,
                 ]
             };
+            let solution_s = if ndim == 2 {
+                vec![0.0, 0.0, 0.0, c * (1.0 - 2.0 * poisson) * strain * SQRT_2 / 2.0]
+            } else {
+                vec![
+                    0.0,
+                    0.0,
+                    0.0,
+                    c * (1.0 - 2.0 * poisson) * strain * SQRT_2 / 2.0,
+                    0.0,
+                    0.0,
+                ]
+            };
 
             // check the first cell/element only
             let cell = &mesh.cells[0];
@@ -359,6 +394,14 @@ mod tests {
             element.update_state(&mut state, &duu_v).unwrap();
             for p in 0..element.ips.len() {
                 vec_approx_eq(state.sigma[cell.id][p].vec.as_data(), &solution_v, 1e-13);
+            }
+
+            // check stress update (shear displacement field)
+            let mut state = State::new(&data, &config).unwrap();
+            update_vector(&mut state.uu, 1.0, &duu_s).unwrap();
+            element.update_state(&mut state, &duu_s).unwrap();
+            for p in 0..element.ips.len() {
+                vec_approx_eq(state.sigma[cell.id][p].vec.as_data(), &solution_s, 1e-13);
             }
         }
     }
