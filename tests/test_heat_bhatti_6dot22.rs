@@ -251,9 +251,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
         source: Some(source),
     };
     let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let mut config = Config::new();
-    config.transient = false;
-    config.control.n_max_time_steps = 2;
+    let config = Config::new();
 
     // essential boundary conditions
     let mut essential = Essential::new();
