@@ -4,6 +4,7 @@
     "conv",
     "emap",
     "IFEM",
-    "jacobians"
+    "jacobians",
+    "nafems"
   ]
 }

@@ -3,12 +3,16 @@ use pmsim::{prelude::*, StrError};
 
 #[test]
 fn test_heat_axisym_simple() -> Result<(), StrError> {
+    // From Mathematica Heat Transfer Model Verification Tests
+    // 2D Axisymmetric Single Equation
+    // HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001
+
     // mesh and boundary features
     let (rin, rout, h) = (1.0, 2.0, 0.1);
     let mut block = Block::new(&[[rin, 0.0], [rout, 0.0], [rout, h], [rin, h]])?;
     block.set_ndiv(&[10, 1])?;
     let mesh = block.subdivide(GeoKind::Qua17)?;
-    // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_axisym_simple.svg")?;
+    // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_axisym_simple_2d.svg")?;
     let find = Find::new(&mesh, None);
     let left = find.edges(At::X(rin))?;
     let right = find.edges(At::X(rout))?;
