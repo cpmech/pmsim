@@ -9,7 +9,10 @@ use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
 /// Defines an element to calculate natural boundary conditions
-pub struct BoundaryElement {
+pub struct BoundaryElement<'a> {
+    /// Global configuration
+    pub config: &'a Config,
+
     /// Natural boundary condition
     pub nbc: Nbc,
 
@@ -27,19 +30,16 @@ pub struct BoundaryElement {
 
     /// Local-to-global mapping
     pub local_to_global: Vec<usize>,
-
-    /// Thickness (e.g., for plane-stress)
-    pub thickness: f64,
 }
 
 /// Holds a collection of boundary elements
-pub struct BoundaryElements {
-    pub all: Vec<BoundaryElement>,
+pub struct BoundaryElements<'a> {
+    pub all: Vec<BoundaryElement<'a>>,
 }
 
-impl BoundaryElement {
+impl<'a> BoundaryElement<'a> {
     // Allocates new instance
-    pub fn new(data: &Data, config: &Config, feature: &Feature, nbc: Nbc) -> Result<Self, StrError> {
+    pub fn new(data: &'a Data, config: &'a Config, feature: &'a Feature, nbc: Nbc) -> Result<Self, StrError> {
         // check
         let ndim = data.mesh.ndim;
         if ndim == 3 {
@@ -77,6 +77,7 @@ impl BoundaryElement {
 
         // new instance
         Ok(BoundaryElement {
+            config,
             nbc,
             pad,
             ips,
@@ -87,7 +88,6 @@ impl BoundaryElement {
                 None
             },
             local_to_global,
-            thickness: config.thickness,
         })
     }
 
@@ -95,9 +95,11 @@ impl BoundaryElement {
     pub fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
         let (ndim, nnode) = self.pad.xxt.dims();
         let res = &mut self.residual;
-        let pad = &mut self.pad;
+        let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+        args.alpha = self.config.thickness;
+        args.axisymmetric = self.config.axisymmetric;
         match self.nbc {
-            Nbc::Qn(f) => integ::vec_02_nv_bry(res, pad, 0, true, self.ips, |v, _, un, _| {
+            Nbc::Qn(f) => integ::vec_02_nv_bry(res, &mut args, |v, _, un, _| {
                 // note the negative sign
                 //                 |
                 //                 v
@@ -110,40 +112,42 @@ impl BoundaryElement {
                 for i in 0..ndim {
                     v[i] = -f(state.t) * un[i];
                 }
-                Ok(self.thickness)
+                Ok(())
             }),
-            Nbc::Qx(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _, _| {
+            Nbc::Qx(f) => integ::vec_02_nv(res, &mut args, |v, _, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
                 v[0] = -f(state.t);
-                Ok(self.thickness)
+                Ok(())
             }),
-            Nbc::Qy(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _, _| {
+            Nbc::Qy(f) => integ::vec_02_nv(res, &mut args, |v, _, _| {
+                // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
                 v[1] = -f(state.t);
-                Ok(self.thickness)
+                Ok(())
             }),
-            Nbc::Qz(f) => integ::vec_02_nv(res, pad, 0, true, self.ips, |v, _, _| {
+            Nbc::Qz(f) => integ::vec_02_nv(res, &mut args, |v, _, _| {
+                // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
                 v[2] = -f(state.t);
-                Ok(self.thickness)
+                Ok(())
             }),
-            Nbc::Ql(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t) * self.thickness)),
-            Nbc::Qg(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t) * self.thickness)),
-            Nbc::Qt(f) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, _| Ok(-f(state.t) * self.thickness)),
-            Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, pad, 0, true, self.ips, |_, nn| {
+            Nbc::Ql(f) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-f(state.t))),
+            Nbc::Qg(f) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-f(state.t))),
+            Nbc::Qt(f) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-f(state.t))),
+            Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, &mut args, |_, nn| {
                 // interpolate T from nodes to integration point
                 let mut tt = 0.0;
                 for m in 0..nnode {
                     tt += nn[m] * state.uu[self.local_to_global[m]];
                 }
-                Ok(cc * (tt - tt_env(state.t)) * self.thickness)
+                Ok(cc * (tt - tt_env(state.t)))
             }),
         }
     }
@@ -153,16 +157,19 @@ impl BoundaryElement {
         match self.nbc {
             Nbc::Cv(cc, _) => {
                 let kk = self.jacobian.as_mut().unwrap();
-                integ::mat_01_nsn_bry(kk, &mut self.pad, 0, 0, true, self.ips, |_, _, _| Ok(cc))
+                let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+                args.alpha = self.config.thickness;
+                args.axisymmetric = self.config.axisymmetric;
+                integ::mat_01_nsn_bry(kk, &mut args, |_, _, _| Ok(cc))
             }
             _ => Ok(()),
         }
     }
 }
 
-impl BoundaryElements {
+impl<'a> BoundaryElements<'a> {
     // Allocates new instance
-    pub fn new(data: &Data, config: &Config, natural: &Natural) -> Result<Self, StrError> {
+    pub fn new(data: &'a Data, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = natural
             .distributed
             .iter()

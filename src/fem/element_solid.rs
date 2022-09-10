@@ -70,9 +70,12 @@ impl<'a> LocalEquations for ElementSolid<'a> {
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
         let sigma = &state.sigma[self.cell.id];
-        integ::vec_04_tg(residual, &mut self.pad, 0, true, self.ips, |sig, p, _, _| {
+        let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+        args.alpha = self.config.thickness;
+        args.axisymmetric = self.config.axisymmetric;
+        integ::vec_04_tg(residual, &mut args, |sig, p, _, _| {
             copy_tensor2(sig, &sigma[p]).unwrap();
-            Ok(self.config.thickness)
+            Ok(())
         })
     }
 
@@ -81,9 +84,12 @@ impl<'a> LocalEquations for ElementSolid<'a> {
         let sigma = &state.sigma[self.cell.id];
         let ivs = &state.ivs_solid[self.cell.id];
         let loading = &state.loading[self.cell.id];
-        integ::mat_10_gdg(jacobian, &mut self.pad, 0, 0, true, self.ips, |dd, p, _, _| {
+        let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+        args.alpha = self.config.thickness;
+        args.axisymmetric = self.config.axisymmetric;
+        integ::mat_10_gdg(jacobian, &mut args, |dd, p, _, _| {
             self.model.stiffness(dd, &sigma[p], &ivs[p], loading[p])?;
-            Ok(self.config.thickness)
+            Ok(())
         })
     }
 

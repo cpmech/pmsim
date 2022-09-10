@@ -18,7 +18,7 @@ pub struct Simulation<'a> {
     pub interior_elements: InteriorElements<'a>,
 
     // Holds a collection of boundary elements
-    pub boundary_elements: BoundaryElements,
+    pub boundary_elements: BoundaryElements<'a>,
 
     /// Holds variables to solve the global linear system
     pub linear_system: LinearSystem,
@@ -26,7 +26,12 @@ pub struct Simulation<'a> {
 
 impl<'a> Simulation<'a> {
     /// Allocate new instance
-    pub fn new(data: &'a Data, config: &'a Config, essential: &Essential, natural: &Natural) -> Result<Self, StrError> {
+    pub fn new(
+        data: &'a Data,
+        config: &'a Config,
+        essential: &'a Essential,
+        natural: &'a Natural,
+    ) -> Result<Self, StrError> {
         if let Some(_) = config.validate(data.mesh.ndim) {
             return Err("cannot allocate simulation because config.validate() failed");
         }

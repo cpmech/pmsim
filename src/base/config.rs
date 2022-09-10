@@ -25,11 +25,14 @@ pub struct Config {
     /// Gravity acceleration
     pub gravity: f64,
 
-    /// Thickness for plane-stress or 1.0 otherwise
-    pub thickness: f64,
+    /// Axisymmetric problem represented in 2D (instead of plane-strain)
+    pub axisymmetric: bool,
 
     /// Plane-stress problem instead of plane-strain iff 2D
     pub plane_stress: bool,
+
+    /// Thickness for plane-stress or 1.0 otherwise
+    pub thickness: f64,
 
     /// Total stress analysis (instead of effective stresses)
     pub total_stress: bool,
@@ -55,6 +58,7 @@ impl Config {
             control: Control::new(),
             gravity: 0.0,
             thickness: 1.0,
+            axisymmetric: false,
             plane_stress: false,
             total_stress: false,
             initialization: Init::Zero,

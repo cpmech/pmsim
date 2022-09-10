@@ -88,8 +88,12 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
-        let pad = &mut self.pad;
-        integ::vec_03_vg(residual, pad, 0, true, self.ips, |w, _, _, gg| {
+        let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+        args.alpha = self.config.thickness;
+        args.axisymmetric = self.config.axisymmetric;
+
+        // conductivity term (always present, so we calculate it first with clear=true)
+        integ::vec_03_vg(residual, &mut args, |w, _, _, gg| {
             // interpolate ∇T to integration point
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
@@ -100,28 +104,36 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             // w must be negative as in the residual, however, w := -k.∇T
             // so the double negative is necessary to obtain -w = -(-k.∇T) = k.∇T
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt).unwrap();
-            Ok(self.config.thickness)
+            Ok(())
         })
         .unwrap();
+
+        // very important from here on
+        args.clear = false;
+
         if self.config.transient {
+            // calculate alphas
             let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
             let s = match self.param.source {
                 Some(val) => val,
                 None => 0.0,
             };
-            integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, nn| {
+
+            // transient and source terms
+            integ::vec_01_ns(residual, &mut args, |_, nn| {
                 // interpolate T and T★ to integration point
                 let (mut tt, mut tt_star) = (0.0, 0.0);
                 for m in 0..npoint {
                     tt += nn[m] * state.uu[l2g[m]];
                     tt_star += nn[m] * state.uu_star[l2g[m]];
                 }
-                Ok(self.config.thickness * self.param.rho * (alpha_1 * tt - tt_star) - s)
+                Ok(self.param.rho * (alpha_1 * tt - tt_star) - s)
             })
             .unwrap();
         } else {
+            // source term only (steady case)
             if let Some(s) = self.param.source {
-                integ::vec_01_ns(residual, pad, 0, false, self.ips, |_, _| Ok(-s * self.config.thickness)).unwrap();
+                integ::vec_01_ns(residual, &mut args, |_, _| Ok(-s)).unwrap();
             }
         }
         Ok(())
@@ -129,17 +141,24 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
-        integ::mat_03_gtg(jacobian, &mut self.pad, 0, 0, true, self.ips, |k, _, _, _| {
+        let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+        args.alpha = self.config.thickness;
+        args.axisymmetric = self.config.axisymmetric;
+
+        // conductivity term (always present, so we calculate it first with clear=true)
+        integ::mat_03_gtg(jacobian, &mut args, |k, _, _, _| {
             copy_tensor2(k, &self.conductivity).unwrap();
-            Ok(self.config.thickness)
+            Ok(())
         })
         .unwrap();
+
+        // very important from here on
+        args.clear = false;
+
+        // diffusion (mass) matrix
         if self.config.transient {
             let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
-            integ::mat_01_nsn(jacobian, &mut self.pad, 0, 0, false, self.ips, |_, _, _| {
-                Ok(self.config.thickness * self.param.rho * alpha_1)
-            })
-            .unwrap();
+            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(self.param.rho * alpha_1)).unwrap();
         }
         Ok(())
     }

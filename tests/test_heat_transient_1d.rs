@@ -53,7 +53,7 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
         let eq = data.equations.eq(*p, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(state.t, x));
-        println!("point = {}, x = {:.2}, tt = {:.6}, diff = {:.4e}", p, x, tt, diff);
+        println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
         assert!(diff < 3e-2);
     }
     Ok(())
