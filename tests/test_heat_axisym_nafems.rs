@@ -15,12 +15,15 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
 
     // mesh and boundary features
     const GENERATE_MESH: bool = true;
-    const FINE_MESH: bool = false;
+    const FINE_MESH: bool = true;
     let mesh = if GENERATE_MESH {
         let mut block1 = Block::new(&[[rin, 0.0], [rout, 0.0], [rout, ya], [rin, ya]])?;
         let mut block2 = Block::new(&[[rin, ya], [rout, ya], [rout, yb], [rin, yb]])?;
         let mut block3 = Block::new(&[[rin, yb], [rout, yb], [rout, h], [rin, h]])?;
         if FINE_MESH {
+            // block1.set_ndiv(&[32, 16])?;
+            // block2.set_ndiv(&[32, 24])?;
+            // block3.set_ndiv(&[32, 16])?;
             block1.set_ndiv(&[16, 8])?;
             block2.set_ndiv(&[16, 12])?;
             block3.set_ndiv(&[16, 8])?;
@@ -38,7 +41,7 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
         let mesh12 = join_meshes(&mesh1, &mesh2)?;
         let mesh = join_meshes(&mesh12, &mesh3)?;
         // draw_mesh(&mesh, false, "/tmp/pmsim/mesh_heat_axisym_nafems.svg")?;
-        draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_axisym_nafems.svg")?;
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_axisym_nafems.svg")?;
         // mesh.write("/tmp/pmsim/mesh_heat_axisym_nafems.dat")?;
         mesh
     } else {
@@ -47,8 +50,8 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
 
     // features
     let find = Find::new(&mesh, Some(Extract::All)); // need "All" to find reference point
-    let bot = find.edges(At::X(0.0))?;
-    let top = find.edges(At::X(h))?;
+    let bot = find.edges(At::Y(0.0))?;
+    let top = find.edges(At::Y(h))?;
     let left = find.edges(At::X(rin))?;
     let right = find.edges(At::X(rout))?;
     let left_flux: Vec<_> = left
@@ -73,6 +76,8 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
         left_flux.iter().map(|f| &f.points).collect::<Vec<_>>()
     );
     assert_eq!(ref_points.len(), 1);
+    println!("bot: {:?}", bot.iter().map(|f| &f.points).collect::<Vec<_>>());
+    println!("top: {:?}", top.iter().map(|f| &f.points).collect::<Vec<_>>());
 
     // reference solution
     let ref_point = ref_points[0];
@@ -93,9 +98,10 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&right, Ebc::T(|_| 273.15));
-    essential.on(&bot, Ebc::T(|_| 273.15));
-    essential.on(&top, Ebc::T(|_| 273.15));
+    essential
+        .on(&right, Ebc::T(|_| 273.15))
+        .on(&bot, Ebc::T(|_| 273.15))
+        .on(&top, Ebc::T(|_| 273.15));
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -109,12 +115,18 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
     sim.run(&mut state)?;
 
     // output results
-    let output = Output::new(&data);
-    output.write_vtu(&state, "/tmp/pmsim/test_heat_axisym_nafems.vtu")?;
+    // let output = Output::new(&data);
+    // output.write_vtu(&state, "/tmp/pmsim/test_heat_axisym_nafems.vtu")?;
 
     // check
     let eq = data.equations.eq(ref_point, Dof::T).unwrap();
-    println!("\nT = {:?}, reference = {:?}", state.uu[eq], ref_temperature);
-    // approx_eq(state.uu[eq], ref_temperature, 1e-5);
+    let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
+    println!(
+        "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",
+        state.uu[eq],
+        ref_temperature,
+        rel_err * 100.0
+    );
+    assert!(rel_err < 1e-5);
     Ok(())
 }
