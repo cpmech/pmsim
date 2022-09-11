@@ -5,6 +5,7 @@
     "emap",
     "IFEM",
     "jacobians",
-    "nafems"
+    "nafems",
+    "Paraview"
   ]
 }
