@@ -8,4 +8,4 @@ pub use crate::base::{
     ParamBeam, ParamConductivity, ParamDiffusion, ParamFluids, ParamLiquidRetention, ParamPorousLiq, ParamPorousLiqGas,
     ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
 };
-pub use crate::fem::{Data, Simulation, State};
+pub use crate::fem::{Data, Output, Simulation, State};
