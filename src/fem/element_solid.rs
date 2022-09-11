@@ -73,7 +73,7 @@ impl<'a> LocalEquations for ElementSolid<'a> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
-        integ::vec_04_tg(residual, &mut args, |sig, p, _, _| {
+        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| {
             copy_tensor2(sig, &sigma[p]).unwrap();
             Ok(())
         })
@@ -87,7 +87,7 @@ impl<'a> LocalEquations for ElementSolid<'a> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
-        integ::mat_10_gdg(jacobian, &mut args, |dd, p, _, _| {
+        integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
             self.model.stiffness(dd, &sigma[p], &ivs[p], loading[p])?;
             Ok(())
         })
@@ -196,14 +196,14 @@ mod tests {
         let neq = 3 * 2;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
-        let correct = ana.vec_04_tg(s00, s11, s01);
-        vec_approx_eq(residual.as_data(), &correct, 1e-15);
+        let correct = ana.vec_04_tb(s00, s11, s01);
+        vec_approx_eq(residual.as_data(), correct.as_data(), 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let correct = ana
-            .mat_10_gdg(young, poisson, config.plane_stress, config.thickness)
+            .mat_10_bdb(young, poisson, config.plane_stress, config.thickness)
             .unwrap();
         vec_approx_eq(jacobian.as_data(), correct.as_data(), 1e-12);
     }

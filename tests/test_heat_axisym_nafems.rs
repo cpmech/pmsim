@@ -2,8 +2,8 @@ use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 use russell_chk::approx_eq;
 
-#[test]
-fn test_heat_axisym_nafems() -> Result<(), StrError> {
+// #[test]
+fn _test_heat_axisym_nafems() -> Result<(), StrError> {
     // From Mathematica Heat Transfer Model Verification Tests
     // 2D Axisymmetric Single Equation
     // HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001

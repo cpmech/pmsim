@@ -93,7 +93,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         args.axisymmetric = self.config.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::vec_03_vg(residual, &mut args, |w, _, _, gg| {
+        integ::vec_03_vb(residual, &mut args, |w, _, _, gg| {
             // interpolate ∇T to integration point
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
@@ -146,7 +146,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         args.axisymmetric = self.config.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::mat_03_gtg(jacobian, &mut args, |k, _, _, _| {
+        integ::mat_03_btb(jacobian, &mut args, |k, _, _, _| {
             copy_tensor2(k, &self.conductivity).unwrap();
             Ok(())
         })
@@ -235,13 +235,13 @@ mod tests {
         let dtt_dx = 5.0;
         let w0 = -p1.kx * dtt_dx;
         let w1 = 0.0;
-        let correct_r = Vector::from(&ana.vec_03_vg(-w0, -w1));
+        let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1));
         vec_approx_eq(residual.as_data(), correct_r.as_data(), 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
-        let correct_kk = ana.mat_03_gtg(p1.kx, p1.ky);
+        let correct_kk = ana.mat_03_btb(p1.kx, p1.ky, false);
         vec_approx_eq(jacobian.as_data(), correct_kk.as_data(), 1e-15);
 
         // with source term -------------------------------------------------
@@ -256,7 +256,7 @@ mod tests {
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();
-        let correct_src = Vector::from(&ana.vec_01_ns(-source));
+        let correct_src = ana.vec_01_ns(-source, false);
         let mut correct_r_new = Vector::new(neq);
         add_vectors(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
         vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
@@ -305,7 +305,7 @@ mod tests {
         let w0 = -p1.kx * dtt_dx;
         let w1 = 0.0;
         let w2 = -p1.kz * dtt_dz;
-        let correct_r = Vector::from(&ana.vec_03_vg(-w0, -w1, -w2));
+        let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
         vec_approx_eq(residual.as_data(), correct_r.as_data(), 1e-15);
 
         // check Jacobian matrix
@@ -313,7 +313,7 @@ mod tests {
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let conductivity =
             Tensor2::from_matrix(&[[p1.kx, 0.0, 0.0], [0.0, p1.ky, 0.0], [0.0, 0.0, p1.kz]], true, false).unwrap();
-        let correct_kk = ana.mat_03_gtg(&conductivity);
+        let correct_kk = ana.mat_03_btb(&conductivity);
         vec_approx_eq(jacobian.as_data(), correct_kk.as_data(), 1e-15);
 
         // with source term -------------------------------------------------
