@@ -4,9 +4,21 @@ use russell_lab::math::{erfc, PI};
 
 #[test]
 fn test_heat_transient_1d() -> Result<(), StrError> {
-    // mesh and boundary features
-    // let mesh = Mesh::read("data/meshes/mesh_heat_transient_1d.dat")?;
-    let mesh = Mesh::read("data/meshes/mesh_heat_transient_1d_qua8.dat")?;
+    // mesh
+    const GENERATE_MESH: bool = false;
+    let mesh = if GENERATE_MESH {
+        let mut block = Block::new(&[[0.0, 0.0], [20.0, 0.0], [20.0, 1.0], [0.0, 1.0]])?;
+        block.set_ndiv(&[10, 1])?;
+        let mesh = block.subdivide(GeoKind::Qua8)?;
+        mesh.write("/tmp/pmsim/mesh_heat_transient_1d_qua8.dat")?;
+        draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_transient_1d_qua8.svg")?;
+        mesh
+    } else {
+        // let mesh = Mesh::read("data/meshes/mesh_heat_transient_1d.dat")?;
+        Mesh::read("data/meshes/mesh_heat_transient_1d_qua8.dat")?
+    };
+
+    // features
     let find = Find::new(&mesh, None);
     let left = find.edges(At::X(0.0), any)?;
 
