@@ -8,8 +8,10 @@ use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
-/// Defines an element to calculate natural boundary conditions
-pub struct BoundaryElement<'a> {
+/// Assists in the integration over the boundary (not interior) of an element
+///
+/// This data structure corresponds to a single Natural (Neumann) boundary condition
+pub struct Boundary<'a> {
     /// Global configuration
     pub config: &'a Config,
 
@@ -32,12 +34,13 @@ pub struct BoundaryElement<'a> {
     pub local_to_global: Vec<usize>,
 }
 
-/// Holds a collection of boundary elements
-pub struct BoundaryElements<'a> {
-    pub all: Vec<BoundaryElement<'a>>,
+/// Holds a collection of boundary data structures to perform the integration over the boundary
+pub struct Boundaries<'a> {
+    /// All boundaries that have natural conditions
+    pub all: Vec<Boundary<'a>>,
 }
 
-impl<'a> BoundaryElement<'a> {
+impl<'a> Boundary<'a> {
     // Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, feature: &'a Feature, nbc: Nbc) -> Result<Self, StrError> {
         // check
@@ -76,7 +79,7 @@ impl<'a> BoundaryElement<'a> {
         }
 
         // new instance
-        Ok(BoundaryElement {
+        Ok(Boundary {
             config,
             nbc,
             pad,
@@ -167,16 +170,16 @@ impl<'a> BoundaryElement<'a> {
     }
 }
 
-impl<'a> BoundaryElements<'a> {
+impl<'a> Boundaries<'a> {
     // Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = natural
             .distributed
             .iter()
-            .map(|(feature, nbc)| BoundaryElement::new(data, config, feature, *nbc))
+            .map(|(feature, nbc)| Boundary::new(data, config, feature, *nbc))
             .collect();
         match res {
-            Ok(all) => Ok(BoundaryElements { all }),
+            Ok(all) => Ok(Boundaries { all }),
             Err(e) => Err(e),
         }
     }
@@ -242,7 +245,7 @@ impl<'a> BoundaryElements<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BoundaryElement, BoundaryElements};
+    use super::{Boundaries, Boundary};
     use crate::base::{Config, Element, Natural, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::{Extract, Feature, Features, Samples};
@@ -266,26 +269,23 @@ mod tests {
         assert_eq!(minus_ten(0.0), -10.0);
 
         assert_eq!(
-            BoundaryElement::new(&data, &config, &edge, Nbc::Qn(minus_ten)).err(),
+            Boundary::new(&data, &config, &edge, Nbc::Qn(minus_ten)).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
-        assert_eq!(
-            BoundaryElement::new(&data, &config, &edge, Nbc::Qz(minus_ten)).err(),
-            None
-        ); // Qz is OK
+        assert_eq!(Boundary::new(&data, &config, &edge, Nbc::Qz(minus_ten)).err(), None); // Qz is OK
         let face = Feature {
             kind: GeoKind::Qua4,
             points: vec![4, 5, 6, 7],
         };
         assert_eq!(
-            BoundaryElement::new(&data, &config, &face, Nbc::Ql(minus_ten)).err(), // << flux
+            Boundary::new(&data, &config, &face, Nbc::Ql(minus_ten)).err(), // << flux
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
 
         let mut natural = Natural::new();
         natural.on(&[&edge], Nbc::Qn(minus_ten));
         assert_eq!(
-            BoundaryElements::new(&data, &config, &natural).err(),
+            Boundaries::new(&data, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -304,7 +304,7 @@ mod tests {
 
         let mut natural = Natural::new();
         natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
-        let mut b_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
+        let mut b_elements = Boundaries::new(&data, &config, &natural).unwrap();
         let state = State::new(&data, &config).unwrap();
         b_elements.all.par_iter_mut().for_each(|d| {
             d.calc_residual(&state).unwrap();
@@ -332,25 +332,25 @@ mod tests {
 
         // Qn
 
-        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qn(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(res, correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &left, Nbc::Qn(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         vec_approx_eq(res, correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &right, Nbc::Qn(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         vec_approx_eq(res, correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &bottom, Nbc::Qn(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
@@ -358,39 +358,39 @@ mod tests {
 
         // Qx
 
-        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qx(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &left, Nbc::Qx(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &right, Nbc::Qx(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &bottom, Nbc::Qx(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         // Qy
 
-        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qy(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &left, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &left, Nbc::Qy(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &right, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &right, Nbc::Qy(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &bottom, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &bottom, Nbc::Qy(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
@@ -404,7 +404,7 @@ mod tests {
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
 
-        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qz(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qz(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, 0.0, -Q / 2.0, 0.0, 0.0, -Q / 2.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
@@ -425,12 +425,12 @@ mod tests {
         let fq = |_| Q;
         assert_eq!(fq(0.0), Q);
 
-        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Ql(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &top, Nbc::Ql(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, -Q / 6.0, 2.0 * -Q / 3.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = BoundaryElement::new(&data, &config, &top, Nbc::Qg(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qg(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
     }
@@ -460,7 +460,7 @@ mod tests {
 
         // flux: not present in Bhatti's example but we can check the flux BC here
         const L: f64 = 0.3;
-        let mut bry = BoundaryElement::new(&data, &config, &edge, Nbc::Qt(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &edge, Nbc::Qt(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 2.0, -Q * L / 2.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
@@ -469,7 +469,7 @@ mod tests {
         assert_eq!(ft(0.0), 20.0);
 
         // convection BC
-        let mut bry = BoundaryElement::new(&data, &config, &edge, Nbc::Cv(27.0, ft)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &edge, Nbc::Cv(27.0, ft)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), &[-81.0, -81.0], 1e-15);
         bry.calc_jacobian(&state).unwrap();
@@ -505,7 +505,7 @@ mod tests {
         assert_eq!(fq(0.0), Q);
 
         const L: f64 = 0.03;
-        let mut bry = BoundaryElement::new(&data, &config, &edge_flux, Nbc::Qt(fq)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &edge_flux, Nbc::Qt(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 6.0, -Q * L / 6.0, 2.0 * -Q * L / 3.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-10);
@@ -514,7 +514,7 @@ mod tests {
         assert_eq!(ft(0.0), 20.0);
 
         // convection BC
-        let mut bry = BoundaryElement::new(&data, &config, &edge_conv, Nbc::Cv(55.0, ft)).unwrap();
+        let mut bry = Boundary::new(&data, &config, &edge_conv, Nbc::Cv(55.0, ft)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), &[-5.5, -5.5, -22.0], 1e-14);
         bry.calc_jacobian(&state).unwrap();
@@ -545,7 +545,7 @@ mod tests {
         assert_eq!(ft(0.0), 20.0);
 
         natural.on(&[&edge], Nbc::Cv(40.0, ft));
-        let mut elements = BoundaryElements::new(&data, &config, &natural).unwrap();
+        let mut elements = Boundaries::new(&data, &config, &natural).unwrap();
         let state = State::new(&data, &config).unwrap();
         elements.calc_residuals(&state).unwrap();
         elements.calc_jacobians(&state).unwrap();

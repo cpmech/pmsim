@@ -7,8 +7,8 @@ use russell_chk::deriv_central5;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
-/// Defines a generic element for interior cells (opposite to boundary cells)
-pub struct InteriorElement<'a> {
+/// Defines a generic finite element, wrapping an "actual" implementation
+pub struct GenericElement<'a> {
     /// Connects to the "actual" implementation of local equations
     pub actual: Box<dyn LocalEquations + 'a>,
 
@@ -19,12 +19,13 @@ pub struct InteriorElement<'a> {
     pub jacobian: Matrix,
 }
 
-/// Holds a collection of interior elements
-pub struct InteriorElements<'a> {
-    pub all: Vec<InteriorElement<'a>>,
+/// Holds a collection of (generic) finite elements
+pub struct Elements<'a> {
+    /// All elements
+    pub all: Vec<GenericElement<'a>>,
 }
 
-/// Define auxiliary arguments structure for numerical Jacobian
+/// Holds auxiliary arguments for the computation of numerical Jacobian matrices
 struct ArgsForNumericalJacobian {
     /// Holds the residual vector
     pub residual: Vector,
@@ -33,7 +34,7 @@ struct ArgsForNumericalJacobian {
     pub state: State,
 }
 
-impl<'a> InteriorElement<'a> {
+impl<'a> GenericElement<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
         let element = data.attributes.get(cell).unwrap(); // already checked in Data
@@ -48,7 +49,7 @@ impl<'a> InteriorElement<'a> {
             Element::PorousSldLiqGas(..) => panic!("TODO: PorousSldLiqGas"),
         };
         let neq = data.n_local_eq(cell).unwrap();
-        Ok(InteriorElement {
+        Ok(GenericElement {
             actual,
             residual: Vector::new(neq),
             jacobian: Matrix::new(neq, neq),
@@ -101,17 +102,17 @@ impl<'a> InteriorElement<'a> {
     }
 }
 
-impl<'a> InteriorElements<'a> {
+impl<'a> Elements<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = data
             .mesh
             .cells
             .iter()
-            .map(|cell| InteriorElement::new(data, config, cell))
+            .map(|cell| GenericElement::new(data, config, cell))
             .collect();
         match res {
-            Ok(all) => Ok(InteriorElements { all }),
+            Ok(all) => Ok(Elements { all }),
             Err(e) => Err(e),
         }
     }
@@ -185,7 +186,7 @@ impl<'a> InteriorElements<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{InteriorElement, InteriorElements};
+    use super::{Elements, GenericElement};
     use crate::base::{Config, Element, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::Samples;
@@ -200,22 +201,22 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
-            InteriorElement::new(&data, &config, &mesh.cells[0]).err(),
+            GenericElement::new(&data, &config, &mesh.cells[0]).err(),
             Some("desired number of integration points is not available for Tri class")
         );
         assert_eq!(
-            InteriorElements::new(&data, &config).err(),
+            Elements::new(&data, &config).err(),
             Some("desired number of integration points is not available for Tri class")
         );
 
         let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         assert_eq!(
-            InteriorElement::new(&data, &config, &mesh.cells[0]).err(),
+            GenericElement::new(&data, &config, &mesh.cells[0]).err(),
             Some("desired number of integration points is not available for Tri class")
         );
         assert_eq!(
-            InteriorElements::new(&data, &config).err(),
+            Elements::new(&data, &config).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
@@ -226,14 +227,14 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
 
         let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
 
-        InteriorElements::new(&data, &config).unwrap();
+        Elements::new(&data, &config).unwrap();
     }
 
     #[test]
@@ -242,7 +243,7 @@ mod tests {
         let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut ele = InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
         let mut state = State::new(&data, &config).unwrap();
@@ -258,7 +259,7 @@ mod tests {
         // transient simulation
         let mut config = Config::new();
         config.transient = true;
-        let mut ele = InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
         let mut state = State::new(&data, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
@@ -279,7 +280,7 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let mut ele = InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
 
         // linear displacement field
         let mut state = State::new(&data, &config).unwrap();
@@ -302,7 +303,7 @@ mod tests {
         let p1 = SampleParams::param_beam();
         let data = Data::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
         let config = Config::new();
-        InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -312,7 +313,7 @@ mod tests {
         let p1 = SampleParams::param_porous_liq();
         let data = Data::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
         let config = Config::new();
-        InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -322,7 +323,7 @@ mod tests {
         let p1 = SampleParams::param_porous_liq_gas();
         let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -332,7 +333,7 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq();
         let data = Data::new(&mesh, [(1, Element::PorousSldLiq(p1))]).unwrap();
         let config = Config::new();
-        InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -342,6 +343,6 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq_gas();
         let data = Data::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new();
-        InteriorElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
     }
 }

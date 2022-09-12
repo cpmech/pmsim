@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
-use pmsim::fem::{BoundaryElements, Data, InteriorElements, LinearSystem, PrescribedValues, Simulation, State};
+use pmsim::fem::{Boundaries, Data, Elements, LinearSystem, PrescribedValues, Simulation, State};
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
 use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, NormVec, Vector};
@@ -64,10 +64,10 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     println!("{}", natural);
 
     // interior elements
-    let mut interior_elements = InteriorElements::new(&data, &config)?;
+    let mut interiors = Elements::new(&data, &config)?;
 
     // boundary elements
-    let mut boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
+    let mut boundaries = Boundaries::new(&data, &config, &natural)?;
 
     // simulation state
     let mut state = State::new(&data, &config)?;
@@ -76,11 +76,11 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     state.uu.fill(0.0);
     // with state = 0, the residual is equal to -b (negative of integral of source term)
     let neg_b = Vector::from(&[250.0, 312.5, 312.5, 250.0, -1125., -1000.0, -1125., -1250.0]);
-    interior_elements.calc_residuals(&state)?;
-    vec_approx_eq(interior_elements.all[0].residual.as_data(), neg_b.as_data(), 1e-12);
+    interiors.calc_residuals(&state)?;
+    vec_approx_eq(interiors.all[0].residual.as_data(), neg_b.as_data(), 1e-12);
 
     // check Jacobian of first element (independent of state)
-    interior_elements.calc_jacobians(&state)?;
+    interiors.calc_jacobians(&state)?;
     #[rustfmt::skip]
     let bhatti_kk0 = Matrix::from(&[
         [38.515873015873005  , 23.194444444444443  , 21.46825396825396   , 22.02777777777777   , -20.317460317460306 , -30.91269841269842  , -14.682539682539685 , -39.293650793650784],
@@ -92,7 +92,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         [-14.682539682539685 , -28.015873015873005 , -20.63492063492062  , -33.49206349206349  , -5.079365079365089  , 3.650793650793652   , 95.07936507936506   , 3.174603174603193  ],
         [-39.293650793650784 , -33.65079365079365  , -28.412698412698408 , -46.67460317460315  , -23.174603174603188 , 42.06349206349206   , 3.1746031746031935  , 125.96825396825392 ],
     ]);
-    mat_approx_eq(&interior_elements.all[0].jacobian, &bhatti_kk0, 1e-13);
+    mat_approx_eq(&interiors.all[0].jacobian, &bhatti_kk0, 1e-13);
 
     // check Jacobian of second element (independent of state)
     #[rustfmt::skip]
@@ -106,13 +106,13 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         [-21.269841269841265 , -42.22222222222221  , -27.460317460317462 , -85.55555555555557  , -36.50793650793649  , 14.60317460317459   , 133.01587301587304  , 65.39682539682536  ], 
         [-91.98412698412692  , -55.3174603174603   , -56.031746031745996 , -129.36507936507928 , -92.6984126984127   , 101.11111111111107  , 65.39682539682536   , 258.8888888888888  ], 
     ]);
-    mat_approx_eq(&interior_elements.all[1].jacobian, &bhatti_kk1, 1e-12);
+    mat_approx_eq(&interiors.all[1].jacobian, &bhatti_kk1, 1e-12);
 
     // prescribed values
     let prescribed_values = PrescribedValues::new(&data, &essential)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
+    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &interiors, &boundaries)?;
 
     // fix state.uu (must do this before calculating residuals)
     for eq in &prescribed_values.equations {
@@ -120,13 +120,13 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     }
 
     // compute residuals in parallel
-    interior_elements.calc_residuals_parallel(&state)?;
-    boundary_elements.calc_residuals_parallel(&state)?;
+    interiors.calc_residuals_parallel(&state)?;
+    boundaries.calc_residuals_parallel(&state)?;
 
     // assemble residuals
     let rr = &mut lin_sys.residual;
-    interior_elements.assemble_residuals(rr, &prescribed_values.flags);
-    boundary_elements.assemble_residuals(rr, &prescribed_values.flags);
+    interiors.assemble_residuals(rr, &prescribed_values.flags);
+    boundaries.assemble_residuals(rr, &prescribed_values.flags);
     println!("rr =\n{}", rr);
     let bhatti_rr = &[
         2627.5555555555547,
@@ -148,13 +148,13 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     println!("norm_rr = {:?}", norm_rr);
 
     // compute jacobians in parallel
-    interior_elements.calc_jacobians_parallel(&state)?;
-    boundary_elements.calc_jacobians_parallel(&state)?;
+    interiors.calc_jacobians_parallel(&state)?;
+    boundaries.calc_jacobians_parallel(&state)?;
 
     // assemble jacobians matrices
     let kk = &mut lin_sys.jacobian;
-    interior_elements.assemble_jacobians(kk, &prescribed_values.flags);
-    boundary_elements.assemble_jacobians(kk, &prescribed_values.flags);
+    interiors.assemble_jacobians(kk, &prescribed_values.flags);
+    boundaries.assemble_jacobians(kk, &prescribed_values.flags);
     let mut kk_mat = Matrix::new(lin_sys.n_equation, lin_sys.n_equation);
     kk.to_matrix(&mut kk_mat)?;
     // println!("kk =\n{:.4}", kk_mat);
@@ -215,10 +215,10 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     // set state with new U vector and check the residuals
     copy_vector(&mut state.uu, &uu_new)?;
     rr.fill(0.0);
-    interior_elements.calc_residuals(&state)?;
-    boundary_elements.calc_residuals(&state)?;
-    interior_elements.assemble_residuals(rr, &prescribed_values.flags);
-    boundary_elements.assemble_residuals(rr, &prescribed_values.flags);
+    interiors.calc_residuals(&state)?;
+    boundaries.calc_residuals(&state)?;
+    interiors.assemble_residuals(rr, &prescribed_values.flags);
+    boundaries.assemble_residuals(rr, &prescribed_values.flags);
     println!("rr_new =\n{:?}", rr);
     let norm_rr = vector_norm(rr, NormVec::Max);
     println!("norm_rr = {:?}", norm_rr);

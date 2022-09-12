@@ -1,4 +1,4 @@
-use super::{BoundaryElements, ConcentratedLoads, Data, InteriorElements, LinearSystem, PrescribedValues, State};
+use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, PrescribedValues, State};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{add_vectors, update_vector, vector_norm, NormVec, Vector};
@@ -15,10 +15,10 @@ pub struct Simulation<'a> {
     pub concentrated_loads: ConcentratedLoads,
 
     /// Holds a collection of interior elements
-    pub interior_elements: InteriorElements<'a>,
+    pub elements: Elements<'a>,
 
-    // Holds a collection of boundary elements
-    pub boundary_elements: BoundaryElements<'a>,
+    // Holds a collection of boundary integration data
+    pub boundaries: Boundaries<'a>,
 
     /// Holds variables to solve the global linear system
     pub linear_system: LinearSystem,
@@ -37,15 +37,15 @@ impl<'a> Simulation<'a> {
         }
         let prescribed_values = PrescribedValues::new(&data, &essential)?;
         let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
-        let interior_elements = InteriorElements::new(&data, &config)?;
-        let boundary_elements = BoundaryElements::new(&data, &config, &natural)?;
-        let linear_system = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements)?;
+        let elements = Elements::new(&data, &config)?;
+        let boundaries = Boundaries::new(&data, &config, &natural)?;
+        let linear_system = LinearSystem::new(&data, &prescribed_values, &elements, &boundaries)?;
         Ok(Simulation {
             config,
             prescribed_values,
             concentrated_loads,
-            interior_elements,
-            boundary_elements,
+            elements,
+            boundaries,
             linear_system,
         })
     }
@@ -102,12 +102,12 @@ impl<'a> Simulation<'a> {
             let mut norm_rr0 = f64::MAX;
             for iteration in 0..control.n_max_iterations {
                 // compute residuals in parallel
-                self.interior_elements.calc_residuals_parallel(&state)?;
-                self.boundary_elements.calc_residuals_parallel(&state)?;
+                self.elements.calc_residuals_parallel(&state)?;
+                self.boundaries.calc_residuals_parallel(&state)?;
 
                 // assemble residuals
-                self.interior_elements.assemble_residuals(rr, prescribed);
-                self.boundary_elements.assemble_residuals(rr, prescribed);
+                self.elements.assemble_residuals(rr, prescribed);
+                self.boundaries.assemble_residuals(rr, prescribed);
 
                 // add concentrated loads
                 self.concentrated_loads.add_to_residual(rr, state.t);
@@ -136,12 +136,12 @@ impl<'a> Simulation<'a> {
                 }
 
                 // compute jacobians in parallel
-                self.interior_elements.calc_jacobians_parallel(&state)?;
-                self.boundary_elements.calc_jacobians_parallel(&state)?;
+                self.elements.calc_jacobians_parallel(&state)?;
+                self.boundaries.calc_jacobians_parallel(&state)?;
 
                 // assemble jacobians matrices
-                self.interior_elements.assemble_jacobians(kk, prescribed);
-                self.boundary_elements.assemble_jacobians(kk, prescribed);
+                self.elements.assemble_jacobians(kk, prescribed);
+                self.boundaries.assemble_jacobians(kk, prescribed);
 
                 // augment global Jacobian matrix
                 for eq in &self.prescribed_values.equations {
@@ -165,7 +165,7 @@ impl<'a> Simulation<'a> {
 
                 // update ΔU and secondary variables
                 update_vector(&mut delta_uu, -1.0, &mdu).unwrap();
-                self.interior_elements.update_state(state, &delta_uu)?;
+                self.elements.update_state(state, &delta_uu)?;
 
                 // check convergence
                 if iteration == control.n_max_iterations - 1 {
@@ -182,6 +182,7 @@ impl<'a> Simulation<'a> {
     }
 }
 
+/// Prints the header of the table with timestep and iteration data
 #[inline]
 fn print_header() {
     println!(
@@ -190,6 +191,7 @@ fn print_header() {
     );
 }
 
+/// Prints timestep data
 #[inline]
 #[rustfmt::skip]
     fn print_timestep(timestep: usize, t: f64, dt: f64) {
@@ -199,6 +201,7 @@ fn print_header() {
     );
 }
 
+/// Prints iteration data
 #[inline]
 #[rustfmt::skip]
     fn print_iteration(it: usize, norm_rr: f64, tol_norm_rr0: f64, converged_abs: bool, converged_rel: bool) {

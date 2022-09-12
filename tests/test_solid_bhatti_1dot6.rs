@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
-use pmsim::fem::InteriorElements;
+use pmsim::fem::Elements;
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
@@ -48,7 +48,7 @@ fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
     // interior elements
-    let mut interior_elements = InteriorElements::new(&data, &config)?;
+    let mut interior_elements = Elements::new(&data, &config)?;
 
     // simulation state
     let mut state = State::new(&data, &config)?;

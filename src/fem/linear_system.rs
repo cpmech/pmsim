@@ -1,4 +1,4 @@
-use super::{BoundaryElements, Data, InteriorElements, PrescribedValues};
+use super::{Boundaries, Data, Elements, PrescribedValues};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
@@ -42,8 +42,8 @@ impl LinearSystem {
     pub fn new(
         data: &Data,
         prescribed_values: &PrescribedValues,
-        interior_elements: &InteriorElements,
-        boundary_elements: &BoundaryElements,
+        interior_elements: &Elements,
+        boundary_elements: &Boundaries,
     ) -> Result<Self, StrError> {
         // equation (DOF) numbers
         let n_equation = data.equations.n_equation;
@@ -79,7 +79,7 @@ impl LinearSystem {
 mod tests {
     use super::LinearSystem;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, SampleParams};
-    use crate::fem::{BoundaryElements, Data, InteriorElements, PrescribedValues};
+    use crate::fem::{Boundaries, Data, Elements, PrescribedValues};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -96,8 +96,8 @@ mod tests {
         let essential = Essential::new();
         let natural = Natural::new();
         let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
-        let interior_elements = InteriorElements::new(&data, &config).unwrap();
-        let boundary_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
+        let interior_elements = Elements::new(&data, &config).unwrap();
+        let boundary_elements = Boundaries::new(&data, &config, &natural).unwrap();
         assert_eq!(
             LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements).err(),
             Some("nrow, ncol, and max must all be greater than zero")
@@ -130,8 +130,8 @@ mod tests {
         };
         natural.on(&[&edge_conv], Nbc::Cv(55.0, f));
         let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
-        let interior_elements = InteriorElements::new(&data, &config).unwrap();
-        let boundary_elements = BoundaryElements::new(&data, &config, &natural).unwrap();
+        let interior_elements = Elements::new(&data, &config).unwrap();
+        let boundary_elements = Boundaries::new(&data, &config, &natural).unwrap();
         let lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements).unwrap();
         let n_prescribed = 2;
         let n_element = 3;
