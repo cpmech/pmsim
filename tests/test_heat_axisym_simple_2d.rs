@@ -1,10 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 
-fn any(_: &Vec<f64>) -> bool {
-    true
-}
-
 #[test]
 fn test_heat_axisym_simple() -> Result<(), StrError> {
     // From Mathematica Heat Transfer Model Verification Tests

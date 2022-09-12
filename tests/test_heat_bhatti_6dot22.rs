@@ -5,10 +5,6 @@ use pmsim::StrError;
 use russell_chk::vec_approx_eq;
 use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, NormVec, Vector};
 
-fn any(_: &Vec<f64>) -> bool {
-    true
-}
-
 #[test]
 fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     // mesh and boundary features

@@ -4,10 +4,6 @@ use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 use russell_chk::approx_eq;
 
-fn any(_: &Vec<f64>) -> bool {
-    true
-}
-
 #[test]
 fn test_heat_axisym_nafems() -> Result<(), StrError> {
     // From Mathematica Heat Transfer Model Verification Tests

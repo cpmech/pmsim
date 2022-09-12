@@ -2,10 +2,6 @@ use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 use russell_lab::math::{erfc, PI};
 
-fn any(_: &Vec<f64>) -> bool {
-    true
-}
-
 #[test]
 fn test_heat_transient_1d() -> Result<(), StrError> {
     // mesh and boundary features

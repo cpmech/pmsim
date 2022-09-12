@@ -5,10 +5,6 @@ use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
 use pmsim::StrError;
 
-fn any(_: &Vec<f64>) -> bool {
-    true
-}
-
 fn main() -> Result<(), StrError> {
     let mesh = SampleMeshes::column_two_layers_quads();
     let features = Features::new(&mesh, Extract::Boundary);
