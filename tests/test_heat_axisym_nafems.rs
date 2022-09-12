@@ -1,8 +1,18 @@
-#![allow(unused)]
-
 use gemlab::prelude::*;
+use plotpy::Plot;
 use pmsim::{prelude::*, StrError};
-use russell_chk::approx_eq;
+
+fn show_mesh(mesh: &Mesh) -> Result<(), StrError> {
+    let mut draw = Draw::new();
+    let mut plot = Plot::new();
+    draw.canvas_points.set_marker_size(3.0).set_marker_line_color("none");
+    draw.cells(&mut plot, &mesh, true)?;
+    draw.points(&mut plot, &mesh);
+    plot.set_equal_axes(true)
+        .set_figure_size_points(400.0, 600.0)
+        .set_labels("x", "y")
+        .save("/tmp/pmsim/mesh_heat_axisym_nafems.png")
+}
 
 #[test]
 fn test_heat_axisym_nafems() -> Result<(), StrError> {
@@ -11,72 +21,29 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
     // HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001
 
     // geometry
-    let (rin, rout, h, ya, yb) = (0.02, 0.1, 0.14, 0.04, 0.1);
+    let (rin, xref, rout) = (0.02, 0.04, 0.1);
+    let (ya, yb, h) = (0.04, 0.1, 0.14);
 
     // mesh and boundary features
-    const GENERATE_MESH: bool = true;
-    const FINE_MESH: bool = true;
+    const GENERATE_MESH: bool = false;
     let mesh = if GENERATE_MESH {
-        let mut block1 = Block::new(&[[rin, 0.0], [rout, 0.0], [rout, ya], [rin, ya]])?;
-        let mut block2 = Block::new(&[[rin, ya], [rout, ya], [rout, yb], [rin, yb]])?;
-        let mut block3 = Block::new(&[[rin, yb], [rout, yb], [rout, h], [rin, h]])?;
-        if FINE_MESH {
-            // block1.set_ndiv(&[32, 16])?;
-            // block2.set_ndiv(&[32, 24])?;
-            // block3.set_ndiv(&[32, 16])?;
-            block1.set_ndiv(&[16, 8])?;
-            block2.set_ndiv(&[16, 12])?;
-            block3.set_ndiv(&[16, 8])?;
-            // block1.set_ndiv(&[8, 4])?;
-            // block2.set_ndiv(&[8, 6])?;
-            // block3.set_ndiv(&[8, 4])?;
-        } else {
-            block1.set_ndiv(&[4, 2])?;
-            block2.set_ndiv(&[4, 3])?;
-            block3.set_ndiv(&[4, 2])?;
-        }
-        let mesh1 = block1.subdivide(GeoKind::Qua9)?;
-        let mesh2 = block2.subdivide(GeoKind::Qua9)?;
-        let mesh3 = block3.subdivide(GeoKind::Qua9)?;
-        let mesh = join_meshes(&[&mesh1, &mesh2, &mesh3])?;
-        // draw_mesh(&mesh, false, "/tmp/pmsim/mesh_heat_axisym_nafems.svg")?;
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_axisym_nafems.svg")?;
-        // mesh.write("/tmp/pmsim/mesh_heat_axisym_nafems.dat")?;
+        let y = &[0.0, ya, yb, h];
+        let att = &[1, 1, 1];
+        let (na, nb, ny) = (4, 12, &[8, 12, 8]);
+        let mesh = Structured::rectangle(rin, Some(xref), rout, na, nb, y, ny, att, GeoKind::Qua9)?;
+        show_mesh(&mesh)?;
+        mesh.write("/tmp/pmsim/mesh_heat_axisym_nafems.dat")?;
         mesh
     } else {
         Mesh::read("data/meshes/mesh_heat_axisym_nafems.dat")?
     };
 
     // features
-    let find = Find::new(&mesh, Some(Extract::All)); // need "All" to find reference point
-    let bot = find.edges(At::Y(0.0), any)?;
-    let top = find.edges(At::Y(h), any)?;
-    let left = find.edges(At::X(rin), any)?;
-    let right = find.edges(At::X(rout), any)?;
-    let left_flux: Vec<_> = left
-        .iter()
-        .filter(|&&feature| {
-            feature.points.iter().fold(true, |belong, p| {
-                let y = mesh.points[*p].coords[1];
-                if y < ya || y > yb {
-                    false
-                } else {
-                    belong
-                }
-            })
-        })
-        .copied()
-        .collect();
+    let find = Find::new(&mesh, Some(Extract::All)); // need "All" to find reference point in the interior
+    let edges_temp = find.many_edges(&[At::Y(0.0), At::Y(h), At::X(rout)], any)?;
+    let edges_flux = find.edges(At::X(rin), |x| x[1] >= ya && x[1] <= yb)?;
     let ref_points = find.point_ids(At::XY(0.04, 0.04), any).unwrap();
-    println!("ref_points: {:?}", ref_points);
-    println!("left: {:?}", left.iter().map(|f| &f.points).collect::<Vec<_>>());
-    println!(
-        "left_flux: {:?}\n",
-        left_flux.iter().map(|f| &f.points).collect::<Vec<_>>()
-    );
     assert_eq!(ref_points.len(), 1);
-    println!("bot: {:?}", bot.iter().map(|f| &f.points).collect::<Vec<_>>());
-    println!("top: {:?}", top.iter().map(|f| &f.points).collect::<Vec<_>>());
 
     // reference solution
     let ref_point = ref_points[0];
@@ -97,14 +64,11 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential
-        .on(&right, Ebc::T(|_| 273.15))
-        .on(&bot, Ebc::T(|_| 273.15))
-        .on(&top, Ebc::T(|_| 273.15));
+    essential.on(&edges_temp, Ebc::T(|_| 273.15));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&left_flux, Nbc::Qt(|_| 5e5));
+    natural.on(&edges_flux, Nbc::Qt(|_| 5e5));
 
     // simulation state
     let mut state = State::new(&data, &config)?;
