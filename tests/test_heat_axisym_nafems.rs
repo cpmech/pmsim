@@ -4,6 +4,10 @@ use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 use russell_chk::approx_eq;
 
+fn any(_: &Vec<f64>) -> bool {
+    true
+}
+
 #[test]
 fn test_heat_axisym_nafems() -> Result<(), StrError> {
     // From Mathematica Heat Transfer Model Verification Tests
@@ -38,8 +42,7 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
         let mesh1 = block1.subdivide(GeoKind::Qua9)?;
         let mesh2 = block2.subdivide(GeoKind::Qua9)?;
         let mesh3 = block3.subdivide(GeoKind::Qua9)?;
-        let mesh12 = join_meshes(&mesh1, &mesh2)?;
-        let mesh = join_meshes(&mesh12, &mesh3)?;
+        let mesh = join_meshes(&[&mesh1, &mesh2, &mesh3])?;
         // draw_mesh(&mesh, false, "/tmp/pmsim/mesh_heat_axisym_nafems.svg")?;
         // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_axisym_nafems.svg")?;
         // mesh.write("/tmp/pmsim/mesh_heat_axisym_nafems.dat")?;
@@ -50,10 +53,10 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
 
     // features
     let find = Find::new(&mesh, Some(Extract::All)); // need "All" to find reference point
-    let bot = find.edges(At::Y(0.0))?;
-    let top = find.edges(At::Y(h))?;
-    let left = find.edges(At::X(rin))?;
-    let right = find.edges(At::X(rout))?;
+    let bot = find.edges(At::Y(0.0), any)?;
+    let top = find.edges(At::Y(h), any)?;
+    let left = find.edges(At::X(rin), any)?;
+    let right = find.edges(At::X(rout), any)?;
     let left_flux: Vec<_> = left
         .iter()
         .filter(|&&feature| {
@@ -68,7 +71,7 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
         })
         .copied()
         .collect();
-    let ref_points = find.point_ids(At::XY(0.04, 0.04)).unwrap();
+    let ref_points = find.point_ids(At::XY(0.04, 0.04), any).unwrap();
     println!("ref_points: {:?}", ref_points);
     println!("left: {:?}", left.iter().map(|f| &f.points).collect::<Vec<_>>());
     println!(

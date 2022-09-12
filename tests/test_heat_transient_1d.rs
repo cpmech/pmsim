@@ -2,13 +2,17 @@ use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 use russell_lab::math::{erfc, PI};
 
+fn any(_: &Vec<f64>) -> bool {
+    true
+}
+
 #[test]
 fn test_heat_transient_1d() -> Result<(), StrError> {
     // mesh and boundary features
     // let mesh = Mesh::read("data/meshes/mesh_heat_transient_1d.dat")?;
     let mesh = Mesh::read("data/meshes/mesh_heat_transient_1d_qua8.dat")?;
     let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0))?;
+    let left = find.edges(At::X(0.0), any)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamDiffusion {
@@ -42,9 +46,9 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
             * (f64::exp(-x * x / (4.0 * t)) - (x / 2.0) * f64::sqrt(PI / t) * erfc(x / (2.0 * f64::sqrt(t))))
     };
     let selected = vec![
-        find.point_ids(At::X(0.0)).unwrap(),
-        find.point_ids(At::X(1.0)).unwrap(),
-        find.point_ids(At::X(2.0)).unwrap(),
+        find.point_ids(At::X(0.0), any).unwrap(),
+        find.point_ids(At::X(1.0), any).unwrap(),
+        find.point_ids(At::X(2.0), any).unwrap(),
     ]
     .concat();
     println!("");
