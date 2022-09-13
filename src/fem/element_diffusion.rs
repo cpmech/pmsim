@@ -61,6 +61,7 @@ impl<'a> ElementDiffusion<'a> {
             conductivity.sym_set(2, 2, param.kz);
         }
 
+        // new instance
         Ok({
             ElementDiffusion {
                 ndim,
@@ -108,7 +109,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         })
         .unwrap();
 
-        // very important from here on
+        // flag updates: very important from here on
         args.clear = false;
 
         if self.config.transient {
