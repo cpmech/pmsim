@@ -6,7 +6,7 @@ use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Cell};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
-use russell_tensor::{copy_tensor2, t2_dot_vec, Tensor2};
+use russell_tensor::{t2_dot_vec, Tensor2};
 
 /// Implements the local Diffusion Element equations
 pub struct ElementDiffusion<'a> {
@@ -105,8 +105,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             self.model.tensor(&mut self.conductivity, tt)?;
             // w must be negative as in the residual, however, w := -k.∇T
             // so the double negative is necessary to obtain -w = -(-k.∇T) = k.∇T
-            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt).unwrap();
-            Ok(())
+            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt)
         })
         .unwrap();
 
@@ -150,16 +149,14 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         args.axisymmetric = self.config.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {
+        integ::mat_03_btb(jacobian, &mut args, |kk, _, nn, _| {
             // interpolate T at integration point
             let mut tt = 0.0;
             for m in 0..npoint {
                 tt += nn[m] * state.uu[l2g[m]];
             }
             // compute conductivity tensor at integration point
-            self.model.tensor(&mut self.conductivity, tt)?;
-            copy_tensor2(k, &self.conductivity).unwrap();
-            Ok(())
+            self.model.tensor(kk, tt)
         })
         .unwrap();
 
