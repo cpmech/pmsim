@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use super::{Data, LocalEquations, State};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
 use crate::model::{allocate_stress_strain_model, StressState, StressStrainModel};
@@ -8,7 +6,7 @@ use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Cell};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
-use russell_tensor::{copy_tensor2, Tensor2};
+use russell_tensor::Tensor2;
 
 /// Implements the local Solid Element equations
 pub struct ElementSolid<'a> {
@@ -88,7 +86,7 @@ impl<'a> LocalEquations for ElementSolid<'a> {
     }
 
     /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, residual: &mut Vector, _state: &State) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
@@ -96,7 +94,7 @@ impl<'a> LocalEquations for ElementSolid<'a> {
     }
 
     /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &State) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
@@ -108,7 +106,7 @@ impl<'a> LocalEquations for ElementSolid<'a> {
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, state: &State, duu: &Vector) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &State, duu: &Vector) -> Result<(), StrError> {
         let deps = &mut self.deps;
         let ndim = self.ndim;
         let nnode = self.cell.points.len();
@@ -200,7 +198,7 @@ mod tests {
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
         // check residual vector
-        let mut state = State::new(&data, &config).unwrap();
+        let state = State::new(&data, &config).unwrap();
         let neq = 3 * 2;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
