@@ -21,7 +21,7 @@ impl StressState {
 }
 
 pub trait StressStrainModel: Send + Sync {
-    fn new_stress_state(&self, two_dim: bool) -> StressState;
+    fn new_state(&self, two_dim: bool) -> StressState;
 
     fn stiffness(&mut self, dd: &mut Tensor4, stress_state: &StressState) -> Result<(), StrError>;
 

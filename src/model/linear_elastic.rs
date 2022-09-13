@@ -8,30 +8,31 @@ use russell_tensor::Tensor2;
 use russell_tensor::Tensor4;
 
 pub struct LinearElastic {
-    pub le: LinElasticity,
-    pub delta_sigma: Tensor2,
+    pub model: LinElasticity,
+    pub dsigma: Tensor2,
 }
 
 impl LinearElastic {
     pub fn new(young: f64, poisson: f64, two_dim: bool, plane_stress: bool) -> Self {
         LinearElastic {
-            le: LinElasticity::new(young, poisson, two_dim, plane_stress),
-            delta_sigma: Tensor2::new(true, two_dim),
+            model: LinElasticity::new(young, poisson, two_dim, plane_stress),
+            dsigma: Tensor2::new(true, two_dim),
         }
     }
 }
 
 impl StressStrainModel for LinearElastic {
-    fn new_stress_state(&self, two_dim: bool) -> StressState {
+    fn new_state(&self, two_dim: bool) -> StressState {
         StressState::new(two_dim)
     }
 
-    fn stiffness(&mut self, dd: &mut Tensor4, _stress_state: &StressState) -> Result<(), StrError> {
-        copy_tensor4(dd, self.le.get_modulus())
+    fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
+        copy_tensor4(dd, self.model.get_modulus())
     }
 
-    fn update_stress(&mut self, stress_state: &mut StressState, delta_eps: &Tensor2) -> Result<(), StrError> {
-        t4_ddot_t2(&mut self.delta_sigma, 1.0, self.le.get_modulus(), delta_eps)?;
-        stress_state.sigma.add(1.0, &self.delta_sigma)
+    fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
+        let dd = self.model.get_modulus();
+        t4_ddot_t2(&mut self.dsigma, 1.0, dd, deps)?; // Δσ = D : Δε
+        state.sigma.add(1.0, &self.dsigma)
     }
 }
