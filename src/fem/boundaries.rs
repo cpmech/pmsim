@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::SparseTriplet;
 
-/// Assists in the integration over the boundary (not interior) of an element
+/// Assists in the integration over the boundary of an element
 ///
 /// This data structure corresponds to a single Natural (Neumann) boundary condition
 pub struct Boundary<'a> {
@@ -215,7 +215,7 @@ impl<'a> Boundaries<'a> {
     /// 1. You must call calc residuals first
     /// 2. The global vector R will **not** be cleared
     ///
-    /// **Important:** You must call the BoundaryElementVec assemble_residuals after InteriorElementVec
+    /// **Important:** You must call the Boundaries assemble_residuals after Elements
     #[inline]
     pub fn assemble_residuals(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         self.all
@@ -230,7 +230,7 @@ impl<'a> Boundaries<'a> {
     /// 1. You must call calc jacobians first
     /// 2. The SparseTriplet position in the global matrix K will **not** be reset
     ///
-    /// **Important:** You must call the BoundaryElementVec assemble_jacobians after InteriorElementVec
+    /// **Important:** You must call the Boundaries assemble_jacobians after Elements
     #[inline]
     pub fn assemble_jacobians(&self, kk: &mut SparseTriplet, prescribed: &Vec<bool>) {
         self.all.iter().for_each(|e| {

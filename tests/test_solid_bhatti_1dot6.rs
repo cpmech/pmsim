@@ -47,14 +47,14 @@ fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
-    // interior elements
-    let mut interior_elements = Elements::new(&data, &config)?;
+    // elements
+    let mut elements = Elements::new(&data, &config)?;
 
     // simulation state
     let mut state = State::new(&data, &config)?;
 
     // check Jacobian matrix of first element
-    interior_elements.calc_jacobians(&state)?;
+    elements.calc_jacobians(&state)?;
     #[rustfmt::skip]
     let bhatti_kk0 = Matrix::from(&[
       [ 9.765625000000001e+02,  0.000000000000000e+00, -9.765625000000001e+02,  2.604166666666667e+02,  0.000000000000000e+00, -2.604166666666667e+02],
@@ -64,7 +64,7 @@ fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
       [ 0.000000000000000e+00, -5.208333333333334e+02, -6.944444444444445e+02,  5.208333333333334e+02,  6.944444444444445e+02,  0.000000000000000e+00],
       [-2.604166666666667e+02,  0.000000000000000e+00,  2.604166666666667e+02, -1.736111111111111e+03,  0.000000000000000e+00,  1.736111111111111e+03],
     ]);
-    mat_approx_eq(&interior_elements.all[0].jacobian, &bhatti_kk0, 1e-12);
+    mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
     // run simulation
     let mut sim = Simulation::new(&data, &config, &essential, &natural)?;

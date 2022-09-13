@@ -42,20 +42,20 @@ impl LinearSystem {
     pub fn new(
         data: &Data,
         prescribed_values: &PrescribedValues,
-        interior_elements: &Elements,
-        boundary_elements: &Boundaries,
+        elements: &Elements,
+        boundaries: &Boundaries,
     ) -> Result<Self, StrError> {
         // equation (DOF) numbers
         let n_equation = data.equations.n_equation;
 
         // compute the number of non-zero values
         let mut nnz_sup = prescribed_values.equations.len();
-        nnz_sup += interior_elements.all.iter().fold(0, |acc, e| {
-            // interior elements always have a Jacobian matrix
+        nnz_sup += elements.all.iter().fold(0, |acc, e| {
+            // elements always have a Jacobian matrix
             acc + e.actual.local_to_global().len() * e.actual.local_to_global().len()
         });
-        nnz_sup += boundary_elements.all.iter().fold(0, |acc, e| match e.jacobian {
-            // boundary elements may have a Jacobian matrix
+        nnz_sup += boundaries.all.iter().fold(0, |acc, e| match e.jacobian {
+            // boundary data may have a Jacobian matrix
             Some(_) => acc + e.local_to_global.len() * e.local_to_global.len(),
             None => acc,
         });
@@ -96,10 +96,10 @@ mod tests {
         let essential = Essential::new();
         let natural = Natural::new();
         let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
-        let interior_elements = Elements::new(&data, &config).unwrap();
-        let boundary_elements = Boundaries::new(&data, &config, &natural).unwrap();
+        let elements = Elements::new(&data, &config).unwrap();
+        let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
         assert_eq!(
-            LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements).err(),
+            LinearSystem::new(&data, &prescribed_values, &elements, &boundaries).err(),
             Some("nrow, ncol, and max must all be greater than zero")
         );
     }
@@ -130,9 +130,9 @@ mod tests {
         };
         natural.on(&[&edge_conv], Nbc::Cv(55.0, f));
         let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
-        let interior_elements = Elements::new(&data, &config).unwrap();
-        let boundary_elements = Boundaries::new(&data, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&data, &prescribed_values, &interior_elements, &boundary_elements).unwrap();
+        let elements = Elements::new(&data, &config).unwrap();
+        let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
+        let lin_sys = LinearSystem::new(&data, &prescribed_values, &elements, &boundaries).unwrap();
         let n_prescribed = 2;
         let n_element = 3;
         let n_equation_local = 3;

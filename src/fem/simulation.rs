@@ -14,7 +14,7 @@ pub struct Simulation<'a> {
     // Holds a collection of concentrated loads
     pub concentrated_loads: ConcentratedLoads,
 
-    /// Holds a collection of interior elements
+    /// Holds a collection of elements
     pub elements: Elements<'a>,
 
     // Holds a collection of boundary integration data
@@ -277,7 +277,7 @@ mod tests {
         );
         let natural = Natural::new();
 
-        // error due to interior_elements
+        // error due to elements
         let mut config = Config::new();
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
@@ -286,7 +286,7 @@ mod tests {
         );
         let config = Config::new();
 
-        // error due to boundary_elements
+        // error due to boundaries
         let mut natural = Natural::new();
         let edge = Feature {
             kind: GeoKind::Lin2,

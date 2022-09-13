@@ -148,7 +148,7 @@ impl<'a> Elements<'a> {
     /// 1. You must call calc residuals first
     /// 2. The global vector R will be cleared (with zeros) at the beginning
     ///
-    /// **Important:** You must call the BoundaryElementVec assemble_residuals after InteriorElementVec
+    /// **Important:** You must call the Boundaries assemble_residuals after Elements
     #[inline]
     pub fn assemble_residuals(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         rr.fill(0.0); // << important
@@ -164,7 +164,7 @@ impl<'a> Elements<'a> {
     /// 1. You must call calc jacobians first
     /// 2. The SparseTriplet position in the global matrix K will be reset at the beginning
     ///
-    /// **Important:** You must call the BoundaryElementVec assemble_jacobians after InteriorElementVec
+    /// **Important:** You must call the Boundaries assemble_jacobians after Elements
     #[inline]
     pub fn assemble_jacobians(&self, kk: &mut SparseTriplet, prescribed: &Vec<bool>) {
         kk.reset(); // << important
