@@ -110,19 +110,6 @@ pub enum ParamConductivity {
         /// z-component of the conductivity tensor
         kz: f64,
     },
-    Linear {
-        /// x-component of the conductivity tensor
-        kx: f64,
-
-        /// y-component of the conductivity tensor
-        ky: f64,
-
-        /// z-component of the conductivity tensor
-        kz: f64,
-
-        /// Slope coefficient
-        lambda: f64,
-    },
     IsotropicLinear {
         /// Isotropic model k = kᵣ·(1 + β·T); reference conductivity
         kr: f64,

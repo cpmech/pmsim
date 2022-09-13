@@ -1,6 +1,6 @@
 use super::{Data, LocalEquations, State};
 use crate::base::{compute_local_to_global, Config, ParamDiffusion};
-use crate::model::{allocate_conductivity_model, Conductivity};
+use crate::model::{allocate_conductivity_model, ConductivityModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Cell};
@@ -32,7 +32,7 @@ pub struct ElementDiffusion<'a> {
     pub ips: integ::IntegPointData,
 
     /// Conductivity model
-    pub model: Box<dyn Conductivity>,
+    pub model: Box<dyn ConductivityModel>,
 
     /// (temporary) Conductivity tensor at a single integration point
     pub conductivity: Tensor2,

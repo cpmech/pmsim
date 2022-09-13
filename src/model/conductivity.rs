@@ -1,8 +1,8 @@
 use crate::base::ParamConductivity;
 use crate::StrError;
-use russell_tensor::{copy_tensor2, Tensor2};
+use russell_tensor::Tensor2;
 
-pub trait Conductivity: Send + Sync {
+pub trait ConductivityModel: Send + Sync {
     /// Computes the conductivity tensor
     ///
     /// * `phi` may be the temperature or liquid/gas pressure
@@ -10,33 +10,69 @@ pub trait Conductivity: Send + Sync {
 }
 
 /// Allocates conductivity model
-pub fn allocate_conductivity_model(param: &ParamConductivity, two_dim: bool) -> Box<dyn Conductivity> {
-    let model: Box<dyn Conductivity> = match param {
-        ParamConductivity::Constant { kx, ky, kz } => Box::new(ConductivityConstant::new(*kx, *ky, *kz, two_dim)),
+pub fn allocate_conductivity_model(param: &ParamConductivity, two_dim: bool) -> Box<dyn ConductivityModel> {
+    let model: Box<dyn ConductivityModel> = match param {
+        ParamConductivity::Constant { kx, ky, kz } => Box::new(ConstantConductivityModel::new(*kx, *ky, *kz, two_dim)),
+        ParamConductivity::IsotropicLinear { kr, beta } => {
+            Box::new(IsotropicLinearConductivityModel::new(*kr, *beta, two_dim))
+        }
         _ => panic!("todo"),
     };
     model
 }
 
-pub struct ConductivityConstant {
-    pub kk: Tensor2,
+// ConstantConductivityModel  //////////////////////////////////////////////////////////////////////////////////////////
+
+pub struct ConstantConductivityModel {
+    kx: f64,
+    ky: f64,
+    kz: f64,
+    two_dim: bool,
 }
 
-impl ConductivityConstant {
+impl ConstantConductivityModel {
     pub fn new(kx: f64, ky: f64, kz: f64, two_dim: bool) -> Self {
-        let mut kk = Tensor2::new(true, two_dim);
-        kk.sym_set(0, 0, kx);
-        kk.sym_set(1, 1, ky);
-        if !two_dim {
-            kk.sym_set(2, 2, kz);
-        }
-        ConductivityConstant { kk }
+        ConstantConductivityModel { kx, ky, kz, two_dim }
     }
 }
 
-impl Conductivity for ConductivityConstant {
+impl ConductivityModel for ConstantConductivityModel {
     fn tensor(&mut self, kk: &mut Tensor2, _phi: f64) -> Result<(), StrError> {
-        copy_tensor2(kk, &self.kk)
+        kk.sym_set(0, 0, self.kx);
+        kk.sym_set(1, 1, self.ky);
+        if !self.two_dim {
+            kk.sym_set(2, 2, self.kz);
+        }
+        Ok(())
+    }
+}
+
+// IsotropicLinearConductivityModel ////////////////////////////////////////////////////////////////////////////////////
+
+/// IsotropicLinearConductivityModel
+///
+/// k = kᵣ·(1 + β·T)
+pub struct IsotropicLinearConductivityModel {
+    kr: f64,
+    beta: f64,
+    two_dim: bool,
+}
+
+impl IsotropicLinearConductivityModel {
+    pub fn new(kr: f64, beta: f64, two_dim: bool) -> Self {
+        IsotropicLinearConductivityModel { kr, beta, two_dim }
+    }
+}
+
+impl ConductivityModel for IsotropicLinearConductivityModel {
+    fn tensor(&mut self, kk: &mut Tensor2, tt: f64) -> Result<(), StrError> {
+        let val = self.kr * (1.0 * self.beta * tt);
+        kk.sym_set(0, 0, val);
+        kk.sym_set(1, 1, val);
+        if !self.two_dim {
+            kk.sym_set(2, 2, val);
+        }
+        Ok(())
     }
 }
 
