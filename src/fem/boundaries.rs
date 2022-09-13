@@ -246,7 +246,7 @@ impl<'a> Boundaries<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Boundaries, Boundary};
-    use crate::base::{Config, Element, Natural, Nbc, ParamDiffusion, SampleMeshes, SampleParams};
+    use crate::base::{Config, Element, Natural, Nbc, SampleMeshes, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::{Extract, Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
@@ -443,13 +443,7 @@ mod tests {
             points: vec![1, 2],
         };
 
-        let p1 = ParamDiffusion {
-            rho: 0.0,
-            kx: 0.1,
-            ky: 0.2,
-            kz: 0.3,
-            source: None,
-        };
+        let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();
@@ -489,13 +483,7 @@ mod tests {
             points: vec![0, 2, 1],
         };
 
-        let p1 = ParamDiffusion {
-            rho: 0.0,
-            kx: 0.1,
-            ky: 0.2,
-            kz: 0.3,
-            source: None,
-        };
+        let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
         let state = State::new(&data, &config).unwrap();

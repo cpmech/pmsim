@@ -48,9 +48,11 @@ impl SampleParams {
     pub fn param_diffusion() -> ParamDiffusion {
         ParamDiffusion {
             rho: 1.0,
-            kx: 0.1,
-            ky: 0.2,
-            kz: 0.3,
+            conductivity: ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.2,
+                kz: 0.3,
+            },
             source: None,
         }
     }
@@ -257,7 +259,7 @@ mod tests {
         assert_eq!(p.density_liquid.cc, 4.53e-7);
 
         let p = SampleParams::param_diffusion();
-        assert_eq!(p.kx, 0.1);
+        assert_eq!(p.rho, 1.0);
 
         let p = SampleParams::param_rod();
         assert_eq!(p.density, 2.0);

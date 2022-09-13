@@ -25,9 +25,11 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
     // parameters, DOFs, and configuration
     let p1 = ParamDiffusion {
         rho: 1.0,
-        kx: 1.0,
-        ky: 1.0,
-        kz: 1.0,
+        conductivity: ParamConductivity::Constant {
+            kx: 1.0,
+            ky: 1.0,
+            kz: 1.0,
+        },
         source: None,
     };
     let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;

@@ -21,9 +21,7 @@ fn test_heat_axisym_simple() -> Result<(), StrError> {
     let (kx, ky) = (10.0, 10.0);
     let p1 = ParamDiffusion {
         rho: 1.0,
-        kx,
-        ky,
-        kz: 0.0,
+        conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
     let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;

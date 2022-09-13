@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
+use pmsim::base::{ParamConductivity, Config, Ebc, Element, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{Boundaries, Data, Elements, LinearSystem, PrescribedValues, Simulation, State};
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
@@ -43,9 +43,11 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     let source = 5e6;
     let p1 = ParamDiffusion {
         rho: 0.0,
+            conductivity: ParamConductivity::Constant {
         kx,
         ky,
         kz: 0.0,
+            },
         source: Some(source),
     };
     let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
@@ -245,9 +247,7 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     let source = 5e6;
     let p1 = ParamDiffusion {
         rho: 1.0,
-        kx,
-        ky,
-        kz: 0.0,
+        conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0, },
         source: Some(source),
     };
     let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;

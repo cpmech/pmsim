@@ -1,5 +1,6 @@
 use super::{Data, LocalEquations, State};
 use crate::base::{compute_local_to_global, Config, ParamDiffusion};
+use crate::model::{allocate_conductivity_model, Conductivity};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{set_pad_coords, Cell};
@@ -30,7 +31,10 @@ pub struct ElementDiffusion<'a> {
     /// Integration point coordinates and weights
     pub ips: integ::IntegPointData,
 
-    /// Conductivity tensor
+    /// Conductivity model
+    pub model: Box<dyn Conductivity>,
+
+    /// (temporary) Conductivity tensor at a single integration point
     pub conductivity: Tensor2,
 
     /// (temporary) Gradient of temperature at a single integration point
@@ -47,21 +51,10 @@ impl<'a> ElementDiffusion<'a> {
         cell: &'a Cell,
         param: &'a ParamDiffusion,
     ) -> Result<Self, StrError> {
-        // scratchpad for numerical integration
         let ndim = data.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
         set_pad_coords(&mut pad, &points, data.mesh);
-
-        // conductivity
-        let mut conductivity = Tensor2::new(true, ndim == 2);
-        conductivity.sym_set(0, 0, param.kx);
-        conductivity.sym_set(1, 1, param.ky);
-        if ndim == 3 {
-            conductivity.sym_set(2, 2, param.kz);
-        }
-
-        // new instance
         Ok({
             ElementDiffusion {
                 ndim,
@@ -71,7 +64,8 @@ impl<'a> ElementDiffusion<'a> {
                 local_to_global: compute_local_to_global(&data.information, &data.equations, cell)?,
                 pad,
                 ips: config.integ_point_data(cell)?,
-                conductivity,
+                model: allocate_conductivity_model(&param.conductivity, ndim == 2),
+                conductivity: Tensor2::new(true, ndim == 2),
                 grad_tt: Vector::new(ndim),
             }
         })
@@ -86,6 +80,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
+        let ivs = Vector::new(0);
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
@@ -94,14 +89,21 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         args.axisymmetric = self.config.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::vec_03_vb(residual, &mut args, |w, _, _, gg| {
-            // interpolate ∇T to integration point
+        integ::vec_03_vb(residual, &mut args, |w, _, nn, gg| {
+            // interpolate T at integration point
+            let mut tt = 0.0;
+            for m in 0..npoint {
+                tt += nn[m] * state.uu[l2g[m]];
+            }
+            // interpolate ∇T at integration point
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
                 for m in 0..npoint {
                     self.grad_tt[i] += gg[m][i] * state.uu[l2g[m]];
                 }
             }
+            // compute conductivity tensor at integration point
+            self.model.tensor(&mut self.conductivity, tt, &ivs)?;
             // w must be negative as in the residual, however, w := -k.∇T
             // so the double negative is necessary to obtain -w = -(-k.∇T) = k.∇T
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt).unwrap();
@@ -142,12 +144,22 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
+        let ivs = Vector::new(0);
+        let npoint = self.cell.points.len();
+        let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::mat_03_btb(jacobian, &mut args, |k, _, _, _| {
+        integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {
+            // interpolate T at integration point
+            let mut tt = 0.0;
+            for m in 0..npoint {
+                tt += nn[m] * state.uu[l2g[m]];
+            }
+            // compute conductivity tensor at integration point
+            self.model.tensor(&mut self.conductivity, tt, &ivs)?;
             copy_tensor2(k, &self.conductivity).unwrap();
             Ok(())
         })
@@ -234,7 +246,8 @@ mod tests {
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
         let dtt_dx = 5.0;
-        let w0 = -p1.kx * dtt_dx;
+        let (kx, ky) = (0.1, 0.2);
+        let w0 = -kx * dtt_dx;
         let w1 = 0.0;
         let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1));
         vec_approx_eq(residual.as_data(), correct_r.as_data(), 1e-15);
@@ -242,7 +255,7 @@ mod tests {
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
-        let correct_kk = ana.mat_03_btb(p1.kx, p1.ky, false);
+        let correct_kk = ana.mat_03_btb(kx, ky, false);
         vec_approx_eq(jacobian.as_data(), correct_kk.as_data(), 1e-15);
 
         // with source term -------------------------------------------------
@@ -303,9 +316,10 @@ mod tests {
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
         let (dtt_dx, dtt_dz) = (7.0, 3.0);
-        let w0 = -p1.kx * dtt_dx;
+        let (kx, ky, kz) = (0.1, 0.2, 0.3);
+        let w0 = -kx * dtt_dx;
         let w1 = 0.0;
-        let w2 = -p1.kz * dtt_dz;
+        let w2 = -kz * dtt_dz;
         let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
         vec_approx_eq(residual.as_data(), correct_r.as_data(), 1e-15);
 
@@ -313,7 +327,7 @@ mod tests {
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let conductivity =
-            Tensor2::from_matrix(&[[p1.kx, 0.0, 0.0], [0.0, p1.ky, 0.0], [0.0, 0.0, p1.kz]], true, false).unwrap();
+            Tensor2::from_matrix(&[[kx, 0.0, 0.0], [0.0, ky, 0.0], [0.0, 0.0, kz]], true, false).unwrap();
         let correct_kk = ana.mat_03_btb(&conductivity);
         vec_approx_eq(jacobian.as_data(), correct_kk.as_data(), 1e-15);
 

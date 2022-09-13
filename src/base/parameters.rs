@@ -152,6 +152,13 @@ pub enum ParamConductivity {
         /// Slope coefficient
         lambda: f64,
     },
+    IsotropicLinear {
+        /// Isotropic model k = kᵣ·(1 + β·T); reference conductivity
+        kr: f64,
+
+        /// Isotropic model k = kᵣ·(1 + β·T); model coefficient
+        beta: f64,
+    },
     PedrosoZhangEhlers {
         /// x-component of the conductivity tensor
         kx: f64,
@@ -210,14 +217,8 @@ pub struct ParamDiffusion {
     /// Transient coefficient (e.g., MassDensity times SpecificHeatCapacity)
     pub rho: f64,
 
-    /// x-component of the conductivity tensor
-    pub kx: f64,
-
-    /// y-component of the conductivity tensor
-    pub ky: f64,
-
-    /// z-component of the conductivity tensor
-    pub kz: f64,
+    /// Conductivity parameters
+    pub conductivity: ParamConductivity,
 
     /// Source term
     pub source: Option<f64>,
@@ -479,17 +480,17 @@ mod tests {
 
     #[test]
     fn param_diffusion_derive_works() {
-        let mut p = ParamDiffusion {
+        let p = ParamDiffusion {
             rho: 1.0,
-            kx: 1.0,
-            ky: 2.0,
-            kz: 3.0,
+            conductivity: ParamConductivity::Constant {
+                kx: 1.0,
+                ky: 2.0,
+                kz: 3.0,
+            },
             source: None,
         };
         let q = p.clone();
-        p.ky = 111.0;
-        assert_eq!(q.ky, 2.0);
-        let correct = "ParamDiffusion { rho: 1.0, kx: 1.0, ky: 2.0, kz: 3.0, source: None }";
+        let correct = "ParamDiffusion { rho: 1.0, conductivity: Constant { kx: 1.0, ky: 2.0, kz: 3.0 }, source: None }";
         assert_eq!(format!("{:?}", q), correct);
     }
 
