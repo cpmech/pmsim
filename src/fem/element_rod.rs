@@ -106,10 +106,10 @@ impl<'a> LocalEquations for ElementRod<'a> {
         Ok(())
     }
 
-    /// Updates secondary variables such as stresses and internal values
+    /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_state(&mut self, _state: &mut State, _delta_uu: &Vector) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &State, _duu: &Vector) -> Result<(), StrError> {
         Ok(())
     }
 }

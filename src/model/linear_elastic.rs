@@ -1,7 +1,6 @@
-use super::StressStrain;
+use super::StressState;
+use super::StressStrainModel;
 use crate::StrError;
-use russell_lab::update_vector;
-use russell_lab::Vector;
 use russell_tensor::copy_tensor4;
 use russell_tensor::t4_ddot_t2;
 use russell_tensor::LinElasticity;
@@ -22,19 +21,17 @@ impl LinearElastic {
     }
 }
 
-impl StressStrain for LinearElastic {
-    fn stiffness(&mut self, dd: &mut Tensor4, _sigma: &Tensor2, _ivs: &Vector, _loading: bool) -> Result<(), StrError> {
+impl StressStrainModel for LinearElastic {
+    fn new_stress_state(&self, two_dim: bool) -> StressState {
+        StressState::new(two_dim)
+    }
+
+    fn stiffness(&mut self, dd: &mut Tensor4, _stress_state: &StressState) -> Result<(), StrError> {
         copy_tensor4(dd, self.le.get_modulus())
     }
 
-    fn update_stress(
-        &mut self,
-        sigma: &mut Tensor2,
-        _ivs: &mut Vector,
-        _loading: &mut bool,
-        delta_eps: &Tensor2,
-    ) -> Result<(), StrError> {
+    fn update_stress(&mut self, stress_state: &mut StressState, delta_eps: &Tensor2) -> Result<(), StrError> {
         t4_ddot_t2(&mut self.delta_sigma, 1.0, self.le.get_modulus(), delta_eps)?;
-        update_vector(&mut sigma.vec, 1.0, &self.delta_sigma.vec)
+        stress_state.sigma.add(1.0, &self.delta_sigma)
     }
 }

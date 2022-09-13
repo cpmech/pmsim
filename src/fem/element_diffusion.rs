@@ -80,7 +80,6 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
-        let ivs = Vector::new(0);
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
@@ -103,7 +102,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
                 }
             }
             // compute conductivity tensor at integration point
-            self.model.tensor(&mut self.conductivity, tt, &ivs)?;
+            self.model.tensor(&mut self.conductivity, tt)?;
             // w must be negative as in the residual, however, w := -k.∇T
             // so the double negative is necessary to obtain -w = -(-k.∇T) = k.∇T
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt).unwrap();
@@ -144,7 +143,6 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
-        let ivs = Vector::new(0);
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
@@ -159,7 +157,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
                 tt += nn[m] * state.uu[l2g[m]];
             }
             // compute conductivity tensor at integration point
-            self.model.tensor(&mut self.conductivity, tt, &ivs)?;
+            self.model.tensor(&mut self.conductivity, tt)?;
             copy_tensor2(k, &self.conductivity).unwrap();
             Ok(())
         })
@@ -176,10 +174,10 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         Ok(())
     }
 
-    /// Updates secondary variables such as stresses and internal values
+    /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_state(&mut self, _state: &mut State, _delta_uu: &Vector) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &State, _duu: &Vector) -> Result<(), StrError> {
         Ok(())
     }
 }

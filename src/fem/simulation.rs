@@ -61,7 +61,7 @@ impl<'a> Simulation<'a> {
         let mdu = &mut self.linear_system.mdu;
 
         // cumulated primary variables
-        let mut delta_uu = Vector::new(mdu.dim());
+        let mut duu = Vector::new(mdu.dim());
 
         // output
         if control.verbose_timesteps {
@@ -93,7 +93,7 @@ impl<'a> Simulation<'a> {
             }
 
             // reset cumulated U vector
-            delta_uu.fill(0.0);
+            duu.fill(0.0);
 
             // Note: we enter the iterations with an updated time, thus the boundary
             // conditions will contribute with updated residuals. However the primary
@@ -164,8 +164,8 @@ impl<'a> Simulation<'a> {
                 }
 
                 // update ΔU and secondary variables
-                update_vector(&mut delta_uu, -1.0, &mdu).unwrap();
-                self.elements.update_state(state, &delta_uu)?;
+                update_vector(&mut duu, -1.0, &mdu).unwrap();
+                self.elements.update_secondary_values_parallel(state, &duu)?;
 
                 // check convergence
                 if iteration == control.n_max_iterations - 1 {

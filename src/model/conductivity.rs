@@ -1,15 +1,12 @@
-#![allow(unused)]
-
 use crate::base::ParamConductivity;
 use crate::StrError;
-use russell_lab::Vector;
 use russell_tensor::{copy_tensor2, Tensor2};
 
 pub trait Conductivity: Send + Sync {
     /// Computes the conductivity tensor
     ///
     /// * `phi` may be the temperature or liquid/gas pressure
-    fn tensor(&mut self, kk: &mut Tensor2, phi: f64, ivs: &Vector) -> Result<(), StrError>;
+    fn tensor(&mut self, kk: &mut Tensor2, phi: f64) -> Result<(), StrError>;
 }
 
 /// Allocates conductivity model
@@ -38,7 +35,7 @@ impl ConductivityConstant {
 }
 
 impl Conductivity for ConductivityConstant {
-    fn tensor(&mut self, kk: &mut Tensor2, phi: f64, ivs: &Vector) -> Result<(), StrError> {
+    fn tensor(&mut self, kk: &mut Tensor2, _phi: f64) -> Result<(), StrError> {
         copy_tensor2(kk, &self.kk)
     }
 }
@@ -47,7 +44,6 @@ impl Conductivity for ConductivityConstant {
 
 #[cfg(test)]
 mod tests {
-    use super::allocate_conductivity_model;
 
     #[test]
     fn allocate_conductivity_model_works() {}

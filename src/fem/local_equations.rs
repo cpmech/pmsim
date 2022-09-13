@@ -13,8 +13,8 @@ pub trait LocalEquations: Send + Sync {
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError>;
 
-    /// Updates secondary variables such as stresses and internal values
+    /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_state(&mut self, state: &mut State, delta_uu: &Vector) -> Result<(), StrError>;
+    fn update_secondary_values(&mut self, state: &State, duu: &Vector) -> Result<(), StrError>;
 }

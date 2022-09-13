@@ -97,8 +97,8 @@ impl<'a> GenericElement<'a> {
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     #[inline]
-    pub fn update_state(&mut self, state: &mut State, delta_uu: &Vector) -> Result<(), StrError> {
-        self.actual.update_state(state, delta_uu)
+    pub fn update_secondary_values(&mut self, state: &State, duu: &Vector) -> Result<(), StrError> {
+        self.actual.update_secondary_values(state, duu)
     }
 }
 
@@ -177,8 +177,11 @@ impl<'a> Elements<'a> {
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     #[inline]
-    pub fn update_state(&mut self, state: &mut State, delta_uu: &Vector) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.update_state(state, delta_uu)).collect()
+    pub fn update_secondary_values_parallel(&mut self, state: &State, duu: &Vector) -> Result<(), StrError> {
+        self.all
+            .par_iter_mut()
+            .map(|e| e.update_secondary_values(state, duu))
+            .collect()
     }
 }
 
