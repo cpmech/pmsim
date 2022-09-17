@@ -88,7 +88,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         args.axisymmetric = self.config.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::vec_03_vb(residual, &mut args, |w, _, nn, gg| {
+        integ::vec_03_vb(residual, &mut args, |w, _, nn, bb| {
             // interpolate T at integration point
             let mut tt = 0.0;
             for m in 0..npoint {
@@ -98,13 +98,12 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
                 for m in 0..npoint {
-                    self.grad_tt[i] += gg[m][i] * state.uu[l2g[m]];
+                    self.grad_tt[i] += bb[m][i] * state.uu[l2g[m]];
                 }
             }
             // compute conductivity tensor at integration point
-            self.model.tensor(&mut self.conductivity, tt)?;
-            // w must be negative as in the residual, however, w := -k.∇T
-            // so the double negative is necessary to obtain -w = -(-k.∇T) = k.∇T
+            self.model.calc_k(&mut self.conductivity, tt)?;
+            // the residual must get -w; however w = -k·∇T, thus -w = -(-k·∇T) = k·∇T
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt)
         })
         .unwrap();
@@ -142,6 +141,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
+        let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
@@ -149,24 +149,47 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         args.axisymmetric = self.config.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::mat_03_btb(jacobian, &mut args, |kk, _, nn, _| {
+        integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {
             // interpolate T at integration point
             let mut tt = 0.0;
             for m in 0..npoint {
                 tt += nn[m] * state.uu[l2g[m]];
             }
             // compute conductivity tensor at integration point
-            self.model.tensor(kk, tt)
+            self.model.calc_k(k, tt)
         })
         .unwrap();
 
         // very important from here on
         args.clear = false;
 
+        // variable k tensor
+        if self.model.has_variable_k() {
+            integ::mat_02_bvn(jacobian, &mut args, |hk, _, nn, bb| {
+                // interpolate T at integration point
+                let mut tt = 0.0;
+                for m in 0..npoint {
+                    tt += nn[m] * state.uu[l2g[m]];
+                }
+                // interpolate ∇T at integration point
+                for i in 0..ndim {
+                    self.grad_tt[i] = 0.0;
+                    for m in 0..npoint {
+                        self.grad_tt[i] += bb[m][i] * state.uu[l2g[m]];
+                    }
+                }
+                // conductivity ← ∂k/∂ϕ
+                self.model.calc_dk_dphi(&mut self.conductivity, tt)?;
+                // compute hₖ = ∂k/∂ϕ · ∇T
+                t2_dot_vec(hk, 1.0, &self.conductivity, &self.grad_tt)
+            })
+            .unwrap();
+        }
+
         // diffusion (mass) matrix
         if self.config.transient {
             let (beta_1, _) = self.config.control.betas_transient(state.dt)?;
-            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(self.param.rho * beta_1)).unwrap();
+            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(beta_1 * self.param.rho)).unwrap();
         }
         Ok(())
     }

@@ -111,10 +111,10 @@ pub enum ParamConductivity {
         kz: f64,
     },
     IsotropicLinear {
-        /// Isotropic model k = kᵣ·(1 + β·T); reference conductivity
+        /// Isotropic model k = (1 + β T) kᵣ I  (I is the identity tensor)
         kr: f64,
 
-        /// Isotropic model k = kᵣ·(1 + β·T); model coefficient
+        /// Isotropic model k = (1 + β T) kᵣ I  (I is the identity tensor)
         beta: f64,
     },
     PedrosoZhangEhlers {

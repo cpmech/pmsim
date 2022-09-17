@@ -77,17 +77,15 @@ impl<'a> GenericElement<'a> {
         };
         let mut num_jacobian = Matrix::new(neq, neq);
         for i in 0..neq {
-            let at_u = state.uu[i];
             for j in 0..neq {
-                num_jacobian[i][j] = deriv_central5(
-                    at_u,
-                    |u, a| {
-                        a.state.uu[j] = u;
-                        self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
-                        a.residual[i]
-                    },
-                    &mut args,
-                );
+                let at_u = state.uu[j];
+                num_jacobian[i][j] = deriv_central5(at_u, &mut args, |u, a| {
+                    let original = a.state.uu[j];
+                    a.state.uu[j] = u;
+                    self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
+                    a.state.uu[j] = original;
+                    a.residual[i]
+                });
             }
         }
         num_jacobian
@@ -257,7 +255,7 @@ mod tests {
 
         ele.calc_jacobian(&state).unwrap();
         let num_jacobian = ele.numerical_jacobian(&state);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-12);
+        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-11);
 
         // transient simulation
         let mut config = Config::new();
@@ -276,10 +274,10 @@ mod tests {
         let num_jacobian = ele.numerical_jacobian(&state);
         vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-10);
 
-        // isotropic linear conductivity
+        // variable conductivity
         let p1 = ParamDiffusion {
             rho: 1.0,
-            conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 4.0 },
+            conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
             source: None,
         };
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
@@ -287,9 +285,11 @@ mod tests {
         let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
         ele.calc_jacobian(&state).unwrap();
         let num_jacobian = ele.numerical_jacobian(&state);
-        println!("{}", ele.jacobian);
-        println!("{}", num_jacobian);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-10);
+        // println!("ana: J = \n{}", ele.jacobian);
+        // println!("num: J = \n{}", num_jacobian);
+        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-7);
+        // note that the "stiffness" is now unsymmetric
+        // println!("difference = {:?}", num_jacobian[0][2] - num_jacobian[2][0]);
     }
 
     // #[test]
