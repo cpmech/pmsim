@@ -113,8 +113,8 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
         args.clear = false;
 
         if self.config.transient {
-            // calculate alphas
-            let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
+            // calculate beta coefficient
+            let (beta_1, _) = self.config.control.betas_transient(state.dt)?;
             let s = match self.param.source {
                 Some(val) => val,
                 None => 0.0,
@@ -128,7 +128,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
                     tt += nn[m] * state.uu[l2g[m]];
                     tt_star += nn[m] * state.uu_star[l2g[m]];
                 }
-                Ok(self.param.rho * (alpha_1 * tt - tt_star) - s)
+                Ok(self.param.rho * (beta_1 * tt - tt_star) - s)
             })
             .unwrap();
         } else {
@@ -165,8 +165,8 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 
         // diffusion (mass) matrix
         if self.config.transient {
-            let (alpha_1, _) = self.config.control.alphas_transient(state.dt)?;
-            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(self.param.rho * alpha_1)).unwrap();
+            let (beta_1, _) = self.config.control.betas_transient(state.dt)?;
+            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(self.param.rho * beta_1)).unwrap();
         }
         Ok(())
     }

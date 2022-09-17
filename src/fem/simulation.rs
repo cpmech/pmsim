@@ -79,9 +79,9 @@ impl<'a> Simulation<'a> {
             state.t += state.dt;
 
             // old state variables
-            let (alpha_1, alpha_2) = control.alphas_transient(state.dt)?;
+            let (beta_1, beta_2) = control.betas_transient(state.dt)?;
             if config.transient {
-                add_vectors(&mut state.uu_star, alpha_1, &state.uu, alpha_2, &state.vv).unwrap();
+                add_vectors(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
 
             // set primary prescribed values
@@ -160,7 +160,7 @@ impl<'a> Simulation<'a> {
 
                 // update V vector
                 if config.transient {
-                    add_vectors(&mut state.vv, alpha_1, &state.uu, -1.0, &state.uu_star).unwrap();
+                    add_vectors(&mut state.vv, beta_1, &state.uu, -1.0, &state.uu_star).unwrap();
                 }
 
                 // update ΔU and secondary variables

@@ -142,14 +142,14 @@ impl Control {
         None // all good
     }
 
-    /// Calculates alpha coefficients for transient method
-    pub fn alphas_transient(&self, dt: f64) -> Result<(f64, f64), StrError> {
+    /// Calculates beta coefficients for transient method
+    pub fn betas_transient(&self, dt: f64) -> Result<(f64, f64), StrError> {
         if dt < self.dt_min {
             return Err("Δt is smaller than the allowed minimum");
         }
-        let alpha_1 = 1.0 / (self.theta * dt);
-        let alpha_2 = (1.0 - self.theta) / self.theta;
-        Ok((alpha_1, alpha_2))
+        let beta_1 = 1.0 / (self.theta * dt);
+        let beta_2 = (1.0 - self.theta) / self.theta;
+        Ok((beta_1, beta_2))
     }
 }
 
@@ -268,17 +268,17 @@ mod tests {
         let mut control = Control::new();
 
         control.theta = 1.0;
-        let (alpha_1, alpha_2) = control.alphas_transient(1.0).unwrap();
-        assert_eq!(alpha_1, 1.0);
-        assert_eq!(alpha_2, 0.0);
+        let (beta_1, beta_2) = control.betas_transient(1.0).unwrap();
+        assert_eq!(beta_1, 1.0);
+        assert_eq!(beta_2, 0.0);
 
         control.theta = 0.5;
-        let (alpha_1, alpha_2) = control.alphas_transient(1.0).unwrap();
-        assert_eq!(alpha_1, 2.0);
-        assert_eq!(alpha_2, 1.0);
+        let (beta_1, beta_2) = control.betas_transient(1.0).unwrap();
+        assert_eq!(beta_1, 2.0);
+        assert_eq!(beta_2, 1.0);
 
         assert_eq!(
-            control.alphas_transient(0.0).err(),
+            control.betas_transient(0.0).err(),
             Some("Δt is smaller than the allowed minimum")
         );
     }

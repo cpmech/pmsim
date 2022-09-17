@@ -190,7 +190,7 @@ impl<'a> Elements<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Elements, GenericElement};
-    use crate::base::{Config, Element, SampleParams};
+    use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::Samples;
     use russell_chk::vec_approx_eq;
@@ -268,12 +268,27 @@ mod tests {
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
-        let (alpha_1, alpha_2) = config.control.alphas_transient(state.dt).unwrap();
-        state.uu_star[0] = alpha_1 * state.uu[0] + alpha_2 * state.uu[0];
-        state.uu_star[1] = alpha_1 * state.uu[1] + alpha_2 * state.uu[1];
-        state.uu_star[2] = alpha_1 * state.uu[2] + alpha_2 * state.uu[2];
+        let (beta_1, beta_2) = config.control.betas_transient(state.dt).unwrap();
+        state.uu_star[0] = beta_1 * state.uu[0] + beta_2 * state.uu[0];
+        state.uu_star[1] = beta_1 * state.uu[1] + beta_2 * state.uu[1];
+        state.uu_star[2] = beta_1 * state.uu[2] + beta_2 * state.uu[2];
         ele.calc_jacobian(&state).unwrap();
         let num_jacobian = ele.numerical_jacobian(&state);
+        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-10);
+
+        // isotropic linear conductivity
+        let p1 = ParamDiffusion {
+            rho: 1.0,
+            conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 4.0 },
+            source: None,
+        };
+        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
+        let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        ele.calc_jacobian(&state).unwrap();
+        let num_jacobian = ele.numerical_jacobian(&state);
+        println!("{}", ele.jacobian);
+        println!("{}", num_jacobian);
         vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-10);
     }
 
