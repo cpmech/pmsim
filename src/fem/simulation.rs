@@ -91,11 +91,15 @@ impl<'a> Simulation<'a> {
             // reset cumulated U vector
             duu.fill(0.0);
 
+            // first, previous, and current residual norms
+            let mut norm_rr_first = 0.0;
+            let mut norm_rr_prev: f64;
+            let mut norm_rr = 0.0;
+
             // Note: we enter the iterations with an updated time, thus the boundary
             // conditions will contribute with updated residuals. However the primary
             // variables are still at the old time step. In summary, we start the
             // iterations with the old primary variables and new boundary values.
-            let mut norm_rr0 = f64::MAX;
             for iteration in 0..control.n_max_iterations {
                 // compute residuals in parallel
                 self.elements.calc_residuals_parallel(&state)?;
@@ -109,15 +113,16 @@ impl<'a> Simulation<'a> {
                 self.concentrated_loads.add_to_residual(rr, state.t);
 
                 // check convergence on residual
-                let norm_rr = vector_norm(rr, NormVec::Max);
-                control.print_iteration(iteration, norm_rr, norm_rr0);
+                norm_rr_prev = norm_rr;
+                norm_rr = vector_norm(rr, NormVec::Max);
+                control.print_iteration(iteration, norm_rr_first, norm_rr_prev, norm_rr);
                 if norm_rr < control.tol_abs_residual {
                     break;
                 }
                 if iteration == 0 {
-                    norm_rr0 = norm_rr;
+                    norm_rr_first = norm_rr;
                 } else {
-                    if norm_rr < control.tol_rel_residual * norm_rr0 {
+                    if norm_rr < control.tol_rel_residual * norm_rr_first {
                         break;
                     }
                 }

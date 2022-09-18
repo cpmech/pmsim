@@ -183,7 +183,7 @@ impl Control {
 
     /// Prints iteration data
     #[inline]
-    pub fn print_iteration(&self, it: usize, norm_rr: f64, norm_rr0: f64) {
+    pub fn print_iteration(&self, it: usize, norm_rr_first: f64, norm_rr_prev: f64, norm_rr: f64) {
         // skip if not verbose
         if !self.verbose_iterations {
             return;
@@ -193,16 +193,16 @@ impl Control {
         } else if norm_rr < self.tol_abs_residual {
             ("✅", "  ") // converged on absolute residual
         } else if it == 0 {
-            ("  ", "? ") // first iteration (we don't have norm_r0 yet)
-        } else if norm_rr < self.tol_rel_residual * norm_rr0 {
+            ("  ", "? ") // first iteration (we don't have norm_rr_first yet)
+        } else if norm_rr < self.tol_rel_residual * norm_rr_first {
             ("  ", "✅") // converged on relative residual
-        } else if norm_rr > norm_rr0 {
+        } else if norm_rr > norm_rr_prev {
             ("🥵", "  ") // diverging
         } else {
             ("👍", "  ") // converging
         };
         let n = it + 1;
-        let v = self.tol_rel_residual * norm_rr0;
+        let v = self.tol_rel_residual * norm_rr_first;
         println!(
             "{:>8} {:>13} {:>13} {:>5} {:>8.2e}{} {:>8.2e}{}",
             ".", ".", ".", n, norm_rr, l, v, r,
