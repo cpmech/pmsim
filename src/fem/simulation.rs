@@ -110,17 +110,14 @@ impl<'a> Simulation<'a> {
 
                 // check convergence on residual
                 let norm_rr = vector_norm(rr, NormVec::Max);
-                let tol_norm_rr0 = control.tol_rel_residual * norm_rr0;
+                control.print_iteration(iteration, norm_rr, norm_rr0);
                 if norm_rr < control.tol_abs_residual {
-                    control.print_iteration(iteration, norm_rr, tol_norm_rr0, true, false);
                     break;
                 }
                 if iteration == 0 {
-                    control.print_iteration(iteration, norm_rr, tol_norm_rr0, false, false);
                     norm_rr0 = norm_rr;
                 } else {
-                    if norm_rr < tol_norm_rr0 {
-                        control.print_iteration(iteration, norm_rr, tol_norm_rr0, false, true);
+                    if norm_rr < control.tol_rel_residual * norm_rr0 {
                         break;
                     }
                 }

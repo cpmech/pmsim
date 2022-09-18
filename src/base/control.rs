@@ -178,34 +178,30 @@ impl Control {
 
     /// Prints iteration data
     #[inline]
-    #[rustfmt::skip]
-    pub fn print_iteration(&self, it: usize, norm_rr: f64, tol_norm_rr0: f64, converged_abs: bool, converged_rel: bool) {
+    pub fn print_iteration(&self, it: usize, norm_rr: f64, norm_rr0: f64) {
+        // skip if not verbose
         if !self.verbose_iterations {
             return;
         }
-        if converged_abs {
-            println!(
-                "{:>8} {:>13} {:>13} {:>5} {:>8.2e}✅ {:>8.2e}  ",
-                ".", ".", ".", it+1, norm_rr, tol_norm_rr0
-            );
-        } else if converged_rel {
-            println!(
-                "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8.2e}✅",
-                ".", ".", ".", it+1, norm_rr, tol_norm_rr0
-            );
+        let (l, r) = if !norm_rr.is_finite() {
+            ("😱", "  ") // found NaN or Inf
+        } else if norm_rr < self.tol_abs_residual {
+            ("✅", "  ") // converged on absolute residual
+        } else if it == 0 {
+            ("  ", "? ") // first iteration (we don't have norm_r0 yet)
+        } else if norm_rr < self.tol_rel_residual * norm_rr0 {
+            ("  ", "✅") // converged on relative residual
+        } else if norm_rr > norm_rr0 {
+            ("🥵", "  ") // diverging
         } else {
-            if it == 0 {
-                println!(
-                    "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8}  ",
-                    ".", ".", ".", it+1, norm_rr, "?"
-                );
-            } else {
-                println!(
-                    "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8.2e}  ",
-                    ".", ".", ".", it+1, norm_rr, tol_norm_rr0
-                );
-            }
-        }
+            ("😀", "  ") // converging
+        };
+        let n = it + 1;
+        let v = self.tol_rel_residual * norm_rr0;
+        println!(
+            "{:>8} {:>13} {:>13} {:>5} {:>8.2e}{} {:>8.2e}{}",
+            ".", ".", ".", n, norm_rr, l, v, r,
+        );
     }
 }
 
