@@ -63,10 +63,8 @@ impl<'a> Simulation<'a> {
         // cumulated primary variables
         let mut duu = Vector::new(mdu.dim());
 
-        // output
-        if control.verbose_timesteps {
-            print_header();
-        }
+        // message
+        control.print_header();
 
         // time loop
         let steady = !config.transient && !config.dynamics;
@@ -87,10 +85,8 @@ impl<'a> Simulation<'a> {
             // set primary prescribed values
             self.prescribed_values.apply(&mut state.uu, state.t);
 
-            // output
-            if control.verbose_timesteps {
-                print_timestep(timestep, state.t, state.dt);
-            }
+            // message
+            control.print_timestep(timestep, state.t, state.dt);
 
             // reset cumulated U vector
             duu.fill(0.0);
@@ -116,21 +112,15 @@ impl<'a> Simulation<'a> {
                 let norm_rr = vector_norm(rr, NormVec::Max);
                 let tol_norm_rr0 = control.tol_rel_residual * norm_rr0;
                 if norm_rr < control.tol_abs_residual {
-                    if control.verbose_iterations {
-                        print_iteration(iteration, norm_rr, tol_norm_rr0, true, false);
-                    }
+                    control.print_iteration(iteration, norm_rr, tol_norm_rr0, true, false);
                     break;
                 }
                 if iteration == 0 {
-                    if control.verbose_iterations {
-                        print_iteration(iteration, norm_rr, tol_norm_rr0, false, false);
-                    }
+                    control.print_iteration(iteration, norm_rr, tol_norm_rr0, false, false);
                     norm_rr0 = norm_rr;
                 } else {
                     if norm_rr < tol_norm_rr0 {
-                        if control.verbose_iterations {
-                            print_iteration(iteration, norm_rr, tol_norm_rr0, false, true);
-                        }
+                        control.print_iteration(iteration, norm_rr, tol_norm_rr0, false, true);
                         break;
                     }
                 }
@@ -179,54 +169,6 @@ impl<'a> Simulation<'a> {
             }
         }
         Ok(())
-    }
-}
-
-/// Prints the header of the table with timestep and iteration data
-#[inline]
-fn print_header() {
-    println!(
-        "{:>8} {:>13} {:>13} {:>5} {:>8}   {:>8}  ",
-        "timestep", "t", "Δt", "iter", "|R|", "tol·|R₀|"
-    );
-}
-
-/// Prints timestep data
-#[inline]
-#[rustfmt::skip]
-    fn print_timestep(timestep: usize, t: f64, dt: f64) {
-    println!(
-        "{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}   {:>8}  ",
-        timestep+1, t, dt, ".", ".", "."
-    );
-}
-
-/// Prints iteration data
-#[inline]
-#[rustfmt::skip]
-    fn print_iteration(it: usize, norm_rr: f64, tol_norm_rr0: f64, converged_abs: bool, converged_rel: bool) {
-    if converged_abs {
-        println!(
-            "{:>8} {:>13} {:>13} {:>5} {:>8.2e}✅ {:>8.2e}  ",
-            ".", ".", ".", it+1, norm_rr, tol_norm_rr0
-        );
-    } else if converged_rel {
-        println!(
-            "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8.2e}✅",
-            ".", ".", ".", it+1, norm_rr, tol_norm_rr0
-        );
-    } else {
-        if it == 0 {
-            println!(
-                "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8}  ",
-                ".", ".", ".", it+1, norm_rr, "?"
-            );
-        } else {
-            println!(
-                "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8.2e}  ",
-                ".", ".", ".", it+1, norm_rr, tol_norm_rr0
-            );
-        }
     }
 }
 

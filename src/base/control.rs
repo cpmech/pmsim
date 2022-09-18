@@ -151,6 +151,62 @@ impl Control {
         let beta_2 = (1.0 - self.theta) / self.theta;
         Ok((beta_1, beta_2))
     }
+
+    /// Prints the header of the table with timestep and iteration data
+    #[inline]
+    pub fn print_header(&self) {
+        if self.verbose_timesteps || self.verbose_iterations {
+            println!(
+                "{:>8} {:>13} {:>13} {:>5} {:>8}   {:>8}  ",
+                "timestep", "t", "Δt", "iter", "|R|", "tol·|R₀|"
+            );
+        }
+    }
+
+    /// Prints timestep data
+    #[inline]
+    #[rustfmt::skip]
+    pub fn print_timestep(&self, timestep: usize, t: f64, dt: f64) {
+        if !self.verbose_timesteps {
+            return ;
+        }
+        println!(
+            "{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}   {:>8}  ",
+            timestep+1, t, dt, ".", ".", "."
+        );
+    }
+
+    /// Prints iteration data
+    #[inline]
+    #[rustfmt::skip]
+    pub fn print_iteration(&self, it: usize, norm_rr: f64, tol_norm_rr0: f64, converged_abs: bool, converged_rel: bool) {
+        if !self.verbose_iterations {
+            return;
+        }
+        if converged_abs {
+            println!(
+                "{:>8} {:>13} {:>13} {:>5} {:>8.2e}✅ {:>8.2e}  ",
+                ".", ".", ".", it+1, norm_rr, tol_norm_rr0
+            );
+        } else if converged_rel {
+            println!(
+                "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8.2e}✅",
+                ".", ".", ".", it+1, norm_rr, tol_norm_rr0
+            );
+        } else {
+            if it == 0 {
+                println!(
+                    "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8}  ",
+                    ".", ".", ".", it+1, norm_rr, "?"
+                );
+            } else {
+                println!(
+                    "{:>8} {:>13} {:>13} {:>5} {:>8.2e}   {:>8.2e}  ",
+                    ".", ".", ".", it+1, norm_rr, tol_norm_rr0
+                );
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
