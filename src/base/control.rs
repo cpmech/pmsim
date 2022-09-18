@@ -156,6 +156,11 @@ impl Control {
     #[inline]
     pub fn print_header(&self) {
         if self.verbose_timesteps || self.verbose_iterations {
+            println!("Legend:");
+            println!("✅ : converged");
+            println!("👍 : converging");
+            println!("🥵 : diverging");
+            println!("😱 : found NaN or Inf\n");
             println!(
                 "{:>8} {:>13} {:>13} {:>5} {:>8}   {:>8}  ",
                 "timestep", "t", "Δt", "iter", "|R|", "tol·|R₀|"
@@ -194,7 +199,7 @@ impl Control {
         } else if norm_rr > norm_rr0 {
             ("🥵", "  ") // diverging
         } else {
-            ("😀", "  ") // converging
+            ("👍", "  ") // converging
         };
         let n = it + 1;
         let v = self.tol_rel_residual * norm_rr0;
