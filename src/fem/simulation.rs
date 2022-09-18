@@ -122,24 +122,26 @@ impl<'a> Simulation<'a> {
                     }
                 }
 
-                // compute jacobians in parallel
-                self.elements.calc_jacobians_parallel(&state)?;
-                self.boundaries.calc_jacobians_parallel(&state)?;
+                // compute Jacobian matrix
+                if iteration == 0 || !config.constant_tangent {
+                    // compute local Jacobian matrices in parallel
+                    self.elements.calc_jacobians_parallel(&state)?;
+                    self.boundaries.calc_jacobians_parallel(&state)?;
 
-                // assemble jacobians matrices
-                self.elements.assemble_jacobians(kk, prescribed);
-                self.boundaries.assemble_jacobians(kk, prescribed);
+                    // assemble local Jacobian matrices into the global Jacobian matrix
+                    self.elements.assemble_jacobians(kk, prescribed);
+                    self.boundaries.assemble_jacobians(kk, prescribed);
 
-                // augment global Jacobian matrix
-                for eq in &self.prescribed_values.equations {
-                    kk.put(*eq, *eq, 1.0).unwrap();
+                    // augment global Jacobian matrix
+                    for eq in &self.prescribed_values.equations {
+                        kk.put(*eq, *eq, 1.0).unwrap();
+                    }
+
+                    // factorize global Jacobian matrix
+                    self.linear_system.solver.factorize(&kk)?;
                 }
 
                 // solve linear system
-                if timestep == 0 && iteration == 0 {
-                    self.linear_system.solver.initialize(&kk)?;
-                }
-                self.linear_system.solver.factorize()?;
                 self.linear_system.solver.solve(mdu, &rr)?;
 
                 // update U vector
@@ -247,7 +249,7 @@ mod tests {
         let data = Data::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
             Simulation::new(&data, &config, &essential, &natural).err(),
-            Some("nrow, ncol, and max must all be greater than zero")
+            Some("neq and max must be greater than zero")
         );
     }
 
