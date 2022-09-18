@@ -91,7 +91,7 @@ mod tests {
     use crate::base::{compute_local_to_global, Attributes, Element, ElementInfoMap, Equations, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{Matrix, Vector};
-    use russell_sparse::{SparseTriplet, Symmetry};
+    use russell_sparse::SparseTriplet;
 
     #[test]
     fn compute_local_to_global_handles_errors() {
@@ -226,7 +226,8 @@ mod tests {
         //               {1} 1
         let l2g = vec![vec![0, 1, 4], vec![1, 3, 4], vec![1, 2, 3]];
         let neq = 5;
-        let mut kk = SparseTriplet::new(neq, neq, neq * neq, Symmetry::No).unwrap();
+        let nnz = neq * neq;
+        let mut kk = SparseTriplet::new(neq, nnz).unwrap();
         #[rustfmt::skip]
         let k0 = Matrix::from(&[
             [10.0, 11.0, 14.0],

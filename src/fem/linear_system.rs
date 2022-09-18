@@ -1,7 +1,7 @@
 use super::{Boundaries, Data, Elements, PrescribedValues};
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
+use russell_sparse::{ConfigSolver, Solver, SparseTriplet};
 
 /// Holds variables to solve the global linear system
 pub struct LinearSystem {
@@ -66,8 +66,8 @@ impl LinearSystem {
             n_equation,
             nnz_sup,
             residual: Vector::new(n_equation),
-            jacobian: SparseTriplet::new(n_equation, n_equation, nnz_sup, Symmetry::No)?,
-            solver: Solver::new(config).unwrap(),
+            jacobian: SparseTriplet::new(n_equation, nnz_sup)?,
+            solver: Solver::new(config, n_equation, nnz_sup, None).unwrap(),
             mdu: Vector::new(n_equation),
         })
     }
@@ -100,7 +100,7 @@ mod tests {
         let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
         assert_eq!(
             LinearSystem::new(&data, &prescribed_values, &elements, &boundaries).err(),
-            Some("nrow, ncol, and max must all be greater than zero")
+            Some("neq and max must be greater than zero")
         );
     }
 

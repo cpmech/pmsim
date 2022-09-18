@@ -187,8 +187,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
 
     // solve linear system
     let mdu = &mut lin_sys.mdu;
-    lin_sys.solver.initialize(&kk)?;
-    lin_sys.solver.factorize()?;
+    lin_sys.solver.factorize(&kk)?;
     lin_sys.solver.solve(mdu, &rr)?;
 
     // update U vector
