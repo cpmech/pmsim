@@ -1,7 +1,7 @@
 use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, PrescribedValues, State};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
-use russell_lab::{add_vectors, update_vector, vector_norm, NormVec, Vector};
+use russell_lab::{vec_add, vec_norm, vec_update, Norm, Vector};
 
 /// Performs a finite element simulation
 pub struct Simulation<'a> {
@@ -79,7 +79,7 @@ impl<'a> Simulation<'a> {
             // old state variables
             let (beta_1, beta_2) = control.betas_transient(state.dt)?;
             if config.transient {
-                add_vectors(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
+                vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
 
             // set primary prescribed values
@@ -114,7 +114,7 @@ impl<'a> Simulation<'a> {
 
                 // check convergence on residual
                 norm_rr_prev = norm_rr;
-                norm_rr = vector_norm(rr, NormVec::Max);
+                norm_rr = vec_norm(rr, Norm::Max);
                 control.print_iteration(iteration, norm_rr_first, norm_rr_prev, norm_rr);
                 if norm_rr < control.tol_abs_residual {
                     break;
@@ -150,15 +150,15 @@ impl<'a> Simulation<'a> {
                 self.linear_system.solver.solve(mdu, &rr)?;
 
                 // update U vector
-                update_vector(&mut state.uu, -1.0, &mdu).unwrap();
+                vec_update(&mut state.uu, -1.0, &mdu).unwrap();
 
                 // update V vector
                 if config.transient {
-                    add_vectors(&mut state.vv, beta_1, &state.uu, -1.0, &state.uu_star).unwrap();
+                    vec_add(&mut state.vv, beta_1, &state.uu, -1.0, &state.uu_star).unwrap();
                 }
 
                 // update ΔU and secondary variables
-                update_vector(&mut duu, -1.0, &mdu).unwrap();
+                vec_update(&mut duu, -1.0, &mdu).unwrap();
                 self.elements.update_secondary_values_parallel(state, &duu)?;
 
                 // check convergence

@@ -2,7 +2,7 @@ use super::{Data, LocalEquations, State};
 use crate::base::{compute_local_to_global, Config, ParamRod};
 use crate::StrError;
 use gemlab::mesh::Cell;
-use russell_lab::{copy_matrix, mat_vec_mul, Matrix, Vector};
+use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
 
 /// Implements a linear-elastic rod element
 ///
@@ -102,7 +102,7 @@ impl<'a> LocalEquations for ElementRod<'a> {
     /// Calculates the Jacobian matrix
     #[rustfmt::skip]
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &State) -> Result<(), StrError> {
-        copy_matrix(jacobian, &self.stiffness).unwrap();
+        mat_copy(jacobian, &self.stiffness).unwrap();
         Ok(())
     }
 

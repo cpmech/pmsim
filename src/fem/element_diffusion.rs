@@ -213,7 +213,7 @@ mod tests {
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
     use russell_chk::vec_approx_eq;
-    use russell_lab::{add_vectors, Matrix, Vector};
+    use russell_lab::{vec_add, Matrix, Vector};
     use russell_tensor::Tensor2;
 
     #[test]
@@ -290,7 +290,7 @@ mod tests {
         elem.calc_residual(&mut residual, &state).unwrap();
         let correct_src = ana.vec_01_ns(-source, false);
         let mut correct_r_new = Vector::new(neq);
-        add_vectors(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
+        vec_add(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
         vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
 
         // error in transient -----------------------------------------------
@@ -363,7 +363,7 @@ mod tests {
         elem.calc_residual(&mut residual, &state).unwrap();
         let correct_src = Vector::from(&ana.vec_01_ns(-source));
         let mut correct_r_new = Vector::new(neq);
-        add_vectors(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
+        vec_add(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
         vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
     }
 }

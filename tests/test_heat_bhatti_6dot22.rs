@@ -3,7 +3,7 @@ use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamConductivi
 use pmsim::fem::{Boundaries, Data, Elements, LinearSystem, PrescribedValues, Simulation, State};
 use pmsim::StrError;
 use russell_chk::vec_approx_eq;
-use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, NormVec, Vector};
+use russell_lab::{mat_approx_eq, vec_add, vec_copy, vec_norm, Matrix, Norm, Vector};
 
 // Bhatti's Example 6.22 on page 449
 //
@@ -160,7 +160,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
         -30884.92063492062,
     ];
     vec_approx_eq(rr.as_data(), bhatti_rr, 1e-10);
-    let norm_rr = vector_norm(rr, NormVec::Max);
+    let norm_rr = vec_norm(rr, Norm::Max);
     println!("norm_rr = {:?}", norm_rr);
 
     // compute jacobians in parallel
@@ -206,7 +206,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
 
     // update U vector
     let mut uu_new = Vector::new(lin_sys.n_equation);
-    add_vectors(&mut uu_new, 1.0, &state.uu, -1.0, &mdu)?;
+    vec_add(&mut uu_new, 1.0, &state.uu, -1.0, &mdu)?;
     println!("uu_new =\n{}", uu_new);
 
     // check U vector
@@ -228,14 +228,14 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     vec_approx_eq(uu_new.as_data(), tt_bhatti.as_data(), 1e-12);
 
     // set state with new U vector and check the residuals
-    copy_vector(&mut state.uu, &uu_new)?;
+    vec_copy(&mut state.uu, &uu_new)?;
     rr.fill(0.0);
     elements.calc_residuals(&state)?;
     boundaries.calc_residuals(&state)?;
     elements.assemble_residuals(rr, &prescribed_values.flags);
     boundaries.assemble_residuals(rr, &prescribed_values.flags);
     println!("rr_new =\n{:?}", rr);
-    let norm_rr = vector_norm(rr, NormVec::Max);
+    let norm_rr = vec_norm(rr, Norm::Max);
     println!("norm_rr = {:?}", norm_rr);
     assert!(norm_rr < 1e-10);
     Ok(())

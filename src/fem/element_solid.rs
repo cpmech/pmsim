@@ -156,7 +156,7 @@ mod tests {
     use gemlab::mesh::{Mesh, Samples};
     use russell_chk::vec_approx_eq;
     use russell_lab::math::SQRT_2;
-    use russell_lab::{update_vector, Matrix, Vector};
+    use russell_lab::{vec_update, Matrix, Vector};
     use russell_tensor::Tensor2;
 
     #[test]
@@ -398,7 +398,7 @@ mod tests {
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
             let mut state = State::new(&data, &config).unwrap();
-            update_vector(&mut state.uu, 1.0, &duu_h).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&state, &duu_h).unwrap();
             for p in 0..element.ips.len() {
                 vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_h, 1e-13);
@@ -407,7 +407,7 @@ mod tests {
             // check stress update (vertical displacement field)
             let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
             let mut state = State::new(&data, &config).unwrap();
-            update_vector(&mut state.uu, 1.0, &duu_v).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&state, &duu_v).unwrap();
             for p in 0..element.ips.len() {
                 vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_v, 1e-13);
@@ -416,7 +416,7 @@ mod tests {
             // check stress update (shear displacement field)
             let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
             let mut state = State::new(&data, &config).unwrap();
-            update_vector(&mut state.uu, 1.0, &duu_s).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&state, &duu_s).unwrap();
             for p in 0..element.ips.len() {
                 vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_s, 1e-13);
@@ -465,7 +465,7 @@ mod tests {
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
             let mut state = State::new(&data, &config).unwrap();
-            update_vector(&mut state.uu, 1.0, &duu_h).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&mut state, &duu_h).unwrap();
             for p in 0..element.ips.len() {
                 vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_h, 1e-13);
@@ -474,7 +474,7 @@ mod tests {
             // check stress update (vertical displacement field)
             let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
             let mut state = State::new(&data, &config).unwrap();
-            update_vector(&mut state.uu, 1.0, &duu_v).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&mut state, &duu_v).unwrap();
             for p in 0..element.ips.len() {
                 vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_v, 1e-13);
@@ -483,7 +483,7 @@ mod tests {
             // check stress update (shear displacement field)
             let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
             let mut state = State::new(&data, &config).unwrap();
-            update_vector(&mut state.uu, 1.0, &duu_s).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&mut state, &duu_s).unwrap();
             for p in 0..element.ips.len() {
                 vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_s, 1e-13);
