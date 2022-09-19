@@ -32,7 +32,7 @@ use russell_lab::{add_vectors, copy_vector, mat_approx_eq, vector_norm, Matrix, 
 // PARAMETERS
 //
 // Source = 5e6 over the region
-// Conductivity kx = ky = 45
+// Constant conductivity kx = ky = 45
 
 #[test]
 fn test_bhatti_6dot22_heat() -> Result<(), StrError> {

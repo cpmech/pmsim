@@ -2,6 +2,32 @@ use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 use russell_lab::math::{erfc, PI};
 
+// Lewis' Example 6.4.2 on page 159
+//
+// Lewis R, Nithiarasu P, and Seetharamu KN (2004) Fundamentals of the
+// Finite Element Method for Heat and Fluid Flow, Wiley, 341p
+//
+// MESH
+//
+// o-----------------------------------------------------------o
+// |    |    |    |    |    |    |    |    |    |    .....     | h = 1
+// o-----------------------------------------------------------o
+//                      <-  L = 20 ->
+//
+// INITIAL CONDITIONS
+//
+// Temperature T = 0 at all points
+//
+// BOUNDARY CONDITIONS
+//
+// Flux Qt = 1 on left side @ x = 0
+//
+// PARAMETERS
+//
+// No source
+// Constant conductivity kx = ky = 1
+// Coefficient ρ = 1
+
 #[test]
 fn test_heat_transient_1d() -> Result<(), StrError> {
     // mesh
@@ -14,7 +40,6 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
         draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_transient_1d_qua8.svg")?;
         mesh
     } else {
-        // let mesh = Mesh::read("data/meshes/mesh_heat_transient_1d.dat")?;
         Mesh::read("data/meshes/mesh_heat_transient_1d_qua8.dat")?
     };
 
