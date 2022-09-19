@@ -39,12 +39,12 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6dot22_heat();
     let find = Find::new(&mesh, None); // boundary only
-    let bottom = find.edges(At::Y(0.0), any)?;
-    let edges_flux = find.edges(At::X(0.0), any)?;
+    let bottom = find.edges(At::Y(0.0), any_x)?;
+    let edges_flux = find.edges(At::X(0.0), any_x)?;
     let edges_conv = vec![
-        find.edges(At::Y(0.03), any)?.as_slice(),  // top-horizontal
-        find.edges(At::X(0.03), any)?.as_slice(),  // middle-vertical
-        find.edges(At::Y(0.015), any)?.as_slice(), // middle-horizontal
+        find.edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
+        find.edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
+        find.edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
     ]
     .concat();
     let points_flux: Vec<_> = edges_flux.iter().map(|f| &f.points).collect();
@@ -246,12 +246,12 @@ fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6dot22_heat();
     let find = Find::new(&mesh, None); // boundary only
-    let bottom = find.edges(At::Y(0.0), any)?;
-    let edges_flux = find.edges(At::X(0.0), any)?;
+    let bottom = find.edges(At::Y(0.0), any_x)?;
+    let edges_flux = find.edges(At::X(0.0), any_x)?;
     let edges_conv = vec![
-        find.edges(At::Y(0.03), any)?.as_slice(),  // top-horizontal
-        find.edges(At::X(0.03), any)?.as_slice(),  // middle-vertical
-        find.edges(At::Y(0.015), any)?.as_slice(), // middle-horizontal
+        find.edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
+        find.edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
+        find.edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
     ]
     .concat();
 

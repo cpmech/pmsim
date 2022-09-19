@@ -10,10 +10,10 @@ fn main() -> Result<(), StrError> {
     let features = Features::new(&mesh, Extract::Boundary);
 
     let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0), any)?;
-    let right = find.edges(At::X(0.5), any)?;
-    let bottom = find.edges(At::Y(0.0), any)?;
-    let top = find.edges(At::Y(3.0), any)?;
+    let left = find.edges(At::X(0.0), any_x)?;
+    let right = find.edges(At::X(0.5), any_x)?;
+    let bottom = find.edges(At::Y(0.0), any_x)?;
+    let top = find.edges(At::Y(3.0), any_x)?;
 
     let zero = |_| 0.0;
     let mut essential = Essential::new();

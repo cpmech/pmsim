@@ -1,6 +1,10 @@
 use gemlab::prelude::*;
+use plotpy::{Curve, Plot};
 use pmsim::{prelude::*, StrError};
-use russell_lab::math::{erfc, PI};
+use russell_lab::{
+    math::{erfc, PI},
+    Vector,
+};
 
 // Lewis' Example 6.4.2 on page 159
 //
@@ -45,7 +49,7 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
 
     // features
     let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0), any)?;
+    let left = find.edges(At::X(0.0), any_x)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamDiffusion {
@@ -59,7 +63,9 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
     };
     let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
     let mut config = Config::new();
+    let t_fin = 1.0;
     config.transient = true;
+    config.control.t_fin = t_fin;
 
     // essential boundary conditions
     let essential = Essential::new();
@@ -81,9 +87,9 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
             * (f64::exp(-x * x / (4.0 * t)) - (x / 2.0) * f64::sqrt(PI / t) * erfc(x / (2.0 * f64::sqrt(t))))
     };
     let selected = vec![
-        find.point_ids(At::X(0.0), any).unwrap(),
-        find.point_ids(At::X(1.0), any).unwrap(),
-        find.point_ids(At::X(2.0), any).unwrap(),
+        find.point_ids(At::X(0.0), any_x).unwrap(),
+        find.point_ids(At::X(1.0), any_x).unwrap(),
+        find.point_ids(At::X(2.0), any_x).unwrap(),
     ]
     .concat();
     println!("");
@@ -94,6 +100,33 @@ fn test_heat_transient_1d() -> Result<(), StrError> {
         let diff = f64::abs(tt - analytical(state.t, x));
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
         assert!(diff < 3e-2);
+    }
+
+    // plot results
+    if false {
+        // compute analytical solution
+        let xx_ana = Vector::linspace(0.0, 2.0, 11)?;
+        let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
+
+        // get temperature values along x
+        let post = PostProc::new(&mesh, &find, &data, &state);
+        let (_, xx_num, tt_num) = post.values_along_x(Dof::T, 0.0, |x| x[0] <= 2.0)?;
+
+        // plot
+        let mut curve_ana = Curve::new();
+        let mut curve_num = Curve::new();
+        curve_ana.draw(&xx_ana, &tt_ana);
+        curve_num
+            .set_line_color("#cd0000")
+            .set_line_style("None")
+            .set_marker_style("+");
+        curve_num.draw(&xx_num, &tt_num);
+        let mut plot = Plot::new();
+        plot.add(&curve_ana).add(&curve_num);
+        plot.grid_and_labels("x", "T")
+            .set_yrange(0.0, 1.2)
+            .legend()
+            .save("/tmp/pmsim/test_heat_transient_1d.svg")?;
     }
     Ok(())
 }

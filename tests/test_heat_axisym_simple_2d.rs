@@ -14,8 +14,8 @@ fn test_heat_axisym_simple() -> Result<(), StrError> {
     let mesh = block.subdivide(GeoKind::Qua17)?;
     // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_axisym_simple_2d.svg")?;
     let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(rin), any)?;
-    let right = find.edges(At::X(rout), any)?;
+    let left = find.edges(At::X(rin), any_x)?;
+    let right = find.edges(At::X(rout), any_x)?;
 
     // parameters, DOFs, and configuration
     let (kx, ky) = (10.0, 10.0);

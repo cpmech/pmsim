@@ -78,7 +78,7 @@ mod tests {
     use crate::base::{Config, Dof, Element, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::{Find, Samples};
-    use gemlab::util::any;
+    use gemlab::util::any_x;
 
     #[test]
     fn values_along_x_works() {
@@ -95,7 +95,7 @@ mod tests {
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
         let proc = PostProc::new(&mesh, &find, &data, &state);
-        let (ids, xx, dd) = proc.values_along_x(Dof::T, 0.0, any).unwrap();
+        let (ids, xx, dd) = proc.values_along_x(Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
         assert_eq!(dd, &[1.0, 4.0, 2.0]);

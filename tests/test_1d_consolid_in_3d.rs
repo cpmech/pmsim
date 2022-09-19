@@ -10,12 +10,12 @@ fn main() -> Result<(), StrError> {
     let features = Features::new(&mesh, Extract::Boundary);
 
     let find = Find::new(&mesh, None);
-    let left = find.faces(At::X(0.0), any)?;
-    let right = find.faces(At::X(0.5), any)?;
-    let back = find.faces(At::X(0.0), any)?;
-    let front = find.faces(At::X(0.5), any)?;
-    let bottom = find.faces(At::Y(0.0), any)?;
-    let top = find.faces(At::Y(3.0), any)?;
+    let left = find.faces(At::X(0.0), any_x)?;
+    let right = find.faces(At::X(0.5), any_x)?;
+    let back = find.faces(At::X(0.0), any_x)?;
+    let front = find.faces(At::X(0.5), any_x)?;
+    let bottom = find.faces(At::Y(0.0), any_x)?;
+    let top = find.faces(At::Y(3.0), any_x)?;
 
     let zero = |_| 0.0;
     let mut essential = Essential::new();

@@ -40,9 +40,9 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
 
     // features
     let find = Find::new(&mesh, Some(Extract::All)); // need "All" to find reference point in the interior
-    let edges_temp = find.many_edges(&[At::Y(0.0), At::Y(h), At::X(rout)], any)?;
+    let edges_temp = find.many_edges(&[At::Y(0.0), At::Y(h), At::X(rout)], any_x)?;
     let edges_flux = find.edges(At::X(rin), |x| x[1] >= ya && x[1] <= yb)?;
-    let ref_points = find.point_ids(At::XY(0.04, 0.04), any).unwrap();
+    let ref_points = find.point_ids(At::XY(0.04, 0.04), any_x).unwrap();
     assert_eq!(ref_points.len(), 1);
 
     // reference solution
