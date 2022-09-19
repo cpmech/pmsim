@@ -72,21 +72,14 @@ fn test_heat_nonlinear_1d() -> Result<(), StrError> {
 
     // plot results
     if false {
-        // get points and sort by x-coordinates
-        let bottom = find.point_ids(At::Y(0.0), any)?;
-        let mut pairs: Vec<_> = bottom.iter().map(|id| (*id, mesh.points[*id].coords[0])).collect();
-        pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
-        // extract temperatures
-        let tt: Vec<_> = pairs
-            .iter()
-            .map(|(id, _)| state.uu[data.equations.eq(*id, Dof::T).unwrap()])
-            .collect();
+        // get temperature values along x
+        let post = PostProc::new(&mesh, &find, &data, &state);
+        let (_, x_values, tt_values) = post.values_along_x(Dof::T, 0.0, any)?;
 
         // compute plot data
-        let xx: Vec<_> = pairs.iter().map(|(_, x)| x / L).collect();
-        let yy_num: Vec<_> = tt.iter().map(|temp| 2.0 * K_R * temp / (SOURCE * L * L)).collect();
-        let yy_ana: Vec<_> = pairs.iter().map(|(_, x)| normalized(*x)).collect();
+        let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();
+        let yy_num: Vec<_> = tt_values.iter().map(|tt| 2.0 * K_R * tt / (SOURCE * L * L)).collect();
+        let yy_ana: Vec<_> = x_values.iter().map(|x| normalized(*x)).collect();
 
         // plot
         let mut curve_num = Curve::new();
