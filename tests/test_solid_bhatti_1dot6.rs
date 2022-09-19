@@ -8,18 +8,35 @@ use russell_lab::mat_approx_eq;
 use russell_lab::Matrix;
 
 // Bhatti's Example 1.6 on page 32
+//
+// Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
+//
+// MESH
+//
+// 2.0  fixed 1'-,_load                connectivity:
+//            |     '-,_      load      eid : vertices
+// 1.5 - - -  |        ,'3-,__            0 :  0, 2, 3
+//            |  1   ,'  |    '-,_        1 :  3, 1, 0
+// 1.0 - - -  |    ,'    |  3   ,-'5      2 :  2, 4, 5
+//            |  ,'  0   |   ,-'   |      3 :  5, 3, 2
+//            |,'        |,-'   2  |
+// 0.0  fixed 0----------2---------4   constraints:
+//           0.0        2.0       4.0   fixed on x and y
+//
+// BOUNDARY CONDITIONS
+//
+// Fully fixed @ points 0 and 1
+// Distributed load along edges (1,3) and (3,5) with Qn = -20
+//
+// PARAMETERS
+//
+// Young = 10,000
+// Poisson = 0.2
+// Plane-stress with thickness = 0.25
+
 #[test]
 fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
     // mesh and boundary features
-    // 2.0  fixed 1'-,_load                connectivity:
-    //            |     '-,_      load      eid : vertices
-    // 1.5 - - -  |        ,'3-,__            0 :  0, 2, 3
-    //            |  1   ,'  |    '-,_        1 :  3, 1, 0
-    // 1.0 - - -  |    ,'    |  3   ,-'5      2 :  2, 4, 5
-    //            |  ,'  0   |   ,-'   |      3 :  5, 3, 2
-    //            |,'        |,-'   2  |
-    // 0.0  fixed 0----------2---------4   constraints:
-    //           0.0        2.0       4.0   fixed on x and y
     let mesh = SampleMeshes::bhatti_example_1dot6_bracket();
     let features = Features::new(&mesh, Extract::Boundary);
     let top = vec![features.get_edge(1, 3), features.get_edge(3, 5)];

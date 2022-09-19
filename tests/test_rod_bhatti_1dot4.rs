@@ -4,23 +4,40 @@ use pmsim::StrError;
 use russell_chk::vec_approx_eq;
 
 // Bhatti's Example 1.4 on page 25
+//
+// Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
+//
+// MESH
+//
+//               (3)
+//               [2]
+//     2----------------------3
+//     |'.  (4)           _.-'
+//     |  '.[3]       _.-'
+//     |    '.    _.-'  (1)
+// (2) |      '1-'      [1]
+// [2] |      /
+//     |     /
+//     |    / (0)   The lines are ROD (Lin2) elements
+//     |   /  [1]
+//     |  /
+//     | /    (#) indicates cell id
+//     0'     [#] indicates attribute id
+//
+// BOUNDARY CONDITIONS
+//
+// Fully fixed @ points 0 and 3
+// Concentrated load @ point 1 with Fy = -150,000
+//
+// PARAMETERS
+//
+// Attribute 1: Area = 4,000; Young = 200,000
+// Attribute 2: Area = 3,000; Young = 200,000
+// Attribute 3: Area = 2,000; Young =  70,000
+
 #[test]
 fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
     // mesh and boundary features
-    //               (3)
-    //               [2]
-    //     2----------------------3
-    //     |'.  (4)           _.-'
-    //     |  '.[3]       _.-'
-    //     |    '.    _.-'  (1)
-    // (2) |      '1-'      [1]
-    // [2] |      /
-    //     |     /
-    //     |    / (0)   The lines are ROD (Lin2) elements
-    //     |   /  [1]
-    //     |  /
-    //     | /    (#) indicates cell id
-    //     0'     [#] indicates attribute id
     let mesh = SampleMeshes::bhatti_example_1dot4_truss();
 
     // parameters, DOFs, and configuration
