@@ -1,20 +1,47 @@
 use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 
+const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
+
 // From Mathematica Heat Transfer Model Verification Tests
+// (HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001)
+//
 // 2D Axisymmetric Single Equation
-// HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001
 //
 // https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
+//
+// MESH
+//
+//   →→ ---------------------
+//   →→ |    |    |    |    |  h
+//   →→ ---------------------
+//     1.0                 2.0
+//     rin                rout
+//
+// INITIAL CONDITIONS
+//
+// Temperature T = 0 at all points
+//
+// BOUNDARY CONDITIONS
+//
+// Temperature T = 10.0 on the right edge
+// Flux Qt = 100.0 on the left edge
+//
+// CONFIGURATION AND PARAMETERS
+//
+// Steady simulation
+// No source
+// Constant conductivity kx = ky = 10.0
 
 #[test]
 fn test_heat_axisym_simple() -> Result<(), StrError> {
-    // mesh and boundary features
+    // geometry
     let (rin, rout, h) = (1.0, 2.0, 0.1);
-    let mut block = Block::new(&[[rin, 0.0], [rout, 0.0], [rout, h], [rin, h]])?;
-    block.set_ndiv(&[10, 1])?;
-    let mesh = block.subdivide(GeoKind::Qua17)?;
-    // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_axisym_simple_2d.svg")?;
+
+    // mesh
+    let mesh = generate_or_read_mesh(rin, rout, h, false);
+
+    // features
     let find = Find::new(&mesh, None);
     let left = find.edges(At::X(rin), any_x)?;
     let right = find.edges(At::X(rout), any_x)?;
@@ -44,7 +71,7 @@ fn test_heat_axisym_simple() -> Result<(), StrError> {
     // run simulation
     let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
     sim.run(&mut state)?;
-    println!("{}", state.uu);
+    // println!("{}", state.uu);
 
     // check
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
@@ -53,8 +80,30 @@ fn test_heat_axisym_simple() -> Result<(), StrError> {
         let eq = data.equations.eq(point.id, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(x));
-        println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);
-        assert!(diff < 1e-7);
+        // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);
+        assert!(diff < 1e-5);
     }
     Ok(())
+}
+
+/// Generate or read mesh
+fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
+    if generate {
+        // generate mesh
+        let mut block = Block::new(&[[rin, 0.0], [rout, 0.0], [rout, h], [rin, h]]).unwrap();
+        block.set_ndiv(&[10, 1]).unwrap();
+        let mesh = block.subdivide(GeoKind::Qua9).unwrap();
+
+        // write mesh
+        mesh.write(&filepath_mesh(FILENAME_KEY, true)).unwrap();
+
+        // write figure
+        let mut mesh_svg = String::from(FILENAME_KEY);
+        mesh_svg.push_str("_mesh");
+        draw_mesh(&mesh, true, &filepath_svg(mesh_svg.as_str(), true)).unwrap();
+        mesh
+    } else {
+        // read mesh
+        Mesh::read(&filepath_mesh(FILENAME_KEY, false)).unwrap()
+    }
 }

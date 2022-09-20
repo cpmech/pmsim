@@ -5,9 +5,9 @@ use pmsim::{prelude::*, StrError};
 const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_nafems";
 
 // From Mathematica Heat Transfer Model Verification Tests
-// (HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001)
+// (HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0002)
 //
-// 2D Axisymmetric Single Equation
+// NAFEMS benchmark test
 //
 // https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
 //
