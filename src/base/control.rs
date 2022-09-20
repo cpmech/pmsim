@@ -70,7 +70,7 @@ impl Control {
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_rr: 1e-7,
+            tol_rr: 1e-10,
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
@@ -146,7 +146,9 @@ impl Control {
             println!("✅ : converged");
             println!("👍 : converging");
             println!("🥵 : diverging");
-            println!("😱 : found NaN or Inf\n");
+            println!("😱 : found NaN or Inf");
+            println!("❋  : non-scaled max(R)");
+            println!("?  : no info abut convergence");
             println!("{:>8} {:>13} {:>13} {:>5} {:>9}  ", "", "", "", "", "    _ ");
             println!(
                 "{:>8} {:>13} {:>13} {:>5} {:>9}  ",
@@ -173,14 +175,16 @@ impl Control {
         }
         let l = if !max_rr.is_finite() {
             "😱" // found NaN or Inf
-        } else if max_rr < self.tol_rr {
-            "✅" // converged on max (scaled) residual
         } else if it == 0 {
-            "  " // first iteration (no data yet)
+            "❋ " // non-scaled max residual
+        } else if max_rr < self.tol_rr {
+            "✅" // converged
+        } else if it == 1 {
+            "? " // no info about convergence (cannot compare max_rr with max_rr_prev yet)
         } else if max_rr > max_rr_prev {
-            "🥵" // diverging on residual
+            "🥵" // diverging
         } else {
-            "👍" // converging on residual
+            "👍" // converging
         };
         let n = it + 1;
         println!("{:>8} {:>13} {:>13} {:>5} {:>9.2e}{}", ".", ".", ".", n, max_rr, l);
@@ -204,7 +208,7 @@ mod tests {
         assert_eq!(control.divergence_control, false);
         assert_eq!(control.div_ctrl_max_steps, 10);
         assert_eq!(control.n_max_iterations, 10);
-        assert_eq!(control.tol_rr, 1e-7);
+        assert_eq!(control.tol_rr, 1e-10);
         assert_eq!(control.theta, 0.5);
         assert_eq!(control.theta1, 0.5);
         assert_eq!(control.theta2, 0.5);

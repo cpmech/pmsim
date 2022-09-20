@@ -1,7 +1,7 @@
 use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, PrescribedValues, State};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
-use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_update, Vector};
+use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, vec_update, Norm, Vector};
 
 /// Performs a finite element simulation
 pub struct Simulation<'a> {
@@ -90,8 +90,7 @@ impl<'a> Simulation<'a> {
             // message
             control.print_timestep(timestep, state.t, state.dt);
 
-            // reset vectors
-            rr0.fill(0.0);
+            // reset cumulated primary values
             duu.fill(0.0);
 
             // previous and current max (scaled) R values
@@ -116,11 +115,13 @@ impl<'a> Simulation<'a> {
 
                 // check convergence on residual
                 max_rr_prev = max_rr;
-                max_rr = vec_max_scaled(rr, &rr0);
-                control.print_iteration(iteration, max_rr_prev, max_rr);
                 if iteration == 0 {
+                    max_rr = vec_norm(rr, Norm::Max); // << non-scaled
+                    control.print_iteration(iteration, max_rr_prev, max_rr);
                     vec_copy(&mut rr0, rr)?;
                 } else {
+                    max_rr = vec_max_scaled(rr, &rr0); // << scaled
+                    control.print_iteration(iteration, max_rr_prev, max_rr);
                     if max_rr < control.tol_rr {
                         break;
                     }
