@@ -9,3 +9,4 @@ pub use crate::base::{
     ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
 };
 pub use crate::fem::{Data, Output, PostProc, Simulation, State};
+pub use crate::filepath::*;

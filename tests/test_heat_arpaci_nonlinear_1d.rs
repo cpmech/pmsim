@@ -3,6 +3,8 @@ use plotpy::{Curve, Plot};
 use pmsim::{prelude::*, StrError};
 use russell_chk::approx_eq;
 
+const FILENAME_KEY: &'static str = "test_heat_arpaci_nonlinear_1d";
+
 // Arpaci's Example 3-8 on page 130 (variable conductivity)
 //
 // Arpaci V. S. (1966) Conduction Heat Transfer,
@@ -43,17 +45,7 @@ fn test_heat_nonlinear_1d() -> Result<(), StrError> {
     const BETA: f64 = 0.01;
 
     // mesh
-    const GENERATE_MESH: bool = false;
-    let mesh = if GENERATE_MESH {
-        let mut block = Block::new(&[[0.0, 0.0], [L, 0.0], [L, 1.0], [0.0, 1.0]])?;
-        block.set_ndiv(&[10, 1])?;
-        let mesh = block.subdivide(GeoKind::Qua4)?;
-        mesh.write("/tmp/pmsim/mesh_heat_nonlinear_1d.dat")?;
-        draw_mesh(&mesh, true, "/tmp/pmsim/mesh_heat_nonlinear_1d.svg")?;
-        mesh
-    } else {
-        Mesh::read("data/meshes/mesh_heat_nonlinear_1d.dat")?
-    };
+    let mesh = generate_or_read_mesh(L, false);
 
     // features
     let find = Find::new(&mesh, None);
@@ -127,7 +119,23 @@ fn test_heat_nonlinear_1d() -> Result<(), StrError> {
         plot.set_title(format!("$\\beta\\;s\\;L^2\\;/\\;(2\\;k_r)$ = {:.2}", coef).as_str())
             .grid_and_labels("$x\\;/\\;L$", "$2\\,k_r\\,T\\;/\\;(s\\,L^2)$")
             .legend()
-            .save("/tmp/pmsim/test_heat_nonlinear_1d.svg")?;
+            .save(&filepath_svg(FILENAME_KEY, true))?;
     }
     Ok(())
+}
+
+/// Generate or read mesh
+fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
+    if generate {
+        let mut block = Block::new(&[[0.0, 0.0], [ll, 0.0], [ll, 1.0], [0.0, 1.0]]).unwrap();
+        block.set_ndiv(&[10, 1]).unwrap();
+        let mesh = block.subdivide(GeoKind::Qua4).unwrap();
+        mesh.write(&filepath_mesh(FILENAME_KEY, true)).unwrap();
+        let mut mesh_svg = String::from(FILENAME_KEY);
+        mesh_svg.push_str("_mesh");
+        draw_mesh(&mesh, true, &filepath_svg(mesh_svg.as_str(), true)).unwrap();
+        mesh
+    } else {
+        Mesh::read(&filepath_mesh(FILENAME_KEY, false)).unwrap()
+    }
 }
