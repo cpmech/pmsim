@@ -7,6 +7,7 @@
     "IFEM",
     "jacobians",
     "nafems",
-    "Paraview"
+    "Paraview",
+    "rref"
   ]
 }

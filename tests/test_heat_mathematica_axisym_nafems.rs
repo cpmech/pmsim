@@ -2,43 +2,63 @@ use gemlab::prelude::*;
 use plotpy::Plot;
 use pmsim::{prelude::*, StrError};
 
-fn show_mesh(mesh: &Mesh) -> Result<(), StrError> {
-    let mut draw = Draw::new();
-    let mut plot = Plot::new();
-    draw.canvas_points.set_marker_size(3.0).set_marker_line_color("none");
-    draw.cells(&mut plot, &mesh, true)?;
-    draw.points(&mut plot, &mesh);
-    plot.set_equal_axes(true)
-        .set_figure_size_points(400.0, 600.0)
-        .set_labels("x", "y")
-        .save("/tmp/pmsim/mesh_heat_axisym_nafems.png")
-}
+const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_nafems";
 
 // From Mathematica Heat Transfer Model Verification Tests
+// (HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001)
+//
 // 2D Axisymmetric Single Equation
-// HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001
 //
 // https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
+//
+// MESH (not-to-scale, not-equal-axis)
+//
+// 0.14     ||++++++++++++++++++++++++
+//          ||   |    |    |    |    +
+//          ||-----------------------+
+//          ||   |    |    |    |    +
+// 0.10  →→ |------------------------+  yb
+//       →→ |    |    |    |    |    +
+//       →→ |------------------------+
+//       →→ |    |    |    |    |    +
+//       →→ |------------------------+
+//       →→ |    |    |    |    |    +
+// 0.04  →→ |--------(#)-------------+  ya
+//          ||   |    |    |    |    +
+//          ||-----------------------+
+//          ||   |    |    |    |    +
+// 0.00     ||++++++++++++++++++++++++
+//         0.02     0.04            0.10
+//         rin      rref            rout
+//
+// '+' indicates sides with T = 273.15
+// || means insulated
+// →→ means flux with Qt = 5e5
+// (#) indicates a reference point to check the results
+//
+// INITIAL CONDITIONS
+//
+// Temperature T = 0 at all points
+//
+// BOUNDARY CONDITIONS
+//
+// Temperature T = 273.15 on the top, bottom, and right edges
+// Flux Qt = 5e5 on the middle-left edges from y=0.04 to y=0.10
+//
+// CONFIGURATION AND PARAMETERS
+//
+// Steady simulation
+// No source
+// Constant conductivity kx = ky = 52
 
 #[test]
 fn test_heat_axisym_nafems() -> Result<(), StrError> {
     // geometry
-    let (rin, xref, rout) = (0.02, 0.04, 0.1);
+    let (rin, rref, rout) = (0.02, 0.04, 0.1);
     let (ya, yb, h) = (0.04, 0.1, 0.14);
 
-    // mesh and boundary features
-    const GENERATE_MESH: bool = false;
-    let mesh = if GENERATE_MESH {
-        let y = &[0.0, ya, yb, h];
-        let att = &[1, 1, 1];
-        let (na, nb, ny) = (4, 12, &[8, 12, 8]);
-        let mesh = Structured::rectangle(rin, Some(xref), rout, na, nb, y, ny, att, GeoKind::Qua9)?;
-        show_mesh(&mesh)?;
-        mesh.write("/tmp/pmsim/mesh_heat_axisym_nafems.dat")?;
-        mesh
-    } else {
-        Mesh::read("data/meshes/mesh_heat_axisym_nafems.dat")?
-    };
+    // mesh
+    let mesh = generate_or_read_mesh(rin, rref, rout, ya, yb, h, false);
 
     // features
     let find = Find::new(&mesh, Some(Extract::All)); // need "All" to find reference point in the interior
@@ -92,4 +112,36 @@ fn test_heat_axisym_nafems() -> Result<(), StrError> {
     );
     assert!(rel_err < 1e-5);
     Ok(())
+}
+
+/// Generate or read mesh
+fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f64, generate: bool) -> Mesh {
+    if generate {
+        // generate mesh
+        let y = &[0.0, ya, yb, h];
+        let att = &[1, 1, 1];
+        let (na, nb, ny) = (4, 12, &[8, 12, 8]);
+        let mesh = Structured::rectangle(rin, Some(rref), rout, na, nb, y, ny, att, GeoKind::Qua9).unwrap();
+
+        // write mesh
+        mesh.write(&filepath_mesh(FILENAME_KEY, true)).unwrap();
+
+        // write figure
+        let mut draw = Draw::new();
+        let mut plot = Plot::new();
+        draw.canvas_points.set_marker_size(3.0).set_marker_line_color("none");
+        draw.cells(&mut plot, &mesh, true).unwrap();
+        draw.points(&mut plot, &mesh);
+        let mut mesh_svg = String::from(FILENAME_KEY);
+        mesh_svg.push_str("_mesh");
+        plot.set_equal_axes(true)
+            .set_figure_size_points(400.0, 600.0)
+            .set_labels("x", "y")
+            .save(&filepath_svg(mesh_svg.as_str(), true))
+            .unwrap();
+        mesh
+    } else {
+        // read mesh
+        Mesh::read(&filepath_mesh(FILENAME_KEY, false)).unwrap()
+    }
 }
