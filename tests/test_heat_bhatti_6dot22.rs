@@ -29,8 +29,9 @@ use russell_lab::{mat_approx_eq, vec_add, vec_copy, vec_norm, Matrix, Norm, Vect
 // Convection Cc = (55, 20) on top edges (0,2,1), (2,4,3), and (4,6,5)
 // Prescribed temperature T = 110 on the bottom edge (8,10,9)
 //
-// PARAMETERS
+// CONFIGURATION AND PARAMETERS
 //
+// Steady simulation
 // Source = 5e6 over the region
 // Constant conductivity kx = ky = 45
 

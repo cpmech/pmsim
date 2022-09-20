@@ -26,8 +26,9 @@ use russell_lab::{
 //
 // Flux Qt = 1 on left side @ x = 0
 //
-// PARAMETERS
+// CONFIGURATION AND PARAMETERS
 //
+// Transient simulation
 // No source
 // Constant conductivity kx = ky = 1
 // Coefficient ρ = 1

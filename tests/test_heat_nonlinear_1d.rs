@@ -3,6 +3,30 @@ use plotpy::{Curve, Plot};
 use pmsim::{prelude::*, StrError};
 use russell_chk::approx_eq;
 
+//
+//
+//
+// MESH
+//
+// o-----------------------------------------------------------o
+// |    |    |    |    |    |    |    |    |    |    .....     | h = 1
+// o-----------------------------------------------------------o
+//                      <-  L = 10 ->
+//
+// INITIAL CONDITIONS
+//
+// Temperature T = 0 at all points
+//
+// BOUNDARY CONDITIONS
+//
+// Temperature T on right side @ x = L
+//
+// CONFIGURATION AND PARAMETERS
+//
+// Steady simulation
+// Source = 5
+// Variable conductivity (k = (1 + β T) kᵣ I) with kᵣ = 2
+
 #[test]
 fn test_heat_nonlinear_1d() -> Result<(), StrError> {
     // constants

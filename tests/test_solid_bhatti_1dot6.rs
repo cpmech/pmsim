@@ -28,8 +28,9 @@ use russell_lab::Matrix;
 // Fully fixed @ points 0 and 1
 // Distributed load along edges (1,3) and (3,5) with Qn = -20
 //
-// PARAMETERS
+// CONFIGURATION AND PARAMETERS
 //
+// Static simulation
 // Young = 10,000
 // Poisson = 0.2
 // Plane-stress with thickness = 0.25

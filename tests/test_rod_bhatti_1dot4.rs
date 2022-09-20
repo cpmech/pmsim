@@ -29,8 +29,9 @@ use russell_chk::vec_approx_eq;
 // Fully fixed @ points 0 and 3
 // Concentrated load @ point 1 with Fy = -150,000
 //
-// PARAMETERS
+// CONFIGURATION AND PARAMETERS
 //
+// Static simulation
 // Attribute 1: Area = 4,000; Young = 200,000
 // Attribute 2: Area = 3,000; Young = 200,000
 // Attribute 3: Area = 2,000; Young =  70,000
