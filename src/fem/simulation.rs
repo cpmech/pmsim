@@ -1,7 +1,7 @@
 use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, PrescribedValues, State};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
-use russell_lab::{vec_add, vec_norm, vec_update, Norm, Vector};
+use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_update, Vector};
 
 /// Performs a finite element simulation
 pub struct Simulation<'a> {
@@ -60,8 +60,10 @@ impl<'a> Simulation<'a> {
         let kk = &mut self.linear_system.jacobian;
         let mdu = &mut self.linear_system.mdu;
 
-        // cumulated primary variables
-        let mut duu = Vector::new(mdu.dim());
+        // first residual vector and cumulated primary variables
+        let neq = rr.dim();
+        let mut rr0 = Vector::new(neq);
+        let mut duu = Vector::new(neq);
 
         // message
         control.print_header();
@@ -88,13 +90,13 @@ impl<'a> Simulation<'a> {
             // message
             control.print_timestep(timestep, state.t, state.dt);
 
-            // reset cumulated U vector
+            // reset vectors
+            rr0.fill(0.0);
             duu.fill(0.0);
 
-            // first, previous, and current residual norms
-            let mut norm_rr_first = 0.0;
-            let mut norm_rr_prev: f64;
-            let mut norm_rr = 0.0;
+            // previous and current max (scaled) R values
+            let mut max_rr_prev: f64;
+            let mut max_rr = 0.0;
 
             // Note: we enter the iterations with an updated time, thus the boundary
             // conditions will contribute with updated residuals. However the primary
@@ -113,16 +115,13 @@ impl<'a> Simulation<'a> {
                 self.concentrated_loads.add_to_residual(rr, state.t);
 
                 // check convergence on residual
-                norm_rr_prev = norm_rr;
-                norm_rr = vec_norm(rr, Norm::Max);
-                control.print_iteration(iteration, norm_rr_first, norm_rr_prev, norm_rr);
-                if norm_rr < control.tol_abs_residual {
-                    break;
-                }
+                max_rr_prev = max_rr;
+                max_rr = vec_max_scaled(rr, &rr0);
+                control.print_iteration(iteration, max_rr_prev, max_rr);
                 if iteration == 0 {
-                    norm_rr_first = norm_rr;
+                    vec_copy(&mut rr0, rr)?;
                 } else {
-                    if norm_rr < control.tol_rel_residual * norm_rr_first {
+                    if max_rr < control.tol_rr {
                         break;
                     }
                 }

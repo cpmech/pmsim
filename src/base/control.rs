@@ -38,14 +38,8 @@ pub struct Control {
     /// Maximum number of iterations
     pub n_max_iterations: usize,
 
-    /// Absolute tolerance for the residual vector
-    pub tol_abs_residual: f64,
-
-    /// Relative tolerance for the residual vector
-    pub tol_rel_residual: f64,
-
-    /// Relative tolerance for the iterative increment (mdu = -δu)
-    pub tol_rel_mdu: f64,
+    /// Tolerance for the scaled residual vector
+    pub tol_rr: f64,
 
     /// Coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub theta: f64,
@@ -76,9 +70,7 @@ impl Control {
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_abs_residual: 1e-9,
-            tol_rel_residual: 1e-7,
-            tol_rel_mdu: 1e-7,
+            tol_rr: 1e-7,
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
@@ -109,16 +101,10 @@ impl Control {
                 self.dt_min, CONTROL_MIN_DT_MIN
             ));
         }
-        if self.tol_rel_mdu < CONTROL_MIN_TOL {
-            return Some(format!(
-                "tol_rel_mdu = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rel_mdu, CONTROL_MIN_TOL
-            ));
-        }
-        if self.tol_rel_residual < CONTROL_MIN_TOL {
+        if self.tol_rr < CONTROL_MIN_TOL {
             return Some(format!(
                 "tol_rel_residual = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rel_residual, CONTROL_MIN_TOL
+                self.tol_rr, CONTROL_MIN_TOL
             ));
         }
         if self.theta < CONTROL_MIN_THETA || self.theta > 1.0 {
@@ -161,52 +147,43 @@ impl Control {
             println!("👍 : converging");
             println!("🥵 : diverging");
             println!("😱 : found NaN or Inf\n");
+            println!("{:>8} {:>13} {:>13} {:>5} {:>9}  ", "", "", "", "", "    _ ");
             println!(
-                "{:>8} {:>13} {:>13} {:>5} {:>8}   {:>8}  ",
-                "timestep", "t", "Δt", "iter", "|R|", "tol·|R₀|"
+                "{:>8} {:>13} {:>13} {:>5} {:>9}  ",
+                "timestep", "t", "Δt", "iter", "max(R)"
             );
         }
     }
 
     /// Prints timestep data
     #[inline]
-    #[rustfmt::skip]
     pub fn print_timestep(&self, timestep: usize, t: f64, dt: f64) {
         if !self.verbose_timesteps {
-            return ;
+            return;
         }
-        println!(
-            "{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}   {:>8}  ",
-            timestep+1, t, dt, ".", ".", "."
-        );
+        let n = timestep + 1;
+        println!("{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}  ", n, t, dt, ".", ".");
     }
 
     /// Prints iteration data
     #[inline]
-    pub fn print_iteration(&self, it: usize, norm_rr_first: f64, norm_rr_prev: f64, norm_rr: f64) {
-        // skip if not verbose
+    pub fn print_iteration(&self, it: usize, max_rr_prev: f64, max_rr: f64) {
         if !self.verbose_iterations {
-            return;
+            return; // skip if not verbose
         }
-        let (l, r) = if !norm_rr.is_finite() {
-            ("😱", "  ") // found NaN or Inf
-        } else if norm_rr < self.tol_abs_residual {
-            ("✅", "  ") // converged on absolute residual
+        let l = if !max_rr.is_finite() {
+            "😱" // found NaN or Inf
+        } else if max_rr < self.tol_rr {
+            "✅" // converged on max (scaled) residual
         } else if it == 0 {
-            ("  ", "? ") // first iteration (we don't have norm_rr_first yet)
-        } else if norm_rr < self.tol_rel_residual * norm_rr_first {
-            ("  ", "✅") // converged on relative residual
-        } else if norm_rr > norm_rr_prev {
-            ("🥵", "  ") // diverging
+            "  " // first iteration (no data yet)
+        } else if max_rr > max_rr_prev {
+            "🥵" // diverging on residual
         } else {
-            ("👍", "  ") // converging
+            "👍" // converging on residual
         };
         let n = it + 1;
-        let v = self.tol_rel_residual * norm_rr_first;
-        println!(
-            "{:>8} {:>13} {:>13} {:>5} {:>8.2e}{} {:>8.2e}{}",
-            ".", ".", ".", n, norm_rr, l, v, r,
-        );
+        println!("{:>8} {:>13} {:>13} {:>5} {:>9.2e}{}", ".", ".", ".", n, max_rr, l);
     }
 }
 
@@ -227,8 +204,7 @@ mod tests {
         assert_eq!(control.divergence_control, false);
         assert_eq!(control.div_ctrl_max_steps, 10);
         assert_eq!(control.n_max_iterations, 10);
-        assert_eq!(control.tol_rel_residual, 1e-7);
-        assert_eq!(control.tol_rel_mdu, 1e-7);
+        assert_eq!(control.tol_rr, 1e-7);
         assert_eq!(control.theta, 0.5);
         assert_eq!(control.theta1, 0.5);
         assert_eq!(control.theta2, 0.5);
@@ -267,19 +243,12 @@ mod tests {
         );
         control.dt_min = 1e-3;
 
-        control.tol_rel_mdu = 0.0;
-        assert_eq!(
-            control.validate(),
-            Some("tol_rel_mdu = 0.0 is incorrect; it must be ≥ 1e-15".to_string())
-        );
-        control.tol_rel_mdu = 1e-8;
-
-        control.tol_rel_residual = 0.0;
+        control.tol_rr = 0.0;
         assert_eq!(
             control.validate(),
             Some("tol_rel_residual = 0.0 is incorrect; it must be ≥ 1e-15".to_string())
         );
-        control.tol_rel_residual = 1e-8;
+        control.tol_rr = 1e-8;
 
         control.theta = 0.0;
         assert_eq!(
