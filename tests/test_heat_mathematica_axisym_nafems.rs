@@ -14,12 +14,14 @@ fn show_mesh(mesh: &Mesh) -> Result<(), StrError> {
         .save("/tmp/pmsim/mesh_heat_axisym_nafems.png")
 }
 
+// From Mathematica Heat Transfer Model Verification Tests
+// 2D Axisymmetric Single Equation
+// HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001
+//
+// https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
+
 #[test]
 fn test_heat_axisym_nafems() -> Result<(), StrError> {
-    // From Mathematica Heat Transfer Model Verification Tests
-    // 2D Axisymmetric Single Equation
-    // HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001
-
     // geometry
     let (rin, xref, rout) = (0.02, 0.04, 0.1);
     let (ya, yb, h) = (0.04, 0.1, 0.14);

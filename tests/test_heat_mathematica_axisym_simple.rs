@@ -1,12 +1,14 @@
 use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 
+// From Mathematica Heat Transfer Model Verification Tests
+// 2D Axisymmetric Single Equation
+// HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001
+//
+// https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
+
 #[test]
 fn test_heat_axisym_simple() -> Result<(), StrError> {
-    // From Mathematica Heat Transfer Model Verification Tests
-    // 2D Axisymmetric Single Equation
-    // HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001
-
     // mesh and boundary features
     let (rin, rout, h) = (1.0, 2.0, 0.1);
     let mut block = Block::new(&[[rin, 0.0], [rout, 0.0], [rout, h], [rin, h]])?;
