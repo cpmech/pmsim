@@ -3,8 +3,10 @@ use plotpy::{Curve, Plot};
 use pmsim::{prelude::*, StrError};
 use russell_chk::approx_eq;
 
+// Arpaci's Example 3-8 on page 130 (variable conductivity)
 //
-//
+// Arpaci V. S. (1966) Conduction Heat Transfer,
+// Addison-Wesley, 551p
 //
 // MESH
 //
@@ -19,13 +21,18 @@ use russell_chk::approx_eq;
 //
 // BOUNDARY CONDITIONS
 //
-// Temperature T on right side @ x = L
+// Temperature T = 0 on right side @ x = L
 //
 // CONFIGURATION AND PARAMETERS
 //
 // Steady simulation
 // Source = 5
 // Variable conductivity (k = (1 + β T) kᵣ I) with kᵣ = 2
+//
+// NOTE
+//
+// The temperature at the right T = 0 (T_inf) must be zero in order to
+// result in k(T_inf) = kᵣ as required by the analytical solution.
 
 #[test]
 fn test_heat_nonlinear_1d() -> Result<(), StrError> {
