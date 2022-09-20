@@ -39,7 +39,7 @@ use russell_chk::vec_approx_eq;
 #[test]
 fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
     // mesh and boundary features
-    let mesh = SampleMeshes::bhatti_example_1dot4_truss();
+    let mesh = SampleMeshes::bhatti_example_1d4_truss();
 
     // parameters, DOFs, and configuration
     #[rustfmt::skip]

@@ -28,7 +28,7 @@ impl SampleMeshes {
     ///
     /// ![bhatti_example_1dot4_truss](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_1dot4_truss.svg)
     #[rustfmt::skip]
-    pub fn bhatti_example_1dot4_truss() -> Mesh {
+    pub fn bhatti_example_1d4_truss() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -68,7 +68,7 @@ impl SampleMeshes {
     ///
     /// ![bhatti_example_1dot5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_1dot5_heat.svg)
     #[rustfmt::skip]
-    pub fn bhatti_example_1dot5_heat() -> Mesh {
+    pub fn bhatti_example_1d5_heat() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -107,7 +107,7 @@ impl SampleMeshes {
     ///
     /// ![bhatti_example_6dot22_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_6dot22_heat.svg)
     #[rustfmt::skip]
-    pub fn bhatti_example_6dot22_heat() -> Mesh {
+    pub fn bhatti_example_6d22_heat() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -153,7 +153,7 @@ impl SampleMeshes {
     ///
     /// ![bhatti_example_1dot6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_1dot6_bracket.svg)
     #[rustfmt::skip]
-    pub fn bhatti_example_1dot6_bracket() -> Mesh {
+    pub fn bhatti_example_1d6_bracket() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -243,25 +243,25 @@ mod tests {
 
     #[test]
     fn sample_meshes_are_ok() {
-        let mesh = SampleMeshes::bhatti_example_1dot4_truss();
+        let mesh = SampleMeshes::bhatti_example_1d4_truss();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 5);
         // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot4_truss.svg").unwrap();
 
-        let mesh = SampleMeshes::bhatti_example_1dot5_heat();
+        let mesh = SampleMeshes::bhatti_example_1d5_heat();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 5);
         assert_eq!(mesh.cells.len(), 4);
         // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot5_heat.svg").unwrap();
 
-        let mesh = SampleMeshes::bhatti_example_6dot22_heat();
+        let mesh = SampleMeshes::bhatti_example_6d22_heat();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 13);
         assert_eq!(mesh.cells.len(), 2);
         // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_6dot22_heat.svg").unwrap();
 
-        let mesh = SampleMeshes::bhatti_example_1dot6_bracket();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 6);
         assert_eq!(mesh.cells.len(), 4);

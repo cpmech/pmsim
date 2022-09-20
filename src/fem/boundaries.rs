@@ -437,7 +437,7 @@ mod tests {
 
     #[test]
     fn integration_works_qt_cv_bhatti_1dot5_() {
-        let mesh = SampleMeshes::bhatti_example_1dot5_heat();
+        let mesh = SampleMeshes::bhatti_example_1d5_heat();
         let edge = Feature {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn integration_works_qt_cv_bhatti_6dot22() {
-        let mesh = SampleMeshes::bhatti_example_6dot22_heat();
+        let mesh = SampleMeshes::bhatti_example_6d22_heat();
         let edge_flux = Feature {
             kind: GeoKind::Lin3,
             points: vec![10, 0, 11],

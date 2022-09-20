@@ -36,9 +36,9 @@ use russell_lab::{mat_approx_eq, vec_add, vec_copy, vec_norm, Matrix, Norm, Vect
 // Constant conductivity kx = ky = 45
 
 #[test]
-fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
+fn test_heat_bhatti_6d22_convection() -> Result<(), StrError> {
     // mesh and boundary features
-    let mesh = SampleMeshes::bhatti_example_6dot22_heat();
+    let mesh = SampleMeshes::bhatti_example_6d22_heat();
     let find = Find::new(&mesh, None); // boundary only
     let bottom = find.edges(At::Y(0.0), any_x)?;
     let edges_flux = find.edges(At::X(0.0), any_x)?;
@@ -245,7 +245,7 @@ fn test_bhatti_6dot22_heat() -> Result<(), StrError> {
 #[test]
 fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
     // mesh and boundary features
-    let mesh = SampleMeshes::bhatti_example_6dot22_heat();
+    let mesh = SampleMeshes::bhatti_example_6d22_heat();
     let find = Find::new(&mesh, None); // boundary only
     let bottom = find.edges(At::Y(0.0), any_x)?;
     let edges_flux = find.edges(At::X(0.0), any_x)?;

@@ -38,7 +38,7 @@ use russell_lab::Matrix;
 #[test]
 fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
     // mesh and boundary features
-    let mesh = SampleMeshes::bhatti_example_1dot6_bracket();
+    let mesh = SampleMeshes::bhatti_example_1d6_bracket();
     let features = Features::new(&mesh, Extract::Boundary);
     let top = vec![features.get_edge(1, 3), features.get_edge(3, 5)];
 

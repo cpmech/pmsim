@@ -37,7 +37,7 @@ const FILENAME_KEY: &'static str = "test_heat_arpaci_nonlinear_1d";
 // result in k(T_inf) = kᵣ as required by the analytical solution.
 
 #[test]
-fn test_heat_nonlinear_1d() -> Result<(), StrError> {
+fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // constants
     const L: f64 = 10.0;
     const SOURCE: f64 = 5.0;
@@ -127,15 +127,21 @@ fn test_heat_nonlinear_1d() -> Result<(), StrError> {
 /// Generate or read mesh
 fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
     if generate {
+        // generate mesh
         let mut block = Block::new(&[[0.0, 0.0], [ll, 0.0], [ll, 1.0], [0.0, 1.0]]).unwrap();
         block.set_ndiv(&[10, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua4).unwrap();
+
+        // write mesh
         mesh.write(&filepath_mesh(FILENAME_KEY, true)).unwrap();
+
+        // write figure
         let mut mesh_svg = String::from(FILENAME_KEY);
         mesh_svg.push_str("_mesh");
         draw_mesh(&mesh, true, &filepath_svg(mesh_svg.as_str(), true)).unwrap();
         mesh
     } else {
+        // read mesh
         Mesh::read(&filepath_mesh(FILENAME_KEY, false)).unwrap()
     }
 }
