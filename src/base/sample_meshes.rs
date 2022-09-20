@@ -26,7 +26,7 @@ impl SampleMeshes {
     ///     0'     [#] indicates attribute id
     /// ```
     ///
-    /// ![bhatti_example_1dot4_truss](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_1dot4_truss.svg)
+    /// ![bhatti_example_1d4_truss](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d4_truss.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d4_truss() -> Mesh {
         Mesh {
@@ -66,7 +66,7 @@ impl SampleMeshes {
     ///  0-------------1
     /// ```
     ///
-    /// ![bhatti_example_1dot5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_1dot5_heat.svg)
+    /// ![bhatti_example_1dot5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1dot5_heat.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d5_heat() -> Mesh {
         Mesh {
@@ -105,7 +105,7 @@ impl SampleMeshes {
     ///       0.0             0.03            0.06
     /// ```
     ///
-    /// ![bhatti_example_6dot22_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_6dot22_heat.svg)
+    /// ![bhatti_example_6dot22_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_6dot22_heat.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_6d22_heat() -> Mesh {
         Mesh {
@@ -151,7 +151,7 @@ impl SampleMeshes {
     ///           0.0        2.0       4.0   fixed on x and y
     /// ```
     ///
-    /// ![bhatti_example_1dot6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/test_mesh_bhatti_example_1dot6_bracket.svg)
+    /// ![bhatti_example_1dot6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1dot6_bracket.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d6_bracket() -> Mesh {
         Mesh {
@@ -169,6 +169,57 @@ impl SampleMeshes {
                 Cell { id: 1, attribute_id: 1, kind: GeoKind::Tri3, points: vec![3, 1, 0] },
                 Cell { id: 2, attribute_id: 1, kind: GeoKind::Tri3, points: vec![2, 4, 5] },
                 Cell { id: 3, attribute_id: 1, kind: GeoKind::Tri3, points: vec![5, 3, 2] },
+            ],
+        }
+    }
+
+    /// Returns the mesh from Smith's Example 5.2 (Figure 5.2) on page 173
+    ///
+    /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+    /// Element Method, Wiley, Fifth Edition, 664p
+    ///
+    /// MESH
+    ///
+    ///       0.25       0.5      0.25 kN/m
+    ///         ↓         ↓         ↓
+    /// ---    ▷0---------1---------2
+    ///  |      |       ,'|       ,'|   E = 1e6 kN/m²
+    ///  |      |  0  ,'  |  2  ,'  |   ν = 0.3
+    ///  |      |   ,'    |   ,'    |
+    ///         | ,'   1  | ,'  3   |   connectivity:
+    /// 1 m    ▷3'--------4'--------5     0 : 1 0 3
+    ///         |       ,'|       ,'|     1 : 3 4 1
+    ///  |      |  4  ,'  |  6  ,'  |     2 : 2 1 4
+    ///  |      |   ,'    |   ,'    |     3 : 4 5 2
+    ///  |      | ,'   5  | ,'   7  |     4 : 4 3 6
+    /// ---    ▷6'--------7'--------8     5 : 6 7 4
+    ///         △         △         △     6 : 5 4 7
+    ///                                   7 : 7 8 5
+    ///         |------- 1 m -------|
+    #[rustfmt::skip]
+    pub fn smith_example_5d2_solid() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, coords: vec![0.0,  0.0] },
+                Point { id: 1, coords: vec![0.5,  0.0] },
+                Point { id: 2, coords: vec![1.0,  0.0] },
+                Point { id: 3, coords: vec![0.0, -0.5] },
+                Point { id: 4, coords: vec![0.5, -0.5] },
+                Point { id: 5, coords: vec![1.0, -0.5] },
+                Point { id: 6, coords: vec![0.0, -1.0] },
+                Point { id: 7, coords: vec![0.5, -1.0] },
+                Point { id: 8, coords: vec![1.0, -1.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Tri3, points: vec![1, 0, 3] },
+                Cell { id: 1, attribute_id: 1, kind: GeoKind::Tri3, points: vec![3, 4, 1] },
+                Cell { id: 2, attribute_id: 1, kind: GeoKind::Tri3, points: vec![2, 1, 4] },
+                Cell { id: 3, attribute_id: 1, kind: GeoKind::Tri3, points: vec![4, 5, 2] },
+                Cell { id: 4, attribute_id: 1, kind: GeoKind::Tri3, points: vec![4, 3, 6] },
+                Cell { id: 5, attribute_id: 1, kind: GeoKind::Tri3, points: vec![6, 7, 4] },
+                Cell { id: 6, attribute_id: 1, kind: GeoKind::Tri3, points: vec![5, 4, 7] },
+                Cell { id: 7, attribute_id: 1, kind: GeoKind::Tri3, points: vec![7, 8, 5] },
             ],
         }
     }
@@ -247,30 +298,36 @@ mod tests {
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 5);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot4_truss.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_bhatti_example_1d4_truss.svg").unwrap();
 
         let mesh = SampleMeshes::bhatti_example_1d5_heat();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 5);
         assert_eq!(mesh.cells.len(), 4);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot5_heat.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_bhatti_example_1d5_heat.svg").unwrap();
 
         let mesh = SampleMeshes::bhatti_example_6d22_heat();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 13);
         assert_eq!(mesh.cells.len(), 2);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_6dot22_heat.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_bhatti_example_6d22_heat.svg").unwrap();
 
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 6);
         assert_eq!(mesh.cells.len(), 4);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_bhatti_example_1dot6_bracket.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_bhatti_example_1d6_bracket.svg").unwrap();
+
+        let mesh = SampleMeshes::smith_example_5d2_solid();
+        check_all(&mesh).unwrap();
+        assert_eq!(mesh.points.len(), 9);
+        assert_eq!(mesh.cells.len(), 8);
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d2_solid.svg").unwrap();
 
         let mesh = SampleMeshes::column_two_layers_quads();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 14);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/test_mesh_column_two_layers_quads.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_column_two_layers_quads.svg").unwrap();
     }
 }
