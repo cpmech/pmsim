@@ -218,6 +218,78 @@ impl SampleMeshes {
         }
     }
 
+    /// Returns the mesh from Smith's Example 5.7 (Figure 5.7) on page 178
+    ///
+    /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+    /// Element Method, Wiley, Fifth Edition, 664p
+    ///
+    ///  0.0  o----o---------------o
+    ///       |   /|           _.-'|
+    ///       |  / |       _.-'    |  15-node
+    ///       | /  |   _.-'        |  triangles
+    ///       |/   |.-'            |
+    /// -2.0  o----o---------------o
+    ///      0.0  1.0             6.0
+    #[rustfmt::skip]
+    pub fn smith_example_5d7_solid() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id:  0, coords: vec![0.00,  0.0] },
+                Point { id:  1, coords: vec![0.00, -0.5] },
+                Point { id:  2, coords: vec![0.00, -1.0] },
+                Point { id:  3, coords: vec![0.00, -1.5] },
+                Point { id:  4, coords: vec![0.00, -2.0] },
+                Point { id:  5, coords: vec![0.25,  0.0] },
+                Point { id:  6, coords: vec![0.25, -0.5] },
+                Point { id:  7, coords: vec![0.25, -1.0] },
+                Point { id:  8, coords: vec![0.25, -1.5] },
+                Point { id:  9, coords: vec![0.25, -2.0] },
+                Point { id: 10, coords: vec![0.50,  0.0] },
+                Point { id: 11, coords: vec![0.50, -0.5] },
+                Point { id: 12, coords: vec![0.50, -1.0] },
+                Point { id: 13, coords: vec![0.50, -1.5] },
+                Point { id: 14, coords: vec![0.50, -2.0] },
+                Point { id: 15, coords: vec![0.75,  0.0] },
+                Point { id: 16, coords: vec![0.75, -0.5] },
+                Point { id: 17, coords: vec![0.75, -1.0] },
+                Point { id: 18, coords: vec![0.75, -1.5] },
+                Point { id: 19, coords: vec![0.75, -2.0] },
+                Point { id: 20, coords: vec![1.00,  0.0] },
+                Point { id: 21, coords: vec![1.00, -0.5] },
+                Point { id: 22, coords: vec![1.00, -1.0] },
+                Point { id: 23, coords: vec![1.00, -1.5] },
+                Point { id: 24, coords: vec![1.00, -2.0] },
+                Point { id: 25, coords: vec![2.25,  0.0] },
+                Point { id: 26, coords: vec![2.25, -0.5] },
+                Point { id: 27, coords: vec![2.25, -1.0] },
+                Point { id: 28, coords: vec![2.25, -1.5] },
+                Point { id: 29, coords: vec![2.25, -2.0] },
+                Point { id: 30, coords: vec![3.50,  0.0] },
+                Point { id: 31, coords: vec![3.50, -0.5] },
+                Point { id: 32, coords: vec![3.50, -1.0] },
+                Point { id: 33, coords: vec![3.50, -1.5] },
+                Point { id: 34, coords: vec![3.50, -2.0] },
+                Point { id: 35, coords: vec![4.75,  0.0] },
+                Point { id: 36, coords: vec![4.75, -0.5] },
+                Point { id: 37, coords: vec![4.75, -1.0] },
+                Point { id: 38, coords: vec![4.75, -1.5] },
+                Point { id: 39, coords: vec![4.75, -2.0] },
+                Point { id: 40, coords: vec![6.00,  0.0] },
+                Point { id: 41, coords: vec![6.00, -0.5] },
+                Point { id: 42, coords: vec![6.00, -1.0] },
+                Point { id: 43, coords: vec![6.00, -1.5] },
+                Point { id: 44, coords: vec![6.00, -2.0] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Tri15, points: vec![20,  0,  4, 10,  2, 12, 15,  5,  1,  3,  8, 16, 11,  6,  7] },
+                Cell { id: 1, attribute_id: 1, kind: GeoKind::Tri15, points: vec![ 4, 24, 20, 14, 22, 12,  9, 19, 23, 21, 16,  8, 13, 18, 17] },
+                Cell { id: 2, attribute_id: 1, kind: GeoKind::Tri15, points: vec![40, 20, 24, 30, 22, 32, 35, 25, 21, 23, 28, 36, 31, 26, 27] },
+                Cell { id: 3, attribute_id: 1, kind: GeoKind::Tri15, points: vec![24, 44, 40, 34, 42, 32, 29, 39, 43, 41, 36, 28, 33, 38, 37] },
+            ],
+        }
+    }
+
     /// Returns a mesh with quadrilaterals representing a column
     ///
     /// ```text
@@ -317,6 +389,12 @@ mod tests {
         assert_eq!(mesh.points.len(), 9);
         assert_eq!(mesh.cells.len(), 8);
         // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d2_solid.svg").unwrap();
+
+        let mesh = SampleMeshes::smith_example_5d7_solid();
+        check_all(&mesh).unwrap();
+        assert_eq!(mesh.points.len(), 45);
+        assert_eq!(mesh.cells.len(), 4);
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d7_solid.svg").unwrap();
 
         let mesh = SampleMeshes::column_two_layers_quads();
         check_all(&mesh).unwrap();
