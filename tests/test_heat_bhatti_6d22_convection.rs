@@ -9,6 +9,11 @@ use russell_lab::{mat_approx_eq, vec_add, vec_copy, vec_norm, Matrix, Norm, Vect
 //
 // Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
 //
+// TEST GOAL
+//
+// This test verifies the steady heat equation with prescribed temperature, convection,
+// flux, and a volumetric source term. Also, it checks the use of Qua8 elements.
+//
 // MESH
 //
 //       0.0    0.015    0.03

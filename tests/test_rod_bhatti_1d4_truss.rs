@@ -7,6 +7,10 @@ use russell_chk::vec_approx_eq;
 //
 // Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
 //
+// TEST GOAL
+//
+// This test verifies a 2D frame with rod elements and concentrated forces
+//
 // MESH
 //
 //               (3)

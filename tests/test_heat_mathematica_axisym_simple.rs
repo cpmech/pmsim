@@ -10,6 +10,10 @@ const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
 //
 // https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
 //
+// TEST GOAL
+//
+// This test verifies the steady heat equation in 1D with prescribed flux
+//
 // MESH
 //
 //   →→ ---------------------

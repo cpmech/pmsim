@@ -7,8 +7,13 @@ use russell_chk::vec_approx_eq;
 // Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
 // Element Method, Wiley, Fifth Edition, 664p
 //
-// MESH
+// TEST GOAL
 //
+// This test verifies a plane-strain simulation with Tri15 elements
+//
+// MESH
+//         1.0 kN/m²
+//          ↓↓↓↓↓↓
 //  0.0  Ux o----o---------------o Ux
 //       F  |   /|           _.-'| F
 //       I  |  / |       _.-'    | I    15-node
@@ -26,12 +31,19 @@ use russell_chk::vec_approx_eq;
 // Concentrated load (Fy) on points 0, 5, 10, 15, 20 equal to
 // -0.0778, -0.3556, -0.1333, -0.3556, -0.0778, respectively
 //
+// NOTE: the distributed load is directly modelled by concentrated forces
+// just so we can compare the numeric results with the book results.
+//
 // CONFIGURATION AND PARAMETERS
 //
 // Static simulation
 // Young = 1e5
 // Poisson = 0.2
 // Plane-strain
+//
+// NOTE: the Poisson coefficient in the book's figure is different than the
+// coefficient in the code. The results given in the book's Fig 5.8 correspond
+// to the code's coefficient (Poisson = 0.2)
 
 #[test]
 fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {

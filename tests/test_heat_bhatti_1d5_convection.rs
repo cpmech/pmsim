@@ -7,6 +7,10 @@ use russell_lab::prelude::*;
 //
 // Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
 //
+// TEST GOAL
+//
+// This test verifies the steady heat equation with prescribed temperature and convection
+//
 // MESH
 //
 // 0.3               .2

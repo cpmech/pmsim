@@ -7,6 +7,10 @@ use russell_chk::vec_approx_eq;
 // Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
 // Element Method, Wiley, Fifth Edition, 664p
 //
+// TEST GOAL
+//
+// This test verifies a plane-strain simulation with Tri3 elements
+//
 // MESH
 //
 //               1.0 kN/m²

@@ -11,6 +11,10 @@ use russell_lab::Matrix;
 //
 // Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
 //
+// TEST GOAL
+//
+// This test verifies the equilibrium of a thin bracket modelled by assuming plane-stress
+//
 // MESH
 //
 // 2.0  fixed 1'-,_load                connectivity:

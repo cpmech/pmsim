@@ -11,6 +11,10 @@ const FILENAME_KEY: &'static str = "test_heat_lewis_transient_1d";
 // Lewis R, Nithiarasu P, and Seetharamu KN (2004) Fundamentals of the
 // Finite Element Method for Heat and Fluid Flow, Wiley, 341p
 //
+// TEST GOAL
+//
+// This test verifies the transient diffusion in 1D
+//
 // MESH
 //
 // o-----------------------------------------------------------o

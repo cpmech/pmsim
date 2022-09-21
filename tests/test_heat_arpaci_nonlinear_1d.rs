@@ -10,6 +10,11 @@ const FILENAME_KEY: &'static str = "test_heat_arpaci_nonlinear_1d";
 // Arpaci V. S. (1966) Conduction Heat Transfer,
 // Addison-Wesley, 551p
 //
+// TEST GOAL
+//
+// This tests verifies the nonlinear solver for the diffusion equation
+// with a variable conductivity coefficient.
+//
 // MESH
 //
 // o-----------------------------------------------------------o

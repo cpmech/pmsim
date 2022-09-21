@@ -11,6 +11,10 @@ const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_nafems";
 //
 // https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
 //
+// TEST GOAL
+//
+// This test verifies the steady heat equation with a localized flux boundary condition
+//
 // MESH (not-to-scale, not-equal-axis)
 //
 // 0.14     ||++++++++++++++++++++++++
