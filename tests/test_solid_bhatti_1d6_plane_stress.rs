@@ -36,7 +36,7 @@ use russell_lab::Matrix;
 // Plane-stress with thickness = 0.25
 
 #[test]
-fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
+fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d6_bracket();
     let features = Features::new(&mesh, Extract::Boundary);

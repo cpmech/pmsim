@@ -40,7 +40,7 @@ use russell_chk::vec_approx_eq;
 // Plane-strain
 
 #[test]
-fn test_heat_axisym_simple() -> Result<(), StrError> {
+fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d2_tri3();
 

@@ -34,7 +34,7 @@ const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
 // Constant conductivity kx = ky = 10.0
 
 #[test]
-fn test_heat_axisym_simple() -> Result<(), StrError> {
+fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     // geometry
     let (rin, rout, h) = (1.0, 2.0, 0.1);
 

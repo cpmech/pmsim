@@ -52,7 +52,7 @@ const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_nafems";
 // Constant conductivity kx = ky = 52
 
 #[test]
-fn test_heat_axisym_nafems() -> Result<(), StrError> {
+fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     // geometry
     let (rin, rref, rout) = (0.02, 0.04, 0.1);
     let (ya, yb, h) = (0.04, 0.1, 0.14);
