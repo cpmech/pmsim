@@ -1,3 +1,5 @@
+use crate::StrError;
+
 /// Defines the smallest allowed dt_min (Control)
 pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
 
@@ -9,15 +11,6 @@ pub const CONTROL_MIN_THETA: f64 = 0.0001;
 
 /// Holds the (time-loop) options to control the simulation
 pub struct Control {
-    /// Linear problem
-    pub linear_problem: bool,
-
-    /// Quasi-static analysis
-    pub quasi_static: bool,
-
-    /// Pseudo-Newton method with constant-tangent operator
-    pub constant_tangent: bool,
-
     /// Initial time
     pub t_ini: f64,
 
@@ -33,6 +26,9 @@ pub struct Control {
     /// Minimum allowed time increment min(Δt)
     pub dt_min: f64,
 
+    /// Maximum number of time steps
+    pub n_max_time_steps: usize,
+
     /// Divergence control
     pub divergence_control: bool,
 
@@ -42,11 +38,8 @@ pub struct Control {
     /// Maximum number of iterations
     pub n_max_iterations: usize,
 
-    /// Relative tolerance for the residual vector
-    pub tol_rel_residual: f64,
-
-    /// Relative tolerance for the iterative increment (mdu = -δu)
-    pub tol_rel_mdu: f64,
+    /// Tolerance for the scaled residual vector
+    pub tol_rr: f64,
 
     /// Coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub theta: f64,
@@ -57,10 +50,10 @@ pub struct Control {
     /// Coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
     pub theta2: f64,
 
-    /// Verbose mode
-    pub verbose: bool,
+    /// Verbose mode during timesteps
+    pub verbose_timesteps: bool,
 
-    /// Verbose mode for iterations
+    /// Verbose mode during iterations
     pub verbose_iterations: bool,
 }
 
@@ -68,24 +61,21 @@ impl Control {
     /// Allocates a new instance with default values
     pub fn new() -> Self {
         Control {
-            linear_problem: false,
-            quasi_static: false,
-            constant_tangent: false,
             t_ini: 0.0,
             t_fin: 1.0,
             dt: |_| 0.1,
             dt_out: |_| 0.1,
             dt_min: CONTROL_MIN_DT_MIN,
+            n_max_time_steps: 1_000,
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_rel_residual: 1e-6,
-            tol_rel_mdu: 1e-10,
+            tol_rr: 1e-10,
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
-            verbose: false,
-            verbose_iterations: false,
+            verbose_timesteps: true,
+            verbose_iterations: true,
         }
     }
 
@@ -111,16 +101,10 @@ impl Control {
                 self.dt_min, CONTROL_MIN_DT_MIN
             ));
         }
-        if self.tol_rel_mdu < CONTROL_MIN_TOL {
-            return Some(format!(
-                "tol_rel_mdu = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rel_mdu, CONTROL_MIN_TOL
-            ));
-        }
-        if self.tol_rel_residual < CONTROL_MIN_TOL {
+        if self.tol_rr < CONTROL_MIN_TOL {
             return Some(format!(
                 "tol_rel_residual = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rel_residual, CONTROL_MIN_TOL
+                self.tol_rr, CONTROL_MIN_TOL
             ));
         }
         if self.theta < CONTROL_MIN_THETA || self.theta > 1.0 {
@@ -143,6 +127,68 @@ impl Control {
         }
         None // all good
     }
+
+    /// Calculates beta coefficients for transient method
+    pub fn betas_transient(&self, dt: f64) -> Result<(f64, f64), StrError> {
+        if dt < self.dt_min {
+            return Err("Δt is smaller than the allowed minimum");
+        }
+        let beta_1 = 1.0 / (self.theta * dt);
+        let beta_2 = (1.0 - self.theta) / self.theta;
+        Ok((beta_1, beta_2))
+    }
+
+    /// Prints the header of the table with timestep and iteration data
+    #[inline]
+    pub fn print_header(&self) {
+        if self.verbose_timesteps || self.verbose_iterations {
+            println!("Legend:");
+            println!("✅ : converged");
+            println!("👍 : converging");
+            println!("🥵 : diverging");
+            println!("😱 : found NaN or Inf");
+            println!("❋  : non-scaled max(R)");
+            println!("?  : no info abut convergence");
+            println!("{:>8} {:>13} {:>13} {:>5} {:>9}  ", "", "", "", "", "    _ ");
+            println!(
+                "{:>8} {:>13} {:>13} {:>5} {:>9}  ",
+                "timestep", "t", "Δt", "iter", "max(R)"
+            );
+        }
+    }
+
+    /// Prints timestep data
+    #[inline]
+    pub fn print_timestep(&self, timestep: usize, t: f64, dt: f64) {
+        if !self.verbose_timesteps {
+            return;
+        }
+        let n = timestep + 1;
+        println!("{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}  ", n, t, dt, ".", ".");
+    }
+
+    /// Prints iteration data
+    #[inline]
+    pub fn print_iteration(&self, it: usize, max_rr_prev: f64, max_rr: f64) {
+        if !self.verbose_iterations {
+            return; // skip if not verbose
+        }
+        let l = if !max_rr.is_finite() {
+            "😱" // found NaN or Inf
+        } else if it == 0 {
+            "❋ " // non-scaled max residual
+        } else if max_rr < self.tol_rr {
+            "✅" // converged
+        } else if it == 1 {
+            "? " // no info about convergence (cannot compare max_rr with max_rr_prev yet)
+        } else if max_rr > max_rr_prev {
+            "🥵" // diverging
+        } else {
+            "👍" // converging
+        };
+        let n = it + 1;
+        println!("{:>8} {:>13} {:>13} {:>5} {:>9.2e}{}", ".", ".", ".", n, max_rr, l);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -154,9 +200,6 @@ mod tests {
     #[test]
     fn new_works() {
         let control = Control::new();
-        assert_eq!(control.linear_problem, false);
-        assert_eq!(control.quasi_static, false);
-        assert_eq!(control.constant_tangent, false);
         assert_eq!(control.t_ini, 0.0);
         assert_eq!(control.t_fin, 1.0);
         assert_eq!((control.dt)(123.0), 0.1);
@@ -165,13 +208,12 @@ mod tests {
         assert_eq!(control.divergence_control, false);
         assert_eq!(control.div_ctrl_max_steps, 10);
         assert_eq!(control.n_max_iterations, 10);
-        assert_eq!(control.tol_rel_residual, 1e-6);
-        assert_eq!(control.tol_rel_mdu, 1e-10);
+        assert_eq!(control.tol_rr, 1e-10);
         assert_eq!(control.theta, 0.5);
         assert_eq!(control.theta1, 0.5);
         assert_eq!(control.theta2, 0.5);
-        assert_eq!(control.verbose, false);
-        assert_eq!(control.verbose_iterations, false);
+        assert_eq!(control.verbose_timesteps, true);
+        assert_eq!(control.verbose_iterations, true);
     }
 
     #[test]
@@ -205,19 +247,12 @@ mod tests {
         );
         control.dt_min = 1e-3;
 
-        control.tol_rel_mdu = 0.0;
-        assert_eq!(
-            control.validate(),
-            Some("tol_rel_mdu = 0.0 is incorrect; it must be ≥ 1e-15".to_string())
-        );
-        control.tol_rel_mdu = 1e-8;
-
-        control.tol_rel_residual = 0.0;
+        control.tol_rr = 0.0;
         assert_eq!(
             control.validate(),
             Some("tol_rel_residual = 0.0 is incorrect; it must be ≥ 1e-15".to_string())
         );
-        control.tol_rel_residual = 1e-8;
+        control.tol_rr = 1e-8;
 
         control.theta = 0.0;
         assert_eq!(
@@ -256,5 +291,25 @@ mod tests {
         control.theta2 = 0.5;
 
         assert_eq!(control.validate(), None);
+    }
+
+    #[test]
+    fn alphas_transient_works() {
+        let mut control = Control::new();
+
+        control.theta = 1.0;
+        let (beta_1, beta_2) = control.betas_transient(1.0).unwrap();
+        assert_eq!(beta_1, 1.0);
+        assert_eq!(beta_2, 0.0);
+
+        control.theta = 0.5;
+        let (beta_1, beta_2) = control.betas_transient(1.0).unwrap();
+        assert_eq!(beta_1, 2.0);
+        assert_eq!(beta_2, 1.0);
+
+        assert_eq!(
+            control.betas_transient(0.0).err(),
+            Some("Δt is smaller than the allowed minimum")
+        );
     }
 }

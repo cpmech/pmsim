@@ -1,8 +1,13 @@
 {
   "cSpell.words": [
-    "datamaps",
+    "axisym",
+    "conv",
+    "dphi",
+    "emap",
     "IFEM",
-    "nglobal",
-    "nlocal"
+    "jacobians",
+    "nafems",
+    "Paraview",
+    "rref"
   ]
 }

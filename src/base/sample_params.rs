@@ -1,6 +1,6 @@
 use super::{
-    ParamBeam, ParamConductivity, ParamFluids, ParamLiquidRetention, ParamPorous, ParamRealDensity, ParamRod,
-    ParamSeepage, ParamSolid, ParamStressStrain,
+    ParamBeam, ParamConductivity, ParamDiffusion, ParamFluids, ParamLiquidRetention, ParamPorousLiq, ParamPorousLiqGas,
+    ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
 };
 
 /// Holds samples of material/element parameters
@@ -44,6 +44,19 @@ impl SampleParams {
         }
     }
 
+    /// Returns sample parameters for diffusion problems
+    pub fn param_diffusion() -> ParamDiffusion {
+        ParamDiffusion {
+            rho: 1.0,
+            conductivity: ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.2,
+                kz: 0.3,
+            },
+            source: None,
+        }
+    }
+
     /// Returns sample parameters for a linear-elastic rod
     pub fn param_rod() -> ParamRod {
         ParamRod {
@@ -66,7 +79,7 @@ impl SampleParams {
         }
     }
 
-    /// Returns sample parameters for a solid medium
+    /// Returns sample parameters for a solid medium (plane-strain or 3D)
     pub fn param_solid() -> ParamSolid {
         ParamSolid {
             density: 2.7, // Mg/m²
@@ -74,64 +87,71 @@ impl SampleParams {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
             },
-            n_integ_point: None,
         }
     }
 
-    /// Returns sample parameters for a porous medium with solid, liquid and gas
-    pub fn param_porous_sol_liq_gas(porosity_initial: f64, k_iso: f64) -> ParamPorous {
-        let nu = 0.2;
-        let kk0 = nu / (1.0 - nu);
-        ParamPorous {
-            earth_pres_coef_ini: kk0,
-            porosity_initial,
-            density_solid: 2.7, // Mg/m³
-            stress_strain: ParamStressStrain::LinearElastic {
+    /// Returns sample parameters for a solid medium (Drucker-Prager)
+    pub fn param_solid_drucker_prager() -> ParamSolid {
+        ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: ParamStressStrain::DruckerPrager {
                 young: 10_000.0, // kPa
-                poisson: nu,     // [-]
+                poisson: 0.2,    // [-]
+                c: 0.0,          // kPa
+                phi: 25.0,       // degree
+                hh: 0.0,         // [-]
             },
-            retention_liquid: ParamLiquidRetention::PedrosoWilliams {
-                with_hysteresis: true,
-                lambda_d: 3.0,
-                lambda_w: 3.0,
-                beta_d: 6.0,
-                beta_w: 6.0,
-                beta_1: 6.0,
-                beta_2: 6.0,
-                x_rd: 2.0,
-                x_rw: 2.0,
-                y_0: 0.95,
-                y_r: 0.005,
+        }
+    }
+
+    /// Returns sample parameters for seepage models with liquid only
+    pub fn param_porous_liq() -> ParamPorousLiq {
+        ParamPorousLiq {
+            porosity_initial: 0.4,
+            retention_liquid: ParamLiquidRetention::BrooksCorey {
+                lambda: 0.1,
+                pc_ae: 0.1,
+                sl_min: 0.1,
+                sl_max: 1.0,
             },
-            conductivity_liquid: ParamConductivity::PedrosoZhangEhlers {
-                kx: k_iso, // m/s
-                ky: k_iso, // m/s
-                kz: k_iso, // m/s
-                lambda_0: 0.001,
-                lambda_1: 1.2,
-                alpha: 0.01,
-                beta: 10.0,
+            conductivity_liquid: ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.1,
+                kz: 0.1,
             },
-            conductivity_gas: Some(ParamConductivity::PedrosoZhangEhlers {
-                kx: k_iso, // m/s
-                ky: k_iso, // m/s
-                kz: k_iso, // m/s
-                lambda_0: 2.0,
-                lambda_1: 0.001,
-                alpha: 0.01,
-                beta: 10.0,
-            }),
-            n_integ_point: None,
+        }
+    }
+
+    /// Returns sample parameters for seepage models with liquid and gas
+    pub fn param_porous_liq_gas() -> ParamPorousLiqGas {
+        ParamPorousLiqGas {
+            porosity_initial: 0.4,
+            retention_liquid: ParamLiquidRetention::BrooksCorey {
+                lambda: 0.1,
+                pc_ae: 0.1,
+                sl_min: 0.1,
+                sl_max: 1.0,
+            },
+            conductivity_liquid: ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.1,
+                kz: 0.1,
+            },
+            conductivity_gas: ParamConductivity::Constant {
+                kx: 0.1,
+                ky: 0.1,
+                kz: 0.1,
+            },
         }
     }
 
     /// Returns sample parameters for a porous medium with solid and liquid
-    pub fn param_porous_sol_liq(porosity_initial: f64, k_iso: f64) -> ParamPorous {
+    pub fn param_porous_sld_liq() -> ParamPorousSldLiq {
         let nu = 0.2;
         let kk0 = nu / (1.0 - nu);
-        ParamPorous {
+        ParamPorousSldLiq {
             earth_pres_coef_ini: kk0,
-            porosity_initial,
+            porosity_initial: 0.4,
             density_solid: 2.7, // Mg/m³
             stress_strain: ParamStressStrain::LinearElastic {
                 young: 10_000.0, // kPa
@@ -151,60 +171,60 @@ impl SampleParams {
                 y_r: 0.005,
             },
             conductivity_liquid: ParamConductivity::PedrosoZhangEhlers {
-                kx: k_iso, // m/s
-                ky: k_iso, // m/s
-                kz: k_iso, // m/s
+                kx: 1e-3, // m/s
+                ky: 1e-3, // m/s
+                kz: 1e-3, // m/s
                 lambda_0: 0.001,
                 lambda_1: 1.2,
                 alpha: 0.01,
                 beta: 10.0,
             },
-            conductivity_gas: None,
-            n_integ_point: None,
         }
     }
 
-    /// Returns sample parameters for seepage models with liquid only
-    pub fn param_seepage_liq() -> ParamSeepage {
-        ParamSeepage {
+    /// Returns sample parameters for a porous medium with solid, liquid and gas
+    pub fn param_porous_sld_liq_gas() -> ParamPorousSldLiqGas {
+        let nu = 0.2;
+        let kk0 = nu / (1.0 - nu);
+        ParamPorousSldLiqGas {
+            earth_pres_coef_ini: kk0,
             porosity_initial: 0.4,
-            retention_liquid: ParamLiquidRetention::BrooksCorey {
-                lambda: 0.1,
-                pc_ae: 0.1,
-                sl_min: 0.1,
-                sl_max: 1.0,
+            density_solid: 2.7, // Mg/m³
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 10_000.0, // kPa
+                poisson: nu,     // [-]
             },
-            conductivity_liquid: ParamConductivity::Constant {
-                kx: 0.1,
-                ky: 0.1,
-                kz: 0.1,
+            retention_liquid: ParamLiquidRetention::PedrosoWilliams {
+                with_hysteresis: true,
+                lambda_d: 3.0,
+                lambda_w: 3.0,
+                beta_d: 6.0,
+                beta_w: 6.0,
+                beta_1: 6.0,
+                beta_2: 6.0,
+                x_rd: 2.0,
+                x_rw: 2.0,
+                y_0: 0.95,
+                y_r: 0.005,
             },
-            conductivity_gas: None,
-            n_integ_point: None,
-        }
-    }
-
-    /// Returns sample parameters for seepage models with liquid and gas
-    pub fn param_seepage_liq_gas() -> ParamSeepage {
-        ParamSeepage {
-            porosity_initial: 0.4,
-            retention_liquid: ParamLiquidRetention::BrooksCorey {
-                lambda: 0.1,
-                pc_ae: 0.1,
-                sl_min: 0.1,
-                sl_max: 1.0,
+            conductivity_liquid: ParamConductivity::PedrosoZhangEhlers {
+                kx: 1e-3, // m/s
+                ky: 1e-3, // m/s
+                kz: 1e-3, // m/s
+                lambda_0: 0.001,
+                lambda_1: 1.2,
+                alpha: 0.01,
+                beta: 10.0,
             },
-            conductivity_liquid: ParamConductivity::Constant {
-                kx: 0.1,
-                ky: 0.1,
-                kz: 0.1,
+            conductivity_gas: ParamConductivity::PedrosoZhangEhlers {
+                kx: 1e-4, // m/s
+                ky: 1e-4, // m/s
+                kz: 1e-4, // m/s
+                lambda_0: 2.0,
+                lambda_1: 0.001,
+                alpha: 0.01,
+                beta: 10.0,
             },
-            conductivity_gas: Some(ParamConductivity::Constant {
-                kx: 0.1,
-                ky: 0.1,
-                kz: 0.1,
-            }),
-            n_integ_point: None,
         }
     }
 }
@@ -238,6 +258,9 @@ mod tests {
         let p = SampleParams::param_water_and_dry_air(false);
         assert_eq!(p.density_liquid.cc, 4.53e-7);
 
+        let p = SampleParams::param_diffusion();
+        assert_eq!(p.rho, 1.0);
+
         let p = SampleParams::param_rod();
         assert_eq!(p.density, 2.0);
 
@@ -247,16 +270,19 @@ mod tests {
         let p = SampleParams::param_solid();
         assert_eq!(p.density, 2.7);
 
-        let p = SampleParams::param_porous_sol_liq(0.4, 1.0);
+        let p = SampleParams::param_solid_drucker_prager();
+        assert_eq!(p.density, 2.7);
+
+        let p = SampleParams::param_porous_liq();
         assert_eq!(p.porosity_initial, 0.4);
 
-        let p = SampleParams::param_porous_sol_liq_gas(0.4, 1.0);
+        let p = SampleParams::param_porous_liq_gas();
         assert_eq!(p.porosity_initial, 0.4);
 
-        let p = SampleParams::param_seepage_liq();
+        let p = SampleParams::param_porous_sld_liq();
         assert_eq!(p.porosity_initial, 0.4);
 
-        let p = SampleParams::param_seepage_liq_gas();
+        let p = SampleParams::param_porous_sld_liq_gas();
         assert_eq!(p.porosity_initial, 0.4);
     }
 }
