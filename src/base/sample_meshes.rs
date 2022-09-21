@@ -177,8 +177,10 @@ impl SampleMeshes {
     ///
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
+    ///
+    /// ![mesh_smith_example_4d22_frame_3d](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_4d22_frame_3d.svg)
     #[rustfmt::skip]
-    pub fn smith_example_4d22_solid() -> Mesh {
+    pub fn smith_example_4d22_frame_3d() -> Mesh {
         Mesh {
             ndim: 3,
             points: vec![
@@ -212,8 +214,10 @@ impl SampleMeshes {
     ///       | ,'   5  | ,'   7  |
     /// -1.0  6'--------7'--------8
     ///      0.0       0.5       1.0
+    ///
+    /// ![mesh_smith_example_5d2_tri3](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d2_tri3.svg)
     #[rustfmt::skip]
-    pub fn smith_example_5d2_solid() -> Mesh {
+    pub fn smith_example_5d2_tri3() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -252,8 +256,10 @@ impl SampleMeshes {
     ///       |/   |.-'            |
     /// -2.0  o----o---------------o
     ///      0.0  1.0             6.0
+    ///
+    /// ![mesh_smith_example_5d7_tri15](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d7_tri15.svg)
     #[rustfmt::skip]
-    pub fn smith_example_5d7_solid() -> Mesh {
+    pub fn smith_example_5d7_tri15() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -317,8 +323,9 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ![mesh_smith_example_5d11_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d11_qua4.svg)
     #[rustfmt::skip]
-    pub fn smith_example_5d11_solid() -> Mesh {
+    pub fn smith_example_5d11_qua4() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -351,8 +358,9 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ![mesh_smith_example_5d15_qua8](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d15_qua8.svg)
     #[rustfmt::skip]
-    pub fn smith_example_5d15_solid() -> Mesh {
+    pub fn smith_example_5d15_qua8() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -408,8 +416,9 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ![mesh_smith_example_5d17_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d17_qua4.svg)
     #[rustfmt::skip]
-    pub fn smith_example_5d17_solid() -> Mesh {
+    pub fn smith_example_5d17_qua4() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -442,8 +451,9 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ![mesh_smith_example_5d24_hex20](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d24_hex20.svg)
     #[rustfmt::skip]
-    pub fn smith_example_5d24_solid() -> Mesh {
+    pub fn smith_example_5d24_hex20() -> Mesh {
         Mesh {
             ndim: 3,
             points: vec![
@@ -534,8 +544,9 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ![mesh_smith_example_5d27_qua9](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d27_qua9.svg)
     #[rustfmt::skip]
-    pub fn smith_example_5d27_solid() -> Mesh {
+    pub fn smith_example_5d27_qua9() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -597,8 +608,9 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ![mesh_smith_example_5d30_tet4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d30_tet4.svg)
     #[rustfmt::skip]
-    pub fn smith_example_5d30_solid() -> Mesh {
+    pub fn smith_example_5d30_tet4() -> Mesh {
         Mesh {
             ndim: 3,
             points: vec![
@@ -722,59 +734,59 @@ mod tests {
         assert_eq!(mesh.cells.len(), 4);
         // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_bhatti_example_1d6_bracket.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_4d22_solid();
+        let mesh = SampleMeshes::smith_example_4d22_frame_3d();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 3);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_4d22_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_4d22_frame_3d.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_5d2_solid();
+        let mesh = SampleMeshes::smith_example_5d2_tri3();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 9);
         assert_eq!(mesh.cells.len(), 8);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d2_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d2_tri3.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_5d7_solid();
+        let mesh = SampleMeshes::smith_example_5d7_tri15();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 45);
         assert_eq!(mesh.cells.len(), 4);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d7_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d7_tri15.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_5d11_solid();
+        let mesh = SampleMeshes::smith_example_5d11_qua4();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 12);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d11_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d11_qua4.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_5d15_solid();
+        let mesh = SampleMeshes::smith_example_5d15_qua8();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 29);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d15_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d15_qua8.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_5d17_solid();
+        let mesh = SampleMeshes::smith_example_5d17_qua4();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 12);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d17_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d17_qua4.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_5d24_solid();
+        let mesh = SampleMeshes::smith_example_5d24_hex20();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 70);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d24_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d24_hex20.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_5d27_solid();
+        let mesh = SampleMeshes::smith_example_5d27_qua9();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 35);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d27_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d27_qua9.svg").unwrap();
 
-        let mesh = SampleMeshes::smith_example_5d30_solid();
+        let mesh = SampleMeshes::smith_example_5d30_tet4();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 8);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d30_solid.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d30_tet4.svg").unwrap();
 
         let mesh = SampleMeshes::column_two_layers_quads();
         check_all(&mesh).unwrap();

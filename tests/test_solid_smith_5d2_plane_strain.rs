@@ -42,7 +42,7 @@ use russell_chk::vec_approx_eq;
 #[test]
 fn test_heat_axisym_simple() -> Result<(), StrError> {
     // mesh
-    let mesh = SampleMeshes::smith_example_5d2_solid();
+    let mesh = SampleMeshes::smith_example_5d2_tri3();
 
     // features
     let find = Find::new(&mesh, None);
