@@ -66,7 +66,7 @@ impl SampleMeshes {
     ///  0-------------1
     /// ```
     ///
-    /// ![bhatti_example_1dot5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1dot5_heat.svg)
+    /// ![bhatti_example_1d5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d5_heat.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d5_heat() -> Mesh {
         Mesh {
@@ -105,7 +105,7 @@ impl SampleMeshes {
     ///       0.0             0.03            0.06
     /// ```
     ///
-    /// ![bhatti_example_6dot22_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_6dot22_heat.svg)
+    /// ![bhatti_example_6d22_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_6d22_heat.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_6d22_heat() -> Mesh {
         Mesh {
@@ -664,6 +664,8 @@ impl SampleMeshes {
     /// 0.0   0---------7   1
     ///      0.0       1.0
     /// ```
+    ///
+    /// ![mesh_column_two_layers_quads](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_column_two_layers_quads.svg)
     #[rustfmt::skip]
     pub fn column_two_layers_quads() -> Mesh {
         Mesh {
