@@ -131,15 +131,13 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
         // write mesh
-        mesh.write(&filepath_mesh(FILENAME_KEY, true)).unwrap();
+        mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
-        let mut mesh_svg = String::from(FILENAME_KEY);
-        mesh_svg.push_str("_mesh");
-        draw_mesh(&mesh, true, &filepath_svg(mesh_svg.as_str(), true)).unwrap();
+        draw_mesh(&mesh, true, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true)).unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&filepath_mesh(FILENAME_KEY, false)).unwrap()
+        Mesh::read(&FilePath::mesh(FILENAME_KEY, false)).unwrap()
     }
 }

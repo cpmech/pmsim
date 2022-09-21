@@ -124,7 +124,7 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         let mesh = Structured::rectangle(rin, Some(rref), rout, na, nb, y, ny, att, GeoKind::Qua9).unwrap();
 
         // write mesh
-        mesh.write(&filepath_mesh(FILENAME_KEY, true)).unwrap();
+        mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
         let mut draw = Draw::new();
@@ -132,16 +132,14 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         draw.canvas_points.set_marker_size(3.0).set_marker_line_color("none");
         draw.cells(&mut plot, &mesh, true).unwrap();
         draw.points(&mut plot, &mesh);
-        let mut mesh_svg = String::from(FILENAME_KEY);
-        mesh_svg.push_str("_mesh");
         plot.set_equal_axes(true)
             .set_figure_size_points(400.0, 600.0)
             .set_labels("x", "y")
-            .save(&filepath_svg(mesh_svg.as_str(), true))
+            .save(&FilePath::svg_suffix(FILENAME_KEY, "_mesh", true))
             .unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&filepath_mesh(FILENAME_KEY, false)).unwrap()
+        Mesh::read(&FilePath::mesh(FILENAME_KEY, false)).unwrap()
     }
 }
