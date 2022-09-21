@@ -152,7 +152,7 @@ impl SampleMeshes {
     ///           0.0        2.0       4.0   fixed on x and y
     /// ```
     ///
-    /// ![bhatti_example_1dot6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1dot6_bracket.svg)
+    /// ![bhatti_example_1d6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d6_bracket.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d6_bracket() -> Mesh {
         Mesh {
@@ -203,6 +203,7 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ```text
     ///  0.0  0---------1---------2
     ///       |       ,'|       ,'|
     ///       |  0  ,'  |  2  ,'  |
@@ -215,6 +216,7 @@ impl SampleMeshes {
     ///       | ,'   5  | ,'   7  |
     /// -1.0  6'--------7'--------8
     ///      0.0       0.5       1.0
+    /// ```
     ///
     /// ![mesh_smith_example_5d2_tri3](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d2_tri3.svg)
     #[rustfmt::skip]
@@ -250,6 +252,7 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ```text
     ///  0.0  o----o---------------o
     ///       |   /|           _.-'|
     ///       |  / |       _.-'    |  15-node
@@ -257,6 +260,7 @@ impl SampleMeshes {
     ///       |/   |.-'            |
     /// -2.0  o----o---------------o
     ///      0.0  1.0             6.0
+    /// ```
     ///
     /// ![mesh_smith_example_5d7_tri15](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d7_tri15.svg)
     #[rustfmt::skip]
@@ -323,6 +327,17 @@ impl SampleMeshes {
     ///
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
+    ///
+    /// ```text
+    ///  0.0    0----------3----------6----------9
+    ///         |          |          |          |
+    ///         |          |          |          |
+    ///         1----------4----------7---------10
+    ///         |          |          |          |
+    ///         |          |          |          |
+    /// -10.0   2----------5----------8---------11
+    ///        0.0       10.0       20.0       30.0
+    /// ```
     ///
     /// ![mesh_smith_example_5d11_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d11_qua4.svg)
     #[rustfmt::skip]
