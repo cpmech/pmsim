@@ -214,7 +214,7 @@ mod tests {
         vec_approx_eq(jacobian.as_data(), correct.as_data(), 1e-12);
     }
 
-    // Generates a displacement field corresponding to a horizontal stretching
+    // Generates a displacement field corresponding to a (confined) horizontal stretching
     // (only works for a homogeneous mesh; with same element kinds)
     fn generate_horizontal_displacement_field(mesh: &Mesh, strain: f64) -> Vector {
         let npoint = mesh.points.len();
@@ -226,7 +226,7 @@ mod tests {
         uu
     }
 
-    // Generates a displacement field corresponding to a vertical stretching
+    // Generates a displacement field corresponding to a (confined) vertical stretching
     // (only works for a homogeneous mesh; with same element kinds)
     fn generate_vertical_displacement_field(mesh: &Mesh, strain: f64) -> Vector {
         let npoint = mesh.points.len();
