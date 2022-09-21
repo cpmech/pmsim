@@ -52,18 +52,19 @@ impl SampleMeshes {
     /// Reference: Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
     ///
     /// ```text
-    ///               .2
-    ///             .'/|
-    ///           .' / |
-    ///         .'  /  |
-    ///       .'   /   |
-    ///     .'[2] /    |
-    ///   .'     /     |
-    ///  3------4  [1] |
-    ///  |[3] .' '.    |
-    ///  |  .'     '.  |
-    ///  |.'   [0]   '.|
-    ///  0-------------1
+    /// 0.3               .2
+    ///                 .'/|
+    ///               .' / |
+    ///             .'  /  |
+    ///           .'   /   |
+    ///         .'[2] /    |
+    ///       .'     /     |
+    /// 0.1  3------4  [1] |
+    ///      |[3] .' '.    |
+    ///      |  .'     '.  |
+    ///      |.'   [0]   '.|
+    /// 0.0  0-------------1
+    ///     0.0    0.1    0.2
     /// ```
     ///
     /// ![bhatti_example_1d5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d5_heat.svg)
