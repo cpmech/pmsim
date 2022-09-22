@@ -46,7 +46,7 @@ impl<'a> PrescribedValue<'a> {
     }
 
     /// Sets prescribed value in the solution vector
-    pub fn set_value(&self, uu: &mut Vector, time: f64) {
+    pub fn set_value(&self, duu: &mut Vector, uu: &mut Vector, time: f64) {
         let value = match self.ebc {
             Ebc::Ux(f) => f(time),
             Ebc::Uy(f) => f(time),
@@ -58,6 +58,7 @@ impl<'a> PrescribedValue<'a> {
             Ebc::Pl(f) => f(time),
             Ebc::Pg(f) => f(time),
         };
+        duu[self.eq] = value - uu[self.eq];
         uu[self.eq] = value;
     }
 }
@@ -79,8 +80,8 @@ impl<'a> PrescribedValues<'a> {
 
     /// Sets all prescribed values in the solution vector
     #[inline]
-    pub fn apply(&self, uu: &mut Vector, time: f64) {
-        self.all.iter().for_each(|e| e.set_value(uu, time));
+    pub fn apply(&self, duu: &mut Vector, uu: &mut Vector, time: f64) {
+        self.all.iter().for_each(|e| e.set_value(duu, uu, time));
     }
 }
 
@@ -132,11 +133,13 @@ mod tests {
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.at(&[0], Ebc::T(|_| 110.0));
+        let mut duu = Vector::new(data.equations.n_equation);
         let mut uu = Vector::new(data.equations.n_equation);
+        uu.fill(100.0);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.apply(&mut uu, 0.0);
-        let correct = &[110.0, 0.0, 0.0];
-        assert_eq!(uu.as_data(), correct);
+        values.apply(&mut duu, &mut uu, 0.0);
+        assert_eq!(duu.as_data(), &[10.0, 0.0, 0.0]);
+        assert_eq!(uu.as_data(), &[110.0, 100.0, 100.0]);
     }
 
     #[test]
@@ -162,14 +165,16 @@ mod tests {
             .at(&[0], Ebc::Rx(|_| 4.0))
             .at(&[0], Ebc::Ry(|_| 5.0))
             .at(&[0], Ebc::Rz(|_| 6.0));
+        let mut duu = Vector::new(data.equations.n_equation);
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.apply(&mut uu, 0.0);
+        values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
             1.0, 2.0, 3.0, 4.0, 5.0, 6.0, //  0 Ux,Uy,Uz, Rx,Ry,Rz
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, //  1 Ux,Uy,Uz, Rx,Ry,Rz
         ];
+        assert_eq!(duu.as_data(), correct);
         assert_eq!(uu.as_data(), correct);
     }
 
@@ -235,9 +240,10 @@ mod tests {
             .at(&[10], Ebc::Ux(|_| 26.0))
             .at(&[10], Ebc::Uy(|_| 27.0))
             .at(&[10], Ebc::Rz(|_| 28.0));
+        let mut duu = Vector::new(data.equations.n_equation);
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.apply(&mut uu, 0.0);
+        values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[            // point
              0.0,  1.0,  2.0,       //  0 (Ux, 0) (Uy, 1) (Pl,2)
@@ -252,6 +258,7 @@ mod tests {
             24.0, 25.0,             //  9 (Ux,24) (Uy,25)
             26.0, 27.0, 28.0,       // 10 (Ux,26) (Uy,27) (Rz,28)
         ];
+        assert_eq!(duu.as_data(), correct);
         assert_eq!(uu.as_data(), correct);
     }
 
@@ -274,9 +281,10 @@ mod tests {
             .at(&[2], Ebc::Uy(|_| 10.0))
             .at(&[2], Ebc::Pl(|_| 11.0))
             .at(&[2], Ebc::Pg(|_| 12.0));
+        let mut duu = Vector::new(data.equations.n_equation);
         let mut uu = Vector::new(data.equations.n_equation);
         let values = PrescribedValues::new(&data, &essential).unwrap();
-        values.apply(&mut uu, 0.0);
+        values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
             1.0,  2.0,  3.0,  4.0, // 0 Ux,Uy,Pl,Pg
@@ -286,6 +294,7 @@ mod tests {
             0.0,  0.0,             // 4 Ux,Uy
             0.0,  0.0,             // 5 Ux,Uy
         ];
+        assert_eq!(duu.as_data(), correct);
         assert_eq!(uu.as_data(), correct);
     }
 

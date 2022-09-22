@@ -1,7 +1,7 @@
 use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, PrescribedValues, State};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
-use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, vec_update, Norm, Vector};
+use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
 /// Performs a finite element simulation
 pub struct Simulation<'a> {
@@ -84,14 +84,14 @@ impl<'a> Simulation<'a> {
                 vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
 
-            // set primary prescribed values
-            self.prescribed_values.apply(&mut state.uu, state.t);
+            // reset cumulated primary values
+            duu.fill(0.0);
+
+            // set primary prescribed values, including cumulated prescribed ΔU
+            self.prescribed_values.apply(&mut duu, &mut state.uu, state.t);
 
             // message
             control.print_timestep(timestep, state.t, state.dt);
-
-            // reset cumulated primary values
-            duu.fill(0.0);
 
             // previous and current max (scaled) R values
             let mut max_rr_prev: f64;
@@ -102,6 +102,9 @@ impl<'a> Simulation<'a> {
             // variables are still at the old time step. In summary, we start the
             // iterations with the old primary variables and new boundary values.
             for iteration in 0..control.n_max_iterations {
+                // update secondary variables (with ΔU just updated for the new time)
+                self.elements.update_secondary_values_parallel(state, &duu)?;
+
                 // compute residuals in parallel
                 self.elements.calc_residuals_parallel(&state)?;
                 self.boundaries.calc_residuals_parallel(&state)?;
@@ -149,17 +152,27 @@ impl<'a> Simulation<'a> {
                 // solve linear system
                 self.linear_system.solver.solve(mdu, &rr)?;
 
-                // update U vector
-                vec_update(&mut state.uu, -1.0, &mdu).unwrap();
-
-                // update V vector
+                // updates
                 if config.transient {
-                    vec_add(&mut state.vv, beta_1, &state.uu, -1.0, &state.uu_star).unwrap();
+                    // update U, V, and ΔU vectors
+                    for i in 0..neq {
+                        state.uu[i] -= mdu[i];
+                        state.vv[i] = beta_1 * state.uu[i] - state.uu_star[i];
+                        duu[i] -= mdu[i];
+                    }
+                } else {
+                    // update U and ΔU vectors
+                    for i in 0..neq {
+                        state.uu[i] -= mdu[i];
+                        duu[i] -= mdu[i];
+                    }
                 }
 
-                // update ΔU and secondary variables
-                vec_update(&mut duu, -1.0, &mdu).unwrap();
-                self.elements.update_secondary_values_parallel(state, &duu)?;
+                // must not accumulate prescribed values again because
+                // they have been used in the stress update already
+                for eq in &self.prescribed_values.equations {
+                    duu[*eq] = 0.0;
+                }
 
                 // check convergence
                 if iteration == control.n_max_iterations - 1 {
