@@ -449,6 +449,17 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ```text
+    ///   0.0   0------3----------6-------------------9
+    ///         |      |          |                   |
+    ///         |      |          |                   |
+    ///  -4.0   1------4----------7------------------10
+    ///         |      |          |                   |
+    ///         |      |          |                   |
+    /// -10.0   2------5----------8------------------11
+    ///        0.0    4.0       10.0                30.0
+    /// ```
+    ///
     /// ![mesh_smith_example_5d17_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d17_qua4.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d17_qua4() -> Mesh {
