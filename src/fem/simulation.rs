@@ -84,11 +84,17 @@ impl<'a> Simulation<'a> {
                 vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
 
+            // handle prescribed values
+            if self.prescribed_values.equations.len() > 0 {
+                // set prescribed values, including ΔU, at the new time
+                self.prescribed_values.apply(&mut duu, &mut state.uu, state.t);
+
+                // update secondary variables for given ΔU
+                self.elements.update_secondary_values_parallel(state, &duu)?;
+            }
+
             // reset cumulated primary values
             duu.fill(0.0);
-
-            // set primary prescribed values, including cumulated prescribed ΔU, at the new time
-            self.prescribed_values.apply(&mut duu, &mut state.uu, state.t);
 
             // message
             control.print_timestep(timestep, state.t, state.dt);
@@ -99,12 +105,8 @@ impl<'a> Simulation<'a> {
 
             // Note: we enter the iterations with an updated time, thus the boundary conditions
             // will contribute with updated residuals. However the primary variables (except the
-            // prescribed values) are still at the old time step. In summary, we start the iterations
-            // with the old primary variables (except the prescribed values) and new boundary values.
+            // prescribed values) are still at the old time step.
             for iteration in 0..control.n_max_iterations {
-                // update secondary variables (with ΔU just updated for the new time)
-                self.elements.update_secondary_values_parallel(state, &duu)?;
-
                 // compute residuals in parallel (for the new time)
                 self.elements.calc_residuals_parallel(&state)?;
                 self.boundaries.calc_residuals_parallel(&state)?;
@@ -168,11 +170,8 @@ impl<'a> Simulation<'a> {
                     }
                 }
 
-                // must not accumulate prescribed values again because
-                // they have been used in the stress update already
-                for eq in &self.prescribed_values.equations {
-                    duu[*eq] = 0.0;
-                }
+                // update secondary variables
+                self.elements.update_secondary_values_parallel(state, &duu)?;
 
                 // check convergence
                 if iteration == control.n_max_iterations - 1 {
