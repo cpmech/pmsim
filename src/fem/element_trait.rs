@@ -3,7 +3,7 @@ use crate::StrError;
 use russell_lab::{Matrix, Vector};
 
 /// Defines the trait for local (element) equations
-pub trait LocalEquations: Send + Sync {
+pub trait ElementTrait: Send + Sync {
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize>;
 

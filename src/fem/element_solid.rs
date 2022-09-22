@@ -1,4 +1,4 @@
-use super::{Data, LocalEquations, State};
+use super::{Data, ElementTrait, State};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
 use crate::model::{allocate_stress_strain_model, StressState, StressStrainModel};
 use crate::StrError;
@@ -79,7 +79,7 @@ impl<'a> ElementSolid<'a> {
     }
 }
 
-impl<'a> LocalEquations for ElementSolid<'a> {
+impl<'a> ElementTrait for ElementSolid<'a> {
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global
@@ -151,7 +151,7 @@ pub(super) fn calc_delta_eps(deps: &mut Tensor2, duu: &Vector, gg: &Matrix, l2g:
 mod tests {
     use super::{calc_delta_eps, ElementSolid};
     use crate::base::{Config, Element, ParamSolid, ParamStressStrain, SampleParams};
-    use crate::fem::{Data, LocalEquations, State};
+    use crate::fem::{Data, ElementTrait, State};
     use gemlab::integ;
     use gemlab::mesh::{Mesh, Samples};
     use russell_chk::vec_approx_eq;

@@ -2,7 +2,7 @@
 
 use gemlab::mesh::Samples;
 use pmsim::base::{assemble_matrix, assemble_vector};
-use pmsim::fem::{ElementSolid, LocalEquations, PrescribedValues};
+use pmsim::fem::{ElementSolid, ElementTrait, PrescribedValues};
 use pmsim::{prelude::*, StrError};
 use russell_chk::vec_approx_eq;
 use russell_lab::prelude::*;
