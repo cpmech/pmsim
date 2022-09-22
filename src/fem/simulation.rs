@@ -87,7 +87,7 @@ impl<'a> Simulation<'a> {
             // reset cumulated primary values
             duu.fill(0.0);
 
-            // set primary prescribed values, including cumulated prescribed ΔU
+            // set primary prescribed values, including cumulated prescribed ΔU, at the new time
             self.prescribed_values.apply(&mut duu, &mut state.uu, state.t);
 
             // message
@@ -97,15 +97,15 @@ impl<'a> Simulation<'a> {
             let mut max_rr_prev: f64;
             let mut max_rr = 0.0;
 
-            // Note: we enter the iterations with an updated time, thus the boundary
-            // conditions will contribute with updated residuals. However the primary
-            // variables are still at the old time step. In summary, we start the
-            // iterations with the old primary variables and new boundary values.
+            // Note: we enter the iterations with an updated time, thus the boundary conditions
+            // will contribute with updated residuals. However the primary variables (except the
+            // prescribed values) are still at the old time step. In summary, we start the iterations
+            // with the old primary variables (except the prescribed values) and new boundary values.
             for iteration in 0..control.n_max_iterations {
                 // update secondary variables (with ΔU just updated for the new time)
                 self.elements.update_secondary_values_parallel(state, &duu)?;
 
-                // compute residuals in parallel
+                // compute residuals in parallel (for the new time)
                 self.elements.calc_residuals_parallel(&state)?;
                 self.boundaries.calc_residuals_parallel(&state)?;
 
