@@ -72,6 +72,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
     let mut config = Config::new();
     config.axisymmetric = true;
     config.n_integ_point.insert(1, 9);
+    config.n_integ_point.insert(2, 9);
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -111,7 +112,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
         0.000000000000000e+00,  3.090608328409013e-04,
         0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(state.uu.as_data(), uu_correct, 1e-4); // TODO: check tol
+    vec_approx_eq(state.uu.as_data(), uu_correct, 1e-9);
 
     #[rustfmt::skip]
     let kk_e0_ref = Matrix::from(&[
@@ -125,6 +126,6 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
         [ 3.205128234334053e+01, -3.205128235395389e+01,  6.410256436770715e+01, -5.769230733324714e+01,  1.282051247519651e+01,  1.923076855330780e+01,  6.410256675972497e+00,  7.051282113389323e+01],
     ]);
     let e0 = &sim.elements.all[0];
-    mat_approx_eq(&e0.jacobian, &kk_e0_ref, 1e-5); // TODO: check tol
+    mat_approx_eq(&e0.jacobian, &kk_e0_ref, 1e-5);
     Ok(())
 }
