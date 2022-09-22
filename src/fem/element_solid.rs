@@ -79,7 +79,6 @@ impl<'a> ElementSolid<'a> {
     }
 
     /// Calculates strain increments
-    #[inline]
     #[rustfmt::skip]
     fn calc_delta_eps(&mut self, duu: &Vector, integ_point_index: usize) -> Result<(), StrError> {
         self.pad.calc_gradient(&self.ips[integ_point_index])?;
@@ -171,6 +170,7 @@ mod tests {
     use russell_chk::vec_approx_eq;
     use russell_lab::math::SQRT_2;
     use russell_lab::{vec_update, Matrix, Vector};
+    use russell_tensor::Tensor2;
 
     #[test]
     fn new_handles_errors() {
@@ -215,7 +215,8 @@ mod tests {
         let neq = 3 * 2;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
-        let correct = ana.vec_04_tb(s00, s11, s01);
+        let sigma = Tensor2::from_matrix(&[[s00, s01, 0.0], [s01, s11, 0.0], [0.0, 0.0, s11]], true, true).unwrap();
+        let correct = ana.vec_04_tb(&sigma, false);
         vec_approx_eq(residual.as_data(), correct.as_data(), 1e-15);
 
         // check Jacobian matrix

@@ -451,13 +451,16 @@ impl SampleMeshes {
     ///
     /// ```text
     ///   0.0   0------3----------6-------------------9
-    ///         |      |          |                   |
-    ///         |      |          |                   |
+    ///         | (0)  |   (2)    |       (4)         |
+    ///         | [1]  |   [1]    |       [1]         |
     ///  -4.0   1------4----------7------------------10
-    ///         |      |          |                   |
-    ///         |      |          |                   |
+    ///         | (1)  |   (3)    |       (5)         |
+    ///         | [2]  |   [2]    |       [2]         |
     /// -10.0   2------5----------8------------------11
     ///        0.0    4.0       10.0                30.0
+    ///
+    /// (#) indicates cell id
+    /// [#] indicates attribute id
     /// ```
     ///
     /// ![mesh_smith_example_5d17_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d17_qua4.svg)
@@ -481,11 +484,11 @@ impl SampleMeshes {
             ],
             cells: vec![
                 Cell { id: 0, attribute_id: 1, kind: GeoKind::Qua4, points: vec![1, 4, 3, 0] },
-                Cell { id: 1, attribute_id: 1, kind: GeoKind::Qua4, points: vec![2, 5, 4, 1] },
+                Cell { id: 1, attribute_id: 2, kind: GeoKind::Qua4, points: vec![2, 5, 4, 1] },
                 Cell { id: 2, attribute_id: 1, kind: GeoKind::Qua4, points: vec![4, 7, 6, 3] },
-                Cell { id: 3, attribute_id: 1, kind: GeoKind::Qua4, points: vec![5, 8, 7, 4] },
+                Cell { id: 3, attribute_id: 2, kind: GeoKind::Qua4, points: vec![5, 8, 7, 4] },
                 Cell { id: 4, attribute_id: 1, kind: GeoKind::Qua4, points: vec![7,10, 9, 6] },
-                Cell { id: 5, attribute_id: 1, kind: GeoKind::Qua4, points: vec![8,11,10, 7] },
+                Cell { id: 5, attribute_id: 2, kind: GeoKind::Qua4, points: vec![8,11,10, 7] },
             ],
         }
     }
