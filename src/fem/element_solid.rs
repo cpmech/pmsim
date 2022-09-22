@@ -77,6 +77,48 @@ impl<'a> ElementSolid<'a> {
             }
         })
     }
+
+    /// Calculates strain increments
+    #[inline]
+    #[rustfmt::skip]
+    fn calc_delta_eps(&mut self, duu: &Vector, integ_point_index: usize) -> Result<(), StrError> {
+        self.pad.calc_gradient(&self.ips[integ_point_index])?;
+        let nnode = self.cell.points.len();
+        let l2g = &self.local_to_global;
+        let gg = &self.pad.gradient;
+        self.deps.clear();
+        if self.ndim == 2 {
+            for m in 0..nnode {
+                self.deps.sym_update(0, 0, 1.0,  duu[l2g[0+2*m]] * gg[m][0]);
+                self.deps.sym_update(1, 1, 1.0,  duu[l2g[1+2*m]] * gg[m][1]);
+                self.deps.sym_update(0, 1, 1.0, (duu[l2g[0+2*m]] * gg[m][1] + duu[l2g[1+2*m]] * gg[m][0])/2.0);
+            }
+            if self.config.axisymmetric {
+                // calculate radius
+                let iota = &self.ips[integ_point_index];
+                (self.pad.fn_interp)(&mut self.pad.interp, iota);
+                let nn = &self.pad.interp;
+                let mut r = 0.0; // radius @ x(ιᵖ)
+                for m in 0..nnode {
+                    r += nn[m] * self.pad.xxt[0][m];
+                }
+                // compute out-of-plane strain increment component
+                for m in 0..nnode {
+                    self.deps.sym_update(2, 2, 1.0, duu[l2g[0+2*m]] * nn[m] / r);
+                }
+            }
+        } else {
+            for m in 0..nnode {
+                self.deps.sym_update(0, 0, 1.0,  duu[l2g[0+3*m]] * gg[m][0]);
+                self.deps.sym_update(1, 1, 1.0,  duu[l2g[1+3*m]] * gg[m][1]);
+                self.deps.sym_update(2, 2, 1.0,  duu[l2g[2+3*m]] * gg[m][2]);
+                self.deps.sym_update(0, 1, 1.0, (duu[l2g[0+3*m]] * gg[m][1] + duu[l2g[1+3*m]] * gg[m][0])/2.0);
+                self.deps.sym_update(1, 2, 1.0, (duu[l2g[1+3*m]] * gg[m][2] + duu[l2g[2+3*m]] * gg[m][1])/2.0);
+                self.deps.sym_update(0, 2, 1.0, (duu[l2g[0+3*m]] * gg[m][2] + duu[l2g[2+3*m]] * gg[m][0])/2.0);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<'a> ElementTrait for ElementSolid<'a> {
@@ -107,41 +149,13 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     fn update_secondary_values(&mut self, _state: &State, duu: &Vector) -> Result<(), StrError> {
-        let deps = &mut self.deps;
-        let ndim = self.ndim;
-        let nnode = self.cell.points.len();
-        let l2g = &self.local_to_global;
         for p in 0..self.ips.len() {
             // interpolate increment of strains Δε at integration point
-            self.pad.calc_gradient(&self.ips[p])?;
-            let gg = &self.pad.gradient;
-            calc_delta_eps(deps, duu, gg, l2g, ndim, nnode);
+            self.calc_delta_eps(duu, p)?;
             // perform stress-update
-            self.model.update_stress(&mut self.stresses[p], deps)?;
+            self.model.update_stress(&mut self.stresses[p], &self.deps)?;
         }
         Ok(())
-    }
-}
-
-#[inline]
-#[rustfmt::skip]
-pub(super) fn calc_delta_eps(deps: &mut Tensor2, duu: &Vector, gg: &Matrix, l2g: &Vec<usize>, ndim: usize, nnode: usize) {
-    deps.clear();
-    if ndim == 2 {
-        for m in 0..nnode {
-            deps.sym_update(0, 0, 1.0,  duu[l2g[0+2*m]] * gg[m][0]);
-            deps.sym_update(1, 1, 1.0,  duu[l2g[1+2*m]] * gg[m][1]);
-            deps.sym_update(0, 1, 1.0, (duu[l2g[0+2*m]] * gg[m][1] + duu[l2g[1+2*m]] * gg[m][0])/2.0);
-        }
-    } else {
-        for m in 0..nnode {
-            deps.sym_update(0, 0, 1.0,  duu[l2g[0+3*m]] * gg[m][0]);
-            deps.sym_update(1, 1, 1.0,  duu[l2g[1+3*m]] * gg[m][1]);
-            deps.sym_update(2, 2, 1.0,  duu[l2g[2+3*m]] * gg[m][2]);
-            deps.sym_update(0, 1, 1.0, (duu[l2g[0+3*m]] * gg[m][1] + duu[l2g[1+3*m]] * gg[m][0])/2.0);
-            deps.sym_update(1, 2, 1.0, (duu[l2g[1+3*m]] * gg[m][2] + duu[l2g[2+3*m]] * gg[m][1])/2.0);
-            deps.sym_update(0, 2, 1.0, (duu[l2g[0+3*m]] * gg[m][2] + duu[l2g[2+3*m]] * gg[m][0])/2.0);
-        }
     }
 }
 
@@ -149,7 +163,7 @@ pub(super) fn calc_delta_eps(deps: &mut Tensor2, duu: &Vector, gg: &Matrix, l2g:
 
 #[cfg(test)]
 mod tests {
-    use super::{calc_delta_eps, ElementSolid};
+    use super::ElementSolid;
     use crate::base::{Config, Element, ParamSolid, ParamStressStrain, SampleParams};
     use crate::fem::{Data, ElementTrait, State};
     use gemlab::integ;
@@ -157,7 +171,6 @@ mod tests {
     use russell_chk::vec_approx_eq;
     use russell_lab::math::SQRT_2;
     use russell_lab::{vec_update, Matrix, Vector};
-    use russell_tensor::Tensor2;
 
     #[test]
     fn new_handles_errors() {
@@ -294,22 +307,18 @@ mod tests {
             let cell = &mesh.cells[0];
             let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
             let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
-            let l2g = &element.local_to_global;
-            let nnode = cell.points.len();
 
             // check increment of strains for all integration points
-            let mut deps = Tensor2::new(true, ndim == 2);
-            for iota in element.ips {
-                element.pad.calc_gradient(iota).unwrap();
+            for p in 0..element.ips.len() {
                 // horizontal strain
-                calc_delta_eps(&mut deps, &duu_h, &element.pad.gradient, &l2g, ndim, nnode);
-                vec_approx_eq(deps.vec.as_data(), &solution_h, 1e-13);
+                element.calc_delta_eps(&duu_h, p).unwrap();
+                vec_approx_eq(element.deps.vec.as_data(), &solution_h, 1e-13);
                 // vertical strain
-                calc_delta_eps(&mut deps, &duu_v, &element.pad.gradient, &l2g, ndim, nnode);
-                vec_approx_eq(deps.vec.as_data(), &solution_v, 1e-13);
+                element.calc_delta_eps(&duu_v, p).unwrap();
+                vec_approx_eq(element.deps.vec.as_data(), &solution_v, 1e-13);
                 // shear strain
-                calc_delta_eps(&mut deps, &duu_s, &element.pad.gradient, &l2g, ndim, nnode);
-                vec_approx_eq(deps.vec.as_data(), &solution_s, 1e-13);
+                element.calc_delta_eps(&duu_s, p).unwrap();
+                vec_approx_eq(element.deps.vec.as_data(), &solution_s, 1e-13);
             }
         }
     }
