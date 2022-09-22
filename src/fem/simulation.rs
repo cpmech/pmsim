@@ -86,10 +86,10 @@ impl<'a> Simulation<'a> {
 
             // handle prescribed values
             if self.prescribed_values.equations.len() > 0 {
-                // set prescribed values, including ΔU, at the new time
+                // set prescribed U and ΔU at the new time
                 self.prescribed_values.apply(&mut duu, &mut state.uu, state.t);
 
-                // update secondary variables for given ΔU
+                // update secondary variables for given prescribed U and ΔU at the new time
                 self.elements.update_secondary_values_parallel(state, &duu)?;
             }
 
@@ -103,9 +103,10 @@ impl<'a> Simulation<'a> {
             let mut max_rr_prev: f64;
             let mut max_rr = 0.0;
 
-            // Note: we enter the iterations with an updated time, thus the boundary conditions
-            // will contribute with updated residuals. However the primary variables (except the
-            // prescribed values) are still at the old time step.
+            // From here on, time t corresponds to the new (updated) time; thus the boundary
+            // conditions will yield update residuals. On the other hand, the primary variables
+            // (except the prescribed values) and secondary variables are still on the old time.
+            // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..control.n_max_iterations {
                 // compute residuals in parallel (for the new time)
                 self.elements.calc_residuals_parallel(&state)?;
