@@ -138,9 +138,29 @@ fn test_solid_prescribed_displacement_direct() -> Result<(), StrError> {
         vec_approx_eq(elem.stresses[p].sigma.vec.as_data(), &stress, 1e-15);
     }
 
-    // compute residual
+    // compute external forces
+    let mut kk21 = Matrix::new(n_prescribed, n_unknown);
+    let mut kk22 = Matrix::new(n_prescribed, n_prescribed);
+    for (i, ii) in eq_prescribed.iter().enumerate() {
+        for (j, jj) in eq_unknown.iter().enumerate() {
+            kk21[i][j] = kk_global_mat[*ii][*jj];
+        }
+        for (j, jj) in eq_prescribed.iter().enumerate() {
+            kk22[i][j] = kk_global_mat[*ii][*jj];
+        }
+    }
+    println!("K21 = \n{:.6}", kk21);
+    println!("K22 = \n{:.6}", kk22);
+    let mut ee2 = Vector::new(n_prescribed); // external forces vector {E2} = [K21]{U1} + [K22]{U2}
+    let mut ee2_tmp = Vector::new(n_prescribed);
+    mat_vec_mul(&mut ee2, 1.0, &kk21, &uu1)?;
+    mat_vec_mul(&mut ee2_tmp, 1.0, &kk22, &uu2)?;
+    vec_update(&mut ee2, 1.0, &ee2_tmp)?;
+    println!("F_ext(2) = \n{}", ee2);
+
+    // compute residual (actually, internal forces)
     let mut rr_local = Vector::new(neq_local);
     elem.calc_residual(&mut rr_local, &state)?;
-    println!("\nrr_local = \n{}", rr_local);
+    println!("\nF_int = \n{}", rr_local);
     Ok(())
 }
