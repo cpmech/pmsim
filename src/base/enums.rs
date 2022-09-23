@@ -4,10 +4,8 @@ use super::{
 };
 use std::fmt;
 
-/// Defines a function to calculate boundary conditions values
-///
-/// This is a function of (t) where t is time
-pub type FnBc = fn(t: f64) -> f64;
+/// Defines a function of time that returns f64 (e.g., to calculate boundary condition values)
+pub type FnTime = fn(t: f64) -> f64;
 
 /// Defines degrees-of-freedom (DOF) types
 ///
@@ -49,31 +47,31 @@ pub enum Dof {
 #[derive(Clone, Copy)]
 pub enum Ebc {
     /// Displacement along the first dimension
-    Ux(FnBc),
+    Ux(FnTime),
 
     /// Displacement along the second dimension
-    Uy(FnBc),
+    Uy(FnTime),
 
     /// Displacement along the third dimension
-    Uz(FnBc),
+    Uz(FnTime),
 
     /// Rotation around the first axis
-    Rx(FnBc),
+    Rx(FnTime),
 
     /// Rotation around the second axis
-    Ry(FnBc),
+    Ry(FnTime),
 
     /// Rotation around the third axis
-    Rz(FnBc),
+    Rz(FnTime),
 
     /// Temperature
-    T(FnBc),
+    T(FnTime),
 
     /// Liquid pressure
-    Pl(FnBc),
+    Pl(FnTime),
 
     /// Gas pressure
-    Pg(FnBc),
+    Pg(FnTime),
 }
 
 impl Ebc {
@@ -114,31 +112,31 @@ impl fmt::Display for Ebc {
 #[derive(Clone, Copy)]
 pub enum Nbc {
     /// Normal distributed load
-    Qn(FnBc),
+    Qn(FnTime),
 
     /// Distributed load parallel to x
-    Qx(FnBc),
+    Qx(FnTime),
 
     /// Distributed load parallel to y
-    Qy(FnBc),
+    Qy(FnTime),
 
     /// Distributed load parallel to z
-    Qz(FnBc),
+    Qz(FnTime),
 
     /// Liquid flux
-    Ql(FnBc),
+    Ql(FnTime),
 
     /// Gas flux
-    Qg(FnBc),
+    Qg(FnTime),
 
     /// Temperature flux
-    Qt(FnBc),
+    Qt(FnTime),
 
     /// Temperature convection
     ///
     /// The first value is the convection coefficient `cc`
     /// The second value is the environment temperature `T`
-    Cv(f64, FnBc),
+    Cv(f64, FnTime),
 }
 
 impl Nbc {
@@ -223,13 +221,13 @@ impl fmt::Display for Nbc {
 #[derive(Clone, Copy)]
 pub enum Pbc {
     /// Concentrated load parallel to x
-    Fx(FnBc),
+    Fx(FnTime),
 
     /// Concentrated load parallel to y
-    Fy(FnBc),
+    Fy(FnTime),
 
     /// Concentrated load parallel to z
-    Fz(FnBc),
+    Fz(FnTime),
 }
 
 impl Pbc {
