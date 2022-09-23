@@ -1,8 +1,7 @@
-use super::{Control, Init, ParamFluids};
+use super::{Control, FnTime, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{Cell, CellAttributeId};
-use russell_lab::Vector;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -23,8 +22,25 @@ pub struct Config {
     /// Holds control variables for the (pseudo) time integration over the simulation period
     pub control: Control,
 
-    /// Body force such as gravity
-    pub body_force: Option<Vector>,
+    /// Body acceleration (i.e., body force divided by density)
+    ///
+    /// **Note:** The body force will be computed by multiplying the
+    /// body acceleration by the density of the material.
+    ///
+    /// Example:
+    ///
+    /// ```text
+    /// const GRAVITY: f64 = 10.0;
+    ///
+    /// // 2D
+    /// config.body_acceleration = Some((|_| 0.0, |_| -GRAVITY, |_| 0.0));
+    ///
+    /// // 3D
+    /// config.body_acceleration = Some((|_| 0.0, |_| 0.0, |_| -GRAVITY));
+    /// ```
+    ///
+    /// The tuple is (ax(t), ay(t), az(t)) where az(t) is neglected in 2D
+    pub body_acceleration: Option<(FnTime, FnTime, FnTime)>,
 
     /// Axisymmetric problem represented in 2D (instead of plane-strain)
     pub axisymmetric: bool,
@@ -57,7 +73,7 @@ impl Config {
             dynamics: false,
             constant_tangent: false,
             control: Control::new(),
-            body_force: None,
+            body_acceleration: None,
             thickness: 1.0,
             axisymmetric: false,
             plane_stress: false,

@@ -127,11 +127,25 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, _state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
-        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| sig.set(&self.stresses[p].sigma))
+        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| sig.set(&self.stresses[p].sigma))?;
+        args.clear = false; // << important from now on
+        if let Some((ax, ay, az)) = self.config.body_acceleration {
+            let rho = self.param.density;
+            let t = state.t;
+            integ::vec_02_nv(residual, &mut args, |b, _, _| {
+                b[0] = -rho * ax(t); // must be negative because this is a residual
+                b[1] = -rho * ay(t);
+                if self.ndim == 3 {
+                    b[2] = -rho * az(t);
+                }
+                Ok(())
+            })?;
+        }
+        Ok(())
     }
 
     /// Calculates the Jacobian matrix
@@ -166,7 +180,8 @@ mod tests {
     use crate::base::{Config, Element, ParamSolid, ParamStressStrain, SampleParams};
     use crate::fem::{Data, ElementTrait, State};
     use gemlab::integ;
-    use gemlab::mesh::{Mesh, Samples};
+    use gemlab::mesh::{Cell, Mesh, Point, Samples};
+    use gemlab::shapes::GeoKind;
     use russell_chk::vec_approx_eq;
     use russell_lab::math::SQRT_2;
     use russell_lab::{vec_update, Matrix, Vector};
@@ -499,5 +514,63 @@ mod tests {
                 vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_s, 1e-13);
             }
         }
+    }
+
+    #[test]
+    fn body_force_axisymmetric_works_2d() {
+        // example from Felippa's A_FEM page 12-11
+
+        // mesh
+        let (rin, a, b) = (1.0, 6.0, 2.0);
+        #[rustfmt::skip]
+        let mesh = Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, coords: vec![rin + 0.0, 0.0] },
+                Point { id: 1, coords: vec![rin +   a, 0.0] },
+                Point { id: 2, coords: vec![rin +   a,   b] },
+                Point { id: 3, coords: vec![rin + 0.0,   b] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
+            ],
+        };
+
+        // parameters
+        let young = 1000.0;
+        let poisson = 0.25;
+        let p1 = ParamSolid {
+            density: 2.0,
+            stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+        };
+        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let mut config = Config::new();
+        config.axisymmetric = true;
+        config.n_integ_point.insert(1, 1);
+
+        // body acceleration
+        config.body_acceleration = Some((|_| 1.5, |_| -0.5, |_| 0.0)); // 3/2 and -1/2 because rho = 2
+
+        // element
+        let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+
+        // check residual vector (1 integ point)
+        // NOTE: since the stress is zero,
+        // the residual is due to the body force only
+        let state = State::new(&data, &config).unwrap();
+        let neq = 4 * 2;
+        let mut residual = Vector::new(neq);
+        elem.calc_residual(&mut residual, &state).unwrap();
+        println!("{}", residual);
+        let felippa_neg_rr_1ip = &[-36.0, 12.0, -36.0, 12.0, -36.0, 12.0, -36.0, 12.0];
+        vec_approx_eq(&residual.as_data(), felippa_neg_rr_1ip, 1e-15);
+
+        // check residual vector (4 integ point)
+        config.n_integ_point.insert(1, 4);
+        let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let felippa_neg_rr_4ip = &[-27.0, 9.0, -45.0, 15.0, -45.0, 15.0, -27.0, 9.0];
+        elem.calc_residual(&mut residual, &state).unwrap();
+        println!("{}", residual);
+        vec_approx_eq(&residual.as_data(), felippa_neg_rr_4ip, 1e-14);
     }
 }
