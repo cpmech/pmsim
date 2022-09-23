@@ -4,9 +4,40 @@ use pmsim::StrError;
 
 const FILENAME_KEY: &'static str = "test_solid_felippa_thick_cylinder_axisym";
 
+// Felippa's Benchmark 14.1 (Figure 14.1) on page 14-3
+//
+// Felippa C, Advanced Finite Elements
+//
+// TEST GOAL
+//
+// This test verifies the axisymmetric modelling of a chick cylindrical tube
+// under internal pressure. There is an analytical solution, developed for the
+// plane-strain case. However, this tests employs the AXISYMMETRIC representation.
+//
+// MESH
+//
+//             Uy FIXED
+//  →o------o------o------o------o
+//  →|      |   .......   |      |
+//  →o------o------o------o------o
+//             Uy FIXED
+//
+// BOUNDARY CONDITIONS
+//
+// Fix bottom edge vertically
+// Fix top edge vertically
+// Distributed load Qn = -PRESSURE on left edge
+//
+// CONFIGURATION AND PARAMETERS
+//
+// Static simulation
+// Young = 1000, Poisson = 0.0
+// Axisymmetric
+// NOTE: using 4 integration points because it gives better results with Qua8
+
 #[test]
 fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
-    // Example from Felippa's A-FEM page 13-5
+    // Example from Felippa's A-FEM page 14-3
     const PRESSURE: f64 = 10.0;
 
     // mesh
