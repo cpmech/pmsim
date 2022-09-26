@@ -577,11 +577,11 @@ impl SampleMeshes {
             ],
             cells: vec![
                 Cell { id: 0, attribute_id: 1, kind: GeoKind::Hex20, points: vec![ 5, 7,26,24, 0, 2,21,19, 6,16,25,15, 1,14,20,13, 3, 4,23,22] },
-                Cell { id: 1, attribute_id: 1, kind: GeoKind::Hex20, points: vec![10,12,31,29, 5, 7,26,24,11,18,30,17, 6,16,25,15, 8, 9,28,27] },
+                Cell { id: 1, attribute_id: 2, kind: GeoKind::Hex20, points: vec![10,12,31,29, 5, 7,26,24,11,18,30,17, 6,16,25,15, 8, 9,28,27] },
                 Cell { id: 2, attribute_id: 1, kind: GeoKind::Hex20, points: vec![24,26,45,43,19,21,40,38,25,35,44,34,20,33,39,32,22,23,42,41] },
-                Cell { id: 3, attribute_id: 1, kind: GeoKind::Hex20, points: vec![29,31,50,48,24,26,45,43,30,37,49,36,25,35,44,34,27,28,47,46] },
+                Cell { id: 3, attribute_id: 2, kind: GeoKind::Hex20, points: vec![29,31,50,48,24,26,45,43,30,37,49,36,25,35,44,34,27,28,47,46] },
                 Cell { id: 4, attribute_id: 1, kind: GeoKind::Hex20, points: vec![43,45,64,62,38,40,59,57,44,54,63,53,39,52,58,51,41,42,61,60] },
-                Cell { id: 5, attribute_id: 1, kind: GeoKind::Hex20, points: vec![48,50,69,67,43,45,64,62,49,56,68,55,44,54,63,53,46,47,66,65] },
+                Cell { id: 5, attribute_id: 2, kind: GeoKind::Hex20, points: vec![48,50,69,67,43,45,64,62,49,56,68,55,44,54,63,53,46,47,66,65] },
             ],
         }
     }
