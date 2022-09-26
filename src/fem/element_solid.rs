@@ -131,14 +131,36 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
+
+        // compute the internal forces contribution to the residual vector
+        //
+        // →    ⌠     →
+        // rᵐ = │ σ · Bᵐ dΩ    +   ...
+        //      ⌡ ▔
+        //      Ωₑ
+        //     \____________/
+        //     we compute this
         integ::vec_04_tb(residual, &mut args, |sig, p, _, _| sig.set(&self.stresses[p].sigma))?;
+
+        // enable updates on the residual vector
         args.clear = false; // << important from now on
+
+        // handle body forces
         if let Some(gravity) = self.config.gravity {
             let rho = self.param.density;
             integ::vec_02_nv(residual, &mut args, |b, _, _| {
                 // Note: due to the definition of the residual vector, the body force needs
                 // to be negative, i.e, residual = -ρ·b; however the gravity acceleration component
                 // is negative: aᵢ = -gravity. Thus, the residual is rᵢ = -ρ·(-gravity) = ρ·gravity
+                //
+                // note the negative sign
+                //                 ↓
+                // →    ⌠              ⌠      →
+                // rᵐ = │ ... dΩ   ─   │ Nᵐ ρ b dΩ
+                //      ⌡              ⌡
+                //      Ωₑ             Ωₑ
+                //                 \_____________/
+                //                 we compute this
                 b.fill(0.0);
                 b[self.ndim - 1] = rho * gravity(state.t); // -ρ·(-g) = ρ·g
                 Ok(())
