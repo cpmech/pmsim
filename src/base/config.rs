@@ -22,25 +22,18 @@ pub struct Config {
     /// Holds control variables for the (pseudo) time integration over the simulation period
     pub control: Control,
 
-    /// Body acceleration (i.e., body force divided by density)
+    /// Gravity acceleration (positive variable)
     ///
-    /// **Note:** The body force will be computed by multiplying the
-    /// body acceleration by the density of the material.
+    /// Note: The corresponding acceleration vector will be directed against y in 2D or z in 3D;
+    /// e.g., `a_gravity = {0, -GRAVITY}ᵀ` in 2D or `a_gravity = {0, 0, -GRAVITY}ᵀ` in 3D.
     ///
     /// Example:
     ///
     /// ```text
     /// const GRAVITY: f64 = 10.0;
-    ///
-    /// // 2D
-    /// config.body_acceleration = Some((|_| 0.0, |_| -GRAVITY, |_| 0.0));
-    ///
-    /// // 3D
-    /// config.body_acceleration = Some((|_| 0.0, |_| 0.0, |_| -GRAVITY));
+    /// config.gravity = Some(|_| GRAVITY);
     /// ```
-    ///
-    /// The tuple is (ax(t), ay(t), az(t)) where az(t) is neglected in 2D
-    pub body_acceleration: Option<(FnTime, FnTime, FnTime)>,
+    pub gravity: Option<FnTime>,
 
     /// Axisymmetric problem represented in 2D (instead of plane-strain)
     pub axisymmetric: bool,
@@ -73,7 +66,7 @@ impl Config {
             dynamics: false,
             constant_tangent: false,
             control: Control::new(),
-            body_acceleration: None,
+            gravity: None,
             thickness: 1.0,
             axisymmetric: false,
             plane_stress: false,

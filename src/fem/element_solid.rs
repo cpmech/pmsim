@@ -133,15 +133,14 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         args.axisymmetric = self.config.axisymmetric;
         integ::vec_04_tb(residual, &mut args, |sig, p, _, _| sig.set(&self.stresses[p].sigma))?;
         args.clear = false; // << important from now on
-        if let Some((ax, ay, az)) = self.config.body_acceleration {
+        if let Some(gravity) = self.config.gravity {
             let rho = self.param.density;
-            let t = state.t;
             integ::vec_02_nv(residual, &mut args, |b, _, _| {
-                b[0] = -rho * ax(t); // must be negative because this is a residual
-                b[1] = -rho * ay(t);
-                if self.ndim == 3 {
-                    b[2] = -rho * az(t);
-                }
+                // Note: due to the definition of the residual vector, the body force needs
+                // to be negative, i.e, residual = -ρ·b; however the gravity acceleration component
+                // is negative: aᵢ = -gravity. Thus, the residual is rᵢ = -ρ·(-gravity) = ρ·gravity
+                b.fill(0.0);
+                b[self.ndim - 1] = rho * gravity(state.t); // -ρ·(-g) = ρ·g
                 Ok(())
             })?;
         }
@@ -518,7 +517,7 @@ mod tests {
 
     #[test]
     fn body_force_axisymmetric_works_2d() {
-        // example from Felippa's A_FEM page 12-11
+        // Example from Felippa's A_FEM page 12-11 (without the horizontal acceleration)
 
         // mesh
         let (rin, a, b) = (1.0, 6.0, 2.0);
@@ -548,29 +547,28 @@ mod tests {
         config.axisymmetric = true;
         config.n_integ_point.insert(1, 1);
 
-        // body acceleration
-        config.body_acceleration = Some((|_| 1.5, |_| -0.5, |_| 0.0)); // 3/2 and -1/2 because rho = 2
+        // vertical acceleration (must be positive)
+        config.gravity = Some(|_| 0.5); // 1/2 because rho = 2
 
         // element
         let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
 
         // check residual vector (1 integ point)
-        // NOTE: since the stress is zero,
-        // the residual is due to the body force only
+        // NOTE: since the stress is zero, the residual is due to the body force only
         let state = State::new(&data, &config).unwrap();
         let neq = 4 * 2;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
-        println!("{}", residual);
-        let felippa_neg_rr_1ip = &[-36.0, 12.0, -36.0, 12.0, -36.0, 12.0, -36.0, 12.0];
+        // println!("{}", residual);
+        let felippa_neg_rr_1ip = &[0.0, 12.0, 0.0, 12.0, 0.0, 12.0, 0.0, 12.0];
         vec_approx_eq(&residual.as_data(), felippa_neg_rr_1ip, 1e-15);
 
         // check residual vector (4 integ point)
         config.n_integ_point.insert(1, 4);
         let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
-        let felippa_neg_rr_4ip = &[-27.0, 9.0, -45.0, 15.0, -45.0, 15.0, -27.0, 9.0];
+        let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
         elem.calc_residual(&mut residual, &state).unwrap();
-        println!("{}", residual);
+        // println!("{}", residual);
         vec_approx_eq(&residual.as_data(), felippa_neg_rr_4ip, 1e-14);
     }
 }
