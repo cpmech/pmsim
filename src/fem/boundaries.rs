@@ -104,8 +104,7 @@ impl<'a> Boundary<'a> {
         match self.nbc {
             Nbc::Qn(f) => integ::vec_02_nv_bry(res, &mut args, |v, _, un, _| {
                 // note the negative sign
-                //                 |
-                //                 v
+                //                 ↓
                 // →    ⌠              ⌠    →
                 // rᵐ = │ ... dΩ   ─   │ Nᵐ v dΓ
                 //      ⌡              ⌡
