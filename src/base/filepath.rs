@@ -68,4 +68,20 @@ impl FilePath {
             Path::new("data").join("figures").join(filename)
         }
     }
+
+    /// Returns the filepath of a Paraview (.vtu) file
+    ///
+    /// # Input
+    ///
+    /// * `filename_key` -- the filename without path and extension; ".vtu" will added
+    /// * `use_tmp_dir` -- use "/tmp/pmsim" instead of local "data/paraview" directory
+    pub fn vtu(filename_key: &str, use_tmp_dir: bool) -> PathBuf {
+        let mut filename = String::from(filename_key);
+        filename.push_str(".vtu");
+        if use_tmp_dir {
+            Path::new("/tmp/pmsim").join(filename)
+        } else {
+            Path::new("data").join("paraview").join(filename)
+        }
+    }
 }

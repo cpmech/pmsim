@@ -101,10 +101,6 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
-    // output results
-    // let output = Output::new(&data);
-    // output.write_vtu(&state, "/tmp/pmsim/test_heat_axisym_nafems.vtu")?;
-
     // check
     let eq = data.equations.eq(ref_point, Dof::T).unwrap();
     let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
