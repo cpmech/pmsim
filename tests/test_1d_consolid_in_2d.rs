@@ -6,7 +6,7 @@ use pmsim::prelude::*;
 use pmsim::StrError;
 
 fn main() -> Result<(), StrError> {
-    let mesh = SampleMeshes::column_two_layers_quads();
+    let mesh = SampleMeshes::column_two_layers_qua4();
     let features = Features::new(&mesh, Extract::Boundary);
 
     let find = Find::new(&mesh, None);
