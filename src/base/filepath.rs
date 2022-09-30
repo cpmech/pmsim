@@ -85,3 +85,59 @@ impl FilePath {
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::FilePath;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn paths_are_correct() {
+        assert_eq!(
+            FilePath::mesh("the_cube", false).as_os_str(),
+            OsStr::new("data/meshes/the_cube.mesh")
+        );
+        assert_eq!(
+            FilePath::mesh("the_cube", true).as_os_str(),
+            OsStr::new("/tmp/pmsim/the_cube.mesh")
+        );
+
+        assert_eq!(
+            FilePath::msh("the_cube", false).as_os_str(),
+            OsStr::new("data/meshes/the_cube.msh")
+        );
+        assert_eq!(
+            FilePath::msh("the_cube", true).as_os_str(),
+            OsStr::new("/tmp/pmsim/the_cube.msh")
+        );
+
+        assert_eq!(
+            FilePath::svg("the_cube", false).as_os_str(),
+            OsStr::new("data/figures/the_cube.svg")
+        );
+        assert_eq!(
+            FilePath::svg("the_cube", true).as_os_str(),
+            OsStr::new("/tmp/pmsim/the_cube.svg")
+        );
+
+        assert_eq!(
+            FilePath::svg_suffix("the_cube", "_mesh", false).as_os_str(),
+            OsStr::new("data/figures/the_cube_mesh.svg")
+        );
+        assert_eq!(
+            FilePath::svg_suffix("the_cube", "_mesh", true).as_os_str(),
+            OsStr::new("/tmp/pmsim/the_cube_mesh.svg")
+        );
+
+        assert_eq!(
+            FilePath::vtu("the_cube", false).as_os_str(),
+            OsStr::new("data/paraview/the_cube.vtu")
+        );
+        assert_eq!(
+            FilePath::vtu("the_cube", true).as_os_str(),
+            OsStr::new("/tmp/pmsim/the_cube.vtu")
+        );
+    }
+}
