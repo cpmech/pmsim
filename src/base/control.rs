@@ -312,4 +312,64 @@ mod tests {
             Some("Δt is smaller than the allowed minimum")
         );
     }
+
+    #[test]
+    fn print_methods_work() {
+        // NOTE:
+        // We need to run this test manually to check the output (with our eyes)
+
+        let mut control = Control::new();
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS HEADER) ####################################");
+        control.verbose_timesteps = true;
+        control.verbose_iterations = true;
+        control.print_header();
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
+        control.verbose_timesteps = false;
+        control.verbose_iterations = false;
+        control.print_header();
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP) ##################################");
+        control.verbose_timesteps = true;
+        control.print_timestep(123, 0.1, 0.01);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
+        control.verbose_timesteps = false;
+        control.print_timestep(123, 0.1, 0.01);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NaN) #############################");
+        control.verbose_iterations = true;
+        control.print_iteration(3, 123.0, f64::NAN);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NON-SCALED) ######################");
+        control.print_iteration(0, 123.0, 123.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: CONVERGED) #######################");
+        control.print_iteration(1, 123.0, 0.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NO INFO) #########################");
+        control.print_iteration(1, 123.0, 1.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: DIVERGING) #######################");
+        control.print_iteration(3, 123.0, 246.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: CONVERGING) ######################");
+        control.print_iteration(3, 123.0, 100.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
+        control.verbose_iterations = false;
+        control.print_iteration(3, 123.0, 100.0);
+        println!("############################################################ TO HERE");
+    }
 }
