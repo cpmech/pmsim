@@ -19,10 +19,11 @@ const FILENAME_KEY: &'static str = "test_solid_smith_5d24_hex20_3d";
 //
 // BOUNDARY CONDITIONS
 //
-// Fix the vertical boundary faces perpendicular to x against movement along x
-// Fix the vertical boundary faces perpendicular to y against movement along y
-// Fix the bottom face against movement along (x,y,z)
-// Distributed load Qn = -1 on top face with y ≤ 1
+// Horizontally fix the vertical boundary faces perpendicular to x on the "back side" with x=0
+// Horizontally fix the vertical boundary faces perpendicular to y on the "left side" with y=0
+// Set all Ux,Uy,Uz to zero for the horizontal boundary faces perpendicular to z on the "bottom" with z=0
+// Apply distributed load Qn = -1 on the portion of the top face with y ≤ 1
+// NOTE: The "front" and "right" faces with x>0 or y>0 are NOT fixed.
 //
 // CONFIGURATION AND PARAMETERS
 //
@@ -38,15 +39,11 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     // features
     let find = Find::new(&mesh, None);
     let faces_x_min = find.faces(At::X(0.0), any_x)?;
-    let faces_x_max = find.faces(At::X(0.5), any_x)?;
     let faces_y_min = find.faces(At::Y(0.0), any_x)?;
-    let faces_y_max = find.faces(At::Y(3.0), any_x)?;
     let bottom = find.faces(At::Z(-2.0), any_x)?;
     let top = find.faces(At::Z(0.0), |x| x[1] <= 1.0)?;
     println!("faces_x_min = {}", display_features(&faces_x_min));
-    println!("faces_x_max = {}", display_features(&faces_x_max));
     println!("faces_y_min = {}", display_features(&faces_y_min));
-    println!("faces_y_max = {}", display_features(&faces_y_max));
     println!("bottom = {}", display_features(&bottom));
     println!("top = {}", display_features(&top));
 
@@ -75,9 +72,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let mut essential = Essential::new();
     essential
         .on(&faces_x_min, Ebc::Ux(zero))
-        .on(&faces_x_max, Ebc::Ux(zero))
         .on(&faces_y_min, Ebc::Uy(zero))
-        .on(&faces_y_max, Ebc::Uy(zero))
         .on(&bottom, Ebc::Ux(zero))
         .on(&bottom, Ebc::Uy(zero))
         .on(&bottom, Ebc::Uz(zero));
@@ -92,8 +87,6 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     // run simulation
     let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
     sim.run(&mut state)?;
-
-    println!("{:?}", state.uu.as_data());
 
     // generate Paraview file
     if false {
@@ -175,8 +168,6 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
          0.000000000000000e+00,  0.000000000000000e+00,  0.000000000000000e+00,
          0.000000000000000e+00,  0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    if false {
-        vec_approx_eq(state.uu.as_data(), uu_correct, 1e-8); // TODO: check this
-    }
+    vec_approx_eq(state.uu.as_data(), uu_correct, 2e-9);
     Ok(())
 }
