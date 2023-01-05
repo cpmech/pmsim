@@ -45,9 +45,7 @@ impl<'a> fmt::Display for Natural<'a> {
         write!(f, "\nDistributed boundary conditions\n").unwrap();
         write!(f, "===============================\n").unwrap();
         for (feature, nbc) in &self.distributed {
-            let mut points = feature.points.clone();
-            points.sort();
-            write!(f, "{:?} : {}\n", points, nbc).unwrap();
+            write!(f, "{:?} : {}\n", feature.points, nbc).unwrap();
         }
         Ok(())
     }
@@ -143,7 +141,7 @@ mod tests {
              ===============================\n\
              [4, 5] : Qn(0) = -0.0, Qn(1) = -10.0\n\
              [6, 7] : Qn(0) = -0.0, Qn(1) = -10.0\n\
-             [0, 1, 4, 5] : Qy(0) = -0.0, Qy(1) = -10.0\n"
+             [0, 1, 5, 4] : Qy(0) = -0.0, Qy(1) = -10.0\n"
         );
         assert_eq!(fbc(1.0), -10.0);
     }

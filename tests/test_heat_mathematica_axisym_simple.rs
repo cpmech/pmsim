@@ -10,6 +10,10 @@ const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
 //
 // https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
 //
+// TEST GOAL
+//
+// This test verifies the steady heat equation in 1D with prescribed flux
+//
 // MESH
 //
 //   →→ ---------------------
@@ -34,7 +38,7 @@ const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
 // Constant conductivity kx = ky = 10.0
 
 #[test]
-fn test_heat_axisym_simple() -> Result<(), StrError> {
+fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     // geometry
     let (rin, rout, h) = (1.0, 2.0, 0.1);
 
@@ -95,15 +99,13 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
         // write mesh
-        mesh.write(&filepath_mesh(FILENAME_KEY, true)).unwrap();
+        mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
-        let mut mesh_svg = String::from(FILENAME_KEY);
-        mesh_svg.push_str("_mesh");
-        draw_mesh(&mesh, true, &filepath_svg(mesh_svg.as_str(), true)).unwrap();
+        draw_mesh(&mesh, true, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true)).unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&filepath_mesh(FILENAME_KEY, false)).unwrap()
+        Mesh::read(&FilePath::mesh(FILENAME_KEY, false)).unwrap()
     }
 }

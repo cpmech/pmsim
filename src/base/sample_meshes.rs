@@ -52,18 +52,19 @@ impl SampleMeshes {
     /// Reference: Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
     ///
     /// ```text
-    ///               .2
-    ///             .'/|
-    ///           .' / |
-    ///         .'  /  |
-    ///       .'   /   |
-    ///     .'[2] /    |
-    ///   .'     /     |
-    ///  3------4  [1] |
-    ///  |[3] .' '.    |
-    ///  |  .'     '.  |
-    ///  |.'   [0]   '.|
-    ///  0-------------1
+    /// 0.3               .2
+    ///                 .'/|
+    ///               .' / |
+    ///             .'  /  |
+    ///           .'   /   |
+    ///         .'[2] /    |
+    ///       .'     /     |
+    /// 0.1  3------4  [1] |
+    ///      |[3] .' '.    |
+    ///      |  .'     '.  |
+    ///      |.'   [0]   '.|
+    /// 0.0  0-------------1
+    ///     0.0    0.1    0.2
     /// ```
     ///
     /// ![bhatti_example_1d5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d5_heat.svg)
@@ -151,7 +152,7 @@ impl SampleMeshes {
     ///           0.0        2.0       4.0   fixed on x and y
     /// ```
     ///
-    /// ![bhatti_example_1dot6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1dot6_bracket.svg)
+    /// ![bhatti_example_1d6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d6_bracket.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d6_bracket() -> Mesh {
         Mesh {
@@ -202,6 +203,7 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ```text
     ///  0.0  0---------1---------2
     ///       |       ,'|       ,'|
     ///       |  0  ,'  |  2  ,'  |
@@ -214,6 +216,7 @@ impl SampleMeshes {
     ///       | ,'   5  | ,'   7  |
     /// -1.0  6'--------7'--------8
     ///      0.0       0.5       1.0
+    /// ```
     ///
     /// ![mesh_smith_example_5d2_tri3](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d2_tri3.svg)
     #[rustfmt::skip]
@@ -249,6 +252,7 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ```text
     ///  0.0  o----o---------------o
     ///       |   /|           _.-'|
     ///       |  / |       _.-'    |  15-node
@@ -256,6 +260,7 @@ impl SampleMeshes {
     ///       |/   |.-'            |
     /// -2.0  o----o---------------o
     ///      0.0  1.0             6.0
+    /// ```
     ///
     /// ![mesh_smith_example_5d7_tri15](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d7_tri15.svg)
     #[rustfmt::skip]
@@ -323,6 +328,17 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ```text
+    ///  0.0    0----------3----------6----------9
+    ///         |          |          |          |
+    ///         |          |          |          |
+    ///         1----------4----------7---------10
+    ///         |          |          |          |
+    ///         |          |          |          |
+    /// -10.0   2----------5----------8---------11
+    ///        0.0       10.0       20.0       30.0
+    /// ```
+    ///
     /// ![mesh_smith_example_5d11_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d11_qua4.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d11_qua4() -> Mesh {
@@ -357,6 +373,23 @@ impl SampleMeshes {
     ///
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
+    ///
+    /// ```text
+    ///  0.0   0----1----2----3----4
+    ///        |         |         |
+    ///        5         6         7
+    ///        |         |         |
+    /// -3.0   8----9---10---11---12
+    ///        |         |         |
+    ///       13        14        15
+    ///        |         |         |
+    /// -6.0  16---17---18---19---20
+    ///        |         |         |
+    ///       21        22        23
+    ///        |         |         |
+    /// -9.0  24---25---26---27---28
+    ///       0.0       3.0       6.0
+    /// ```
     ///
     /// ![mesh_smith_example_5d15_qua8](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d15_qua8.svg)
     #[rustfmt::skip]
@@ -416,6 +449,20 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
+    /// ```text
+    ///   0.0   0------3----------6-------------------9
+    ///         | (0)  |   (2)    |       (4)         |
+    ///         | [1]  |   [1]    |       [1]         |
+    ///  -4.0   1------4----------7------------------10
+    ///         | (1)  |   (3)    |       (5)         |
+    ///         | [2]  |   [2]    |       [2]         |
+    /// -10.0   2------5----------8------------------11
+    ///        0.0    4.0       10.0                30.0
+    ///
+    /// (#) indicates cell id
+    /// [#] indicates attribute id
+    /// ```
+    ///
     /// ![mesh_smith_example_5d17_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d17_qua4.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d17_qua4() -> Mesh {
@@ -437,11 +484,11 @@ impl SampleMeshes {
             ],
             cells: vec![
                 Cell { id: 0, attribute_id: 1, kind: GeoKind::Qua4, points: vec![1, 4, 3, 0] },
-                Cell { id: 1, attribute_id: 1, kind: GeoKind::Qua4, points: vec![2, 5, 4, 1] },
+                Cell { id: 1, attribute_id: 2, kind: GeoKind::Qua4, points: vec![2, 5, 4, 1] },
                 Cell { id: 2, attribute_id: 1, kind: GeoKind::Qua4, points: vec![4, 7, 6, 3] },
-                Cell { id: 3, attribute_id: 1, kind: GeoKind::Qua4, points: vec![5, 8, 7, 4] },
+                Cell { id: 3, attribute_id: 2, kind: GeoKind::Qua4, points: vec![5, 8, 7, 4] },
                 Cell { id: 4, attribute_id: 1, kind: GeoKind::Qua4, points: vec![7,10, 9, 6] },
-                Cell { id: 5, attribute_id: 1, kind: GeoKind::Qua4, points: vec![8,11,10, 7] },
+                Cell { id: 5, attribute_id: 2, kind: GeoKind::Qua4, points: vec![8,11,10, 7] },
             ],
         }
     }
@@ -530,11 +577,11 @@ impl SampleMeshes {
             ],
             cells: vec![
                 Cell { id: 0, attribute_id: 1, kind: GeoKind::Hex20, points: vec![ 5, 7,26,24, 0, 2,21,19, 6,16,25,15, 1,14,20,13, 3, 4,23,22] },
-                Cell { id: 1, attribute_id: 1, kind: GeoKind::Hex20, points: vec![10,12,31,29, 5, 7,26,24,11,18,30,17, 6,16,25,15, 8, 9,28,27] },
+                Cell { id: 1, attribute_id: 2, kind: GeoKind::Hex20, points: vec![10,12,31,29, 5, 7,26,24,11,18,30,17, 6,16,25,15, 8, 9,28,27] },
                 Cell { id: 2, attribute_id: 1, kind: GeoKind::Hex20, points: vec![24,26,45,43,19,21,40,38,25,35,44,34,20,33,39,32,22,23,42,41] },
-                Cell { id: 3, attribute_id: 1, kind: GeoKind::Hex20, points: vec![29,31,50,48,24,26,45,43,30,37,49,36,25,35,44,34,27,28,47,46] },
+                Cell { id: 3, attribute_id: 2, kind: GeoKind::Hex20, points: vec![29,31,50,48,24,26,45,43,30,37,49,36,25,35,44,34,27,28,47,46] },
                 Cell { id: 4, attribute_id: 1, kind: GeoKind::Hex20, points: vec![43,45,64,62,38,40,59,57,44,54,63,53,39,52,58,51,41,42,61,60] },
-                Cell { id: 5, attribute_id: 1, kind: GeoKind::Hex20, points: vec![48,50,69,67,43,45,64,62,49,56,68,55,44,54,63,53,46,47,66,65] },
+                Cell { id: 5, attribute_id: 2, kind: GeoKind::Hex20, points: vec![48,50,69,67,43,45,64,62,49,56,68,55,44,54,63,53,46,47,66,65] },
             ],
         }
     }
@@ -543,6 +590,23 @@ impl SampleMeshes {
     ///
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
+    ///
+    /// ```text
+    ///  0.0   0----1----2----3----4
+    ///        |         |         |
+    ///        5    6    7    8    9
+    ///        |         |         |
+    /// -3.0  10---11---12---13---14
+    ///        |         |         |
+    ///       15   16   17   18   19
+    ///        |         |         |
+    /// -6.0  20---21---22---23---24
+    ///        |         |         |
+    ///       25   26   27   28   29
+    ///        |         |         |
+    /// -9.0  30---31---32---33---34
+    ///       0.0       3.0       6.0
+    /// ```
     ///
     /// ![mesh_smith_example_5d27_qua9](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d27_qua9.svg)
     #[rustfmt::skip]
@@ -634,13 +698,7 @@ impl SampleMeshes {
         }
     }
 
-    /// Returns the mesh from Smith's Example 5.2 (Figure 5.2) on page 173
-    ///
-    /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
-    /// Element Method, Wiley, Fifth Edition, 664p
-    ///
-
-    /// Returns a mesh with quadrilaterals representing a column
+    /// Returns a mesh with Qua4 representing a column with two layers
     ///
     /// ```text
     /// 3.0   6--------13
@@ -665,9 +723,9 @@ impl SampleMeshes {
     ///      0.0       1.0
     /// ```
     ///
-    /// ![mesh_column_two_layers_quads](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_column_two_layers_quads.svg)
+    /// ![mesh_column_two_layers_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_column_two_layers_qua4.svg)
     #[rustfmt::skip]
-    pub fn column_two_layers_quads() -> Mesh {
+    pub fn column_two_layers_qua4() -> Mesh {
         Mesh {
             ndim: 2,
             points: vec![
@@ -695,6 +753,79 @@ impl SampleMeshes {
                 Cell { id: 3, attribute_id: 2, kind: GeoKind::Qua4, points: vec![3, 10, 11, 4] },
                 Cell { id: 4, attribute_id: 2, kind: GeoKind::Qua4, points: vec![4, 11, 12, 5] },
                 Cell { id: 5, attribute_id: 2, kind: GeoKind::Qua4, points: vec![5, 12, 13, 6] },
+            ],
+        }
+    }
+
+    /// Returns a mesh with Qua9 representing a column with two layers
+    ///
+    /// ```text
+    ///  8----14-----9
+    ///  |           |
+    ///  |           |
+    /// 21    26    22
+    ///  |           |
+    ///  |           |
+    ///  6----13-----7
+    ///  |           |
+    ///  |           |
+    /// 19    25    20
+    ///  |           |
+    ///  |           |
+    ///  4----12-----5
+    ///  |           |
+    ///  |           |
+    /// 17    24    18
+    ///  |           |
+    ///  |           |
+    ///  2----11-----3
+    ///  |           |
+    ///  |           |
+    /// 15    23    16
+    ///  |           |
+    ///  |           |
+    ///  0----10-----1
+    /// ```
+    ///
+    /// ![mesh_column_two_layers_qua9](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_column_two_layers_qua9.svg)
+    #[rustfmt::skip]
+    pub fn column_two_layers_qua9() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id:  0, coords: vec![0.000, 0.000] },
+                Point { id:  1, coords: vec![0.750, 0.000] },
+                Point { id:  2, coords: vec![0.000, 0.750] },
+                Point { id:  3, coords: vec![0.750, 0.750] },
+                Point { id:  4, coords: vec![0.000, 1.500] },
+                Point { id:  5, coords: vec![0.750, 1.500] },
+                Point { id:  6, coords: vec![0.000, 2.250] },
+                Point { id:  7, coords: vec![0.750, 2.250] },
+                Point { id:  8, coords: vec![0.000, 3.000] },
+                Point { id:  9, coords: vec![0.750, 3.000] },
+                Point { id: 10, coords: vec![0.375, 0.000] },
+                Point { id: 11, coords: vec![0.375, 0.750] },
+                Point { id: 12, coords: vec![0.375, 1.500] },
+                Point { id: 13, coords: vec![0.375, 2.250] },
+                Point { id: 14, coords: vec![0.375, 3.000] },
+                Point { id: 15, coords: vec![0.000, 0.375] },
+                Point { id: 16, coords: vec![0.750, 0.375] },
+                Point { id: 17, coords: vec![0.000, 1.125] },
+                Point { id: 18, coords: vec![0.750, 1.125] },
+                Point { id: 19, coords: vec![0.000, 1.875] },
+                Point { id: 20, coords: vec![0.750, 1.875] },
+                Point { id: 21, coords: vec![0.000, 2.625] },
+                Point { id: 22, coords: vec![0.750, 2.625] },
+                Point { id: 23, coords: vec![0.375, 0.375] },
+                Point { id: 24, coords: vec![0.375, 1.125] },
+                Point { id: 25, coords: vec![0.375, 1.875] },
+                Point { id: 26, coords: vec![0.375, 2.625] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute_id: 2, kind: GeoKind::Qua9, points: vec![0, 1, 3, 2, 10, 16, 11, 15, 23] },
+                Cell { id: 1, attribute_id: 2, kind: GeoKind::Qua9, points: vec![2, 3, 5, 4, 11, 18, 12, 17, 24] },
+                Cell { id: 2, attribute_id: 1, kind: GeoKind::Qua9, points: vec![4, 5, 7, 6, 12, 20, 13, 19, 25] },
+                Cell { id: 3, attribute_id: 1, kind: GeoKind::Qua9, points: vec![6, 7, 9, 8, 13, 22, 14, 21, 26] },
             ],
         }
     }
@@ -790,10 +921,16 @@ mod tests {
         assert_eq!(mesh.cells.len(), 6);
         // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_smith_example_5d30_tet4.svg").unwrap();
 
-        let mesh = SampleMeshes::column_two_layers_quads();
+        let mesh = SampleMeshes::column_two_layers_qua4();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 14);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_column_two_layers_quads.svg").unwrap();
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_column_two_layers_qua4.svg").unwrap();
+
+        let mesh = SampleMeshes::column_two_layers_qua9();
+        check_all(&mesh).unwrap();
+        assert_eq!(mesh.points.len(), 27);
+        assert_eq!(mesh.cells.len(), 4);
+        // draw_mesh(&mesh, true, "/tmp/pmsim/mesh_column_two_layers_qua9.svg").unwrap();
     }
 }

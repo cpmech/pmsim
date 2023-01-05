@@ -9,6 +9,11 @@ use russell_lab::{mat_approx_eq, vec_add, vec_copy, vec_norm, Matrix, Norm, Vect
 //
 // Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
 //
+// TEST GOAL
+//
+// This test verifies the steady heat equation with prescribed temperature, convection,
+// flux, and a volumetric source term. Also, it checks the use of Qua8 elements.
+//
 // MESH
 //
 //       0.0    0.015    0.03
@@ -36,7 +41,7 @@ use russell_lab::{mat_approx_eq, vec_add, vec_copy, vec_norm, Matrix, Norm, Vect
 // Constant conductivity kx = ky = 45
 
 #[test]
-fn test_heat_bhatti_6d22_convection() -> Result<(), StrError> {
+fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6d22_heat();
     let find = Find::new(&mesh, None); // boundary only
@@ -243,7 +248,7 @@ fn test_heat_bhatti_6d22_convection() -> Result<(), StrError> {
 }
 
 #[test]
-fn test_bhatti_6dot22_heat_sim() -> Result<(), StrError> {
+fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6d22_heat();
     let find = Find::new(&mesh, None); // boundary only

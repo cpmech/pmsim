@@ -7,6 +7,10 @@ use russell_chk::vec_approx_eq;
 // Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
 // Element Method, Wiley, Fifth Edition, 664p
 //
+// TEST GOAL
+//
+// This test verifies a plane-strain simulation with Tri3 elements
+//
 // MESH
 //
 //               1.0 kN/m²
@@ -40,7 +44,7 @@ use russell_chk::vec_approx_eq;
 // Plane-strain
 
 #[test]
-fn test_heat_axisym_simple() -> Result<(), StrError> {
+fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d2_tri3();
 

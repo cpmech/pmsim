@@ -1,4 +1,4 @@
-use super::{Control, Init, ParamFluids};
+use super::{Control, FnTime, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{Cell, CellAttributeId};
@@ -22,8 +22,18 @@ pub struct Config {
     /// Holds control variables for the (pseudo) time integration over the simulation period
     pub control: Control,
 
-    /// Gravity acceleration
-    pub gravity: f64,
+    /// Gravity acceleration (positive variable)
+    ///
+    /// Note: The corresponding acceleration vector will be directed against y in 2D or z in 3D;
+    /// e.g., `a_gravity = {0, -GRAVITY}ᵀ` in 2D or `a_gravity = {0, 0, -GRAVITY}ᵀ` in 3D.
+    ///
+    /// Example:
+    ///
+    /// ```text
+    /// const GRAVITY: f64 = 10.0;
+    /// config.gravity = Some(|_| GRAVITY);
+    /// ```
+    pub gravity: Option<FnTime>,
 
     /// Axisymmetric problem represented in 2D (instead of plane-strain)
     pub axisymmetric: bool,
@@ -56,7 +66,7 @@ impl Config {
             dynamics: false,
             constant_tangent: false,
             control: Control::new(),
-            gravity: 0.0,
+            gravity: None,
             thickness: 1.0,
             axisymmetric: false,
             plane_stress: false,
@@ -74,9 +84,6 @@ impl Config {
         match self.control.validate() {
             Some(err) => return Some(err),
             None => (),
-        }
-        if self.gravity < 0.0 {
-            return Some(format!("gravity = {:?} is incorrect; it must be ≥ 0.0", self.gravity));
         }
         if self.thickness <= 0.0 {
             return Some(format!(
@@ -148,7 +155,6 @@ impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Configuration data\n").unwrap();
         write!(f, "==================\n").unwrap();
-        write!(f, "gravity = {:?}\n", self.gravity).unwrap();
         write!(f, "thickness = {:?}\n", self.thickness).unwrap();
         write!(f, "plane_stress = {:?}\n", self.plane_stress).unwrap();
         write!(f, "total_stress = {:?}\n", self.total_stress).unwrap();
@@ -183,7 +189,6 @@ mod tests {
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
         assert_eq!(config.constant_tangent, false);
-        assert_eq!(config.gravity, 0.0);
         assert_eq!(config.thickness, 1.0);
         assert_eq!(config.plane_stress, false);
         assert_eq!(config.total_stress, false);
@@ -201,7 +206,6 @@ mod tests {
             density_gas: None,
         });
 
-        config.gravity = 10.0; // m/s²
         config.thickness = 1.0;
         config.plane_stress = true;
         config.total_stress = true;
@@ -218,7 +222,6 @@ mod tests {
             format!("{}", config),
             "Configuration data\n\
              ==================\n\
-             gravity = 10.0\n\
              thickness = 1.0\n\
              plane_stress = true\n\
              total_stress = true\n\
@@ -245,13 +248,6 @@ mod tests {
             Some("t_ini = -1.0 is incorrect; it must be ≥ 0.0".to_string())
         );
         config.control.t_ini = 0.0;
-
-        config.gravity = -10.0;
-        assert_eq!(
-            config.validate(2),
-            Some("gravity = -10.0 is incorrect; it must be ≥ 0.0".to_string())
-        );
-        config.gravity = 10.0;
 
         config.thickness = 0.0;
         assert_eq!(

@@ -1,7 +1,7 @@
 use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, PrescribedValues, State};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
-use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, vec_update, Norm, Vector};
+use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
 /// Performs a finite element simulation
 pub struct Simulation<'a> {
@@ -84,25 +84,31 @@ impl<'a> Simulation<'a> {
                 vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
 
-            // set primary prescribed values
-            self.prescribed_values.apply(&mut state.uu, state.t);
+            // handle prescribed values
+            if self.prescribed_values.equations.len() > 0 {
+                // set prescribed U and ΔU at the new time
+                self.prescribed_values.apply(&mut duu, &mut state.uu, state.t);
 
-            // message
-            control.print_timestep(timestep, state.t, state.dt);
+                // update secondary variables for given prescribed U and ΔU at the new time
+                self.elements.update_secondary_values_parallel(state, &duu)?;
+            }
 
             // reset cumulated primary values
             duu.fill(0.0);
+
+            // message
+            control.print_timestep(timestep, state.t, state.dt);
 
             // previous and current max (scaled) R values
             let mut max_rr_prev: f64;
             let mut max_rr = 0.0;
 
-            // Note: we enter the iterations with an updated time, thus the boundary
-            // conditions will contribute with updated residuals. However the primary
-            // variables are still at the old time step. In summary, we start the
-            // iterations with the old primary variables and new boundary values.
+            // From here on, time t corresponds to the new (updated) time; thus the boundary
+            // conditions will yield update residuals. On the other hand, the primary variables
+            // (except the prescribed values) and secondary variables are still on the old time.
+            // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..control.n_max_iterations {
-                // compute residuals in parallel
+                // compute residuals in parallel (for the new time)
                 self.elements.calc_residuals_parallel(&state)?;
                 self.boundaries.calc_residuals_parallel(&state)?;
 
@@ -149,16 +155,23 @@ impl<'a> Simulation<'a> {
                 // solve linear system
                 self.linear_system.solver.solve(mdu, &rr)?;
 
-                // update U vector
-                vec_update(&mut state.uu, -1.0, &mdu).unwrap();
-
-                // update V vector
+                // updates
                 if config.transient {
-                    vec_add(&mut state.vv, beta_1, &state.uu, -1.0, &state.uu_star).unwrap();
+                    // update U, V, and ΔU vectors
+                    for i in 0..neq {
+                        state.uu[i] -= mdu[i];
+                        state.vv[i] = beta_1 * state.uu[i] - state.uu_star[i];
+                        duu[i] -= mdu[i];
+                    }
+                } else {
+                    // update U and ΔU vectors
+                    for i in 0..neq {
+                        state.uu[i] -= mdu[i];
+                        duu[i] -= mdu[i];
+                    }
                 }
 
-                // update ΔU and secondary variables
-                vec_update(&mut duu, -1.0, &mdu).unwrap();
+                // update secondary variables
                 self.elements.update_secondary_values_parallel(state, &duu)?;
 
                 // check convergence

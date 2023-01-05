@@ -1,4 +1,4 @@
-use super::{Data, ElementDiffusion, ElementRod, ElementSolid, LocalEquations, State};
+use super::{Data, ElementDiffusion, ElementRod, ElementSolid, ElementTrait, State};
 use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
@@ -10,7 +10,7 @@ use russell_sparse::SparseTriplet;
 /// Defines a generic finite element, wrapping an "actual" implementation
 pub struct GenericElement<'a> {
     /// Connects to the "actual" implementation of local equations
-    pub actual: Box<dyn LocalEquations + 'a>,
+    pub actual: Box<dyn ElementTrait + 'a>,
 
     /// Implements the residual vector
     pub residual: Vector,
@@ -38,7 +38,7 @@ impl<'a> GenericElement<'a> {
     /// Allocates new instance
     pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
         let element = data.attributes.get(cell).unwrap(); // already checked in Data
-        let actual: Box<dyn LocalEquations> = match element {
+        let actual: Box<dyn ElementTrait> = match element {
             Element::Diffusion(p) => Box::new(ElementDiffusion::new(data, config, cell, p)?),
             Element::Rod(p) => Box::new(ElementRod::new(data, config, cell, p)?),
             Element::Beam(..) => panic!("TODO: Beam"),

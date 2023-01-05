@@ -1,4 +1,4 @@
-use super::{Data, LocalEquations, State};
+use super::{Data, ElementTrait, State};
 use crate::base::{compute_local_to_global, Config, ParamDiffusion};
 use crate::model::ConductivityModel;
 use crate::StrError;
@@ -72,7 +72,7 @@ impl<'a> ElementDiffusion<'a> {
     }
 }
 
-impl<'a> LocalEquations for ElementDiffusion<'a> {
+impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global
@@ -208,7 +208,7 @@ impl<'a> LocalEquations for ElementDiffusion<'a> {
 mod tests {
     use super::ElementDiffusion;
     use crate::base::{Config, Element, SampleParams};
-    use crate::fem::{Data, LocalEquations, State};
+    use crate::fem::{Data, ElementTrait, State};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;

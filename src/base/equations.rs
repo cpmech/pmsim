@@ -137,7 +137,7 @@ impl fmt::Display for Equations {
 #[cfg(test)]
 mod tests {
     use super::Equations;
-    use crate::base::{Attributes, Dof, Element, ElementInfoMap, SampleParams};
+    use crate::base::{Attributes, Dof, Element, ElementInfoMap, SampleMeshes, SampleParams};
     use gemlab::mesh::{PointId, Samples};
 
     #[test]
@@ -268,6 +268,76 @@ mod tests {
              3: [(Pl, 3)]\n\
              4: [(Pl, 4)]\n\
              5: [(Pl, 5)]\n"
+        );
+    }
+
+    #[test]
+    fn coupled_dofs_work() {
+        //                   {Ux→38}
+        //        {Ux→24}    {Uy→39}    {Ux→27}
+        //        {Uy→25} 8----14-----9 {Uy→28}
+        //        {Pl→26} |           | {Pl→29}
+        //                |           |
+        // {Ux→52,Uy→53} 21    26    22 {Ux→54,Uy→55}   26: {Ux→62,Uy→63}
+        //                |           |
+        //        {Ux→18} |  {Ux→36}  | {Ux→21}
+        //        {Uy→19} 6----13-----7 {Uy→22}
+        //        {Pl→20} |  {Uy→37}  | {Pl→23}
+        //                |           |
+        // {Ux→48,Uy→49} 19    25    20 {Ux→50,Uy→51}   25: {Ux→60,Uy→61}
+        //                |           |
+        //        {Ux→12} |  {Ux→34}  | {Ux→15}
+        //        {Uy→13} 4----12-----5 {Uy→16}
+        //        {Pl→14} |  {Uy→35}  | {Pl→17}
+        //                |           |
+        // {Ux→44,Uy→45} 17    24    18 {Ux→46,Uy→47}   24: {Ux→58,Uy→59}
+        //                |           |
+        //         {Ux→6} |  {Ux→32}  | {Ux→9}
+        //         {Uy→7} 2----11-----3 {Uy→10}
+        //         {Pl→8} |  {Uy→33}  | {Pl→11}
+        //                |           |
+        // {Ux→40,Uy→41} 15    23    16 {Ux→42,Uy→43}   23: {Ux→56,Uy→57}
+        //                |           |
+        //         {Ux→0} |           | {Ux→3}
+        //         {Uy→1} 0----10-----1 {Uy→4}
+        //         {Pl→2}    {Ux→30}    {Pl→5}
+        //                   {Uy→31}
+        let mesh = SampleMeshes::column_two_layers_qua9();
+        let p = SampleParams::param_porous_sld_liq();
+        let att = Attributes::from([(1, Element::PorousSldLiq(p)), (2, Element::PorousSldLiq(p))]);
+        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let eqs = Equations::new(&mesh, &emap).unwrap();
+        assert_eq!(
+            format!("{}", eqs),
+            "Points: DOFs and global equation numbers\n\
+             ========================================\n\
+             0: [(Ux, 0), (Uy, 1), (Pl, 2)]\n\
+             1: [(Ux, 3), (Uy, 4), (Pl, 5)]\n\
+             2: [(Ux, 6), (Uy, 7), (Pl, 8)]\n\
+             3: [(Ux, 9), (Uy, 10), (Pl, 11)]\n\
+             4: [(Ux, 12), (Uy, 13), (Pl, 14)]\n\
+             5: [(Ux, 15), (Uy, 16), (Pl, 17)]\n\
+             6: [(Ux, 18), (Uy, 19), (Pl, 20)]\n\
+             7: [(Ux, 21), (Uy, 22), (Pl, 23)]\n\
+             8: [(Ux, 24), (Uy, 25), (Pl, 26)]\n\
+             9: [(Ux, 27), (Uy, 28), (Pl, 29)]\n\
+             10: [(Ux, 30), (Uy, 31)]\n\
+             11: [(Ux, 32), (Uy, 33)]\n\
+             12: [(Ux, 34), (Uy, 35)]\n\
+             13: [(Ux, 36), (Uy, 37)]\n\
+             14: [(Ux, 38), (Uy, 39)]\n\
+             15: [(Ux, 40), (Uy, 41)]\n\
+             16: [(Ux, 42), (Uy, 43)]\n\
+             17: [(Ux, 44), (Uy, 45)]\n\
+             18: [(Ux, 46), (Uy, 47)]\n\
+             19: [(Ux, 48), (Uy, 49)]\n\
+             20: [(Ux, 50), (Uy, 51)]\n\
+             21: [(Ux, 52), (Uy, 53)]\n\
+             22: [(Ux, 54), (Uy, 55)]\n\
+             23: [(Ux, 56), (Uy, 57)]\n\
+             24: [(Ux, 58), (Uy, 59)]\n\
+             25: [(Ux, 60), (Uy, 61)]\n\
+             26: [(Ux, 62), (Uy, 63)]\n"
         );
     }
 }

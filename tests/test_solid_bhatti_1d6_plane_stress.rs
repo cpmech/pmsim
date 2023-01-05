@@ -11,6 +11,10 @@ use russell_lab::Matrix;
 //
 // Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
 //
+// TEST GOAL
+//
+// This test verifies the equilibrium of a thin bracket modelled by assuming plane-stress
+//
 // MESH
 //
 // 2.0  fixed 1'-,_load                connectivity:
@@ -36,7 +40,7 @@ use russell_lab::Matrix;
 // Plane-stress with thickness = 0.25
 
 #[test]
-fn test_solid_bhatti_1dot6() -> Result<(), StrError> {
+fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d6_bracket();
     let features = Features::new(&mesh, Extract::Boundary);

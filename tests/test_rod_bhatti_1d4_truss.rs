@@ -7,6 +7,10 @@ use russell_chk::vec_approx_eq;
 //
 // Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
 //
+// TEST GOAL
+//
+// This test verifies a 2D frame with rod elements and concentrated forces
+//
 // MESH
 //
 //               (3)
@@ -37,7 +41,7 @@ use russell_chk::vec_approx_eq;
 // Attribute 3: Area = 2,000; Young =  70,000
 
 #[test]
-fn test_rod_bhatti_1dot4() -> Result<(), StrError> {
+fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d4_truss();
 

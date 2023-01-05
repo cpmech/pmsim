@@ -1,4 +1,4 @@
-use super::{Data, LocalEquations, State};
+use super::{Data, ElementTrait, State};
 use crate::base::{compute_local_to_global, Config, ParamRod};
 use crate::StrError;
 use gemlab::mesh::Cell;
@@ -83,7 +83,7 @@ impl<'a> ElementRod<'a> {
     }
 }
 
-impl<'a> LocalEquations for ElementRod<'a> {
+impl<'a> ElementTrait for ElementRod<'a> {
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global
@@ -120,7 +120,7 @@ impl<'a> LocalEquations for ElementRod<'a> {
 mod tests {
     use super::ElementRod;
     use crate::base::{assemble_matrix, Config, Element, ParamRod};
-    use crate::fem::{Data, LocalEquations, State};
+    use crate::fem::{Data, ElementTrait, State};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;

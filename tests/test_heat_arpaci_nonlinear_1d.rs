@@ -10,6 +10,11 @@ const FILENAME_KEY: &'static str = "test_heat_arpaci_nonlinear_1d";
 // Arpaci V. S. (1966) Conduction Heat Transfer,
 // Addison-Wesley, 551p
 //
+// TEST GOAL
+//
+// This tests verifies the nonlinear solver for the diffusion equation
+// with a variable conductivity coefficient.
+//
 // MESH
 //
 // o-----------------------------------------------------------o
@@ -119,7 +124,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
         plot.set_title(format!("$\\beta\\;s\\;L^2\\;/\\;(2\\;k_r)$ = {:.2}", coef).as_str())
             .grid_and_labels("$x\\;/\\;L$", "$2\\,k_r\\,T\\;/\\;(s\\,L^2)$")
             .legend()
-            .save(&filepath_svg(FILENAME_KEY, true))?;
+            .save(&FilePath::svg(FILENAME_KEY, true))?;
     }
     Ok(())
 }
@@ -133,15 +138,13 @@ fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua4).unwrap();
 
         // write mesh
-        mesh.write(&filepath_mesh(FILENAME_KEY, true)).unwrap();
+        mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
-        let mut mesh_svg = String::from(FILENAME_KEY);
-        mesh_svg.push_str("_mesh");
-        draw_mesh(&mesh, true, &filepath_svg(mesh_svg.as_str(), true)).unwrap();
+        draw_mesh(&mesh, true, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true)).unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&filepath_mesh(FILENAME_KEY, false)).unwrap()
+        Mesh::read(&FilePath::mesh(FILENAME_KEY, false)).unwrap()
     }
 }
