@@ -23,7 +23,7 @@ impl LinearElastic {
 
 impl StressStrainModel for LinearElastic {
     fn new_state(&self, two_dim: bool) -> StressState {
-        StressState::new(two_dim)
+        StressState::new(two_dim, 0)
     }
 
     fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
