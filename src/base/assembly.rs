@@ -76,7 +76,7 @@ pub fn assemble_matrix(
             for ll in 0..n_equation_local {
                 let gg = local_to_global[ll];
                 if !prescribed[gg] {
-                    kk_global.put(g, gg, kk_local[l][ll]).unwrap();
+                    kk_global.put(g, gg, kk_local.get(l, ll)).unwrap();
                 }
             }
         }
@@ -90,7 +90,7 @@ mod tests {
     use super::{assemble_matrix, assemble_vector};
     use crate::base::{compute_local_to_global, Attributes, Element, ElementInfoMap, Equations, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
-    use russell_lab::{Matrix, Vector};
+    use russell_lab::{mat_approx_eq, Matrix, Vector};
     use russell_sparse::SparseTriplet;
 
     #[test]
@@ -255,12 +255,12 @@ mod tests {
         kk.to_matrix(&mut kk_mat).unwrap();
         #[rustfmt::skip]
         let correct = &[
-            10.0,     11.0, /*prescribed*/ 0.0,      0.0,   14.0, // 0
-            10.0, 312111.0, /*prescribed*/ 0.0, 332300.0, 2414.0, // 1
-             0.0,      0.0, /*prescribed*/ 0.0,      0.0,    0.0, // 2 (all prescribed)
-             0.0, 312100.0, /*prescribed*/ 0.0, 332300.0, 2400.0, // 3
-            10.0,   2111.0, /*prescribed*/ 0.0,   2300.0, 2414.0, // 4
+            [10.0,     11.0, /*prescribed*/ 0.0,      0.0,   14.0], // 0
+            [10.0, 312111.0, /*prescribed*/ 0.0, 332300.0, 2414.0], // 1
+            [ 0.0,      0.0, /*prescribed*/ 0.0,      0.0,    0.0], // 2 (all prescribed)
+            [ 0.0, 312100.0, /*prescribed*/ 0.0, 332300.0, 2400.0], // 3
+            [10.0,   2111.0, /*prescribed*/ 0.0,   2300.0, 2414.0], // 4
         ];
-        assert_eq!(kk_mat.as_data(), correct);
+        mat_approx_eq(&kk_mat, correct, 1e-15);
     }
 }

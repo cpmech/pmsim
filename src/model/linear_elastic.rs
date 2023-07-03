@@ -1,11 +1,8 @@
 use super::StressState;
 use super::StressStrainModel;
+use crate::base::new_tensor2;
 use crate::StrError;
-use russell_tensor::copy_tensor4;
-use russell_tensor::t4_ddot_t2;
-use russell_tensor::LinElasticity;
-use russell_tensor::Tensor2;
-use russell_tensor::Tensor4;
+use russell_tensor::{copy_tensor4, t4_ddot_t2, LinElasticity, Tensor2, Tensor4};
 
 pub struct LinearElastic {
     pub model: LinElasticity,
@@ -16,7 +13,7 @@ impl LinearElastic {
     pub fn new(young: f64, poisson: f64, two_dim: bool, plane_stress: bool) -> Self {
         LinearElastic {
             model: LinElasticity::new(young, poisson, two_dim, plane_stress),
-            dsigma: Tensor2::new(true, two_dim),
+            dsigma: new_tensor2(two_dim),
         }
     }
 }

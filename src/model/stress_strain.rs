@@ -1,5 +1,5 @@
 use super::{CamClay, LinearElastic};
-use crate::base::{ParamSolid, ParamStressStrain};
+use crate::base::{new_tensor2, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
@@ -13,7 +13,7 @@ pub struct StressState {
 impl StressState {
     pub fn new(two_dim: bool, n_internal_vars: usize) -> Self {
         StressState {
-            sigma: Tensor2::new(true, two_dim),
+            sigma: new_tensor2(two_dim),
             internal_values: vec![0.0; n_internal_vars],
             loading: false,
         }

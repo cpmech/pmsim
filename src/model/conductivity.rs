@@ -86,7 +86,7 @@ mod tests {
     use super::ConductivityModel;
     use crate::base::ParamConductivity;
     use russell_chk::{approx_eq, deriv_central5};
-    use russell_tensor::Tensor2;
+    use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn derivative_works() {
@@ -94,14 +94,14 @@ mod tests {
         let model = ConductivityModel::new(&param, true);
 
         let phi_ini = 100.0;
-        let mut dk_dphi_ana = Tensor2::new(true, true);
+        let mut dk_dphi_ana = Tensor2::new(Mandel::Symmetric2D);
         model.calc_dk_dphi(&mut dk_dphi_ana, phi_ini).unwrap();
 
         struct Args {
             temp: Tensor2,
         }
         let mut args = Args {
-            temp: Tensor2::new(true, true),
+            temp: Tensor2::new(Mandel::Symmetric2D),
         };
 
         for i in 0..2 {

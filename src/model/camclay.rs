@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use super::{StressState, StressStrainModel};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -15,6 +17,11 @@ impl CamClay {
             _lambda: lambda,
             _kappa: kappa,
         }
+    }
+
+    pub fn yield_function(&self, state: &StressState) -> f64 {
+        let z = state.internal_values[0];
+        0.0
     }
 }
 

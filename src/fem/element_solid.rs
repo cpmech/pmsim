@@ -1,5 +1,5 @@
 use super::{Data, ElementTrait, State};
-use crate::base::{compute_local_to_global, Config, ParamSolid};
+use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamSolid};
 use crate::model::{allocate_stress_strain_model, StressState, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
@@ -73,7 +73,7 @@ impl<'a> ElementSolid<'a> {
                 ips,
                 model,
                 stresses: vec![zero_state; n_integ_point],
-                deps: Tensor2::new(true, two_dim),
+                deps: new_tensor2_ndim(ndim),
             }
         })
     }
@@ -88,9 +88,9 @@ impl<'a> ElementSolid<'a> {
         self.deps.clear();
         if self.ndim == 2 {
             for m in 0..nnode {
-                self.deps.sym_update(0, 0, 1.0,  duu[l2g[0+2*m]] * gg[m][0]);
-                self.deps.sym_update(1, 1, 1.0,  duu[l2g[1+2*m]] * gg[m][1]);
-                self.deps.sym_update(0, 1, 1.0, (duu[l2g[0+2*m]] * gg[m][1] + duu[l2g[1+2*m]] * gg[m][0])/2.0);
+                self.deps.sym_add(0, 0, 1.0,  duu[l2g[0+2*m]] * gg.get(m,0));
+                self.deps.sym_add(1, 1, 1.0,  duu[l2g[1+2*m]] * gg.get(m,1));
+                self.deps.sym_add(0, 1, 1.0, (duu[l2g[0+2*m]] * gg.get(m,1) + duu[l2g[1+2*m]] * gg.get(m,0))/2.0);
             }
             if self.config.axisymmetric {
                 // calculate radius
@@ -99,21 +99,21 @@ impl<'a> ElementSolid<'a> {
                 let nn = &self.pad.interp;
                 let mut r = 0.0; // radius @ x(ιᵖ)
                 for m in 0..nnode {
-                    r += nn[m] * self.pad.xxt[0][m];
+                    r += nn[m] * self.pad.xxt.get(0,m);
                 }
                 // compute out-of-plane strain increment component
                 for m in 0..nnode {
-                    self.deps.sym_update(2, 2, 1.0, duu[l2g[0+2*m]] * nn[m] / r);
+                    self.deps.sym_add(2, 2, 1.0, duu[l2g[0+2*m]] * nn[m] / r);
                 }
             }
         } else {
             for m in 0..nnode {
-                self.deps.sym_update(0, 0, 1.0,  duu[l2g[0+3*m]] * gg[m][0]);
-                self.deps.sym_update(1, 1, 1.0,  duu[l2g[1+3*m]] * gg[m][1]);
-                self.deps.sym_update(2, 2, 1.0,  duu[l2g[2+3*m]] * gg[m][2]);
-                self.deps.sym_update(0, 1, 1.0, (duu[l2g[0+3*m]] * gg[m][1] + duu[l2g[1+3*m]] * gg[m][0])/2.0);
-                self.deps.sym_update(1, 2, 1.0, (duu[l2g[1+3*m]] * gg[m][2] + duu[l2g[2+3*m]] * gg[m][1])/2.0);
-                self.deps.sym_update(0, 2, 1.0, (duu[l2g[0+3*m]] * gg[m][2] + duu[l2g[2+3*m]] * gg[m][0])/2.0);
+                self.deps.sym_add(0, 0, 1.0,  duu[l2g[0+3*m]] * gg.get(m,0));
+                self.deps.sym_add(1, 1, 1.0,  duu[l2g[1+3*m]] * gg.get(m,1));
+                self.deps.sym_add(2, 2, 1.0,  duu[l2g[2+3*m]] * gg.get(m,2));
+                self.deps.sym_add(0, 1, 1.0, (duu[l2g[0+3*m]] * gg.get(m,1) + duu[l2g[1+3*m]] * gg.get(m,0))/2.0);
+                self.deps.sym_add(1, 2, 1.0, (duu[l2g[1+3*m]] * gg.get(m,2) + duu[l2g[2+3*m]] * gg.get(m,1))/2.0);
+                self.deps.sym_add(0, 2, 1.0, (duu[l2g[0+3*m]] * gg.get(m,2) + duu[l2g[2+3*m]] * gg.get(m,0))/2.0);
             }
         }
         Ok(())
@@ -140,7 +140,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         //      Ωₑ
         //     \____________/
         //     we compute this
-        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| sig.set(&self.stresses[p].sigma))?;
+        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| sig.mirror(&self.stresses[p].sigma))?;
 
         // enable updates on the residual vector
         args.clear = false; // << important from now on
@@ -206,7 +206,7 @@ mod tests {
     use russell_chk::vec_approx_eq;
     use russell_lab::math::SQRT_2;
     use russell_lab::{vec_update, Matrix, Vector};
-    use russell_tensor::Tensor2;
+    use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn new_handles_errors() {
@@ -251,7 +251,11 @@ mod tests {
         let neq = 3 * 2;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
-        let sigma = Tensor2::from_matrix(&[[s00, s01, 0.0], [s01, s11, 0.0], [0.0, 0.0, s11]], true, true).unwrap();
+        let sigma = Tensor2::from_matrix(
+            &[[s00, s01, 0.0], [s01, s11, 0.0], [0.0, 0.0, s11]],
+            Mandel::Symmetric2D,
+        )
+        .unwrap();
         let correct = ana.vec_04_tb(&sigma, false);
         vec_approx_eq(residual.as_data(), correct.as_data(), 1e-15);
 
