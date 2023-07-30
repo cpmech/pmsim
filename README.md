@@ -93,7 +93,7 @@ timestep             t            Δt  iter    max(R)
 T(0) = 87.08286933869708  (87.08286933869707)
 ```
 
-The figure below compare the numerical with the analytical results.
+The figure below compares the numerical with the analytical results.
 
 ![Results](data/figures/test_heat_arpaci_nonlinear_1d.svg)
 
