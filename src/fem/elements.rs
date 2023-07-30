@@ -79,13 +79,14 @@ impl<'a> GenericElement<'a> {
         for i in 0..neq {
             for j in 0..neq {
                 let at_u = state.uu[j];
-                num_jacobian[i][j] = deriv_central5(at_u, &mut args, |u, a| {
+                let res = deriv_central5(at_u, &mut args, |u, a| {
                     let original = a.state.uu[j];
                     a.state.uu[j] = u;
                     self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
                     a.state.uu[j] = original;
                     a.residual[i]
                 });
+                num_jacobian.set(i, j, res);
             }
         }
         num_jacobian

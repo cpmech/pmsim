@@ -87,10 +87,10 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     let mut kk12 = Matrix::new(n_unknown, n_prescribed);
     for (i, ii) in eq_unknown.iter().enumerate() {
         for (j, jj) in eq_unknown.iter().enumerate() {
-            kk11[i][j] = kk[*ii][*jj];
+            kk11.set(i, j, kk.get(*ii, *jj));
         }
         for (j, jj) in eq_prescribed.iter().enumerate() {
-            kk12[i][j] = kk[*ii][*jj];
+            kk12.set(i, j, kk.get(*ii, *jj));
         }
     }
     let mut uu1 = Vector::new(n_unknown); // unknown displacements vector U1
@@ -131,10 +131,10 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     let mut kk22 = Matrix::new(n_prescribed, n_prescribed);
     for (i, ii) in eq_prescribed.iter().enumerate() {
         for (j, jj) in eq_unknown.iter().enumerate() {
-            kk21[i][j] = kk[*ii][*jj];
+            kk21.set(i, j, kk.get(*ii, *jj));
         }
         for (j, jj) in eq_prescribed.iter().enumerate() {
-            kk22[i][j] = kk[*ii][*jj];
+            kk22.set(i, j, kk.get(*ii, *jj));
         }
     }
     let mut ee2 = Vector::new(n_prescribed); // external forces vector E2 = K21·U1 + K22·U2

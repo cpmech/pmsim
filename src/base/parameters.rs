@@ -24,6 +24,13 @@ pub enum ParamStressStrain {
         /// Hardening
         hh: f64,
     },
+    CamClay {
+        mm: f64,
+
+        lambda: f64,
+
+        kappa: f64,
+    },
 }
 
 /// Holds parameters for liquid-retention models

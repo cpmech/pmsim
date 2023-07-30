@@ -1,5 +1,5 @@
 use super::{Data, ElementTrait, State};
-use crate::base::{compute_local_to_global, Config, ParamDiffusion};
+use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamDiffusion};
 use crate::model::ConductivityModel;
 use crate::StrError;
 use gemlab::integ;
@@ -65,7 +65,7 @@ impl<'a> ElementDiffusion<'a> {
                 pad,
                 ips: config.integ_point_data(cell)?,
                 model: ConductivityModel::new(&param.conductivity, ndim == 2),
-                conductivity: Tensor2::new(true, ndim == 2),
+                conductivity: new_tensor2_ndim(ndim),
                 grad_tt: Vector::new(ndim),
             }
         })
@@ -98,7 +98,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
                 for m in 0..npoint {
-                    self.grad_tt[i] += bb[m][i] * state.uu[l2g[m]];
+                    self.grad_tt[i] += bb.get(m, i) * state.uu[l2g[m]];
                 }
             }
             // compute conductivity tensor at integration point
@@ -175,7 +175,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 for i in 0..ndim {
                     self.grad_tt[i] = 0.0;
                     for m in 0..npoint {
-                        self.grad_tt[i] += bb[m][i] * state.uu[l2g[m]];
+                        self.grad_tt[i] += bb.get(m, i) * state.uu[l2g[m]];
                     }
                 }
                 // conductivity ← ∂k/∂ϕ
@@ -214,7 +214,7 @@ mod tests {
     use gemlab::shapes::GeoKind;
     use russell_chk::vec_approx_eq;
     use russell_lab::{vec_add, Matrix, Vector};
-    use russell_tensor::Tensor2;
+    use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn new_handles_errors() {
@@ -345,7 +345,7 @@ mod tests {
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let conductivity =
-            Tensor2::from_matrix(&[[kx, 0.0, 0.0], [0.0, ky, 0.0], [0.0, 0.0, kz]], true, false).unwrap();
+            Tensor2::from_matrix(&[[kx, 0.0, 0.0], [0.0, ky, 0.0], [0.0, 0.0, kz]], Mandel::Symmetric).unwrap();
         let correct_kk = ana.mat_03_btb(&conductivity);
         vec_approx_eq(jacobian.as_data(), correct_kk.as_data(), 1e-15);
 

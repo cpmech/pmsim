@@ -1,5 +1,5 @@
-use super::LinearElastic;
-use crate::base::{ParamSolid, ParamStressStrain};
+use super::{CamClay, LinearElastic};
+use crate::base::{new_tensor2, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
@@ -11,10 +11,10 @@ pub struct StressState {
 }
 
 impl StressState {
-    pub fn new(two_dim: bool) -> Self {
+    pub fn new(two_dim: bool, n_internal_vars: usize) -> Self {
         StressState {
-            sigma: Tensor2::new(true, two_dim),
-            internal_values: Vec::new(),
+            sigma: new_tensor2(two_dim),
+            internal_values: vec![0.0; n_internal_vars],
             loading: false,
         }
     }
@@ -39,6 +39,7 @@ pub fn allocate_stress_strain_model(
             Box::new(LinearElastic::new(young, poisson, two_dim, plane_stress))
         }
         ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
+        ParamStressStrain::CamClay { mm, lambda, kappa } => Box::new(CamClay::new(mm, lambda, kappa)),
     };
     model
 }
