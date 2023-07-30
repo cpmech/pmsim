@@ -12,6 +12,7 @@ use russell_chk::vec_approx_eq;
 // This test verifies a plane-strain simulation with prescribed displacements
 //
 // MESH
+//
 //        Uy DISPLACEMENT
 //  0.0      0----------3----------6----------9
 //        Ux |          |          |          | Ux
