@@ -54,13 +54,6 @@ with a variable conductivity coefficient.
 
 #### Mesh
 
-```text
-o-----------------------------------------------------------o
-|    |    |    |    |    |    |    |    |    |    .....     | h = 1
-o-----------------------------------------------------------o
-                     <-  L = 10 ->
-```
-
 ![Mesh](data/figures/test_heat_arpaci_nonlinear_1d_mesh.svg)
 
 #### Initial conditions
@@ -82,11 +75,9 @@ Temperature T = 0 on right side @ x = L
 The temperature at the right T = 0 (T_inf) must be zero in order to
 result in k(T_inf) = kᵣ as required by the analytical solution.
 
-#### Simulation file
+#### Simulation and results
 
 [heat_arpaci_nonlinear_1d.rs](examples/heat_arpaci_nonlinear_1d.rs)
-
-#### Results
 
 ```text
                                                   _   
@@ -105,6 +96,40 @@ T(0) = 87.08286933869708  (87.08286933869707)
 ![Results](data/figures/test_heat_arpaci_nonlinear_1d.svg)
 
 ### Heat: Bhatti 1d5 Convection
+
+Bhatti's Example 1.5 on page 28
+
+* Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
+
+#### Test goal
+
+This test verifies the steady heat equation with prescribed temperature and convection
+
+#### Mesh
+
+![Mesh](data/figures/mesh_bhatti_example_1d5_heat.svg)
+
+#### Boundary conditions
+
+* Convection Cc = (27, 20) on the right edge
+* Prescribed temperature T = 300 on the left edge
+
+#### Configuration and parameters
+
+* Steady simulation
+* No source
+* Constant conductivity kx = ky = 1.4
+
+#### Simulation and results
+
+[heat_bhatti_1d5_convection](examples/heat_bhatti_1d5_convection.rs)
+
+```text
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    1.05e3❋ 
+       .             .             .     2  1.71e-15✅
+```
 
 ### Heat: Bhatti 6d22 Convection
 
