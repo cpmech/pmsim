@@ -171,7 +171,89 @@ timestep             t            Δt  iter    max(R)
        .             .             .     2  6.09e-16✅
 ```
 
-### Heat: Lewis Transient 1d
+### Heat: Lewis Example 6.4.2 Transient 1d
+
+Lewis' Example 6.4.2 on page 159
+
+* Lewis R, Nithiarasu P, and Seetharamu KN (2004) Fundamentals of the
+Finite Element Method for Heat and Fluid Flow, Wiley, 341p
+
+#### Test goal
+
+This test verifies the transient diffusion in 1D
+
+#### Mesh
+
+```text
+o-----------------------------------------------------------o
+|    |    |    |    |    |    |    |    |    |    .....     | h = 1
+o-----------------------------------------------------------o
+                     <-  L = 20 ->
+```
+
+![Mesh](data/figures/test_heat_lewis_transient_1d_mesh.svg)
+
+#### Initial conditions
+
+Temperature T = 0 at all points
+
+#### Boundary conditions
+
+Flux Qt = 1 on left side @ x = 0
+
+#### Configuration and parameters
+
+* Transient simulation
+* No source
+* Constant conductivity kx = ky = 1
+* Coefficient ρ = 1
+
+#### Simulation and results
+
+[heat_lewis_transient_1d.rs](examples/heat_lewis_transient_1d.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   6.67e-1❋ 
+       .             .             .     2  2.36e-16✅
+       2   2.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    1.24e0❋ 
+       .             .             .     2  6.07e-16✅
+       3   3.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    1.08e0❋ 
+       .             .             .     2  2.55e-16✅
+       4   4.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   9.73e-1❋ 
+       .             .             .     2  3.38e-16✅
+       5   5.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   8.94e-1❋ 
+       .             .             .     2  3.25e-16✅
+       6   6.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   8.33e-1❋ 
+       .             .             .     2  4.24e-16✅
+       7   7.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   7.84e-1❋ 
+       .             .             .     2  6.89e-16✅
+       8   8.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   7.44e-1❋ 
+       .             .             .     2  4.46e-16✅
+       9   9.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   7.09e-1❋ 
+       .             .             .     2  5.85e-16✅
+      10    1.000000e0   1.000000e-1     .        .  
+       .             .             .     1   6.79e-1❋ 
+       .             .             .     2  1.03e-15✅
+
+point = 0, x = 0.00, T = 1.105099, diff = 2.3280e-2
+point = 3, x = 0.00, T = 1.105099, diff = 2.3280e-2
+point = 7, x = 0.00, T = 1.105099, diff = 2.3280e-2
+point = 4, x = 1.00, T = 0.376835, diff = 2.2447e-2
+point = 6, x = 1.00, T = 0.376835, diff = 2.2447e-2
+point = 1, x = 2.00, T = 0.085042, diff = 1.5467e-2
+point = 2, x = 2.00, T = 0.085042, diff = 1.5467e-2
+```
 
 ### Heat: Mathematica Axisymmetric Nafems
 
