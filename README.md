@@ -93,6 +93,8 @@ timestep             t            Δt  iter    max(R)
 T(0) = 87.08286933869708  (87.08286933869707)
 ```
 
+The figure below compare the numerical with the analytical results.
+
 ![Results](data/figures/test_heat_arpaci_nonlinear_1d.svg)
 
 ### Heat: Bhatti Example 1.5 Convection
