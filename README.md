@@ -24,7 +24,7 @@ Add this to your Cargo.toml:
 
 ```toml
 [dependencies]
-pmsim = "0.1"
+pmsim = "0.2"
 ```
 
 ## Examples
