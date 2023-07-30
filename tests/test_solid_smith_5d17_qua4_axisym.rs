@@ -13,6 +13,7 @@ use russell_lab::prelude::*;
 // This test verifies an axisymmetric equilibrium problem.
 //
 // MESH
+//
 //               1.0 kN/m²
 //          ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
 //   0.0    0------3----------6-------------------9

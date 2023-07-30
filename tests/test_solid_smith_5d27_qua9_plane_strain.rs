@@ -13,6 +13,7 @@ use russell_chk::vec_approx_eq;
 // NOTE: This Example is similar to Example 5.15, with the difference being Qua9 elements.
 //
 // MESH
+//
 //           1.0 kN/m²
 //          ↓↓↓↓↓↓↓↓↓↓↓
 //  0.0     0----1----2----3----4

@@ -428,18 +428,6 @@ This test verifies the equilibrium of a thin bracket modelled by assuming plane-
 
 #### Mesh
 
-```text
-2.0  fixed 1'-,_load                connectivity:
-           |     '-,_      load      eid : vertices
-1.5 - - -  |        ,'3-,__            0 :  0, 2, 3
-           |  1   ,'  |    '-,_        1 :  3, 1, 0
-1.0 - - -  |    ,'    |  3   ,-'5      2 :  2, 4, 5
-           |  ,'  0   |   ,-'   |      3 :  5, 3, 2
-           |,'        |,-'   2  |
-0.0  fixed 0----------2---------4   constraints:
-          0.0        2.0       4.0   fixed on x and y
-```
-
 ![Mesh](data/figures/mesh_bhatti_example_1d6_bracket.svg)
 
 #### Boundary conditions
@@ -519,18 +507,332 @@ point = 8, r = 10.0, Ux = 0.03809523809523828, diff = 1.8041124150158794e-16
 point = 10, r = 8.5, Ux = 0.03859943977591054, diff = 1.8041124150158794e-16
 ```
 
-### Solid Smith 5d11 Qua4 Plane Strain_uy
+### Solid Smith Figure 5.2 Tri3 Plane Strain
 
-### Solid Smith 5d15 Qua8 Plane Strain
+Smith's Example 5.2 (Figure 5.2) on page 173
 
-### Solid Smith 5d17 Qua4 Axisymmetric
+* Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+Element Method, Wiley, Fifth Edition, 664p
 
-### Solid Smith 5d24 Hex20 3D
+#### Test goal
 
-### Solid Smith 5d27 Qua9 Plane Strain
+This test verifies a plane-strain simulation with Tri3 elements
 
-### Solid Smith 5d2 Tri3 Plane Strain
+#### Mesh
 
-### Solid Smith 5d30 Tet4 3D
+```text
+              1.0 kN/m²
+        ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+ 0.0   ▷0---------1---------2
+        |       ,'|       ,'|   E = 1e6 kN/m²
+        |  0  ,'  |  2  ,'  |   ν = 0.3
+        |   ,'    |   ,'    |
+        | ,'   1  | ,'  3   |   connectivity:
+-0.5   ▷3'--------4'--------5     0 : 1 0 3
+        |       ,'|       ,'|     1 : 3 4 1
+        |  4  ,'  |  6  ,'  |     2 : 2 1 4
+        |   ,'    |   ,'    |     3 : 4 5 2
+        | ,'   5  | ,'   7  |     4 : 4 3 6
+-1.0   ▷6'--------7'--------8     5 : 6 7 4
+        △         △         △     6 : 5 4 7
+                                  7 : 7 8 5
+       0.0       0.5       1.0
+```
 
-### Solid Smith 5d7 Tri15 Plane Strain
+![Mesh](data/figures/mesh_smith_example_5d2_tri3.svg)
+
+#### Boundary conditions
+
+* Fix left edge horizontally
+* Fix bottom edge vertically
+* Distributed load Qn = -1.0 on top edge
+
+#### Configuration and parameters
+
+* Static simulation
+* Young = 1e6
+* Poisson = 0.3
+* Plane-strain
+
+### Solid Smith Figure 5.7 Tri15 Plane Strain
+
+Smith's Example 5.7 (Figure 5.7) on page 178
+
+* Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+Element Method, Wiley, Fifth Edition, 664p
+
+#### Test goal
+
+This test verifies a plane-strain simulation with Tri15 elements
+
+```text
+MESH
+        1.0 kN/m²
+         ↓↓↓↓↓↓
+ 0.0  Ux o----o---------------o Ux
+      F  |   /|           _.-'| F
+      I  |  / |       _.-'    | I    15-node
+      X  | /  |   _.-'        | X    triangles
+      E  |/   |.-'            | E
+-2.0  D  o----o---------------o D
+        0.0  1.0             6.0
+            Ux and Uy FIXED
+```
+
+![Mesh](data/figures/mesh_smith_example_5d7_tri15.svg)
+
+#### Boundary conditions
+
+* Fix left edge horizontally
+* Fix right edge horizontally
+* Fix bottom edge horizontally and vertically
+* Concentrated load (Fy) on points 0, 5, 10, 15, 20 equal to
+-0.0778, -0.3556, -0.1333, -0.3556, -0.0778, respectively
+
+NOTE: the distributed load is directly modelled by concentrated forces
+just so we can compare the numeric results with the book results.
+
+#### Configuration and parameters
+
+* Static simulation
+* Young = 1e5
+* Poisson = 0.2
+* Plane-strain
+
+NOTE: the Poisson coefficient in the book's figure is different than the
+coefficient in the code. The results given in the book's Fig 5.8 correspond
+to the code's coefficient (Poisson = 0.2)
+
+### Solid Smith Figure 5.11 Qua4 Plane Strain Uy
+
+Smith's Example 5.11 (Figure 5.11) on page 180
+
+* Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+Element Method, Wiley, Fifth Edition, 664p
+
+#### Test goal
+
+This test verifies a plane-strain simulation with prescribed displacements
+
+#### Mesh
+
+```text
+       Uy DISPLACEMENT
+ 0.0      0----------3----------6----------9
+       Ux |          |          |          | Ux
+       F  |          |          |          | F
+       I  1----------4----------7---------10 I
+       X  |          |          |          | X
+       E  |          |          |          | E
+-10.0  D  2----------5----------8---------11 D
+         0.0       10.0       20.0       30.0
+                    Ux and Uy FIXED
+```
+
+![Mesh](data/figures/mesh_smith_example_5d11_qua4.svg)
+
+#### Boundary conditions
+
+* Fix left edge horizontally
+* Fix right edge horizontally
+* Fix bottom edge horizontally and vertically
+* Displacement Uy = -1e-5 prescribed on top edge with x ≤ 10
+
+#### Configuration and parameters
+
+* Static simulation
+* Young = 1e6
+* Poisson = 0.3
+* Plane-strain
+
+### Solid Smith Figure 5.15 Qua8 Plane Strain
+
+Smith's Example 5.15 (Figure 5.15) on page 183
+
+* Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+Element Method, Wiley, Fifth Edition, 664p
+
+#### Test goal
+
+This test verifies a plane-strain simulation with Qua8 elements
+and reduced integration.
+
+#### Mesh
+
+```text
+         1.0 kN/m²
+        ↓↓↓↓↓↓↓↓↓↓↓
+ 0.0    0----1----2----3----4
+        |         |         |
+        5         6         7
+        |         |         |
+-3.0 Ux 8----9---10---11---12 Ux
+     F  |         |         | F
+     I 13        14        15 I
+     X  |         |         | X
+-6.0 E 16---17---18---19---20 E
+     D  |         |         | D
+       21        22        23
+        |         |         |
+-9.0   24---25---26---27---28
+       0.0       3.0       6.0
+           Ux and Uy FIXED
+```
+
+#### Boundary conditions
+
+* Fix left edge horizontally
+* Fix right edge horizontally
+* Fix bottom edge horizontally and vertically
+* Distributed load Qn = -1 on top edge with x ≤ 3
+
+#### Configuration and parameters
+
+* Static simulation
+* Young = 1e6
+* Poisson = 0.3
+* Plane-strain
+* NOTE: using reduced integration with 4 points
+
+### Solid Smith Figure 5.17 Qua4 Axisymmetric
+
+Smith's Example 5.17 (Figure 5.17) on page 187
+
+Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+Element Method, Wiley, Fifth Edition, 664p
+
+TEST GOAL
+
+This test verifies an axisymmetric equilibrium problem.
+
+MESH
+              1.0 kN/m²
+         ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+  0.0    0------3----------6-------------------9
+      Ux | (0)  |   (2)    |        (4)        | Ux
+      F  | [1]  |   [1]    |        [1]        | F
+ -4.0 I  1------4----------7------------------10 I
+      X  | (1)  |   (3)    |        (5)        | X
+      E  | [2]  |   [2]    |        [2]        | E
+-10.0 D  2------5----------8------------------11 D
+        0.0    4.0       10.0                30.0
+                     Ux and Uy FIXED
+
+BOUNDARY CONDITIONS
+
+Fix left edge horizontally
+Fix right edge horizontally
+Fix bottom edge horizontally and vertically
+Concentrated load (Fy) on points 0, 3, 6, equal to
+-2.6667, -23.3333, -24.0, respectively
+Distributed load Qn = -1 on top edge with x ≤ 4
+
+CONFIGURATION AND PARAMETERS
+
+Static simulation
+Upper layer: Young = 100, Poisson = 0.3
+Lower layer: Young = 1000, Poisson = 0.45
+Plane-strain
+NOTE: using 9 integration points
+
+### Solid Smith Figure 5.24 Hex20 3D
+
+Smith's Example 5.24 (Figure 5.24) on page 195
+
+Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+Element Method, Wiley, Fifth Edition, 664p
+
+TEST GOAL
+
+This test verifies a 3D simulation with Hex20.
+
+MESH
+
+See figure on the documentation.
+
+BOUNDARY CONDITIONS
+
+Horizontally fix the vertical boundary faces perpendicular to x on the "back side" with x=0
+Horizontally fix the vertical boundary faces perpendicular to y on the "left side" with y=0
+Set all Ux,Uy,Uz to zero for the horizontal boundary faces perpendicular to z on the "bottom" with z=0
+Apply distributed load Qn = -1 on the portion of the top face with y ≤ 1
+NOTE: The "front" and "right" faces with x>0 or y>0 are NOT fixed.
+
+CONFIGURATION AND PARAMETERS
+
+Upper layer: Young = 100, Poisson = 0.3
+Lower layer: Young = 50, Poisson = 0.3
+Using reduced integration with 8 points
+
+### Solid Smith Figure 5.27 Qua9 Plane Strain
+
+Smith's Example 5.27 (Figure 5.27) on page 200
+
+Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+Element Method, Wiley, Fifth Edition, 664p
+
+TEST GOAL
+
+This test verifies a plane-strain simulation with Qua9 elements and full integration.
+NOTE: This Example is similar to Example 5.15, with the difference being Qua9 elements.
+
+MESH
+          1.0 kN/m²
+         ↓↓↓↓↓↓↓↓↓↓↓
+ 0.0     0----1----2----3----4
+         |         |         |
+         5    6    7    8    9
+         |         |         |
+-3.0 Ux 10---11---12---13---14 Ux
+     F   |         |         | F
+     I  15   16   17   18   19 I
+     X   |         |         | X
+-6.0 E  20---21---22---23---24 E
+     D   |         |         | D
+        25   26   27   28   29
+         |         |         |
+-9.0    30---31---32---33---34
+        0.0       3.0       6.0
+            Ux and Uy FIXED
+
+BOUNDARY CONDITIONS
+
+Fix left edge horizontally
+Fix right edge horizontally
+Fix bottom edge horizontally and vertically
+Distributed load Qn = -1 on top edge with x ≤ 3
+
+CONFIGURATION AND PARAMETERS
+
+Static simulation
+Young = 1e6
+Poisson = 0.3
+Plane-strain
+
+### Solid Smith Figure 5.30 Tet4 3D
+
+Smith's Example 5.30 (Figure 5.30) on page 202
+
+Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+Element Method, Wiley, Fifth Edition, 664p
+
+TEST GOAL
+
+This test verifies a 3D simulation with Tet4.
+
+MESH
+
+See figure on the documentation.
+
+BOUNDARY CONDITIONS
+
+Horizontally fix the vertical boundary faces perpendicular to x on the "back side" with x=0
+Horizontally fix the vertical boundary faces perpendicular to y on the "left side" with y=0
+Vertically fix the horizontal boundary faces perpendicular to z on the "bottom" with z=0
+Apply vertical (Fz) concentrated loads to the top nodes:
+Fz @ 0 and 5 = -0.1667, Fz @ 1 and 4 = -0.3333
+(Do not USE more digits, as in the code, so we can compare with the Book results)
+
+CONFIGURATION AND PARAMETERS
+
+Young = 100, Poisson = 0.3
