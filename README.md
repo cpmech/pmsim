@@ -328,7 +328,93 @@ T = 332.9704335048643, reference = 332.97, rel_error = 0.00013019 %
 
 ### Heat: Mathematica Axisymmetric Simple
 
-### Rod: Bhatti 1d4 Truss
+From Mathematica Heat Transfer Model Verification Tests
+(HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001)
+
+2D Axisymmetric Single Equation
+
+* https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
+
+#### Test goal
+
+This test verifies the steady heat equation in 1D with prescribed flux
+
+#### Mesh
+
+```text
+  →→ ---------------------
+  →→ |    |    |    |    |  h
+  →→ ---------------------
+    1.0                 2.0
+    rin                rout
+```
+
+![Mesh](data/figures/test_heat_mathematica_axisym_simple_mesh.svg)
+
+#### Initial conditions
+
+Temperature T = 0 at all points
+
+#### Boundary conditions
+
+* Temperature T = 10.0 on the right edge
+* Flux Qt = 100.0 on the left edge
+
+#### Configuration and parameters
+
+* Steady simulation
+* No source
+* Constant conductivity kx = ky = 10.0
+
+#### Simulation and results
+
+[heat_mathematica_axisym_simple.rs](examples/heat_mathematica_axisym_simple.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    3.51e2❋ 
+       .             .             .     2  3.55e-13✅
+```
+
+### Rod: Bhatti Example 1.4 Truss
+
+Bhatti's Example 1.4 on page 25
+
+* Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
+
+#### Test goal
+
+This test verifies a 2D frame with rod elements and concentrated forces
+
+#### Mesh
+
+![Mesh](data/figures/mesh_bhatti_example_1d4_truss.svg)
+
+#### Boundary conditions
+
+* Fully fixed @ points 0 and 3
+* Concentrated load @ point 1 with Fy = -150,000
+
+#### Configuration and parameters
+
+* Static simulation
+* Attribute 1: Area = 4,000; Young = 200,000
+* Attribute 2: Area = 3,000; Young = 200,000
+* Attribute 3: Area = 2,000; Young =  70,000
+
+#### Simulation and results
+
+[rod_bhatti_1d4_truss.rs](examples/rod_bhatti_1d4_truss.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    1.50e5❋ 
+       .             .             .     2  1.46e-11✅
+```
 
 ### Solid Bhatti 1d6 Plane Stress
 
