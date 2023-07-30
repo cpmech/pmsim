@@ -61,6 +61,8 @@ o-----------------------------------------------------------o
                      <-  L = 10 ->
 ```
 
+![Mesh](data/figures/test_heat_arpaci_nonlinear_1d_mesh.svg)
+
 #### Initial conditions
 
 Temperature T = 0 at all points
@@ -99,6 +101,8 @@ timestep             t            Δt  iter    max(R)
 
 T(0) = 87.08286933869708  (87.08286933869707)
 ```
+
+![Results](data/figures/test_heat_arpaci_nonlinear_1d.svg)
 
 ### Heat: Bhatti 1d5 Convection
 
