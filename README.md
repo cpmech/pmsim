@@ -554,6 +554,18 @@ This test verifies a plane-strain simulation with Tri3 elements
 * Poisson = 0.3
 * Plane-strain
 
+#### Simulation and results
+
+[solid_smith_5d2_tri3_plane_strain.rs](examples/solid_smith_5d2_tri3_plane_strain.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   5.00e-1❋ 
+       .             .             .     2  5.55e-16✅
+```
+
 ### Solid Smith Figure 5.7 Tri15 Plane Strain
 
 Smith's Example 5.7 (Figure 5.7) on page 178
@@ -603,6 +615,18 @@ NOTE: the Poisson coefficient in the book's figure is different than the
 coefficient in the code. The results given in the book's Fig 5.8 correspond
 to the code's coefficient (Poisson = 0.2)
 
+#### Simulation and results
+
+[solid_smith_5d7_tri15_plane_strain.rs](examples/solid_smith_5d7_tri15_plane_strain.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   3.56e-1❋ 
+       .             .             .     2  2.16e-15✅
+```
+
 ### Solid Smith Figure 5.11 Qua4 Plane Strain Uy
 
 Smith's Example 5.11 (Figure 5.11) on page 180
@@ -645,6 +669,18 @@ This test verifies a plane-strain simulation with prescribed displacements
 * Poisson = 0.3
 * Plane-strain
 
+#### Simulation and results
+
+[solid_smith_5d11_qua4_plane_strain_uy.rs](examples/solid_smith_5d11_qua4_plane_strain_uy.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    2.21e1❋ 
+       .             .             .     2  4.50e-16✅
+```
+
 ### Solid Smith Figure 5.15 Qua8 Plane Strain
 
 Smith's Example 5.15 (Figure 5.15) on page 183
@@ -679,6 +715,8 @@ and reduced integration.
            Ux and Uy FIXED
 ```
 
+![Mesh](data/figures/mesh_smith_example_5d15_qua8.svg)
+
 #### Boundary conditions
 
 * Fix left edge horizontally
@@ -698,14 +736,16 @@ and reduced integration.
 
 Smith's Example 5.17 (Figure 5.17) on page 187
 
-Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+* Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
 Element Method, Wiley, Fifth Edition, 664p
 
-TEST GOAL
+#### Test goal
 
 This test verifies an axisymmetric equilibrium problem.
 
-MESH
+#### Mesh
+
+```text
               1.0 kN/m²
          ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
   0.0    0------3----------6-------------------9
@@ -717,66 +757,95 @@ MESH
 -10.0 D  2------5----------8------------------11 D
         0.0    4.0       10.0                30.0
                      Ux and Uy FIXED
+```
 
-BOUNDARY CONDITIONS
+![Mesh](data/figures/mesh_smith_example_5d17_qua4.svg)
 
-Fix left edge horizontally
-Fix right edge horizontally
-Fix bottom edge horizontally and vertically
-Concentrated load (Fy) on points 0, 3, 6, equal to
--2.6667, -23.3333, -24.0, respectively
-Distributed load Qn = -1 on top edge with x ≤ 4
+#### Boundary conditions
 
-CONFIGURATION AND PARAMETERS
+* Fix left edge horizontally
+* Fix right edge horizontally
+* Fix bottom edge horizontally and vertically
+* Concentrated load (Fy) on points 0, 3, 6, equal to
+* -2.6667, -23.3333, -24.0, respectively
+* Distributed load Qn = -1 on top edge with x ≤ 4
 
-Static simulation
-Upper layer: Young = 100, Poisson = 0.3
-Lower layer: Young = 1000, Poisson = 0.45
-Plane-strain
-NOTE: using 9 integration points
+#### Configuration and parameters
+
+* Static simulation
+* Upper layer: Young = 100, Poisson = 0.3
+* Lower layer: Young = 1000, Poisson = 0.45
+* Plane-strain
+* NOTE: using 9 integration points
+
+#### Simulation and results
+
+[solid_smith_5d15_qua8_plane_strain.rs](examples/solid_smith_5d15_qua8_plane_strain.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    2.00e0❋ 
+       .             .             .     2  7.16e-15✅
+```
 
 ### Solid Smith Figure 5.24 Hex20 3D
 
 Smith's Example 5.24 (Figure 5.24) on page 195
 
-Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+* Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
 Element Method, Wiley, Fifth Edition, 664p
 
-TEST GOAL
+#### Test goal
 
 This test verifies a 3D simulation with Hex20.
 
-MESH
+#### Mesh
 
-See figure on the documentation.
+![Mesh](data/figures/mesh_smith_example_5d24_hex20.svg)
 
-BOUNDARY CONDITIONS
+#### Boundary conditions
 
-Horizontally fix the vertical boundary faces perpendicular to x on the "back side" with x=0
-Horizontally fix the vertical boundary faces perpendicular to y on the "left side" with y=0
-Set all Ux,Uy,Uz to zero for the horizontal boundary faces perpendicular to z on the "bottom" with z=0
-Apply distributed load Qn = -1 on the portion of the top face with y ≤ 1
-NOTE: The "front" and "right" faces with x>0 or y>0 are NOT fixed.
+* Horizontally fix the vertical boundary faces perpendicular to x on the "back side" with x=0
+* Horizontally fix the vertical boundary faces perpendicular to y on the "left side" with y=0
+* Set all Ux,Uy,Uz to zero for the horizontal boundary faces perpendicular to z on the "bottom" with z=0
+* Apply distributed load Qn = -1 on the portion of the top face with y ≤ 1
+* NOTE: The "front" and "right" faces with x>0 or y>0 are NOT fixed.
 
-CONFIGURATION AND PARAMETERS
+#### Configuration and parameters
 
-Upper layer: Young = 100, Poisson = 0.3
-Lower layer: Young = 50, Poisson = 0.3
-Using reduced integration with 8 points
+* Upper layer: Young = 100, Poisson = 0.3
+* Lower layer: Young = 50, Poisson = 0.3
+* Using reduced integration with 8 points
+
+#### Simulation and results
+
+[solid_smith_5d24_hex20_3d.rs](examples/solid_smith_5d24_hex20_3d.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   1.67e-1❋ 
+       .             .             .     2  4.73e-16✅
+```
 
 ### Solid Smith Figure 5.27 Qua9 Plane Strain
 
 Smith's Example 5.27 (Figure 5.27) on page 200
 
-Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+* Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
 Element Method, Wiley, Fifth Edition, 664p
 
-TEST GOAL
+#### Test goal
 
 This test verifies a plane-strain simulation with Qua9 elements and full integration.
 NOTE: This Example is similar to Example 5.15, with the difference being Qua9 elements.
 
-MESH
+#### Mesh
+
+```text
           1.0 kN/m²
          ↓↓↓↓↓↓↓↓↓↓↓
  0.0     0----1----2----3----4
@@ -794,45 +863,72 @@ MESH
 -9.0    30---31---32---33---34
         0.0       3.0       6.0
             Ux and Uy FIXED
+```
 
-BOUNDARY CONDITIONS
+![Mesh](data/figures/mesh_smith_example_5d27_qua9.svg)
 
-Fix left edge horizontally
-Fix right edge horizontally
-Fix bottom edge horizontally and vertically
-Distributed load Qn = -1 on top edge with x ≤ 3
+#### Boundary conditions
 
-CONFIGURATION AND PARAMETERS
+* Fix left edge horizontally
+* Fix right edge horizontally
+* Fix bottom edge horizontally and vertically
+* Distributed load Qn = -1 on top edge with x ≤ 3
 
-Static simulation
-Young = 1e6
-Poisson = 0.3
-Plane-strain
+#### Configuration and parameters
+
+* Static simulation
+* Young = 1e6
+* Poisson = 0.3
+* Plane-strain
+
+#### Simulation and results
+
+[solid_smith_5d27_qua9_plane_strain.rs](examples/solid_smith_5d27_qua9_plane_strain.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    2.00e0❋ 
+       .             .             .     2  5.66e-15✅
+```
 
 ### Solid Smith Figure 5.30 Tet4 3D
 
 Smith's Example 5.30 (Figure 5.30) on page 202
 
-Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+* Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
 Element Method, Wiley, Fifth Edition, 664p
 
-TEST GOAL
+#### Test goal
 
 This test verifies a 3D simulation with Tet4.
 
-MESH
+#### Mesh
 
-See figure on the documentation.
+![Mesh](data/figures/mesh_smith_example_5d30_tet4.svg)
 
-BOUNDARY CONDITIONS
+#### Boundary conditions
 
-Horizontally fix the vertical boundary faces perpendicular to x on the "back side" with x=0
-Horizontally fix the vertical boundary faces perpendicular to y on the "left side" with y=0
-Vertically fix the horizontal boundary faces perpendicular to z on the "bottom" with z=0
-Apply vertical (Fz) concentrated loads to the top nodes:
-Fz @ 0 and 5 = -0.1667, Fz @ 1 and 4 = -0.3333
-(Do not USE more digits, as in the code, so we can compare with the Book results)
+* Horizontally fix the vertical boundary faces perpendicular to x on the "back side" with x=0
+* Horizontally fix the vertical boundary faces perpendicular to y on the "left side" with y=0
+* Vertically fix the horizontal boundary faces perpendicular to z on the "bottom" with z=0
+* Apply vertical (Fz) concentrated loads to the top nodes:
+* Fz @ 0 and 5 = -0.1667, Fz @ 1 and 4 = -0.3333
+* (Do not USE more digits, as in the code, so we can compare with the Book results)
 
-CONFIGURATION AND PARAMETERS
+#### Configuration and parameters
 
 Young = 100, Poisson = 0.3
+
+#### Simulation and results
+
+[solid_smith_5d30_tet4_3d.rs](examples/solid_smith_5d30_tet4_3d.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1   3.33e-1❋ 
+       .             .             .     2  9.30e-17✅
+```
