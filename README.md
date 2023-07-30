@@ -416,7 +416,55 @@ timestep             t            Δt  iter    max(R)
        .             .             .     2  1.46e-11✅
 ```
 
-### Solid Bhatti 1d6 Plane Stress
+### Solid Bhatti Example 1.6 Plane Stress
+
+Bhatti's Example 1.6 on page 32
+
+* Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
+
+#### Test goal
+
+This test verifies the equilibrium of a thin bracket modelled by assuming plane-stress
+
+#### Mesh
+
+```text
+2.0  fixed 1'-,_load                connectivity:
+           |     '-,_      load      eid : vertices
+1.5 - - -  |        ,'3-,__            0 :  0, 2, 3
+           |  1   ,'  |    '-,_        1 :  3, 1, 0
+1.0 - - -  |    ,'    |  3   ,-'5      2 :  2, 4, 5
+           |  ,'  0   |   ,-'   |      3 :  5, 3, 2
+           |,'        |,-'   2  |
+0.0  fixed 0----------2---------4   constraints:
+          0.0        2.0       4.0   fixed on x and y
+```
+
+![Mesh](data/figures/mesh_bhatti_example_1d6_bracket.svg)
+
+#### Boundary conditions
+
+* Fully fixed @ points 0 and 1
+* Distributed load along edges (1,3) and (3,5) with Qn = -20
+
+#### Configuration and parameters
+
+* Static simulation
+* Young = 10,000
+* Poisson = 0.2
+* Plane-stress with thickness = 0.25
+
+#### Simulation and results
+
+[solid_bhatti_1d6_plane_stress.rs](examples/solid_bhatti_1d6_plane_stress.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    1.00e1❋ 
+       .             .             .     2  3.91e-14✅
+```
 
 ### Solid Felippa Thick Cylinder Axisymmetric
 
