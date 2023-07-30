@@ -95,7 +95,7 @@ T(0) = 87.08286933869708  (87.08286933869707)
 
 ![Results](data/figures/test_heat_arpaci_nonlinear_1d.svg)
 
-### Heat: Bhatti 1d5 Convection
+### Heat: Bhatti Example 1.5 Convection
 
 Bhatti's Example 1.5 on page 28
 
@@ -122,16 +122,54 @@ This test verifies the steady heat equation with prescribed temperature and conv
 
 #### Simulation and results
 
-[heat_bhatti_1d5_convection](examples/heat_bhatti_1d5_convection.rs)
+[heat_bhatti_1d5_convection.rs](examples/heat_bhatti_1d5_convection.rs)
 
 ```text
+                                                  _   
 timestep             t            Δt  iter    max(R)  
        1   1.000000e-1   1.000000e-1     .        .  
        .             .             .     1    1.05e3❋ 
        .             .             .     2  1.71e-15✅
 ```
 
-### Heat: Bhatti 6d22 Convection
+### Heat: Bhatti Example 6.22 Convection
+
+Bhatti's Example 6.22 on page 449
+
+* Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
+
+#### Test goal
+
+This test verifies the steady heat equation with prescribed temperature, convection,
+flux, and a volumetric source term. Also, it checks the use of Qua8 elements.
+
+#### Mesh
+
+![Mesh](data/figures/mesh_bhatti_example_6d22_heat.svg)
+
+#### Boundary conditions (see page 445)
+
+* Flux Qt = 8,000 on left side, edge (0,10,11)
+* Convection Cc = (55, 20) on top edges (0,2,1), (2,4,3), and (4,6,5)
+* Prescribed temperature T = 110 on the bottom edge (8,10,9)
+
+#### Configuration and parameters
+
+* Steady simulation
+* Source = 5e6 over the region
+* Constant conductivity kx = ky = 45
+
+#### Simulation and results
+
+[heat_bhatti_6d22_convection](examples/heat_bhatti_6d22_convection.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    3.09e4❋ 
+       .             .             .     2  6.09e-16✅
+```
 
 ### Heat: Lewis Transient 1d
 
