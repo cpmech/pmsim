@@ -13,6 +13,7 @@ use russell_chk::vec_approx_eq;
 // and reduced integration.
 //
 // MESH
+//
 //          1.0 kN/m²
 //         ↓↓↓↓↓↓↓↓↓↓↓
 //  0.0    0----1----2----3----4
