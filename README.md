@@ -161,7 +161,7 @@ flux, and a volumetric source term. Also, it checks the use of Qua8 elements.
 
 #### Simulation and results
 
-[heat_bhatti_6d22_convection](examples/heat_bhatti_6d22_convection.rs)
+[heat_bhatti_6d22_convection.rs](examples/heat_bhatti_6d22_convection.rs)
 
 ```text
                                                   _   
@@ -256,6 +256,75 @@ point = 2, x = 2.00, T = 0.085042, diff = 1.5467e-2
 ```
 
 ### Heat: Mathematica Axisymmetric Nafems
+
+From Mathematica Heat Transfer Model Verification Tests
+(HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0002)
+
+NAFEMS benchmark test
+
+* https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
+
+#### Test goal
+
+This test verifies the steady heat equation with a localized flux boundary condition
+
+```text
+MESH (not-to-scale, not-equal-axis)
+
+0.14     ||++++++++++++++++++++++++
+         ||   |    |    |    |    +
+         ||-----------------------+
+         ||   |    |    |    |    +
+0.10  →→ |------------------------+  yb
+      →→ |    |    |    |    |    +
+      →→ |------------------------+
+      →→ |    |    |    |    |    +
+      →→ |------------------------+
+      →→ |    |    |    |    |    +
+0.04  →→ |--------(#)-------------+  ya
+         ||   |    |    |    |    +
+         ||-----------------------+
+         ||   |    |    |    |    +
+0.00     ||++++++++++++++++++++++++
+        0.02     0.04            0.10
+        rin      rref            rout
+
+'+' indicates sides with T = 273.15
+|| means insulated
+→→ means flux with Qt = 5e5
+(#) indicates a reference point to check the results
+```
+
+![Mesh](data/figures/test_heat_mathematica_axisym_nafems_mesh.png)
+
+#### Initial conditions
+
+Temperature T = 0 at all points
+
+#### Boundary conditions
+
+* Temperature T = 273.15 on the top, bottom, and right edges
+* Flux Qt = 5e5 on the middle-left edges from y=0.04 to y=0.10
+
+#### Configuration and parameters
+
+* Steady simulation
+* No source
+* Constant conductivity kx = ky = 52
+
+#### Simulation and results
+
+[heat_mathematica_axisym_nafems.rs](examples/heat_mathematica_axisym_nafems.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    4.45e3❋ 
+       .             .             .     2  3.23e-12✅
+
+T = 332.9704335048643, reference = 332.97, rel_error = 0.00013019 %
+```
 
 ### Heat: Mathematica Axisymmetric Simple
 
