@@ -468,6 +468,57 @@ timestep             t            Δt  iter    max(R)
 
 ### Solid Felippa Thick Cylinder Axisymmetric
 
+Felippa's Benchmark 14.1 (Figure 14.1) on page 14-3
+
+* Felippa C, Advanced Finite Elements
+
+#### Test goal
+
+This test verifies the axisymmetric modelling of a chick cylindrical tube
+under internal pressure. There is an analytical solution, developed for the
+plane-strain case. However, this tests employs the AXISYMMETRIC representation.
+
+#### Mesh
+
+```text
+            Uy FIXED
+ →o------o------o------o------o
+ →|      |   .......   |      |
+ →o------o------o------o------o
+            Uy FIXED
+```
+
+#### Boundary conditions
+
+* Fix bottom edge vertically
+* Fix top edge vertically
+* Distributed load Qn = -PRESSURE on left edge
+
+#### Configuration and parameters
+
+* Static simulation
+* Young = 1000, Poisson = 0.0
+* Axisymmetric
+* NOTE: using 4 integration points because it gives better results with Qua8
+
+#### Simulation and results
+
+[solid_felippa_thick_cylinder_axisym.rs](examples/solid_felippa_thick_cylinder_axisym.rs)
+
+```text
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1   1.000000e-1   1.000000e-1     .        .  
+       .             .             .     1    5.33e1❋ 
+       .             .             .     2  3.16e-13✅
+
+point = 0, r = 4.0, Ux = 0.055238095238095454, diff = 2.1510571102112408e-16
+point = 1, r = 7.0, Ux = 0.040544217687075015, diff = 1.8735013540549517e-16
+point = 4, r = 5.5, Ux = 0.04510822510822529, diff = 1.8041124150158794e-16
+point = 8, r = 10.0, Ux = 0.03809523809523828, diff = 1.8041124150158794e-16
+point = 10, r = 8.5, Ux = 0.03859943977591054, diff = 1.8041124150158794e-16
+```
+
 ### Solid Smith 5d11 Qua4 Plane Strain_uy
 
 ### Solid Smith 5d15 Qua8 Plane Strain
