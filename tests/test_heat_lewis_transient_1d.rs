@@ -138,7 +138,14 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
-        draw_mesh(&mesh, true, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true)).unwrap();
+        draw_mesh(
+            &mesh,
+            true,
+            true,
+            false,
+            &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true),
+        )
+        .unwrap();
         mesh
     } else {
         // read mesh

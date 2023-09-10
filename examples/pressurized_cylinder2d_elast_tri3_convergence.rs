@@ -11,7 +11,8 @@ fn main() -> Result<(), StrError> {
     const YOUNG: f64 = 1000.0;
     const POISSON: f64 = 0.25;
 
-    let sizes = &[(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)];
+    // let sizes = &[(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)];
+    let sizes = &[(2, 4), (5, 10), (20, 40), (50, 100), (120, 220)];
     let n = sizes.len();
     let mut arr_ndof = vec![0.0; n];
     let mut arr_error = vec![0.0; n];
@@ -19,7 +20,25 @@ fn main() -> Result<(), StrError> {
     let mut idx = 0;
     for (nr, na) in sizes {
         // mesh
-        let mesh = Structured::quarter_ring_2d(R1, R2, *nr, *na, GeoKind::Qua8).unwrap();
+        // let global_max_area = 2.0 / ((nr * na) as f64);
+        let delta_x = (R2 - R1) / (*nr as f64);
+        let global_max_area = delta_x * delta_x / 2.0;
+        let mesh = Unstructured::quarter_ring_2d(R1, R2, *nr, *na, false, Some(global_max_area)).unwrap();
+
+        // write msh and svg files
+        if false {
+            let out_dir = "/tmp/pmsim/";
+            let base = "quarter_ring2d_tri3_";
+            let pps = mesh.points.len().to_string();
+            let ccs = mesh.cells.len().to_string();
+            let fn_msh = [out_dir, base, pps.as_str(), "points_", ccs.as_str(), "cells.msh"].concat();
+            let fn_svg = [out_dir, base, pps.as_str(), "points_", ccs.as_str(), "cells.svg"].concat();
+            let ncell = mesh.cells.len();
+            if ncell < 2900 {
+                draw_mesh(&mesh, false, ncell < 190, false, &fn_svg)?;
+            }
+            mesh.write_text_file(&fn_msh)?;
+        }
 
         // features
         let find = Find::new(&mesh, None);
@@ -81,26 +100,26 @@ fn main() -> Result<(), StrError> {
 
         arr_ndof[idx] = data.equations.n_equation as f64;
         arr_error[idx] = error;
-        println!("ndof = {:5}, err = {:.2e}", data.equations.n_equation, error);
+        println!("ndof = {:6}, err = {:.2e}", data.equations.n_equation, error);
 
         idx += 1;
     }
 
-    // let arr_ndof = vec![26.0, 74.0, 242.0, 866.0, 1322.0, 3266.0, 12674.0, 30602.0];
-    // let arr_error = vec![2.60e-3, 2.57e-4, 1.83e-5, 1.14e-6, 4.63e-7, 6.93e-8, 4.23e-9, 7.04e-10];
+    // let arr_ndof = vec![42.0, 214.0, 2980.0, 18476.0, 105762.0];
+    // let arr_error = vec![6.83e-2, 6.91e-3, 5.52e-4, 7.57e-5, 6.17e-6];
 
     let mut curve = Curve::new();
     let mut icon = SlopeIcon::new();
-    icon.set_length(0.295);
+    icon.set_length(0.265);
     curve.draw(&arr_ndof, &arr_error);
-    icon.draw(-2.0, 3.2e2, 1.35e-6);
+    icon.draw(-1.0, 3.25e2, 0.4e-3);
     let mut plot = Plot::new();
     plot.set_log_x(true)
         .set_log_y(true)
         .add(&curve)
         .add(&icon)
         .grid_and_labels("NDOF", "ERROR");
-    plot.save("/tmp/pmsim/pressurized_cylinder2d_elast_qua8_convergence.svg")?;
+    plot.save("/tmp/pmsim/pressurized_cylinder2d_elast_tri3_convergence.svg")?;
 
     Ok(())
 }
