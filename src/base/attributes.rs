@@ -1,16 +1,16 @@
 use super::Element;
 use crate::StrError;
-use gemlab::mesh::{Cell, CellAttributeId};
+use gemlab::mesh::{Cell, CellAttribute};
 use std::collections::HashMap;
 
-/// Holds all (CellAttributeId, Element) pairs
+/// Holds all (CellAttribute, Element) pairs
 pub struct Attributes {
-    all: HashMap<CellAttributeId, Element>,
+    all: HashMap<CellAttribute, Element>,
 }
 
 impl Attributes {
     /// Allocates a new instance from an Array
-    pub fn from<const N: usize>(arr: [(CellAttributeId, Element); N]) -> Self {
+    pub fn from<const N: usize>(arr: [(CellAttribute, Element); N]) -> Self {
         Attributes {
             all: HashMap::from(arr),
         }
@@ -19,12 +19,12 @@ impl Attributes {
     /// Returns the Element corresponding to Cell
     pub fn get(&self, cell: &Cell) -> Result<&Element, StrError> {
         self.all
-            .get(&cell.attribute_id)
-            .ok_or("cannot find CellAttributeId in Attributes map")
+            .get(&cell.attribute)
+            .ok_or("cannot find CellAttribute in Attributes map")
     }
 
-    /// Returns the Element name corresponding to a CellAttributeId
-    pub fn name(&self, id: CellAttributeId) -> String {
+    /// Returns the Element name corresponding to a CellAttribute
+    pub fn name(&self, id: CellAttribute) -> String {
         match self.all.get(&id) {
             Some(e) => e.name(),
             None => "NOT FOUND".to_string(),
@@ -59,10 +59,10 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
         assert_eq!(att.get(&mesh.cells[0]).unwrap().name(), "Solid");
-        mesh.cells[0].attribute_id = 2;
+        mesh.cells[0].attribute = 2;
         assert_eq!(
             att.get(&mesh.cells[0]).err(),
-            Some("cannot find CellAttributeId in Attributes map")
+            Some("cannot find CellAttribute in Attributes map")
         );
         assert_eq!(att.name(1), "Solid");
         assert_eq!(att.name(2), "NOT FOUND");

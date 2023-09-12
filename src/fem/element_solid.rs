@@ -551,13 +551,13 @@ mod tests {
         let mesh = Mesh {
             ndim: 2,
             points: vec![
-                Point { id: 0, coords: vec![rin + 0.0, 0.0] },
-                Point { id: 1, coords: vec![rin +   a, 0.0] },
-                Point { id: 2, coords: vec![rin +   a,   b] },
-                Point { id: 3, coords: vec![rin + 0.0,   b] },
+                Point { id: 0, marker: 0, coords: vec![rin + 0.0, 0.0] },
+                Point { id: 1, marker: 0, coords: vec![rin +   a, 0.0] },
+                Point { id: 2, marker: 0, coords: vec![rin +   a,   b] },
+                Point { id: 3, marker: 0, coords: vec![rin + 0.0,   b] },
             ],
             cells: vec![
-                Cell { id: 0, attribute_id: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
+                Cell { id: 0, attribute: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
             ],
         };
 

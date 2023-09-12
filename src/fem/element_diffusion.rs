@@ -230,13 +230,13 @@ mod tests {
         config.n_integ_point.insert(1, 3);
         let wrong_cell = Cell {
             id: 0,
-            attribute_id: 2, // wrong
+            attribute: 2, // wrong
             kind: GeoKind::Tri3,
             points: vec![0, 1, 2],
         };
         assert_eq!(
             ElementDiffusion::new(&data, &config, &wrong_cell, &p1).err(),
-            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
         );
     }
 

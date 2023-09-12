@@ -23,7 +23,7 @@ fn main() -> Result<(), StrError> {
         // let global_max_area = 2.0 / ((nr * na) as f64);
         let delta_x = (R2 - R1) / (*nr as f64);
         let global_max_area = delta_x * delta_x / 2.0;
-        let mesh = Unstructured::quarter_ring_2d(R1, R2, *nr, *na, false, Some(global_max_area)).unwrap();
+        let mesh = Unstructured::quarter_ring_2d(R1, R2, *nr, *na, false, Some(global_max_area), "").unwrap();
 
         // write msh and svg files
         if false {

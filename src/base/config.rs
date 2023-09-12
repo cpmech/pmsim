@@ -1,7 +1,7 @@
 use super::{Control, FnTime, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{Cell, CellAttributeId};
+use gemlab::mesh::{Cell, CellAttribute};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -54,7 +54,7 @@ pub struct Config {
     pub param_fluids: Option<ParamFluids>,
 
     /// Number of integration points
-    pub n_integ_point: HashMap<CellAttributeId, usize>,
+    pub n_integ_point: HashMap<CellAttribute, usize>,
 }
 
 impl Config {
@@ -144,7 +144,7 @@ impl Config {
 
     /// Returns the integration (Gauss) points data
     pub fn integ_point_data(&self, cell: &Cell) -> Result<integ::IntegPointData, StrError> {
-        match self.n_integ_point.get(&cell.attribute_id) {
+        match self.n_integ_point.get(&cell.attribute) {
             Some(n) => integ::points(cell.kind.class(), *n),
             None => Ok(integ::default_points(cell.kind)),
         }

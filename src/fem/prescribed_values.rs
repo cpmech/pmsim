@@ -148,11 +148,11 @@ mod tests {
         let mesh = Mesh {
             ndim: 3,
             points: vec![
-                Point { id: 0, coords: vec![0.0, 0.0, 0.0] },
-                Point { id: 1, coords: vec![1.0, 1.0, 1.0] },
+                Point { id: 0, marker: 0, coords: vec![0.0, 0.0, 0.0] },
+                Point { id: 1, marker: 0, coords: vec![1.0, 1.0, 1.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
         };
         let p1 = SampleParams::param_beam();
@@ -302,7 +302,7 @@ mod tests {
     fn prescribed_arrays_are_correct() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute_id
+        //         /   \          / \     (#) indicates attribute
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \
@@ -324,7 +324,7 @@ mod tests {
 
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates attribute_id
+        //         /   \          / \{7}   (#) indicates attribute
         //        /     \  [1]   /   \     {#} indicates equation number
         //       /  [0]  \ (1)  / [2] \
         // {0}  /   (1)   \    /  (1)  \

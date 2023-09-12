@@ -111,7 +111,7 @@ mod tests {
         //      4--------------7  1.0
         //     /.             /|
         //    / .            / |    [#] indicates id
-        //   /  .           /  |    (#) indicates attribute_id
+        //   /  .           /  |    (#) indicates attribute
         //  /   .          /   |
         // 5--------------6    |          z
         // |    .         |    |          ↑

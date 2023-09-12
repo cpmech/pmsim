@@ -1,6 +1,6 @@
 use crate::base::{Attributes, Element, ElementInfoMap, Equations};
 use crate::StrError;
-use gemlab::mesh::{Cell, CellAttributeId, Mesh};
+use gemlab::mesh::{Cell, CellAttribute, Mesh};
 
 /// Data holds the basic data for a FEM simulation
 pub struct Data<'a> {
@@ -19,7 +19,7 @@ pub struct Data<'a> {
 
 impl<'a> Data<'a> {
     /// Allocate new instance
-    pub fn new<const N: usize>(mesh: &'a Mesh, arr: [(CellAttributeId, Element); N]) -> Result<Self, StrError> {
+    pub fn new<const N: usize>(mesh: &'a Mesh, arr: [(CellAttribute, Element); N]) -> Result<Self, StrError> {
         let attributes = Attributes::from(arr);
         let information = ElementInfoMap::new(&mesh, &attributes)?;
         let equations = Equations::new(&mesh, &information).unwrap(); // cannot fail
@@ -53,7 +53,7 @@ mod tests {
         let p2 = SampleParams::param_solid();
         assert_eq!(
             Data::new(&mesh, [(2, Element::Solid(p2))]).err(),
-            Some("cannot find CellAttributeId in Attributes map")
+            Some("cannot find CellAttribute in Attributes map")
         );
     }
 
@@ -74,13 +74,13 @@ mod tests {
 
         let wrong_cell = Cell {
             id: 0,
-            attribute_id: 1,
+            attribute: 1,
             kind: GeoKind::Qua4,
             points: vec![0, 1, 2, 3],
         };
         assert_eq!(
             data.n_local_eq(&wrong_cell).err(),
-            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
         );
     }
 }
