@@ -841,96 +841,129 @@ mod tests {
     #[allow(unused)]
     use gemlab::mesh::draw_mesh;
 
+    const SAVE_FIGURE: bool = false;
+
     #[test]
+    #[rustfmt::skip]
     fn sample_meshes_are_ok() {
         let mesh = SampleMeshes::bhatti_example_1d4_truss();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 5);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_bhatti_example_1d4_truss.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_bhatti_example_1d4_truss.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::bhatti_example_1d5_heat();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 5);
         assert_eq!(mesh.cells.len(), 4);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_bhatti_example_1d5_heat.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_bhatti_example_1d5_heat.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::bhatti_example_6d22_heat();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 13);
         assert_eq!(mesh.cells.len(), 2);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_bhatti_example_6d22_heat.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_bhatti_example_6d22_heat.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 6);
         assert_eq!(mesh.cells.len(), 4);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_bhatti_example_1d6_bracket.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_bhatti_example_1d6_bracket.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_4d22_frame_3d();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 3);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_4d22_frame_3d.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_4d22_frame_3d.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_5d2_tri3();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 9);
         assert_eq!(mesh.cells.len(), 8);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d2_tri3.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d2_tri3.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_5d7_tri15();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 45);
         assert_eq!(mesh.cells.len(), 4);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d7_tri15.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d7_tri15.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_5d11_qua4();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 12);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d11_qua4.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d11_qua4.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_5d15_qua8();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 29);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d15_qua8.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d15_qua8.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_5d17_qua4();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 12);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d17_qua4.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d17_qua4.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_5d24_hex20();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 70);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d24_hex20.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d24_hex20.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_5d27_qua9();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 35);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d27_qua9.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d27_qua9.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::smith_example_5d30_tet4();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 8);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d30_tet4.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_smith_example_5d30_tet4.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::column_two_layers_qua4();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 14);
         assert_eq!(mesh.cells.len(), 6);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_column_two_layers_qua4.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_column_two_layers_qua4.svg").unwrap();
+        }
 
         let mesh = SampleMeshes::column_two_layers_qua9();
         check_all(&mesh).unwrap();
         assert_eq!(mesh.points.len(), 27);
         assert_eq!(mesh.cells.len(), 4);
-        // draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_column_two_layers_qua9.svg").unwrap();
+        if SAVE_FIGURE{
+            draw_mesh(&mesh, true, true, false, "/tmp/pmsim/mesh_column_two_layers_qua9.svg").unwrap();
+        }
     }
 }
