@@ -8,6 +8,7 @@ use std::path::Path;
 /// Holds numerical results from a convergence analysis with varying mesh sizes
 #[derive(Serialize, Deserialize)]
 pub struct ConvergenceResults {
+    pub name: String,     // name of the simulation / example / mesh
     pub time: Vec<u128>,  // simulation time in nanoseconds
     pub ndof: Vec<usize>, // total number of DOF
     pub error: Vec<f64>,  // error @ reference point
@@ -17,6 +18,7 @@ impl ConvergenceResults {
     /// Allocates a new structure
     pub fn new(number_of_meshes: usize) -> Self {
         ConvergenceResults {
+            name: String::from("unknown"),
             time: vec![0; number_of_meshes],
             ndof: vec![0; number_of_meshes],
             error: vec![0.0; number_of_meshes],
@@ -93,6 +95,7 @@ mod tests {
         assert_eq!(
             contents,
             r#"{
+  "name": "unknown",
   "time": [
     1,
     2,
