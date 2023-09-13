@@ -58,11 +58,7 @@ fn main() -> Result<(), StrError> {
 
     // sizes
     let sizes = if kind.class() == GeoClass::Tri {
-        if kind == GeoKind::Tri3 {
-            vec![(2, 4), (5, 10), (20, 40), (50, 100), (120, 220)]
-        } else {
-            vec![(2, 4), (5, 10), (20, 40), (50, 100)]
-        }
+        vec![(2, 4), (5, 10), (20, 40), (50, 100), (120, 220)]
     } else {
         vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
     };
@@ -128,6 +124,16 @@ fn main() -> Result<(), StrError> {
             let x = mesh.points[ref_point_id].coords[0];
             let y = mesh.points[ref_point_id].coords[1];
             draw.cells(&mut plot, &mesh, true).unwrap();
+            let mut with_points = true;
+            if kind == GeoKind::Tri3 && idx > 2 {
+                with_points = false;
+            }
+            if kind == GeoKind::Tri6 && idx > 1 {
+                with_points = false;
+            }
+            if with_points {
+                draw.points(&mut plot, &mesh);
+            }
             curve
                 .set_line_color("red")
                 .set_marker_color("red")
