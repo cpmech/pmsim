@@ -1,23 +1,79 @@
 use gemlab::prelude::*;
-use plotpy::{Curve, Plot, SlopeIcon};
-use pmsim::{prelude::*, StrError};
+use pmsim::prelude::*;
+use pmsim::StrError;
+use russell_lab::{format_nanoseconds, Stopwatch};
+use std::env;
+
+const SAVE_FIGURE_MESH: bool = true;
+
+// constants
+const R1: f64 = 3.0; // inner radius
+const R2: f64 = 6.0; // outer radius
+const P1: f64 = 200.0; // inner pressure (magnitude)
+const P2: f64 = 100.0; // outer pressure (magnitude)
+const YOUNG: f64 = 1000.0; // Young's modulus
+const POISSON: f64 = 0.25; // Poisson's coefficient
+
+/// Calculates the analytical solution (elastic pressurized cylinder)
+/// Reference (page 160)
+/// Sadd MH (2005) Elasticity: Theory, Applications and Numerics, Elsevier, 474p
+struct AnalyticalSolution {
+    aa: f64,
+    bb: f64,
+    c1: f64,
+    c2: f64,
+}
+
+impl AnalyticalSolution {
+    pub fn new() -> Self {
+        let rr1 = R1 * R1;
+        let rr2 = R2 * R2;
+        let drr = rr2 - rr1;
+        let dp = P2 - P1;
+        let aa = rr1 * rr2 * dp / drr;
+        let bb = (rr1 * P1 - rr2 * P2) / drr;
+        let c1 = (1.0 + POISSON) / YOUNG;
+        let c2 = 1.0 - 2.0 * POISSON;
+        AnalyticalSolution { aa, bb, c1, c2 }
+    }
+    pub fn radial_displacement(&self, r: f64) -> f64 {
+        self.c1 * (r * self.c2 * self.bb - self.aa / r)
+    }
+}
 
 fn main() -> Result<(), StrError> {
-    // constants
-    const R1: f64 = 3.0; // inner radius
-    const R2: f64 = 6.0; // outer radius
-    const P1: f64 = 200.0; // inner pressure (magnitude)
-    const P2: f64 = 100.0; // outer pressure (magnitude)
-    const YOUNG: f64 = 1000.0;
-    const POISSON: f64 = 0.25;
+    // arguments
+    let args: Vec<String> = env::args().collect();
+    let kind = if args.len() >= 2 {
+        GeoKind::from(&args[1])?
+    } else {
+        GeoKind::Tri3
+    };
+    let str_kind = kind.to_string();
 
-    let sizes = &[(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)];
+    // filenames
+    let fn_base = "/tmp/pmsim/pressurized_cylinder2d_elast_";
+
+    // sizes
+    let sizes = if kind.class() == GeoClass::Tri {
+        vec![(2, 4), (5, 10), (20, 40)] //, (50, 100), (120, 220)]
+    } else {
+        vec![(1, 2), (2, 4), (4, 8)] //, (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
+    };
+
+    // analytical solution
+    let ana = AnalyticalSolution::new();
+
+    // numerical solution arrays
     let n = sizes.len();
-    let mut arr_ndof = vec![0.0; n];
-    let mut arr_error = vec![0.0; n];
+    let mut results = ConvergenceResults::new(n);
 
+    // print header
+    println!("{:>15} {:>6} {:>8}", "TIME", "NDOF", "ERROR");
+
+    // loop over mesh sizes
     let mut idx = 0;
-    for (nr, na) in sizes {
+    for (nr, na) in &sizes {
         // mesh
         let mesh = Structured::quarter_ring_2d(R1, R2, *nr, *na, GeoKind::Qua8).unwrap();
 
@@ -42,6 +98,16 @@ fn main() -> Result<(), StrError> {
         config.control.verbose_iterations = false;
         config.control.verbose_timesteps = false;
 
+        // total number of DOF
+        let ndof = data.equations.n_equation;
+        let str_ndof = ndof.to_string();
+
+        // save mesh figure
+        if SAVE_FIGURE_MESH && idx < 4 {
+            let fn_svg_mesh = [fn_base, str_kind.as_str(), "_", str_ndof.as_str(), "dof.svg"].concat();
+            draw_mesh(&mesh, false, false, false, &fn_svg_mesh)?;
+        }
+
         // essential boundary conditions
         let mut essential = Essential::new();
         essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0));
@@ -57,50 +123,44 @@ fn main() -> Result<(), StrError> {
 
         // run simulation
         let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+        let mut stopwatch = Stopwatch::new("");
         sim.run(&mut state)?;
+        results.time[idx] = stopwatch.stop();
 
-        // analytical solution: radial displacement (ur)
-        // Reference (page 160)
-        // Sadd MH (2005) Elasticity: Theory, Applications and Numerics, Elsevier, 474p
-        let rr1 = R1 * R1;
-        let rr2 = R2 * R2;
-        let drr = rr2 - rr1;
-        let dp = P2 - P1;
-        let aa = rr1 * rr2 * dp / drr;
-        let bb = (rr1 * P1 - rr2 * P2) / drr;
-        let c1 = (1.0 + POISSON) / YOUNG;
-        let c2 = 1.0 - 2.0 * POISSON;
-        let analytical_ur = |r: f64| c1 * (r * c2 * bb - aa / r);
-
+        // compute error
         let ref_point_id = 0;
-
         let r = mesh.points[ref_point_id].coords[0];
         let eq = data.equations.eq(ref_point_id, Dof::Ux).unwrap();
         let numerical_ur = state.uu[eq];
-        let error = f64::abs(numerical_ur - analytical_ur(r));
+        let error = f64::abs(numerical_ur - ana.radial_displacement(r));
 
-        arr_ndof[idx] = data.equations.n_equation as f64;
-        arr_error[idx] = error;
-        println!("ndof = {:5}, err = {:.2e}", data.equations.n_equation, error);
+        // results
+        results.ndof[idx] = ndof;
+        results.error[idx] = error;
+        let ns = format_nanoseconds(results.time[idx]);
+        println!("{:>15} {:>6} {:>8.2e}", ns, ndof, error);
 
+        // next mesh
         idx += 1;
     }
 
-    // let arr_ndof = vec![26.0, 74.0, 242.0, 866.0, 1322.0, 3266.0, 12674.0, 30602.0];
-    // let arr_error = vec![2.60e-3, 2.57e-4, 1.83e-5, 1.14e-6, 4.63e-7, 6.93e-8, 4.23e-9, 7.04e-10];
+    // save results
+    let fn_results = [fn_base, str_kind.as_str(), "_results.json"].concat();
+    results.write(&fn_results)?;
 
-    let mut curve = Curve::new();
-    let mut icon = SlopeIcon::new();
-    icon.set_length(0.295);
-    curve.draw(&arr_ndof, &arr_error);
-    icon.draw(-2.0, 3.2e2, 1.35e-6);
-    let mut plot = Plot::new();
-    plot.set_log_x(true)
-        .set_log_y(true)
-        .add(&curve)
-        .add(&icon)
-        .grid_and_labels("NDOF", "ERROR");
-    plot.save("/tmp/pmsim/pressurized_cylinder2d_elast_qua8_convergence.svg")?;
+    // save figure
+    // let mut curve = Curve::new();
+    // let mut icon = SlopeIcon::new();
+    // icon.set_length(0.295);
+    // curve.draw(&arr_ndof, &arr_error);
+    // icon.draw(-2.0, 3.2e2, 1.35e-6);
+    // let mut plot = Plot::new();
+    // plot.set_log_x(true)
+    //     .set_log_y(true)
+    //     .add(&curve)
+    //     .add(&icon)
+    //     .grid_and_labels("NDOF", "ERROR");
+    // plot.save("/tmp/pmsim/pressurized_cylinder2d_elast_qua8.svg")?;
 
     Ok(())
 }

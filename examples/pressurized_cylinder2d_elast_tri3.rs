@@ -119,7 +119,7 @@ fn main() -> Result<(), StrError> {
         .add(&curve)
         .add(&icon)
         .grid_and_labels("NDOF", "ERROR");
-    plot.save("/tmp/pmsim/pressurized_cylinder2d_elast_tri3_convergence.svg")?;
+    plot.save("/tmp/pmsim/pressurized_cylinder2d_elast_tri3.svg")?;
 
     Ok(())
 }
