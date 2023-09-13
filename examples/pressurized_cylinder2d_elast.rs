@@ -69,13 +69,20 @@ fn main() -> Result<(), StrError> {
     let mut results = ConvergenceResults::new(n);
 
     // print header
+    println!("running with {}", str_kind);
     println!("{:>15} {:>6} {:>8}", "TIME", "NDOF", "ERROR");
 
     // loop over mesh sizes
     let mut idx = 0;
     for (nr, na) in &sizes {
         // mesh
-        let mesh = Structured::quarter_ring_2d(R1, R2, *nr, *na, GeoKind::Qua8).unwrap();
+        let mesh = if kind.class() == GeoClass::Tri {
+            let delta_x = (R2 - R1) / (*nr as f64);
+            let global_max_area = Some(delta_x * delta_x / 2.0);
+            Unstructured::quarter_ring_2d(R1, R2, *nr, *na, false, global_max_area, "").unwrap()
+        } else {
+            Structured::quarter_ring_2d(R1, R2, *nr, *na, GeoKind::Qua8).unwrap()
+        };
 
         // features
         let find = Find::new(&mesh, None);
@@ -104,7 +111,8 @@ fn main() -> Result<(), StrError> {
 
         // save mesh figure
         if SAVE_FIGURE_MESH && idx < 4 {
-            let fn_svg_mesh = [fn_base, str_kind.as_str(), "_", str_ndof.as_str(), "dof.svg"].concat();
+            let suffix = [str_kind.as_str(), "_", str_ndof.as_str()].concat();
+            let fn_svg_mesh = [fn_base, suffix.as_str(), "dof.svg"].concat();
             draw_mesh(&mesh, false, false, false, &fn_svg_mesh)?;
         }
 
@@ -135,6 +143,7 @@ fn main() -> Result<(), StrError> {
         let error = f64::abs(numerical_ur - ana.radial_displacement(r));
 
         // results
+        results.name = str_kind.clone();
         results.ndof[idx] = ndof;
         results.error[idx] = error;
         let ns = format_nanoseconds(results.time[idx]);
@@ -147,20 +156,5 @@ fn main() -> Result<(), StrError> {
     // save results
     let fn_results = [fn_base, str_kind.as_str(), "_results.json"].concat();
     results.write(&fn_results)?;
-
-    // save figure
-    // let mut curve = Curve::new();
-    // let mut icon = SlopeIcon::new();
-    // icon.set_length(0.295);
-    // curve.draw(&arr_ndof, &arr_error);
-    // icon.draw(-2.0, 3.2e2, 1.35e-6);
-    // let mut plot = Plot::new();
-    // plot.set_log_x(true)
-    //     .set_log_y(true)
-    //     .add(&curve)
-    //     .add(&icon)
-    //     .grid_and_labels("NDOF", "ERROR");
-    // plot.save("/tmp/pmsim/pressurized_cylinder2d_elast_qua8.svg")?;
-
     Ok(())
 }
