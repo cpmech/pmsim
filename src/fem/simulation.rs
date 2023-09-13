@@ -66,7 +66,9 @@ impl<'a> Simulation<'a> {
         let mut duu = Vector::new(neq);
 
         // message
-        control.print_header();
+        if !config.linear_problem {
+            control.print_header();
+        }
 
         // time loop
         let steady = !config.transient && !config.dynamics;
@@ -123,11 +125,15 @@ impl<'a> Simulation<'a> {
                 max_rr_prev = max_rr;
                 if iteration == 0 {
                     max_rr = vec_norm(rr, Norm::Max); // << non-scaled
-                    control.print_iteration(iteration, max_rr_prev, max_rr);
+                    if !config.linear_problem {
+                        control.print_iteration(iteration, max_rr_prev, max_rr);
+                    }
                     vec_copy(&mut rr0, rr)?;
                 } else {
                     max_rr = vec_max_scaled(rr, &rr0); // << scaled
-                    control.print_iteration(iteration, max_rr_prev, max_rr);
+                    if !config.linear_problem {
+                        control.print_iteration(iteration, max_rr_prev, max_rr);
+                    }
                     if max_rr < control.tol_rr {
                         break;
                     }
@@ -173,6 +179,11 @@ impl<'a> Simulation<'a> {
 
                 // update secondary variables
                 self.elements.update_secondary_values_parallel(state, &duu)?;
+
+                // exit if linear problem
+                if config.linear_problem {
+                    break;
+                }
 
                 // check convergence
                 if iteration == control.n_max_iterations - 1 {
