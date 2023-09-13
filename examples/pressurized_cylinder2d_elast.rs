@@ -1,10 +1,12 @@
 use gemlab::prelude::*;
+use plotpy::Curve;
+use plotpy::Plot;
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::{format_nanoseconds, Stopwatch};
 use std::env;
 
-const SAVE_FIGURE_MESH: bool = true;
+const SAVE_FIGURE_MESH: bool = false;
 
 // constants
 const R1: f64 = 3.0; // inner radius
@@ -56,9 +58,13 @@ fn main() -> Result<(), StrError> {
 
     // sizes
     let sizes = if kind.class() == GeoClass::Tri {
-        vec![(2, 4), (5, 10), (20, 40)] //, (50, 100), (120, 220)]
+        if kind == GeoKind::Tri3 {
+            vec![(2, 4), (5, 10), (20, 40), (50, 100), (120, 220)]
+        } else {
+            vec![(2, 4), (5, 10), (20, 40), (50, 100)]
+        }
     } else {
-        vec![(1, 2), (2, 4), (4, 8)] //, (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
+        vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
     };
 
     // analytical solution
@@ -67,6 +73,9 @@ fn main() -> Result<(), StrError> {
     // numerical solution arrays
     let n = sizes.len();
     let mut results = ConvergenceResults::new(n);
+
+    // reference point to compare analytical vs numerical result
+    let ref_point_id = 0;
 
     // print header
     println!("running with {}", str_kind);
@@ -79,9 +88,10 @@ fn main() -> Result<(), StrError> {
         let mesh = if kind.class() == GeoClass::Tri {
             let delta_x = (R2 - R1) / (*nr as f64);
             let global_max_area = Some(delta_x * delta_x / 2.0);
-            Unstructured::quarter_ring_2d(R1, R2, *nr, *na, false, global_max_area, "").unwrap()
+            let o2 = kind == GeoKind::Tri6;
+            Unstructured::quarter_ring_2d(R1, R2, *nr, *na, o2, global_max_area, "").unwrap()
         } else {
-            Structured::quarter_ring_2d(R1, R2, *nr, *na, GeoKind::Qua8).unwrap()
+            Structured::quarter_ring_2d(R1, R2, *nr, *na, kind).unwrap()
         };
 
         // features
@@ -102,7 +112,6 @@ fn main() -> Result<(), StrError> {
         let data = Data::new(&mesh, [(1, Element::Solid(param1))])?;
         let mut config = Config::new();
         config.linear_problem = true;
-        config.control.verbose_iterations = false;
         config.control.verbose_timesteps = false;
 
         // total number of DOF
@@ -113,7 +122,25 @@ fn main() -> Result<(), StrError> {
         if SAVE_FIGURE_MESH && idx < 4 {
             let suffix = [str_kind.as_str(), "_", str_ndof.as_str()].concat();
             let fn_svg_mesh = [fn_base, suffix.as_str(), "dof.svg"].concat();
-            draw_mesh(&mesh, false, false, false, &fn_svg_mesh)?;
+            let mut draw = Draw::new();
+            let mut curve = Curve::new();
+            let mut plot = Plot::new();
+            let x = mesh.points[ref_point_id].coords[0];
+            let y = mesh.points[ref_point_id].coords[1];
+            draw.cells(&mut plot, &mesh, true).unwrap();
+            curve
+                .set_line_color("red")
+                .set_marker_color("red")
+                .set_marker_size(10.0)
+                .set_marker_style("o");
+            curve.draw(&[x], &[y]);
+            plot.add(&curve);
+            plot.set_equal_axes(true)
+                .set_range(-0.1, R2 + 0.1, -0.1, R2 + 0.1)
+                .set_figure_size_points(800.0, 800.0)
+                .set_labels("x", "y")
+                .save(&fn_svg_mesh)
+                .unwrap();
         }
 
         // essential boundary conditions
@@ -136,7 +163,6 @@ fn main() -> Result<(), StrError> {
         results.time[idx] = stopwatch.stop();
 
         // compute error
-        let ref_point_id = 0;
         let r = mesh.points[ref_point_id].coords[0];
         let eq = data.equations.eq(ref_point_id, Dof::Ux).unwrap();
         let numerical_ur = state.uu[eq];
