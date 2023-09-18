@@ -6,6 +6,7 @@ use pmsim::StrError;
 use russell_lab::{format_nanoseconds, Stopwatch};
 use std::env;
 
+const NAME: &str = "pressurized_cylinder2d_elast_";
 const SAVE_FIGURE_MESH: bool = false;
 
 // constants
@@ -52,9 +53,6 @@ fn main() -> Result<(), StrError> {
         GeoKind::Tri3
     };
     let str_kind = kind.to_string();
-
-    // filenames
-    let fn_base = "/tmp/pmsim/pressurized_cylinder2d_elast_";
 
     // sizes
     let sizes = if kind.class() == GeoClass::Tri {
@@ -116,7 +114,7 @@ fn main() -> Result<(), StrError> {
         // save mesh figure
         if SAVE_FIGURE_MESH && idx < 4 {
             let suffix = [str_kind.as_str(), "_", str_ndof.as_str()].concat();
-            let fn_svg_mesh = [fn_base, suffix.as_str(), "dof.svg"].concat();
+            let fn_svg_mesh = ["/tmp/pmsim/", NAME, suffix.as_str(), "dof.svg"].concat();
             let mut fig = Figure::new();
             let mut curve = Curve::new();
             let mut plot = Plot::new();
@@ -185,7 +183,7 @@ fn main() -> Result<(), StrError> {
     }
 
     // save results
-    let fn_results = [fn_base, str_kind.as_str(), "_results.json"].concat();
+    let fn_results = ["/tmp/pmsim/", NAME, str_kind.as_str(), "_results.json"].concat();
     results.write(&fn_results)?;
     Ok(())
 }

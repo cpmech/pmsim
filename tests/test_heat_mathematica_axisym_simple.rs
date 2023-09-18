@@ -1,8 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 
-const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
-
 // From Mathematica Heat Transfer Model Verification Tests
 // (HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001)
 //
@@ -36,6 +34,8 @@ const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
 // Steady simulation
 // No source
 // Constant conductivity kx = ky = 10.0
+
+const NAME: &str = "test_heat_mathematica_axisym_simple";
 
 #[test]
 fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
@@ -99,14 +99,14 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
         // write mesh
-        mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
+        mesh.write(&["/tmp/pmsim/", NAME].concat()).unwrap();
 
         // write figure
-        mesh.draw(None, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true), |_, _| {})
+        mesh.draw(None, &["/tmp/pmsim/", NAME, "_mesh"].concat(), |_, _| {})
             .unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&FilePath::mesh(FILENAME_KEY, false)).unwrap()
+        Mesh::read(&["data/meshes/", NAME, ".mesh"].concat()).unwrap()
     }
 }

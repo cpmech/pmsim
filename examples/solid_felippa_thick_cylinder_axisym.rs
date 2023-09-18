@@ -2,8 +2,6 @@ use gemlab::prelude::*;
 use pmsim::prelude::*;
 use pmsim::StrError;
 
-const FILENAME_KEY: &'static str = "test_solid_felippa_thick_cylinder_axisym";
-
 // Felippa's Benchmark 14.1 (Figure 14.1) on page 14-3
 //
 // Felippa C, Advanced Finite Elements
@@ -35,13 +33,15 @@ const FILENAME_KEY: &'static str = "test_solid_felippa_thick_cylinder_axisym";
 // Axisymmetric
 // NOTE: using 4 integration points because it gives better results with Qua8
 
+const NAME: &str = "test_solid_felippa_thick_cylinder_axisym";
+
 fn main() -> Result<(), StrError> {
     // Example from Felippa's A-FEM page 14-3
     const PRESSURE: f64 = 10.0;
 
     // mesh
     let (rin, rout, thickness) = (4.0, 10.0, 2.0);
-    let mesh = Mesh::read(&FilePath::mesh(FILENAME_KEY, false))?;
+    let mesh = Mesh::read(&["data/meshes/", NAME, ".mesh"].concat())?;
 
     // features
     let feat = Features::new(&mesh, false);

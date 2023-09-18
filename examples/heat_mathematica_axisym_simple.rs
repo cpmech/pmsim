@@ -1,8 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::{prelude::*, StrError};
 
-const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
-
 // From Mathematica Heat Transfer Model Verification Tests
 // (HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0001)
 //
@@ -37,12 +35,14 @@ const FILENAME_KEY: &'static str = "test_heat_mathematica_axisym_simple";
 // No source
 // Constant conductivity kx = ky = 10.0
 
+const NAME: &str = "test_heat_mathematica_axisym_simple";
+
 fn main() -> Result<(), StrError> {
     // geometry
     let (rin, rout) = (1.0, 2.0);
 
     // mesh
-    let mesh = Mesh::read(&FilePath::mesh(FILENAME_KEY, false))?;
+    let mesh = Mesh::read(&["data/meshes/", NAME, ".mesh"].concat())?;
 
     // features
     let feat = Features::new(&mesh, false);

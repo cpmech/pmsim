@@ -4,8 +4,6 @@ use pmsim::{prelude::*, StrError};
 use russell_lab::math::{erfc, PI};
 use russell_lab::prelude::*;
 
-const FILENAME_KEY: &'static str = "test_heat_lewis_transient_1d";
-
 // Lewis' Example 6.4.2 on page 159
 //
 // Lewis R, Nithiarasu P, and Seetharamu KN (2004) Fundamentals of the
@@ -36,6 +34,8 @@ const FILENAME_KEY: &'static str = "test_heat_lewis_transient_1d";
 // No source
 // Constant conductivity kx = ky = 1
 // Coefficient ρ = 1
+
+const NAME: &str = "test_heat_lewis_transient_1d";
 
 #[test]
 fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
@@ -135,14 +135,14 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
         // write mesh
-        mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
+        mesh.write(&["/tmp/pmsim/", NAME].concat()).unwrap();
 
         // write figure
-        mesh.draw(None, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true), |_, _| {})
+        mesh.draw(None, &["/tmp/pmsim/", NAME, "_mesh"].concat(), |_, _| {})
             .unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&FilePath::mesh(FILENAME_KEY, false)).unwrap()
+        Mesh::read(&["data/meshes/", NAME, ".mesh"].concat()).unwrap()
     }
 }

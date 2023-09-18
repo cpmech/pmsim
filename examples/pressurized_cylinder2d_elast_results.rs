@@ -1,15 +1,15 @@
 use plotpy::{Curve, Plot, SlopeIcon, StrError};
 use pmsim::prelude::*;
 
+const NAME: &str = "pressurized_cylinder2d_elast_";
+const RES_DIR: &str = "data/results/pressurized-cylinder2d-elast/";
+
 fn main() -> Result<(), StrError> {
     // allocate new plot
     let mut plot_error = Plot::new();
     let mut plot_time = Plot::new();
     plot_error.set_log_x(true).set_log_y(true); // must be before `add`
     plot_time.set_log_x(true).set_log_y(true); // must be before `add`
-
-    // set filename
-    let fn_base = String::from("/tmp/pmsim/pressurized_cylinder2d_elast_");
 
     // set element kinds and markers
     let str_kinds = &["tri3", "tri6", "qua4", "qua8", "qua9", "qua17"];
@@ -18,7 +18,7 @@ fn main() -> Result<(), StrError> {
     // run for each kind
     for (str_kind, marker) in str_kinds.iter().zip(markers.iter()) {
         // load results
-        let filename = [fn_base.as_str(), str_kind, "_results.json"].concat();
+        let filename = [RES_DIR, NAME, str_kind, "_results.json"].concat();
         let results = ConvergenceResults::from(&filename)?;
         assert_eq!(results.name, *str_kind);
 
