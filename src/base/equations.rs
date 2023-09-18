@@ -144,13 +144,13 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri6();
         let mut mesh_wrong = mesh.clone();
-        mesh_wrong.cells[0].attribute_id = 100; // << never do this!
+        mesh_wrong.cells[0].attribute = 100; // << never do this!
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
         let emap = ElementInfoMap::new(&mesh, &att).unwrap();
         assert_eq!(
             Equations::new(&mesh_wrong, &emap).err(),
-            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
         );
     }
 
@@ -221,7 +221,7 @@ mod tests {
     fn display_works() {
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates attribute_id
+        //         /   \          / \{7}   (#) indicates attribute
         //        /     \  [1]   /   \     {#} indicates equation number
         //       /  [0]  \ (1)  / [2] \
         // {0}  /   (1)   \    /  (1)  \
@@ -247,7 +247,7 @@ mod tests {
 
         // 3------------2------------5
         // |`.      [1] |            |    [#] indicates id
-        // |  `.    (1) |            |    (#) indicates attribute_id
+        // |  `.    (1) |            |    (#) indicates attribute
         // |    `.      |     [2]    |
         // |      `.    |     (2)    |
         // | [0]    `.  |            |

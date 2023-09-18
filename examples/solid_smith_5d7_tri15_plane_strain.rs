@@ -51,10 +51,10 @@ fn main() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d7_tri15();
 
     // features
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0), any_x)?;
-    let right = find.edges(At::X(6.0), any_x)?;
-    let bottom = find.edges(At::Y(-2.0), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(0.0), any_x)?;
+    let right = feat.search_edges(At::X(6.0), any_x)?;
+    let bottom = feat.search_edges(At::Y(-2.0), any_x)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamSolid {

@@ -3,7 +3,7 @@ use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamSolid}
 use crate::model::{allocate_stress_strain_model, StressState, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{set_pad_coords, Cell};
+use gemlab::mesh::Cell;
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::Tensor2;
@@ -50,7 +50,7 @@ impl<'a> ElementSolid<'a> {
         let ndim = data.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
-        set_pad_coords(&mut pad, &points, data.mesh);
+        data.mesh.set_pad(&mut pad, &points);
 
         // integration points
         let ips = config.integ_point_data(cell)?;
@@ -551,13 +551,13 @@ mod tests {
         let mesh = Mesh {
             ndim: 2,
             points: vec![
-                Point { id: 0, coords: vec![rin + 0.0, 0.0] },
-                Point { id: 1, coords: vec![rin +   a, 0.0] },
-                Point { id: 2, coords: vec![rin +   a,   b] },
-                Point { id: 3, coords: vec![rin + 0.0,   b] },
+                Point { id: 0, marker: 0, coords: vec![rin + 0.0, 0.0] },
+                Point { id: 1, marker: 0, coords: vec![rin +   a, 0.0] },
+                Point { id: 2, marker: 0, coords: vec![rin +   a,   b] },
+                Point { id: 3, marker: 0, coords: vec![rin + 0.0,   b] },
             ],
             cells: vec![
-                Cell { id: 0, attribute_id: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
+                Cell { id: 0, attribute: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
             ],
         };
 

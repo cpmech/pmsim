@@ -43,8 +43,8 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(false);
 
     // features
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(0.0), any_x)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamDiffusion {
@@ -82,9 +82,9 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
             * (f64::exp(-x * x / (4.0 * t)) - (x / 2.0) * f64::sqrt(PI / t) * erfc(x / (2.0 * f64::sqrt(t))))
     };
     let selected = vec![
-        find.point_ids(At::X(0.0), any_x).unwrap(),
-        find.point_ids(At::X(1.0), any_x).unwrap(),
-        find.point_ids(At::X(2.0), any_x).unwrap(),
+        feat.search_point_ids(At::X(0.0), any_x).unwrap(),
+        feat.search_point_ids(At::X(1.0), any_x).unwrap(),
+        feat.search_point_ids(At::X(2.0), any_x).unwrap(),
     ]
     .concat();
     println!("");
@@ -104,7 +104,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
         // get temperature values along x
-        let post = PostProc::new(&mesh, &find, &data, &state);
+        let post = PostProc::new(&mesh, &feat, &data, &state);
         let (_, xx_num, tt_num) = post.values_along_x(Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
         // plot
@@ -138,7 +138,8 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
-        draw_mesh(&mesh, true, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true)).unwrap();
+        mesh.draw(None, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true), |_, _| {})
+            .unwrap();
         mesh
     } else {
         // read mesh

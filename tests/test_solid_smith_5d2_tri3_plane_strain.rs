@@ -15,17 +15,17 @@ use russell_chk::vec_approx_eq;
 //
 //               1.0 kN/m²
 //         ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
-//  0.0   ▷0---------1---------2
+//  0.0  ▷0---------1---------2
 //         |       ,'|       ,'|   E = 1e6 kN/m²
 //         |  0  ,'  |  2  ,'  |   ν = 0.3
 //         |   ,'    |   ,'    |
 //         | ,'   1  | ,'  3   |   connectivity:
-// -0.5   ▷3'--------4'--------5     0 : 1 0 3
+// -0.5  ▷3'--------4'--------5     0 : 1 0 3
 //         |       ,'|       ,'|     1 : 3 4 1
 //         |  4  ,'  |  6  ,'  |     2 : 2 1 4
 //         |   ,'    |   ,'    |     3 : 4 5 2
 //         | ,'   5  | ,'   7  |     4 : 4 3 6
-// -1.0   ▷6'--------7'--------8     5 : 6 7 4
+// -1.0  ▷6'--------7'--------8     5 : 6 7 4
 //         △         △         △     6 : 5 4 7
 //                                   7 : 7 8 5
 //        0.0       0.5       1.0
@@ -49,10 +49,10 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d2_tri3();
 
     // features
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0), any_x)?;
-    let bottom = find.edges(At::Y(-1.0), any_x)?;
-    let top = find.edges(At::Y(0.0), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(0.0), any_x)?;
+    let bottom = feat.search_edges(At::Y(-1.0), any_x)?;
+    let top = feat.search_edges(At::Y(0.0), any_x)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamSolid {

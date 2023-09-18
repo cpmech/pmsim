@@ -45,10 +45,10 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(rin, rout, thickness, false);
 
     // features
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(rin), any_x)?;
-    let bottom = find.edges(At::Y(0.0), any_x)?;
-    let top = find.edges(At::Y(thickness), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(rin), any_x)?;
+    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
+    let top = feat.search_edges(At::Y(thickness), any_x)?;
 
     const YOUNG: f64 = 1000.0;
     const POISSON: f64 = 0.0;
@@ -88,7 +88,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // check displacements
     println!("");
-    let selection = find.point_ids(At::Y(0.0), any_x)?;
+    let selection = feat.search_point_ids(At::Y(0.0), any_x)?;
     for p in &selection {
         let r = mesh.points[*p].coords[0];
         let eq = data.equations.eq(*p, Dof::Ux).unwrap();
@@ -112,7 +112,8 @@ fn generate_or_read_mesh(rin: f64, rout: f64, thickness: f64, generate: bool) ->
         mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
-        draw_mesh(&mesh, true, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true)).unwrap();
+        mesh.draw(None, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true), |_, _| {})
+            .unwrap();
         mesh
     } else {
         // read mesh

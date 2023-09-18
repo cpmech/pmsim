@@ -7,15 +7,14 @@ use pmsim::StrError;
 
 fn main() -> Result<(), StrError> {
     let mesh = SampleMeshes::column_two_layers_qua4();
-    let features = Features::new(&mesh, Extract::Boundary);
 
-    let find = Find::new(&mesh, None);
-    let left = find.faces(At::X(0.0), any_x)?;
-    let right = find.faces(At::X(0.5), any_x)?;
-    let back = find.faces(At::X(0.0), any_x)?;
-    let front = find.faces(At::X(0.5), any_x)?;
-    let bottom = find.faces(At::Y(0.0), any_x)?;
-    let top = find.faces(At::Y(3.0), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_faces(At::X(0.0), any_x)?;
+    let right = feat.search_faces(At::X(0.5), any_x)?;
+    let back = feat.search_faces(At::X(0.0), any_x)?;
+    let front = feat.search_faces(At::X(0.5), any_x)?;
+    let bottom = feat.search_faces(At::Y(0.0), any_x)?;
+    let top = feat.search_faces(At::Y(3.0), any_x)?;
 
     let zero = |_| 0.0;
     let mut essential = Essential::new();

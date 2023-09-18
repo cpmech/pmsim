@@ -1,6 +1,6 @@
 use super::{Attributes, Dof, Element};
 use crate::StrError;
-use gemlab::mesh::{Cell, CellAttributeId, Mesh};
+use gemlab::mesh::{Cell, CellAttribute, Mesh};
 use gemlab::shapes::GeoKind;
 use std::collections::HashMap;
 use std::fmt;
@@ -189,10 +189,10 @@ impl ElementInfo {
     }
 }
 
-/// Maps (CellAttributeId, GeoKind) to ElementInfo
+/// Maps (CellAttribute, GeoKind) to ElementInfo
 pub struct ElementInfoMap {
-    all: HashMap<(CellAttributeId, GeoKind), ElementInfo>,
-    names: HashMap<(CellAttributeId, GeoKind), String>,
+    all: HashMap<(CellAttribute, GeoKind), ElementInfo>,
+    names: HashMap<(CellAttribute, GeoKind), String>,
 }
 
 impl ElementInfoMap {
@@ -203,10 +203,10 @@ impl ElementInfoMap {
         for cell in &mesh.cells {
             let element = att.get(cell)?;
             all.insert(
-                (cell.attribute_id, cell.kind),
+                (cell.attribute, cell.kind),
                 ElementInfo::new(mesh.ndim, *element, cell.kind)?,
             );
-            names.insert((cell.attribute_id, cell.kind), element.name());
+            names.insert((cell.attribute, cell.kind), element.name());
         }
         Ok(ElementInfoMap { all, names })
     }
@@ -214,8 +214,8 @@ impl ElementInfoMap {
     /// Returns the ElementInfo corresponding to Cell
     pub fn get(&self, cell: &Cell) -> Result<&ElementInfo, StrError> {
         self.all
-            .get(&(cell.attribute_id, cell.kind))
-            .ok_or("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
+            .get(&(cell.attribute, cell.kind))
+            .ok_or("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
     }
 }
 
@@ -469,7 +469,7 @@ mod tests {
         let att = Attributes::from([(2, Element::Solid(p2))]);
         assert_eq!(
             ElementInfoMap::new(&mesh, &att).err(),
-            Some("cannot find CellAttributeId in Attributes map")
+            Some("cannot find CellAttribute in Attributes map")
         );
         let p1 = SampleParams::param_rod();
         let att = Attributes::from([(1, Element::Rod(p1))]);
@@ -487,10 +487,10 @@ mod tests {
         let att = Attributes::from([(1, Element::Solid(p1))]);
         let emap = ElementInfoMap::new(&mesh, &att).unwrap();
         assert_eq!(emap.get(&mesh.cells[0]).unwrap().n_equation, 6);
-        mesh_wrong.cells[0].attribute_id = 100; // never do this
+        mesh_wrong.cells[0].attribute = 100; // never do this
         assert_eq!(
             emap.get(&mesh_wrong.cells[0]).err(),
-            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
         );
     }
 
@@ -498,7 +498,7 @@ mod tests {
     fn new_map_display_works() {
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates attribute_id
+        //         /   \          / \{7}   (#) indicates attribute
         //        /     \  [1]   /   \     {#} indicates equation number
         //       /  [0]  \ (1)  / [2] \
         // {0}  /   (1)   \    /  (1)  \
@@ -524,7 +524,7 @@ mod tests {
 
         // 3------------2------------5
         // |`.      [1] |            |    [#] indicates id
-        // |  `.    (1) |            |    (#) indicates attribute_id
+        // |  `.    (1) |            |    (#) indicates attribute
         // |    `.      |     [2]    |
         // |      `.    |     (2)    |
         // | [0]    `.  |            |

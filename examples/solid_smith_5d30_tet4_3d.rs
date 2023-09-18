@@ -35,10 +35,10 @@ fn main() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d30_tet4();
 
     // features
-    let find = Find::new(&mesh, None);
-    let faces_x_min = find.faces(At::X(0.0), any_x)?;
-    let faces_y_min = find.faces(At::Y(0.0), any_x)?;
-    let bottom = find.faces(At::Z(-1.0), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let faces_x_min = feat.search_faces(At::X(0.0), any_x)?;
+    let faces_y_min = feat.search_faces(At::Y(0.0), any_x)?;
+    let bottom = feat.search_faces(At::Z(-1.0), any_x)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamSolid {
@@ -74,7 +74,7 @@ fn main() -> Result<(), StrError> {
 
     // generate Paraview file
     if false {
-        let proc = PostProc::new(&mesh, &find, &data, &state);
+        let proc = PostProc::new(&mesh, &feat, &data, &state);
         proc.write_vtu(&FilePath::vtu(FILENAME_KEY, true))?;
     }
 

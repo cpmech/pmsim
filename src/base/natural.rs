@@ -57,7 +57,7 @@ impl<'a> fmt::Display for Natural<'a> {
 mod tests {
     use super::Natural;
     use crate::base::{Nbc, Pbc};
-    use gemlab::mesh::{Extract, Feature, Features, Samples};
+    use gemlab::mesh::{Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
@@ -111,7 +111,7 @@ mod tests {
         //      4--------------7  1.0
         //     /.             /|
         //    / .            / |    [#] indicates id
-        //   /  .           /  |    (#) indicates attribute_id
+        //   /  .           /  |    (#) indicates attribute
         //  /   .          /   |
         // 5--------------6    |          z
         // |    .         |    |          ↑
@@ -122,14 +122,11 @@ mod tests {
         // |/             |/
         // 1--------------2   1.0
         let mesh = Samples::one_hex8();
-        let features = Features::new(&mesh, Extract::Boundary);
+        let feat = Features::new(&mesh, false);
         let mut natural = Natural::new();
         let fbc = |t| -10.0 * t;
-        let top_edges = [
-            features.edges.get(&(4, 5)).unwrap(),
-            features.edges.get(&(6, 7)).unwrap(),
-        ];
-        let top_face = features.faces.get(&(0, 1, 4, 5)).unwrap();
+        let top_edges = [feat.edges.get(&(4, 5)).unwrap(), feat.edges.get(&(6, 7)).unwrap()];
+        let top_face = feat.faces.get(&(0, 1, 4, 5)).unwrap();
         natural.on(&top_edges, Nbc::Qn(fbc));
         natural.on(&[&top_face], Nbc::Qy(fbc));
         assert_eq!(

@@ -108,7 +108,7 @@ mod tests {
     fn new_works() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute_id
+        //         /   \          / \     (#) indicates attribute
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \

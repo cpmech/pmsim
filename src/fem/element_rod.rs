@@ -133,12 +133,12 @@ mod tests {
         let mesh = Mesh {
             ndim: 2,
             points: vec![
-                Point { id: 0, coords: vec![ 0.0,  0.0] },
-                Point { id: 1, coords: vec![30.0, 40.0] },
-                Point { id: 2, coords: vec![60.0, 80.0] },
+                Point { id: 0, marker: 0, coords: vec![ 0.0,  0.0] },
+                Point { id: 1, marker: 0, coords: vec![30.0, 40.0] },
+                Point { id: 2, marker: 0, coords: vec![60.0, 80.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin3, points: vec![0, 1, 2] },
+                Cell { id: 0, attribute: 1, kind: GeoKind::Lin3, points: vec![0, 1, 2] },
             ],
         };
         let p1 = ParamRod {
@@ -154,13 +154,13 @@ mod tests {
         );
         let wrong_cell = Cell {
             id: 0,
-            attribute_id: 2, // wrong
+            attribute: 2, // wrong
             kind: GeoKind::Lin2,
             points: vec![0, 1],
         };
         assert_eq!(
             ElementRod::new(&data, &config, &wrong_cell, &p1).err(),
-            Some("cannot find (CellAttributeId, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
         );
     }
 
@@ -170,11 +170,11 @@ mod tests {
         let mesh = Mesh {
             ndim: 2,
             points: vec![
-                Point { id: 0, coords: vec![ 0.0,  0.0] },
-                Point { id: 1, coords: vec![30.0, 40.0] },
+                Point { id: 0, marker: 0, coords: vec![ 0.0,  0.0] },
+                Point { id: 1, marker: 0, coords: vec![30.0, 40.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
         };
         let p1 = ParamRod {
@@ -208,11 +208,11 @@ mod tests {
         let mesh = Mesh {
             ndim: 3,
             points: vec![
-                Point { id: 0, coords: vec![0.0, 0.0, 0.0] },
-                Point { id: 1, coords: vec![2.0, 3.0, 6.0] },
+                Point { id: 0, marker: 0, coords: vec![0.0, 0.0, 0.0] },
+                Point { id: 1, marker: 0, coords: vec![2.0, 3.0, 6.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
         };
         let p1 = ParamRod {
@@ -249,11 +249,11 @@ mod tests {
         let mesh = Mesh {
             ndim: 3,
             points: vec![
-                Point { id: 0, coords: vec![0.0, 0.0, 0.0] },
-                Point { id: 1, coords: vec![l/3.0, 2.0*l/3.0, 2.0*l/3.0] },
+                Point { id: 0, marker: 0, coords: vec![0.0, 0.0, 0.0] },
+                Point { id: 1, marker: 0, coords: vec![l/3.0, 2.0*l/3.0, 2.0*l/3.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
         };
         let p1 = ParamRod {
@@ -297,14 +297,14 @@ mod tests {
         let mesh = Mesh {
             ndim: 2,
             points: vec![
-                Point { id: 0, coords: vec![0.0, 0.0] },
-                Point { id: 1, coords: vec![10.0, 0.0] },
-                Point { id: 2, coords: vec![10.0, 10.0] },
+                Point { id: 0, marker: 0, coords: vec![0.0, 0.0] },
+                Point { id: 1, marker: 0, coords: vec![10.0, 0.0] },
+                Point { id: 2, marker: 0, coords: vec![10.0, 10.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute_id: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
-                Cell { id: 1, attribute_id: 2, kind: GeoKind::Lin2, points: vec![1, 2] },
-                Cell { id: 2, attribute_id: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
+                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 1, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 2] },
+                Cell { id: 2, attribute: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
             ],
         };
         let p1 = ParamRod {

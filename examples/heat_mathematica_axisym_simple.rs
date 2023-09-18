@@ -45,9 +45,9 @@ fn main() -> Result<(), StrError> {
     let mesh = Mesh::read(&FilePath::mesh(FILENAME_KEY, false))?;
 
     // features
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(rin), any_x)?;
-    let right = find.edges(At::X(rout), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(rin), any_x)?;
+    let right = feat.search_edges(At::X(rout), any_x)?;
 
     // parameters, DOFs, and configuration
     let (kx, ky) = (10.0, 10.0);

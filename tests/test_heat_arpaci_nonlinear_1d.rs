@@ -53,8 +53,8 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(L, false);
 
     // features
-    let find = Find::new(&mesh, None);
-    let right = find.edges(At::X(L), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let right = feat.search_edges(At::X(L), any_x)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamDiffusion {
@@ -101,7 +101,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // plot results
     if false {
         // get temperature values along x
-        let post = PostProc::new(&mesh, &find, &data, &state);
+        let post = PostProc::new(&mesh, &feat, &data, &state);
         let (_, x_values, tt_values) = post.values_along_x(Dof::T, 0.0, any_x)?;
 
         // compute plot data
@@ -141,7 +141,8 @@ fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
         mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
-        draw_mesh(&mesh, true, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true)).unwrap();
+        mesh.draw(None, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true), |_, _| {})
+            .unwrap();
         mesh
     } else {
         // read mesh

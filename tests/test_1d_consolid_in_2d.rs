@@ -7,13 +7,12 @@ use pmsim::StrError;
 
 fn main() -> Result<(), StrError> {
     let mesh = SampleMeshes::column_two_layers_qua4();
-    let features = Features::new(&mesh, Extract::Boundary);
 
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0), any_x)?;
-    let right = find.edges(At::X(0.5), any_x)?;
-    let bottom = find.edges(At::Y(0.0), any_x)?;
-    let top = find.edges(At::Y(3.0), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(0.0), any_x)?;
+    let right = feat.search_edges(At::X(0.5), any_x)?;
+    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
+    let top = feat.search_edges(At::Y(3.0), any_x)?;
 
     let zero = |_| 0.0;
     let mut essential = Essential::new();
