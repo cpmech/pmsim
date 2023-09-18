@@ -2,7 +2,6 @@ use plotpy::{Curve, Plot, SlopeIcon, StrError};
 use pmsim::prelude::*;
 
 const NAME: &str = "pressurized_cylinder2d_elast_";
-const RES_DIR: &str = "data/results/pressurized-cylinder2d-elast/";
 
 fn main() -> Result<(), StrError> {
     // allocate new plot
@@ -18,7 +17,7 @@ fn main() -> Result<(), StrError> {
     // run for each kind
     for (str_kind, marker) in str_kinds.iter().zip(markers.iter()) {
         // load results
-        let filename = [RES_DIR, NAME, str_kind, "_results.json"].concat();
+        let filename = ["/tmp/pmsim/", NAME, str_kind, "_results.json"].concat();
         let results = ConvergenceResults::from(&filename)?;
         assert_eq!(results.name, *str_kind);
 
@@ -66,16 +65,16 @@ fn main() -> Result<(), StrError> {
     plot_error
         .grid_and_labels("NDOF", "ERROR")
         .legend()
-        // .set_equal_axes(true)
-        // .set_figure_size_points(600.0, 400.0)
-        .save("/tmp/pmsim/pressurized_cylinder2d_elast_results_errors.svg")?;
+        .set_equal_axes(true)
+        .set_figure_size_points(600.0, 800.0)
+        .save(&["/tmp/pmsim/", NAME, "results_errors.svg"].concat())?;
 
     // save figures
     plot_time
         .grid_and_labels("NDOF", "TIME [ns]")
         .legend()
         .set_equal_axes(true)
-        // .set_figure_size_points(600.0, 400.0)
-        .save("/tmp/pmsim/pressurized_cylinder2d_elast_results_times.svg")?;
+        .set_figure_size_points(600.0, 600.0)
+        .save(&["/tmp/pmsim/", NAME, "results_times.svg"].concat())?;
     Ok(())
 }

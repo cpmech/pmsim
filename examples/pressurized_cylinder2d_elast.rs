@@ -68,9 +68,6 @@ fn main() -> Result<(), StrError> {
     let n = sizes.len();
     let mut results = ConvergenceResults::new(n);
 
-    // reference point to compare analytical vs numerical result
-    let ref_point_id = 0;
-
     // print header
     println!("running with {}", str_kind);
     println!("{:>15} {:>6} {:>8}", "TIME", "NDOF", "ERROR");
@@ -93,6 +90,9 @@ fn main() -> Result<(), StrError> {
         let left = feat.search_edges(At::X(0.0), any_x)?;
         let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, 3.0), any_x)?;
         let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, 6.0), any_x)?;
+
+        // reference point to compare analytical vs numerical result
+        let ref_point_id = feat.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
 
         // parameters, DOFs, and configuration
         let param1 = ParamSolid {
