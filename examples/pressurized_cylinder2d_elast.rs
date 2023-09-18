@@ -55,11 +55,14 @@ fn main() -> Result<(), StrError> {
     let str_kind = kind.to_string();
 
     // sizes
-    let sizes = if kind.class() == GeoClass::Tri {
-        vec![(2, 4), (5, 10), (20, 40), (50, 100), (120, 220)]
+    let mut sizes = if kind.class() == GeoClass::Tri {
+        vec![(2, 4), (5, 10), (20, 40), (50, 100)]
     } else {
         vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
     };
+    if kind == GeoKind::Tri3 {
+        sizes.push((120, 220));
+    }
 
     // analytical solution
     let ana = AnalyticalSolution::new();

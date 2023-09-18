@@ -11,11 +11,21 @@ fn main() -> Result<(), StrError> {
     plot_time.set_log_x(true).set_log_y(true); // must be before `add`
 
     // set element kinds and markers
-    let str_kinds = &["tri3", "tri6", "qua4", "qua8", "qua9", "qua17"];
-    let markers = &["^", "v", "s", "D", "x", "*"];
+    let str_kinds_and_markers = &[
+        ("tri3", "^"),
+        ("tri6", "v"),
+        ("tri10", "4"),
+        ("tri15", "5"),
+        ("qua4", "s"),
+        ("qua8", "D"),
+        ("qua9", "x"),
+        ("qua12", "P"),
+        ("qua16", "o"),
+        ("qua17", "*"),
+    ];
 
     // run for each kind
-    for (str_kind, marker) in str_kinds.iter().zip(markers.iter()) {
+    for (str_kind, marker) in str_kinds_and_markers {
         // load results
         let filename = ["/tmp/pmsim/", NAME, str_kind, "_results.json"].concat();
         let results = ConvergenceResults::from(&filename)?;
@@ -45,15 +55,21 @@ fn main() -> Result<(), StrError> {
     // add slope = -2 to error plot
     let mut slope_2 = SlopeIcon::new();
     slope_2.set_length(0.1).set_above(true);
-    slope_2.draw(-2.0, 1e3, 0.3e-5);
     slope_2.draw(-2.0, 0.5e4, 0.3e-5);
+    slope_2.draw(-2.0, 0.5e4, 1.2e-7);
     plot_error.add(&slope_2);
 
     // add slope = -3 to error plot
     let mut slope_3 = SlopeIcon::new();
     slope_3.set_length(0.1).set_above(false);
-    slope_3.draw(-3.0, 1e3, 1e-7);
+    slope_3.draw(-3.0, 0.5e4, 1.3e-9);
     plot_error.add(&slope_3);
+
+    // add slope = -4 to error plot
+    let mut slope_4 = SlopeIcon::new();
+    slope_4.set_length(0.1).set_above(false);
+    slope_4.draw(-4.0, 2.0e2, 2e-6);
+    plot_error.add(&slope_4);
 
     // add slope = 1 to time plot
     let mut slope_p1 = SlopeIcon::new();
