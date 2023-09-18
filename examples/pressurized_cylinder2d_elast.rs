@@ -84,18 +84,17 @@ fn main() -> Result<(), StrError> {
         let mesh = if kind.class() == GeoClass::Tri {
             let delta_x = (R2 - R1) / (*nr as f64);
             let global_max_area = Some(delta_x * delta_x / 2.0);
-            let o2 = kind == GeoKind::Tri6;
-            Unstructured::quarter_ring_2d(R1, R2, *nr, *na, o2, global_max_area, "").unwrap()
+            Unstructured::quarter_ring_2d(R1, R2, *nr, *na, kind, global_max_area).unwrap()
         } else {
             Structured::quarter_ring_2d(R1, R2, *nr, *na, kind).unwrap()
         };
 
         // features
-        let find = Find::new(&mesh, None);
-        let bottom = find.edges(At::Y(0.0), any_x)?;
-        let left = find.edges(At::X(0.0), any_x)?;
-        let inner_circle = find.edges(At::Circle(0.0, 0.0, 3.0), any_x)?;
-        let outer_circle = find.edges(At::Circle(0.0, 0.0, 6.0), any_x)?;
+        let feat = Features::new(&mesh, false);
+        let bottom = feat.search_edges(At::Y(0.0), any_x)?;
+        let left = feat.search_edges(At::X(0.0), any_x)?;
+        let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, 3.0), any_x)?;
+        let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, 6.0), any_x)?;
 
         // parameters, DOFs, and configuration
         let param1 = ParamSolid {
@@ -118,12 +117,12 @@ fn main() -> Result<(), StrError> {
         if SAVE_FIGURE_MESH && idx < 4 {
             let suffix = [str_kind.as_str(), "_", str_ndof.as_str()].concat();
             let fn_svg_mesh = [fn_base, suffix.as_str(), "dof.svg"].concat();
-            let mut draw = Draw::new();
+            let mut fig = Figure::new();
             let mut curve = Curve::new();
             let mut plot = Plot::new();
             let x = mesh.points[ref_point_id].coords[0];
             let y = mesh.points[ref_point_id].coords[1];
-            draw.cells(&mut plot, &mesh, true).unwrap();
+            mesh.draw_cells(&mut fig, true).unwrap();
             let mut with_points = true;
             if kind == GeoKind::Tri3 && idx > 2 {
                 with_points = false;
@@ -132,7 +131,7 @@ fn main() -> Result<(), StrError> {
                 with_points = false;
             }
             if with_points {
-                draw.points(&mut plot, &mesh);
+                mesh.draw_point_dots(&mut fig);
             }
             curve
                 .set_line_color("red")

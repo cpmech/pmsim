@@ -42,7 +42,7 @@ use russell_lab::Matrix;
 fn main() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-    let features = Features::new(&mesh, Extract::Boundary);
+    let features = Features::new(&mesh, false);
     let top = vec![features.get_edge(1, 3), features.get_edge(3, 5)];
 
     // parameters, DOFs, and configuration

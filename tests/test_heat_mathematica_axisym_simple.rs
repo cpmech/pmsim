@@ -46,9 +46,9 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(rin, rout, h, false);
 
     // features
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(rin), any_x)?;
-    let right = find.edges(At::X(rout), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(rin), any_x)?;
+    let right = feat.search_edges(At::X(rout), any_x)?;
 
     // parameters, DOFs, and configuration
     let (kx, ky) = (10.0, 10.0);
@@ -102,14 +102,8 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
 
         // write figure
-        draw_mesh(
-            &mesh,
-            true,
-            true,
-            false,
-            &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true),
-        )
-        .unwrap();
+        mesh.draw(None, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true), |_, _| {})
+            .unwrap();
         mesh
     } else {
         // read mesh

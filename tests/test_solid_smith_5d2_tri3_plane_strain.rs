@@ -49,10 +49,10 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d2_tri3();
 
     // features
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0), any_x)?;
-    let bottom = find.edges(At::Y(-1.0), any_x)?;
-    let top = find.edges(At::Y(0.0), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(0.0), any_x)?;
+    let bottom = feat.search_edges(At::Y(-1.0), any_x)?;
+    let top = feat.search_edges(At::Y(0.0), any_x)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamSolid {

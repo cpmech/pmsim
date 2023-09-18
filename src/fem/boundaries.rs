@@ -2,7 +2,7 @@ use super::{Data, State};
 use crate::base::{assemble_matrix, assemble_vector, Config, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{set_pad_coords, Feature};
+use gemlab::mesh::Feature;
 use gemlab::shapes::Scratchpad;
 use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
@@ -61,7 +61,7 @@ impl<'a> Boundary<'a> {
         // pad and ips
         let (kind, points) = (feature.kind, &feature.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
-        set_pad_coords(&mut pad, &points, &data.mesh);
+        data.mesh.set_pad(&mut pad, &points);
         let ips = integ::default_points(pad.kind);
 
         // dofs
@@ -247,7 +247,7 @@ mod tests {
     use super::{Boundaries, Boundary};
     use crate::base::{Config, Element, Natural, Nbc, SampleMeshes, SampleParams};
     use crate::fem::{Data, State};
-    use gemlab::mesh::{Extract, Feature, Features, Samples};
+    use gemlab::mesh::{Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
     use russell_chk::vec_approx_eq;
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn integration_works_qn_qx_qy_qz() {
         let mesh = Samples::one_qua8();
-        let features = Features::new(&mesh, Extract::Boundary);
+        let features = Features::new(&mesh, false);
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
         let left = features.edges.get(&(0, 3)).ok_or("cannot get edge").unwrap();
         let right = features.edges.get(&(1, 2)).ok_or("cannot get edge").unwrap();
@@ -396,7 +396,7 @@ mod tests {
         // Qz
 
         let mesh = Samples::one_hex8();
-        let features = Features::new(&mesh, Extract::Boundary);
+        let features = Features::new(&mesh, false);
         let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
 
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
@@ -412,7 +412,7 @@ mod tests {
     #[test]
     fn integration_works_ql_qg() {
         let mesh = Samples::one_qua8();
-        let features = Features::new(&mesh, Extract::Boundary);
+        let features = Features::new(&mesh, false);
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
 
         let p1 = SampleParams::param_porous_liq_gas();

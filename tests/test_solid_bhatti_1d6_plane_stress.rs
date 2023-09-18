@@ -43,8 +43,8 @@ use russell_lab::Matrix;
 fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-    let features = Features::new(&mesh, Extract::Boundary);
-    let top = vec![features.get_edge(1, 3), features.get_edge(3, 5)];
+    let feat = Features::new(&mesh, false);
+    let top = vec![feat.get_edge(1, 3), feat.get_edge(3, 5)];
 
     // parameters, DOFs, and configuration
     let p1 = ParamSolid {

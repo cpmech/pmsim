@@ -1,7 +1,7 @@
 use crate::base::Dof;
 use crate::fem::{Data, State};
 use crate::StrError;
-use gemlab::mesh::{At, Find, Mesh, PointId};
+use gemlab::mesh::{At, Features, Mesh, PointId};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fmt::Write;
@@ -12,7 +12,7 @@ use std::path::Path;
 /// Assists in the post-processing of results
 pub struct PostProc<'a> {
     mesh: &'a Mesh,
-    find: &'a Find,
+    feat: &'a Features,
     data: &'a Data<'a>,
     state: &'a State,
     enabled_dofs: HashSet<Dof>,
@@ -21,7 +21,7 @@ pub struct PostProc<'a> {
 
 impl<'a> PostProc<'a> {
     /// Allocates new instance
-    pub fn new(mesh: &'a Mesh, find: &'a Find, data: &'a Data, state: &'a State) -> Self {
+    pub fn new(mesh: &'a Mesh, feat: &'a Features, data: &'a Data, state: &'a State) -> Self {
         let mut enabled_dofs = HashSet::new();
         for map in &data.equations.all {
             for dof in map.keys() {
@@ -35,7 +35,7 @@ impl<'a> PostProc<'a> {
             .collect();
         PostProc {
             mesh,
-            find,
+            feat,
             data,
             state,
             enabled_dofs,
@@ -67,10 +67,10 @@ impl<'a> PostProc<'a> {
     /// * `dd` -- are the DOF values (e.g., temperature) along x and corresponding to the `ids` and `xx`
     pub fn values_along_x<F>(&self, dof: Dof, y: f64, filter: F) -> Result<(Vec<PointId>, Vec<f64>, Vec<f64>), StrError>
     where
-        F: FnMut(&Vec<f64>) -> bool,
+        F: FnMut(&[f64]) -> bool,
     {
         // find points and sort by x-coordinates
-        let point_ids = self.find.point_ids(At::Y(y), filter)?;
+        let point_ids = self.feat.search_point_ids(At::Y(y), filter)?;
         let mut id_x_pairs: Vec<_> = point_ids
             .iter()
             .map(|id| (*id, self.mesh.points[*id].coords[0]))
@@ -265,16 +265,16 @@ impl<'a> PostProc<'a> {
 #[cfg(test)]
 mod tests {
     use super::PostProc;
-    use crate::base::{Config, Dof, Element, FilePath, SampleParams};
+    use crate::base::{Config, Dof, Element, SampleParams};
     use crate::fem::{Data, State};
-    use gemlab::mesh::{Find, Samples};
+    use gemlab::mesh::{Features, Samples};
     use gemlab::util::any_x;
     use std::fs;
 
     #[test]
     fn values_along_x_works() {
         let mesh = Samples::one_tri6();
-        let find = Find::new(&mesh, None);
+        let feat = Features::new(&mesh, false);
         let p1 = SampleParams::param_diffusion();
         let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
@@ -285,7 +285,7 @@ mod tests {
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let proc = PostProc::new(&mesh, &find, &data, &state);
+        let proc = PostProc::new(&mesh, &feat, &data, &state);
         let (ids, xx, dd) = proc.values_along_x(Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn write_vtu_works() {
         let mesh = Samples::three_tri3();
-        let find = Find::new(&mesh, None);
+        let feat = Features::new(&mesh, false);
         let p1 = SampleParams::param_solid();
         let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
@@ -310,11 +310,9 @@ mod tests {
             state.uu[0 + mesh.ndim * p] = strain * y;
         }
 
-        const FILENAME_KEY: &'static str = "test_write_vtu_works";
-
-        let proc = PostProc::new(&mesh, &find, &data, &state);
-        let path = FilePath::vtu(FILENAME_KEY, true);
-        proc.write_vtu(&path).unwrap();
+        let path = "/tmp/pmsim/test_write_vtu_works.vtu";
+        let proc = PostProc::new(&mesh, &feat, &data, &state);
+        proc.write_vtu(path).unwrap();
 
         let contents = fs::read_to_string(path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(

@@ -43,13 +43,13 @@ use russell_lab::prelude::*;
 fn main() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6d22_heat();
-    let find = Find::new(&mesh, None); // boundary only
-    let bottom = find.edges(At::Y(0.0), any_x)?;
-    let edges_flux = find.edges(At::X(0.0), any_x)?;
+    let feat = Features::new(&mesh, false); // boundary only
+    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
+    let edges_flux = feat.search_edges(At::X(0.0), any_x)?;
     let edges_conv = vec![
-        find.edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
-        find.edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
-        find.edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
+        feat.search_edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
+        feat.search_edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
+        feat.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
     ]
     .concat();
 

@@ -53,11 +53,11 @@ fn test_solid_smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d15_qua8();
 
     // features
-    let find = Find::new(&mesh, None);
-    let left = find.edges(At::X(0.0), any_x)?;
-    let right = find.edges(At::X(6.0), any_x)?;
-    let bottom = find.edges(At::Y(-9.0), any_x)?;
-    let top = find.edges(At::Y(0.0), |x| x[0] <= 3.0)?;
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(0.0), any_x)?;
+    let right = feat.search_edges(At::X(6.0), any_x)?;
+    let bottom = feat.search_edges(At::Y(-9.0), any_x)?;
+    let top = feat.search_edges(At::Y(0.0), |x| x[0] <= 3.0)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamSolid {

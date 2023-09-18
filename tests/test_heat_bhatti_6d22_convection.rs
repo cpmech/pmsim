@@ -44,13 +44,13 @@ use russell_lab::{mat_approx_eq, vec_add, vec_copy, vec_norm, Matrix, Norm, Vect
 fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6d22_heat();
-    let find = Find::new(&mesh, None); // boundary only
-    let bottom = find.edges(At::Y(0.0), any_x)?;
-    let edges_flux = find.edges(At::X(0.0), any_x)?;
+    let feat = Features::new(&mesh, false); // boundary only
+    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
+    let edges_flux = feat.search_edges(At::X(0.0), any_x)?;
     let edges_conv = vec![
-        find.edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
-        find.edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
-        find.edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
+        feat.search_edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
+        feat.search_edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
+        feat.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
     ]
     .concat();
     let points_flux: Vec<_> = edges_flux.iter().map(|f| &f.points).collect();
@@ -251,13 +251,13 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6d22_heat();
-    let find = Find::new(&mesh, None); // boundary only
-    let bottom = find.edges(At::Y(0.0), any_x)?;
-    let edges_flux = find.edges(At::X(0.0), any_x)?;
+    let feat = Features::new(&mesh, false); // boundary only
+    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
+    let edges_flux = feat.search_edges(At::X(0.0), any_x)?;
     let edges_conv = vec![
-        find.edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
-        find.edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
-        find.edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
+        feat.search_edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
+        feat.search_edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
+        feat.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
     ]
     .concat();
 

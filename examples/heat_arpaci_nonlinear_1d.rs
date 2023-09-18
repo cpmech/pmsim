@@ -52,8 +52,8 @@ fn main() -> Result<(), StrError> {
     let mesh = Mesh::read(&FilePath::mesh(FILENAME_KEY, false))?;
 
     // features
-    let find = Find::new(&mesh, None);
-    let right = find.edges(At::X(L), any_x)?;
+    let feat = Features::new(&mesh, false);
+    let right = feat.search_edges(At::X(L), any_x)?;
 
     // parameters, DOFs, and configuration
     let p1 = ParamDiffusion {
@@ -99,7 +99,7 @@ fn main() -> Result<(), StrError> {
 
     // plot results
     // get temperature values along x
-    let post = PostProc::new(&mesh, &find, &data, &state);
+    let post = PostProc::new(&mesh, &feat, &data, &state);
     let (_, x_values, tt_values) = post.values_along_x(Dof::T, 0.0, any_x)?;
 
     // compute plot data
