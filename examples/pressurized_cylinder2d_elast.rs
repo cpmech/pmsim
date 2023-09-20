@@ -1,13 +1,19 @@
+#![allow(unused)]
+
 use gemlab::prelude::*;
+use plotpy::Canvas;
 use plotpy::Curve;
-use plotpy::Plot;
 use pmsim::prelude::*;
 use pmsim::StrError;
+use russell_chk::vec_approx_eq;
 use russell_lab::{format_nanoseconds, Stopwatch};
+use russell_sparse::LinSolKind;
 use std::env;
 
 const NAME: &str = "pressurized_cylinder2d_elast_";
 const SAVE_FIGURE_MESH: bool = false;
+const SAVE_VTU: bool = false;
+const USE_UMFPACK: bool = false;
 
 // constants
 const R1: f64 = 3.0; // inner radius
@@ -50,19 +56,35 @@ fn main() -> Result<(), StrError> {
     let kind = if args.len() >= 2 {
         GeoKind::from(&args[1])?
     } else {
-        GeoKind::Tri3
+        GeoKind::Qua4
     };
     let str_kind = kind.to_string();
 
     // sizes
-    let mut sizes = if kind.class() == GeoClass::Tri {
-        vec![(2, 4), (5, 10), (20, 40), (50, 100)]
+    let sizes = if kind.class() == GeoClass::Tri {
+        if kind == GeoKind::Tri3 {
+            vec![(5, 10), (20, 40), (50, 100), (120, 220)]
+        } else {
+            vec![(2, 4), (5, 10), (20, 40), (50, 100)]
+        }
     } else {
-        vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
+        if kind == GeoKind::Qua4 {
+            vec![
+                // (4, 8),
+                // (8, 16),
+                // (10, 20),
+                // (16, 32),
+                // (32, 64),
+                // (50, 100),
+                // (70, 120),
+                // (70, 100),  // << problem
+                (80, 100), // << big problem
+                           // (100, 200), // << problem
+            ]
+        } else {
+            vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
+        }
     };
-    if kind == GeoKind::Tri3 {
-        sizes.push((120, 220));
-    }
 
     // analytical solution
     let ana = AnalyticalSolution::new();
@@ -73,7 +95,10 @@ fn main() -> Result<(), StrError> {
 
     // print header
     println!("running with {}", str_kind);
-    println!("{:>15} {:>6} {:>8}", "TIME", "NDOF", "ERROR");
+    println!(
+        "{:>15} {:>6} {:>11} {:>9} {:>10}",
+        "TIME", "NDOF", "log10(NDOF)", "ERROR", "UR_STUDY"
+    );
 
     // loop over mesh sizes
     let mut idx = 0;
@@ -87,15 +112,41 @@ fn main() -> Result<(), StrError> {
             Structured::quarter_ring_2d(R1, R2, *nr, *na, kind).unwrap()
         };
 
+        // check mesh
+        mesh.check_all();
+        mesh.check_overlapping_points(0.01);
+
         // features
         let feat = Features::new(&mesh, false);
         let bottom = feat.search_edges(At::Y(0.0), any_x)?;
         let left = feat.search_edges(At::X(0.0), any_x)?;
-        let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, 3.0), any_x)?;
-        let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, 6.0), any_x)?;
+        let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
+        let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
+
+        // check boundaries
+        if kind == GeoKind::Qua4 {
+            assert_eq!(inner_circle.len(), *na);
+            assert_eq!(outer_circle.len(), *na);
+            for i in 0..*na {
+                if i > 0 {
+                    assert_eq!(inner_circle[i].points[0], inner_circle[i - 1].points[1]);
+                    assert_eq!(outer_circle[i].points[1], outer_circle[i - 1].points[0]);
+                }
+            }
+        }
+
+        // let res: Vec<_> = outer_circle.iter().filter(|f| f.points[0] == 3968).collect();
+        // println!("res = {:?}", res);
+
+        // return Ok(());
 
         // reference point to compare analytical vs numerical result
         let ref_point_id = feat.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
+        vec_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0], 1e-15);
+
+        // study point (for debugging)
+        let study_point = feat.search_point_ids(At::XY(0.0, R2), any_x)?[0];
+        vec_approx_eq(&mesh.points[study_point].coords, &[0.0, R2], 1e-13); // << some error
 
         // parameters, DOFs, and configuration
         let param1 = ParamSolid {
@@ -109,44 +160,59 @@ fn main() -> Result<(), StrError> {
         let mut config = Config::new();
         config.linear_problem = true;
         config.control.verbose_timesteps = false;
+        if USE_UMFPACK {
+            config.sparse_solver = LinSolKind::Umf;
+        }
 
         // total number of DOF
         let ndof = data.equations.n_equation;
-        let str_ndof = ndof.to_string();
+        let str_ndof = format!("{:0>5}", ndof);
 
         // save mesh figure
-        if SAVE_FIGURE_MESH && idx < 4 {
-            let suffix = [str_kind.as_str(), "_", str_ndof.as_str()].concat();
-            let fn_svg_mesh = ["/tmp/pmsim/", NAME, suffix.as_str(), "dof.svg"].concat();
-            let mut fig = Figure::new();
+        let suffix = [str_kind.as_str(), "_", str_ndof.as_str()].concat();
+        if SAVE_FIGURE_MESH {
+            //&& ndof < 20000 {
+            let fn_svg_mesh = ["/tmp/pmsim/", NAME, suffix.as_str(), "dof.png"].concat();
+
+            // reference point
             let mut curve = Curve::new();
-            let mut plot = Plot::new();
             let x = mesh.points[ref_point_id].coords[0];
             let y = mesh.points[ref_point_id].coords[1];
-            mesh.draw_cells(&mut fig, true).unwrap();
-            let mut with_points = true;
-            if kind == GeoKind::Tri3 && idx > 2 {
-                with_points = false;
-            }
-            if kind == GeoKind::Tri6 && idx > 1 {
-                with_points = false;
-            }
-            if with_points {
-                mesh.draw_point_dots(&mut fig);
-            }
             curve
                 .set_line_color("red")
-                .set_marker_color("red")
+                .set_marker_color("None")
                 .set_marker_size(10.0)
                 .set_marker_style("o");
             curve.draw(&[x], &[y]);
-            plot.add(&curve);
-            plot.set_equal_axes(true)
-                .set_range(-0.1, R2 + 0.1, -0.1, R2 + 0.1)
-                .set_figure_size_points(800.0, 800.0)
-                .set_labels("x", "y")
-                .save(&fn_svg_mesh)
-                .unwrap();
+
+            // circles
+            let mut circle_in = Canvas::new();
+            let mut circle_out = Canvas::new();
+            circle_in
+                .set_face_color("None")
+                .set_edge_color("#f0f000bb")
+                .set_line_width(2.0)
+                .draw_circle(0.0, 0.0, R1);
+            circle_out
+                .set_face_color("None")
+                .set_edge_color("#f0f000bb")
+                .set_line_width(2.0)
+                .draw_circle(0.0, 0.0, R2);
+
+            // figure settings
+            let mut fig = Figure::new();
+            fig.canvas_points.set_marker_size(2.5).set_marker_line_color("black");
+            fig.figure_size = Some((800.0, 800.0));
+            fig.point_dots = if ndof < 3100 { true } else { false };
+
+            // draw figure
+            mesh.draw(Some(fig), &fn_svg_mesh, |plot, before| {
+                if !before {
+                    plot.add(&circle_in);
+                    plot.add(&circle_out);
+                    plot.add(&curve);
+                }
+            })?;
         }
 
         // essential boundary conditions
@@ -170,16 +236,36 @@ fn main() -> Result<(), StrError> {
 
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
+        assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
         let eq = data.equations.eq(ref_point_id, Dof::Ux).unwrap();
         let numerical_ur = state.uu[eq];
         let error = f64::abs(numerical_ur - ana.radial_displacement(r));
+
+        // study point error
+        let eq = data.equations.eq(study_point, Dof::Uy).unwrap();
+        let numerical_ur = state.uu[eq];
+        let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results
         results.name = str_kind.clone();
         results.ndof[idx] = ndof;
         results.error[idx] = error;
         let ns = format_nanoseconds(results.time[idx]);
-        println!("{:>15} {:>6} {:>8.2e}", ns, ndof, error);
+        let lx = f64::log10(ndof as f64);
+        println!(
+            "{:>15} {:>6} {:>11.2} {:>9.2e} {:>10.2e}",
+            ns, ndof, lx, error, study_error
+        );
+
+        // let p = 18041;
+        // println!("{:?}", mesh.points[p]);
+
+        // vtu file
+        if SAVE_VTU {
+            let fn_vtu = ["/tmp/pmsim/", NAME, suffix.as_str(), "dof.vtu"].concat();
+            let post = PostProc::new(&mesh, &feat, &data, &state);
+            post.write_vtu(&fn_vtu)?;
+        }
 
         // next mesh
         idx += 1;
