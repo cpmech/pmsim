@@ -134,7 +134,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let prescribed_values = PrescribedValues::new(&data, &essential)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries)?;
 
     // fix state.uu (must do this before calculating residuals)
     for eq in &prescribed_values.equations {

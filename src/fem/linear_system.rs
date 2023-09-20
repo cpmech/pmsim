@@ -1,4 +1,5 @@
 use super::{Boundaries, Data, Elements, PrescribedValues};
+use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{ConfigSolver, CooMatrix, Layout, Solver};
@@ -41,6 +42,7 @@ impl LinearSystem {
     /// Allocates new instance
     pub fn new(
         data: &Data,
+        config: &Config,
         prescribed_values: &PrescribedValues,
         elements: &Elements,
         boundaries: &Boundaries,
@@ -60,14 +62,17 @@ impl LinearSystem {
             None => acc,
         });
 
+        // config sparse solver
+        let mut cfg_sparse = ConfigSolver::new();
+        cfg_sparse.lin_sol_kind(config.sparse_solver);
+
         // allocate new instance
-        let config = ConfigSolver::new();
         Ok(LinearSystem {
             n_equation,
             nnz_sup,
             residual: Vector::new(n_equation),
             jacobian: CooMatrix::new(Layout::Full, n_equation, n_equation, nnz_sup)?,
-            solver: Solver::new(config, n_equation, nnz_sup, None).unwrap(),
+            solver: Solver::new(cfg_sparse, n_equation, nnz_sup, None).unwrap(),
             mdu: Vector::new(n_equation),
         })
     }
@@ -99,7 +104,7 @@ mod tests {
         let elements = Elements::new(&data, &config).unwrap();
         let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
         assert_eq!(
-            LinearSystem::new(&data, &prescribed_values, &elements, &boundaries).err(),
+            LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries).err(),
             Some("nrow must be greater than zero")
         );
     }
@@ -132,7 +137,7 @@ mod tests {
         let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
         let elements = Elements::new(&data, &config).unwrap();
         let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&data, &prescribed_values, &elements, &boundaries).unwrap();
+        let lin_sys = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries).unwrap();
         let n_prescribed = 2;
         let n_element = 3;
         let n_equation_local = 3;

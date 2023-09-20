@@ -2,6 +2,7 @@ use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, Prescri
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
+use russell_sparse::CsrMatrix;
 
 /// Performs a finite element simulation
 pub struct Simulation<'a> {
@@ -39,7 +40,7 @@ impl<'a> Simulation<'a> {
         let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
         let elements = Elements::new(&data, &config)?;
         let boundaries = Boundaries::new(&data, &config, &natural)?;
-        let linear_system = LinearSystem::new(&data, &prescribed_values, &elements, &boundaries)?;
+        let linear_system = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries)?;
         Ok(Simulation {
             config,
             prescribed_values,
@@ -156,6 +157,12 @@ impl<'a> Simulation<'a> {
 
                     // factorize global Jacobian matrix
                     self.linear_system.solver.factorize(&kk)?;
+
+                    // save vismatrix file (debugging)
+                    if control.save_vismatrix_file {
+                        let csr = CsrMatrix::from(&kk);
+                        csr.write_matrix_market("/tmp/pmsim/kk-matrix.smat", true)?;
+                    }
                 }
 
                 // solve linear system

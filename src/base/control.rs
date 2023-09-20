@@ -55,6 +55,9 @@ pub struct Control {
 
     /// Verbose mode during iterations
     pub verbose_iterations: bool,
+
+    /// Save a vismatrix file (for debugging)
+    pub save_vismatrix_file: bool,
 }
 
 impl Control {
@@ -76,6 +79,7 @@ impl Control {
             theta2: 0.5,
             verbose_timesteps: true,
             verbose_iterations: true,
+            save_vismatrix_file: false,
         }
     }
 
