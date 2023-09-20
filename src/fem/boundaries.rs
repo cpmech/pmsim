@@ -6,7 +6,7 @@ use gemlab::mesh::Feature;
 use gemlab::shapes::Scratchpad;
 use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
-use russell_sparse::SparseTriplet;
+use russell_sparse::CooMatrix;
 
 /// Assists in the integration over the boundary of an element
 ///
@@ -227,11 +227,11 @@ impl<'a> Boundaries<'a> {
     /// **Notes:**
     ///
     /// 1. You must call calc jacobians first
-    /// 2. The SparseTriplet position in the global matrix K will **not** be reset
+    /// 2. The CooMatrix position in the global matrix K will **not** be reset
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
     #[inline]
-    pub fn assemble_jacobians(&self, kk: &mut SparseTriplet, prescribed: &Vec<bool>) {
+    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) {
         self.all.iter().for_each(|e| {
             if let Some(jj) = &e.jacobian {
                 assemble_matrix(kk, &jj, &e.local_to_global, &prescribed);

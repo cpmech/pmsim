@@ -278,7 +278,7 @@ mod tests {
         let data = Data::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
             Simulation::new(&data, &config, &essential, &natural).err(),
-            Some("neq and max must be greater than zero")
+            Some("nrow must be greater than zero")
         );
     }
 

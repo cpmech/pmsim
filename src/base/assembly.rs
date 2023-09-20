@@ -2,7 +2,7 @@ use super::{ElementInfoMap, Equations};
 use crate::StrError;
 use gemlab::mesh::Cell;
 use russell_lab::{Matrix, Vector};
-use russell_sparse::SparseTriplet;
+use russell_sparse::CooMatrix;
 
 /// Computes local-to-global maps needed for the assembly process
 pub fn compute_local_to_global(info: &ElementInfoMap, eqs: &Equations, cell: &Cell) -> Result<Vec<usize>, StrError> {
@@ -63,12 +63,7 @@ pub fn assemble_vector(rr_global: &mut Vector, r_local: &Vector, local_to_global
 ///
 /// This function will panic if the indices are out-of-bounds
 #[inline]
-pub fn assemble_matrix(
-    kk_global: &mut SparseTriplet,
-    kk_local: &Matrix,
-    local_to_global: &[usize],
-    prescribed: &[bool],
-) {
+pub fn assemble_matrix(kk_global: &mut CooMatrix, kk_local: &Matrix, local_to_global: &[usize], prescribed: &[bool]) {
     let n_equation_local = kk_local.dims().0;
     for l in 0..n_equation_local {
         let g = local_to_global[l];
@@ -91,7 +86,7 @@ mod tests {
     use crate::base::{compute_local_to_global, Attributes, Element, ElementInfoMap, Equations, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{mat_approx_eq, Matrix, Vector};
-    use russell_sparse::SparseTriplet;
+    use russell_sparse::{CooMatrix, Layout};
 
     #[test]
     fn compute_local_to_global_handles_errors() {
@@ -227,7 +222,7 @@ mod tests {
         let l2g = vec![vec![0, 1, 4], vec![1, 3, 4], vec![1, 2, 3]];
         let neq = 5;
         let nnz = neq * neq;
-        let mut kk = SparseTriplet::new(neq, nnz).unwrap();
+        let mut kk = CooMatrix::new(Layout::Full, neq, neq, nnz).unwrap();
         #[rustfmt::skip]
         let k0 = Matrix::from(&[
             [10.0, 11.0, 14.0],

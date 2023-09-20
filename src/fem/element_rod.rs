@@ -125,7 +125,7 @@ mod tests {
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;
     use russell_lab::{mat_approx_eq, Matrix, Vector};
-    use russell_sparse::SparseTriplet;
+    use russell_sparse::{CooMatrix, Layout};
 
     #[test]
     fn new_captures_errors() {
@@ -338,7 +338,7 @@ mod tests {
         let state = State::new(&data, &config).unwrap();
         let (neq_global, nnz) = (6, 3 * neq * neq);
 
-        let mut kk = SparseTriplet::new(neq_global, nnz).unwrap();
+        let mut kk = CooMatrix::new(Layout::Full, neq_global, neq_global, nnz).unwrap();
         let prescribed = vec![false; neq_global];
 
         rod0.calc_jacobian(&mut jacobian, &state).unwrap();
