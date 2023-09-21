@@ -203,11 +203,12 @@ impl Control {
     pub fn debug_save_kk_matrix(&self, kk: &CooMatrix, output_counter: usize) {
         if self.save_matrix_market_file || self.save_vismatrix_file {
             let csr = CsrMatrix::from(&kk);
-            let name = format!("/tmp/pmsim/K-matrix-{:0>20}.mtx", output_counter);
             if self.save_matrix_market_file {
+                let name = format!("/tmp/pmsim/K-matrix-{:0>20}.mtx", output_counter);
                 csr.write_matrix_market(&name, false).unwrap();
             }
             if self.save_vismatrix_file {
+                let name = format!("/tmp/pmsim/K-matrix-{:0>20}.smat", output_counter);
                 csr.write_matrix_market(&name, true).unwrap();
             }
         }
