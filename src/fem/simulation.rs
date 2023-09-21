@@ -2,7 +2,6 @@ use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, Prescri
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
-use russell_sparse::CsrMatrix;
 
 /// Performs a finite element simulation
 pub struct Simulation<'a> {
@@ -65,6 +64,9 @@ impl<'a> Simulation<'a> {
         let neq = rr.dim();
         let mut rr0 = Vector::new(neq);
         let mut duu = Vector::new(neq);
+
+        // counter for numbering output files
+        let mut output_counter = 0;
 
         // message
         if !config.linear_problem {
@@ -158,11 +160,8 @@ impl<'a> Simulation<'a> {
                     // factorize global Jacobian matrix
                     self.linear_system.solver.factorize(&kk)?;
 
-                    // save vismatrix file (debugging)
-                    if control.save_vismatrix_file {
-                        let csr = CsrMatrix::from(&kk);
-                        csr.write_matrix_market("/tmp/pmsim/kk-matrix.smat", true)?;
-                    }
+                    // Debug K matrix
+                    control.debug_save_kk_matrix(&kk, output_counter);
                 }
 
                 // solve linear system
@@ -186,6 +185,9 @@ impl<'a> Simulation<'a> {
 
                 // update secondary variables
                 self.elements.update_secondary_values_parallel(state, &duu)?;
+
+                // update counter for numbering output files
+                output_counter += 1;
 
                 // exit if linear problem
                 if config.linear_problem {
