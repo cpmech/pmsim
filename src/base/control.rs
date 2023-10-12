@@ -1,5 +1,5 @@
 use crate::StrError;
-use russell_sparse::{write_matrix_market, SparseMatrix};
+use russell_sparse::SparseMatrix;
 
 /// Defines the smallest allowed dt_min (Control)
 pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
@@ -208,11 +208,11 @@ impl Control {
         if self.save_matrix_market_file || self.save_vismatrix_file {
             if self.save_matrix_market_file {
                 let name = format!("/tmp/pmsim/K-matrix-{:0>20}.mtx", output_counter);
-                write_matrix_market(kk, &name, false).unwrap();
+                kk.write_matrix_market(&name, false).unwrap();
             }
             if self.save_vismatrix_file {
                 let name = format!("/tmp/pmsim/K-matrix-{:0>20}.smat", output_counter);
-                write_matrix_market(kk, &name, true).unwrap();
+                kk.write_matrix_market(&name, true).unwrap();
             }
         }
     }
