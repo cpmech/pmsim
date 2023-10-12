@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use gemlab::prelude::*;
 use plotpy::Canvas;
 use plotpy::Curve;
@@ -11,7 +9,8 @@ use std::env;
 const NAME: &str = "pressurized_cylinder2d_elast_";
 const SAVE_FIGURE_MESH: bool = false;
 const SAVE_VTU: bool = false;
-const USE_UMFPACK: bool = true;
+const GENIE: Genie = Genie::Mumps;
+const UMFPACK_ENFORCE_UNSYM: bool = false;
 
 // constants
 const R1: f64 = 3.0; // inner radius
@@ -67,20 +66,7 @@ fn main() -> Result<(), StrError> {
         }
     } else {
         if kind == GeoKind::Qua4 {
-            vec![
-                // (4, 8),
-                // (8, 16),
-                // (10, 20),
-                // (16, 32),
-                // (32, 64),
-                // (50, 100),
-                // (70, 120),
-                // (70, 100),  // << problem
-                (54, 94),
-                // (55, 94),
-                // (80, 100), // << big problem
-                // (100, 200), // << problem
-            ]
+            vec![(4, 8), (12, 16), (40, 50), (120, 180)]
         } else {
             vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
         }
@@ -113,8 +99,8 @@ fn main() -> Result<(), StrError> {
         };
 
         // check mesh
-        mesh.check_all();
-        mesh.check_overlapping_points(0.01);
+        mesh.check_all().unwrap();
+        mesh.check_overlapping_points(0.001).unwrap();
 
         // features
         let feat = Features::new(&mesh, false);
@@ -134,11 +120,6 @@ fn main() -> Result<(), StrError> {
                 }
             }
         }
-
-        // let res: Vec<_> = outer_circle.iter().filter(|f| f.points[0] == 3968).collect();
-        // println!("res = {:?}", res);
-
-        // return Ok(());
 
         // reference point to compare analytical vs numerical result
         let ref_point_id = feat.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
@@ -162,9 +143,8 @@ fn main() -> Result<(), StrError> {
         config.control.verbose_timesteps = false;
         config.control.save_vismatrix_file = true;
         config.control.save_matrix_market_file = true;
-        if USE_UMFPACK {
-            config.lin_sol_genie = Genie::Umfpack;
-        }
+        config.lin_sol_genie = GENIE;
+        config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = UMFPACK_ENFORCE_UNSYM;
 
         // total number of DOF
         let ndof = data.equations.n_equation;
@@ -258,9 +238,6 @@ fn main() -> Result<(), StrError> {
             "{:>15} {:>6} {:>11.2} {:>9.2e} {:>10.2e}",
             ns, ndof, lx, error, study_error
         );
-
-        // let p = 18041;
-        // println!("{:?}", mesh.points[p]);
 
         // vtu file
         if SAVE_VTU {

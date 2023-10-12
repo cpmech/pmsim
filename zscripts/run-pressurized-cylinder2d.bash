@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cargo build --release
+
 cargo run --release --example pressurized_cylinder2d_elast -- tri3
 cargo run --release --example pressurized_cylinder2d_elast -- tri6
 cargo run --release --example pressurized_cylinder2d_elast -- tri10
