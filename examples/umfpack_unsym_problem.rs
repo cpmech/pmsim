@@ -91,10 +91,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     Ok(lin_sys.jacobian)
 }
 
-fn run(name: &str, nr: usize) -> Result<(), StrError> {
-    // generate matrix
-    let mut mat = generate_matrix(name, nr)?;
-
+fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Result<(), StrError> {
     // allocate stats structure
     let mut stats = StatsLinSol::new();
 
@@ -108,37 +105,41 @@ fn run(name: &str, nr: usize) -> Result<(), StrError> {
 
     // lin solver params
     let mut params = LinSolParams::new();
-    params.umfpack_enforce_unsymmetric_strategy = true;
+    params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
     // allocate and configure the solver
     let mut solver = LinSolver::new(Genie::Umfpack)?;
 
     // call factorize
-    solver.actual.factorize(&mut mat, Some(params))?;
+    solver.actual.factorize(mat, Some(params))?;
 
     // allocate vectors
     let mut x = Vector::new(nrow);
     let rhs = Vector::filled(nrow, 1.0);
 
     // solve linear system
-    solver.actual.solve(&mut x, &mat, &rhs, false)?;
+    solver.actual.solve(&mut x, mat, &rhs, false)?;
 
     // verify the solution
-    stats.verify = VerifyLinSys::new(&mat, &x, &rhs)?;
+    stats.verify = VerifyLinSys::new(mat, &x, &rhs)?;
 
     // update and print stats
     solver.actual.update_stats(&mut stats);
     println!("{}", stats.get_json());
 
-    // write smat and mtx files
-    let csr = mat.get_csr_or_from_coo()?;
-    csr.write_matrix_market(&format!("{}/{}.mtx", OUT_DIR, name), false)?;
-
     // check
-    if name == "pres-cylin-bad" {
-        assert!(stats.verify.max_abs_diff > 1600.0);
+    if enforce_unsym_strategy {
+        if name == "pres-cylin-bad" {
+            assert!(stats.verify.max_abs_diff > 1600.0);
+        } else {
+            assert!(stats.verify.max_abs_diff < 1e-6);
+        }
     } else {
-        assert!(stats.verify.max_abs_diff < 1e-6);
+        if name == "pres-cylin-bad" {
+            assert!(stats.verify.max_abs_diff < 1e-11);
+        } else {
+            assert!(stats.verify.max_abs_diff < 1e-11);
+        }
     }
     Ok(())
 }
@@ -149,7 +150,16 @@ fn main() -> Result<(), StrError> {
         ("pres-cylin-bad", 55),  //
     ];
     for (name, nr) in nrs {
-        run(name, nr)?;
+        // generate matrix
+        let mut mat = generate_matrix(name, nr)?;
+
+        // solve linear system
+        run(name, &mut mat, false)?;
+        run(name, &mut mat, true)?;
+
+        // write smat and mtx files
+        let csr = mat.get_csr_or_from_coo()?;
+        csr.write_matrix_market(&format!("{}/{}.mtx", OUT_DIR, name), false)?;
     }
     Ok(())
 }
