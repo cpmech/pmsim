@@ -5,6 +5,8 @@ use russell_lab::*;
 use russell_sparse::prelude::*;
 
 const OUT_DIR: &str = "/tmp/pmsim/matrix-market";
+const SAVE_FIGURE: bool = false;
+
 const R1: f64 = 3.0; // inner radius
 const R2: f64 = 6.0; // outer radius
 const P1: f64 = 200.0; // inner pressure (magnitude)
@@ -13,9 +15,16 @@ const YOUNG: f64 = 1000.0; // Young's modulus
 const POISSON: f64 = 0.25; // Poisson's coefficient
 const NA: usize = 94; // number of alpha divisions
 
-fn generate_matrix(nr: usize) -> Result<SparseMatrix, StrError> {
+fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // generate mesh
     let mesh = Structured::quarter_ring_2d(R1, R2, nr, NA, GeoKind::Qua4).unwrap();
+
+    // draw mesh
+    if SAVE_FIGURE {
+        let mut fig = Figure::new();
+        fig.figure_size = Some((800.0, 800.0));
+        mesh.draw(Some(fig), &format!("{}/{}.svg", OUT_DIR, name), |_, _| {})?;
+    }
 
     // features
     let feat = Features::new(&mesh, false);
@@ -84,7 +93,7 @@ fn generate_matrix(nr: usize) -> Result<SparseMatrix, StrError> {
 
 fn run(name: &str, nr: usize) -> Result<(), StrError> {
     // generate matrix
-    let mut mat = generate_matrix(nr)?;
+    let mut mat = generate_matrix(name, nr)?;
 
     // allocate stats structure
     let mut stats = StatsLinSol::new();
@@ -135,7 +144,10 @@ fn run(name: &str, nr: usize) -> Result<(), StrError> {
 }
 
 fn main() -> Result<(), StrError> {
-    let nrs = [("pres-cylin-good", 54), ("pres-cylin-bad", 55)];
+    let nrs = [
+        ("pres-cylin-good", 54), //
+        ("pres-cylin-bad", 55),  //
+    ];
     for (name, nr) in nrs {
         run(name, nr)?;
     }
