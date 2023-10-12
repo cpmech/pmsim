@@ -2,7 +2,7 @@ use super::{Control, FnTime, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{Cell, CellAttribute};
-use russell_sparse::LinSolKind;
+use russell_sparse::{Genie, LinSolParams};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -57,8 +57,17 @@ pub struct Config {
     /// Number of integration points
     pub n_integ_point: HashMap<CellAttribute, usize>,
 
-    /// Sparse solver
-    pub sparse_solver: LinSolKind,
+    /// The Jacobian (stiffness matrix) is symmetric
+    pub sym_jacobian: bool,
+
+    /// The Jacobian (stiffness matrix) is symmetric and positive definite
+    pub sym_pos_def_jacobian: bool,
+
+    /// Linear solver type
+    pub lin_sol_genie: Genie,
+
+    /// Parameters for the sparse solver
+    pub lin_sol_params: LinSolParams,
 }
 
 impl Config {
@@ -78,7 +87,10 @@ impl Config {
             initialization: Init::Zero,
             param_fluids: None,
             n_integ_point: HashMap::new(),
-            sparse_solver: LinSolKind::Mmp,
+            sym_jacobian: false,
+            sym_pos_def_jacobian: false,
+            lin_sol_genie: Genie::Umfpack,
+            lin_sol_params: LinSolParams::new(),
         }
     }
 
@@ -164,7 +176,6 @@ impl fmt::Display for Config {
         write!(f, "plane_stress = {:?}\n", self.plane_stress).unwrap();
         write!(f, "total_stress = {:?}\n", self.total_stress).unwrap();
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
-        write!(f, "sparse_solver = {:?}\n", self.sparse_solver).unwrap();
         write!(f, "\nSpecified number of integration points\n").unwrap();
         write!(f, "======================================\n").unwrap();
         let mut key_val: Vec<_> = self.n_integ_point.iter().map(|x| x).collect();
@@ -232,7 +243,6 @@ mod tests {
              plane_stress = true\n\
              total_stress = true\n\
              initialization = Geostatic(-123.0)\n\
-             sparse_solver = Mmp\n\
              \n\
              Specified number of integration points\n\
              ======================================\n\

@@ -1,7 +1,7 @@
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
-use pmsim::{prelude::*, StrError};
-use russell_chk::approx_eq;
+use pmsim::prelude::*;
+use russell_lab::*;
 
 // Arpaci's Example 3-8 on page 130 (variable conductivity)
 //

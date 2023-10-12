@@ -1,8 +1,8 @@
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
-use pmsim::{prelude::*, StrError};
+use pmsim::prelude::*;
 use russell_lab::math::{erfc, PI};
-use russell_lab::prelude::*;
+use russell_lab::*;
 
 // Lewis' Example 6.4.2 on page 159
 //
@@ -109,7 +109,7 @@ fn main() -> Result<(), StrError> {
         // plot
         let mut curve_ana = Curve::new();
         let mut curve_num = Curve::new();
-        curve_ana.draw(&xx_ana, &tt_ana);
+        curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
         curve_num
             .set_line_color("#cd0000")
             .set_line_style("None")

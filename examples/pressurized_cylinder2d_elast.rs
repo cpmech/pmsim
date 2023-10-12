@@ -4,16 +4,14 @@ use gemlab::prelude::*;
 use plotpy::Canvas;
 use plotpy::Curve;
 use pmsim::prelude::*;
-use pmsim::StrError;
-use russell_chk::vec_approx_eq;
-use russell_lab::{format_nanoseconds, Stopwatch};
-use russell_sparse::LinSolKind;
+use russell_lab::*;
+use russell_sparse::Genie;
 use std::env;
 
 const NAME: &str = "pressurized_cylinder2d_elast_";
 const SAVE_FIGURE_MESH: bool = false;
 const SAVE_VTU: bool = false;
-const USE_UMFPACK: bool = false;
+const USE_UMFPACK: bool = true;
 
 // constants
 const R1: f64 = 3.0; // inner radius
@@ -78,8 +76,10 @@ fn main() -> Result<(), StrError> {
                 // (50, 100),
                 // (70, 120),
                 // (70, 100),  // << problem
-                (80, 100), // << big problem
-                           // (100, 200), // << problem
+                (54, 94),
+                // (55, 94),
+                // (80, 100), // << big problem
+                // (100, 200), // << problem
             ]
         } else {
             vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
@@ -160,8 +160,10 @@ fn main() -> Result<(), StrError> {
         let mut config = Config::new();
         config.linear_problem = true;
         config.control.verbose_timesteps = false;
+        config.control.save_vismatrix_file = true;
+        config.control.save_matrix_market_file = true;
         if USE_UMFPACK {
-            config.sparse_solver = LinSolKind::Umf;
+            config.lin_sol_genie = Genie::Umfpack;
         }
 
         // total number of DOF

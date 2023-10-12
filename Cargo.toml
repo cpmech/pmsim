@@ -12,12 +12,11 @@ categories = ["mathematics", "science", "simulation"]
 keywords = ["mechanics", "fem"]
 
 [dependencies]
-gemlab = { path = "../gemlab", version = "0.5" }
-plotpy = { path = "../plotpy", version = "0.4" }
-russell_chk = { path = "../russell/russell_chk", version = "0.5" }
-russell_lab = { path = "../russell/russell_lab", version = "0.5" }
-russell_sparse = { path = "../russell/russell_sparse", version = "0.5" }
-russell_tensor = { path = "../russell/russell_tensor", version = "0.5" }
+gemlab = { path = "../gemlab", version = "0.6" }
+plotpy = "0.5"
+russell_lab = { path = "../russell/russell_lab", version = "0.6" }
+russell_sparse = { path = "../russell/russell_sparse", version = "0.6" }
+russell_tensor = { path = "../russell/russell_tensor", version = "0.6" }
 rayon = "1.7"
 rmp-serde = "1.1"
 serde = { version = "1.0", features = ["derive"] }

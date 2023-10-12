@@ -3,8 +3,7 @@ use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
 use rayon::prelude::*;
-use russell_chk::deriv_central5;
-use russell_lab::{Matrix, Vector};
+use russell_lab::{deriv_central5, Matrix, Vector};
 use russell_sparse::CooMatrix;
 
 /// Defines a generic finite element, wrapping an "actual" implementation
@@ -192,7 +191,7 @@ mod tests {
     use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::Samples;
-    use russell_chk::vec_approx_eq;
+    use russell_lab::vec_approx_eq;
 
     #[test]
     fn new_handles_errors() {

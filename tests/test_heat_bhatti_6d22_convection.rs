@@ -1,9 +1,7 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamConductivity, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{Boundaries, Data, Elements, LinearSystem, PrescribedValues, Simulation, State};
-use pmsim::StrError;
-use russell_chk::vec_approx_eq;
-use russell_lab::{mat_approx_eq, vec_add, vec_copy, vec_norm, Matrix, Norm, Vector};
+use russell_lab::*;
 
 // Bhatti's Example 6.22 on page 449
 //
@@ -174,11 +172,10 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     boundaries.calc_jacobians_parallel(&state)?;
 
     // assemble jacobians matrices
-    let kk = &mut lin_sys.jacobian;
+    let kk = lin_sys.jacobian.get_coo_mut()?;
     elements.assemble_jacobians(kk, &prescribed_values.flags);
     boundaries.assemble_jacobians(kk, &prescribed_values.flags);
-    let mut kk_mat = Matrix::new(lin_sys.n_equation, lin_sys.n_equation);
-    kk.to_matrix(&mut kk_mat)?;
+    let kk_mat = kk.as_dense();
     // println!("kk =\n{:.4}", kk_mat);
 
     // check global Jacobian matrix
@@ -206,9 +203,10 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     }
 
     // solve linear system
+    let jj = &mut lin_sys.jacobian;
     let mdu = &mut lin_sys.mdu;
-    lin_sys.solver.factorize(&kk)?;
-    lin_sys.solver.solve(mdu, &rr)?;
+    lin_sys.solver.actual.factorize(jj, None)?;
+    lin_sys.solver.actual.solve(mdu, jj, &rr, false)?;
 
     // update U vector
     let mut uu_new = Vector::new(lin_sys.n_equation);

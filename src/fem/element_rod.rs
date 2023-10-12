@@ -125,7 +125,7 @@ mod tests {
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;
     use russell_lab::{mat_approx_eq, Matrix, Vector};
-    use russell_sparse::{CooMatrix, Layout};
+    use russell_sparse::CooMatrix;
 
     #[test]
     fn new_captures_errors() {
@@ -338,7 +338,7 @@ mod tests {
         let state = State::new(&data, &config).unwrap();
         let (neq_global, nnz) = (6, 3 * neq * neq);
 
-        let mut kk = CooMatrix::new(Layout::Full, neq_global, neq_global, nnz).unwrap();
+        let mut kk = CooMatrix::new(neq_global, neq_global, nnz, None, false).unwrap();
         let prescribed = vec![false; neq_global];
 
         rod0.calc_jacobian(&mut jacobian, &state).unwrap();
@@ -350,8 +350,7 @@ mod tests {
         rod2.calc_jacobian(&mut jacobian, &state).unwrap();
         assemble_matrix(&mut kk, &jacobian, &rod2.local_to_global, &prescribed);
 
-        let mut kk_mat = Matrix::new(neq_global, neq_global);
-        kk.to_matrix(&mut kk_mat).unwrap();
+        let kk_mat = kk.as_dense();
         assert_eq!(
             format!("{:.2}", kk_mat),
             "┌                                           ┐\n\

@@ -21,7 +21,7 @@ pub struct Simulation<'a> {
     pub boundaries: Boundaries<'a>,
 
     /// Holds variables to solve the global linear system
-    pub linear_system: LinearSystem,
+    pub linear_system: LinearSystem<'a>,
 }
 
 impl<'a> Simulation<'a> {
@@ -149,8 +149,8 @@ impl<'a> Simulation<'a> {
                     self.boundaries.calc_jacobians_parallel(&state)?;
 
                     // assemble local Jacobian matrices into the global Jacobian matrix
-                    self.elements.assemble_jacobians(kk, prescribed);
-                    self.boundaries.assemble_jacobians(kk, prescribed);
+                    self.elements.assemble_jacobians(kk.get_coo_mut()?, prescribed);
+                    self.boundaries.assemble_jacobians(kk.get_coo_mut()?, prescribed);
 
                     // augment global Jacobian matrix
                     for eq in &self.prescribed_values.equations {
@@ -158,14 +158,20 @@ impl<'a> Simulation<'a> {
                     }
 
                     // factorize global Jacobian matrix
-                    self.linear_system.solver.factorize(&kk)?;
+                    self.linear_system
+                        .solver
+                        .actual
+                        .factorize(kk, Some(config.lin_sol_params))?;
 
                     // Debug K matrix
-                    control.debug_save_kk_matrix(&kk, output_counter);
+                    control.debug_save_kk_matrix(kk, output_counter);
                 }
 
                 // solve linear system
-                self.linear_system.solver.solve(mdu, &rr)?;
+                self.linear_system
+                    .solver
+                    .actual
+                    .solve(mdu, &kk, &rr, config.control.verbose_lin_sys_solve)?;
 
                 // updates
                 if config.transient {
@@ -287,7 +293,7 @@ mod tests {
         let data = Data::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
             Simulation::new(&data, &config, &essential, &natural).err(),
-            Some("nrow must be greater than zero")
+            Some("nrow must be ≥ 1")
         );
     }
 

@@ -2,10 +2,10 @@ use super::{Boundaries, Data, Elements, PrescribedValues};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::{ConfigSolver, CooMatrix, Layout, Solver};
+use russell_sparse::{LinSolver, SparseMatrix};
 
 /// Holds variables to solve the global linear system
-pub struct LinearSystem {
+pub struct LinearSystem<'a> {
     /// Total number of global equations (total number of DOFs)
     pub n_equation: usize,
 
@@ -29,16 +29,16 @@ pub struct LinearSystem {
     pub residual: Vector,
 
     /// Global Jacobian matrix
-    pub jacobian: CooMatrix,
+    pub jacobian: SparseMatrix,
 
     /// Linear solver
-    pub solver: Solver,
+    pub solver: LinSolver<'a>,
 
     /// Minus delta U vector (the solution of the linear system)
     pub mdu: Vector,
 }
 
-impl LinearSystem {
+impl<'a> LinearSystem<'a> {
     /// Allocates new instance
     pub fn new(
         data: &Data,
@@ -62,17 +62,19 @@ impl LinearSystem {
             None => acc,
         });
 
-        // config sparse solver
-        let mut cfg_sparse = ConfigSolver::new();
-        cfg_sparse.lin_sol_kind(config.sparse_solver);
+        // information about the linear solver and Jacobian matrix
+        let one_based = config.lin_sol_genie.one_based();
+        let symmetry = config
+            .lin_sol_genie
+            .symmetry(config.sym_jacobian, config.sym_pos_def_jacobian);
 
         // allocate new instance
         Ok(LinearSystem {
             n_equation,
             nnz_sup,
             residual: Vector::new(n_equation),
-            jacobian: CooMatrix::new(Layout::Full, n_equation, n_equation, nnz_sup)?,
-            solver: Solver::new(cfg_sparse, n_equation, nnz_sup, None).unwrap(),
+            jacobian: SparseMatrix::new_coo(n_equation, n_equation, nnz_sup, symmetry, one_based)?,
+            solver: LinSolver::new(config.lin_sol_genie)?,
             mdu: Vector::new(n_equation),
         })
     }
@@ -105,7 +107,7 @@ mod tests {
         let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
         assert_eq!(
             LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries).err(),
-            Some("nrow must be greater than zero")
+            Some("nrow must be ≥ 1")
         );
     }
 

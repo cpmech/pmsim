@@ -250,8 +250,7 @@ mod tests {
     use gemlab::mesh::{Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
-    use russell_chk::vec_approx_eq;
-    use russell_lab::mat_approx_eq;
+    use russell_lab::{mat_approx_eq, vec_approx_eq};
 
     #[test]
     fn new_captures_errors() {
