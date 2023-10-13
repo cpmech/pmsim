@@ -6,11 +6,9 @@ use russell_lab::*;
 use russell_sparse::Genie;
 use std::env;
 
-const NAME: &str = "pressurized_cylinder2d_elast_";
+const NAME: &str = "pressurized_cylinder2d_elast";
 const SAVE_FIGURE_MESH: bool = false;
 const SAVE_VTU: bool = false;
-const GENIE: Genie = Genie::Mumps;
-const UMFPACK_ENFORCE_UNSYM: bool = false;
 
 // constants
 const R1: f64 = 3.0; // inner radius
@@ -50,12 +48,26 @@ impl AnalyticalSolution {
 fn main() -> Result<(), StrError> {
     // arguments
     let args: Vec<String> = env::args().collect();
-    let kind = if args.len() >= 2 {
-        GeoKind::from(&args[1])?
+    let genie = if args.len() > 1 {
+        Genie::from(&args[1])
+    } else {
+        Genie::Mumps
+    };
+    let kind = if args.len() > 2 {
+        GeoKind::from(&args[2])?
     } else {
         GeoKind::Qua4
     };
-    let str_kind = kind.to_string();
+    let enforce_unsym_strategy = if args.len() > 3 {
+        args[3].to_lowercase() == "true"
+    } else {
+        false
+    };
+
+    // filepaths
+    let g_str = genie.to_string();
+    let k_str = kind.to_string();
+    let path_json = format!("/tmp/pmsim/{}_{}_{}.json", NAME, g_str, k_str);
 
     // sizes
     let sizes = if kind.class() == GeoClass::Tri {
@@ -80,7 +92,10 @@ fn main() -> Result<(), StrError> {
     let mut results = ConvergenceResults::new(n);
 
     // print header
-    println!("running with {}", str_kind);
+    println!(
+        "... running with {:?} ... {:?} ... enforce_unsym_strategy = {} ...",
+        kind, genie, enforce_unsym_strategy
+    );
     println!(
         "{:>15} {:>6} {:>11} {:>9} {:>10}",
         "TIME", "NDOF", "log10(NDOF)", "ERROR", "UR_STUDY"
@@ -141,21 +156,22 @@ fn main() -> Result<(), StrError> {
         let mut config = Config::new();
         config.linear_problem = true;
         config.control.verbose_timesteps = false;
-        config.control.save_vismatrix_file = true;
-        config.control.save_matrix_market_file = true;
-        config.lin_sol_genie = GENIE;
-        config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = UMFPACK_ENFORCE_UNSYM;
+        config.control.save_vismatrix_file = false;
+        config.control.save_matrix_market_file = false;
+        config.lin_sol_genie = genie;
+        config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // total number of DOF
         let ndof = data.equations.n_equation;
-        let str_ndof = format!("{:0>5}", ndof);
+        let n_str = format!("{:0>5}", ndof);
+
+        // filepaths
+        let ext = if ndof < 20000 { "svg" } else { "png" };
+        let path_mesh = format!("/tmp/pmsim/{}_{}_{}_{}.{}", NAME, g_str, k_str, n_str, ext);
+        let path_vtu = format!("/tmp/pmsim/{}_{}_{}_{}.vtu", NAME, g_str, k_str, n_str);
 
         // save mesh figure
-        let suffix = [str_kind.as_str(), "_", str_ndof.as_str()].concat();
         if SAVE_FIGURE_MESH {
-            //&& ndof < 20000 {
-            let fn_svg_mesh = ["/tmp/pmsim/", NAME, suffix.as_str(), "dof.png"].concat();
-
             // reference point
             let mut curve = Curve::new();
             let x = mesh.points[ref_point_id].coords[0];
@@ -188,7 +204,7 @@ fn main() -> Result<(), StrError> {
             fig.point_dots = if ndof < 3100 { true } else { false };
 
             // draw figure
-            mesh.draw(Some(fig), &fn_svg_mesh, |plot, before| {
+            mesh.draw(Some(fig), &path_mesh, |plot, before| {
                 if !before {
                     plot.add(&circle_in);
                     plot.add(&circle_out);
@@ -229,7 +245,7 @@ fn main() -> Result<(), StrError> {
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results
-        results.name = str_kind.clone();
+        results.name = kind.to_string();
         results.ndof[idx] = ndof;
         results.error[idx] = error;
         let ns = format_nanoseconds(results.time[idx]);
@@ -241,9 +257,8 @@ fn main() -> Result<(), StrError> {
 
         // vtu file
         if SAVE_VTU {
-            let fn_vtu = ["/tmp/pmsim/", NAME, suffix.as_str(), "dof.vtu"].concat();
             let post = PostProc::new(&mesh, &feat, &data, &state);
-            post.write_vtu(&fn_vtu)?;
+            post.write_vtu(&path_vtu)?;
         }
 
         // next mesh
@@ -251,7 +266,6 @@ fn main() -> Result<(), StrError> {
     }
 
     // save results
-    let fn_results = ["/tmp/pmsim/", NAME, str_kind.as_str(), "_results.json"].concat();
-    results.write(&fn_results)?;
+    results.write(&path_json)?;
     Ok(())
 }

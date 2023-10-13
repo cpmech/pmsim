@@ -1,9 +1,19 @@
 use plotpy::{Curve, Plot, SlopeIcon, StrError};
 use pmsim::prelude::*;
+use russell_sparse::Genie;
+use std::env;
 
-const NAME: &str = "pressurized_cylinder2d_elast_";
+const NAME: &str = "pressurized_cylinder2d_elast";
 
 fn main() -> Result<(), StrError> {
+    // arguments
+    let args: Vec<String> = env::args().collect();
+    let genie = if args.len() > 1 {
+        Genie::from(&args[1])
+    } else {
+        Genie::Mumps
+    };
+
     // allocate new plot
     let mut plot_error = Plot::new();
     let mut plot_time = Plot::new();
@@ -27,8 +37,8 @@ fn main() -> Result<(), StrError> {
     // run for each kind
     for (str_kind, marker) in str_kinds_and_markers {
         // load results
-        let filename = ["/tmp/pmsim/", NAME, str_kind, "_results.json"].concat();
-        let results = ConvergenceResults::from(&filename)?;
+        let path_json = format!("/tmp/pmsim/{}_{}_{}.json", NAME, genie.to_string(), str_kind);
+        let results = ConvergenceResults::from(&path_json)?;
         assert_eq!(results.name, *str_kind);
 
         // add error curve
@@ -77,13 +87,18 @@ fn main() -> Result<(), StrError> {
     slope_p1.draw(1.0, 0.3e4, 2e7);
     plot_time.add(&slope_p1);
 
+    // filepaths
+    let g_str = genie.to_string();
+    let path_errors = format!("/tmp/pmsim/{}_{}_errors.svg", NAME, g_str);
+    let path_times = format!("/tmp/pmsim/{}_{}_times.svg", NAME, g_str);
+
     // save figures
     plot_error
         .grid_and_labels("NDOF", "ERROR")
         .legend()
         .set_equal_axes(true)
         .set_figure_size_points(600.0, 800.0)
-        .save(&["/tmp/pmsim/", NAME, "results_errors.svg"].concat())?;
+        .save(&path_errors)?;
 
     // save figures
     plot_time
@@ -91,6 +106,6 @@ fn main() -> Result<(), StrError> {
         .legend()
         .set_equal_axes(true)
         .set_figure_size_points(600.0, 600.0)
-        .save(&["/tmp/pmsim/", NAME, "results_times.svg"].concat())?;
+        .save(&path_times)?;
     Ok(())
 }
