@@ -11,7 +11,7 @@ fn main() -> Result<(), StrError> {
     let genie = if args.len() > 1 {
         Genie::from(&args[1])
     } else {
-        Genie::Mumps
+        Genie::IntelDss
     };
 
     // allocate new plot
@@ -84,7 +84,7 @@ fn main() -> Result<(), StrError> {
     // add slope = 1 to time plot
     let mut slope_p1 = SlopeIcon::new();
     slope_p1.set_length(0.2).set_above(false);
-    slope_p1.draw(1.0, 0.3e4, 2e7);
+    slope_p1.draw(1.0, 0.8e4, 2e7);
     plot_time.add(&slope_p1);
 
     // filepaths
@@ -94,6 +94,7 @@ fn main() -> Result<(), StrError> {
 
     // save figures
     plot_error
+        .set_title(&format!("2D PRESSURIZED CYLINDER - {}", g_str.to_uppercase()))
         .grid_and_labels("NDOF", "ERROR")
         .legend()
         .set_equal_axes(true)
@@ -102,6 +103,7 @@ fn main() -> Result<(), StrError> {
 
     // save figures
     plot_time
+        .set_title(&format!("2D PRESSURIZED CYLINDER - {}", g_str.to_uppercase()))
         .grid_and_labels("NDOF", "TIME [ns]")
         .legend()
         .set_equal_axes(true)
