@@ -212,8 +212,7 @@ mod tests {
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
-    use russell_chk::vec_approx_eq;
-    use russell_lab::{vec_add, Matrix, Vector};
+    use russell_lab::{vec_add, vec_approx_eq, Matrix, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
     #[test]

@@ -1,10 +1,8 @@
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
-use pmsim::{prelude::*, StrError};
+use pmsim::prelude::*;
 use russell_lab::math::{erfc, PI};
-use russell_lab::prelude::*;
-
-const FILENAME_KEY: &'static str = "test_heat_lewis_transient_1d";
+use russell_lab::*;
 
 // Lewis' Example 6.4.2 on page 159
 //
@@ -37,9 +35,11 @@ const FILENAME_KEY: &'static str = "test_heat_lewis_transient_1d";
 // Constant conductivity kx = ky = 1
 // Coefficient ρ = 1
 
+const NAME: &str = "test_heat_lewis_transient_1d";
+
 fn main() -> Result<(), StrError> {
     // mesh
-    let mesh = Mesh::read(&FilePath::mesh(FILENAME_KEY, false))?;
+    let mesh = Mesh::read(&["data/meshes/", NAME, ".mesh"].concat())?;
 
     // features
     let feat = Features::new(&mesh, false);
@@ -109,7 +109,7 @@ fn main() -> Result<(), StrError> {
         // plot
         let mut curve_ana = Curve::new();
         let mut curve_num = Curve::new();
-        curve_ana.draw(&xx_ana, &tt_ana);
+        curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
         curve_num
             .set_line_color("#cd0000")
             .set_line_style("None")
@@ -120,7 +120,7 @@ fn main() -> Result<(), StrError> {
         plot.grid_and_labels("x", "T")
             .set_yrange(0.0, 1.2)
             .legend()
-            .save("/tmp/pmsim/test_heat_transient_1d.svg")?;
+            .save(&["/tmp/pmsim/", NAME].concat())?;
     }
     Ok(())
 }

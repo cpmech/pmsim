@@ -85,7 +85,7 @@ impl<'a> ConductivityModel<'a> {
 mod tests {
     use super::ConductivityModel;
     use crate::base::ParamConductivity;
-    use russell_chk::{approx_eq, deriv_central5};
+    use russell_lab::{approx_eq, deriv_central5};
     use russell_tensor::{Mandel, Tensor2};
 
     #[test]

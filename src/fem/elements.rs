@@ -3,9 +3,8 @@ use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
 use rayon::prelude::*;
-use russell_chk::deriv_central5;
-use russell_lab::{Matrix, Vector};
-use russell_sparse::SparseTriplet;
+use russell_lab::{deriv_central5, Matrix, Vector};
+use russell_sparse::CooMatrix;
 
 /// Defines a generic finite element, wrapping an "actual" implementation
 pub struct GenericElement<'a> {
@@ -161,11 +160,11 @@ impl<'a> Elements<'a> {
     /// **Notes:**
     ///
     /// 1. You must call calc jacobians first
-    /// 2. The SparseTriplet position in the global matrix K will be reset at the beginning
+    /// 2. The CooMatrix position in the global matrix K will be reset at the beginning
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
     #[inline]
-    pub fn assemble_jacobians(&self, kk: &mut SparseTriplet, prescribed: &Vec<bool>) {
+    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) {
         kk.reset(); // << important
         self.all
             .iter()
@@ -192,7 +191,7 @@ mod tests {
     use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
     use crate::fem::{Data, State};
     use gemlab::mesh::Samples;
-    use russell_chk::vec_approx_eq;
+    use russell_lab::vec_approx_eq;
 
     #[test]
     fn new_handles_errors() {

@@ -1,4 +1,5 @@
 use crate::StrError;
+use russell_sparse::SparseMatrix;
 
 /// Defines the smallest allowed dt_min (Control)
 pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
@@ -55,6 +56,15 @@ pub struct Control {
 
     /// Verbose mode during iterations
     pub verbose_iterations: bool,
+
+    /// Verbose mode during linear system solution
+    pub verbose_lin_sys_solve: bool,
+
+    /// Save a MatrixMarket file (for debugging)
+    pub save_matrix_market_file: bool,
+
+    /// Save a vismatrix file (for debugging)
+    pub save_vismatrix_file: bool,
 }
 
 impl Control {
@@ -76,6 +86,9 @@ impl Control {
             theta2: 0.5,
             verbose_timesteps: true,
             verbose_iterations: true,
+            verbose_lin_sys_solve: false,
+            save_matrix_market_file: false,
+            save_vismatrix_file: false,
         }
     }
 
@@ -188,6 +201,20 @@ impl Control {
         };
         let n = it + 1;
         println!("{:>8} {:>13} {:>13} {:>5} {:>9.2e}{}", ".", ".", ".", n, max_rr, l);
+    }
+
+    /// Saves the global K matrix for debugging
+    pub fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix, output_counter: usize) {
+        if self.save_matrix_market_file || self.save_vismatrix_file {
+            if self.save_matrix_market_file {
+                let name = format!("/tmp/pmsim/K-matrix-{:0>20}.mtx", output_counter);
+                kk.write_matrix_market(&name, false).unwrap();
+            }
+            if self.save_vismatrix_file {
+                let name = format!("/tmp/pmsim/K-matrix-{:0>20}.smat", output_counter);
+                kk.write_matrix_market(&name, true).unwrap();
+            }
+        }
     }
 }
 

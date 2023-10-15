@@ -1,7 +1,6 @@
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
-use pmsim::StrError;
-use russell_chk::vec_approx_eq;
+use russell_lab::*;
 
 // Bhatti's Example 1.4 on page 25
 //

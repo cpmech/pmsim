@@ -1,11 +1,8 @@
-#![allow(unused)]
-
 use gemlab::mesh::Samples;
 use pmsim::base::{assemble_matrix, assemble_vector};
 use pmsim::fem::{ElementSolid, ElementTrait, PrescribedValues};
-use pmsim::{prelude::*, StrError};
-use russell_chk::vec_approx_eq;
-use russell_lab::prelude::*;
+use pmsim::prelude::*;
+use russell_lab::*;
 use russell_sparse::prelude::*;
 
 //  Uy PRESCRIBED          Uy PRESCRIBED
@@ -189,9 +186,9 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     let prescribed = &values.flags;
 
     // prescribed and unknown equations
-    let mut eq_prescribed = values.equations.clone();
+    let eq_prescribed = values.equations.clone();
     let eq_unknown: Vec<_> = (0..neq).into_iter().filter(|i| !prescribed[*i]).collect();
-    let (n_prescribed, n_unknown) = (eq_prescribed.len(), eq_unknown.len());
+    let n_unknown = eq_unknown.len();
 
     // element and state
     let config = Config::new();
@@ -239,15 +236,15 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     elem.calc_jacobian(&mut kk_local, &state)?;
 
     // global Jacobian matrix
-    let mut kk_global = SparseTriplet::new(neq, neq * neq)?;
-    assemble_matrix(&mut kk_global, &kk_local, &elem.local_to_global, &prescribed);
+    let mut kk_global = SparseMatrix::new_coo(neq, neq, neq * neq, None, false)?;
+    assemble_matrix(kk_global.get_coo_mut()?, &kk_local, &elem.local_to_global, &prescribed);
     for eq in &values.equations {
-        kk_global.put(*eq, *eq, 1.0);
+        kk_global.put(*eq, *eq, 1.0)?;
     }
 
     // solve linear system
-    let config_solver = ConfigSolver::new();
-    let (_, mdu) = Solver::compute(config_solver, &kk_global, &rr_global)?;
+    let mut mdu = Vector::new(neq);
+    LinSolver::compute(Genie::Umfpack, &mut mdu, &mut kk_global, &rr_global, None)?;
 
     // update U and ΔU
     for i in 0..neq {

@@ -1,10 +1,8 @@
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
-use pmsim::{prelude::*, StrError};
+use pmsim::prelude::*;
 use russell_lab::math::{erfc, PI};
-use russell_lab::prelude::*;
-
-const FILENAME_KEY: &'static str = "test_heat_lewis_transient_1d";
+use russell_lab::*;
 
 // Lewis' Example 6.4.2 on page 159
 //
@@ -36,6 +34,8 @@ const FILENAME_KEY: &'static str = "test_heat_lewis_transient_1d";
 // No source
 // Constant conductivity kx = ky = 1
 // Coefficient ρ = 1
+
+const NAME: &str = "test_heat_lewis_transient_1d";
 
 #[test]
 fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
@@ -110,7 +110,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         // plot
         let mut curve_ana = Curve::new();
         let mut curve_num = Curve::new();
-        curve_ana.draw(&xx_ana, &tt_ana);
+        curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
         curve_num
             .set_line_color("#cd0000")
             .set_line_style("None")
@@ -135,14 +135,14 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
         // write mesh
-        mesh.write(&FilePath::mesh(FILENAME_KEY, true)).unwrap();
+        mesh.write(&["/tmp/pmsim/", NAME].concat()).unwrap();
 
         // write figure
-        mesh.draw(None, &FilePath::svg_suffix(FILENAME_KEY, "_mesh", true), |_, _| {})
+        mesh.draw(None, &["/tmp/pmsim/", NAME, "_mesh"].concat(), |_, _| {})
             .unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&FilePath::mesh(FILENAME_KEY, false)).unwrap()
+        Mesh::read(&["data/meshes/", NAME, ".mesh"].concat()).unwrap()
     }
 }

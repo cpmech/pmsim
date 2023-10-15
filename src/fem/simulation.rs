@@ -21,7 +21,7 @@ pub struct Simulation<'a> {
     pub boundaries: Boundaries<'a>,
 
     /// Holds variables to solve the global linear system
-    pub linear_system: LinearSystem,
+    pub linear_system: LinearSystem<'a>,
 }
 
 impl<'a> Simulation<'a> {
@@ -39,7 +39,7 @@ impl<'a> Simulation<'a> {
         let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
         let elements = Elements::new(&data, &config)?;
         let boundaries = Boundaries::new(&data, &config, &natural)?;
-        let linear_system = LinearSystem::new(&data, &prescribed_values, &elements, &boundaries)?;
+        let linear_system = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries)?;
         Ok(Simulation {
             config,
             prescribed_values,
@@ -64,6 +64,9 @@ impl<'a> Simulation<'a> {
         let neq = rr.dim();
         let mut rr0 = Vector::new(neq);
         let mut duu = Vector::new(neq);
+
+        // counter for numbering output files
+        let mut output_counter = 0;
 
         // message
         if !config.linear_problem {
@@ -146,8 +149,8 @@ impl<'a> Simulation<'a> {
                     self.boundaries.calc_jacobians_parallel(&state)?;
 
                     // assemble local Jacobian matrices into the global Jacobian matrix
-                    self.elements.assemble_jacobians(kk, prescribed);
-                    self.boundaries.assemble_jacobians(kk, prescribed);
+                    self.elements.assemble_jacobians(kk.get_coo_mut()?, prescribed);
+                    self.boundaries.assemble_jacobians(kk.get_coo_mut()?, prescribed);
 
                     // augment global Jacobian matrix
                     for eq in &self.prescribed_values.equations {
@@ -155,11 +158,20 @@ impl<'a> Simulation<'a> {
                     }
 
                     // factorize global Jacobian matrix
-                    self.linear_system.solver.factorize(&kk)?;
+                    self.linear_system
+                        .solver
+                        .actual
+                        .factorize(kk, Some(config.lin_sol_params))?;
+
+                    // Debug K matrix
+                    control.debug_save_kk_matrix(kk, output_counter);
                 }
 
                 // solve linear system
-                self.linear_system.solver.solve(mdu, &rr)?;
+                self.linear_system
+                    .solver
+                    .actual
+                    .solve(mdu, &kk, &rr, config.control.verbose_lin_sys_solve)?;
 
                 // updates
                 if config.transient {
@@ -179,6 +191,9 @@ impl<'a> Simulation<'a> {
 
                 // update secondary variables
                 self.elements.update_secondary_values_parallel(state, &duu)?;
+
+                // update counter for numbering output files
+                output_counter += 1;
 
                 // exit if linear problem
                 if config.linear_problem {
@@ -278,7 +293,7 @@ mod tests {
         let data = Data::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
             Simulation::new(&data, &config, &essential, &natural).err(),
-            Some("neq and max must be greater than zero")
+            Some("nrow must be ≥ 1")
         );
     }
 

@@ -1,8 +1,6 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*, StrError};
-use russell_chk::vec_approx_eq;
-
-const FILENAME_KEY: &'static str = "test_solid_smith_5d30_tet4_3d";
+use pmsim::{base::SampleMeshes, prelude::*};
+use russell_lab::*;
 
 // Smith's Example 5.30 (Figure 5.30) on page 202
 //
@@ -29,6 +27,8 @@ const FILENAME_KEY: &'static str = "test_solid_smith_5d30_tet4_3d";
 // CONFIGURATION AND PARAMETERS
 //
 // Young = 100, Poisson = 0.3
+
+const NAME: &str = "test_solid_smith_5d30_tet4_3d";
 
 #[test]
 fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
@@ -79,7 +79,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     // generate Paraview file
     if false {
         let proc = PostProc::new(&mesh, &feat, &data, &state);
-        proc.write_vtu(&FilePath::vtu(FILENAME_KEY, true))?;
+        proc.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
     }
 
     // check displacements

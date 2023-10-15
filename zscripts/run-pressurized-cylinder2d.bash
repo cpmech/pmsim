@@ -1,10 +1,28 @@
 #!/bin/bash
 
-cargo run --release --example pressurized_cylinder2d_elast -- tri3
-cargo run --release --example pressurized_cylinder2d_elast -- tri6
-cargo run --release --example pressurized_cylinder2d_elast -- qua4
-cargo run --release --example pressurized_cylinder2d_elast -- qua8
-cargo run --release --example pressurized_cylinder2d_elast -- qua9
-cargo run --release --example pressurized_cylinder2d_elast -- qua17
+GENIES="\
+    mumps \
+    umfpack \
+    inteldss \
+"
 
-cargo run --release --example pressurized_cylinder2d_elast_results
+KINDS="\
+    tri3 \
+    tri6 \
+    tri10 \
+    tri15 \
+    qua4 \
+    qua8 \
+    qua9 \
+    qua12 \
+    qua16 \
+    qua17 \
+"
+
+for genie in $GENIES; do
+    echo
+    for kind in $KINDS; do
+        cargo run --release --example pressurized_cylinder2d_elast -- $genie $kind
+    done
+    cargo run --release --example plot_convergence_results -- pressurized_cylinder2d_elast $genie
+done

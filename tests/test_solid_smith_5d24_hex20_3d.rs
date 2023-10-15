@@ -1,8 +1,6 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*, StrError};
-use russell_chk::vec_approx_eq;
-
-const FILENAME_KEY: &'static str = "test_solid_smith_5d24_hex20_3d";
+use pmsim::{base::SampleMeshes, prelude::*};
+use russell_lab::*;
 
 // Smith's Example 5.24 (Figure 5.24) on page 195
 //
@@ -30,6 +28,8 @@ const FILENAME_KEY: &'static str = "test_solid_smith_5d24_hex20_3d";
 // Upper layer: Young = 100, Poisson = 0.3
 // Lower layer: Young = 50, Poisson = 0.3
 // Using reduced integration with 8 points
+
+const NAME: &str = "test_solid_smith_5d24_hex20_3d";
 
 #[test]
 fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
@@ -91,7 +91,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     // generate Paraview file
     if false {
         let proc = PostProc::new(&mesh, &feat, &data, &state);
-        proc.write_vtu(&FilePath::vtu(FILENAME_KEY, true))?;
+        proc.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
     }
 
     // check displacements

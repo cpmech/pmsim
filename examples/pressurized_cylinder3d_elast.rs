@@ -1,16 +1,18 @@
 use gemlab::prelude::*;
-use plotpy::Canvas;
 use plotpy::Curve;
+use plotpy::Surface;
 use pmsim::prelude::*;
 use russell_lab::*;
 use russell_sparse::Genie;
 use std::env;
 
-const NAME: &str = "pressurized_cylinder2d_elast";
+const NAME: &str = "pressurized_cylinder3d_elast";
 const SAVE_FIGURE_MESH: bool = false;
 const SAVE_VTU: bool = false;
 
 // constants
+const THICKNESS: f64 = 1.0; // out-of-plane thickness
+const NZ: usize = 1; // out-of-plane divisions
 const R1: f64 = 3.0; // inner radius
 const R2: f64 = 6.0; // outer radius
 const P1: f64 = 200.0; // inner pressure (magnitude)
@@ -56,7 +58,7 @@ fn main() -> Result<(), StrError> {
     let kind = if args.len() > 2 {
         GeoKind::from(&args[2])?
     } else {
-        GeoKind::Qua4
+        GeoKind::Hex8
     };
     let enforce_unsym_strategy = if args.len() > 3 {
         args[3].to_lowercase() == "true"
@@ -70,14 +72,14 @@ fn main() -> Result<(), StrError> {
     let path_json = format!("/tmp/pmsim/{}_{}_{}.json", NAME, g_str, k_str);
 
     // sizes
-    let sizes = if kind.class() == GeoClass::Tri {
-        if kind == GeoKind::Tri3 {
-            vec![(5, 10), (20, 40), (50, 100), (120, 220)]
+    let sizes = if kind.class() == GeoClass::Tet {
+        if kind == GeoKind::Tet4 {
+            vec![(5, 10), (20, 40), (50, 100)]
         } else {
             vec![(2, 4), (5, 10), (20, 40), (50, 100)]
         }
     } else {
-        if kind == GeoKind::Qua4 {
+        if kind == GeoKind::Hex8 {
             vec![(4, 8), (12, 16), (40, 50), (120, 180)]
         } else {
             vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
@@ -104,13 +106,13 @@ fn main() -> Result<(), StrError> {
     // loop over mesh sizes
     let mut idx = 0;
     for (nr, na) in &sizes {
-        // mesh
-        let mesh = if kind.class() == GeoClass::Tri {
+        let mesh = if kind.class() == GeoClass::Tet {
             let delta_x = (R2 - R1) / (*nr as f64);
-            let global_max_area = Some(delta_x * delta_x / 2.0);
-            Unstructured::quarter_ring_2d(R1, R2, *nr, *na, kind, global_max_area).unwrap()
+            let global_max_volume = Some(delta_x * delta_x * delta_x / 6.0);
+            // println!("max vol = {:?}", global_max_volume);
+            Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume).unwrap()
         } else {
-            Structured::quarter_ring_2d(R1, R2, *nr, *na, kind).unwrap()
+            Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind).unwrap()
         };
 
         // check mesh
@@ -119,30 +121,26 @@ fn main() -> Result<(), StrError> {
 
         // features
         let feat = Features::new(&mesh, false);
-        let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-        let left = feat.search_edges(At::X(0.0), any_x)?;
-        let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
-        let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
+        let faces_y_min = feat.search_faces(At::Y(0.0), any_x)?;
+        let faces_x_min = feat.search_faces(At::X(0.0), any_x)?;
+        let faces_inner = feat.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R1), any_x)?;
+        let faces_outer = feat.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R2), any_x)?;
+        let faces_z_min = feat.search_faces(At::Z(0.0), any_x)?;
+        let faces_z_max = feat.search_faces(At::Z(THICKNESS), any_x)?;
 
         // check boundaries
-        if kind == GeoKind::Qua4 {
-            assert_eq!(inner_circle.len(), *na);
-            assert_eq!(outer_circle.len(), *na);
-            for i in 0..*na {
-                if i > 0 {
-                    assert_eq!(inner_circle[i].points[0], inner_circle[i - 1].points[1]);
-                    assert_eq!(outer_circle[i].points[1], outer_circle[i - 1].points[0]);
-                }
-            }
+        if kind == GeoKind::Hex8 {
+            assert_eq!(faces_inner.len(), *na * NZ);
+            assert_eq!(faces_outer.len(), *na * NZ);
         }
 
         // reference point to compare analytical vs numerical result
-        let ref_point_id = feat.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
-        vec_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0], 1e-15);
+        let ref_point_id = feat.search_point_ids(At::XYZ(R1, 0.0, 0.0), any_x)?[0];
+        vec_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0, 0.0], 1e-15);
 
         // study point (for debugging)
-        let study_point = feat.search_point_ids(At::XY(0.0, R2), any_x)?[0];
-        vec_approx_eq(&mesh.points[study_point].coords, &[0.0, R2], 1e-13); // << some error
+        let study_point = feat.search_point_ids(At::XYZ(0.0, R2, 0.0), any_x)?[0];
+        vec_approx_eq(&mesh.points[study_point].coords, &[0.0, R2, 0.0], 1e-13); // << some error
 
         // parameters, DOFs, and configuration
         let param1 = ParamSolid {
@@ -183,22 +181,17 @@ fn main() -> Result<(), StrError> {
                 .set_marker_style("o");
             curve.draw(&[x], &[y]);
 
-            // circles
-            let mut circle_in = Canvas::new();
-            let mut circle_out = Canvas::new();
-            circle_in
-                .set_face_color("None")
-                .set_edge_color("#f0f000bb")
-                .set_line_width(2.0)
-                .draw_circle(0.0, 0.0, R1);
-            circle_out
-                .set_face_color("None")
-                .set_edge_color("#f0f000bb")
-                .set_line_width(2.0)
-                .draw_circle(0.0, 0.0, R2);
+            // cylinders
+            let mut cylin_in = Surface::new();
+            let mut cylin_out = Surface::new();
+            cylin_in.set_solid_color("#ff000020");
+            cylin_out.set_solid_color("#ff000020");
+            cylin_in.draw_cylinder(&[0.0, 0.0, 0.0], &[0.0, 0.0, 1.0], R1, 5, 81)?;
+            cylin_out.draw_cylinder(&[0.0, 0.0, 0.0], &[0.0, 0.0, 1.0], R2, 5, 81)?;
 
             // figure settings
             let mut fig = Figure::new();
+            fig.point_ids = false;
             fig.canvas_points.set_marker_size(2.5).set_marker_line_color("black");
             fig.figure_size = Some((800.0, 800.0));
             fig.point_dots = if ndof < 3100 { true } else { false };
@@ -206,8 +199,8 @@ fn main() -> Result<(), StrError> {
             // draw figure
             mesh.draw(Some(fig), &path_mesh, |plot, before| {
                 if !before {
-                    plot.add(&circle_in);
-                    plot.add(&circle_out);
+                    plot.add(&cylin_in);
+                    plot.add(&cylin_out);
                     plot.add(&curve);
                 }
             })?;
@@ -215,13 +208,17 @@ fn main() -> Result<(), StrError> {
 
         // essential boundary conditions
         let mut essential = Essential::new();
-        essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0));
+        essential
+            .on(&faces_x_min, Ebc::Ux(|_| 0.0))
+            .on(&faces_y_min, Ebc::Uy(|_| 0.0))
+            .on(&faces_z_min, Ebc::Uz(|_| 0.0))
+            .on(&faces_z_max, Ebc::Uz(|_| 0.0));
 
         // natural boundary conditions
         let mut natural = Natural::new();
         natural
-            .on(&inner_circle, Nbc::Qn(|_| -P1))
-            .on(&outer_circle, Nbc::Qn(|_| -P2));
+            .on(&faces_inner, Nbc::Qn(|_| -P1))
+            .on(&faces_outer, Nbc::Qn(|_| -P2));
 
         // simulation state
         let mut state = State::new(&data, &config)?;

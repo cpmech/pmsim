@@ -1,0 +1,80 @@
+... running with Tri3 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     4.894316ms    220        2.34   7.04e-3   -7.26e-3
+    11.924118ms   3024        3.48   5.62e-4   -2.73e-4
+    83.766788ms  18568        4.27   7.85e-5   -3.18e-5
+   533.364762ms 105936        5.03   5.18e-6   -6.62e-6
+... running with Tri6 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     5.040136ms    150        2.18   2.37e-3   -1.27e-3
+     3.529118ms    804        2.91   8.25e-5   -6.15e-5
+    58.451052ms  11820        4.07   5.28e-7   -2.70e-7
+   392.684052ms  73596        4.87   4.59e-8   -1.48e-8
+... running with Tri10 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+      5.93815ms    314        2.50   3.05e-5   -1.59e-5
+      7.58845ms   1754        3.24   5.17e-7    1.44e-7
+   118.622624ms  26390        4.42  3.08e-10    1.96e-9
+   854.044139ms 165086        5.22  1.41e-10   5.99e-11
+... running with Tri15 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     6.032981ms    538        2.73   1.80e-5   -3.17e-6
+    10.148143ms   3070        3.49   1.69e-7   -1.59e-8
+   201.689323ms  46734        4.67  3.98e-10  -1.29e-11
+   1.388945201s 293038        5.47  4.53e-12  -1.12e-12
+... running with Qua4 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     5.369173ms     90        1.95   6.29e-3   -3.14e-3
+     1.948147ms    442        2.65   9.41e-4   -4.71e-4
+    11.241956ms   4182        3.62   8.99e-5   -4.50e-5
+    202.96046ms  43802        4.64   8.60e-6   -4.30e-6
+... running with Qua8 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+      4.80312ms     26        1.41   2.60e-3   -8.60e-4
+     1.764953ms     74        1.87   2.57e-4   -1.67e-4
+     2.382548ms    242        2.38   1.83e-5   -1.32e-5
+     2.727872ms    866        2.94   1.14e-6   -8.89e-7
+      4.20303ms   1322        3.12   4.63e-7   -3.68e-7
+     9.406087ms   3266        3.51   6.93e-8   -5.68e-8
+    67.586047ms  12674        4.10   4.23e-9   -3.58e-9
+   171.873681ms  30602        4.49  7.03e-10  -6.01e-10
+... running with Qua9 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     3.736842ms     30        1.48   4.12e-3   -2.05e-3
+     1.478364ms     90        1.95   4.15e-4   -2.07e-4
+     2.378348ms    306        2.49   3.12e-5   -1.56e-5
+     3.264261ms   1122        3.05   2.06e-6   -1.03e-6
+     4.572699ms   1722        3.24   8.49e-7   -4.24e-7
+    16.285293ms   4290        3.63   1.31e-7   -6.53e-8
+    87.068818ms  16770        4.22   8.19e-9   -4.09e-9
+   232.612202ms  40602        4.61   1.38e-9  -6.87e-10
+... running with Qua12 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     3.106029ms     40        1.60   1.62e-3    8.06e-4
+     1.628024ms    118        2.07   1.68e-4    4.43e-5
+     2.571431ms    394        2.60   1.34e-5    2.37e-6
+     4.770248ms   1426        3.15   9.45e-7    1.42e-7
+     7.688506ms   2182        3.34   3.96e-7    5.77e-8
+    30.403225ms   5410        3.73   6.26e-8    8.68e-9
+   113.463271ms  21058        4.32   4.02e-9   5.36e-10
+   290.765843ms  50902        4.71  6.81e-10   8.97e-11
+... running with Qua16 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     4.882506ms     56        1.75   1.54e-4   -8.51e-5
+     1.983915ms    182        2.26   3.88e-6   -2.19e-6
+     3.007905ms    650        2.81   4.33e-8    7.02e-9
+      8.98563ms   2450        3.39   9.57e-9    3.88e-9
+    12.324864ms   3782        3.58   4.30e-9    1.78e-9
+    51.048641ms   9506        3.98  7.21e-10   3.04e-10
+   170.337316ms  37442        4.57  4.72e-11   2.01e-11
+    425.48917ms  90902        4.96  7.57e-12   3.80e-12
+... running with Qua17 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     3.837423ms     58        1.76   2.66e-4   -1.94e-5
+     1.957642ms    178        2.25   1.31e-5   -4.72e-7
+     3.242956ms    610        2.79   5.61e-7   -1.28e-8
+     8.755645ms   2242        3.35   2.12e-8  -3.96e-10
+    12.643266ms   3442        3.54   7.23e-9  -1.28e-10
+    53.458717ms   8578        3.93  7.37e-10  -1.18e-11
+   193.763414ms  33538        4.53  2.47e-11  -6.22e-13
+    493.32279ms  81202        4.91  1.78e-12   6.77e-13

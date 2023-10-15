@@ -2,10 +2,7 @@ use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
 use pmsim::fem::Elements;
 use pmsim::prelude::*;
-use pmsim::StrError;
-use russell_chk::vec_approx_eq;
-use russell_lab::mat_approx_eq;
-use russell_lab::Matrix;
+use russell_lab::*;
 
 // Bhatti's Example 1.6 on page 32
 //

@@ -2,12 +2,14 @@
   "cSpell.words": [
     "axisym",
     "conv",
+    "cylin",
     "dphi",
     "emap",
     "IFEM",
     "jacobians",
     "nafems",
     "Paraview",
-    "rref"
+    "rref",
+    "UNSYM"
   ]
 }
