@@ -1,33 +1,41 @@
 # Porous Media Simulator using the Finite Element Method
 
+[![codecov](https://codecov.io/gh/cpmech/pmsim/graph/badge.svg?token=IR0HD4998X)](https://codecov.io/gh/cpmech/pmsim)
+[![Test & Coverage](https://github.com/cpmech/pmsim/actions/workflows/test_and_coverage.yml/badge.svg)](https://github.com/cpmech/pmsim/actions/workflows/test_and_coverage.yml)
+
 🚧 Work in progress...
+
+## Contents
+
+* [Introduction](#introduction)
+* [Installation](#installation)
+* [Setting Cargo.toml](#cargo)
+* [Examples](#examples)
+
+## <a name="introduction"></a> Introduction
 
 This code implements simulator using the finite element method for the behavior of solids, structures, and porous media.
 
-Documentation:
+See the documentation for further information:
 
-- [API reference (docs.rs)](https://docs.rs/pmsim)
+- [pmsim documentation](https://docs.rs/pmsim) - Contains the API reference and examples
 
-## Installation
+## <a name="installation"></a> Installation
 
-We use [the Russell platform](https://github.com/cpmech/russell) and, thus, we need to install some Debian packages.
+This crates depends on `russell_lab` and, hence, needs some external libraries. See the [installation of required dependencies](https://github.com/cpmech/russell) on `russell_lab`.
 
-Install some libraries:
+## <a name="cargo"></a> Setting Cargo.toml
 
-```bash
-sudo apt-get install \
-    liblapacke-dev \
-    libopenblas-dev
-```
+[![Crates.io](https://img.shields.io/crates/v/pmsim.svg)](https://crates.io/crates/pmsim)
 
-Add this to your Cargo.toml:
+👆 Check the crate version and update your Cargo.toml accordingly:
 
 ```toml
 [dependencies]
-pmsim = "0.2"
+gemlab = "*"
 ```
 
-## Examples
+## <a name="examples"></a> Examples
 
 For all simulations:
 
