@@ -66,21 +66,24 @@ fn main() -> Result<(), StrError> {
         false
     };
 
-    // check for Hex
-    if kind.class() != GeoClass::Hex {
-        return Err("GeoClass must be Hex");
-    }
-
     // filepaths
     let g_str = genie.to_string();
     let k_str = kind.to_string();
     let path_json = format!("/tmp/pmsim/{}_{}_{}.json", NAME, g_str, k_str);
 
     // sizes
-    let sizes = if kind == GeoKind::Hex8 {
-        vec![(4, 8), (12, 16), (40, 50), (120, 180)]
+    let sizes = if kind.class() == GeoClass::Tet {
+        if kind == GeoKind::Tet4 {
+            vec![(5, 10)]
+        } else {
+            vec![(2, 4)]
+        }
     } else {
-        vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
+        if kind == GeoKind::Hex8 {
+            vec![(4, 8), (12, 16), (40, 50), (120, 180)]
+        } else {
+            vec![(1, 2), (2, 4), (4, 8), (8, 16), (10, 20), (16, 32), (32, 64), (50, 100)]
+        }
     };
 
     // analytical solution
@@ -103,7 +106,14 @@ fn main() -> Result<(), StrError> {
     // loop over mesh sizes
     let mut idx = 0;
     for (nr, na) in &sizes {
-        let mesh = Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind).unwrap();
+        let mesh = if kind.class() == GeoClass::Tet {
+            let delta_x = (R2 - R1) / (*nr as f64);
+            let global_max_volume = Some(delta_x * delta_x * delta_x / 6.0);
+            // println!("max vol = {:?}", global_max_volume);
+            Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume).unwrap()
+        } else {
+            Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind).unwrap()
+        };
 
         // check mesh
         mesh.check_all().unwrap();
