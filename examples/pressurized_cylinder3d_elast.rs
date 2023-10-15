@@ -74,9 +74,9 @@ fn main() -> Result<(), StrError> {
     // sizes
     let sizes = if kind.class() == GeoClass::Tet {
         if kind == GeoKind::Tet4 {
-            vec![(5, 10)]
+            vec![(5, 10), (20, 40), (50, 100)]
         } else {
-            vec![(2, 4)]
+            vec![(2, 4), (5, 10), (20, 40), (50, 100)]
         }
     } else {
         if kind == GeoKind::Hex8 {

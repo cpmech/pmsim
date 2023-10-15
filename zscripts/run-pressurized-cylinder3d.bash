@@ -7,7 +7,8 @@ GENIES="\
 KINDS="\
     hex8 \
     hex20 \
-    hex32 \
+    tet4 \
+    tet10
 "
 
 for genie in $GENIES; do
