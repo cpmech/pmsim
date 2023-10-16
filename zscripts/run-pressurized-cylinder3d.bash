@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GENIES="\
-    mumps \
+    umfpack \
 "
 
 KINDS="\
@@ -10,6 +10,8 @@ KINDS="\
     tet4 \
     tet10
 "
+
+# KINDS="tet10"
 
 for genie in $GENIES; do
     echo

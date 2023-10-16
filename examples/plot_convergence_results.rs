@@ -146,13 +146,14 @@ fn draw_error_icons_3d(plot: &mut Plot) {
     // add slope = -1 to error plot
     let mut slope_1 = SlopeIcon::new();
     slope_1.set_length(0.1).set_above(true);
-    slope_1.draw(-1.0, 3e3, 0.6e-3);
+    slope_1.draw(-1.0, 4e3, 0.4e-3);
+    slope_1.draw(-1.0, 0.25e5, 0.4e-3);
     plot.add(&slope_1);
 
     // add slope = -2 to error plot
     let mut slope_2 = SlopeIcon::new();
     slope_2.set_length(0.1).set_above(true);
-    slope_2.draw(-2.0, 0.5e4, 0.3e-5);
+    slope_2.draw(-2.0, 0.25e4, 0.3e-5);
     plot.add(&slope_2);
 }
 
