@@ -11,6 +11,8 @@ KINDS="\
     tet10
 "
 
+# KINDS="tet10"
+
 for genie in $GENIES; do
     echo
     for kind in $KINDS; do

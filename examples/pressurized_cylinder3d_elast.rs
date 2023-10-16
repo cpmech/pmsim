@@ -9,8 +9,10 @@ use std::env;
 const NAME: &str = "pressurized_cylinder3d_elast";
 const SAVE_FIGURE_MESH: bool = false;
 const SAVE_VTU: bool = false;
+const WRITE_K: bool = false;
 
 // constants
+const NPOINT_MAX: usize = 1_200_000; // max npoint
 const THICKNESS: f64 = 1.0; // out-of-plane thickness
 const NZ: usize = 1; // out-of-plane divisions
 const R1: f64 = 3.0; // inner radius
@@ -58,7 +60,7 @@ fn main() -> Result<(), StrError> {
     let kind = if args.len() > 2 {
         GeoKind::from(&args[2])?
     } else {
-        GeoKind::Hex8
+        GeoKind::Tet10
     };
     let enforce_unsym_strategy = if args.len() > 3 {
         args[3].to_lowercase() == "true"
@@ -108,16 +110,23 @@ fn main() -> Result<(), StrError> {
     for (nr, na) in &sizes {
         let mesh = if kind.class() == GeoClass::Tet {
             let delta_x = (R2 - R1) / (*nr as f64);
-            let global_max_volume = Some(delta_x * delta_x * delta_x / 6.0);
-            // println!("max vol = {:?}", global_max_volume);
+            let global_max_volume = Some(delta_x * delta_x * delta_x);
+            // println!("0. max vol = {:?}", global_max_volume);
             Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume).unwrap()
         } else {
             Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind).unwrap()
         };
 
+        // println!("1. npoint = {}, ncell = {}", mesh.points.len(), mesh.cells.len());
+
         // check mesh
+        if mesh.points.len() > NPOINT_MAX {
+            return Err("too many points");
+        }
         mesh.check_all().unwrap();
         mesh.check_overlapping_points(0.001).unwrap();
+
+        // println!("2. mesh verified");
 
         // features
         let feat = Features::new(&mesh, false);
@@ -133,6 +142,8 @@ fn main() -> Result<(), StrError> {
             assert_eq!(faces_inner.len(), *na * NZ);
             assert_eq!(faces_outer.len(), *na * NZ);
         }
+
+        // println!("3. found boundaries");
 
         // reference point to compare analytical vs numerical result
         let ref_point_id = feat.search_point_ids(At::XYZ(R1, 0.0, 0.0), any_x)?[0];
@@ -155,13 +166,15 @@ fn main() -> Result<(), StrError> {
         config.linear_problem = true;
         config.control.verbose_timesteps = false;
         config.control.save_vismatrix_file = false;
-        config.control.save_matrix_market_file = false;
+        config.control.save_matrix_market_file = WRITE_K;
         config.lin_sol_genie = genie;
         config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // total number of DOF
         let ndof = data.equations.n_equation;
         let n_str = format!("{:0>5}", ndof);
+
+        // println!("4. NDOF = {}", ndof);
 
         // filepaths
         let ext = if ndof < 20000 { "svg" } else { "png" };
@@ -223,11 +236,15 @@ fn main() -> Result<(), StrError> {
         // simulation state
         let mut state = State::new(&data, &config)?;
 
+        // println!("5. running simulation");
+
         // run simulation
         let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
         sim.run(&mut state)?;
         results.time[idx] = stopwatch.stop();
+
+        // println!("5. computing error");
 
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
