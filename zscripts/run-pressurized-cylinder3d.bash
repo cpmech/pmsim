@@ -1,7 +1,7 @@
 #!/bin/bash
 
 GENIES="\
-    mumps \
+    umfpack \
 "
 
 KINDS="\

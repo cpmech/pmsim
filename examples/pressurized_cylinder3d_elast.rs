@@ -60,7 +60,7 @@ fn main() -> Result<(), StrError> {
     let kind = if args.len() > 2 {
         GeoKind::from(&args[2])?
     } else {
-        GeoKind::Tet10
+        GeoKind::Tet4
     };
     let enforce_unsym_strategy = if args.len() > 3 {
         args[3].to_lowercase() == "true"
@@ -76,9 +76,9 @@ fn main() -> Result<(), StrError> {
     // sizes
     let sizes = if kind.class() == GeoClass::Tet {
         if kind == GeoKind::Tet4 {
-            vec![(5, 10), (20, 40), (50, 100)]
+            vec![(5, 10), (20, 40), (30, 70)]
         } else {
-            vec![(2, 4), (5, 10), (20, 40), (50, 100)]
+            vec![(2, 4), (10, 20), (20, 40)]
         }
     } else {
         if kind == GeoKind::Hex8 {
@@ -110,7 +110,8 @@ fn main() -> Result<(), StrError> {
     for (nr, na) in &sizes {
         let mesh = if kind.class() == GeoClass::Tet {
             let delta_x = (R2 - R1) / (*nr as f64);
-            let global_max_volume = Some(delta_x * delta_x * delta_x);
+            let den = if kind == GeoKind::Tet4 { 6.0 } else { 2.0 };
+            let global_max_volume = Some(delta_x * delta_x * delta_x / den);
             // println!("0. max vol = {:?}", global_max_volume);
             Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume).unwrap()
         } else {
