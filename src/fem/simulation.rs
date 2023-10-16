@@ -164,7 +164,7 @@ impl<'a> Simulation<'a> {
                         .factorize(kk, Some(config.lin_sol_params))?;
 
                     // Debug K matrix
-                    control.debug_save_kk_matrix(kk, output_counter);
+                    control.debug_save_kk_matrix(kk, output_counter)?;
                 }
 
                 // solve linear system
