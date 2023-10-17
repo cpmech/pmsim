@@ -1,14 +1,14 @@
 #!/bin/bash
 
 GENIES="\
-    umfpack \
+    mumps \
 "
 
 KINDS="\
-    hex8 \
-    hex20 \
     tet4 \
-    tet10
+    tet10 \
+    hex8 \
+    hex20
 "
 
 # KINDS="tet10"
