@@ -34,8 +34,7 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
     let mut buf = String::new();
     writeln!(
         &mut buf,
-        "\\begin{{table}}\n\
-         \\makebox[\\linewidth]{{\n\
+        "\\makebox[\\linewidth]{{\n\
          \\begin{{tabular}}{{@{{}}rrrrrrrrrr@{{}}}}\\toprule"
     )
     .unwrap();
@@ -127,12 +126,11 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
         }
     }
 
-    write!(
+    writeln!(
         &mut buf,
         "\\bottomrule\n\
          \\end{{tabular}}\n\
-         }}\n\
-         \\end{{table}}"
+         }}"
     )
     .unwrap();
 
@@ -163,7 +161,9 @@ fn call_latex(key: &String, buffer: &String) -> Result<(), StrError> {
          \\usepackage{{booktabs}}\n\
          \\usepackage{{graphicx}}\n\
          \\begin{{document}}\n\
+         \\begin{{table}}\n\
          {}\n\
+         \\end{{table}}\n\
          \\end{{document}}",
         buffer
     );
