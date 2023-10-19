@@ -12,21 +12,17 @@ use std::process::Command;
 const OUT_DIR: &str = "/tmp/pmsim/latex/";
 
 fn main() -> Result<(), StrError> {
-    // run(
-    //     "pressurized_cylinder2d_elast",
-    //     "_tri",
-    //     &["tri3", "tri6", "tri10", "tri15"],
-    // )?;
+    run(
+        "pressurized_cylinder2d_elast",
+        "_tri",
+        &["tri3", "tri6", "tri10", "tri15"],
+    )?;
     run(
         "pressurized_cylinder2d_elast",
         "_qua",
         &["qua4", "qua8", "qua9", "qua12", "qua16", "qua17"],
     )?;
-    // run(
-    //     "pressurized_cylinder3d_elast",
-    //     "",
-    //     &["tet4", "tet10", "tet20", "hex8", "hex20", "hex32"],
-    // )?;
+    run("pressurized_cylinder3d_elast", "", &["tet4", "tet10", "hex8", "hex20"])?;
     Ok(())
 }
 
@@ -86,13 +82,13 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
                 }
             }
         }
-
         if ndof.len() == 0 {
-            continue;
-        } else {
-            let row_labels = "\\bf{Time} & \\bf{Error} & \\bf{RT} & \\bf{Time} & \\bf{Error} & \\bf{RT} & \\bf{Time} & \\bf{Error} & \\bf{RT} \\\\\\midrule";
-            writeln!(&mut buf, "\\bf{{{}}} & {}", up_first(str_kind), row_labels).unwrap();
+            panic!("MUMPS data is not available: {}", str_kind);
         }
+
+        // labels
+        let row_labels = "\\bf{Time} & \\bf{Error} & \\bf{RT} & \\bf{Time} & \\bf{Error} & \\bf{RT} & \\bf{Time} & \\bf{Error} & \\bf{RT} \\\\\\midrule";
+        writeln!(&mut buf, "\\bf{{{}}} & {}", up_first(str_kind), row_labels).unwrap();
 
         // generate the contents
         for n in &ndof {
@@ -111,12 +107,16 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
                 let es = if ee == e { ee } else { format!("*{}", ee) };
                 let rel_time = (data.0 as f64) / (ref_time as f64);
                 write!(&mut buf, " & {:>8} & {:>9} & {:>4.2}", ts(data.0), es, rel_time).unwrap();
+            } else {
+                write!(&mut buf, " & {:>8} & {:>9} & {:>4}", "n/a", "n/a", "n/a").unwrap();
             }
             if let Some(data) = inteldss.get(n) {
                 let ee = format!("{:>8.2e}", data.1);
                 let es = if ee == e { ee } else { format!("*{}", ee) };
                 let rel_time = (data.0 as f64) / (ref_time as f64);
                 write!(&mut buf, " & {:>8} & {:>9} & {:>4.2}", ts(data.0), es, rel_time).unwrap();
+            } else {
+                write!(&mut buf, " & {:>8} & {:>9} & {:>4}", "n/a", "n/a", "n/a").unwrap();
             }
             writeln!(&mut buf, "\\\\").unwrap();
         }
