@@ -2,6 +2,8 @@
 
 GENIES="\
     mumps \
+    umfpack \
+    inteldss
 "
 
 KINDS="\
