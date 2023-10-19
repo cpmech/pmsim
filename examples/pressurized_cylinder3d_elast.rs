@@ -244,7 +244,13 @@ fn main() -> Result<(), StrError> {
         // run simulation
         let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
-        sim.run(&mut state)?;
+        match sim.run(&mut state) {
+            Err(e) => {
+                println!("{:?} failed with: {}", genie, e);
+                continue;
+            }
+            Ok(..) => (),
+        }
         results.time[idx] = stopwatch.stop();
 
         // println!("5. computing error");
