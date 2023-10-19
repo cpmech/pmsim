@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use gemlab::shapes::GeoKind;
 use pmsim::prelude::*;
 use russell_lab::*;
 use std::collections::HashMap;
@@ -14,23 +15,29 @@ use std::process::Command;
 const OUT_DIR: &str = "/tmp/pmsim/latex/";
 
 fn main() -> Result<(), StrError> {
-    run(&["tri3", "tri6", "tri10", "tri15"])?;
-    // let str_kinds = &[ "qua4", "qua8", "qua9", "qua12", "qua16", "qua17"];
-    // let str_kinds = &[ "tet4", "tet10", "tet20", "hex8", "hex20", "hex32"];
+    // run(
+    //     "pressurized_cylinder2d_elast",
+    //     "_tri",
+    //     &["tri3", "tri6", "tri10", "tri15"],
+    // )?;
+    run(
+        "pressurized_cylinder2d_elast",
+        "_qua",
+        &["qua4", "qua8", "qua9", "qua12", "qua16", "qua17"],
+    )?;
+    // run(
+    //     "pressurized_cylinder3d_elast",
+    //     "",
+    //     &["tet4", "tet10", "tet20", "hex8", "hex20", "hex32"],
+    // )?;
     Ok(())
 }
 
-fn run(str_kinds: &[&str]) -> Result<(), StrError> {
-    // arguments
-    let args: Vec<String> = env::args().collect();
-    let name = if args.len() > 1 {
-        &args[1]
-    } else {
-        "pressurized_cylinder2d_elast"
-    };
-
+fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
+    // genies
     let str_genies = &["mumps", "umfpack", "inteldss"];
 
+    // table env
     let mut buf = String::new();
     writeln!(
         &mut buf,
@@ -129,7 +136,8 @@ fn run(str_kinds: &[&str]) -> Result<(), StrError> {
     )
     .unwrap();
 
-    call_latex(&name.to_string(), &buf)
+    let key = format!("{}{}", name, suffix);
+    call_latex(&key, &buf)
 }
 
 fn call_latex(key: &String, buffer: &String) -> Result<(), StrError> {
