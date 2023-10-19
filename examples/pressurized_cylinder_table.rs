@@ -11,18 +11,11 @@ use std::process::Command;
 
 const OUT_DIR: &str = "/tmp/pmsim/latex/";
 
+#[rustfmt::skip]
 fn main() -> Result<(), StrError> {
-    run(
-        "pressurized_cylinder2d_elast",
-        "_tri",
-        &["tri3", "tri6", "tri10", "tri15"],
-    )?;
-    run(
-        "pressurized_cylinder2d_elast",
-        "_qua",
-        &["qua4", "qua8", "qua9", "qua12", "qua16", "qua17"],
-    )?;
-    run("pressurized_cylinder3d_elast", "", &["tet4", "tet10", "hex8", "hex20"])?;
+    // run("pressurized_cylinder2d_elast", "_tri", &["tri3", "tri6", "tri10", "tri15"])?;
+    run("pressurized_cylinder2d_elast", "_qua", &["qua4", "qua8", "qua9", "qua12", "qua16", "qua17"])?;
+    // run("pressurized_cylinder3d_elast", "", &["tet4", "tet10", "hex8", "hex20"])?;
     Ok(())
 }
 
@@ -39,6 +32,7 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
     writeln!(
         &mut buf,
         "\\begin{{table}}\n\
+         \\makebox[\\linewidth]{{\n\
          \\begin{{tabular}}{{@{{}}r|rrr|rrr|rrr@{{}}}}\\toprule\n\
          {}",
         row_genies
@@ -131,6 +125,7 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
         &mut buf,
         "\\bottomrule\n\
          \\end{{tabular}}\n\
+         }}\n\
          \\end{{table}}"
     )
     .unwrap();
@@ -147,22 +142,8 @@ fn call_latex(key: &String, buffer: &String) -> Result<(), StrError> {
     if let Some(p) = path.parent() {
         fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
     }
-
-    // write file
-    let contents = format!(
-        "\\documentclass[10pt,a4paper]{{article}}\n\
-         \\usepackage[a4paper,margin=1in]{{geometry}}\n\
-         \\usepackage{{booktabs}}\n\
-         \\usepackage{{graphicx}}\n\
-         \\begin{{document}}\n\
-         {}\n\
-         \\end{{document}}",
-        buffer
-    );
     let mut file = File::create(path).map_err(|_| "cannot create file")?;
-    file.write_all(contents.as_bytes()).map_err(|_| "cannot write file")?;
-
-    // force sync
+    file.write_all(buffer.as_bytes()).map_err(|_| "cannot write file")?;
     file.sync_all().map_err(|_| "cannot sync file")?;
 
     // change working dir
@@ -170,14 +151,30 @@ fn call_latex(key: &String, buffer: &String) -> Result<(), StrError> {
     let working_dir = Path::new(&out_dir);
     env::set_current_dir(&working_dir).unwrap();
 
+    // temporary file
+    let temp = format!(
+        "\\documentclass[10pt,a4paper]{{article}}\n\
+         \\usepackage{{booktabs}}\n\
+         \\usepackage{{graphicx}}\n\
+         \\begin{{document}}\n\
+         {}\n\
+         \\end{{document}}",
+        buffer
+    );
+    let mut file = File::create("temporary.tex").map_err(|_| "cannot create file")?;
+    file.write_all(temp.as_bytes()).map_err(|_| "cannot write file")?;
+    file.sync_all().map_err(|_| "cannot sync file")?;
+
     // execute file
+    let jobname = format!("-jobname={}", key);
     let output = Command::new("latexmk")
         .args([
             "-pdf",
             "-shell-escape",
             "-halt-on-error",
             "-interaction=batchmode",
-            &filepath,
+            &jobname,
+            "temporary.tex",
         ])
         .output()
         .map_err(|_| "cannot run latexmk")?;
