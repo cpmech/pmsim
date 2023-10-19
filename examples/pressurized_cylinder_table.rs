@@ -1,6 +1,3 @@
-#![allow(unused)]
-
-use gemlab::shapes::GeoKind;
 use pmsim::prelude::*;
 use russell_lab::*;
 use std::collections::HashMap;
@@ -37,13 +34,20 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
     // genies
     let str_genies = &["mumps", "umfpack", "inteldss"];
 
+    // aux strings
+    let row_genies =
+        "NDOF & \\multicolumn{3}{c|}{{MUMPS}} & \\multicolumn{3}{c|}{{UMFPACK}} & \\multicolumn{3}{c}{{Intel DSS}} \\\\";
+
     // table env
     let mut buf = String::new();
     writeln!(
         &mut buf,
         "\\begin{{table}}\n\
-         \\begin{{tabular}}{{@{{}}rrrrrrrrrr@{{}}}}\\toprule"
-    );
+         \\begin{{tabular}}{{@{{}}r|rrr|rrr|rrr@{{}}}}\\toprule\n\
+         {}",
+        row_genies
+    )
+    .unwrap();
 
     // run for each kind
     for (counter, str_kind) in str_kinds.iter().enumerate() {
@@ -86,20 +90,15 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
         if ndof.len() == 0 {
             continue;
         } else {
-            writeln!(&mut buf, "\\multicolumn{{10}}{{c}}{{{}}} \\\\ \n\
-            \\cmidrule(lr){{1-10}} \n\
-            & \\multicolumn{{3}}{{c}}{{MUMPS}} & \\multicolumn{{3}}{{c}}{{UMFPACK}} & \\multicolumn{{3}}{{c}}{{IntelDSS}} \\\\ \n\
-            \\cmidrule(lr){{2-4}} \\cmidrule(lr){{5-7}} \\cmidrule(ll){{8-10}} \n\
-            {:>6} & {:>8} & {:>9} & {:>4} & {:>8} & {:>9} & {:>4} & {:>8} & {:>9} & {:>4}\\\\\\midrule",
-            str_kind.to_uppercase(),
-            "Ndof", "Time", "Error", "RT", "Time", "Error", "RT", "Time", "Error", "RT").unwrap();
+            let row_labels = "\\bf{Time} & \\bf{Error} & \\bf{RT} & \\bf{Time} & \\bf{Error} & \\bf{RT} & \\bf{Time} & \\bf{Error} & \\bf{RT} \\\\\\midrule";
+            writeln!(&mut buf, "\\bf{{{}}} & {}", up_first(str_kind), row_labels).unwrap();
         }
 
         // generate the contents
         for n in &ndof {
-            let mut e = String::new();
-            write!(&mut buf, "{:>6}", n);
-            let mut ref_time = 1;
+            let e;
+            write!(&mut buf, "{:>6}", n).unwrap();
+            let ref_time;
             if let Some(data) = mumps.get(n) {
                 ref_time = data.0;
                 e = format!("{:>8.2e}", data.1);
@@ -244,4 +243,12 @@ pub fn ts(nanoseconds: u128) -> String {
     }
 
     buf
+}
+
+fn up_first(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
 }
