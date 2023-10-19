@@ -13,9 +13,10 @@ const OUT_DIR: &str = "/tmp/pmsim/latex/";
 
 #[rustfmt::skip]
 fn main() -> Result<(), StrError> {
-    // run("pressurized_cylinder2d_elast", "_tri", &["tri3", "tri6", "tri10", "tri15"])?;
-    run("pressurized_cylinder2d_elast", "_qua", &["qua4", "qua8", "qua9", "qua12", "qua16", "qua17"])?;
-    // run("pressurized_cylinder3d_elast", "", &["tet4", "tet10", "hex8", "hex20"])?;
+    run("pressurized_cylinder2d_elast", "_tri", &["tri3", "tri6", "tri10", "tri15"])?;
+    run("pressurized_cylinder2d_elast", "_qua_a", &["qua4", "qua8", "qua9"])?;
+    run("pressurized_cylinder2d_elast", "_qua_b", &[ "qua12", "qua16", "qua17"])?;
+    run("pressurized_cylinder3d_elast", "", &["tet4", "tet10", "hex8", "hex20"])?;
     Ok(())
 }
 
@@ -25,7 +26,9 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
 
     // aux strings
     let row_genies =
-        "NDOF & \\multicolumn{3}{c|}{{MUMPS}} & \\multicolumn{3}{c|}{{UMFPACK}} & \\multicolumn{3}{c}{{Intel DSS}} \\\\";
+        "& \\multicolumn{3}{c}{{MUMPS}} & \\multicolumn{3}{c}{{UMFPACK}} & \\multicolumn{3}{c}{{Intel DSS}} \\\\";
+
+    let mid_rules = "\\cmidrule(lr){2-4} \\cmidrule(lr){5-7} \\cmidrule(ll){8-10}";
 
     // table env
     let mut buf = String::new();
@@ -33,9 +36,7 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
         &mut buf,
         "\\begin{{table}}\n\
          \\makebox[\\linewidth]{{\n\
-         \\begin{{tabular}}{{@{{}}r|rrr|rrr|rrr@{{}}}}\\toprule\n\
-         {}",
-        row_genies
+         \\begin{{tabular}}{{@{{}}rrrrrrrrrr@{{}}}}\\toprule"
     )
     .unwrap();
 
@@ -81,8 +82,13 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
         }
 
         // labels
-        let row_labels = "\\bf{Time} & \\bf{Error} & \\bf{RT} & \\bf{Time} & \\bf{Error} & \\bf{RT} & \\bf{Time} & \\bf{Error} & \\bf{RT} \\\\\\midrule";
-        writeln!(&mut buf, "\\bf{{{}}} & {}", up_first(str_kind), row_labels).unwrap();
+        let row_labels = "& time & error & rel.t & time & error & rel.t & time & error & rel.t \\\\\\midrule";
+        writeln!(
+            &mut buf,
+            "{}\n{}\nndof({}){}",
+            row_genies, mid_rules, str_kind, row_labels
+        )
+        .unwrap();
 
         // generate the contents
         for n in &ndof {
@@ -153,7 +159,7 @@ fn call_latex(key: &String, buffer: &String) -> Result<(), StrError> {
 
     // temporary file
     let temp = format!(
-        "\\documentclass[10pt,a4paper]{{article}}\n\
+        "\\documentclass[12pt,a4paper]{{article}}\n\
          \\usepackage{{booktabs}}\n\
          \\usepackage{{graphicx}}\n\
          \\begin{{document}}\n\
@@ -240,12 +246,4 @@ pub fn ts(nanoseconds: u128) -> String {
     }
 
     buf
-}
-
-fn up_first(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
 }
