@@ -84,7 +84,8 @@ fn run(str_kinds: &[&str]) -> Result<(), StrError> {
             & \\multicolumn{{3}}{{c}}{{MUMPS}} & \\multicolumn{{3}}{{c}}{{UMFPACK}} & \\multicolumn{{3}}{{c}}{{IntelDSS}} \\\\ \n\
             \\cmidrule(lr){{2-4}} \\cmidrule(lr){{5-7}} \\cmidrule(ll){{8-10}} \n\
             {:>6} & {:>8} & {:>9} & {:>4} & {:>8} & {:>9} & {:>4} & {:>8} & {:>9} & {:>4}\\\\\\midrule",
-            str_kind.to_uppercase(),"Ndof","Time","Error","RT","Time","Error","RT","Time","Error","RT").unwrap();
+            str_kind.to_uppercase(),
+            "Ndof", "Time", "Error", "RT", "Time", "Error", "RT", "Time", "Error", "RT").unwrap();
         }
 
         // generate the contents
@@ -141,7 +142,6 @@ fn call_latex(key: &String, buffer: &String) -> Result<(), StrError> {
     }
 
     // write file
-    // let contents = format!("\\documentclass[10pt,a4paper]{{article}}\n\\usepackage[a4paper,margin=1in]{{geometry}}\n\\usepackage{{booktabs}}\n\\begin{{document}}\n{}\n\\end{{document}}", buffer);
     let contents = format!(
         "\\documentclass[10pt,a4paper]{{article}}\n\
          \\usepackage[a4paper,margin=1in]{{geometry}}\n\
