@@ -126,6 +126,12 @@ fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Resu
     // update and print stats
     solver.actual.update_stats(&mut stats);
     println!("{}", stats.get_json());
+    let path = if enforce_unsym_strategy {
+        format!("/tmp/pmsim/{}-enforce-unsym.json", name)
+    } else {
+        format!("/tmp/pmsim/{}-auto.json", name)
+    };
+    stats.write_json(&path).unwrap();
 
     // check
     if enforce_unsym_strategy {
@@ -160,6 +166,7 @@ fn main() -> Result<(), StrError> {
         // write smat and mtx files
         let csr = mat.get_csr_or_from_coo()?;
         csr.write_matrix_market(&format!("{}/{}.mtx", OUT_DIR, name), false)?;
+        csr.write_matrix_market(&format!("{}/{}.smat", OUT_DIR, name), true)?;
     }
     Ok(())
 }
