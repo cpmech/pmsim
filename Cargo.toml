@@ -14,9 +14,9 @@ keywords = ["mechanics", "fem"]
 [dependencies]
 gemlab = "0.7"
 plotpy = "0.5"
-russell_lab = "0.6"
+russell_lab = "0.7"
 russell_sparse = "0.7"
-russell_tensor = "0.6"
+russell_tensor = "0.7"
 rayon = "1.7"
 rmp-serde = "1.1"
 serde = { version = "1.0", features = ["derive"] }
