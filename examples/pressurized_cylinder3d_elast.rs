@@ -78,6 +78,7 @@ fn main() -> Result<(), StrError> {
         if kind == GeoKind::Tet4 {
             vec![(5, 10), (20, 40), (30, 70)]
         } else {
+            // vec![(50, 85)] // very fine mesh for paper
             vec![(2, 4), (10, 20), (20, 40)]
         }
     } else {
