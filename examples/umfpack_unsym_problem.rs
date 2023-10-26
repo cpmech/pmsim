@@ -17,7 +17,7 @@ const NA: usize = 94; // number of alpha divisions
 
 fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // generate mesh
-    let mesh = Structured::quarter_ring_2d(R1, R2, nr, NA, GeoKind::Qua4).unwrap();
+    let mesh = Structured::quarter_ring_2d(R1, R2, nr, NA, GeoKind::Qua4, true).unwrap();
 
     // draw mesh
     if SAVE_FIGURE {
@@ -136,7 +136,7 @@ fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Resu
     // check
     if enforce_unsym_strategy {
         if name == "pres-cylin-bad" {
-            assert!(stats.verify.max_abs_diff > 1600.0);
+            assert!(stats.verify.max_abs_diff > 8300.0);
         } else {
             assert!(stats.verify.max_abs_diff < 1e-6);
         }

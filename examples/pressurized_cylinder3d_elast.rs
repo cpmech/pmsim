@@ -116,9 +116,9 @@ fn main() -> Result<(), StrError> {
             let den = if kind == GeoKind::Tet4 { 6.0 } else { 2.0 };
             let global_max_volume = Some(delta_x * delta_x * delta_x / den);
             // println!("0. max vol = {:?}", global_max_volume);
-            Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume).unwrap()
+            Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume, true).unwrap()
         } else {
-            Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind).unwrap()
+            Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind, true).unwrap()
         };
 
         // println!("1. npoint = {}, ncell = {}", mesh.points.len(), mesh.cells.len());

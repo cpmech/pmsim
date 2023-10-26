@@ -123,7 +123,7 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         let y = &[0.0, ya, yb, h];
         let att = &[1, 1, 1];
         let (na, nb, ny) = (4, 12, &[8, 12, 8]);
-        let mut mesh = Structured::rectangle(rin, Some(rref), rout, na, nb, y, ny, att, GeoKind::Qua9).unwrap();
+        let mut mesh = Structured::rectangle(rin, Some(rref), rout, na, nb, y, ny, att, GeoKind::Qua9, true).unwrap();
 
         // mark reference point
         let extract_all = true; // << needed to find interior point

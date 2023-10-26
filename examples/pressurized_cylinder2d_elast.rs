@@ -108,9 +108,9 @@ fn main() -> Result<(), StrError> {
         let mesh = if kind.class() == GeoClass::Tri {
             let delta_x = (R2 - R1) / (*nr as f64);
             let global_max_area = Some(delta_x * delta_x / 2.0);
-            Unstructured::quarter_ring_2d(R1, R2, *nr, *na, kind, global_max_area).unwrap()
+            Unstructured::quarter_ring_2d(R1, R2, *nr, *na, kind, global_max_area, true).unwrap()
         } else {
-            Structured::quarter_ring_2d(R1, R2, *nr, *na, kind).unwrap()
+            Structured::quarter_ring_2d(R1, R2, *nr, *na, kind, true).unwrap()
         };
 
         // check mesh

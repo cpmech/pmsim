@@ -12,7 +12,7 @@ use std::path::Path;
 /// Assists in the post-processing of results
 pub struct PostProc<'a> {
     mesh: &'a Mesh,
-    feat: &'a Features,
+    feat: &'a Features<'a>,
     data: &'a Data<'a>,
     state: &'a State,
     enabled_dofs: HashSet<Dof>,
