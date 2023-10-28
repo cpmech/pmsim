@@ -85,8 +85,6 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
         source: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let mut config = Config::new();
-    config.axisymmetric = true;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -95,6 +93,10 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural.on(&edges_flux, Nbc::Qt(|_| 5e5));
+
+    // configuration
+    let mut config = Config::new();
+    config.axisymmetric = true;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

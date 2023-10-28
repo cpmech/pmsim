@@ -63,9 +63,6 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1)), (2, Element::Solid(p2))])?;
-    let mut config = Config::new();
-    config.n_integ_point.insert(1, 8);
-    config.n_integ_point.insert(2, 8);
 
     // essential boundary conditions
     let zero = |_| 0.0;
@@ -80,6 +77,11 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -1.0));
+
+    // configuration
+    let mut config = Config::new();
+    config.n_integ_point.insert(1, 8);
+    config.n_integ_point.insert(2, 8);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

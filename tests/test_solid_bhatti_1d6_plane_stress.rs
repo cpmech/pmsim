@@ -52,10 +52,6 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
-    let mut config = Config::new();
-    config.plane_stress = true;
-    config.thickness = 0.25;
-    config.validate_or_panic(mesh.ndim, true);
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -65,6 +61,12 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -20.0));
+
+    // configuration
+    let mut config = Config::new();
+    config.plane_stress = true;
+    config.thickness = 0.25;
+    config.validate_or_panic(mesh.ndim, true);
 
     // elements
     let mut elements = Elements::new(&input, &config)?;

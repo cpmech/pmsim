@@ -69,10 +69,6 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1)), (2, Element::Solid(p2))])?;
-    let mut config = Config::new();
-    config.axisymmetric = true;
-    config.n_integ_point.insert(1, 9);
-    config.n_integ_point.insert(2, 9);
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -88,6 +84,12 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
         .at(&[0], Pbc::Fy(|_| -2.6667))
         .at(&[3], Pbc::Fy(|_| -23.3333))
         .at(&[6], Pbc::Fy(|_| -24.0));
+
+    // configuration
+    let mut config = Config::new();
+    config.axisymmetric = true;
+    config.n_integ_point.insert(1, 9);
+    config.n_integ_point.insert(2, 9);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

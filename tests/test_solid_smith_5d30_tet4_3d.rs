@@ -53,7 +53,6 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
-    let config = Config::new();
 
     // essential boundary conditions
     let zero = |_| 0.0;
@@ -68,6 +67,9 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     natural
         .at(&[0, 5], Pbc::Fz(|_| -0.1667))
         .at(&[1, 4], Pbc::Fz(|_| -0.3333));
+
+    // configuration
+    let config = Config::new();
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

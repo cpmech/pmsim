@@ -57,10 +57,6 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         source: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let mut config = Config::new();
-    let t_fin = 1.0;
-    config.transient = true;
-    config.control.t_fin = t_fin;
 
     // essential boundary conditions
     let essential = Essential::new();
@@ -68,6 +64,12 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural.on(&left, Nbc::Qt(|_| 1.0));
+
+    // configuration
+    let mut config = Config::new();
+    let t_fin = 1.0;
+    config.transient = true;
+    config.control.t_fin = t_fin;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

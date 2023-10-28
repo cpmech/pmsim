@@ -58,7 +58,6 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
-    let config = Config::new();
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -71,6 +70,9 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
 
     // natural boundary conditions
     let natural = Natural::new();
+
+    // configuration
+    let config = Config::new();
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

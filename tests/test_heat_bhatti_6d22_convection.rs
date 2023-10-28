@@ -69,7 +69,6 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         source: Some(source),
     };
     let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let config = Config::new();
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -82,6 +81,9 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         .on(&edges_flux, Nbc::Qt(|_| 8000.0))
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
     println!("{}", natural);
+
+    // configuration
+    let config = Config::new();
 
     // elements
     let mut elements = Elements::new(&input, &config)?;
