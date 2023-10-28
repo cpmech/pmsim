@@ -85,8 +85,8 @@ fn main() -> Result<(), StrError> {
 
     // generate Paraview file
     if false {
-        let proc = PostProc::new(&mesh, &feat, &input, &state);
-        proc.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
+        let output = FemOutput::new(&mesh, &feat, &input, &state);
+        output.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
     }
 
     // check displacements

@@ -101,7 +101,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // plot results
     if false {
         // get temperature values along x
-        let post = PostProc::new(&mesh, &feat, &input, &state);
+        let post = FemOutput::new(&mesh, &feat, &input, &state);
         let (_, x_values, tt_values) = post.values_along_x(Dof::T, 0.0, any_x)?;
 
         // compute plot data

@@ -257,7 +257,7 @@ fn main() -> Result<(), StrError> {
 
         // vtu file
         if SAVE_VTU {
-            let post = PostProc::new(&mesh, &feat, &input, &state);
+            let post = FemOutput::new(&mesh, &feat, &input, &state);
             post.write_vtu(&path_vtu)?;
         }
 

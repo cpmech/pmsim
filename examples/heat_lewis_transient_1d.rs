@@ -103,7 +103,7 @@ fn main() -> Result<(), StrError> {
         let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
         // get temperature values along x
-        let post = PostProc::new(&mesh, &feat, &input, &state);
+        let post = FemOutput::new(&mesh, &feat, &input, &state);
         let (_, xx_num, tt_num) = post.values_along_x(Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
         // plot

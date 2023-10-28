@@ -10,7 +10,7 @@ use std::io::Write as IoWrite;
 use std::path::Path;
 
 /// Assists in the post-processing of results
-pub struct PostProc<'a> {
+pub struct FemOutput<'a> {
     mesh: &'a Mesh,
     feat: &'a Features<'a>,
     input: &'a FemInput<'a>,
@@ -19,7 +19,7 @@ pub struct PostProc<'a> {
     not_displacement_dof: Vec<Dof>,
 }
 
-impl<'a> PostProc<'a> {
+impl<'a> FemOutput<'a> {
     /// Allocates new instance
     pub fn new(mesh: &'a Mesh, feat: &'a Features, input: &'a FemInput, state: &'a State) -> Self {
         let mut enabled_dofs = HashSet::new();
@@ -33,7 +33,7 @@ impl<'a> PostProc<'a> {
             .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
             .copied()
             .collect();
-        PostProc {
+        FemOutput {
             mesh,
             feat,
             input,
@@ -264,7 +264,7 @@ impl<'a> PostProc<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::PostProc;
+    use super::FemOutput;
     use crate::base::{Config, Dof, Element, SampleParams};
     use crate::fem::{FemInput, State};
     use gemlab::mesh::{Features, Samples};
@@ -285,8 +285,8 @@ mod tests {
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let proc = PostProc::new(&mesh, &feat, &input, &state);
-        let (ids, xx, dd) = proc.values_along_x(Dof::T, 0.0, any_x).unwrap();
+        let output = FemOutput::new(&mesh, &feat, &input, &state);
+        let (ids, xx, dd) = output.values_along_x(Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
         assert_eq!(dd, &[1.0, 4.0, 2.0]);
@@ -311,8 +311,8 @@ mod tests {
         }
 
         let path = "/tmp/pmsim/test_write_vtu_works.vtu";
-        let proc = PostProc::new(&mesh, &feat, &input, &state);
-        proc.write_vtu(path).unwrap();
+        let output = FemOutput::new(&mesh, &feat, &input, &state);
+        output.write_vtu(path).unwrap();
 
         let contents = fs::read_to_string(path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
