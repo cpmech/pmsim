@@ -19,8 +19,8 @@ impl LinearElastic {
 }
 
 impl StressStrainModel for LinearElastic {
-    /// Returns whether the stiffness matrix is symmetric or not
-    fn symmetric_stiffness(&self) -> bool {
+    /// Indicates that the stiffness matrix is symmetric and constant
+    fn symmetric_and_constant_stiffness(&self) -> bool {
         true
     }
 
