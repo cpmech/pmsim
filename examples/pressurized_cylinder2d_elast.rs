@@ -152,7 +152,7 @@ fn main() -> Result<(), StrError> {
                 poisson: POISSON,
             },
         };
-        let data = Data::new(&mesh, [(1, Element::Solid(param1))])?;
+        let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
         let mut config = Config::new();
         config.linear_problem = true;
         config.control.verbose_timesteps = false;
@@ -162,7 +162,7 @@ fn main() -> Result<(), StrError> {
         config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // total number of DOF
-        let ndof = data.equations.n_equation;
+        let ndof = input.equations.n_equation;
         let n_str = format!("{:0>5}", ndof);
 
         // filepaths
@@ -224,10 +224,10 @@ fn main() -> Result<(), StrError> {
             .on(&outer_circle, Nbc::Qn(|_| -P2));
 
         // simulation state
-        let mut state = State::new(&data, &config)?;
+        let mut state = State::new(&input, &config)?;
 
         // run simulation
-        let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+        let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
         sim.run(&mut state)?;
         results.time[idx] = stopwatch.stop();
@@ -235,12 +235,12 @@ fn main() -> Result<(), StrError> {
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = data.equations.eq(ref_point_id, Dof::Ux).unwrap();
+        let eq = input.equations.eq(ref_point_id, Dof::Ux).unwrap();
         let numerical_ur = state.uu[eq];
         let error = f64::abs(numerical_ur - ana.radial_displacement(r));
 
         // study point error
-        let eq = data.equations.eq(study_point, Dof::Uy).unwrap();
+        let eq = input.equations.eq(study_point, Dof::Uy).unwrap();
         let numerical_ur = state.uu[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
@@ -257,7 +257,7 @@ fn main() -> Result<(), StrError> {
 
         // vtu file
         if SAVE_VTU {
-            let post = PostProc::new(&mesh, &feat, &data, &state);
+            let post = PostProc::new(&mesh, &feat, &input, &state);
             post.write_vtu(&path_vtu)?;
         }
 

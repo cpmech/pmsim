@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamSolid, ParamStressStrain};
-use pmsim::fem::{Boundaries, Data, Elements, LinearSystem, PrescribedValues, State};
+use pmsim::fem::{Boundaries, Elements, FemInput, LinearSystem, PrescribedValues, State};
 use russell_lab::*;
 use russell_sparse::prelude::*;
 
@@ -41,14 +41,14 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
             poisson: POISSON,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(param1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0));
 
     // prescribed values
-    let prescribed_values = PrescribedValues::new(&data, &essential)?;
+    let prescribed_values = PrescribedValues::new(&input, &essential)?;
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -62,20 +62,20 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = true;
 
     // elements
-    let mut elements = Elements::new(&data, &config)?;
+    let mut elements = Elements::new(&input, &config)?;
 
     // boundaries
-    let mut boundaries = Boundaries::new(&data, &config, &natural)?;
+    let mut boundaries = Boundaries::new(&input, &config, &natural)?;
 
     // simulation state
-    let state = State::new(&data, &config)?;
+    let state = State::new(&input, &config)?;
 
     // compute jacobians in parallel
     elements.calc_jacobians_parallel(&state)?;
     boundaries.calc_jacobians_parallel(&state)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;
 
     // assemble jacobian matrix
     let kk = lin_sys.jacobian.get_coo_mut()?;

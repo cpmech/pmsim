@@ -51,7 +51,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
             poisson: 0.2,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
     let mut config = Config::new();
     config.plane_stress = true;
     config.thickness = 0.25;
@@ -67,10 +67,10 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
     // elements
-    let mut elements = Elements::new(&data, &config)?;
+    let mut elements = Elements::new(&input, &config)?;
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // check Jacobian matrix of first element
     elements.calc_jacobians(&state)?;
@@ -86,7 +86,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // check displacements

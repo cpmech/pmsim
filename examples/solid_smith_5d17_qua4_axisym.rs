@@ -67,7 +67,7 @@ fn main() -> Result<(), StrError> {
             poisson: 0.45,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1)), (2, Element::Solid(p2))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1)), (2, Element::Solid(p2))])?;
     let mut config = Config::new();
     config.axisymmetric = true;
     config.n_integ_point.insert(1, 9);
@@ -89,10 +89,10 @@ fn main() -> Result<(), StrError> {
         .at(&[6], Pbc::Fy(|_| -24.0));
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // check displacements

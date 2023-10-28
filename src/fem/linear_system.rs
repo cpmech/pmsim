@@ -1,4 +1,4 @@
-use super::{Boundaries, Data, Elements, PrescribedValues};
+use super::{Boundaries, Elements, FemInput, PrescribedValues};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
@@ -41,14 +41,14 @@ pub struct LinearSystem<'a> {
 impl<'a> LinearSystem<'a> {
     /// Allocates new instance
     pub fn new(
-        data: &Data,
+        input: &FemInput,
         config: &Config,
         prescribed_values: &PrescribedValues,
         elements: &Elements,
         boundaries: &Boundaries,
     ) -> Result<Self, StrError> {
         // equation (DOF) numbers
-        let n_equation = data.equations.n_equation;
+        let n_equation = input.equations.n_equation;
 
         // compute the number of non-zero values
         let mut nnz_sup = prescribed_values.equations.len();
@@ -86,7 +86,7 @@ impl<'a> LinearSystem<'a> {
 mod tests {
     use super::LinearSystem;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, SampleParams};
-    use crate::fem::{Boundaries, Data, Elements, PrescribedValues};
+    use crate::fem::{Boundaries, Elements, FemInput, PrescribedValues};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -98,15 +98,15 @@ mod tests {
             cells: Vec::new(),
         };
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
         let essential = Essential::new();
         let natural = Natural::new();
-        let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
-        let elements = Elements::new(&data, &config).unwrap();
-        let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
+        let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
+        let elements = Elements::new(&input, &config).unwrap();
+        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
         assert_eq!(
-            LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries).err(),
+            LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).err(),
             Some("nrow must be ≥ 1")
         );
     }
@@ -124,7 +124,7 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
         let mut essential = Essential::new();
         let mut natural = Natural::new();
@@ -136,10 +136,10 @@ mod tests {
             points: vec![2, 3],
         };
         natural.on(&[&edge_conv], Nbc::Cv(55.0, f));
-        let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
-        let elements = Elements::new(&data, &config).unwrap();
-        let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries).unwrap();
+        let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
+        let elements = Elements::new(&input, &config).unwrap();
+        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
+        let lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).unwrap();
         let n_prescribed = 2;
         let n_element = 3;
         let n_equation_local = 3;

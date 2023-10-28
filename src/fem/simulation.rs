@@ -1,4 +1,4 @@
-use super::{Boundaries, ConcentratedLoads, Data, Elements, LinearSystem, PrescribedValues, State};
+use super::{Boundaries, ConcentratedLoads, Elements, FemInput, LinearSystem, PrescribedValues, State};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
@@ -27,19 +27,19 @@ pub struct Simulation<'a> {
 impl<'a> Simulation<'a> {
     /// Allocate new instance
     pub fn new(
-        data: &'a Data,
+        input: &'a FemInput,
         config: &'a Config,
         essential: &'a Essential,
         natural: &'a Natural,
     ) -> Result<Self, StrError> {
-        if let Some(_) = config.validate(data.mesh.ndim) {
+        if let Some(_) = config.validate(input.mesh.ndim) {
             return Err("cannot allocate simulation because config.validate() failed");
         }
-        let prescribed_values = PrescribedValues::new(&data, &essential)?;
-        let concentrated_loads = ConcentratedLoads::new(&data, &natural)?;
-        let elements = Elements::new(&data, &config)?;
-        let boundaries = Boundaries::new(&data, &config, &natural)?;
-        let linear_system = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries)?;
+        let prescribed_values = PrescribedValues::new(&input, &essential)?;
+        let concentrated_loads = ConcentratedLoads::new(&input, &natural)?;
+        let elements = Elements::new(&input, &config)?;
+        let boundaries = Boundaries::new(&input, &config, &natural)?;
+        let linear_system = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;
         Ok(Simulation {
             config,
             prescribed_values,
@@ -221,7 +221,7 @@ impl<'a> Simulation<'a> {
 mod tests {
     use super::Simulation;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
-    use crate::fem::{Data, State};
+    use crate::fem::{FemInput, State};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -229,7 +229,7 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_hex8();
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 
@@ -237,7 +237,7 @@ mod tests {
         let mut config = Config::new();
         config.control.dt_min = -1.0;
         assert_eq!(
-            Simulation::new(&data, &config, &essential, &natural).err(),
+            Simulation::new(&input, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
         let config = Config::new();
@@ -248,7 +248,7 @@ mod tests {
         let mut essential = Essential::new();
         essential.at(&[123], Ebc::Ux(f));
         assert_eq!(
-            Simulation::new(&data, &config, &essential, &natural).err(),
+            Simulation::new(&input, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let essential = Essential::new();
@@ -257,7 +257,7 @@ mod tests {
         let mut natural = Natural::new();
         natural.at(&[100], Pbc::Fx(f));
         assert_eq!(
-            Simulation::new(&data, &config, &essential, &natural).err(),
+            Simulation::new(&input, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let natural = Natural::new();
@@ -266,7 +266,7 @@ mod tests {
         let mut config = Config::new();
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
-            Simulation::new(&data, &config, &essential, &natural).err(),
+            Simulation::new(&input, &config, &essential, &natural).err(),
             Some("desired number of integration points is not available for Hex class")
         );
         let config = Config::new();
@@ -279,7 +279,7 @@ mod tests {
         };
         natural.on(&[&edge], Nbc::Qn(f));
         assert_eq!(
-            Simulation::new(&data, &config, &essential, &natural).err(),
+            Simulation::new(&input, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
         let natural = Natural::new();
@@ -290,9 +290,9 @@ mod tests {
             points: Vec::new(),
             cells: Vec::new(),
         };
-        let data = Data::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
-            Simulation::new(&data, &config, &essential, &natural).err(),
+            Simulation::new(&input, &config, &essential, &natural).err(),
             Some("nrow must be ≥ 1")
         );
     }
@@ -301,13 +301,13 @@ mod tests {
     fn run_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new();
         config.control.dt = |_| -1.0; // wrong
         let essential = Essential::new();
         let natural = Natural::new();
-        let mut sim = Simulation::new(&data, &config, &essential, &natural).unwrap();
-        let mut state = State::new(&data, &config).unwrap();
+        let mut sim = Simulation::new(&input, &config, &essential, &natural).unwrap();
+        let mut state = State::new(&input, &config).unwrap();
         assert_eq!(
             sim.run(&mut state).err(),
             Some("Δt is smaller than the allowed minimum")

@@ -1,4 +1,4 @@
-use super::Data;
+use super::FemInput;
 use crate::base::{Config, Element};
 use crate::StrError;
 use russell_lab::Vector;
@@ -45,9 +45,9 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(data: &Data, config: &Config) -> Result<State, StrError> {
+    pub fn new(input: &FemInput, config: &Config) -> Result<State, StrError> {
         // check number of cells
-        if data.mesh.cells.len() == 0 {
+        if input.mesh.cells.len() == 0 {
             return Err("there are no cells in the mesh");
         }
 
@@ -57,8 +57,8 @@ impl State {
         let mut has_solid = false;
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
-        for cell in &data.mesh.cells {
-            let element = data.attributes.get(cell).unwrap(); // already checked by Data
+        for cell in &input.mesh.cells {
+            let element = input.attributes.get(cell).unwrap(); // already checked by Data
             match element {
                 Element::Diffusion(..) => has_diffusion = true,
                 Element::Rod(..) => has_rod_or_beam = true,
@@ -80,7 +80,7 @@ impl State {
         }
 
         // constants
-        let n_equation = data.equations.n_equation;
+        let n_equation = input.equations.n_equation;
 
         // primary variables
         let t = config.control.t_ini;
@@ -121,7 +121,7 @@ impl State {
 mod tests {
     use super::State;
     use crate::base::{Config, Element, SampleParams};
-    use crate::fem::Data;
+    use crate::fem::FemInput;
     use gemlab::mesh::{Mesh, Samples};
 
     #[test]
@@ -132,15 +132,18 @@ mod tests {
             cells: Vec::new(),
         };
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        assert_eq!(State::new(&data, &config).err(), Some("there are no cells in the mesh"));
+        assert_eq!(
+            State::new(&input, &config).err(),
+            Some("there are no cells in the mesh")
+        );
 
         let mesh = Samples::qua8_tri6_lin2();
         let p1 = SampleParams::param_diffusion();
         let p2 = SampleParams::param_solid();
         let p3 = SampleParams::param_rod();
-        let data = Data::new(
+        let input = FemInput::new(
             &mesh,
             [
                 (1, Element::Diffusion(p1)),
@@ -151,12 +154,12 @@ mod tests {
         .unwrap();
         let config = Config::new();
         assert_eq!(
-            State::new(&data, &config).err(),
+            State::new(&input, &config).err(),
             Some("cannot combine Diffusion elements with other elements")
         );
 
         let p1 = SampleParams::param_porous_liq();
-        let data = Data::new(
+        let input = FemInput::new(
             &mesh,
             [
                 (1, Element::PorousLiq(p1)),
@@ -167,12 +170,12 @@ mod tests {
         .unwrap();
         let config = Config::new();
         assert_eq!(
-            State::new(&data, &config).err(),
+            State::new(&input, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
 
         let p1 = SampleParams::param_porous_liq_gas();
-        let data = Data::new(
+        let input = FemInput::new(
             &mesh,
             [
                 (1, Element::PorousLiqGas(p1)),
@@ -183,7 +186,7 @@ mod tests {
         .unwrap();
         let config = Config::new();
         assert_eq!(
-            State::new(&data, &config).err(),
+            State::new(&input, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
     }
@@ -194,7 +197,7 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq();
         let p2 = SampleParams::param_solid_drucker_prager();
         let p3 = SampleParams::param_beam();
-        let data = Data::new(
+        let input = FemInput::new(
             &mesh,
             [
                 (1, Element::PorousSldLiq(p1)),
@@ -204,26 +207,26 @@ mod tests {
         )
         .unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = State::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.dt, 0.1);
-        assert_eq!(state.uu.dim(), data.equations.n_equation);
+        assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
 
     #[test]
     fn new_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut config = Config::new();
         config.transient = true;
-        let state = State::new(&data, &config).unwrap();
+        let state = State::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.equations.n_equation);
-        assert_eq!(state.vv.dim(), data.equations.n_equation);
+        assert_eq!(state.uu.dim(), input.equations.n_equation);
+        assert_eq!(state.vv.dim(), input.equations.n_equation);
         assert_eq!(state.aa.dim(), 0);
-        assert_eq!(state.uu_star.dim(), data.equations.n_equation);
-        assert_eq!(state.vv_star.dim(), data.equations.n_equation);
+        assert_eq!(state.uu_star.dim(), input.equations.n_equation);
+        assert_eq!(state.vv_star.dim(), input.equations.n_equation);
         assert_eq!(state.aa_star.dim(), 0);
     }
 
@@ -231,11 +234,11 @@ mod tests {
     fn new_works_rod_only() {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_rod();
-        let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = State::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.equations.n_equation);
+        assert_eq!(state.uu.dim(), input.equations.n_equation);
         assert_eq!(state.vv.dim(), 0);
         assert_eq!(state.aa.dim(), 0);
         assert_eq!(state.uu_star.dim(), 0);
@@ -247,33 +250,33 @@ mod tests {
     fn new_works_porous_liq() {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_liq();
-        let data = Data::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = State::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.equations.n_equation);
+        assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
 
     #[test]
     fn new_works_porous_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_liq_gas();
-        let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = State::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.equations.n_equation);
+        assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
 
     #[test]
     fn new_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq_gas();
-        let data = Data::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = State::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.equations.n_equation);
+        assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
 
     #[test]
@@ -281,26 +284,26 @@ mod tests {
         let mesh = Samples::mixed_shapes_2d();
         let p1 = SampleParams::param_rod();
         let p2 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Rod(p1)), (2, Element::Solid(p2))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Rod(p1)), (2, Element::Solid(p2))]).unwrap();
         let mut config = Config::new();
         config.dynamics = true;
-        let state = State::new(&data, &config).unwrap();
+        let state = State::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.uu.dim(), data.equations.n_equation);
-        assert_eq!(state.vv.dim(), data.equations.n_equation);
-        assert_eq!(state.aa.dim(), data.equations.n_equation);
-        assert_eq!(state.uu_star.dim(), data.equations.n_equation);
-        assert_eq!(state.vv_star.dim(), data.equations.n_equation);
-        assert_eq!(state.aa_star.dim(), data.equations.n_equation);
+        assert_eq!(state.uu.dim(), input.equations.n_equation);
+        assert_eq!(state.vv.dim(), input.equations.n_equation);
+        assert_eq!(state.aa.dim(), input.equations.n_equation);
+        assert_eq!(state.uu_star.dim(), input.equations.n_equation);
+        assert_eq!(state.vv_star.dim(), input.equations.n_equation);
+        assert_eq!(state.aa_star.dim(), input.equations.n_equation);
     }
 
     #[test]
     fn derive_works() {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_rod();
-        let data = Data::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        let state_ori = State::new(&data, &config).unwrap();
+        let state_ori = State::new(&input, &config).unwrap();
         let state = state_ori.clone();
         let str_ori = format!("{:?}", state).to_string();
         assert!(str_ori.len() > 0);

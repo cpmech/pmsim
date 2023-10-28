@@ -52,7 +52,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
             poisson: 0.3,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
     let config = Config::new();
 
     // essential boundary conditions
@@ -70,15 +70,15 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
         .at(&[1, 4], Pbc::Fz(|_| -0.3333));
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // generate Paraview file
     if false {
-        let proc = PostProc::new(&mesh, &feat, &data, &state);
+        let proc = PostProc::new(&mesh, &feat, &input, &state);
         proc.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
     }
 

@@ -57,7 +57,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
         conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
     let mut config = Config::new();
     config.axisymmetric = true;
 
@@ -70,10 +70,10 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qt(|_| 100.0));
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
     // println!("{}", state.uu);
 
@@ -81,7 +81,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
-        let eq = data.equations.eq(point.id, Dof::T).unwrap();
+        let eq = input.equations.eq(point.id, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);

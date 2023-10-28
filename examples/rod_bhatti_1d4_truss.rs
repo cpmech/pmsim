@@ -45,7 +45,7 @@ fn main() -> Result<(), StrError> {
 
     // parameters, DOFs, and configuration
     #[rustfmt::skip]
-    let data = Data::new(&mesh, [
+    let input = FemInput::new(&mesh, [
         (1, Element::Rod(ParamRod { area: 4_000.0, young: 200_000.0, density: 1.0 })),
         (2, Element::Rod(ParamRod { area: 3_000.0, young: 200_000.0, density: 1.0 })),
         (3, Element::Rod(ParamRod { area: 2_000.0, young:  70_000.0, density: 1.0 })),
@@ -63,10 +63,10 @@ fn main() -> Result<(), StrError> {
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // check displacements

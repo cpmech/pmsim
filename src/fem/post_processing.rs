@@ -1,5 +1,5 @@
 use crate::base::Dof;
-use crate::fem::{Data, State};
+use crate::fem::{FemInput, State};
 use crate::StrError;
 use gemlab::mesh::{At, Features, Mesh, PointId};
 use std::collections::HashSet;
@@ -13,7 +13,7 @@ use std::path::Path;
 pub struct PostProc<'a> {
     mesh: &'a Mesh,
     feat: &'a Features<'a>,
-    data: &'a Data<'a>,
+    input: &'a FemInput<'a>,
     state: &'a State,
     enabled_dofs: HashSet<Dof>,
     not_displacement_dof: Vec<Dof>,
@@ -21,9 +21,9 @@ pub struct PostProc<'a> {
 
 impl<'a> PostProc<'a> {
     /// Allocates new instance
-    pub fn new(mesh: &'a Mesh, feat: &'a Features, data: &'a Data, state: &'a State) -> Self {
+    pub fn new(mesh: &'a Mesh, feat: &'a Features, input: &'a FemInput, state: &'a State) -> Self {
         let mut enabled_dofs = HashSet::new();
-        for map in &data.equations.all {
+        for map in &input.equations.all {
             for dof in map.keys() {
                 enabled_dofs.insert(*dof);
             }
@@ -36,7 +36,7 @@ impl<'a> PostProc<'a> {
         PostProc {
             mesh,
             feat,
-            data,
+            input,
             state,
             enabled_dofs,
             not_displacement_dof,
@@ -80,7 +80,7 @@ impl<'a> PostProc<'a> {
         // extract dof values
         let dd: Vec<_> = id_x_pairs
             .iter()
-            .map(|(id, _)| self.state.uu[self.data.equations.eq(*id, dof).unwrap()])
+            .map(|(id, _)| self.state.uu[self.input.equations.eq(*id, dof).unwrap()])
             .collect();
 
         // unzip id_x_pairs
@@ -201,15 +201,15 @@ impl<'a> PostProc<'a> {
             )
             .unwrap();
             for point in &mesh.points {
-                let ux = match self.data.equations.eq(point.id, Dof::Ux).ok() {
+                let ux = match self.input.equations.eq(point.id, Dof::Ux).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
-                let uy = match self.data.equations.eq(point.id, Dof::Uy).ok() {
+                let uy = match self.input.equations.eq(point.id, Dof::Uy).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
-                let uz = match self.data.equations.eq(point.id, Dof::Uz).ok() {
+                let uz = match self.input.equations.eq(point.id, Dof::Uz).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
@@ -225,7 +225,7 @@ impl<'a> PostProc<'a> {
             )
             .unwrap();
             for point in &mesh.points {
-                let value = match self.data.equations.eq(point.id, *dof).ok() {
+                let value = match self.input.equations.eq(point.id, *dof).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
@@ -266,7 +266,7 @@ impl<'a> PostProc<'a> {
 mod tests {
     use super::PostProc;
     use crate::base::{Config, Dof, Element, SampleParams};
-    use crate::fem::{Data, State};
+    use crate::fem::{FemInput, State};
     use gemlab::mesh::{Features, Samples};
     use gemlab::util::any_x;
     use std::fs;
@@ -276,16 +276,16 @@ mod tests {
         let mesh = Samples::one_tri6();
         let feat = Features::new(&mesh, false);
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut state = State::new(&data, &config).unwrap();
+        let mut state = State::new(&input, &config).unwrap();
         state.uu[0] = 1.0;
         state.uu[1] = 2.0;
         state.uu[2] = 3.0;
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let proc = PostProc::new(&mesh, &feat, &data, &state);
+        let proc = PostProc::new(&mesh, &feat, &input, &state);
         let (ids, xx, dd) = proc.values_along_x(Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
@@ -297,9 +297,9 @@ mod tests {
         let mesh = Samples::three_tri3();
         let feat = Features::new(&mesh, false);
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let mut state = State::new(&data, &config).unwrap();
+        let mut state = State::new(&input, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
@@ -311,7 +311,7 @@ mod tests {
         }
 
         let path = "/tmp/pmsim/test_write_vtu_works.vtu";
-        let proc = PostProc::new(&mesh, &feat, &data, &state);
+        let proc = PostProc::new(&mesh, &feat, &input, &state);
         proc.write_vtu(path).unwrap();
 
         let contents = fs::read_to_string(path).map_err(|_| "cannot open file").unwrap();

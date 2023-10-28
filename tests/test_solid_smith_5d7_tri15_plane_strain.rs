@@ -65,7 +65,7 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
             poisson: 0.2,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
     let mut config = Config::new();
     config.n_integ_point.insert(1, 12);
 
@@ -85,10 +85,10 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
         .at(&[10], Pbc::Fy(|_| -0.1333));
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // check displacements

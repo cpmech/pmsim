@@ -60,7 +60,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
             poisson: POISSON,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
     let mut config = Config::new();
     config.axisymmetric = true;
     config.n_integ_point.insert(1, 4); // reduced integration => better results
@@ -74,10 +74,10 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qn(|_| -PRESSURE));
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // Felippa's Equation 14.2 on page 14-4
@@ -91,7 +91,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let selection = feat.search_point_ids(At::Y(0.0), any_x)?;
     for p in &selection {
         let r = mesh.points[*p].coords[0];
-        let eq = data.equations.eq(*p, Dof::Ux).unwrap();
+        let eq = input.equations.eq(*p, Dof::Ux).unwrap();
         let ux = state.uu[eq];
         let diff = f64::abs(ux - analytical_ur(r));
         println!("point = {}, r = {:?}, Ux = {:?}, diff = {:?}", p, r, ux, diff);

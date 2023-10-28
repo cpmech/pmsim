@@ -55,7 +55,7 @@ fn main() -> Result<(), StrError> {
         },
         source: None,
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
     let mut config = Config::new();
     let t_fin = 1.0;
     config.transient = true;
@@ -69,10 +69,10 @@ fn main() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qt(|_| 1.0));
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // check
@@ -88,8 +88,8 @@ fn main() -> Result<(), StrError> {
     .concat();
     println!("");
     for p in &selected {
-        let x = data.mesh.points[*p].coords[0];
-        let eq = data.equations.eq(*p, Dof::T).unwrap();
+        let x = input.mesh.points[*p].coords[0];
+        let eq = input.equations.eq(*p, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(state.t, x));
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
@@ -103,7 +103,7 @@ fn main() -> Result<(), StrError> {
         let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
         // get temperature values along x
-        let post = PostProc::new(&mesh, &feat, &data, &state);
+        let post = PostProc::new(&mesh, &feat, &input, &state);
         let (_, xx_num, tt_num) = post.values_along_x(Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
         // plot

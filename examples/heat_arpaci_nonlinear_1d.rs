@@ -61,7 +61,7 @@ fn main() -> Result<(), StrError> {
         conductivity: ParamConductivity::IsotropicLinear { kr: K_R, beta: BETA },
         source: Some(SOURCE),
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
     let config = Config::new();
 
     // essential boundary conditions
@@ -72,10 +72,10 @@ fn main() -> Result<(), StrError> {
     let natural = Natural::new();
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // analytical solution
@@ -92,14 +92,14 @@ fn main() -> Result<(), StrError> {
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = data.equations.eq(ref_id, Dof::T)?;
+    let ref_eq = input.equations.eq(ref_id, Dof::T)?;
     let ref_tt = state.uu[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
 
     // plot results
     // get temperature values along x
-    let post = PostProc::new(&mesh, &feat, &data, &state);
+    let post = PostProc::new(&mesh, &feat, &input, &state);
     let (_, x_values, tt_values) = post.values_along_x(Dof::T, 0.0, any_x)?;
 
     // compute plot data

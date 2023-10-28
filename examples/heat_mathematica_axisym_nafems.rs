@@ -81,7 +81,7 @@ fn main() -> Result<(), StrError> {
         conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
     let mut config = Config::new();
     config.axisymmetric = true;
 
@@ -94,14 +94,14 @@ fn main() -> Result<(), StrError> {
     natural.on(&edges_flux, Nbc::Qt(|_| 5e5));
 
     // simulation state
-    let mut state = State::new(&data, &config)?;
+    let mut state = State::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
     sim.run(&mut state)?;
 
     // check
-    let eq = data.equations.eq(ref_point, Dof::T).unwrap();
+    let eq = input.equations.eq(ref_point, Dof::T).unwrap();
     let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",

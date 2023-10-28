@@ -1,4 +1,4 @@
-use super::{Data, ElementTrait, State};
+use super::{ElementTrait, FemInput, State};
 use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamDiffusion};
 use crate::model::ConductivityModel;
 use crate::StrError;
@@ -46,22 +46,22 @@ pub struct ElementDiffusion<'a> {
 impl<'a> ElementDiffusion<'a> {
     /// Allocates new instance
     pub fn new(
-        data: &'a Data,
+        input: &'a FemInput,
         config: &'a Config,
         cell: &'a Cell,
         param: &'a ParamDiffusion,
     ) -> Result<Self, StrError> {
-        let ndim = data.mesh.ndim;
+        let ndim = input.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
-        data.mesh.set_pad(&mut pad, &points);
+        input.mesh.set_pad(&mut pad, &points);
         Ok({
             ElementDiffusion {
                 ndim,
                 config,
                 cell,
                 param,
-                local_to_global: compute_local_to_global(&data.information, &data.equations, cell)?,
+                local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
                 pad,
                 ips: config.integ_point_data(cell)?,
                 model: ConductivityModel::new(&param.conductivity, ndim == 2),
@@ -208,7 +208,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 mod tests {
     use super::ElementDiffusion;
     use crate::base::{Config, Element, SampleParams};
-    use crate::fem::{Data, ElementTrait, State};
+    use crate::fem::{ElementTrait, FemInput, State};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
@@ -219,11 +219,11 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut config = Config::new();
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
-            ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).err(),
+            ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
         );
         config.n_integ_point.insert(1, 3);
@@ -234,7 +234,7 @@ mod tests {
             points: vec![0, 1, 2],
         };
         assert_eq!(
-            ElementDiffusion::new(&data, &config, &wrong_cell, &p1).err(),
+            ElementDiffusion::new(&input, &config, &wrong_cell, &p1).err(),
             Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
@@ -244,12 +244,12 @@ mod tests {
         // mesh and parameters
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = State::new(&data, &config).unwrap();
+        let mut state = State::new(&input, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -281,9 +281,9 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1_new).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();
@@ -296,7 +296,7 @@ mod tests {
 
         let mut config = Config::new();
         config.transient = true;
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         state.dt = 0.0; // wrong
         assert_eq!(
             elem.calc_residual(&mut residual, &state).err(),
@@ -313,12 +313,12 @@ mod tests {
         // mesh and parameters
         let mesh = Samples::one_tet4();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = State::new(&data, &config).unwrap();
+        let mut state = State::new(&input, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
@@ -354,9 +354,9 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1_new).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();
