@@ -19,5 +19,5 @@ pub trait ElementTrait: Send + Sync {
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, state: &FemState, duu: &Vector) -> Result<(), StrError>;
+    fn update_secondary_values(&mut self, state: &FemState) -> Result<(), StrError>;
 }

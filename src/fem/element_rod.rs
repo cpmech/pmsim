@@ -114,7 +114,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, _state: &FemState, _duu: &Vector) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &FemState) -> Result<(), StrError> {
         Ok(())
     }
 }

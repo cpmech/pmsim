@@ -13,6 +13,9 @@ pub struct FemState {
     /// Delta time
     pub dt: f64,
 
+    /// Cumulated (for one timestep) primary unknowns {ΔU}
+    pub duu: Vector,
+
     /// Primary unknowns {U}
     ///
     /// (n_equation)
@@ -85,6 +88,7 @@ impl FemState {
         // primary variables
         let t = config.control.t_ini;
         let dt = (config.control.dt)(t);
+        let duu = Vector::new(n_equation);
         let uu = Vector::new(n_equation);
         let (uu_star, vv, vv_star) = if config.transient || config.dynamics {
             (
@@ -105,6 +109,7 @@ impl FemState {
         return Ok(FemState {
             t,
             dt,
+            duu,
             uu,
             vv,
             aa,
@@ -210,6 +215,7 @@ mod tests {
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.dt, 0.1);
+        assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
 
@@ -222,6 +228,7 @@ mod tests {
         config.transient = true;
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
+        assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
         assert_eq!(state.vv.dim(), input.equations.n_equation);
         assert_eq!(state.aa.dim(), 0);
@@ -238,6 +245,7 @@ mod tests {
         let config = Config::new();
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
+        assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
         assert_eq!(state.vv.dim(), 0);
         assert_eq!(state.aa.dim(), 0);
@@ -254,6 +262,7 @@ mod tests {
         let config = Config::new();
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
+        assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
 
@@ -265,6 +274,7 @@ mod tests {
         let config = Config::new();
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
+        assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
 
@@ -276,6 +286,7 @@ mod tests {
         let config = Config::new();
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
+        assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
 
@@ -289,6 +300,7 @@ mod tests {
         config.dynamics = true;
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
+        assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
         assert_eq!(state.vv.dim(), input.equations.n_equation);
         assert_eq!(state.aa.dim(), input.equations.n_equation);

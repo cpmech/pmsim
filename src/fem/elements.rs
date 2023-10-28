@@ -79,10 +79,14 @@ impl<'a> GenericElement<'a> {
             for j in 0..neq {
                 let at_u = state.uu[j];
                 let res = deriv_central5(at_u, &mut args, |u, a| {
-                    let original = a.state.uu[j];
+                    let original_duu = a.state.duu[j];
+                    let original_uu = a.state.uu[j];
+                    a.state.duu[j] = u;
                     a.state.uu[j] = u;
+                    self.actual.update_secondary_values(&a.state).unwrap();
                     self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
-                    a.state.uu[j] = original;
+                    a.state.duu[j] = original_duu;
+                    a.state.uu[j] = original_uu;
                     a.residual[i]
                 });
                 num_jacobian.set(i, j, res);
@@ -95,8 +99,8 @@ impl<'a> GenericElement<'a> {
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     #[inline]
-    pub fn update_secondary_values(&mut self, state: &FemState, duu: &Vector) -> Result<(), StrError> {
-        self.actual.update_secondary_values(state, duu)
+    pub fn update_secondary_values(&mut self, state: &FemState) -> Result<(), StrError> {
+        self.actual.update_secondary_values(state)
     }
 }
 
@@ -113,6 +117,17 @@ impl<'a> Elements<'a> {
             Ok(all) => Ok(Elements { all }),
             Err(e) => Err(e),
         }
+    }
+
+    /// Returns whether all local Jacobian matrices are symmetric or not
+    #[inline]
+    pub fn all_symmetric_jacobians(&self) -> bool {
+        for e in &self.all {
+            if !e.actual.symmetric_jacobian() {
+                return false;
+            }
+        }
+        return true;
     }
 
     /// Computes the residual vectors
@@ -175,10 +190,10 @@ impl<'a> Elements<'a> {
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     #[inline]
-    pub fn update_secondary_values_parallel(&mut self, state: &FemState, duu: &Vector) -> Result<(), StrError> {
+    pub fn update_secondary_values_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all
             .par_iter_mut()
-            .map(|e| e.update_secondary_values(state, duu))
+            .map(|e| e.update_secondary_values(state))
             .collect()
     }
 }
@@ -302,13 +317,24 @@ mod tests {
 
         // linear displacement field
         let mut state = FemState::new(&input, &config).unwrap();
-        let uu_field = |x, y| 1.0 * x + 2.0 * y;
-        state.uu[0] = uu_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.uu[1] = uu_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.uu[2] = uu_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.duu[0] = 1.0 + mesh.points[0].coords[0];
+        state.duu[1] = 2.0 + mesh.points[0].coords[1];
+        state.duu[2] = 1.0 + mesh.points[1].coords[0];
+        state.duu[3] = 2.0 + mesh.points[1].coords[1];
+        state.duu[4] = 1.0 + mesh.points[2].coords[0];
+        state.duu[5] = 2.0 + mesh.points[2].coords[1];
+        for i in 0..6 {
+            state.uu[i] = state.duu[i];
+        }
+        ele.update_secondary_values(&state).unwrap();
+        println!("uu =\n{}", state.uu);
 
         ele.calc_jacobian(&state).unwrap();
         let num_jacobian = ele.numerical_jacobian(&state);
+
+        println!("J(ana)=\n{:.2}", ele.jacobian);
+        println!("J(num)=\n{:.2}", num_jacobian);
+
         vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-13);
     }
 

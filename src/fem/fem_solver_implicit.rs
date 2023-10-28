@@ -60,10 +60,9 @@ impl<'a> FemSolverImplicit<'a> {
         let kk = &mut self.linear_system.jacobian;
         let mdu = &mut self.linear_system.mdu;
 
-        // first residual vector and cumulated primary variables
+        // first residual vector
         let neq = rr.dim();
         let mut rr0 = Vector::new(neq);
-        let mut duu = Vector::new(neq);
 
         // counter for numbering output files
         let mut output_counter = 0;
@@ -92,14 +91,14 @@ impl<'a> FemSolverImplicit<'a> {
             // handle prescribed values
             if self.prescribed_values.equations.len() > 0 {
                 // set prescribed U and ΔU at the new time
-                self.prescribed_values.apply(&mut duu, &mut state.uu, state.t);
+                self.prescribed_values.apply(&mut state.duu, &mut state.uu, state.t);
 
                 // update secondary variables for given prescribed U and ΔU at the new time
-                self.elements.update_secondary_values_parallel(state, &duu)?;
+                self.elements.update_secondary_values_parallel(state)?;
             }
 
             // reset cumulated primary values
-            duu.fill(0.0);
+            state.duu.fill(0.0);
 
             // message
             control.print_timestep(timestep, state.t, state.dt);
@@ -179,18 +178,18 @@ impl<'a> FemSolverImplicit<'a> {
                     for i in 0..neq {
                         state.uu[i] -= mdu[i];
                         state.vv[i] = beta_1 * state.uu[i] - state.uu_star[i];
-                        duu[i] -= mdu[i];
+                        state.duu[i] -= mdu[i];
                     }
                 } else {
                     // update U and ΔU vectors
                     for i in 0..neq {
                         state.uu[i] -= mdu[i];
-                        duu[i] -= mdu[i];
+                        state.duu[i] -= mdu[i];
                     }
                 }
 
                 // update secondary variables
-                self.elements.update_secondary_values_parallel(state, &duu)?;
+                self.elements.update_secondary_values_parallel(state)?;
 
                 // update counter for numbering output files
                 output_counter += 1;
