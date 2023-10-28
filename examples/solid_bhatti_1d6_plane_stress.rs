@@ -68,7 +68,7 @@ fn main() -> Result<(), StrError> {
     // elements
     let mut elements = Elements::new(&input, &config)?;
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
     // check Jacobian matrix of first element
@@ -84,7 +84,7 @@ fn main() -> Result<(), StrError> {
     ]);
     mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
-    // run simulation
+    // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
 

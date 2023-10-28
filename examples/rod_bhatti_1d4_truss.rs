@@ -62,10 +62,10 @@ fn main() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
-    // run simulation
+    // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
 

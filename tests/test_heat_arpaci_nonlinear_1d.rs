@@ -72,10 +72,10 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // natural boundary conditions
     let natural = Natural::new();
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
-    // run simulation
+    // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
 

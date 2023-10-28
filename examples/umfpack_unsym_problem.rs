@@ -67,7 +67,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // boundaries
     let mut boundaries = Boundaries::new(&input, &config, &natural)?;
 
-    // simulation state
+    // FEM state
     let state = FemState::new(&input, &config)?;
 
     // compute jacobians in parallel

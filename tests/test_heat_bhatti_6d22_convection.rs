@@ -89,7 +89,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // boundaries
     let mut boundaries = Boundaries::new(&input, &config, &natural)?;
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
     // check residual of first element
@@ -280,10 +280,10 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         .on(&edges_flux, Nbc::Qt(|_| 8000.0))
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
-    // run simulation
+    // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
 

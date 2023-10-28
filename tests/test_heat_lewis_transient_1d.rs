@@ -69,10 +69,10 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&left, Nbc::Qt(|_| 1.0));
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
-    // run simulation
+    // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
 

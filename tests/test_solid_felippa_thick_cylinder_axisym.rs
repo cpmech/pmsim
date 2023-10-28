@@ -73,10 +73,10 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&left, Nbc::Qn(|_| -PRESSURE));
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
-    // run simulation
+    // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
 

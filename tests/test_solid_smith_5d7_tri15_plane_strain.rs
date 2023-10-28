@@ -84,10 +84,10 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
         .at(&[5, 15], Pbc::Fy(|_| -0.3556))
         .at(&[10], Pbc::Fy(|_| -0.1333));
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
-    // run simulation
+    // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
 

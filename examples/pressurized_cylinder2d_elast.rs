@@ -223,10 +223,10 @@ fn main() -> Result<(), StrError> {
             .on(&inner_circle, Nbc::Qn(|_| -P1))
             .on(&outer_circle, Nbc::Qn(|_| -P2));
 
-        // simulation state
+        // FEM state
         let mut state = FemState::new(&input, &config)?;
 
-        // run simulation
+        // solve problem
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
         solver.solve(&mut state)?;

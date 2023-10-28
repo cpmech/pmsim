@@ -237,12 +237,12 @@ fn main() -> Result<(), StrError> {
             .on(&faces_inner, Nbc::Qn(|_| -P1))
             .on(&faces_outer, Nbc::Qn(|_| -P2));
 
-        // simulation state
+        // FEM state
         let mut state = FemState::new(&input, &config)?;
 
         // println!("5. running simulation");
 
-        // run simulation
+        // solve problem
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
         match solver.solve(&mut state) {

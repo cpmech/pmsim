@@ -69,10 +69,10 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
         .at(&[0, 5], Pbc::Fz(|_| -0.1667))
         .at(&[1, 4], Pbc::Fz(|_| -0.3333));
 
-    // simulation state
+    // FEM state
     let mut state = FemState::new(&input, &config)?;
 
-    // run simulation
+    // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
 
