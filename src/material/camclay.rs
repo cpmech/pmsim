@@ -26,6 +26,11 @@ impl CamClay {
 }
 
 impl StressStrainModel for CamClay {
+    /// Returns whether the stiffness matrix is symmetric or not
+    fn symmetric_stiffness(&self) -> bool {
+        false
+    }
+
     fn new_state(&self, two_dim: bool) -> StressState {
         StressState::new(two_dim, 1)
     }

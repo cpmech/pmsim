@@ -84,6 +84,11 @@ impl<'a> ElementRod<'a> {
 }
 
 impl<'a> ElementTrait for ElementRod<'a> {
+    /// Returns whether the local Jacobian matrix is symmetric or not
+    fn symmetric_jacobian(&self) -> bool {
+        true
+    }
+
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global

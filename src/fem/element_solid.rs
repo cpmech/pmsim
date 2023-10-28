@@ -126,6 +126,11 @@ impl<'a> ElementSolid<'a> {
 }
 
 impl<'a> ElementTrait for ElementSolid<'a> {
+    /// Returns whether the local Jacobian matrix is symmetric or not
+    fn symmetric_jacobian(&self) -> bool {
+        self.model.symmetric_stiffness()
+    }
+
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global

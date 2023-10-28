@@ -21,6 +21,9 @@ impl StressState {
 }
 
 pub trait StressStrainModel: Send + Sync {
+    /// Returns whether the stiffness matrix is symmetric or not
+    fn symmetric_stiffness(&self) -> bool;
+
     fn new_state(&self, two_dim: bool) -> StressState;
 
     fn stiffness(&mut self, dd: &mut Tensor4, stress_state: &StressState) -> Result<(), StrError>;
