@@ -25,12 +25,12 @@ pub struct Elements<'a> {
 }
 
 /// Holds auxiliary arguments for the computation of numerical Jacobian matrices
-struct ArgsForNumericalJacobian {
+struct ArgsForNumericalJacobian<'a> {
     /// Holds the residual vector
-    pub residual: Vector,
+    pub residual: &'a mut Vector,
 
     /// Holds the current state
-    pub state: FemState,
+    pub state: &'a mut FemState,
 }
 
 impl<'a> GenericElement<'a> {
@@ -67,32 +67,36 @@ impl<'a> GenericElement<'a> {
         self.actual.calc_jacobian(&mut self.jacobian, state)
     }
 
-    /// Calculates a numerical Jacobian matrix
-    pub fn numerical_jacobian(&mut self, state: &FemState) -> Matrix {
+    /// Calculates the Jacobian matrix using finite differences
+    ///
+    /// **Note:** The element's internal state may be changed temporarily,
+    /// but it is restored at the end of the function
+    pub fn numerical_jacobian(&mut self, state: &mut FemState) -> Result<(), StrError> {
         let neq = self.residual.dim();
         let mut args = ArgsForNumericalJacobian {
-            residual: Vector::new(neq),
-            state: state.clone(),
+            residual: &mut self.residual,
+            state,
         };
-        let mut num_jacobian = Matrix::new(neq, neq);
         for i in 0..neq {
             for j in 0..neq {
-                let at_u = state.uu[j];
+                let at_u = args.state.uu[j];
                 let res = deriv_central5(at_u, &mut args, |u, a| {
-                    let original_duu = a.state.duu[j];
                     let original_uu = a.state.uu[j];
-                    a.state.duu[j] = u;
+                    let original_duu = a.state.duu[j];
                     a.state.uu[j] = u;
+                    a.state.duu[j] = u - original_uu;
+                    self.actual.backup_secondary_values().unwrap();
                     self.actual.update_secondary_values(&a.state).unwrap();
                     self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
-                    a.state.duu[j] = original_duu;
+                    self.actual.restore_secondary_values().unwrap();
                     a.state.uu[j] = original_uu;
+                    a.state.duu[j] = original_duu;
                     a.residual[i]
                 });
-                num_jacobian.set(i, j, res);
+                self.jacobian.set(i, j, res);
             }
         }
-        num_jacobian
+        Ok(())
     }
 
     /// Updates secondary variables such as stresses and internal values
@@ -269,8 +273,9 @@ mod tests {
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         ele.calc_jacobian(&state).unwrap();
-        let num_jacobian = ele.numerical_jacobian(&state);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-11);
+        let jj_ana = ele.jacobian.clone();
+        ele.numerical_jacobian(&mut state).unwrap();
+        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-11);
 
         // transient simulation
         let mut config = Config::new();
@@ -286,8 +291,9 @@ mod tests {
         state.uu_star[1] = beta_1 * state.uu[1] + beta_2 * state.uu[1];
         state.uu_star[2] = beta_1 * state.uu[2] + beta_2 * state.uu[2];
         ele.calc_jacobian(&state).unwrap();
-        let num_jacobian = ele.numerical_jacobian(&state);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-10);
+        let jj_ana = ele.jacobian.clone();
+        ele.numerical_jacobian(&mut state).unwrap();
+        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-10);
 
         // variable conductivity
         let p1 = ParamDiffusion {
@@ -299,16 +305,17 @@ mod tests {
         let config = Config::new();
         let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
         ele.calc_jacobian(&state).unwrap();
-        let num_jacobian = ele.numerical_jacobian(&state);
+        let jj_ana = ele.jacobian.clone();
+        ele.numerical_jacobian(&mut state).unwrap();
         // println!("ana: J = \n{}", ele.jacobian);
         // println!("num: J = \n{}", num_jacobian);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-7);
+        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-7);
         // note that the "stiffness" is now unsymmetric
         // println!("difference = {:?}", num_jacobian[0][2] - num_jacobian[2][0]);
     }
 
-    // #[test]
-    fn _num_jacobian_solid() {
+    #[test]
+    fn num_jacobian_solid() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
@@ -330,12 +337,13 @@ mod tests {
         println!("uu =\n{}", state.uu);
 
         ele.calc_jacobian(&state).unwrap();
-        let num_jacobian = ele.numerical_jacobian(&state);
+        let jj_ana = ele.jacobian.clone();
+        ele.numerical_jacobian(&mut state).unwrap();
 
-        println!("J(ana)=\n{:.2}", ele.jacobian);
-        println!("J(num)=\n{:.2}", num_jacobian);
+        println!("J(ana)=\n{:.2}", jj_ana);
+        println!("J(num)=\n{:.2}", ele.jacobian);
 
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-13);
+        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-8);
     }
 
     // ----------------- temporary ----------------------------------------

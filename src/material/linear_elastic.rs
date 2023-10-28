@@ -24,8 +24,9 @@ impl StressStrainModel for LinearElastic {
         true
     }
 
-    fn new_state(&self, two_dim: bool) -> StressState {
-        StressState::new(two_dim, 0)
+    /// Returns the number of internal values
+    fn n_internal_vars(&self) -> usize {
+        0
     }
 
     fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {

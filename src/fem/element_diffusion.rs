@@ -55,19 +55,17 @@ impl<'a> ElementDiffusion<'a> {
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
         input.mesh.set_pad(&mut pad, &points);
-        Ok({
-            ElementDiffusion {
-                ndim,
-                config,
-                cell,
-                param,
-                local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
-                pad,
-                ips: config.integ_point_data(cell)?,
-                model: ConductivityModel::new(&param.conductivity, ndim == 2),
-                conductivity: new_tensor2_ndim(ndim),
-                grad_tt: Vector::new(ndim),
-            }
+        Ok(ElementDiffusion {
+            ndim,
+            config,
+            cell,
+            param,
+            local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
+            pad,
+            ips: config.integ_point_data(cell)?,
+            model: ConductivityModel::new(&param.conductivity, ndim == 2),
+            conductivity: new_tensor2_ndim(ndim),
+            grad_tt: Vector::new(ndim),
         })
     }
 }
@@ -196,6 +194,16 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             let (beta_1, _) = self.config.control.betas_transient(state.dt)?;
             integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(beta_1 * self.param.rho)).unwrap();
         }
+        Ok(())
+    }
+
+    /// Creates a copy of the secondary values (e.g., stresses and internal values)
+    fn backup_secondary_values(&mut self) -> Result<(), StrError> {
+        Ok(())
+    }
+
+    /// Restores the secondary values from the backup (e.g., stresses and internal values)
+    fn restore_secondary_values(&mut self) -> Result<(), StrError> {
         Ok(())
     }
 

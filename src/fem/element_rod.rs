@@ -111,6 +111,16 @@ impl<'a> ElementTrait for ElementRod<'a> {
         Ok(())
     }
 
+    /// Creates a copy of the secondary values (e.g., stresses and internal values)
+    fn backup_secondary_values(&mut self) -> Result<(), StrError> {
+        Ok(())
+    }
+
+    /// Restores the secondary values from the backup (e.g., stresses and internal values)
+    fn restore_secondary_values(&mut self) -> Result<(), StrError> {
+        Ok(())
+    }
+
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already

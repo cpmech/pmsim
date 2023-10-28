@@ -1,30 +1,14 @@
-use super::{CamClay, LinearElastic};
-use crate::base::{new_tensor2, ParamSolid, ParamStressStrain};
+use super::{CamClay, LinearElastic, StressState};
+use crate::base::{ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
-
-#[derive(Clone, Debug)]
-pub struct StressState {
-    pub sigma: Tensor2,
-    pub internal_values: Vec<f64>,
-    pub loading: bool,
-}
-
-impl StressState {
-    pub fn new(two_dim: bool, n_internal_vars: usize) -> Self {
-        StressState {
-            sigma: new_tensor2(two_dim),
-            internal_values: vec![0.0; n_internal_vars],
-            loading: false,
-        }
-    }
-}
 
 pub trait StressStrainModel: Send + Sync {
     /// Indicates that the stiffness matrix is symmetric and constant
     fn symmetric_and_constant_stiffness(&self) -> bool;
 
-    fn new_state(&self, two_dim: bool) -> StressState;
+    /// Returns the number of internal values
+    fn n_internal_vars(&self) -> usize;
 
     fn stiffness(&mut self, dd: &mut Tensor4, stress_state: &StressState) -> Result<(), StrError>;
 

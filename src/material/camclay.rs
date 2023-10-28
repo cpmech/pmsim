@@ -31,8 +31,9 @@ impl StressStrainModel for CamClay {
         false
     }
 
-    fn new_state(&self, two_dim: bool) -> StressState {
-        StressState::new(two_dim, 1)
+    /// Returns the number of internal values
+    fn n_internal_vars(&self) -> usize {
+        1
     }
 
     fn stiffness(&mut self, _dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {

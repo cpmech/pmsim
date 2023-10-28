@@ -35,11 +35,11 @@ impl<'a> FemSolverImplicit<'a> {
         if let Some(_) = config.validate(input.mesh.ndim) {
             return Err("cannot allocate simulation because config.validate() failed");
         }
-        let prescribed_values = PrescribedValues::new(&input, &essential)?;
-        let concentrated_loads = ConcentratedLoads::new(&input, &natural)?;
-        let elements = Elements::new(&input, &config)?;
-        let boundaries = Boundaries::new(&input, &config, &natural)?;
-        let linear_system = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;
+        let prescribed_values = PrescribedValues::new(input, essential)?;
+        let concentrated_loads = ConcentratedLoads::new(input, natural)?;
+        let elements = Elements::new(input, config)?;
+        let boundaries = Boundaries::new(input, config, natural)?;
+        let linear_system = LinearSystem::new(input, config, &prescribed_values, &elements, &boundaries)?;
         Ok(FemSolverImplicit {
             config,
             prescribed_values,

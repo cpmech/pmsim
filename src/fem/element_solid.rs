@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamSolid};
-use crate::material::{allocate_stress_strain_model, StressState, StressStrainModel};
+use crate::material::{allocate_stress_strain_model, StressStates, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -34,8 +34,8 @@ pub struct ElementSolid<'a> {
     /// Stress-strain model
     pub model: Box<dyn StressStrainModel>,
 
-    /// Secondary state of all integration points (n_integ_point)
-    pub stresses: Vec<StressState>,
+    /// Stresses and internal values at all integration points
+    pub stresses: StressStates,
 
     /// (temporary) Strain increment at integration point
     ///
@@ -61,25 +61,23 @@ impl<'a> ElementSolid<'a> {
         let ips = config.integ_point_data(cell)?;
         let n_integ_point = ips.len();
 
-        // model and zero state
+        // model and stresses
         let two_dim = ndim == 2;
         let model = allocate_stress_strain_model(param, two_dim, config.plane_stress);
-        let zero_state = model.new_state(two_dim);
+        let stresses = StressStates::new(two_dim, model.n_internal_vars(), n_integ_point);
 
         // allocate new instance
-        Ok({
-            ElementSolid {
-                ndim,
-                config,
-                cell,
-                param,
-                local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
-                pad,
-                ips,
-                model,
-                stresses: vec![zero_state; n_integ_point],
-                deps: new_tensor2_ndim(ndim),
-            }
+        Ok(ElementSolid {
+            ndim,
+            config,
+            cell,
+            param,
+            local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
+            pad,
+            ips,
+            model,
+            stresses,
+            deps: new_tensor2_ndim(ndim),
         })
     }
 
@@ -150,7 +148,9 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         //      Ωₑ
         //     \____________/
         //     we compute this
-        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| sig.mirror(&self.stresses[p].sigma))?;
+        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| {
+            sig.mirror(&self.stresses.all[p].sigma)
+        })?;
 
         // enable updates on the residual vector
         args.clear = false; // << important from now on
@@ -185,8 +185,18 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
         integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
-            self.model.stiffness(dd, &self.stresses[p])
+            self.model.stiffness(dd, &self.stresses.all[p])
         })
+    }
+
+    /// Creates a copy of the secondary values (e.g., stresses and internal values)
+    fn backup_secondary_values(&mut self) -> Result<(), StrError> {
+        self.stresses.backup()
+    }
+
+    /// Restores the secondary values from the backup (e.g., stresses and internal values)
+    fn restore_secondary_values(&mut self) -> Result<(), StrError> {
+        self.stresses.restore()
     }
 
     /// Updates secondary values such as stresses and internal values
@@ -197,7 +207,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             // interpolate increment of strains Δε at integration point
             self.calc_delta_eps(&state.duu, p)?;
             // perform stress-update
-            self.model.update_stress(&mut self.stresses[p], &self.deps)?;
+            self.model.update_stress(&mut self.stresses.all[p], &self.deps)?;
         }
         Ok(())
     }
@@ -246,7 +256,7 @@ mod tests {
 
         // set stress state
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
-        for stress in &mut elem.stresses {
+        for stress in &mut elem.stresses.all {
             stress.sigma.sym_set(0, 0, s00);
             stress.sigma.sym_set(1, 1, s11);
             stress.sigma.sym_set(0, 1, s01);
@@ -451,7 +461,8 @@ mod tests {
             };
 
             // check the first cell/element only
-            let cell = &mesh.cells[0];
+            let id = 0;
+            let cell = &mesh.cells[id];
             let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 
             // check stress update (horizontal displacement field)
@@ -461,7 +472,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_h, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -471,7 +482,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_v, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -481,7 +492,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_s, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_s, 1e-13);
             }
         }
     }
@@ -521,7 +532,8 @@ mod tests {
             let solution_s = vec![0.0, 0.0, 0.0, c * (strain / 2.0) * (1.0 - poisson) * SQRT_2];
 
             // check the first cell/element only
-            let cell = &mesh.cells[0];
+            let id = 0;
+            let cell = &mesh.cells[id];
             let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 
             // check stress update (horizontal displacement field)
@@ -531,7 +543,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_h, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -541,7 +553,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_v, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -551,7 +563,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_s, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_s, 1e-13);
             }
         }
     }
