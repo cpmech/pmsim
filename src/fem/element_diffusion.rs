@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, State};
 use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamDiffusion};
-use crate::model::ConductivityModel;
+use crate::material::ConductivityModel;
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;

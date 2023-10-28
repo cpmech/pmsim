@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, State};
 use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamSolid};
-use crate::model::{allocate_stress_strain_model, StressState, StressStrainModel};
+use crate::material::{allocate_stress_strain_model, StressState, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
