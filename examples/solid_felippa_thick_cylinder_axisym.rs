@@ -60,9 +60,6 @@ fn main() -> Result<(), StrError> {
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
-    let mut config = Config::new();
-    config.axisymmetric = true;
-    config.n_integ_point.insert(1, 4); // reduced integration => better results
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -71,6 +68,11 @@ fn main() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural.on(&left, Nbc::Qn(|_| -PRESSURE));
+
+    // configuration
+    let mut config = Config::new();
+    config.axisymmetric = true;
+    config.n_integ_point.insert(1, 4); // reduced integration => better results
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

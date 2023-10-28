@@ -166,13 +166,6 @@ fn main() -> Result<(), StrError> {
             },
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
-        let mut config = Config::new();
-        config.linear_problem = true;
-        config.control.verbose_timesteps = false;
-        config.control.save_vismatrix_file = false;
-        config.control.save_matrix_market_file = WRITE_K;
-        config.lin_sol_genie = genie;
-        config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // total number of DOF
         let ndof = input.equations.n_equation;
@@ -236,6 +229,15 @@ fn main() -> Result<(), StrError> {
         natural
             .on(&faces_inner, Nbc::Qn(|_| -P1))
             .on(&faces_outer, Nbc::Qn(|_| -P2));
+
+        // configuration
+        let mut config = Config::new();
+        config.linear_problem = true;
+        config.control.verbose_timesteps = false;
+        config.control.save_vismatrix_file = false;
+        config.control.save_matrix_market_file = WRITE_K;
+        config.lin_sol_genie = genie;
+        config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // FEM state
         let mut state = FemState::new(&input, &config)?;

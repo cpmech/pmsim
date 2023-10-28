@@ -62,7 +62,6 @@ fn main() -> Result<(), StrError> {
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
-    let config = Config::new();
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -71,6 +70,9 @@ fn main() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -1.0));
+
+    // configuration
+    let config = Config::new();
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

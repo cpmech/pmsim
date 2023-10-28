@@ -60,7 +60,6 @@ fn main() -> Result<(), StrError> {
         source: Some(source),
     };
     let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let config = Config::new();
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -71,6 +70,9 @@ fn main() -> Result<(), StrError> {
     natural
         .on(&edges_flux, Nbc::Qt(|_| 8000.0))
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
+
+    // configuration
+    let config = Config::new();
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

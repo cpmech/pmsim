@@ -65,8 +65,6 @@ fn main() -> Result<(), StrError> {
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
-    let mut config = Config::new();
-    config.n_integ_point.insert(1, 12);
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -82,6 +80,10 @@ fn main() -> Result<(), StrError> {
         .at(&[0, 20], Pbc::Fy(|_| -0.0778))
         .at(&[5, 15], Pbc::Fy(|_| -0.3556))
         .at(&[10], Pbc::Fy(|_| -0.1333));
+
+    // configuration
+    let mut config = Config::new();
+    config.n_integ_point.insert(1, 12);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
