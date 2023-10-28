@@ -1,11 +1,11 @@
-use super::{ElementInfoMap, Equations};
+use super::{ElementDofsMap, Equations};
 use crate::StrError;
 use gemlab::mesh::Cell;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::CooMatrix;
 
 /// Computes local-to-global maps needed for the assembly process
-pub fn compute_local_to_global(info: &ElementInfoMap, eqs: &Equations, cell: &Cell) -> Result<Vec<usize>, StrError> {
+pub fn compute_local_to_global(info: &ElementDofsMap, eqs: &Equations, cell: &Cell) -> Result<Vec<usize>, StrError> {
     let info = info.get(cell)?;
     let mut local_to_global = vec![0; info.n_equation];
     for m in 0..cell.points.len() {
@@ -83,7 +83,7 @@ pub fn assemble_matrix(kk_global: &mut CooMatrix, kk_local: &Matrix, local_to_gl
 #[cfg(test)]
 mod tests {
     use super::{assemble_matrix, assemble_vector};
-    use crate::base::{compute_local_to_global, Attributes, Element, ElementInfoMap, Equations, SampleParams};
+    use crate::base::{compute_local_to_global, Attributes, Element, ElementDofsMap, Equations, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{mat_approx_eq, Matrix, Vector};
     use russell_sparse::CooMatrix;
@@ -93,12 +93,12 @@ mod tests {
         let mut mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         mesh.cells[0].kind = GeoKind::Qua4; // never do this!
         assert_eq!(
             compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
         mesh.cells[0].kind = GeoKind::Tri3;
         mesh.cells[0].points[0] = 100; // never do this!
@@ -123,7 +123,7 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
         let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();
@@ -143,7 +143,7 @@ mod tests {
         let mesh = Samples::two_tri3_one_qua4();
         let p = SampleParams::param_porous_liq();
         let att = Attributes::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
         let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();
@@ -168,7 +168,7 @@ mod tests {
             (2, Element::Solid(p2)),
             (3, Element::Beam(p3)),
         ]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
         let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();

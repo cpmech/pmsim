@@ -1,4 +1,4 @@
-use crate::base::{Attributes, Element, ElementInfoMap, Equations};
+use crate::base::{Attributes, Element, ElementDofsMap, Equations};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
 
@@ -11,7 +11,7 @@ pub struct Data<'a> {
     pub attributes: Attributes,
 
     /// Holds the element information such as local DOFs and equation numbers
-    pub information: ElementInfoMap,
+    pub information: ElementDofsMap,
 
     /// Holds all DOF numbers
     pub equations: Equations,
@@ -21,7 +21,7 @@ impl<'a> Data<'a> {
     /// Allocate new instance
     pub fn new<const N: usize>(mesh: &'a Mesh, arr: [(CellAttribute, Element); N]) -> Result<Self, StrError> {
         let attributes = Attributes::from(arr);
-        let information = ElementInfoMap::new(&mesh, &attributes)?;
+        let information = ElementDofsMap::new(&mesh, &attributes)?;
         let equations = Equations::new(&mesh, &information).unwrap(); // cannot fail
         Ok(Data {
             mesh,
@@ -80,7 +80,7 @@ mod tests {
         };
         assert_eq!(
             data.n_local_eq(&wrong_cell).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
 }

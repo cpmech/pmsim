@@ -189,13 +189,13 @@ impl ElementDofs {
     }
 }
 
-/// Maps (CellAttribute, GeoKind) to ElementInfo
-pub struct ElementInfoMap {
+/// Maps (CellAttribute, GeoKind) to ElementDofs
+pub struct ElementDofsMap {
     all: HashMap<(CellAttribute, GeoKind), ElementDofs>,
     names: HashMap<(CellAttribute, GeoKind), String>,
 }
 
-impl ElementInfoMap {
+impl ElementDofsMap {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, att: &Attributes) -> Result<Self, StrError> {
         let mut all = HashMap::new();
@@ -208,14 +208,14 @@ impl ElementInfoMap {
             );
             names.insert((cell.attribute, cell.kind), element.name());
         }
-        Ok(ElementInfoMap { all, names })
+        Ok(ElementDofsMap { all, names })
     }
 
-    /// Returns the ElementInfo corresponding to Cell
+    /// Returns the ElementDofs corresponding to Cell
     pub fn get(&self, cell: &Cell) -> Result<&ElementDofs, StrError> {
         self.all
             .get(&(cell.attribute, cell.kind))
-            .ok_or("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
+            .ok_or("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
     }
 }
 
@@ -232,7 +232,7 @@ impl fmt::Display for ElementDofs {
     }
 }
 
-impl fmt::Display for ElementInfoMap {
+impl fmt::Display for ElementDofsMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Elements: DOFs and local equation numbers\n").unwrap();
         write!(f, "=========================================\n").unwrap();
@@ -254,7 +254,7 @@ impl fmt::Display for ElementInfoMap {
 
 #[cfg(test)]
 mod tests {
-    use super::{ElementDofs, ElementInfoMap};
+    use super::{ElementDofs, ElementDofsMap};
     use crate::base::{Attributes, Dof, Element, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
 
@@ -468,13 +468,13 @@ mod tests {
         let p2 = SampleParams::param_solid();
         let att = Attributes::from([(2, Element::Solid(p2))]);
         assert_eq!(
-            ElementInfoMap::new(&mesh, &att).err(),
+            ElementDofsMap::new(&mesh, &att).err(),
             Some("cannot find CellAttribute in Attributes map")
         );
         let p1 = SampleParams::param_rod();
         let att = Attributes::from([(1, Element::Rod(p1))]);
         assert_eq!(
-            ElementInfoMap::new(&mesh, &att).err(),
+            ElementDofsMap::new(&mesh, &att).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
     }
@@ -485,12 +485,12 @@ mod tests {
         let mut mesh_wrong = mesh.clone();
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(emap.get(&mesh.cells[0]).unwrap().n_equation, 6);
         mesh_wrong.cells[0].attribute = 100; // never do this
         assert_eq!(
             emap.get(&mesh_wrong.cells[0]).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
 
@@ -509,7 +509,7 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
@@ -533,7 +533,7 @@ mod tests {
         let mesh = Samples::two_tri3_one_qua4();
         let p = SampleParams::param_porous_liq();
         let att = Attributes::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
@@ -569,7 +569,7 @@ mod tests {
             (2, Element::Solid(p2)),
             (3, Element::Beam(p3)),
         ]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\

@@ -160,7 +160,7 @@ mod tests {
         };
         assert_eq!(
             ElementRod::new(&data, &config, &wrong_cell, &p1).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
 
