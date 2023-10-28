@@ -47,7 +47,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     println!("bottom = {:?}", &bottom);
     println!("top = {:?}", &top);
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {

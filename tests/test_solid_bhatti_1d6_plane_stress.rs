@@ -43,7 +43,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     let feat = Features::new(&mesh, false);
     let top = vec![feat.get_edge(1, 3), feat.get_edge(3, 5)];
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {

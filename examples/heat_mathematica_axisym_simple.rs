@@ -49,7 +49,7 @@ fn main() -> Result<(), StrError> {
     let left = feat.search_edges(At::X(rin), any_x)?;
     let right = feat.search_edges(At::X(rout), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (10.0, 10.0);
     let p1 = ParamDiffusion {
         rho: 1.0,

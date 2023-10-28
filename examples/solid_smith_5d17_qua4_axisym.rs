@@ -52,7 +52,7 @@ fn main() -> Result<(), StrError> {
     let right = feat.search_edges(At::X(30.0), any_x)?;
     let bottom = feat.search_edges(At::Y(-10.0), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {

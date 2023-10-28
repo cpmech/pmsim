@@ -44,7 +44,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     println!("faces_y_min = {:?}", &faces_y_min);
     println!("bottom = {:?}", &bottom);
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {

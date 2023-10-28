@@ -42,7 +42,7 @@ fn main() -> Result<(), StrError> {
     let bottom = feat.search_faces(At::Z(-2.0), any_x)?;
     let top = feat.search_faces(At::Z(0.0), |x| x[1] <= 1.0)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {

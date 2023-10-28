@@ -44,7 +44,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d4_truss();
 
-    // parameters, DOFs, and configuration
+    // input data
     #[rustfmt::skip]
     let input = FemInput::new(&mesh, [
         (1, Element::Rod(ParamRod { area: 4_000.0, young: 200_000.0, density: 1.0 })),

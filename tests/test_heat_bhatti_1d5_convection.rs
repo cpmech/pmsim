@@ -47,7 +47,7 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     let left = feat.search_edges(At::X(0.0), any_x)?;
     let right = feat.search_edges(At::X(0.2), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (1.4, 1.4);
     let p1 = ParamDiffusion {
         rho: 1.0,

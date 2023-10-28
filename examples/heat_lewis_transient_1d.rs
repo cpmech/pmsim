@@ -45,7 +45,7 @@ fn main() -> Result<(), StrError> {
     let feat = Features::new(&mesh, false);
     let left = feat.search_edges(At::X(0.0), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: ParamConductivity::Constant {

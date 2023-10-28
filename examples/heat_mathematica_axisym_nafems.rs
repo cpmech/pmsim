@@ -74,7 +74,7 @@ fn main() -> Result<(), StrError> {
     // reference solution
     let ref_temperature = 332.97;
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (52.0, 52.0);
     let p1 = ParamDiffusion {
         rho: 1.0,

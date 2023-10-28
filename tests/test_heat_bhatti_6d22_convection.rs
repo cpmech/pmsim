@@ -60,7 +60,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     assert_eq!(points_conv[1], &[2, 4, 3]);
     assert_eq!(points_conv[2], &[4, 6, 5]);
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (45.0, 45.0);
     let source = 5e6;
     let p1 = ParamDiffusion {
@@ -259,7 +259,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     ]
     .concat();
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (45.0, 45.0);
     let source = 5e6;
     let p1 = ParamDiffusion {

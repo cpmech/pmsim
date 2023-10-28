@@ -51,7 +51,7 @@ fn main() -> Result<(), StrError> {
     ]
     .concat();
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (45.0, 45.0);
     let source = 5e6;
     let p1 = ParamDiffusion {

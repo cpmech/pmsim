@@ -51,7 +51,7 @@ fn main() -> Result<(), StrError> {
 
     const YOUNG: f64 = 1000.0;
     const POISSON: f64 = 0.0;
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {

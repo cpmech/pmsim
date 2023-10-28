@@ -49,7 +49,7 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     let bottom = feat.search_edges(At::Y(-10.0), any_x)?;
     let footing = feat.search_edges(At::Y(0.0), |x| x[0] <= 10.0)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {

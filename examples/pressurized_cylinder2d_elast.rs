@@ -144,7 +144,7 @@ fn main() -> Result<(), StrError> {
         let study_point = feat.search_point_ids(At::XY(0.0, R2), any_x)?[0];
         vec_approx_eq(&mesh.points[study_point].coords, &[0.0, R2], 1e-13); // << some error
 
-        // parameters, DOFs, and configuration
+        // input data
         let param1 = ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::LinearElastic {

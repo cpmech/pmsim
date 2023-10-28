@@ -42,7 +42,7 @@ fn main() -> Result<(), StrError> {
     let features = Features::new(&mesh, false);
     let top = vec![features.get_edge(1, 3), features.get_edge(3, 5)];
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {

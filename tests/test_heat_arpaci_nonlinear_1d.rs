@@ -56,7 +56,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let feat = Features::new(&mesh, false);
     let right = feat.search_edges(At::X(L), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: ParamConductivity::IsotropicLinear { kr: K_R, beta: BETA },
