@@ -29,6 +29,16 @@ impl<'a> ConductivityModel<'a> {
         }
     }
 
+    /// Indicates whether or not the model has a symmetric k
+    pub fn has_symmetric_k(&self) -> bool {
+        true
+    }
+
+    /// Indicates whether or not the model has a variable k, thus ∂k/∂ϕ is needed
+    pub fn has_variable_k(&self) -> bool {
+        self.variable_k
+    }
+
     /// Calculates the conductivity tensor
     pub fn calc_k(&self, k: &mut Tensor2, phi: f64) -> Result<(), StrError> {
         k.clear();
@@ -52,11 +62,6 @@ impl<'a> ConductivityModel<'a> {
             _ => panic!("todo"),
         }
         Ok(())
-    }
-
-    /// Indicates whether or not the model has a variable k, thus ∂k/∂ϕ is needed
-    pub fn has_variable_k(&self) -> bool {
-        self.variable_k
     }
 
     /// Calculates the derivative of the conductivity tensor with respect to phi (∂k/∂ϕ)

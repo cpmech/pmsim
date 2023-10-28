@@ -75,7 +75,7 @@ impl<'a> ElementDiffusion<'a> {
 impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Returns whether the local Jacobian matrix is symmetric or not
     fn symmetric_jacobian(&self) -> bool {
-        true
+        self.model.has_symmetric_k() && !self.model.has_variable_k()
     }
 
     /// Returns the local-to-global mapping
@@ -212,13 +212,82 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Config, Element, SampleParams};
+    use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
     use russell_lab::{vec_add, vec_approx_eq, Matrix, Vector};
     use russell_tensor::{Mandel, Tensor2};
+
+    /// Finds the symmetry status of the Jacobian matrix
+    ///
+    /// Returns (symmetric_a, symmetric_b) where:
+    ///
+    /// * `symmetric_a` -- is the flag returned by the element
+    /// * `symmetric_b` -- is the result of comparing off-diagonal entries
+    fn find_jacobian_symmetry(nonlinear: bool) -> (bool, bool) {
+        // mesh
+        let mesh = Samples::one_tri3();
+
+        // parameters
+        let p1 = if nonlinear {
+            ParamDiffusion {
+                rho: 1.0,
+                conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
+                source: None,
+            }
+        } else {
+            SampleParams::param_diffusion()
+        };
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+
+        // set heat flow from the right to the left
+        let mut state = FemState::new(&input, &config).unwrap();
+        let tt_field = |x| 100.0 + 5.0 * x;
+        state.uu[0] = tt_field(mesh.points[0].coords[0]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0]);
+
+        // calc Jacobian
+        let neq = 3;
+        let mut jacobian = Matrix::new(neq, neq);
+        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        // if nonlinear {
+        //     println!("J (nonlinear)= \n{}", jacobian);
+        // } else {
+        //     println!("J (linear) = \n{}", jacobian);
+        // }
+
+        // check symmetry by comparing components
+        let mut symmetric_b = true;
+        let (m, n) = jacobian.dims();
+        let tol = 1e-15;
+        'outer: for i in 0..m {
+            for j in (i + 1)..n {
+                if f64::abs(jacobian.get(i, j) - jacobian.get(j, i)) > tol {
+                    symmetric_b = false;
+                    break 'outer;
+                }
+            }
+        }
+        (elem.symmetric_jacobian(), symmetric_b)
+    }
+
+    #[test]
+    fn symmetric_jacobian_flag_works() {
+        // linear
+        let (symmetric_a, symmetric_b) = find_jacobian_symmetry(false);
+        assert_eq!(symmetric_a, symmetric_b);
+        assert!(symmetric_a);
+
+        // nonlinear
+        let (symmetric_a, symmetric_b) = find_jacobian_symmetry(true);
+        assert_eq!(symmetric_a, symmetric_b);
+        assert!(!symmetric_a);
+    }
 
     #[test]
     fn new_handles_errors() {
