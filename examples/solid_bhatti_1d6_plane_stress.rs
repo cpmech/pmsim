@@ -85,8 +85,8 @@ fn main() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
     // run simulation
-    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.run(&mut state)?;
 
     // check displacements
     #[rustfmt::skip]

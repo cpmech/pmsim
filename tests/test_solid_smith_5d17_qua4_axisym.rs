@@ -93,8 +93,8 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
     let mut state = FemState::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.run(&mut state)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -125,7 +125,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
         [ 1.880341878109254e+02, -3.205128234334054e+01, -1.282051246145228e+01,  3.205128258214120e+01,  1.282051134704920e+01, -6.410256914773157e+00,  4.145299153899790e+02,  6.410256675972501e+00],
         [ 3.205128234334053e+01, -3.205128235395389e+01,  6.410256436770715e+01, -5.769230733324714e+01,  1.282051247519651e+01,  1.923076855330780e+01,  6.410256675972497e+00,  7.051282113389323e+01],
     ]);
-    let e0 = &sim.elements.all[0];
+    let e0 = &solver.elements.all[0];
     mat_approx_eq(&e0.jacobian, &kk_e0_ref, 1e-5);
     Ok(())
 }

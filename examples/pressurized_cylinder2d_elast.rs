@@ -227,9 +227,9 @@ fn main() -> Result<(), StrError> {
         let mut state = FemState::new(&input, &config)?;
 
         // run simulation
-        let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
+        let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
-        sim.run(&mut state)?;
+        solver.run(&mut state)?;
         results.time[idx] = stopwatch.stop();
 
         // compute error

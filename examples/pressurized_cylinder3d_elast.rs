@@ -243,9 +243,9 @@ fn main() -> Result<(), StrError> {
         // println!("5. running simulation");
 
         // run simulation
-        let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
+        let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
-        match sim.run(&mut state) {
+        match solver.run(&mut state) {
             Err(e) => {
                 println!("{:?} failed with: {}", genie, e);
                 continue;

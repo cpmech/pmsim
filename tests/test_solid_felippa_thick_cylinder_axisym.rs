@@ -77,8 +77,8 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let mut state = FemState::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.run(&mut state)?;
 
     // Felippa's Equation 14.2 on page 14-4
     let analytical_ur = |r: f64| {

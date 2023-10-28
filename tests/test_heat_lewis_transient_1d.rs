@@ -73,8 +73,8 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     let mut state = FemState::new(&input, &config)?;
 
     // run simulation
-    let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.run(&mut state)?;
 
     // check
     let analytical = |t: f64, x: f64| {

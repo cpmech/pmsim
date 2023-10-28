@@ -8,5 +8,5 @@ pub use crate::base::{
     ParamBeam, ParamConductivity, ParamDiffusion, ParamFluids, ParamLiquidRetention, ParamPorousLiq, ParamPorousLiqGas,
     ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
 };
-pub use crate::fem::{FemInput, FemOutput, FemState, Simulation};
+pub use crate::fem::{FemInput, FemOutput, FemSolverImplicit, FemState};
 pub use crate::util::ConvergenceResults;

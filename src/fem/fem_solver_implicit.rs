@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
 /// Performs a finite element simulation
-pub struct Simulation<'a> {
+pub struct FemSolverImplicit<'a> {
     /// Holds configuration parameters
     pub config: &'a Config,
 
@@ -24,7 +24,7 @@ pub struct Simulation<'a> {
     pub linear_system: LinearSystem<'a>,
 }
 
-impl<'a> Simulation<'a> {
+impl<'a> FemSolverImplicit<'a> {
     /// Allocate new instance
     pub fn new(
         input: &'a FemInput,
@@ -40,7 +40,7 @@ impl<'a> Simulation<'a> {
         let elements = Elements::new(&input, &config)?;
         let boundaries = Boundaries::new(&input, &config, &natural)?;
         let linear_system = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;
-        Ok(Simulation {
+        Ok(FemSolverImplicit {
             config,
             prescribed_values,
             concentrated_loads,
@@ -219,7 +219,7 @@ impl<'a> Simulation<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::Simulation;
+    use super::FemSolverImplicit;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Feature, Mesh, Samples};
@@ -237,7 +237,7 @@ mod tests {
         let mut config = Config::new();
         config.control.dt_min = -1.0;
         assert_eq!(
-            Simulation::new(&input, &config, &essential, &natural).err(),
+            FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
         let config = Config::new();
@@ -248,7 +248,7 @@ mod tests {
         let mut essential = Essential::new();
         essential.at(&[123], Ebc::Ux(f));
         assert_eq!(
-            Simulation::new(&input, &config, &essential, &natural).err(),
+            FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let essential = Essential::new();
@@ -257,7 +257,7 @@ mod tests {
         let mut natural = Natural::new();
         natural.at(&[100], Pbc::Fx(f));
         assert_eq!(
-            Simulation::new(&input, &config, &essential, &natural).err(),
+            FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let natural = Natural::new();
@@ -266,7 +266,7 @@ mod tests {
         let mut config = Config::new();
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
-            Simulation::new(&input, &config, &essential, &natural).err(),
+            FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("desired number of integration points is not available for Hex class")
         );
         let config = Config::new();
@@ -279,7 +279,7 @@ mod tests {
         };
         natural.on(&[&edge], Nbc::Qn(f));
         assert_eq!(
-            Simulation::new(&input, &config, &essential, &natural).err(),
+            FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
         let natural = Natural::new();
@@ -292,7 +292,7 @@ mod tests {
         };
         let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
-            Simulation::new(&input, &config, &essential, &natural).err(),
+            FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("nrow must be ≥ 1")
         );
     }
@@ -306,10 +306,10 @@ mod tests {
         config.control.dt = |_| -1.0; // wrong
         let essential = Essential::new();
         let natural = Natural::new();
-        let mut sim = Simulation::new(&input, &config, &essential, &natural).unwrap();
+        let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&input, &config).unwrap();
         assert_eq!(
-            sim.run(&mut state).err(),
+            solver.run(&mut state).err(),
             Some("Δt is smaller than the allowed minimum")
         );
     }
