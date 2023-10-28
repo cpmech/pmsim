@@ -87,7 +87,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
 
     // run simulation
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.run(&mut state)?;
+    solver.solve(&mut state)?;
 
     // check displacements
     #[rustfmt::skip]

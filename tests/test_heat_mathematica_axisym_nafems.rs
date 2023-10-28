@@ -101,7 +101,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // run simulation
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.run(&mut state)?;
+    solver.solve(&mut state)?;
 
     // check
     let eq = input.equations.eq(ref_point, Dof::T).unwrap();

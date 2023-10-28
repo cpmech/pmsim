@@ -77,7 +77,7 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
 
     // run simulation
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.run(&mut state)?;
+    solver.solve(&mut state)?;
 
     // check displacements
     #[rustfmt::skip]

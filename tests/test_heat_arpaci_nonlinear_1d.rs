@@ -77,7 +77,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
 
     // run simulation
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.run(&mut state)?;
+    solver.solve(&mut state)?;
 
     // analytical solution
     let coef = BETA * SOURCE * L * L / (2.0 * K_R);

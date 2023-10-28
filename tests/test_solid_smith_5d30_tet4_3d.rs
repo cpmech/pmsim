@@ -74,7 +74,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
 
     // run simulation
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.run(&mut state)?;
+    solver.solve(&mut state)?;
 
     // generate Paraview file
     if false {

@@ -50,8 +50,8 @@ impl<'a> FemSolverImplicit<'a> {
         })
     }
 
-    /// Runs simulation
-    pub fn run(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    /// Solves the associated system of partial differential equations
+    pub fn solve(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
         let control = &self.config.control;
@@ -309,7 +309,7 @@ mod tests {
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&input, &config).unwrap();
         assert_eq!(
-            solver.run(&mut state).err(),
+            solver.solve(&mut state).err(),
             Some("Δt is smaller than the allowed minimum")
         );
     }

@@ -74,7 +74,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
 
     // run simulation
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.run(&mut state)?;
+    solver.solve(&mut state)?;
     // println!("{}", state.uu);
 
     // check
