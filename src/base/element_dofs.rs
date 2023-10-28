@@ -41,7 +41,7 @@ pub const POROUS_SLD_GEO_KIND_ALLOWED: [GeoKind; 7] = [
 ///                                  13 → Pl @ 1 →  5
 ///                                  14 → Pl @ 2 →  8
 /// ```
-pub struct ElementInfo {
+pub struct ElementDofs {
     /// Holds all cell DOF keys and local equation numbers
     ///
     /// **Notes:** The outer array has length = nnode.
@@ -64,7 +64,7 @@ pub struct ElementInfo {
     pub eq_first_tt: Option<usize>,
 }
 
-impl ElementInfo {
+impl ElementDofs {
     /// Allocates a new instance
     pub fn new(ndim: usize, element: Element, kind: GeoKind) -> Result<Self, StrError> {
         // check
@@ -179,7 +179,7 @@ impl ElementInfo {
                 }
             }
         };
-        Ok(ElementInfo {
+        Ok(ElementDofs {
             dofs,
             n_equation: count,
             eq_first_pl,
@@ -191,7 +191,7 @@ impl ElementInfo {
 
 /// Maps (CellAttribute, GeoKind) to ElementInfo
 pub struct ElementInfoMap {
-    all: HashMap<(CellAttribute, GeoKind), ElementInfo>,
+    all: HashMap<(CellAttribute, GeoKind), ElementDofs>,
     names: HashMap<(CellAttribute, GeoKind), String>,
 }
 
@@ -204,7 +204,7 @@ impl ElementInfoMap {
             let element = att.get(cell)?;
             all.insert(
                 (cell.attribute, cell.kind),
-                ElementInfo::new(mesh.ndim, *element, cell.kind)?,
+                ElementDofs::new(mesh.ndim, *element, cell.kind)?,
             );
             names.insert((cell.attribute, cell.kind), element.name());
         }
@@ -212,14 +212,14 @@ impl ElementInfoMap {
     }
 
     /// Returns the ElementInfo corresponding to Cell
-    pub fn get(&self, cell: &Cell) -> Result<&ElementInfo, StrError> {
+    pub fn get(&self, cell: &Cell) -> Result<&ElementDofs, StrError> {
         self.all
             .get(&(cell.attribute, cell.kind))
             .ok_or("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
     }
 }
 
-impl fmt::Display for ElementInfo {
+impl fmt::Display for ElementDofs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for m in 0..self.dofs.len() {
             write!(f, "{}: {:?}\n", m, self.dofs[m]).unwrap();
@@ -254,7 +254,7 @@ impl fmt::Display for ElementInfoMap {
 
 #[cfg(test)]
 mod tests {
-    use super::{ElementInfo, ElementInfoMap};
+    use super::{ElementDofs, ElementInfoMap};
     use crate::base::{Attributes, Dof, Element, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
 
@@ -262,27 +262,27 @@ mod tests {
     fn new_handles_errors() {
         let p = SampleParams::param_rod();
         assert_eq!(
-            ElementInfo::new(2, Element::Rod(p), GeoKind::Tri3).err(),
+            ElementDofs::new(2, Element::Rod(p), GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
         let p = SampleParams::param_beam();
         assert_eq!(
-            ElementInfo::new(2, Element::Beam(p), GeoKind::Tri3).err(),
+            ElementDofs::new(2, Element::Beam(p), GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
         let p = SampleParams::param_solid();
         assert_eq!(
-            ElementInfo::new(2, Element::Solid(p), GeoKind::Lin2).err(),
+            ElementDofs::new(2, Element::Solid(p), GeoKind::Lin2).err(),
             Some("GeoClass::Lin is reserved for Rod or Beam")
         );
         let p = SampleParams::param_porous_sld_liq();
         assert_eq!(
-            ElementInfo::new(2, Element::PorousSldLiq(p), GeoKind::Tri3).err(),
+            ElementDofs::new(2, Element::PorousSldLiq(p), GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiq with given GeoKind")
         );
         let p = SampleParams::param_porous_sld_liq_gas();
         assert_eq!(
-            ElementInfo::new(2, Element::PorousSldLiqGas(p), GeoKind::Tri3).err(),
+            ElementDofs::new(2, Element::PorousSldLiqGas(p), GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiqGas with given GeoKind")
         );
     }
@@ -297,14 +297,14 @@ mod tests {
         let pf = SampleParams::param_porous_liq_gas();
         let pg = SampleParams::param_porous_sld_liq();
         let ph = SampleParams::param_porous_sld_liq_gas();
-        let a = ElementInfo::new(2, Element::Diffusion(pa), GeoKind::Tri3).unwrap();
-        let b = ElementInfo::new(2, Element::Rod(pb), GeoKind::Lin2).unwrap();
-        let c = ElementInfo::new(2, Element::Beam(pc), GeoKind::Lin2).unwrap();
-        let d = ElementInfo::new(2, Element::Solid(pd), GeoKind::Tri3).unwrap();
-        let e = ElementInfo::new(2, Element::PorousLiq(pe), GeoKind::Tri3).unwrap();
-        let f = ElementInfo::new(2, Element::PorousLiqGas(pf), GeoKind::Tri3).unwrap();
-        let g = ElementInfo::new(2, Element::PorousSldLiq(pg), GeoKind::Tri6).unwrap();
-        let h = ElementInfo::new(2, Element::PorousSldLiqGas(ph), GeoKind::Tri6).unwrap();
+        let a = ElementDofs::new(2, Element::Diffusion(pa), GeoKind::Tri3).unwrap();
+        let b = ElementDofs::new(2, Element::Rod(pb), GeoKind::Lin2).unwrap();
+        let c = ElementDofs::new(2, Element::Beam(pc), GeoKind::Lin2).unwrap();
+        let d = ElementDofs::new(2, Element::Solid(pd), GeoKind::Tri3).unwrap();
+        let e = ElementDofs::new(2, Element::PorousLiq(pe), GeoKind::Tri3).unwrap();
+        let f = ElementDofs::new(2, Element::PorousLiqGas(pf), GeoKind::Tri3).unwrap();
+        let g = ElementDofs::new(2, Element::PorousSldLiq(pg), GeoKind::Tri6).unwrap();
+        let h = ElementDofs::new(2, Element::PorousSldLiqGas(ph), GeoKind::Tri6).unwrap();
         assert_eq!(a.dofs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
         assert_eq!(
             b.dofs,
@@ -368,14 +368,14 @@ mod tests {
         let pf = SampleParams::param_porous_liq_gas();
         let pg = SampleParams::param_porous_sld_liq();
         let ph = SampleParams::param_porous_sld_liq_gas();
-        let a = ElementInfo::new(3, Element::Diffusion(pa), GeoKind::Tri3).unwrap();
-        let b = ElementInfo::new(3, Element::Rod(pb), GeoKind::Lin2).unwrap();
-        let c = ElementInfo::new(3, Element::Beam(pc), GeoKind::Lin2).unwrap();
-        let d = ElementInfo::new(3, Element::Solid(pd), GeoKind::Tri3).unwrap();
-        let e = ElementInfo::new(3, Element::PorousLiq(pe), GeoKind::Tri3).unwrap();
-        let f = ElementInfo::new(3, Element::PorousLiqGas(pf), GeoKind::Tri3).unwrap();
-        let g = ElementInfo::new(3, Element::PorousSldLiq(pg), GeoKind::Tri6).unwrap();
-        let h = ElementInfo::new(3, Element::PorousSldLiqGas(ph), GeoKind::Tri6).unwrap();
+        let a = ElementDofs::new(3, Element::Diffusion(pa), GeoKind::Tri3).unwrap();
+        let b = ElementDofs::new(3, Element::Rod(pb), GeoKind::Lin2).unwrap();
+        let c = ElementDofs::new(3, Element::Beam(pc), GeoKind::Lin2).unwrap();
+        let d = ElementDofs::new(3, Element::Solid(pd), GeoKind::Tri3).unwrap();
+        let e = ElementDofs::new(3, Element::PorousLiq(pe), GeoKind::Tri3).unwrap();
+        let f = ElementDofs::new(3, Element::PorousLiqGas(pf), GeoKind::Tri3).unwrap();
+        let g = ElementDofs::new(3, Element::PorousSldLiq(pg), GeoKind::Tri6).unwrap();
+        let h = ElementDofs::new(3, Element::PorousSldLiqGas(ph), GeoKind::Tri6).unwrap();
         assert_eq!(a.dofs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
         assert_eq!(
             b.dofs,
@@ -449,7 +449,7 @@ mod tests {
     #[test]
     fn display_works() {
         let p = SampleParams::param_porous_sld_liq();
-        let ed = ElementInfo::new(1, Element::PorousSldLiq(p), GeoKind::Tri6).unwrap();
+        let ed = ElementDofs::new(1, Element::PorousSldLiq(p), GeoKind::Tri6).unwrap();
         assert_eq!(
             format!("{}", ed),
             "0: [(Ux, 0), (Uy, 1), (Pl, 12)]\n\
