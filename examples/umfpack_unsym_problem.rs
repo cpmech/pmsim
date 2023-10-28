@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamSolid, ParamStressStrain};
-use pmsim::fem::{Boundaries, Elements, FemInput, LinearSystem, PrescribedValues, State};
+use pmsim::fem::{Boundaries, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
 use russell_lab::*;
 use russell_sparse::prelude::*;
 
@@ -68,7 +68,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     let mut boundaries = Boundaries::new(&input, &config, &natural)?;
 
     // simulation state
-    let state = State::new(&input, &config)?;
+    let state = FemState::new(&input, &config)?;
 
     // compute jacobians in parallel
     elements.calc_jacobians_parallel(&state)?;

@@ -224,7 +224,7 @@ fn main() -> Result<(), StrError> {
             .on(&outer_circle, Nbc::Qn(|_| -P2));
 
         // simulation state
-        let mut state = State::new(&input, &config)?;
+        let mut state = FemState::new(&input, &config)?;
 
         // run simulation
         let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

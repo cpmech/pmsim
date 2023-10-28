@@ -69,7 +69,7 @@ fn main() -> Result<(), StrError> {
     let mut elements = Elements::new(&input, &config)?;
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // check Jacobian matrix of first element
     elements.calc_jacobians(&state)?;

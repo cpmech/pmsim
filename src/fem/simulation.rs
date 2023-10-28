@@ -1,4 +1,4 @@
-use super::{Boundaries, ConcentratedLoads, Elements, FemInput, LinearSystem, PrescribedValues, State};
+use super::{Boundaries, ConcentratedLoads, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
@@ -51,7 +51,7 @@ impl<'a> Simulation<'a> {
     }
 
     /// Runs simulation
-    pub fn run(&mut self, state: &mut State) -> Result<(), StrError> {
+    pub fn run(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
         let control = &self.config.control;
@@ -221,7 +221,7 @@ impl<'a> Simulation<'a> {
 mod tests {
     use super::Simulation;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
-    use crate::fem::{FemInput, State};
+    use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -307,7 +307,7 @@ mod tests {
         let essential = Essential::new();
         let natural = Natural::new();
         let mut sim = Simulation::new(&input, &config, &essential, &natural).unwrap();
-        let mut state = State::new(&input, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         assert_eq!(
             sim.run(&mut state).err(),
             Some("Δt is smaller than the allowed minimum")

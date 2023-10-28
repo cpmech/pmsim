@@ -1,5 +1,5 @@
 use crate::base::Dof;
-use crate::fem::{FemInput, State};
+use crate::fem::{FemInput, FemState};
 use crate::StrError;
 use gemlab::mesh::{At, Features, Mesh, PointId};
 use std::collections::HashSet;
@@ -14,14 +14,14 @@ pub struct FemOutput<'a> {
     mesh: &'a Mesh,
     feat: &'a Features<'a>,
     input: &'a FemInput<'a>,
-    state: &'a State,
+    state: &'a FemState,
     enabled_dofs: HashSet<Dof>,
     not_displacement_dof: Vec<Dof>,
 }
 
 impl<'a> FemOutput<'a> {
     /// Allocates new instance
-    pub fn new(mesh: &'a Mesh, feat: &'a Features, input: &'a FemInput, state: &'a State) -> Self {
+    pub fn new(mesh: &'a Mesh, feat: &'a Features, input: &'a FemInput, state: &'a FemState) -> Self {
         let mut enabled_dofs = HashSet::new();
         for map in &input.equations.all {
             for dof in map.keys() {
@@ -266,7 +266,7 @@ impl<'a> FemOutput<'a> {
 mod tests {
     use super::FemOutput;
     use crate::base::{Config, Dof, Element, SampleParams};
-    use crate::fem::{FemInput, State};
+    use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Features, Samples};
     use gemlab::util::any_x;
     use std::fs;
@@ -278,7 +278,7 @@ mod tests {
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut state = State::new(&input, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         state.uu[0] = 1.0;
         state.uu[1] = 2.0;
         state.uu[2] = 3.0;
@@ -299,7 +299,7 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let mut state = State::new(&input, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2

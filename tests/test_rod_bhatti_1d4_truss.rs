@@ -64,7 +64,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

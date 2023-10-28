@@ -84,7 +84,7 @@ fn test_solid_smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -1.0));
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

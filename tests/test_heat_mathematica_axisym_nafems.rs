@@ -97,7 +97,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     natural.on(&edges_flux, Nbc::Qt(|_| 5e5));
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

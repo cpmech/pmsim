@@ -70,7 +70,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qt(|_| 100.0));
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

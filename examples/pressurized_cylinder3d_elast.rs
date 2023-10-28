@@ -238,7 +238,7 @@ fn main() -> Result<(), StrError> {
             .on(&faces_outer, Nbc::Qn(|_| -P2));
 
         // simulation state
-        let mut state = State::new(&input, &config)?;
+        let mut state = FemState::new(&input, &config)?;
 
         // println!("5. running simulation");
 

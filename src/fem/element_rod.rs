@@ -1,4 +1,4 @@
-use super::{ElementTrait, FemInput, State};
+use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamRod};
 use crate::StrError;
 use gemlab::mesh::Cell;
@@ -90,7 +90,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
     }
 
     /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for local in 0..self.local_to_global.len() {
             let global = self.local_to_global[local];
             self.uu[local] = state.uu[global];
@@ -101,7 +101,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 
     /// Calculates the Jacobian matrix
     #[rustfmt::skip]
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &State) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &FemState) -> Result<(), StrError> {
         mat_copy(jacobian, &self.stiffness).unwrap();
         Ok(())
     }
@@ -109,7 +109,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, _state: &State, _duu: &Vector) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &FemState, _duu: &Vector) -> Result<(), StrError> {
         Ok(())
     }
 }
@@ -120,7 +120,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 mod tests {
     use super::ElementRod;
     use crate::base::{assemble_matrix, Config, Element, ParamRod};
-    use crate::fem::{ElementTrait, FemInput, State};
+    use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;
@@ -186,7 +186,7 @@ mod tests {
         let config = Config::new();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         let neq = 4;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -224,7 +224,7 @@ mod tests {
         let config = Config::new();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         let neq = 6;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -265,7 +265,7 @@ mod tests {
         let config = Config::new();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         let neq = 6;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -335,7 +335,7 @@ mod tests {
         let neq = 4;
         let mut jacobian = Matrix::new(neq, neq);
 
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         let (neq_global, nnz) = (6, 3 * neq * neq);
 
         let mut kk = CooMatrix::new(neq_global, neq_global, nnz, None, false).unwrap();

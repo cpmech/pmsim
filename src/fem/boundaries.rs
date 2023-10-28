@@ -1,4 +1,4 @@
-use super::{FemInput, State};
+use super::{FemInput, FemState};
 use crate::base::{assemble_matrix, assemble_vector, Config, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ;
@@ -95,7 +95,7 @@ impl<'a> Boundary<'a> {
     }
 
     /// Calculates the residual vector at given time
-    pub fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residual(&mut self, state: &FemState) -> Result<(), StrError> {
         let (ndim, nnode) = self.pad.xxt.dims();
         let res = &mut self.residual;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
@@ -155,7 +155,7 @@ impl<'a> Boundary<'a> {
     }
 
     /// Calculates the Jacobian matrix at given time
-    pub fn calc_jacobian(&mut self, _state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobian(&mut self, _state: &FemState) -> Result<(), StrError> {
         match self.nbc {
             Nbc::Cv(cc, _) => {
                 let kk = self.jacobian.as_mut().unwrap();
@@ -185,25 +185,25 @@ impl<'a> Boundaries<'a> {
 
     /// Computes the residual vectors
     #[inline]
-    pub fn calc_residuals(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residuals(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices
     #[inline]
-    pub fn calc_jacobians(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
     /// Computes the residual vectors in parallel
     #[inline]
-    pub fn calc_residuals_parallel(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residuals_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices in parallel
     #[inline]
-    pub fn calc_jacobians_parallel(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobians_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.par_iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
@@ -246,7 +246,7 @@ impl<'a> Boundaries<'a> {
 mod tests {
     use super::{Boundaries, Boundary};
     use crate::base::{Config, Element, Natural, Nbc, SampleMeshes, SampleParams};
-    use crate::fem::{FemInput, State};
+    use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
@@ -303,7 +303,7 @@ mod tests {
         let mut natural = Natural::new();
         natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
         let mut b_elements = Boundaries::new(&input, &config, &natural).unwrap();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         b_elements.all.par_iter_mut().for_each(|d| {
             d.calc_residual(&state).unwrap();
             d.calc_jacobian(&state).unwrap();
@@ -322,7 +322,7 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 25.0;
         let fq = |_| Q;
@@ -400,7 +400,7 @@ mod tests {
 
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         let mut bry = Boundary::new(&input, &config, &top, Nbc::Qz(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
@@ -417,7 +417,7 @@ mod tests {
         let p1 = SampleParams::param_porous_liq_gas();
         let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = -10.0;
         let fq = |_| Q;
@@ -444,7 +444,7 @@ mod tests {
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 10.0;
         let fq = |_| Q;
@@ -484,7 +484,7 @@ mod tests {
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 5e6;
         let fq = |_| Q;
@@ -532,7 +532,7 @@ mod tests {
 
         natural.on(&[&edge], Nbc::Cv(40.0, ft));
         let mut elements = Boundaries::new(&input, &config, &natural).unwrap();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         elements.calc_residuals(&state).unwrap();
         elements.calc_jacobians(&state).unwrap();
         elements.calc_residuals_parallel(&state).unwrap();

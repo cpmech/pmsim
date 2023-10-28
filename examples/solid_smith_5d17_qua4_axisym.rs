@@ -89,7 +89,7 @@ fn main() -> Result<(), StrError> {
         .at(&[6], Pbc::Fy(|_| -24.0));
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

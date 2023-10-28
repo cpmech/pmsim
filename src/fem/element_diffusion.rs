@@ -1,4 +1,4 @@
-use super::{ElementTrait, FemInput, State};
+use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamDiffusion};
 use crate::material::ConductivityModel;
 use crate::StrError;
@@ -79,7 +79,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
@@ -140,7 +140,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
@@ -197,7 +197,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, _state: &State, _duu: &Vector) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &FemState, _duu: &Vector) -> Result<(), StrError> {
         Ok(())
     }
 }
@@ -208,7 +208,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 mod tests {
     use super::ElementDiffusion;
     use crate::base::{Config, Element, SampleParams};
-    use crate::fem::{ElementTrait, FemInput, State};
+    use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
@@ -249,7 +249,7 @@ mod tests {
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = State::new(&input, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -318,7 +318,7 @@ mod tests {
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = State::new(&input, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);

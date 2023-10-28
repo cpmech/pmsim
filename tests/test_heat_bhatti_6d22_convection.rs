@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamConductivity, ParamDiffusion, SampleMeshes};
-use pmsim::fem::{Boundaries, Elements, FemInput, LinearSystem, PrescribedValues, Simulation, State};
+use pmsim::fem::{Boundaries, Elements, FemInput, FemState, LinearSystem, PrescribedValues, Simulation};
 use russell_lab::*;
 
 // Bhatti's Example 6.22 on page 449
@@ -90,7 +90,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let mut boundaries = Boundaries::new(&input, &config, &natural)?;
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // check residual of first element
     state.uu.fill(0.0);
@@ -281,7 +281,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

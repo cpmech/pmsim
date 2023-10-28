@@ -66,7 +66,7 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     natural.on(&right, Nbc::Cv(27.0, |_| 20.0));
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

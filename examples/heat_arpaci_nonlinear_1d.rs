@@ -72,7 +72,7 @@ fn main() -> Result<(), StrError> {
     let natural = Natural::new();
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;

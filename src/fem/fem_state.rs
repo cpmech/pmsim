@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Holds state of a simulation, including primary and secondary variables
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct State {
+pub struct FemState {
     /// Time
     pub t: f64,
 
@@ -44,8 +44,8 @@ pub struct State {
     pub aa_star: Vector,
 }
 
-impl State {
-    pub fn new(input: &FemInput, config: &Config) -> Result<State, StrError> {
+impl FemState {
+    pub fn new(input: &FemInput, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
         if input.mesh.cells.len() == 0 {
             return Err("there are no cells in the mesh");
@@ -102,7 +102,7 @@ impl State {
         };
 
         // allocate new instance
-        return Ok(State {
+        return Ok(FemState {
             t,
             dt,
             uu,
@@ -119,7 +119,7 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use super::State;
+    use super::FemState;
     use crate::base::{Config, Element, SampleParams};
     use crate::fem::FemInput;
     use gemlab::mesh::{Mesh, Samples};
@@ -135,7 +135,7 @@ mod tests {
         let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
         assert_eq!(
-            State::new(&input, &config).err(),
+            FemState::new(&input, &config).err(),
             Some("there are no cells in the mesh")
         );
 
@@ -154,7 +154,7 @@ mod tests {
         .unwrap();
         let config = Config::new();
         assert_eq!(
-            State::new(&input, &config).err(),
+            FemState::new(&input, &config).err(),
             Some("cannot combine Diffusion elements with other elements")
         );
 
@@ -170,7 +170,7 @@ mod tests {
         .unwrap();
         let config = Config::new();
         assert_eq!(
-            State::new(&input, &config).err(),
+            FemState::new(&input, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
 
@@ -186,7 +186,7 @@ mod tests {
         .unwrap();
         let config = Config::new();
         assert_eq!(
-            State::new(&input, &config).err(),
+            FemState::new(&input, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
     }
@@ -207,7 +207,7 @@ mod tests {
         )
         .unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.dt, 0.1);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
@@ -220,7 +220,7 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut config = Config::new();
         config.transient = true;
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
         assert_eq!(state.vv.dim(), input.equations.n_equation);
@@ -236,7 +236,7 @@ mod tests {
         let p1 = SampleParams::param_rod();
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
         assert_eq!(state.vv.dim(), 0);
@@ -252,7 +252,7 @@ mod tests {
         let p1 = SampleParams::param_porous_liq();
         let input = FemInput::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
@@ -263,7 +263,7 @@ mod tests {
         let p1 = SampleParams::param_porous_liq_gas();
         let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
@@ -274,7 +274,7 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq_gas();
         let input = FemInput::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }
@@ -287,7 +287,7 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1)), (2, Element::Solid(p2))]).unwrap();
         let mut config = Config::new();
         config.dynamics = true;
-        let state = State::new(&input, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
         assert_eq!(state.vv.dim(), input.equations.n_equation);
@@ -303,14 +303,14 @@ mod tests {
         let p1 = SampleParams::param_rod();
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
         let config = Config::new();
-        let state_ori = State::new(&input, &config).unwrap();
+        let state_ori = FemState::new(&input, &config).unwrap();
         let state = state_ori.clone();
         let str_ori = format!("{:?}", state).to_string();
         assert!(str_ori.len() > 0);
         // serialize
         let json = serde_json::to_string(&state).unwrap();
         // deserialize
-        let read: State = serde_json::from_str(&json).unwrap();
+        let read: FemState = serde_json::from_str(&json).unwrap();
         assert_eq!(format!("{:?}", read), str_ori);
     }
 }

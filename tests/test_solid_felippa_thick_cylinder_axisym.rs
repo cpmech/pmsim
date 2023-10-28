@@ -74,7 +74,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qn(|_| -PRESSURE));
 
     // simulation state
-    let mut state = State::new(&input, &config)?;
+    let mut state = FemState::new(&input, &config)?;
 
     // run simulation
     let mut sim = Simulation::new(&input, &config, &essential, &natural)?;
