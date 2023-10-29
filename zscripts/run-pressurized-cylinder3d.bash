@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -e
+
+cargo build --release
+
 GENIES="\
     mumps \
     umfpack \
