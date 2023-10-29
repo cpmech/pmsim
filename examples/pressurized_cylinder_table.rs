@@ -1,14 +1,13 @@
 use pmsim::prelude::*;
 use russell_lab::*;
 use std::collections::HashMap;
-use std::env;
 use std::fmt::Write;
 use std::fs;
 use std::fs::File;
 use std::io::Write as io_write;
 use std::path::Path;
-use std::process::Command;
 
+const IN_DIR: &str = "data/results/pressurized-cylinder-json";
 const OUT_DIR: &str = "/tmp/pmsim/latex/";
 
 #[rustfmt::skip]
@@ -49,7 +48,7 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
         // read data
         for str_genie in str_genies {
             // check if results are available
-            let json = format!("/tmp/pmsim/{}_{}_{}.json", name, str_genie, str_kind);
+            let json = format!("{}/{}_{}_{}.json", IN_DIR, name, str_genie, str_kind);
             let path_json = Path::new(&json);
             if path_json.exists() {
                 // load results
@@ -74,6 +73,8 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
                     }
                     _ => panic!("genie not available"),
                 }
+            } else {
+                println!("cannot find file: {:?}", path_json);
             }
         }
         if ndof.len() == 0 {
@@ -135,10 +136,10 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
     .unwrap();
 
     let key = format!("{}{}", name, suffix);
-    call_latex(&key, &buf)
+    save_tex_file(&key, &buf)
 }
 
-fn call_latex(key: &String, buffer: &String) -> Result<(), StrError> {
+fn save_tex_file(key: &String, buffer: &String) -> Result<(), StrError> {
     // create directory
     let name = format!("{}.tex", key);
     let filepath = format!("{}/{}", OUT_DIR, name);
@@ -149,48 +150,6 @@ fn call_latex(key: &String, buffer: &String) -> Result<(), StrError> {
     let mut file = File::create(path).map_err(|_| "cannot create file")?;
     file.write_all(buffer.as_bytes()).map_err(|_| "cannot write file")?;
     file.sync_all().map_err(|_| "cannot sync file")?;
-
-    // change working dir
-    let out_dir = format!("{}", OUT_DIR);
-    let working_dir = Path::new(&out_dir);
-    env::set_current_dir(&working_dir).unwrap();
-
-    // temporary file
-    let temp = format!(
-        "\\documentclass[12pt,a4paper]{{article}}\n\
-         \\usepackage{{booktabs}}\n\
-         \\usepackage{{graphicx}}\n\
-         \\begin{{document}}\n\
-         \\begin{{table}}\n\
-         {}\n\
-         \\end{{table}}\n\
-         \\end{{document}}",
-        buffer
-    );
-    let mut file = File::create("temporary.tex").map_err(|_| "cannot create file")?;
-    file.write_all(temp.as_bytes()).map_err(|_| "cannot write file")?;
-    file.sync_all().map_err(|_| "cannot sync file")?;
-
-    // execute file
-    let jobname = format!("-jobname={}", key);
-    let output = Command::new("latexmk")
-        .args([
-            "-pdf",
-            "-shell-escape",
-            "-halt-on-error",
-            "-interaction=batchmode",
-            &jobname,
-            "temporary.tex",
-        ])
-        .output()
-        .map_err(|_| "cannot run latexmk")?;
-
-    // output from stderr
-    let err = String::from_utf8(output.stderr).unwrap();
-    if err != "" {
-        println!("{}", err);
-        return Err("latexmk failed");
-    }
     Ok(())
 }
 
