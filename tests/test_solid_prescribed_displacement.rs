@@ -235,7 +235,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
 
     // global Jacobian matrix
     let mut kk_global = SparseMatrix::new_coo(neq, neq, neq * neq, None, false)?;
-    assemble_matrix(kk_global.get_coo_mut()?, &kk_local, &elem.local_to_global, &prescribed);
+    assemble_matrix(kk_global.get_coo_mut()?, &kk_local, &elem.local_to_global, &prescribed).unwrap();
     for eq in &values.equations {
         kk_global.put(*eq, *eq, 1.0)?;
     }

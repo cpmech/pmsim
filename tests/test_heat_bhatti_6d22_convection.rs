@@ -175,8 +175,8 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // assemble jacobians matrices
     let kk = lin_sys.jacobian.get_coo_mut()?;
-    elements.assemble_jacobians(kk, &prescribed_values.flags);
-    boundaries.assemble_jacobians(kk, &prescribed_values.flags);
+    elements.assemble_jacobians(kk, &prescribed_values.flags)?;
+    boundaries.assemble_jacobians(kk, &prescribed_values.flags)?;
     let kk_mat = kk.as_dense();
     // println!("kk =\n{:.4}", kk_mat);
 

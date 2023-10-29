@@ -357,13 +357,13 @@ mod tests {
         let prescribed = vec![false; neq_global];
 
         rod0.calc_jacobian(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod0.local_to_global, &prescribed);
+        assemble_matrix(&mut kk, &jacobian, &rod0.local_to_global, &prescribed).unwrap();
 
         rod1.calc_jacobian(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod1.local_to_global, &prescribed);
+        assemble_matrix(&mut kk, &jacobian, &rod1.local_to_global, &prescribed).unwrap();
 
         rod2.calc_jacobian(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod2.local_to_global, &prescribed);
+        assemble_matrix(&mut kk, &jacobian, &rod2.local_to_global, &prescribed).unwrap();
 
         let kk_mat = kk.as_dense();
         assert_eq!(

@@ -148,8 +148,8 @@ impl<'a> FemSolverImplicit<'a> {
                     self.boundaries.calc_jacobians_parallel(&state)?;
 
                     // assemble local Jacobian matrices into the global Jacobian matrix
-                    self.elements.assemble_jacobians(kk.get_coo_mut()?, prescribed);
-                    self.boundaries.assemble_jacobians(kk.get_coo_mut()?, prescribed);
+                    self.elements.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
+                    self.boundaries.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
 
                     // augment global Jacobian matrix
                     for eq in &self.prescribed_values.equations {

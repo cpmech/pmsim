@@ -183,11 +183,12 @@ impl<'a> Elements<'a> {
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
     #[inline]
-    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) {
+    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         kk.reset(); // << important
-        self.all
-            .iter()
-            .for_each(|e| assemble_matrix(kk, &e.jacobian, &e.actual.local_to_global(), &prescribed));
+        for e in &self.all {
+            assemble_matrix(kk, &e.jacobian, &e.actual.local_to_global(), &prescribed)?;
+        }
+        Ok(())
     }
 
     /// Updates secondary variables such as stresses and internal values

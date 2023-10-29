@@ -167,6 +167,14 @@ impl<'a> Boundary<'a> {
             _ => Ok(()),
         }
     }
+
+    /// Returns whether the local Jacobian matrix (if any) is symmetric or not
+    pub fn symmetric_jacobian(&self) -> bool {
+        match self.nbc {
+            Nbc::Cv(_, _) => true,
+            _ => false,
+        }
+    }
 }
 
 impl<'a> Boundaries<'a> {
@@ -231,12 +239,14 @@ impl<'a> Boundaries<'a> {
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
     #[inline]
-    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) {
-        self.all.iter().for_each(|e| {
+    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
+        // do not call reset here because it is called by elements
+        for e in &self.all {
             if let Some(jj) = &e.jacobian {
-                assemble_matrix(kk, &jj, &e.local_to_global, &prescribed);
+                assemble_matrix(kk, &jj, &e.local_to_global, &prescribed)?;
             }
-        });
+        }
+        Ok(())
     }
 }
 

@@ -79,8 +79,8 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
 
     // assemble jacobian matrix
     let kk = lin_sys.jacobian.get_coo_mut()?;
-    elements.assemble_jacobians(kk, &prescribed_values.flags);
-    boundaries.assemble_jacobians(kk, &prescribed_values.flags);
+    elements.assemble_jacobians(kk, &prescribed_values.flags)?;
+    boundaries.assemble_jacobians(kk, &prescribed_values.flags)?;
 
     // augment global Jacobian matrix
     for eq in &prescribed_values.equations {
