@@ -1,6 +1,7 @@
 use gemlab::prelude::*;
 use pmsim::{base::SampleMeshes, prelude::*};
 use russell_lab::*;
+use russell_sparse::Genie;
 
 // Smith's Example 5.2 (Figure 5.2) on page 173
 //
@@ -72,7 +73,9 @@ fn main() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -1.0));
 
     // configuration
-    let config = Config::new();
+    let mut config = Config::new();
+    config.lin_sol_genie = Genie::Mumps;
+    config.lin_sol_params.verbose = false;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

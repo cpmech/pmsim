@@ -2,6 +2,7 @@ use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::prelude::*;
 use russell_lab::*;
+use russell_sparse::Genie;
 
 // Arpaci's Example 3-8 on page 130 (variable conductivity)
 //
@@ -71,7 +72,9 @@ fn main() -> Result<(), StrError> {
     let natural = Natural::new();
 
     // configuration
-    let config = Config::new();
+    let mut config = Config::new();
+    config.lin_sol_genie = Genie::Mumps;
+    config.lin_sol_params.verbose = false;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
