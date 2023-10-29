@@ -103,7 +103,7 @@ impl<'a> LinearSystem<'a> {
 
         // information about the linear solver and the Jacobian matrix' storage
         let one_based = config.lin_sol_genie.one_based();
-        let pos_def = symmetric; // positive-definite if symmetric
+        let pos_def = false; // ignoring positive-definiteness (Note: Intel DSS in particular fails with pos-def)
         let symmetry = config.lin_sol_genie.symmetry(symmetric, pos_def);
 
         // allocate new instance
@@ -205,7 +205,7 @@ mod tests {
                 n_equation_global,
                 n_equation_global,
                 0, // nnz currently is zero
-                Some(Symmetry::PositiveDefinite(Storage::Full))
+                Some(Symmetry::General(Storage::Full))
             )
         );
 
@@ -222,7 +222,7 @@ mod tests {
                 n_equation_global,
                 n_equation_global,
                 0, // nnz currently is zero
-                Some(Symmetry::PositiveDefinite(Storage::Lower))
+                Some(Symmetry::General(Storage::Lower))
             )
         );
 
