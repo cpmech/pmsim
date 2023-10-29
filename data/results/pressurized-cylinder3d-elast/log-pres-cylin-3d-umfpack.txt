@@ -1,27 +1,27 @@
 
-... running with Hex8 ... Umfpack ... enforce_unsym_strategy = false ...
-           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
-     4.932885ms    270        2.43   6.29e-3   -3.14e-3
-     7.234462ms   1326        3.12   9.41e-4   -4.71e-4
-    43.347326ms  12546        4.10   8.99e-5   -4.50e-5
-   582.776969ms 131406        5.12   8.60e-6   -4.30e-6
-... running with Hex20 ... Umfpack ... enforce_unsym_strategy = false ...
-           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
-     3.307914ms     96        1.98   2.60e-3   -8.60e-4
-     2.387889ms    267        2.43   2.57e-4   -1.67e-4
-     6.676328ms    861        2.94   1.83e-5   -1.32e-5
-    19.637128ms   3057        3.49   1.14e-6   -8.89e-7
-     40.22171ms   4659        3.67   4.63e-7   -3.68e-7
-    86.703387ms  11481        4.06   6.93e-8   -5.68e-8
-   340.456187ms  44457        4.65   4.23e-9   -3.58e-9
-   1.030383213s 107259        5.03  7.03e-10  -6.01e-10
 ... running with Tet4 ... Umfpack ... enforce_unsym_strategy = false ...
            TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
-    13.177033ms   1695        3.23   2.80e-3   -3.29e-3
-   1.114763894s  49479        4.69   2.29e-4   -2.75e-4
-Error: "Error(-1): Not enough memory"
+    23.222071ms   1695        3.23   2.80e-3   -3.29e-3
+   1.054967354s  49479        4.69   2.29e-4   -2.75e-4
+Umfpack failed with: Error(-1): Not enough memory
 ... running with Tet10 ... Umfpack ... enforce_unsym_strategy = false ...
            TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
-     7.067306ms    666        2.82   2.14e-3   -1.16e-3
-   403.570185ms  26802        4.43   3.27e-5   -3.90e-6
-   7.189064182s 152406        5.18   4.13e-6   -4.07e-7
+     6.980679ms    666        2.82   2.14e-3   -1.16e-3
+   381.448728ms  26802        4.43   3.27e-5   -3.90e-6
+Umfpack failed with: Error(-1): Not enough memory
+... running with Hex8 ... Umfpack ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     4.016632ms    270        2.43   6.29e-3   -3.14e-3
+     6.878196ms   1326        3.12   9.41e-4   -4.71e-4
+    47.575005ms  12546        4.10   8.99e-5   -4.50e-5
+   690.929109ms 131406        5.12   8.60e-6   -4.30e-6
+... running with Hex20 ... Umfpack ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     3.018819ms     96        1.98   2.60e-3   -8.60e-4
+     2.395066ms    267        2.43   2.57e-4   -1.67e-4
+     5.655919ms    861        2.94   1.83e-5   -1.32e-5
+    19.230119ms   3057        3.49   1.14e-6   -8.89e-7
+    28.087229ms   4659        3.67   4.63e-7   -3.68e-7
+    82.465512ms  11481        4.06   6.93e-8   -5.68e-8
+   365.484122ms  44457        4.65   4.23e-9   -3.58e-9
+     1.0282721s 107259        5.03  7.03e-10  -6.01e-10
