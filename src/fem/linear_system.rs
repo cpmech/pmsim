@@ -2,7 +2,7 @@ use super::{Boundaries, Elements, FemInput, PrescribedValues};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::{LinSolver, SparseMatrix, Storage};
+use russell_sparse::{Genie, LinSolver, SparseMatrix, Storage};
 
 /// Holds variables to solve the global linear system
 pub struct LinearSystem<'a> {
@@ -103,7 +103,11 @@ impl<'a> LinearSystem<'a> {
 
         // information about the linear solver and the Jacobian matrix' storage
         let one_based = config.lin_sol_genie.one_based();
-        let pos_def = false; // ignoring positive-definiteness (Note: Intel DSS in particular fails with pos-def)
+        let pos_def = if config.lin_sol_genie == Genie::IntelDss {
+            false // Intel DSS fails with the positive-definite option
+        } else {
+            symmetric
+        };
         let symmetry = config.lin_sol_genie.symmetry(symmetric, pos_def);
 
         // allocate new instance
@@ -205,7 +209,7 @@ mod tests {
                 n_equation_global,
                 n_equation_global,
                 0, // nnz currently is zero
-                Some(Symmetry::General(Storage::Full))
+                Some(Symmetry::PositiveDefinite(Storage::Full))
             )
         );
 
@@ -222,7 +226,7 @@ mod tests {
                 n_equation_global,
                 n_equation_global,
                 0, // nnz currently is zero
-                Some(Symmetry::General(Storage::Lower))
+                Some(Symmetry::PositiveDefinite(Storage::Lower))
             )
         );
 
