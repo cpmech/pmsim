@@ -1,4 +1,4 @@
-use super::Data;
+use super::FemInput;
 use crate::base::{Ebc, Essential};
 use crate::StrError;
 use gemlab::mesh::{Point, PointId};
@@ -34,14 +34,14 @@ pub struct PrescribedValues<'a> {
 
 impl<'a> PrescribedValue<'a> {
     /// Allocates new instance
-    pub fn new(data: &'a Data, point_id: PointId, ebc: Ebc) -> Result<Self, StrError> {
-        if point_id >= data.mesh.points.len() {
+    pub fn new(input: &'a FemInput, point_id: PointId, ebc: Ebc) -> Result<Self, StrError> {
+        if point_id >= input.mesh.points.len() {
             return Err("cannot initialize prescribed value because PointId is out-of-bounds");
         }
         Ok(PrescribedValue {
-            point: &data.mesh.points[point_id],
+            point: &input.mesh.points[point_id],
             ebc,
-            eq: data.equations.eq(point_id, ebc.dof())?,
+            eq: input.equations.eq(point_id, ebc.dof())?,
         })
     }
 
@@ -65,13 +65,13 @@ impl<'a> PrescribedValue<'a> {
 
 impl<'a> PrescribedValues<'a> {
     /// Allocates new instance
-    pub fn new(data: &'a Data, essential: &Essential) -> Result<Self, StrError> {
+    pub fn new(input: &'a FemInput, essential: &Essential) -> Result<Self, StrError> {
         let mut all = Vec::new();
-        let mut flags = vec![false; data.equations.n_equation];
+        let mut flags = vec![false; input.equations.n_equation];
         let mut equations = Vec::new();
         for ((point_id, dof), ebc) in &essential.all {
-            let eq = data.equations.eq(*point_id, *dof)?;
-            all.push(PrescribedValue::new(data, *point_id, *ebc).unwrap()); // already checked
+            let eq = input.equations.eq(*point_id, *dof)?;
+            all.push(PrescribedValue::new(input, *point_id, *ebc).unwrap()); // already checked
             flags[eq] = true;
             equations.push(eq);
         }
@@ -91,7 +91,7 @@ impl<'a> PrescribedValues<'a> {
 mod tests {
     use super::{PrescribedValue, PrescribedValues};
     use crate::base::{Ebc, Element, Essential, SampleParams};
-    use crate::fem::Data;
+    use crate::fem::FemInput;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
     use gemlab::shapes::GeoKind;
     use russell_lab::Vector;
@@ -100,28 +100,28 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let f = |_| 123.0;
         assert_eq!(f(0.0), 123.0);
         assert_eq!(
-            PrescribedValue::new(&data, 123, Ebc::Ux(f)).err(),
+            PrescribedValue::new(&input, 123, Ebc::Ux(f)).err(),
             Some("cannot initialize prescribed value because PointId is out-of-bounds")
         );
         assert_eq!(
-            PrescribedValue::new(&data, 0, Ebc::T(f)).err(),
+            PrescribedValue::new(&input, 0, Ebc::T(f)).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
 
         let mut essential = Essential::new();
         essential.at(&[100], Ebc::Ux(f));
         assert_eq!(
-            PrescribedValues::new(&data, &essential).err(),
+            PrescribedValues::new(&input, &essential).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let mut essential = Essential::new();
         essential.at(&[0], Ebc::T(f));
         assert_eq!(
-            PrescribedValues::new(&data, &essential).err(),
+            PrescribedValues::new(&input, &essential).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
     }
@@ -130,13 +130,13 @@ mod tests {
     fn set_values_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.at(&[0], Ebc::T(|_| 110.0));
-        let mut duu = Vector::new(data.equations.n_equation);
-        let mut uu = Vector::new(data.equations.n_equation);
+        let mut duu = Vector::new(input.equations.n_equation);
+        let mut uu = Vector::new(input.equations.n_equation);
         uu.fill(100.0);
-        let values = PrescribedValues::new(&data, &essential).unwrap();
+        let values = PrescribedValues::new(&input, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         assert_eq!(duu.as_data(), &[10.0, 0.0, 0.0]);
         assert_eq!(uu.as_data(), &[110.0, 100.0, 100.0]);
@@ -156,7 +156,7 @@ mod tests {
             ],
         };
         let p1 = SampleParams::param_beam();
-        let data = Data::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .at(&[0], Ebc::Ux(|_| 1.0))
@@ -165,9 +165,9 @@ mod tests {
             .at(&[0], Ebc::Rx(|_| 4.0))
             .at(&[0], Ebc::Ry(|_| 5.0))
             .at(&[0], Ebc::Rz(|_| 6.0));
-        let mut duu = Vector::new(data.equations.n_equation);
-        let mut uu = Vector::new(data.equations.n_equation);
-        let values = PrescribedValues::new(&data, &essential).unwrap();
+        let mut duu = Vector::new(input.equations.n_equation);
+        let mut uu = Vector::new(input.equations.n_equation);
+        let values = PrescribedValues::new(&input, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
@@ -200,7 +200,7 @@ mod tests {
         let p1 = SampleParams::param_porous_sld_liq();
         let p2 = SampleParams::param_solid();
         let p3 = SampleParams::param_beam();
-        let data = Data::new(
+        let input = FemInput::new(
             &mesh,
             [
                 (1, Element::PorousSldLiq(p1)),
@@ -240,9 +240,9 @@ mod tests {
             .at(&[10], Ebc::Ux(|_| 26.0))
             .at(&[10], Ebc::Uy(|_| 27.0))
             .at(&[10], Ebc::Rz(|_| 28.0));
-        let mut duu = Vector::new(data.equations.n_equation);
-        let mut uu = Vector::new(data.equations.n_equation);
-        let values = PrescribedValues::new(&data, &essential).unwrap();
+        let mut duu = Vector::new(input.equations.n_equation);
+        let mut uu = Vector::new(input.equations.n_equation);
+        let values = PrescribedValues::new(&input, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[            // point
@@ -266,7 +266,7 @@ mod tests {
     fn set_values_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq_gas();
-        let data = Data::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .at(&[0], Ebc::Ux(|_| 1.0))
@@ -281,9 +281,9 @@ mod tests {
             .at(&[2], Ebc::Uy(|_| 10.0))
             .at(&[2], Ebc::Pl(|_| 11.0))
             .at(&[2], Ebc::Pg(|_| 12.0));
-        let mut duu = Vector::new(data.equations.n_equation);
-        let mut uu = Vector::new(data.equations.n_equation);
-        let values = PrescribedValues::new(&data, &essential).unwrap();
+        let mut duu = Vector::new(input.equations.n_equation);
+        let mut uu = Vector::new(input.equations.n_equation);
+        let values = PrescribedValues::new(&input, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
@@ -311,12 +311,12 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_porous_liq();
-        let data = Data::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
         let mut essential = Essential::new();
         let zero = |_| 0.0;
         assert_eq!(zero(1.0), 0.0);
         essential.at(&[0, 4], Ebc::Pl(zero));
-        let values = PrescribedValues::new(&data, &essential).unwrap();
+        let values = PrescribedValues::new(&input, &essential).unwrap();
         assert_eq!(values.flags, &[true, false, false, false, true]);
         let mut eqs = values.equations.clone();
         eqs.sort();
@@ -333,13 +333,13 @@ mod tests {
         //                   1 {2}
         //                     {3}
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .at(&[0], Ebc::Ux(zero))
             .at(&[0], Ebc::Uy(zero))
             .at(&[1, 2], Ebc::Uy(zero));
-        let values = PrescribedValues::new(&data, &essential).unwrap();
+        let values = PrescribedValues::new(&input, &essential).unwrap();
         assert_eq!(
             values.flags,
             //   0     1      2     3      4     5      6      7      8      9

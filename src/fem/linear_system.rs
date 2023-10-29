@@ -1,8 +1,8 @@
-use super::{Boundaries, Data, Elements, PrescribedValues};
+use super::{Boundaries, Elements, FemInput, PrescribedValues};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::{LinSolver, SparseMatrix};
+use russell_sparse::{Genie, LinSolver, SparseMatrix, Storage};
 
 /// Holds variables to solve the global linear system
 pub struct LinearSystem<'a> {
@@ -41,32 +41,74 @@ pub struct LinearSystem<'a> {
 impl<'a> LinearSystem<'a> {
     /// Allocates new instance
     pub fn new(
-        data: &Data,
+        input: &FemInput,
         config: &Config,
         prescribed_values: &PrescribedValues,
         elements: &Elements,
         boundaries: &Boundaries,
     ) -> Result<Self, StrError> {
         // equation (DOF) numbers
-        let n_equation = data.equations.n_equation;
+        let n_equation = input.equations.n_equation;
 
-        // compute the number of non-zero values
+        // check if all Jacobian matrices are symmetric
+        let symmetric = if config.ignore_jacobian_symmetry {
+            false
+        } else {
+            let mut all_symmetric = true;
+            for e in &elements.all {
+                if !e.actual.symmetric_jacobian() {
+                    all_symmetric = false;
+                    break;
+                }
+            }
+            for b in &boundaries.all {
+                if let Some(_) = b.jacobian {
+                    if !b.symmetric_jacobian() {
+                        all_symmetric = false;
+                        break;
+                    }
+                }
+            }
+            all_symmetric
+        };
+
+        // estimate the number of non-zero values
         let mut nnz_sup = prescribed_values.equations.len();
+        let triangular = config.lin_sol_genie.storage() != Storage::Full;
+
+        // elements always have a Jacobian matrix (all must be symmetric to use symmetry)
         nnz_sup += elements.all.iter().fold(0, |acc, e| {
-            // elements always have a Jacobian matrix
-            acc + e.actual.local_to_global().len() * e.actual.local_to_global().len()
-        });
-        nnz_sup += boundaries.all.iter().fold(0, |acc, e| match e.jacobian {
-            // boundary data may have a Jacobian matrix
-            Some(_) => acc + e.local_to_global.len() * e.local_to_global.len(),
-            None => acc,
+            let n = e.actual.local_to_global().len();
+            if symmetric && triangular {
+                acc + (n * n + n) / 2
+            } else {
+                acc + n * n
+            }
         });
 
-        // information about the linear solver and Jacobian matrix
+        // boundary data may have a Jacobian matrix (all must be symmetric to use symmetry)
+        nnz_sup += boundaries.all.iter().fold(0, |acc, e| {
+            let n = e.local_to_global.len();
+            match e.jacobian {
+                Some(_) => {
+                    if symmetric && triangular {
+                        acc + (n * n + n) / 2
+                    } else {
+                        acc + n * n
+                    }
+                }
+                None => acc,
+            }
+        });
+
+        // information about the linear solver and the Jacobian matrix' storage
         let one_based = config.lin_sol_genie.one_based();
-        let symmetry = config
-            .lin_sol_genie
-            .symmetry(config.sym_jacobian, config.sym_pos_def_jacobian);
+        let pos_def = if config.lin_sol_genie == Genie::IntelDss {
+            false // Intel DSS fails with the positive-definite option
+        } else {
+            symmetric
+        };
+        let symmetry = config.lin_sol_genie.symmetry(symmetric, pos_def);
 
         // allocate new instance
         Ok(LinearSystem {
@@ -86,9 +128,10 @@ impl<'a> LinearSystem<'a> {
 mod tests {
     use super::LinearSystem;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, SampleParams};
-    use crate::fem::{Boundaries, Data, Elements, PrescribedValues};
+    use crate::fem::{Boundaries, Elements, FemInput, PrescribedValues};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
+    use russell_sparse::{Genie, Storage, Symmetry};
 
     #[test]
     fn new_handles_errors() {
@@ -98,15 +141,15 @@ mod tests {
             cells: Vec::new(),
         };
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
         let essential = Essential::new();
         let natural = Natural::new();
-        let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
-        let elements = Elements::new(&data, &config).unwrap();
-        let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
+        let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
+        let elements = Elements::new(&input, &config).unwrap();
+        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
         assert_eq!(
-            LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries).err(),
+            LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).err(),
             Some("nrow must be ≥ 1")
         );
     }
@@ -124,8 +167,8 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+
         let mut essential = Essential::new();
         let mut natural = Natural::new();
         let f = |_| 123.0;
@@ -136,17 +179,73 @@ mod tests {
             points: vec![2, 3],
         };
         natural.on(&[&edge_conv], Nbc::Cv(55.0, f));
-        let prescribed_values = PrescribedValues::new(&data, &essential).unwrap();
-        let elements = Elements::new(&data, &config).unwrap();
-        let boundaries = Boundaries::new(&data, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries).unwrap();
+        let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
+
+        let n_equation_global = mesh.points.len() * 1; // 1 DOF per node
+
         let n_prescribed = 2;
         let n_element = 3;
         let n_equation_local = 3;
         let n_equation_convection = 2;
-        let nnz_correct = n_prescribed
+
+        let nnz_correct_triangle = n_prescribed
+            + n_element * (n_equation_local * n_equation_local + n_equation_local) / 2
+            + (n_equation_convection * n_equation_convection + n_equation_convection) / 2;
+
+        let nnz_correct_full = n_prescribed
             + n_element * n_equation_local * n_equation_local
             + n_equation_convection * n_equation_convection;
-        assert_eq!(lin_sys.nnz_sup, nnz_correct);
+
+        // allowing symmetry, but with full matrix (UMFPACK)
+        let mut config = Config::new();
+        config.lin_sol_genie = Genie::Umfpack;
+        let elements = Elements::new(&input, &config).unwrap();
+        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
+        let lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).unwrap();
+        assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
+        assert_eq!(
+            lin_sys.jacobian.get_info(),
+            (
+                n_equation_global,
+                n_equation_global,
+                0, // nnz currently is zero
+                Some(Symmetry::PositiveDefinite(Storage::Full))
+            )
+        );
+
+        // using symmetry (MUMPS)
+        let mut config = Config::new();
+        config.lin_sol_genie = Genie::Mumps;
+        let elements = Elements::new(&input, &config).unwrap();
+        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
+        let lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).unwrap();
+        assert_eq!(lin_sys.nnz_sup, nnz_correct_triangle);
+        assert_eq!(
+            lin_sys.jacobian.get_info(),
+            (
+                n_equation_global,
+                n_equation_global,
+                0, // nnz currently is zero
+                Some(Symmetry::PositiveDefinite(Storage::Lower))
+            )
+        );
+
+        // ignoring symmetry (MUMPS)
+        let mut config = Config::new();
+        config.lin_sol_genie = Genie::Mumps;
+        config.ignore_jacobian_symmetry = true;
+        let elements = Elements::new(&input, &config).unwrap();
+        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
+        let lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).unwrap();
+        assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
+        assert_eq!(
+            lin_sys.jacobian.get_info(),
+            (
+                n_equation_global,
+                n_equation_global,
+                0, // nnz currently is zero
+                None
+            )
+        );
     }
 }

@@ -45,7 +45,7 @@ fn main() -> Result<(), StrError> {
     let feat = Features::new(&mesh, false);
     let left = feat.search_edges(At::X(0.0), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: ParamConductivity::Constant {
@@ -55,11 +55,7 @@ fn main() -> Result<(), StrError> {
         },
         source: None,
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let mut config = Config::new();
-    let t_fin = 1.0;
-    config.transient = true;
-    config.control.t_fin = t_fin;
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
 
     // essential boundary conditions
     let essential = Essential::new();
@@ -68,12 +64,18 @@ fn main() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&left, Nbc::Qt(|_| 1.0));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let mut config = Config::new();
+    let t_fin = 1.0;
+    config.transient = true;
+    config.control.t_fin = t_fin;
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // check
     let analytical = |t: f64, x: f64| {
@@ -88,8 +90,8 @@ fn main() -> Result<(), StrError> {
     .concat();
     println!("");
     for p in &selected {
-        let x = data.mesh.points[*p].coords[0];
-        let eq = data.equations.eq(*p, Dof::T).unwrap();
+        let x = input.mesh.points[*p].coords[0];
+        let eq = input.equations.eq(*p, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(state.t, x));
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
@@ -103,7 +105,7 @@ fn main() -> Result<(), StrError> {
         let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
         // get temperature values along x
-        let post = PostProc::new(&mesh, &feat, &data, &state);
+        let post = FemOutput::new(&mesh, &feat, &input, &state);
         let (_, xx_num, tt_num) = post.values_along_x(Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
         // plot

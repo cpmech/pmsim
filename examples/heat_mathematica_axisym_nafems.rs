@@ -74,16 +74,14 @@ fn main() -> Result<(), StrError> {
     // reference solution
     let ref_temperature = 332.97;
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (52.0, 52.0);
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let mut config = Config::new();
-    config.axisymmetric = true;
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -93,15 +91,19 @@ fn main() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&edges_flux, Nbc::Qt(|_| 5e5));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let mut config = Config::new();
+    config.axisymmetric = true;
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // check
-    let eq = data.equations.eq(ref_point, Dof::T).unwrap();
+    let eq = input.equations.eq(ref_point, Dof::T).unwrap();
     let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",

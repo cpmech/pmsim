@@ -1,27 +1,27 @@
 
-... running with Hex8 ... Mumps ... enforce_unsym_strategy = false ...
-           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
-     5.097081ms    270        2.43   6.29e-3   -3.14e-3
-     5.035607ms   1326        3.12   9.41e-4   -4.71e-4
-    50.208701ms  12546        4.10   8.99e-5   -4.50e-5
-   527.553969ms 131406        5.12   8.60e-6   -4.30e-6
-... running with Hex20 ... Mumps ... enforce_unsym_strategy = false ...
-           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
-     5.042577ms     96        1.98   2.60e-3   -8.60e-4
-     2.943312ms    267        2.43   2.57e-4   -1.67e-4
-     6.799681ms    861        2.94   1.83e-5   -1.32e-5
-    16.565838ms   3057        3.49   1.14e-6   -8.89e-7
-    30.146663ms   4659        3.67   4.63e-7   -3.68e-7
-    71.870286ms  11481        4.06   6.93e-8   -5.68e-8
-     296.1562ms  44457        4.65   4.23e-9   -3.58e-9
-    750.83474ms 107259        5.03  7.04e-10  -6.01e-10
 ... running with Tet4 ... Mumps ... enforce_unsym_strategy = false ...
            TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
-    16.340618ms   1695        3.23   2.80e-3   -3.29e-3
-   651.731544ms  49479        4.69   2.29e-4   -2.75e-4
-   3.108396705s 153960        5.19   8.12e-5   -1.21e-4
+    11.290478ms   1695        3.23   2.80e-3   -3.29e-3
+   512.331857ms  49479        4.69   2.29e-4   -2.75e-4
+   2.144590765s 153960        5.19   8.12e-5   -1.21e-4
 ... running with Tet10 ... Mumps ... enforce_unsym_strategy = false ...
            TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
-     7.378413ms    666        2.82   2.14e-3   -1.16e-3
-   302.286831ms  26802        4.43   3.27e-5   -3.90e-6
-   2.864719176s 152406        5.18   4.13e-6   -4.07e-7
+     9.405153ms    666        2.82   2.14e-3   -1.16e-3
+   250.353322ms  26802        4.43   3.27e-5   -3.90e-6
+   1.958473094s 152406        5.18   4.13e-6   -4.07e-7
+... running with Hex8 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     5.433063ms    270        2.43   6.29e-3   -3.14e-3
+     3.752808ms   1326        3.12   9.41e-4   -4.71e-4
+     39.92627ms  12546        4.10   8.99e-5   -4.50e-5
+   418.184374ms 131406        5.12   8.60e-6   -4.30e-6
+... running with Hex20 ... Mumps ... enforce_unsym_strategy = false ...
+           TIME   NDOF log10(NDOF)     ERROR   UR_STUDY
+     3.790029ms     96        1.98   2.60e-3   -8.60e-4
+     2.728427ms    267        2.43   2.57e-4   -1.67e-4
+     3.998539ms    861        2.94   1.83e-5   -1.32e-5
+    11.710965ms   3057        3.49   1.14e-6   -8.89e-7
+    20.841525ms   4659        3.67   4.63e-7   -3.68e-7
+    58.916106ms  11481        4.06   6.93e-8   -5.68e-8
+   231.345309ms  44457        4.65   4.23e-9   -3.58e-9
+    571.52683ms 107259        5.03  7.04e-10  -6.01e-10

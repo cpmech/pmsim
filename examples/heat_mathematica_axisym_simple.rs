@@ -49,16 +49,14 @@ fn main() -> Result<(), StrError> {
     let left = feat.search_edges(At::X(rin), any_x)?;
     let right = feat.search_edges(At::X(rout), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (10.0, 10.0);
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let mut config = Config::new();
-    config.axisymmetric = true;
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -68,19 +66,23 @@ fn main() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&left, Nbc::Qt(|_| 100.0));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let mut config = Config::new();
+    config.axisymmetric = true;
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
     // println!("{}", state.uu);
 
     // check
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
-        let eq = data.equations.eq(point.id, Dof::T).unwrap();
+        let eq = input.equations.eq(point.id, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);

@@ -43,8 +43,8 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     let stress = vec![0.0, q, q * nu, 0.0];
 
     // data, DOF numbers, and equations
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-    let neq = data.equations.n_equation;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+    let neq = input.equations.n_equation;
     assert_eq!(neq, 8);
 
     // essential boundary conditions
@@ -53,7 +53,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
         .at(&[0], Ebc::Ux(|_| 0.0))
         .at(&[0, 1], Ebc::Uy(|_| 0.0))
         .at(&[2, 3], Ebc::Uy(|_| STRAIN_Y));
-    let values = PrescribedValues::new(&data, &essential)?;
+    let values = PrescribedValues::new(&input, &essential)?;
     let prescribed = &values.flags;
 
     // prescribed and unknown equations
@@ -65,14 +65,13 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
 
     // element and state
     let config = Config::new();
-    let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
-    let mut state = State::new(&data, &config)?;
+    let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+    let mut state = FemState::new(&input, &config)?;
 
     // update state with prescribed displacements
-    let mut duu = Vector::new(neq); // cumulated ΔU
-    values.apply(&mut duu, &mut state.uu, 1.0);
-    // println!("\nU = \n{:.6}", state.uu);
-    // println!("ΔU = \n{:.6}", duu);
+    values.apply(&mut state.duu, &mut state.uu, 1.0);
+    println!("\nU = \n{:.6}", state.uu);
+    println!("ΔU = \n{:.6}", state.duu);
 
     // global = local Jacobian matrix (kk_global = kk_local because there is one element only)
     let mut kk = Matrix::new(neq, neq);
@@ -109,18 +108,18 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     // fix vector of displacements and increments
     for (i, ii) in eq_unknown.iter().enumerate() {
         state.uu[*ii] = uu1[i];
-        duu[*ii] = uu1[i];
+        state.duu[*ii] = uu1[i];
     }
     println!("\nU = \n{:.6}", state.uu);
-    println!("ΔU = \n{:.6}", duu);
+    println!("ΔU = \n{:.6}", state.duu);
 
     // update stresses
     println!("\nstrain = {:?}", strain);
     println!("stress = {:?}", stress);
-    elem.update_secondary_values(&state, &duu)?;
+    elem.update_secondary_values(&state)?;
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.stresses[p].sigma.vec.as_data());
-        vec_approx_eq(elem.stresses[p].sigma.vec.as_data(), &stress, 1e-15);
+        println!("σ = {:?}", elem.stresses.all[p].sigma.vec.as_data());
+        vec_approx_eq(elem.stresses.all[p].sigma.vec.as_data(), &stress, 1e-15);
     }
 
     // compute external forces
@@ -173,8 +172,8 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     let stress = vec![0.0, q, q * nu, 0.0];
 
     // data, DOF numbers, and equations
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-    let neq = data.equations.n_equation;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+    let neq = input.equations.n_equation;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -182,7 +181,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
         .at(&[0], Ebc::Ux(|_| 0.0))
         .at(&[0, 1], Ebc::Uy(|_| 0.0))
         .at(&[2, 3], Ebc::Uy(|_| STRAIN_Y));
-    let values = PrescribedValues::new(&data, &essential)?;
+    let values = PrescribedValues::new(&input, &essential)?;
     let prescribed = &values.flags;
 
     // prescribed and unknown equations
@@ -192,21 +191,20 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
 
     // element and state
     let config = Config::new();
-    let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
-    let mut state = State::new(&data, &config)?;
+    let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+    let mut state = FemState::new(&input, &config)?;
 
     // update state with prescribed displacements
-    let mut duu = Vector::new(neq); // cumulated ΔU
-    values.apply(&mut duu, &mut state.uu, 1.0);
+    values.apply(&mut state.duu, &mut state.uu, 1.0);
     println!("\nU = \n{:.6}", state.uu);
-    println!("ΔU = \n{:.6}", duu);
+    println!("ΔU = \n{:.6}", state.duu);
 
     // update secondary variables (corresponds to E1 = -K12·U2)
     println!("\nstrain = {:?}", strain);
     println!("stress = {:?}", stress);
-    elem.update_secondary_values(&state, &duu)?;
+    elem.update_secondary_values(&state)?;
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.stresses[p].sigma.vec.as_data());
+        println!("σ = {:?}", elem.stresses.all[p].sigma.vec.as_data());
     }
 
     // compute residual (actually, internal forces)
@@ -237,7 +235,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
 
     // global Jacobian matrix
     let mut kk_global = SparseMatrix::new_coo(neq, neq, neq * neq, None, false)?;
-    assemble_matrix(kk_global.get_coo_mut()?, &kk_local, &elem.local_to_global, &prescribed);
+    assemble_matrix(kk_global.get_coo_mut()?, &kk_local, &elem.local_to_global, &prescribed).unwrap();
     for eq in &values.equations {
         kk_global.put(*eq, *eq, 1.0)?;
     }
@@ -249,10 +247,10 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // update U and ΔU
     for i in 0..neq {
         state.uu[i] -= mdu[i];
-        duu[i] -= mdu[i];
+        state.duu[i] -= mdu[i];
     }
     assert_eq!(
-        format!("{:.6}", duu), // = ΔU from direct approach
+        format!("{:.6}", state.duu), // = ΔU from direct approach
         "┌           ┐\n\
          │  0.000000 │\n\
          │  0.000000 │\n\
@@ -268,17 +266,17 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // must reset ΔU corresponding to prescribed values because
     // it has been used to update the stress already!
     for eq in &eq_prescribed {
-        duu[*eq] = 0.0;
+        state.duu[*eq] = 0.0;
     }
 
     // update secondary variables
     println!("\nstrain = {:?}", strain);
     println!("stress = {:?}", stress);
-    elem.update_secondary_values(&state, &duu)?;
+    elem.update_secondary_values(&state)?;
     // σ = [0.0, -2.0000000000000004, -0.5, 4.4408920985006264e-17]
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.stresses[p].sigma.vec.as_data());
-        vec_approx_eq(elem.stresses[p].sigma.vec.as_data(), &stress, 1e-15);
+        println!("σ = {:?}", elem.stresses.all[p].sigma.vec.as_data());
+        vec_approx_eq(elem.stresses.all[p].sigma.vec.as_data(), &stress, 1e-15);
     }
     Ok(())
 }

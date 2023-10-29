@@ -1,4 +1,4 @@
-use super::Data;
+use super::FemInput;
 use crate::base::{Natural, Pbc};
 use crate::StrError;
 use gemlab::mesh::PointId;
@@ -21,10 +21,10 @@ pub struct ConcentratedLoads {
 
 impl ConcentratedLoad {
     /// Allocates new instance
-    pub fn new(data: &Data, point_id: PointId, pbc: Pbc) -> Result<Self, StrError> {
+    pub fn new(input: &FemInput, point_id: PointId, pbc: Pbc) -> Result<Self, StrError> {
         Ok(ConcentratedLoad {
             pbc,
-            eq: data.equations.eq(point_id, pbc.dof())?,
+            eq: input.equations.eq(point_id, pbc.dof())?,
         })
     }
 
@@ -42,11 +42,11 @@ impl ConcentratedLoad {
 
 impl ConcentratedLoads {
     /// Allocates new instance
-    pub fn new(data: &Data, natural: &Natural) -> Result<Self, StrError> {
+    pub fn new(input: &FemInput, natural: &Natural) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = natural
             .concentrated
             .iter()
-            .map(|(point_id, pbc)| ConcentratedLoad::new(data, *point_id, *pbc))
+            .map(|(point_id, pbc)| ConcentratedLoad::new(input, *point_id, *pbc))
             .collect();
         match res {
             Ok(all) => Ok(ConcentratedLoads { all }),
@@ -67,7 +67,7 @@ impl ConcentratedLoads {
 mod tests {
     use super::{ConcentratedLoad, ConcentratedLoads};
     use crate::base::{Element, Natural, Pbc, SampleParams};
-    use crate::fem::Data;
+    use crate::fem::FemInput;
     use gemlab::mesh::Samples;
     use russell_lab::Vector;
 
@@ -75,18 +75,18 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let minus_ten = |_| -10.0;
         assert_eq!(minus_ten(0.0), -10.0);
         assert_eq!(
-            ConcentratedLoad::new(&data, 123, Pbc::Fy(minus_ten)).err(),
+            ConcentratedLoad::new(&input, 123, Pbc::Fy(minus_ten)).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
 
         let mut natural = Natural::new();
         natural.at(&[100], Pbc::Fx(minus_ten));
         assert_eq!(
-            ConcentratedLoads::new(&data, &natural).err(),
+            ConcentratedLoads::new(&input, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
     }
@@ -95,14 +95,14 @@ mod tests {
     fn add_to_residual_works() {
         let mesh = Samples::one_tet4();
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut natural = Natural::new();
         let f = |_| -20.0;
         assert_eq!(f(0.0), -20.0);
         natural.at(&[0], Pbc::Fx(f));
         natural.at(&[1], Pbc::Fy(f));
         natural.at(&[2], Pbc::Fz(f));
-        let b_points = ConcentratedLoads::new(&data, &natural).unwrap();
+        let b_points = ConcentratedLoads::new(&input, &natural).unwrap();
         let mut residual = Vector::new(4 * 3);
         b_points.add_to_residual(&mut residual, 0.0);
         assert_eq!(

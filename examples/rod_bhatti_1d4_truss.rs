@@ -43,15 +43,13 @@ fn main() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d4_truss();
 
-    // parameters, DOFs, and configuration
+    // input data
     #[rustfmt::skip]
-    let data = Data::new(&mesh, [
+    let input = FemInput::new(&mesh, [
         (1, Element::Rod(ParamRod { area: 4_000.0, young: 200_000.0, density: 1.0 })),
         (2, Element::Rod(ParamRod { area: 3_000.0, young: 200_000.0, density: 1.0 })),
         (3, Element::Rod(ParamRod { area: 2_000.0, young:  70_000.0, density: 1.0 })),
     ])?;
-    let mut config = Config::new();
-    config.control.n_max_time_steps = 2;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -62,12 +60,16 @@ fn main() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let mut config = Config::new();
+    config.control.n_max_time_steps = 2;
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // check displacements
     #[rustfmt::skip]

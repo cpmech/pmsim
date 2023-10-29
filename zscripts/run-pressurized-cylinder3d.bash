@@ -1,14 +1,20 @@
 #!/bin/bash
 
+set -e
+
+cargo build --release
+
 GENIES="\
+    mumps \
     umfpack \
+    inteldss
 "
 
 KINDS="\
-    hex8 \
-    hex20 \
     tet4 \
-    tet10
+    tet10 \
+    hex8 \
+    hex20
 "
 
 # KINDS="tet10"
@@ -18,5 +24,5 @@ for genie in $GENIES; do
     for kind in $KINDS; do
         cargo run --release --example pressurized_cylinder3d_elast -- $genie $kind
     done
-    cargo run --release --example plot_convergence_results -- pressurized_cylinder3d_elast $genie
+    cargo run --release --example pressurized_cylinder_plot -- pressurized_cylinder3d_elast $genie
 done

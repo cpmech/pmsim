@@ -1,6 +1,6 @@
-use super::{Data, ElementTrait, State};
+use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamDiffusion};
-use crate::model::ConductivityModel;
+use crate::material::ConductivityModel;
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -46,40 +46,43 @@ pub struct ElementDiffusion<'a> {
 impl<'a> ElementDiffusion<'a> {
     /// Allocates new instance
     pub fn new(
-        data: &'a Data,
+        input: &'a FemInput,
         config: &'a Config,
         cell: &'a Cell,
         param: &'a ParamDiffusion,
     ) -> Result<Self, StrError> {
-        let ndim = data.mesh.ndim;
+        let ndim = input.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
-        data.mesh.set_pad(&mut pad, &points);
-        Ok({
-            ElementDiffusion {
-                ndim,
-                config,
-                cell,
-                param,
-                local_to_global: compute_local_to_global(&data.information, &data.equations, cell)?,
-                pad,
-                ips: config.integ_point_data(cell)?,
-                model: ConductivityModel::new(&param.conductivity, ndim == 2),
-                conductivity: new_tensor2_ndim(ndim),
-                grad_tt: Vector::new(ndim),
-            }
+        input.mesh.set_pad(&mut pad, &points);
+        Ok(ElementDiffusion {
+            ndim,
+            config,
+            cell,
+            param,
+            local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
+            pad,
+            ips: config.integ_point_data(cell)?,
+            model: ConductivityModel::new(&param.conductivity, ndim == 2),
+            conductivity: new_tensor2_ndim(ndim),
+            grad_tt: Vector::new(ndim),
         })
     }
 }
 
 impl<'a> ElementTrait for ElementDiffusion<'a> {
+    /// Returns whether the local Jacobian matrix is symmetric or not
+    fn symmetric_jacobian(&self) -> bool {
+        self.model.has_symmetric_k() && !self.model.has_variable_k()
+    }
+
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global
     }
 
     /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
@@ -140,7 +143,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &State) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let ndim = self.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
@@ -194,10 +197,20 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         Ok(())
     }
 
+    /// Creates a copy of the secondary values (e.g., stresses and internal values)
+    fn backup_secondary_values(&mut self) -> Result<(), StrError> {
+        Ok(())
+    }
+
+    /// Restores the secondary values from the backup (e.g., stresses and internal values)
+    fn restore_secondary_values(&mut self) -> Result<(), StrError> {
+        Ok(())
+    }
+
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, _state: &State, _duu: &Vector) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &FemState) -> Result<(), StrError> {
         Ok(())
     }
 }
@@ -207,23 +220,92 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Config, Element, SampleParams};
-    use crate::fem::{Data, ElementTrait, State};
+    use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
+    use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
     use russell_lab::{vec_add, vec_approx_eq, Matrix, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
+    /// Finds the symmetry status of the Jacobian matrix
+    ///
+    /// Returns (symmetric_a, symmetric_b) where:
+    ///
+    /// * `symmetric_a` -- is the flag returned by the element
+    /// * `symmetric_b` -- is the result of comparing off-diagonal entries
+    fn find_jacobian_symmetry(nonlinear: bool) -> (bool, bool) {
+        // mesh
+        let mesh = Samples::one_tri3();
+
+        // parameters
+        let p1 = if nonlinear {
+            ParamDiffusion {
+                rho: 1.0,
+                conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
+                source: None,
+            }
+        } else {
+            SampleParams::param_diffusion()
+        };
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let config = Config::new();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+
+        // set heat flow from the right to the left
+        let mut state = FemState::new(&input, &config).unwrap();
+        let tt_field = |x| 100.0 + 5.0 * x;
+        state.uu[0] = tt_field(mesh.points[0].coords[0]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0]);
+
+        // calc Jacobian
+        let neq = 3;
+        let mut jacobian = Matrix::new(neq, neq);
+        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        // if nonlinear {
+        //     println!("J (nonlinear)= \n{}", jacobian);
+        // } else {
+        //     println!("J (linear) = \n{}", jacobian);
+        // }
+
+        // check symmetry by comparing components
+        let mut symmetric_b = true;
+        let (m, n) = jacobian.dims();
+        let tol = 1e-15;
+        'outer: for i in 0..m {
+            for j in (i + 1)..n {
+                if f64::abs(jacobian.get(i, j) - jacobian.get(j, i)) > tol {
+                    symmetric_b = false;
+                    break 'outer;
+                }
+            }
+        }
+        (elem.symmetric_jacobian(), symmetric_b)
+    }
+
+    #[test]
+    fn symmetric_jacobian_flag_works() {
+        // linear
+        let (symmetric_a, symmetric_b) = find_jacobian_symmetry(false);
+        assert_eq!(symmetric_a, symmetric_b);
+        assert!(symmetric_a);
+
+        // nonlinear
+        let (symmetric_a, symmetric_b) = find_jacobian_symmetry(true);
+        assert_eq!(symmetric_a, symmetric_b);
+        assert!(!symmetric_a);
+    }
+
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut config = Config::new();
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
-            ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).err(),
+            ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
         );
         config.n_integ_point.insert(1, 3);
@@ -234,8 +316,8 @@ mod tests {
             points: vec![0, 1, 2],
         };
         assert_eq!(
-            ElementDiffusion::new(&data, &config, &wrong_cell, &p1).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
+            ElementDiffusion::new(&input, &config, &wrong_cell, &p1).err(),
+            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
 
@@ -244,12 +326,12 @@ mod tests {
         // mesh and parameters
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = State::new(&data, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -281,9 +363,9 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1_new).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();
@@ -296,7 +378,7 @@ mod tests {
 
         let mut config = Config::new();
         config.transient = true;
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         state.dt = 0.0; // wrong
         assert_eq!(
             elem.calc_residual(&mut residual, &state).err(),
@@ -313,12 +395,12 @@ mod tests {
         // mesh and parameters
         let mesh = Samples::one_tet4();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = State::new(&data, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
@@ -354,9 +436,9 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementDiffusion::new(&data, &config, &mesh.cells[0], &p1_new).unwrap();
+        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();

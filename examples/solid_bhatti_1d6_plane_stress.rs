@@ -42,7 +42,7 @@ fn main() -> Result<(), StrError> {
     let features = Features::new(&mesh, false);
     let top = vec![features.get_edge(1, 3), features.get_edge(3, 5)];
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {
@@ -50,11 +50,7 @@ fn main() -> Result<(), StrError> {
             poisson: 0.2,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))])?;
-    let mut config = Config::new();
-    config.plane_stress = true;
-    config.thickness = 0.25;
-    config.validate_or_panic(mesh.ndim, true);
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -65,11 +61,17 @@ fn main() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
-    // elements
-    let mut elements = Elements::new(&data, &config)?;
+    // configuration
+    let mut config = Config::new();
+    config.plane_stress = true;
+    config.thickness = 0.25;
+    config.validate_or_panic(mesh.ndim, true);
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // elements
+    let mut elements = Elements::new(&input, &config)?;
+
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
 
     // check Jacobian matrix of first element
     elements.calc_jacobians(&state)?;
@@ -84,9 +86,9 @@ fn main() -> Result<(), StrError> {
     ]);
     mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // check displacements
     #[rustfmt::skip]

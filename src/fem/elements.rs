@@ -1,4 +1,4 @@
-use super::{Data, ElementDiffusion, ElementRod, ElementSolid, ElementTrait, State};
+use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, FemState};
 use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
@@ -25,29 +25,29 @@ pub struct Elements<'a> {
 }
 
 /// Holds auxiliary arguments for the computation of numerical Jacobian matrices
-struct ArgsForNumericalJacobian {
+struct ArgsForNumericalJacobian<'a> {
     /// Holds the residual vector
-    pub residual: Vector,
+    pub residual: &'a mut Vector,
 
     /// Holds the current state
-    pub state: State,
+    pub state: &'a mut FemState,
 }
 
 impl<'a> GenericElement<'a> {
     /// Allocates new instance
-    pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
-        let element = data.attributes.get(cell).unwrap(); // already checked in Data
+    pub fn new(input: &'a FemInput, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
+        let element = input.attributes.get(cell).unwrap(); // already checked
         let actual: Box<dyn ElementTrait> = match element {
-            Element::Diffusion(p) => Box::new(ElementDiffusion::new(data, config, cell, p)?),
-            Element::Rod(p) => Box::new(ElementRod::new(data, config, cell, p)?),
+            Element::Diffusion(p) => Box::new(ElementDiffusion::new(input, config, cell, p)?),
+            Element::Rod(p) => Box::new(ElementRod::new(input, config, cell, p)?),
             Element::Beam(..) => panic!("TODO: Beam"),
-            Element::Solid(p) => Box::new(ElementSolid::new(data, config, cell, p)?),
+            Element::Solid(p) => Box::new(ElementSolid::new(input, config, cell, p)?),
             Element::PorousLiq(..) => panic!("TODO: PorousLiq"),
             Element::PorousLiqGas(..) => panic!("TODO: PorousLiqGas"),
             Element::PorousSldLiq(..) => panic!("TODO: PorousSldLiq"),
             Element::PorousSldLiqGas(..) => panic!("TODO: PorousSldLiqGas"),
         };
-        let neq = data.n_local_eq(cell).unwrap();
+        let neq = input.n_local_eq(cell).unwrap();
         Ok(GenericElement {
             actual,
             residual: Vector::new(neq),
@@ -57,57 +57,65 @@ impl<'a> GenericElement<'a> {
 
     /// Calculates the residual vector
     #[inline]
-    pub fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residual(&mut self, state: &FemState) -> Result<(), StrError> {
         self.actual.calc_residual(&mut self.residual, state)
     }
 
     /// Calculates the Jacobian matrix
     #[inline]
-    pub fn calc_jacobian(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobian(&mut self, state: &FemState) -> Result<(), StrError> {
         self.actual.calc_jacobian(&mut self.jacobian, state)
     }
 
-    /// Calculates a numerical Jacobian matrix
-    pub fn numerical_jacobian(&mut self, state: &State) -> Matrix {
+    /// Calculates the Jacobian matrix using finite differences
+    ///
+    /// **Note:** The element's internal state may be changed temporarily,
+    /// but it is restored at the end of the function
+    pub fn numerical_jacobian(&mut self, state: &mut FemState) -> Result<(), StrError> {
         let neq = self.residual.dim();
         let mut args = ArgsForNumericalJacobian {
-            residual: Vector::new(neq),
-            state: state.clone(),
+            residual: &mut self.residual,
+            state,
         };
-        let mut num_jacobian = Matrix::new(neq, neq);
         for i in 0..neq {
             for j in 0..neq {
-                let at_u = state.uu[j];
+                let at_u = args.state.uu[j];
                 let res = deriv_central5(at_u, &mut args, |u, a| {
-                    let original = a.state.uu[j];
+                    let original_uu = a.state.uu[j];
+                    let original_duu = a.state.duu[j];
                     a.state.uu[j] = u;
+                    a.state.duu[j] = u - original_uu;
+                    self.actual.backup_secondary_values().unwrap();
+                    self.actual.update_secondary_values(&a.state).unwrap();
                     self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
-                    a.state.uu[j] = original;
+                    self.actual.restore_secondary_values().unwrap();
+                    a.state.uu[j] = original_uu;
+                    a.state.duu[j] = original_duu;
                     a.residual[i]
                 });
-                num_jacobian.set(i, j, res);
+                self.jacobian.set(i, j, res);
             }
         }
-        num_jacobian
+        Ok(())
     }
 
     /// Updates secondary variables such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     #[inline]
-    pub fn update_secondary_values(&mut self, state: &State, duu: &Vector) -> Result<(), StrError> {
-        self.actual.update_secondary_values(state, duu)
+    pub fn update_secondary_values(&mut self, state: &FemState) -> Result<(), StrError> {
+        self.actual.update_secondary_values(state)
     }
 }
 
 impl<'a> Elements<'a> {
     /// Allocates new instance
-    pub fn new(data: &'a Data, config: &'a Config) -> Result<Self, StrError> {
-        let res: Result<Vec<_>, _> = data
+    pub fn new(input: &'a FemInput, config: &'a Config) -> Result<Self, StrError> {
+        let res: Result<Vec<_>, _> = input
             .mesh
             .cells
             .iter()
-            .map(|cell| GenericElement::new(data, config, cell))
+            .map(|cell| GenericElement::new(input, config, cell))
             .collect();
         match res {
             Ok(all) => Ok(Elements { all }),
@@ -115,27 +123,38 @@ impl<'a> Elements<'a> {
         }
     }
 
+    /// Returns whether all local Jacobian matrices are symmetric or not
+    #[inline]
+    pub fn all_symmetric_jacobians(&self) -> bool {
+        for e in &self.all {
+            if !e.actual.symmetric_jacobian() {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /// Computes the residual vectors
     #[inline]
-    pub fn calc_residuals(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residuals(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices
     #[inline]
-    pub fn calc_jacobians(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
     /// Computes the residual vectors in parallel
     #[inline]
-    pub fn calc_residuals_parallel(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residuals_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices in parallel
     #[inline]
-    pub fn calc_jacobians_parallel(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobians_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.par_iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
@@ -164,21 +183,22 @@ impl<'a> Elements<'a> {
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
     #[inline]
-    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) {
+    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         kk.reset(); // << important
-        self.all
-            .iter()
-            .for_each(|e| assemble_matrix(kk, &e.jacobian, &e.actual.local_to_global(), &prescribed));
+        for e in &self.all {
+            assemble_matrix(kk, &e.jacobian, &e.actual.local_to_global(), &prescribed)?;
+        }
+        Ok(())
     }
 
     /// Updates secondary variables such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     #[inline]
-    pub fn update_secondary_values_parallel(&mut self, state: &State, duu: &Vector) -> Result<(), StrError> {
+    pub fn update_secondary_values_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all
             .par_iter_mut()
-            .map(|e| e.update_secondary_values(state, duu))
+            .map(|e| e.update_secondary_values(state))
             .collect()
     }
 }
@@ -189,7 +209,7 @@ impl<'a> Elements<'a> {
 mod tests {
     use super::{Elements, GenericElement};
     use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
-    use crate::fem::{Data, State};
+    use crate::fem::{FemInput, FemState};
     use gemlab::mesh::Samples;
     use russell_lab::vec_approx_eq;
 
@@ -200,24 +220,24 @@ mod tests {
         config.n_integ_point.insert(1, 100); // wrong
 
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
-            GenericElement::new(&data, &config, &mesh.cells[0]).err(),
+            GenericElement::new(&input, &config, &mesh.cells[0]).err(),
             Some("desired number of integration points is not available for Tri class")
         );
         assert_eq!(
-            Elements::new(&data, &config).err(),
+            Elements::new(&input, &config).err(),
             Some("desired number of integration points is not available for Tri class")
         );
 
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         assert_eq!(
-            GenericElement::new(&data, &config, &mesh.cells[0]).err(),
+            GenericElement::new(&input, &config, &mesh.cells[0]).err(),
             Some("desired number of integration points is not available for Tri class")
         );
         assert_eq!(
-            Elements::new(&data, &config).err(),
+            Elements::new(&input, &config).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
@@ -226,42 +246,43 @@ mod tests {
     fn new_works() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
-        Elements::new(&data, &config).unwrap();
+        Elements::new(&input, &config).unwrap();
     }
 
     #[test]
     fn num_jacobian_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = State::new(&data, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         ele.calc_jacobian(&state).unwrap();
-        let num_jacobian = ele.numerical_jacobian(&state);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-11);
+        let jj_ana = ele.jacobian.clone();
+        ele.numerical_jacobian(&mut state).unwrap();
+        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-11);
 
         // transient simulation
         let mut config = Config::new();
         config.transient = true;
-        let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
-        let mut state = State::new(&data, &config).unwrap();
+        let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
@@ -271,8 +292,9 @@ mod tests {
         state.uu_star[1] = beta_1 * state.uu[1] + beta_2 * state.uu[1];
         state.uu_star[2] = beta_1 * state.uu[2] + beta_2 * state.uu[2];
         ele.calc_jacobian(&state).unwrap();
-        let num_jacobian = ele.numerical_jacobian(&state);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-10);
+        let jj_ana = ele.jacobian.clone();
+        ele.numerical_jacobian(&mut state).unwrap();
+        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-10);
 
         // variable conductivity
         let p1 = ParamDiffusion {
@@ -280,36 +302,49 @@ mod tests {
             conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
             source: None,
         };
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
         ele.calc_jacobian(&state).unwrap();
-        let num_jacobian = ele.numerical_jacobian(&state);
+        let jj_ana = ele.jacobian.clone();
+        ele.numerical_jacobian(&mut state).unwrap();
         // println!("ana: J = \n{}", ele.jacobian);
         // println!("num: J = \n{}", num_jacobian);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-7);
+        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-7);
         // note that the "stiffness" is now unsymmetric
         // println!("difference = {:?}", num_jacobian[0][2] - num_jacobian[2][0]);
     }
 
-    // #[test]
-    fn _num_jacobian_solid() {
+    #[test]
+    fn num_jacobian_solid() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let mut ele = GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
         // linear displacement field
-        let mut state = State::new(&data, &config).unwrap();
-        let uu_field = |x, y| 1.0 * x + 2.0 * y;
-        state.uu[0] = uu_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.uu[1] = uu_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.uu[2] = uu_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        let mut state = FemState::new(&input, &config).unwrap();
+        state.duu[0] = 1.0 + mesh.points[0].coords[0];
+        state.duu[1] = 2.0 + mesh.points[0].coords[1];
+        state.duu[2] = 1.0 + mesh.points[1].coords[0];
+        state.duu[3] = 2.0 + mesh.points[1].coords[1];
+        state.duu[4] = 1.0 + mesh.points[2].coords[0];
+        state.duu[5] = 2.0 + mesh.points[2].coords[1];
+        for i in 0..6 {
+            state.uu[i] = state.duu[i];
+        }
+        ele.update_secondary_values(&state).unwrap();
+        println!("uu =\n{}", state.uu);
 
         ele.calc_jacobian(&state).unwrap();
-        let num_jacobian = ele.numerical_jacobian(&state);
-        vec_approx_eq(ele.jacobian.as_data(), num_jacobian.as_data(), 1e-13);
+        let jj_ana = ele.jacobian.clone();
+        ele.numerical_jacobian(&mut state).unwrap();
+
+        println!("J(ana)=\n{:.2}", jj_ana);
+        println!("J(num)=\n{:.2}", ele.jacobian);
+
+        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-8);
     }
 
     // ----------------- temporary ----------------------------------------
@@ -319,9 +354,9 @@ mod tests {
     fn new_panics_beam() {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_beam();
-        let data = Data::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
         let config = Config::new();
-        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -329,9 +364,9 @@ mod tests {
     fn new_panics_porous_liq() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_porous_liq();
-        let data = Data::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
         let config = Config::new();
-        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -339,9 +374,9 @@ mod tests {
     fn new_panics_porous_liq_gas() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_porous_liq_gas();
-        let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -349,9 +384,9 @@ mod tests {
     fn new_panics_porous_sld_liq() {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq();
-        let data = Data::new(&mesh, [(1, Element::PorousSldLiq(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousSldLiq(p1))]).unwrap();
         let config = Config::new();
-        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -359,8 +394,8 @@ mod tests {
     fn new_panics_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq_gas();
-        let data = Data::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new();
-        GenericElement::new(&data, &config, &mesh.cells[0]).unwrap();
+        GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 }

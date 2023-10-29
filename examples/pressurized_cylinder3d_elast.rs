@@ -78,6 +78,7 @@ fn main() -> Result<(), StrError> {
         if kind == GeoKind::Tet4 {
             vec![(5, 10), (20, 40), (30, 70)]
         } else {
+            // vec![(50, 85)] // very fine mesh for paper
             vec![(2, 4), (10, 20), (20, 40)]
         }
     } else {
@@ -115,9 +116,9 @@ fn main() -> Result<(), StrError> {
             let den = if kind == GeoKind::Tet4 { 6.0 } else { 2.0 };
             let global_max_volume = Some(delta_x * delta_x * delta_x / den);
             // println!("0. max vol = {:?}", global_max_volume);
-            Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume).unwrap()
+            Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume, true).unwrap()
         } else {
-            Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind).unwrap()
+            Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind, true).unwrap()
         };
 
         // println!("1. npoint = {}, ncell = {}", mesh.points.len(), mesh.cells.len());
@@ -156,7 +157,7 @@ fn main() -> Result<(), StrError> {
         let study_point = feat.search_point_ids(At::XYZ(0.0, R2, 0.0), any_x)?[0];
         vec_approx_eq(&mesh.points[study_point].coords, &[0.0, R2, 0.0], 1e-13); // << some error
 
-        // parameters, DOFs, and configuration
+        // input data
         let param1 = ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::LinearElastic {
@@ -164,17 +165,10 @@ fn main() -> Result<(), StrError> {
                 poisson: POISSON,
             },
         };
-        let data = Data::new(&mesh, [(1, Element::Solid(param1))])?;
-        let mut config = Config::new();
-        config.linear_problem = true;
-        config.control.verbose_timesteps = false;
-        config.control.save_vismatrix_file = false;
-        config.control.save_matrix_market_file = WRITE_K;
-        config.lin_sol_genie = genie;
-        config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
+        let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
 
         // total number of DOF
-        let ndof = data.equations.n_equation;
+        let ndof = input.equations.n_equation;
         let n_str = format!("{:0>5}", ndof);
 
         // println!("4. NDOF = {}", ndof);
@@ -236,15 +230,30 @@ fn main() -> Result<(), StrError> {
             .on(&faces_inner, Nbc::Qn(|_| -P1))
             .on(&faces_outer, Nbc::Qn(|_| -P2));
 
-        // simulation state
-        let mut state = State::new(&data, &config)?;
+        // configuration
+        let mut config = Config::new();
+        config.linear_problem = true;
+        config.control.verbose_timesteps = false;
+        config.control.save_vismatrix_file = false;
+        config.control.save_matrix_market_file = WRITE_K;
+        config.lin_sol_genie = genie;
+        config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
+
+        // FEM state
+        let mut state = FemState::new(&input, &config)?;
 
         // println!("5. running simulation");
 
-        // run simulation
-        let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
+        // solve problem
+        let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
-        sim.run(&mut state)?;
+        match solver.solve(&mut state) {
+            Err(e) => {
+                println!("{:?} failed with: {}", genie, e);
+                continue;
+            }
+            Ok(..) => (),
+        }
         results.time[idx] = stopwatch.stop();
 
         // println!("5. computing error");
@@ -252,12 +261,12 @@ fn main() -> Result<(), StrError> {
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = data.equations.eq(ref_point_id, Dof::Ux).unwrap();
+        let eq = input.equations.eq(ref_point_id, Dof::Ux).unwrap();
         let numerical_ur = state.uu[eq];
         let error = f64::abs(numerical_ur - ana.radial_displacement(r));
 
         // study point error
-        let eq = data.equations.eq(study_point, Dof::Uy).unwrap();
+        let eq = input.equations.eq(study_point, Dof::Uy).unwrap();
         let numerical_ur = state.uu[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
@@ -274,7 +283,7 @@ fn main() -> Result<(), StrError> {
 
         // vtu file
         if SAVE_VTU {
-            let post = PostProc::new(&mesh, &feat, &data, &state);
+            let post = FemOutput::new(&mesh, &feat, &input, &state);
             post.write_vtu(&path_vtu)?;
         }
 

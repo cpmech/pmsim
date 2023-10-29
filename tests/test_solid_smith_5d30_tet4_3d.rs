@@ -44,7 +44,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     println!("faces_y_min = {:?}", &faces_y_min);
     println!("bottom = {:?}", &bottom);
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {
@@ -52,8 +52,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
             poisson: 0.3,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))])?;
-    let config = Config::new();
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
 
     // essential boundary conditions
     let zero = |_| 0.0;
@@ -69,17 +68,20 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
         .at(&[0, 5], Pbc::Fz(|_| -0.1667))
         .at(&[1, 4], Pbc::Fz(|_| -0.3333));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let config = Config::new();
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // generate Paraview file
     if false {
-        let proc = PostProc::new(&mesh, &feat, &data, &state);
-        proc.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
+        let output = FemOutput::new(&mesh, &feat, &input, &state);
+        output.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
     }
 
     // check displacements

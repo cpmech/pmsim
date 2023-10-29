@@ -2,6 +2,7 @@ use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::prelude::*;
 use russell_lab::*;
+use russell_sparse::Genie;
 
 // Arpaci's Example 3-8 on page 130 (variable conductivity)
 //
@@ -55,14 +56,13 @@ fn main() -> Result<(), StrError> {
     let feat = Features::new(&mesh, false);
     let right = feat.search_edges(At::X(L), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: ParamConductivity::IsotropicLinear { kr: K_R, beta: BETA },
         source: Some(SOURCE),
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let config = Config::new();
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -71,12 +71,17 @@ fn main() -> Result<(), StrError> {
     // natural boundary conditions
     let natural = Natural::new();
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let mut config = Config::new();
+    config.lin_sol_genie = Genie::Mumps;
+    config.lin_sol_params.verbose = false;
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // analytical solution
     let coef = BETA * SOURCE * L * L / (2.0 * K_R);
@@ -92,14 +97,14 @@ fn main() -> Result<(), StrError> {
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = data.equations.eq(ref_id, Dof::T)?;
+    let ref_eq = input.equations.eq(ref_id, Dof::T)?;
     let ref_tt = state.uu[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
 
     // plot results
     // get temperature values along x
-    let post = PostProc::new(&mesh, &feat, &data, &state);
+    let post = FemOutput::new(&mesh, &feat, &input, &state);
     let (_, x_values, tt_values) = post.values_along_x(Dof::T, 0.0, any_x)?;
 
     // compute plot data

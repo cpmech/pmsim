@@ -1,4 +1,4 @@
-use super::{Data, State};
+use super::{FemInput, FemState};
 use crate::base::{assemble_matrix, assemble_vector, Config, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ;
@@ -42,9 +42,9 @@ pub struct Boundaries<'a> {
 
 impl<'a> Boundary<'a> {
     // Allocates new instance
-    pub fn new(data: &'a Data, config: &'a Config, feature: &'a Feature, nbc: Nbc) -> Result<Self, StrError> {
+    pub fn new(input: &'a FemInput, config: &'a Config, feature: &'a Feature, nbc: Nbc) -> Result<Self, StrError> {
         // check
-        let ndim = data.mesh.ndim;
+        let ndim = input.mesh.ndim;
         if ndim == 3 {
             let is_3d_edge = feature.kind.ndim() == 1;
             if is_3d_edge {
@@ -61,7 +61,7 @@ impl<'a> Boundary<'a> {
         // pad and ips
         let (kind, points) = (feature.kind, &feature.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
-        data.mesh.set_pad(&mut pad, &points);
+        input.mesh.set_pad(&mut pad, &points);
         let ips = integ::default_points(pad.kind);
 
         // dofs
@@ -73,7 +73,7 @@ impl<'a> Boundary<'a> {
         let mut local_to_global = vec![0; n_equation_local];
         for m in 0..nnode {
             for (dof, local) in &dofs[m] {
-                let global = data.equations.eq(points[m], *dof)?;
+                let global = input.equations.eq(points[m], *dof)?;
                 local_to_global[*local] = global;
             }
         }
@@ -95,7 +95,7 @@ impl<'a> Boundary<'a> {
     }
 
     /// Calculates the residual vector at given time
-    pub fn calc_residual(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residual(&mut self, state: &FemState) -> Result<(), StrError> {
         let (ndim, nnode) = self.pad.xxt.dims();
         let res = &mut self.residual;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
@@ -155,7 +155,7 @@ impl<'a> Boundary<'a> {
     }
 
     /// Calculates the Jacobian matrix at given time
-    pub fn calc_jacobian(&mut self, _state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobian(&mut self, _state: &FemState) -> Result<(), StrError> {
         match self.nbc {
             Nbc::Cv(cc, _) => {
                 let kk = self.jacobian.as_mut().unwrap();
@@ -167,15 +167,23 @@ impl<'a> Boundary<'a> {
             _ => Ok(()),
         }
     }
+
+    /// Returns whether the local Jacobian matrix (if any) is symmetric or not
+    pub fn symmetric_jacobian(&self) -> bool {
+        match self.nbc {
+            Nbc::Cv(_, _) => true,
+            _ => false,
+        }
+    }
 }
 
 impl<'a> Boundaries<'a> {
     // Allocates new instance
-    pub fn new(data: &'a Data, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
+    pub fn new(input: &'a FemInput, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = natural
             .distributed
             .iter()
-            .map(|(feature, nbc)| Boundary::new(data, config, feature, *nbc))
+            .map(|(feature, nbc)| Boundary::new(input, config, feature, *nbc))
             .collect();
         match res {
             Ok(all) => Ok(Boundaries { all }),
@@ -185,25 +193,25 @@ impl<'a> Boundaries<'a> {
 
     /// Computes the residual vectors
     #[inline]
-    pub fn calc_residuals(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residuals(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices
     #[inline]
-    pub fn calc_jacobians(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
     /// Computes the residual vectors in parallel
     #[inline]
-    pub fn calc_residuals_parallel(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_residuals_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices in parallel
     #[inline]
-    pub fn calc_jacobians_parallel(&mut self, state: &State) -> Result<(), StrError> {
+    pub fn calc_jacobians_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.par_iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
@@ -231,12 +239,14 @@ impl<'a> Boundaries<'a> {
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
     #[inline]
-    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) {
-        self.all.iter().for_each(|e| {
+    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
+        // do not call reset here because it is called by elements
+        for e in &self.all {
             if let Some(jj) = &e.jacobian {
-                assemble_matrix(kk, &jj, &e.local_to_global, &prescribed);
+                assemble_matrix(kk, &jj, &e.local_to_global, &prescribed)?;
             }
-        });
+        }
+        Ok(())
     }
 }
 
@@ -246,7 +256,7 @@ impl<'a> Boundaries<'a> {
 mod tests {
     use super::{Boundaries, Boundary};
     use crate::base::{Config, Element, Natural, Nbc, SampleMeshes, SampleParams};
-    use crate::fem::{Data, State};
+    use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
     use rayon::prelude::*;
@@ -261,29 +271,29 @@ mod tests {
         };
 
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
         let minus_ten = |_| -10.0;
         assert_eq!(minus_ten(0.0), -10.0);
 
         assert_eq!(
-            Boundary::new(&data, &config, &edge, Nbc::Qn(minus_ten)).err(),
+            Boundary::new(&input, &config, &edge, Nbc::Qn(minus_ten)).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
-        assert_eq!(Boundary::new(&data, &config, &edge, Nbc::Qz(minus_ten)).err(), None); // Qz is OK
+        assert_eq!(Boundary::new(&input, &config, &edge, Nbc::Qz(minus_ten)).err(), None); // Qz is OK
         let face = Feature {
             kind: GeoKind::Qua4,
             points: vec![4, 5, 6, 7],
         };
         assert_eq!(
-            Boundary::new(&data, &config, &face, Nbc::Ql(minus_ten)).err(), // << flux
+            Boundary::new(&input, &config, &face, Nbc::Ql(minus_ten)).err(), // << flux
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
 
         let mut natural = Natural::new();
         natural.on(&[&edge], Nbc::Qn(minus_ten));
         assert_eq!(
-            Boundaries::new(&data, &config, &natural).err(),
+            Boundaries::new(&input, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -297,13 +307,13 @@ mod tests {
         }];
 
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
 
         let mut natural = Natural::new();
         natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
-        let mut b_elements = Boundaries::new(&data, &config, &natural).unwrap();
-        let state = State::new(&data, &config).unwrap();
+        let mut b_elements = Boundaries::new(&input, &config, &natural).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         b_elements.all.par_iter_mut().for_each(|d| {
             d.calc_residual(&state).unwrap();
             d.calc_jacobian(&state).unwrap();
@@ -320,9 +330,9 @@ mod tests {
         let bottom = features.edges.get(&(0, 1)).ok_or("cannot get edge").unwrap();
 
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 25.0;
         let fq = |_| Q;
@@ -330,25 +340,25 @@ mod tests {
 
         // Qn
 
-        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &top, Nbc::Qn(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(res, correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &left, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &left, Nbc::Qn(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         vec_approx_eq(res, correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &right, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &right, Nbc::Qn(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         vec_approx_eq(res, correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &bottom, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &bottom, Nbc::Qn(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let res = bry.residual.as_data();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
@@ -356,39 +366,39 @@ mod tests {
 
         // Qx
 
-        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &top, Nbc::Qx(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &left, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &left, Nbc::Qx(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &right, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &right, Nbc::Qx(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &bottom, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &bottom, Nbc::Qx(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
         // Qy
 
-        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &top, Nbc::Qy(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &left, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &left, Nbc::Qy(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &right, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &right, Nbc::Qy(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &bottom, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &bottom, Nbc::Qy(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
@@ -398,11 +408,11 @@ mod tests {
         let features = Features::new(&mesh, false);
         let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
 
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
-        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qz(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &top, Nbc::Qz(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, 0.0, -Q / 2.0, 0.0, 0.0, -Q / 2.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
@@ -415,20 +425,20 @@ mod tests {
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
 
         let p1 = SampleParams::param_porous_liq_gas();
-        let data = Data::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = -10.0;
         let fq = |_| Q;
         assert_eq!(fq(0.0), Q);
 
-        let mut bry = Boundary::new(&data, &config, &top, Nbc::Ql(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &top, Nbc::Ql(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, -Q / 6.0, 2.0 * -Q / 3.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
 
-        let mut bry = Boundary::new(&data, &config, &top, Nbc::Qg(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &top, Nbc::Qg(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
     }
@@ -442,9 +452,9 @@ mod tests {
         };
 
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 10.0;
         let fq = |_| Q;
@@ -452,7 +462,7 @@ mod tests {
 
         // flux: not present in Bhatti's example but we can check the flux BC here
         const L: f64 = 0.3;
-        let mut bry = Boundary::new(&data, &config, &edge, Nbc::Qt(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &edge, Nbc::Qt(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 2.0, -Q * L / 2.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-14);
@@ -461,7 +471,7 @@ mod tests {
         assert_eq!(ft(0.0), 20.0);
 
         // convection BC
-        let mut bry = Boundary::new(&data, &config, &edge, Nbc::Cv(27.0, ft)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &edge, Nbc::Cv(27.0, ft)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), &[-81.0, -81.0], 1e-15);
         bry.calc_jacobian(&state).unwrap();
@@ -482,16 +492,16 @@ mod tests {
         };
 
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
-        let state = State::new(&data, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 5e6;
         let fq = |_| Q;
         assert_eq!(fq(0.0), Q);
 
         const L: f64 = 0.03;
-        let mut bry = Boundary::new(&data, &config, &edge_flux, Nbc::Qt(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &edge_flux, Nbc::Qt(fq)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 6.0, -Q * L / 6.0, 2.0 * -Q * L / 3.0];
         vec_approx_eq(bry.residual.as_data(), correct, 1e-10);
@@ -500,7 +510,7 @@ mod tests {
         assert_eq!(ft(0.0), 20.0);
 
         // convection BC
-        let mut bry = Boundary::new(&data, &config, &edge_conv, Nbc::Cv(55.0, ft)).unwrap();
+        let mut bry = Boundary::new(&input, &config, &edge_conv, Nbc::Cv(55.0, ft)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(bry.residual.as_data(), &[-5.5, -5.5, -22.0], 1e-14);
         bry.calc_jacobian(&state).unwrap();
@@ -519,7 +529,7 @@ mod tests {
     fn calc_methods_work() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
-        let data = Data::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new();
         let mut natural = Natural::new();
         let edge = Feature {
@@ -531,8 +541,8 @@ mod tests {
         assert_eq!(ft(0.0), 20.0);
 
         natural.on(&[&edge], Nbc::Cv(40.0, ft));
-        let mut elements = Boundaries::new(&data, &config, &natural).unwrap();
-        let state = State::new(&data, &config).unwrap();
+        let mut elements = Boundaries::new(&input, &config, &natural).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         elements.calc_residuals(&state).unwrap();
         elements.calc_jacobians(&state).unwrap();
         elements.calc_residuals_parallel(&state).unwrap();

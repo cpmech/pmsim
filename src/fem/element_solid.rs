@@ -1,6 +1,6 @@
-use super::{Data, ElementTrait, State};
+use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamSolid};
-use crate::model::{allocate_stress_strain_model, StressState, StressStrainModel};
+use crate::material::{allocate_stress_strain_model, StressStates, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -34,8 +34,8 @@ pub struct ElementSolid<'a> {
     /// Stress-strain model
     pub model: Box<dyn StressStrainModel>,
 
-    /// Secondary state of all integration points (n_integ_point)
-    pub stresses: Vec<StressState>,
+    /// Stresses and internal values at all integration points
+    pub stresses: StressStates,
 
     /// (temporary) Strain increment at integration point
     ///
@@ -45,36 +45,39 @@ pub struct ElementSolid<'a> {
 
 impl<'a> ElementSolid<'a> {
     /// Allocates new instance
-    pub fn new(data: &'a Data, config: &'a Config, cell: &'a Cell, param: &'a ParamSolid) -> Result<Self, StrError> {
+    pub fn new(
+        input: &'a FemInput,
+        config: &'a Config,
+        cell: &'a Cell,
+        param: &'a ParamSolid,
+    ) -> Result<Self, StrError> {
         // pad for numerical integration
-        let ndim = data.mesh.ndim;
+        let ndim = input.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
-        data.mesh.set_pad(&mut pad, &points);
+        input.mesh.set_pad(&mut pad, &points);
 
         // integration points
         let ips = config.integ_point_data(cell)?;
         let n_integ_point = ips.len();
 
-        // model and zero state
+        // model and stresses
         let two_dim = ndim == 2;
         let model = allocate_stress_strain_model(param, two_dim, config.plane_stress);
-        let zero_state = model.new_state(two_dim);
+        let stresses = StressStates::new(two_dim, model.n_internal_vars(), n_integ_point);
 
         // allocate new instance
-        Ok({
-            ElementSolid {
-                ndim,
-                config,
-                cell,
-                param,
-                local_to_global: compute_local_to_global(&data.information, &data.equations, cell)?,
-                pad,
-                ips,
-                model,
-                stresses: vec![zero_state; n_integ_point],
-                deps: new_tensor2_ndim(ndim),
-            }
+        Ok(ElementSolid {
+            ndim,
+            config,
+            cell,
+            param,
+            local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
+            pad,
+            ips,
+            model,
+            stresses,
+            deps: new_tensor2_ndim(ndim),
         })
     }
 
@@ -121,13 +124,18 @@ impl<'a> ElementSolid<'a> {
 }
 
 impl<'a> ElementTrait for ElementSolid<'a> {
+    /// Returns whether the local Jacobian matrix is symmetric or not
+    fn symmetric_jacobian(&self) -> bool {
+        self.model.symmetric_and_constant_stiffness()
+    }
+
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global
     }
 
     /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &State) -> Result<(), StrError> {
+    fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
@@ -140,7 +148,9 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         //      Ωₑ
         //     \____________/
         //     we compute this
-        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| sig.mirror(&self.stresses[p].sigma))?;
+        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| {
+            sig.mirror(&self.stresses.all[p].sigma)
+        })?;
 
         // enable updates on the residual vector
         args.clear = false; // << important from now on
@@ -170,24 +180,34 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &State) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &FemState) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
         integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
-            self.model.stiffness(dd, &self.stresses[p])
+            self.model.stiffness(dd, &self.stresses.all[p])
         })
+    }
+
+    /// Creates a copy of the secondary values (e.g., stresses and internal values)
+    fn backup_secondary_values(&mut self) -> Result<(), StrError> {
+        self.stresses.backup()
+    }
+
+    /// Restores the secondary values from the backup (e.g., stresses and internal values)
+    fn restore_secondary_values(&mut self) -> Result<(), StrError> {
+        self.stresses.restore()
     }
 
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, _state: &State, duu: &Vector) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, state: &FemState) -> Result<(), StrError> {
         for p in 0..self.ips.len() {
             // interpolate increment of strains Δε at integration point
-            self.calc_delta_eps(duu, p)?;
+            self.calc_delta_eps(&state.duu, p)?;
             // perform stress-update
-            self.model.update_stress(&mut self.stresses[p], &self.deps)?;
+            self.model.update_stress(&mut self.stresses.all[p], &self.deps)?;
         }
         Ok(())
     }
@@ -199,23 +219,23 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 mod tests {
     use super::ElementSolid;
     use crate::base::{Config, Element, ParamSolid, ParamStressStrain, SampleParams};
-    use crate::fem::{Data, ElementTrait, State};
+    use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;
-    use russell_lab::{vec_approx_eq, vec_update, Matrix, Vector};
+    use russell_lab::{vec_approx_eq, vec_copy, vec_update, Matrix, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new();
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
-            ElementSolid::new(&data, &config, &mesh.cells[0], &p1).err(),
+            ElementSolid::new(&input, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
         );
     }
@@ -230,13 +250,13 @@ mod tests {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
         };
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
-        let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set stress state
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
-        for stress in &mut elem.stresses {
+        for stress in &mut elem.stresses.all {
             stress.sigma.sym_set(0, 0, s00);
             stress.sigma.sym_set(1, 1, s11);
             stress.sigma.sym_set(0, 1, s01);
@@ -246,7 +266,7 @@ mod tests {
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
         // check residual vector
-        let state = State::new(&data, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         let neq = 3 * 2;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
@@ -345,8 +365,8 @@ mod tests {
 
             // check the first cell/element only
             let cell = &mesh.cells[0];
-            let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-            let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
+            let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
 
             // check increment of strains for all integration points
             for p in 0..element.ips.len() {
@@ -441,34 +461,38 @@ mod tests {
             };
 
             // check the first cell/element only
-            let cell = &mesh.cells[0];
-            let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+            let id = 0;
+            let cell = &mesh.cells[id];
+            let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 
             // check stress update (horizontal displacement field)
-            let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
-            let mut state = State::new(&data, &config).unwrap();
+            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&input, &config).unwrap();
+            vec_copy(&mut state.duu, &duu_h).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
-            element.update_secondary_values(&state, &duu_h).unwrap();
+            element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_h, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
-            let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
-            let mut state = State::new(&data, &config).unwrap();
+            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&input, &config).unwrap();
+            vec_copy(&mut state.duu, &duu_v).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
-            element.update_secondary_values(&state, &duu_v).unwrap();
+            element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_v, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
-            let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
-            let mut state = State::new(&data, &config).unwrap();
+            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&input, &config).unwrap();
+            vec_copy(&mut state.duu, &duu_s).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
-            element.update_secondary_values(&state, &duu_s).unwrap();
+            element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_s, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_s, 1e-13);
             }
         }
     }
@@ -508,34 +532,38 @@ mod tests {
             let solution_s = vec![0.0, 0.0, 0.0, c * (strain / 2.0) * (1.0 - poisson) * SQRT_2];
 
             // check the first cell/element only
-            let cell = &mesh.cells[0];
-            let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+            let id = 0;
+            let cell = &mesh.cells[id];
+            let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 
             // check stress update (horizontal displacement field)
-            let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
-            let mut state = State::new(&data, &config).unwrap();
+            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&input, &config).unwrap();
+            vec_copy(&mut state.duu, &duu_h).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
-            element.update_secondary_values(&mut state, &duu_h).unwrap();
+            element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_h, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
-            let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
-            let mut state = State::new(&data, &config).unwrap();
+            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&input, &config).unwrap();
+            vec_copy(&mut state.duu, &duu_v).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
-            element.update_secondary_values(&mut state, &duu_v).unwrap();
+            element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_v, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
-            let mut element = ElementSolid::new(&data, &config, cell, &p1).unwrap();
-            let mut state = State::new(&data, &config).unwrap();
+            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&input, &config).unwrap();
+            vec_copy(&mut state.duu, &duu_s).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
-            element.update_secondary_values(&mut state, &duu_s).unwrap();
+            element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses[p].sigma.vec.as_data(), &solution_s, 1e-13);
+                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_s, 1e-13);
             }
         }
     }
@@ -567,7 +595,7 @@ mod tests {
             density: 2.0,
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
         };
-        let data = Data::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new();
         config.axisymmetric = true;
         config.n_integ_point.insert(1, 1);
@@ -576,11 +604,11 @@ mod tests {
         config.gravity = Some(|_| 0.5); // 1/2 because rho = 2
 
         // element
-        let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // check residual vector (1 integ point)
         // NOTE: since the stress is zero, the residual is due to the body force only
-        let state = State::new(&data, &config).unwrap();
+        let state = FemState::new(&input, &config).unwrap();
         let neq = 4 * 2;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
@@ -590,7 +618,7 @@ mod tests {
 
         // check residual vector (4 integ point)
         config.n_integ_point.insert(1, 4);
-        let mut elem = ElementSolid::new(&data, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
         elem.calc_residual(&mut residual, &state).unwrap();
         // println!("{}", residual);

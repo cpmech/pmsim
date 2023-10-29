@@ -1,4 +1,4 @@
-use super::{Dof, ElementInfoMap};
+use super::{Dof, ElementDofsMap};
 use crate::StrError;
 use gemlab::mesh::{Mesh, PointId};
 use std::collections::{HashMap, HashSet};
@@ -35,14 +35,14 @@ use std::fmt;
 /// ```
 /// use gemlab::mesh::Samples;
 /// use gemlab::StrError;
-/// use pmsim::base::{Attributes, Dof, Equations, Element, ElementInfoMap, SampleParams};
+/// use pmsim::base::{Attributes, Dof, Equations, Element, ElementDofsMap, SampleParams};
 /// use std::collections::HashMap;
 ///
 /// fn main() -> Result<(), StrError> {
 ///     let mesh = Samples::one_tri6();
 ///     let p1 = SampleParams::param_porous_sld_liq();
 ///     let att = Attributes::from([(1, Element::PorousSldLiq(p1))]);
-///     let emap = ElementInfoMap::new(&mesh, &att)?;
+///     let emap = ElementDofsMap::new(&mesh, &att)?;
 ///     let mut eqs = Equations::new(&mesh, &emap)?;
 ///     assert_eq!(
 ///         format!("{}", eqs),
@@ -76,7 +76,7 @@ pub struct Equations {
 
 impl Equations {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, emap: &ElementInfoMap) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, emap: &ElementDofsMap) -> Result<Self, StrError> {
         // auxiliary memoization data
         let npoint = mesh.points.len();
         let mut memo_point_dofs = vec![HashSet::new(); npoint];
@@ -137,7 +137,7 @@ impl fmt::Display for Equations {
 #[cfg(test)]
 mod tests {
     use super::Equations;
-    use crate::base::{Attributes, Dof, Element, ElementInfoMap, SampleMeshes, SampleParams};
+    use crate::base::{Attributes, Dof, Element, ElementDofsMap, SampleMeshes, SampleParams};
     use gemlab::mesh::{PointId, Samples};
 
     #[test]
@@ -147,10 +147,10 @@ mod tests {
         mesh_wrong.cells[0].attribute = 100; // << never do this!
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
             Equations::new(&mesh_wrong, &emap).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementInfoMap")
+            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
 
@@ -187,7 +187,7 @@ mod tests {
             (2, Element::Solid(p2)),
             (3, Element::Beam(p3)),
         ]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
 
         // check point dofs
@@ -232,7 +232,7 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
         let att = Attributes::from([(1, Element::Solid(p1))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
@@ -256,7 +256,7 @@ mod tests {
         let mesh = Samples::two_tri3_one_qua4();
         let p = SampleParams::param_porous_liq();
         let att = Attributes::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
@@ -305,7 +305,7 @@ mod tests {
         let mesh = SampleMeshes::column_two_layers_qua9();
         let p = SampleParams::param_porous_sld_liq();
         let att = Attributes::from([(1, Element::PorousSldLiq(p)), (2, Element::PorousSldLiq(p))]);
-        let emap = ElementInfoMap::new(&mesh, &att).unwrap();
+        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),

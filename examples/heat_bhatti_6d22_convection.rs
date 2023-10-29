@@ -51,7 +51,7 @@ fn main() -> Result<(), StrError> {
     ]
     .concat();
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (45.0, 45.0);
     let source = 5e6;
     let p1 = ParamDiffusion {
@@ -59,8 +59,7 @@ fn main() -> Result<(), StrError> {
         conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let config = Config::new();
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -72,12 +71,15 @@ fn main() -> Result<(), StrError> {
         .on(&edges_flux, Nbc::Qt(|_| 8000.0))
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let config = Config::new();
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // check U vector
     let tt_bhatti = Vector::from(&[

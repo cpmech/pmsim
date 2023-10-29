@@ -54,7 +54,7 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     let bottom = feat.search_edges(At::Y(-1.0), any_x)?;
     let top = feat.search_edges(At::Y(0.0), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {
@@ -62,8 +62,7 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
             poisson: 0.3,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1))])?;
-    let config = Config::new();
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -73,12 +72,15 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&top, Nbc::Qn(|_| -1.0));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let config = Config::new();
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
     println!("{}", state.uu);
 
     // check displacements

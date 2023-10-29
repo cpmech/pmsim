@@ -46,15 +46,14 @@ fn main() -> Result<(), StrError> {
     let left = feat.search_edges(At::X(0.0), any_x)?;
     let right = feat.search_edges(At::X(0.2), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (1.4, 1.4);
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let config = Config::new();
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -64,12 +63,15 @@ fn main() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural.on(&right, Nbc::Cv(27.0, |_| 20.0));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let config = Config::new();
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // check U vector
     let tt_bhatti = Vector::from(&[

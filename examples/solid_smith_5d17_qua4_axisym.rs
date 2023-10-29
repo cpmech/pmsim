@@ -52,7 +52,7 @@ fn main() -> Result<(), StrError> {
     let right = feat.search_edges(At::X(30.0), any_x)?;
     let bottom = feat.search_edges(At::Y(-10.0), any_x)?;
 
-    // parameters, DOFs, and configuration
+    // input data
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::LinearElastic {
@@ -67,11 +67,7 @@ fn main() -> Result<(), StrError> {
             poisson: 0.45,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(p1)), (2, Element::Solid(p2))])?;
-    let mut config = Config::new();
-    config.axisymmetric = true;
-    config.n_integ_point.insert(1, 9);
-    config.n_integ_point.insert(2, 9);
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1)), (2, Element::Solid(p2))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -88,12 +84,18 @@ fn main() -> Result<(), StrError> {
         .at(&[3], Pbc::Fy(|_| -23.3333))
         .at(&[6], Pbc::Fy(|_| -24.0));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // configuration
+    let mut config = Config::new();
+    config.axisymmetric = true;
+    config.n_integ_point.insert(1, 9);
+    config.n_integ_point.insert(2, 9);
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -124,7 +126,7 @@ fn main() -> Result<(), StrError> {
         [ 1.880341878109254e+02, -3.205128234334054e+01, -1.282051246145228e+01,  3.205128258214120e+01,  1.282051134704920e+01, -6.410256914773157e+00,  4.145299153899790e+02,  6.410256675972501e+00],
         [ 3.205128234334053e+01, -3.205128235395389e+01,  6.410256436770715e+01, -5.769230733324714e+01,  1.282051247519651e+01,  1.923076855330780e+01,  6.410256675972497e+00,  7.051282113389323e+01],
     ]);
-    let e0 = &sim.elements.all[0];
+    let e0 = &solver.elements.all[0];
     mat_approx_eq(&e0.jacobian, &kk_e0_ref, 1e-5);
     Ok(())
 }

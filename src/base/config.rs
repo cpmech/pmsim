@@ -57,11 +57,8 @@ pub struct Config {
     /// Number of integration points
     pub n_integ_point: HashMap<CellAttribute, usize>,
 
-    /// The Jacobian (stiffness matrix) is symmetric
-    pub sym_jacobian: bool,
-
-    /// The Jacobian (stiffness matrix) is symmetric and positive definite
-    pub sym_pos_def_jacobian: bool,
+    /// Ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
+    pub ignore_jacobian_symmetry: bool,
 
     /// Linear solver type
     pub lin_sol_genie: Genie,
@@ -87,8 +84,7 @@ impl Config {
             initialization: Init::Zero,
             param_fluids: None,
             n_integ_point: HashMap::new(),
-            sym_jacobian: false,
-            sym_pos_def_jacobian: false,
+            ignore_jacobian_symmetry: false,
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
         }

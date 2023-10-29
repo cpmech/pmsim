@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamConductivity, ParamDiffusion, SampleMeshes};
-use pmsim::fem::{Boundaries, Data, Elements, LinearSystem, PrescribedValues, Simulation, State};
+use pmsim::fem::{Boundaries, Elements, FemInput, FemSolverImplicit, FemState, LinearSystem, PrescribedValues};
 use russell_lab::*;
 
 // Bhatti's Example 6.22 on page 449
@@ -60,7 +60,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     assert_eq!(points_conv[1], &[2, 4, 3]);
     assert_eq!(points_conv[2], &[4, 6, 5]);
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (45.0, 45.0);
     let source = 5e6;
     let p1 = ParamDiffusion {
@@ -68,8 +68,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let config = Config::new();
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -83,14 +82,17 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
     println!("{}", natural);
 
+    // configuration
+    let config = Config::new();
+
     // elements
-    let mut elements = Elements::new(&data, &config)?;
+    let mut elements = Elements::new(&input, &config)?;
 
     // boundaries
-    let mut boundaries = Boundaries::new(&data, &config, &natural)?;
+    let mut boundaries = Boundaries::new(&input, &config, &natural)?;
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
 
     // check residual of first element
     state.uu.fill(0.0);
@@ -129,10 +131,10 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[1].jacobian, &bhatti_kk1, 1e-12);
 
     // prescribed values
-    let prescribed_values = PrescribedValues::new(&data, &essential)?;
+    let prescribed_values = PrescribedValues::new(&input, &essential)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;
 
     // fix state.uu (must do this before calculating residuals)
     for eq in &prescribed_values.equations {
@@ -173,8 +175,8 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // assemble jacobians matrices
     let kk = lin_sys.jacobian.get_coo_mut()?;
-    elements.assemble_jacobians(kk, &prescribed_values.flags);
-    boundaries.assemble_jacobians(kk, &prescribed_values.flags);
+    elements.assemble_jacobians(kk, &prescribed_values.flags)?;
+    boundaries.assemble_jacobians(kk, &prescribed_values.flags)?;
     let kk_mat = kk.as_dense();
     // println!("kk =\n{:.4}", kk_mat);
 
@@ -259,7 +261,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     ]
     .concat();
 
-    // parameters, DOFs, and configuration
+    // input data
     let (kx, ky) = (45.0, 45.0);
     let source = 5e6;
     let p1 = ParamDiffusion {
@@ -267,7 +269,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
     };
-    let data = Data::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
     let config = Config::new();
 
     // essential boundary conditions
@@ -280,12 +282,12 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         .on(&edges_flux, Nbc::Qt(|_| 8000.0))
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
 
-    // simulation state
-    let mut state = State::new(&data, &config)?;
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
 
-    // run simulation
-    let mut sim = Simulation::new(&data, &config, &essential, &natural)?;
-    sim.run(&mut state)?;
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
 
     // check U vector
     let tt_bhatti = Vector::from(&[

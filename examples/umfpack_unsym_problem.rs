@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamSolid, ParamStressStrain};
-use pmsim::fem::{Boundaries, Data, Elements, LinearSystem, PrescribedValues, State};
+use pmsim::fem::{Boundaries, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
 use russell_lab::*;
 use russell_sparse::prelude::*;
 
@@ -17,7 +17,7 @@ const NA: usize = 94; // number of alpha divisions
 
 fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // generate mesh
-    let mesh = Structured::quarter_ring_2d(R1, R2, nr, NA, GeoKind::Qua4).unwrap();
+    let mesh = Structured::quarter_ring_2d(R1, R2, nr, NA, GeoKind::Qua4, true).unwrap();
 
     // draw mesh
     if SAVE_FIGURE {
@@ -41,14 +41,14 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
             poisson: POISSON,
         },
     };
-    let data = Data::new(&mesh, [(1, Element::Solid(param1))])?;
+    let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0));
 
     // prescribed values
-    let prescribed_values = PrescribedValues::new(&data, &essential)?;
+    let prescribed_values = PrescribedValues::new(&input, &essential)?;
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -62,25 +62,25 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = true;
 
     // elements
-    let mut elements = Elements::new(&data, &config)?;
+    let mut elements = Elements::new(&input, &config)?;
 
     // boundaries
-    let mut boundaries = Boundaries::new(&data, &config, &natural)?;
+    let mut boundaries = Boundaries::new(&input, &config, &natural)?;
 
-    // simulation state
-    let state = State::new(&data, &config)?;
+    // FEM state
+    let state = FemState::new(&input, &config)?;
 
     // compute jacobians in parallel
     elements.calc_jacobians_parallel(&state)?;
     boundaries.calc_jacobians_parallel(&state)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&data, &config, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;
 
     // assemble jacobian matrix
     let kk = lin_sys.jacobian.get_coo_mut()?;
-    elements.assemble_jacobians(kk, &prescribed_values.flags);
-    boundaries.assemble_jacobians(kk, &prescribed_values.flags);
+    elements.assemble_jacobians(kk, &prescribed_values.flags)?;
+    boundaries.assemble_jacobians(kk, &prescribed_values.flags)?;
 
     // augment global Jacobian matrix
     for eq in &prescribed_values.equations {
@@ -126,11 +126,17 @@ fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Resu
     // update and print stats
     solver.actual.update_stats(&mut stats);
     println!("{}", stats.get_json());
+    let path = if enforce_unsym_strategy {
+        format!("/tmp/pmsim/{}-enforce-unsym.json", name)
+    } else {
+        format!("/tmp/pmsim/{}-auto.json", name)
+    };
+    stats.write_json(&path).unwrap();
 
     // check
     if enforce_unsym_strategy {
         if name == "pres-cylin-bad" {
-            assert!(stats.verify.max_abs_diff > 1600.0);
+            assert!(stats.verify.max_abs_diff > 8300.0);
         } else {
             assert!(stats.verify.max_abs_diff < 1e-6);
         }
@@ -160,6 +166,7 @@ fn main() -> Result<(), StrError> {
         // write smat and mtx files
         let csr = mat.get_csr_or_from_coo()?;
         csr.write_matrix_market(&format!("{}/{}.mtx", OUT_DIR, name), false)?;
+        csr.write_matrix_market(&format!("{}/{}.smat", OUT_DIR, name), true)?;
     }
     Ok(())
 }
