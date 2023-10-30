@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use super::{StressState, StressStrainModel};
 use crate::{base::new_tensor2, StrError};
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4, IDENTITY2};
@@ -76,12 +74,7 @@ impl StressStrainModel for VonMises {
     }
 
     fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
-        // auxiliary
-        // let ivs = &mut state.internal_values;
-        // let z = &mut state.internal_values[0];
-        // let lambda = &mut state.internal_values[1]; // Λ
-
-        // set flags
+        // reset flags
         state.loading = false; // not elastoplastic yet
         state.internal_values[I_LAMBDA] = 0.0; // Λ := 0.0
 
@@ -96,13 +89,13 @@ impl StressStrainModel for VonMises {
         }
 
         // elastoplastic update
-        state.sigma.deviator(&mut self.aux)?; // aux := dev(σ_trial)
         let p_trial = state.sigma.invariant_sigma_m();
         let q_trial = state.sigma.invariant_sigma_d();
         let lambda = f_trial / (3.0 * self.gg + self.hh);
         let m = 1.0 - lambda * 3.0 * self.gg / q_trial;
 
         // σ_new = m ⋅ s_trial + p_trial ⋅ I
+        state.sigma.deviator(&mut self.aux)?; // aux := dev(σ_trial) = s_trial
         let nsigma = state.sigma.vec.dim();
         for i in 0..nsigma {
             state.sigma.vec[i] = m * self.aux.vec[i] + p_trial * IDENTITY2[i];
