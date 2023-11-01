@@ -1,6 +1,7 @@
 use crate::StrError;
 use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Holds the stress state at a single integration point
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -66,9 +67,53 @@ impl StressStates {
     }
 }
 
+impl fmt::Display for StressState {
+    /// Returns a nicely formatted string representing the stress state
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mat = self.sigma.to_matrix();
+        write!(f, "σ =\n").unwrap();
+        match f.precision() {
+            Some(v) => write!(f, "{:.1$}", mat, v).unwrap(),
+            None => write!(f, "{}", mat).unwrap(),
+        }
+        write!(f, "\nz = {:?}", self.internal_values).unwrap();
+        Ok(())
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-    // TODO
+    use super::StressState;
+
+    #[test]
+    fn display_trait_works() {
+        let mut state = StressState::new(false, 2);
+        state.sigma.vec[0] = 1.0;
+        state.sigma.vec[1] = 2.0;
+        state.sigma.vec[2] = -3.0;
+        state.internal_values[0] = 0.1;
+        state.internal_values[1] = 0.2;
+        assert_eq!(
+            format!("{}", state),
+            "σ =\n\
+             ┌          ┐\n\
+             │  1  0  0 │\n\
+             │  0  2  0 │\n\
+             │  0  0 -3 │\n\
+             └          ┘\n\
+             z = [0.1, 0.2]"
+        );
+        assert_eq!(
+            format!("{:.2}", state),
+            "σ =\n\
+             ┌                   ┐\n\
+             │  1.00  0.00  0.00 │\n\
+             │  0.00  2.00  0.00 │\n\
+             │  0.00  0.00 -3.00 │\n\
+             └                   ┘\n\
+             z = [0.1, 0.2]"
+        );
+    }
 }
