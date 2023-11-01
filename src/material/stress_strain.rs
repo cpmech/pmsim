@@ -14,7 +14,7 @@ pub trait StressStrainTrait: Send + Sync {
     fn stiffness(&mut self, dd: &mut Tensor4, stress_state: &StressState) -> Result<(), StrError>;
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, stress_state: &mut StressState, deps: &Tensor2) -> Result<(), StrError>;
+    fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError>;
 }
 
 pub struct StressStrainModel {
