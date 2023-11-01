@@ -6,6 +6,8 @@ const I_Z: usize = 0; // index of z internal variable
 const I_LAMBDA: usize = 1; // index of Λ internal variable
 
 /// Implements the von Mises plasticity model
+///
+/// **Note:** This model works in 2D (plane-strain only) or 3D.
 pub struct VonMises {
     /// Linear elasticity
     lin_elasticity: LinElasticity,
@@ -31,26 +33,17 @@ pub struct VonMises {
 
 impl VonMises {
     /// Allocates a new instance
-    pub fn new(
-        young: f64,
-        poisson: f64,
-        two_dim: bool,
-        plane_stress: bool,
-        q0: f64,
-        hh: f64,
-    ) -> Result<Self, StrError> {
-        if plane_stress {
-            return Err("von-Mises model does not in with plane-stress at the moment");
-        }
-        Ok(VonMises {
-            lin_elasticity: LinElasticity::new(young, poisson, two_dim, plane_stress),
+    pub fn new(young: f64, poisson: f64, two_dim: bool, q0: f64, hh: f64) -> Self {
+        VonMises {
+            lin_elasticity: LinElasticity::new(young, poisson, two_dim, false),
             q0,
             hh,
             gg: young / (2.0 * (1.0 + poisson)),
             aux: new_tensor2(two_dim),
-        })
+        }
     }
 
+    /// Returns the yield function value at a stress/internal-values state
     pub fn yield_function(&self, state: &StressState) -> f64 {
         let q = state.sigma.invariant_sigma_d();
         let z = state.internal_values[I_Z];

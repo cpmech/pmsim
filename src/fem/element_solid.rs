@@ -63,7 +63,7 @@ impl<'a> ElementSolid<'a> {
 
         // model and stresses
         let two_dim = ndim == 2;
-        let model = allocate_stress_strain_model(param, two_dim, config.plane_stress);
+        let model = allocate_stress_strain_model(param, two_dim, config.plane_stress)?;
         let stresses = StressStates::new(two_dim, model.n_internal_vars(), n_integ_point);
 
         // allocate new instance

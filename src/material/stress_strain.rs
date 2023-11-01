@@ -1,4 +1,4 @@
-use super::{CamClay, LinearElastic, StressState};
+use super::{CamClay, LinearElastic, StressState, VonMises};
 use crate::base::{ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -20,15 +20,21 @@ pub fn allocate_stress_strain_model(
     param: &ParamSolid,
     two_dim: bool,
     plane_stress: bool,
-) -> Box<dyn StressStrainModel> {
+) -> Result<Box<dyn StressStrainModel>, StrError> {
     let model: Box<dyn StressStrainModel> = match param.stress_strain {
         ParamStressStrain::LinearElastic { young, poisson } => {
             Box::new(LinearElastic::new(young, poisson, two_dim, plane_stress))
         }
+        ParamStressStrain::VonMises { young, poisson, q0, hh } => {
+            if plane_stress {
+                return Err("von Mises model does not work in plane-stress at the moment");
+            }
+            Box::new(VonMises::new(young, poisson, two_dim, q0, hh))
+        }
         ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
         ParamStressStrain::CamClay { mm, lambda, kappa } => Box::new(CamClay::new(mm, lambda, kappa)),
     };
-    model
+    Ok(model)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -41,13 +47,22 @@ mod tests {
     #[test]
     fn allocate_stress_strain_model_works() {
         let param = SampleParams::param_solid();
-        allocate_stress_strain_model(&param, true, true);
+        allocate_stress_strain_model(&param, true, true).unwrap();
+
+        let param = SampleParams::param_solid_von_mises();
+        assert_eq!(
+            allocate_stress_strain_model(&param, true, true).err(),
+            Some("von Mises model does not work in plane-stress at the moment")
+        );
+
+        let param = SampleParams::param_solid_von_mises();
+        allocate_stress_strain_model(&param, true, false).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "TODO: DruckerPrager")]
     fn allocate_stress_strain_fails() {
         let param = SampleParams::param_solid_drucker_prager();
-        allocate_stress_strain_model(&param, true, true);
+        allocate_stress_strain_model(&param, true, true).unwrap();
     }
 }
