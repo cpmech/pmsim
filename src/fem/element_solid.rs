@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
-use crate::material::{allocate_stress_strain_model, StressStates, StressStrainModel};
+use crate::material::{allocate_stress_strain_model, StressStates, StressStrainTrait};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -32,7 +32,7 @@ pub struct ElementSolid<'a> {
     pub ips: integ::IntegPointData,
 
     /// Stress-strain model
-    pub model: Box<dyn StressStrainModel>,
+    pub model: Box<dyn StressStrainTrait>,
 
     /// Stresses and internal values at all integration points
     pub stresses: StressStates,

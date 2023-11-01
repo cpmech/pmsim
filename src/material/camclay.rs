@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 
-use super::{StressState, StressStrainModel};
+use super::{StressState, StressStrainTrait};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
@@ -25,7 +25,7 @@ impl CamClay {
     }
 }
 
-impl StressStrainModel for CamClay {
+impl StressStrainTrait for CamClay {
     /// Indicates that the stiffness matrix is symmetric and constant
     fn symmetric_and_constant_stiffness(&self) -> bool {
         false

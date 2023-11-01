@@ -3,7 +3,7 @@ use crate::base::{ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
-pub trait StressStrainModel: Send + Sync {
+pub trait StressStrainTrait: Send + Sync {
     /// Indicates that the stiffness matrix is symmetric and constant
     fn symmetric_and_constant_stiffness(&self) -> bool;
 
@@ -20,8 +20,8 @@ pub fn allocate_stress_strain_model(
     param: &ParamSolid,
     two_dim: bool,
     plane_stress: bool,
-) -> Result<Box<dyn StressStrainModel>, StrError> {
-    let model: Box<dyn StressStrainModel> = match param.stress_strain {
+) -> Result<Box<dyn StressStrainTrait>, StrError> {
+    let model: Box<dyn StressStrainTrait> = match param.stress_strain {
         ParamStressStrain::LinearElastic { young, poisson } => {
             Box::new(LinearElastic::new(young, poisson, two_dim, plane_stress))
         }

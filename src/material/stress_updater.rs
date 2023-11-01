@@ -1,16 +1,16 @@
 #![allow(unused)]
 
-use super::StressStrainModel;
+use super::StressStrainTrait;
 use russell_tensor::Tensor2;
 
 pub struct StressUpdater {
-    model: Box<dyn StressStrainModel>,
+    model: Box<dyn StressStrainTrait>,
     stress_path: Vec<Option<Tensor2>>,
     strain_path: Vec<Option<Tensor2>>,
 }
 
 impl StressUpdater {
-    pub fn new(model: Box<dyn StressStrainModel>) -> Self {
+    pub fn new(model: Box<dyn StressStrainTrait>) -> Self {
         StressUpdater {
             model,
             stress_path: Vec::new(),

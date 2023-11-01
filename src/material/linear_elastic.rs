@@ -1,5 +1,5 @@
 use super::StressState;
-use super::StressStrainModel;
+use super::StressStrainTrait;
 use crate::StrError;
 use russell_tensor::{copy_tensor4, t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 
@@ -15,7 +15,7 @@ impl LinearElastic {
     }
 }
 
-impl StressStrainModel for LinearElastic {
+impl StressStrainTrait for LinearElastic {
     /// Indicates that the stiffness matrix is symmetric and constant
     fn symmetric_and_constant_stiffness(&self) -> bool {
         true

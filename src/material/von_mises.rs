@@ -1,4 +1,4 @@
-use super::{StressState, StressStrainModel};
+use super::{StressState, StressStrainTrait};
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4, IDENTITY2};
 
@@ -51,7 +51,7 @@ impl VonMises {
     }
 }
 
-impl StressStrainModel for VonMises {
+impl StressStrainTrait for VonMises {
     /// Indicates that the stiffness matrix is symmetric and constant
     fn symmetric_and_constant_stiffness(&self) -> bool {
         false
