@@ -8,6 +8,25 @@ pub enum ParamStressStrain {
         /// Poisson's coefficient
         poisson: f64,
     },
+    VonMises {
+        /// Young's modulus
+        young: f64,
+
+        /// Poisson's coefficient
+        poisson: f64,
+
+        /// Initial von Mises stress for hardening model
+        ///
+        /// The von Mises stress is defined as:
+        ///
+        /// ```text
+        /// q := σd = √3 × J2
+        /// ```
+        q0: f64,
+
+        /// Hardening coefficient
+        hh: f64,
+    },
     DruckerPrager {
         /// Young's modulus
         young: f64,
