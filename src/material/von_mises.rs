@@ -1,5 +1,5 @@
 use super::{StressState, StressStrainModel};
-use crate::{base::new_tensor2, StrError};
+use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4, IDENTITY2};
 
 const I_Z: usize = 0; // index of z internal variable
@@ -39,7 +39,7 @@ impl VonMises {
             q0,
             hh,
             gg: young / (2.0 * (1.0 + poisson)),
-            aux: new_tensor2(two_dim),
+            aux: Tensor2::new_sym(two_dim),
         }
     }
 

@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemInput, FemState};
-use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamDiffusion};
+use crate::base::{compute_local_to_global, Config, ParamDiffusion};
 use crate::material::ConductivityModel;
 use crate::StrError;
 use gemlab::integ;
@@ -64,7 +64,7 @@ impl<'a> ElementDiffusion<'a> {
             pad,
             ips: config.integ_point_data(cell)?,
             model: ConductivityModel::new(&param.conductivity, ndim == 2),
-            conductivity: new_tensor2_ndim(ndim),
+            conductivity: Tensor2::new_sym_ndim(ndim),
             grad_tt: Vector::new(ndim),
         })
     }

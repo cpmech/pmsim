@@ -1,4 +1,3 @@
-use crate::base::new_tensor2;
 use crate::StrError;
 use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
@@ -24,7 +23,7 @@ impl StressState {
         StressState {
             loading: false,
             internal_values: vec![0.0; n_internal_vars],
-            sigma: new_tensor2(two_dim),
+            sigma: Tensor2::new_sym(two_dim),
         }
     }
 

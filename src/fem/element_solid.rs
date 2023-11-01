@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemInput, FemState};
-use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamSolid};
+use crate::base::{compute_local_to_global, Config, ParamSolid};
 use crate::material::{allocate_stress_strain_model, StressStates, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
@@ -77,7 +77,7 @@ impl<'a> ElementSolid<'a> {
             ips,
             model,
             stresses,
-            deps: new_tensor2_ndim(ndim),
+            deps: Tensor2::new_sym_ndim(ndim),
         })
     }
 
