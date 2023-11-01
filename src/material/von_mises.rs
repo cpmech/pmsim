@@ -43,7 +43,7 @@ impl VonMises {
         }
     }
 
-    /// Returns the yield function value at a stress/internal-values state
+    /// Evaluates the yield function value at a stress/internal-values state
     pub fn yield_function(&self, state: &StressState) -> f64 {
         let q = state.sigma.invariant_sigma_d();
         let z = state.internal_values[I_Z];
@@ -58,14 +58,16 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Returns the number of internal values
-    fn n_internal_vars(&self) -> usize {
+    fn n_internal_variables(&self) -> usize {
         2 // [z, Λ]
     }
 
+    /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, _dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
         Err("TODO")
     }
 
+    /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
         // reset flags
         state.loading = false; // not elastoplastic yet

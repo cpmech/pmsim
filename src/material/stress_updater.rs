@@ -1,16 +1,16 @@
 #![allow(unused)]
 
-use super::StressStrainTrait;
+use super::StressStrainModel;
 use russell_tensor::Tensor2;
 
 pub struct StressUpdater {
-    model: Box<dyn StressStrainTrait>,
+    model: StressStrainModel,
     stress_path: Vec<Option<Tensor2>>,
     strain_path: Vec<Option<Tensor2>>,
 }
 
 impl StressUpdater {
-    pub fn new(model: Box<dyn StressStrainTrait>) -> Self {
+    pub fn new(model: StressStrainModel) -> Self {
         StressUpdater {
             model,
             stress_path: Vec::new(),
@@ -42,12 +42,12 @@ impl StressUpdater {
 mod tests {
     use super::StressUpdater;
     use crate::base::SampleParams;
-    use crate::material::allocate_stress_strain_model;
+    use crate::material::StressStrainModel;
 
     #[test]
     fn new_works() {
         let param = SampleParams::param_solid();
-        let model = allocate_stress_strain_model(&param, false, false).unwrap();
+        let model = StressStrainModel::new(&param, false, false).unwrap();
         let mut updater = StressUpdater::new(model);
 
         const TWO_DIM: bool = true;

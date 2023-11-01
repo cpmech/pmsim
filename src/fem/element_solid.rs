@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
-use crate::material::{allocate_stress_strain_model, StressStates, StressStrainTrait};
+use crate::material::{StressStates, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -32,7 +32,7 @@ pub struct ElementSolid<'a> {
     pub ips: integ::IntegPointData,
 
     /// Stress-strain model
-    pub model: Box<dyn StressStrainTrait>,
+    pub model: StressStrainModel,
 
     /// Stresses and internal values at all integration points
     pub stresses: StressStates,
@@ -63,8 +63,9 @@ impl<'a> ElementSolid<'a> {
 
         // model and stresses
         let two_dim = ndim == 2;
-        let model = allocate_stress_strain_model(param, two_dim, config.plane_stress)?;
-        let stresses = StressStates::new(two_dim, model.n_internal_vars(), n_integ_point);
+        let model = StressStrainModel::new(param, two_dim, config.plane_stress)?;
+        let n_internal_variables = model.actual.n_internal_variables();
+        let stresses = StressStates::new(two_dim, n_internal_variables, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -126,7 +127,7 @@ impl<'a> ElementSolid<'a> {
 impl<'a> ElementTrait for ElementSolid<'a> {
     /// Returns whether the local Jacobian matrix is symmetric or not
     fn symmetric_jacobian(&self) -> bool {
-        self.model.symmetric_and_constant_stiffness()
+        self.model.actual.symmetric_and_constant_stiffness()
     }
 
     /// Returns the local-to-global mapping
@@ -185,7 +186,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
         integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
-            self.model.stiffness(dd, &self.stresses.all[p])
+            self.model.actual.stiffness(dd, &self.stresses.all[p])
         })
     }
 
@@ -207,7 +208,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             // interpolate increment of strains Δε at integration point
             self.calc_delta_eps(&state.duu, p)?;
             // perform stress-update
-            self.model.update_stress(&mut self.stresses.all[p], &self.deps)?;
+            self.model.actual.update_stress(&mut self.stresses.all[p], &self.deps)?;
         }
         Ok(())
     }
