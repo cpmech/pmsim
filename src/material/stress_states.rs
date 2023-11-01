@@ -77,6 +77,7 @@ impl fmt::Display for StressState {
             None => write!(f, "{}", mat).unwrap(),
         }
         write!(f, "\nz = {:?}", self.internal_values).unwrap();
+        write!(f, "\nloading = {}", self.loading).unwrap();
         Ok(())
     }
 }
@@ -103,8 +104,10 @@ mod tests {
              │  0  2  0 │\n\
              │  0  0 -3 │\n\
              └          ┘\n\
-             z = [0.1, 0.2]"
+             z = [0.1, 0.2]\n\
+             loading = false"
         );
+        state.loading = true;
         assert_eq!(
             format!("{:.2}", state),
             "σ =\n\
@@ -113,7 +116,8 @@ mod tests {
              │  0.00  2.00  0.00 │\n\
              │  0.00  0.00 -3.00 │\n\
              └                   ┘\n\
-             z = [0.1, 0.2]"
+             z = [0.1, 0.2]\n\
+             loading = true"
         );
     }
 }
