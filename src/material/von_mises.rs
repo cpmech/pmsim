@@ -122,6 +122,8 @@ impl StressStrainTrait for VonMises {
 mod tests {
     use super::VonMises;
     use crate::material::{StressState, StressStrainTrait};
+    use russell_lab::{approx_eq, mat_inverse, mat_vec_mul, Matrix};
+    use russell_tensor::Tensor2;
 
     #[test]
     fn update_stress_works() {
@@ -130,16 +132,52 @@ mod tests {
         let two_dim = true;
         let z0 = 9.0;
         let hh = 800.0;
-        let model = VonMises::new(young, poisson, two_dim, z0, hh);
+        let mut model = VonMises::new(young, poisson, two_dim, z0, hh);
 
         let n_internal_values = model.n_internal_values();
         let mut state = StressState::new(two_dim, n_internal_values);
         assert_eq!(state.sigma.vec.dim(), 4);
         assert_eq!(state.internal_values.len(), 2);
 
+        let sigma_m_ini = 10.0;
+        state.sigma.vec[0] = sigma_m_ini;
+        state.sigma.vec[1] = sigma_m_ini;
+        state.sigma.vec[2] = sigma_m_ini;
+
         model.initialize_internal_values(&mut state).unwrap();
         assert_eq!(state.loading, false);
-        assert_eq!(state.sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0]);
-        assert_eq!(state.internal_values, &[9.0, 0.0]);
+        assert_eq!(state.sigma.vec.as_data(), &[sigma_m_ini, sigma_m_ini, sigma_m_ini, 0.0]);
+        assert_eq!(state.internal_values, &[z0, 0.0]);
+
+        let (kk, gg) = model.lin_elasticity.get_bulk_shear();
+        let gg3 = gg * 3.0;
+        let dsigma_m = 1.0;
+        let dsigma_d = 9.0;
+        let lode = 1.0;
+        let dsigma = Tensor2::new_from_oct_invariants(dsigma_m, dsigma_d, lode, two_dim).unwrap();
+        println!("{:.2}", dsigma.to_matrix());
+        println!("dsigma_m = {}", dsigma.invariant_sigma_m());
+        println!("dsigma_d = {}", dsigma.invariant_sigma_d());
+        println!("lode     = {}", dsigma.invariant_lode().unwrap());
+        approx_eq(dsigma.invariant_sigma_m(), dsigma_m, 1e-15);
+        approx_eq(dsigma.invariant_sigma_d(), dsigma_d, 1e-15);
+        approx_eq(dsigma.invariant_lode().unwrap(), lode, 1e-15);
+        let mut cc = Matrix::new(4, 4);
+        mat_inverse(&mut cc, &model.lin_elasticity.get_modulus().mat).unwrap();
+        let mut deps = Tensor2::new_sym(two_dim);
+        mat_vec_mul(&mut deps.vec, 1.0, &cc, &dsigma.vec).unwrap();
+        let deps_v = dsigma_m / kk;
+        let deps_d = dsigma_d / gg3;
+        println!("deps_v = {}", deps_v);
+        println!("deps_d = {}", deps_d);
+        println!("deps =\n{}", deps.vec);
+        println!("deps_v = {}", deps.invariant_eps_v());
+        println!("deps_d = {}", deps.invariant_eps_d());
+        println!("lode   = {}", deps.invariant_lode().unwrap());
+        approx_eq(deps.invariant_eps_v(), deps_v, 1e-15);
+        approx_eq(deps.invariant_eps_d(), deps_d, 1e-15);
+        approx_eq(deps.invariant_lode().unwrap(), lode, 1e-15);
+
+        model.update_stress(&mut state, &deps).unwrap();
     }
 }
