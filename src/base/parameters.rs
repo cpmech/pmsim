@@ -15,14 +15,14 @@ pub enum ParamStressStrain {
         /// Poisson's coefficient
         poisson: f64,
 
-        /// Initial von Mises stress for hardening model
+        /// Initial size of the yield surface
         ///
-        /// The von Mises stress is defined as:
+        /// This value corresponds to the von Mises stress:
         ///
         /// ```text
-        /// q := σd = √3 × J2
+        /// f = σd - z
         /// ```
-        q0: f64,
+        z0: f64,
 
         /// Hardening coefficient
         hh: f64,

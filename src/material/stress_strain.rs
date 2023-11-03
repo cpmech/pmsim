@@ -8,10 +8,13 @@ pub trait StressStrainTrait: Send + Sync {
     fn symmetric_and_constant_stiffness(&self) -> bool;
 
     /// Returns the number of internal values
-    fn n_internal_variables(&self) -> usize;
+    fn n_internal_values(&self) -> usize;
+
+    /// Initializes the internal values for the initial stress state
+    fn initialize_internal_values(&self, state: &mut StressState) -> Result<(), StrError>;
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, stress_state: &StressState) -> Result<(), StrError>;
+    fn stiffness(&mut self, dd: &mut Tensor4, state: &StressState) -> Result<(), StrError>;
 
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError>;
@@ -31,11 +34,11 @@ impl StressStrainModel {
                 Box::new(LinearElastic::new(young, poisson, two_dim, plane_stress))
             }
             // von Mises model
-            ParamStressStrain::VonMises { young, poisson, q0, hh } => {
+            ParamStressStrain::VonMises { young, poisson, z0, hh } => {
                 if plane_stress {
                     return Err("von Mises model does not work in plane-stress at the moment");
                 }
-                Box::new(VonMises::new(young, poisson, two_dim, q0, hh))
+                Box::new(VonMises::new(young, poisson, two_dim, z0, hh))
             }
             // Drucker-Prager model
             ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),

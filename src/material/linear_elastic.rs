@@ -24,8 +24,13 @@ impl StressStrainTrait for LinearElastic {
     }
 
     /// Returns the number of internal values
-    fn n_internal_variables(&self) -> usize {
+    fn n_internal_values(&self) -> usize {
         0
+    }
+
+    /// Initializes the internal values for the initial stress state
+    fn initialize_internal_values(&self, _state: &mut StressState) -> Result<(), StrError> {
+        Ok(())
     }
 
     /// Computes the consistent tangent stiffness

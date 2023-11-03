@@ -64,8 +64,8 @@ impl<'a> ElementSolid<'a> {
         // model and stresses
         let two_dim = ndim == 2;
         let model = StressStrainModel::new(param, two_dim, config.plane_stress)?;
-        let n_internal_variables = model.actual.n_internal_variables();
-        let stresses = StressStates::new(two_dim, n_internal_variables, n_integ_point);
+        let n_internal_values = model.actual.n_internal_values();
+        let stresses = StressStates::new(two_dim, n_internal_values, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {

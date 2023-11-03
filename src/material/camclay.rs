@@ -31,8 +31,13 @@ impl StressStrainTrait for CamClay {
     }
 
     /// Returns the number of internal values
-    fn n_internal_variables(&self) -> usize {
+    fn n_internal_values(&self) -> usize {
         1
+    }
+
+    /// Initializes the internal values for the initial stress state
+    fn initialize_internal_values(&self, state: &mut StressState) -> Result<(), StrError> {
+        Err("TODO")
     }
 
     /// Computes the consistent tangent stiffness

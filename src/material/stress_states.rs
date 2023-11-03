@@ -20,10 +20,10 @@ pub struct StressStates {
 
 impl StressState {
     /// Allocates a new instance
-    pub fn new(two_dim: bool, n_internal_variables: usize) -> Self {
+    pub fn new(two_dim: bool, n_internal_values: usize) -> Self {
         StressState {
             loading: false,
-            internal_values: vec![0.0; n_internal_variables],
+            internal_values: vec![0.0; n_internal_values],
             sigma: Tensor2::new_sym(two_dim),
         }
     }
@@ -41,8 +41,8 @@ impl StressState {
 
 impl StressStates {
     /// Allocates a new instance
-    pub fn new(two_dim: bool, n_internal_variables: usize, n_integ_point: usize) -> Self {
-        let zero_state = StressState::new(two_dim, n_internal_variables);
+    pub fn new(two_dim: bool, n_internal_values: usize, n_integ_point: usize) -> Self {
+        let zero_state = StressState::new(two_dim, n_internal_values);
         let all = vec![zero_state; n_integ_point];
         let backup = all.clone();
         StressStates { all, backup }

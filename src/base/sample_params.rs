@@ -84,7 +84,7 @@ impl SampleParams {
         ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::LinearElastic {
-                young: 1000.0, // kPa
+                young: 1500.0, // kPa
                 poisson: 0.25, // [-]
             },
         }
@@ -95,10 +95,10 @@ impl SampleParams {
         ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::VonMises {
-                young: 1000.0, // kPa
+                young: 1500.0, // kPa
                 poisson: 0.25, // [-]
-                q0: 10.0,      // kPa
-                hh: 1.0,       // kPa
+                z0: 9.0,       // kPa
+                hh: 600.0,     // kPa
             },
         }
     }
@@ -108,11 +108,11 @@ impl SampleParams {
         ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::DruckerPrager {
-                young: 1000.0, // kPa
+                young: 1500.0, // kPa
                 poisson: 0.25, // [-]
                 c: 0.0,        // kPa
                 phi: 25.0,     // degree
-                hh: 0.0,       // [-]
+                hh: 600.0,     // [-]
             },
         }
     }
