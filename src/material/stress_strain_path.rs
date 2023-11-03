@@ -1,27 +1,71 @@
 use crate::StrError;
 use russell_lab::{mat_inverse, mat_vec_mul, vec_add, Matrix};
 use russell_tensor::{LinElasticity, Mandel, Tensor2};
-use std::fmt;
 
+/// Holds stress and strains related via linear elasticity defining stress paths
 pub struct StressStrainPath {
-    two_dim: bool,                // 2D instead of 3D
-    mandel: Mandel,               // mandel representation
-    dd: Matrix,                   // σ = D : ε (w.r.t Mandel basis)
-    cc: Matrix,                   // ε = C : σ = D⁻¹ : σ (w.r.t Mandel basis)
-    stresses: Vec<Tensor2>,       // calculated from strains using elastic model, if strain is given
-    strains: Vec<Tensor2>,        // calculated from stress using elastic model, if stress is given
-    strain_driven: Vec<bool>,     // indicates to use strains in simulations
-    sigma_m: Vec<f64>,            // mean pressure invariant
-    sigma_d: Vec<f64>,            // deviatoric stress invariant
-    sigma_lode: Vec<Option<f64>>, // Lode invariant (stress)
-    eps_v: Vec<f64>,              // volumetric strain invariant
-    eps_d: Vec<f64>,              // deviatoric strain invariant
-    eps_lode: Vec<Option<f64>>,   // Lode invariant (strain)
-    dsigma: Tensor2,              // auxiliary Δσ
-    depsilon: Tensor2,            // auxiliary Δε
+    /// Indicates 2D instead of 3D
+    pub two_dim: bool,
+
+    /// Holds the Mandel representation
+    pub mandel: Mandel,
+
+    /// Holds the stiffness matrix in Mandel basis
+    ///
+    /// ```text
+    /// σ = D : ε
+    /// ```
+    pub dd: Matrix,
+
+    /// Holds the compliance matrix in Mandel basis
+    ///
+    /// ```text
+    /// ε = C : σ = D⁻¹ : σ
+    /// ```
+    pub cc: Matrix,
+
+    /// Stress path, possibly calculated from strain using the elastic model if strain is given
+    pub stresses: Vec<Tensor2>,
+
+    /// Strain path, possibly calculated from stress using the elastic model if stress is given
+    pub strains: Vec<Tensor2>,
+
+    /// Indicates to use strains in simulations
+    pub strain_driven: Vec<bool>,
+
+    /// Holds all mean pressure invariants
+    pub sigma_m: Vec<f64>,
+
+    /// Holds all deviatoric stress invariants
+    pub sigma_d: Vec<f64>,
+
+    /// Holds all Lode invariants (stress)
+    pub sigma_lode: Vec<Option<f64>>,
+
+    /// Holds all volumetric strain invariants
+    pub eps_v: Vec<f64>,
+
+    /// Holds all deviatoric strain invariants
+    pub eps_d: Vec<f64>,
+
+    /// Holds all Lode invariants (strain)
+    pub eps_lode: Vec<Option<f64>>,
+
+    /// Is an auxiliary Δσ
+    dsigma: Tensor2,
+
+    /// Is an auxiliary Δε
+    depsilon: Tensor2,
 }
 
 impl StressStrainPath {
+    /// Allocates a new instance
+    ///
+    /// # Input
+    ///
+    /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
+    /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
+    /// * `two_dim` -- 2D instead of 3D
     pub fn new(young: f64, poisson: f64, two_dim: bool) -> Self {
         let ela = LinElasticity::new(young, poisson, two_dim, false);
         let dd_tensor = ela.get_modulus();
@@ -48,6 +92,15 @@ impl StressStrainPath {
         }
     }
 
+    /// Pushes a new stress and strain point to the path with stresses computed from the octahedral invariants
+    ///
+    /// # Input
+    ///
+    /// * `sigma_m` -- mean pressure invariant `σm = ⅓ trace(σ)`
+    /// * `sigma_d` -- deviatoric stress (von Mises) invariant `σd = ‖s‖ √3/√2 = √3 × J2`
+    /// * `lode` -- Lode invariant `l = cos(3θ) = (3 √3 J3)/(2 pow(J2,1.5))`.
+    ///   **Note:** The Lode invariant must be in `-1 ≤ lode ≤ 1`
+    /// * `strain_driven` -- indicates that the strain path should be considered in simulations
     pub fn push_stress_with_oct_invariants(
         &mut self,
         sigma_m: f64,
@@ -59,6 +112,12 @@ impl StressStrainPath {
         self.push_stress(sigma, strain_driven)
     }
 
+    /// Pushes a new stress and strain point to the path
+    ///
+    /// # Input
+    ///
+    /// * `sigma` -- stress tensor
+    /// * `strain_driven` -- indicates that the strain path should be considered in simulations
     pub fn push_stress(&mut self, sigma: Tensor2, strain_driven: bool) -> Result<&mut Self, StrError> {
         if sigma.mandel() != self.mandel {
             return Err("mandel representation is incompatible");
@@ -86,6 +145,12 @@ impl StressStrainPath {
         Ok(self)
     }
 
+    /// Pushes a new stress and strain point to the path
+    ///
+    /// # Input
+    ///
+    /// * `epsilon` -- strain tensor
+    /// * `strain_driven` -- indicates that the strain path should be considered in simulations
     pub fn push_strain(&mut self, epsilon: Tensor2, strain_driven: bool) -> Result<&mut Self, StrError> {
         if epsilon.mandel() != self.mandel {
             return Err("mandel representation is incompatible");
@@ -111,41 +176,6 @@ impl StressStrainPath {
         self.stresses.push(sigma);
         self.strain_driven.push(strain_driven);
         Ok(self)
-    }
-}
-
-impl fmt::Display for StressStrainPath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for i in 0..self.stresses.len() {
-            let sigma = &self.stresses[i];
-            let epsilon = &self.strains[i];
-            println!(
-                "{} -----------------------------------------------------------------------------------------",
-                i
-            );
-            let (a, b) = if self.strain_driven[i] { (" ", "*") } else { ("*", " ") };
-            write!(
-                f,
-                "    {}σ = {:?}, σm = {:?}, σd = {:?}, lode = {:?}\n",
-                a,
-                sigma.vec.as_data(),
-                self.sigma_m[i],
-                self.sigma_d[i],
-                self.sigma_lode[i]
-            )
-            .unwrap();
-            write!(
-                f,
-                "    {}ε = {:?}, εv = {:?}, εd = {:?}, lode = {:?}\n",
-                b,
-                epsilon.vec.as_data(),
-                self.eps_v[i],
-                self.eps_d[i],
-                self.eps_lode[i]
-            )
-            .unwrap();
-        }
-        Ok(())
     }
 }
 
