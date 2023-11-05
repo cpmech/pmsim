@@ -5,8 +5,7 @@ use plotpy::{Curve, Plot};
 use russell_tensor::Tensor2;
 use std::ffi::OsStr;
 
-pub struct SSCurve {
-    color: String,
+pub struct SSPlotParams {
     negative_epsilon_v: bool,
     negative_sigma_m: bool,
     percentage_strains: bool,
@@ -14,13 +13,14 @@ pub struct SSCurve {
 }
 
 pub struct StressStrainPlot {
-    plot: Plot,
+    pub curve_dev_stress_dev_strain: Curve,
+    curve_dev_stress_dev_strain_x_label: String,
+    curve_dev_stress_dev_strain_y_label: String,
 }
 
-impl SSCurve {
+impl SSPlotParams {
     pub fn new() -> Self {
-        SSCurve {
-            color: "".to_string(),
+        SSPlotParams {
             negative_epsilon_v: false,
             negative_sigma_m: false,
             percentage_strains: false,
@@ -32,10 +32,14 @@ impl SSCurve {
 impl StressStrainPlot {
     /// Allocates a new instance
     pub fn new() -> Self {
-        StressStrainPlot { plot: Plot::new() }
+        StressStrainPlot {
+            curve_dev_stress_dev_strain: Curve::new(),
+            curve_dev_stress_dev_strain_x_label: String::new(),
+            curve_dev_stress_dev_strain_y_label: String::new(),
+        }
     }
 
-    /// Saves the figure
+    /// Saves the dev(stress)-dev(strain) curve
     ///
     /// # Input
     ///
@@ -44,25 +48,31 @@ impl StressStrainPlot {
     /// # Note
     ///
     /// Call `set_show_errors` to configure how the errors (if any) are printed.
-    pub fn save<S>(&self, figure_path: &S) -> Result<(), StrError>
+    pub fn save_dev_stress_dev_strain<S>(&self, figure_path: &S) -> Result<(), StrError>
     where
         S: AsRef<OsStr> + ?Sized,
     {
-        self.plot.save(figure_path)
+        let mut plot = Plot::new();
+        plot.add(&self.curve_dev_stress_dev_strain)
+            .grid_and_labels(
+                &self.curve_dev_stress_dev_strain_x_label,
+                &self.curve_dev_stress_dev_strain_y_label,
+            )
+            .save(figure_path)
     }
 
     pub fn dev_stress_dev_strain(
         &mut self,
         stresses: &Vec<Tensor2>,
         strains: &Vec<Tensor2>,
-        params: Option<SSCurve>,
+        params: Option<SSPlotParams>,
     ) -> Result<(), StrError> {
         if stresses.len() != strains.len() {
             return Err("arrays of stresses and strains must have the same length");
         }
         let p = match params {
             Some(v) => v,
-            None => SSCurve::new(),
+            None => SSPlotParams::new(),
         };
         let x: Vec<_> = if p.percentage_strains {
             strains.iter().map(|eps| 100.0 * eps.invariant_eps_d()).collect()
@@ -84,19 +94,17 @@ impl StressStrainPlot {
         } else {
             stresses.iter().map(|sig| sig.invariant_sigma_d()).collect()
         };
-        let mut curve = Curve::new();
-        curve.draw(&x, &y);
-        let x_label = if p.percentage_strains {
-            "$\\varepsilon_d [%]$"
+        self.curve_dev_stress_dev_strain.draw(&x, &y);
+        self.curve_dev_stress_dev_strain_x_label = if p.percentage_strains {
+            "$\\varepsilon_d$ [%]".to_string()
         } else {
-            "$\\varepsilon_d$"
+            "$\\varepsilon_d$".to_string()
         };
-        let y_label = if p.divide_by_sigma_m {
-            "$\\sigma_d / \\sigma_m$"
+        self.curve_dev_stress_dev_strain_y_label = if p.divide_by_sigma_m {
+            format!("${}\\sigma_d / \\sigma_m$", if p.negative_sigma_m { "-" } else { "" })
         } else {
-            "$\\sigma_d$"
+            "$\\sigma_d$".to_string()
         };
-        self.plot.add(&curve).grid_and_labels(x_label, y_label);
         Ok(())
     }
 }
@@ -105,8 +113,22 @@ impl StressStrainPlot {
 
 #[cfg(test)]
 mod tests {
-    use super::StressStrainPlot;
+    use super::{SSPlotParams, StressStrainPlot};
     use crate::material::StressStrainPath;
+    use russell_tensor::Tensor2;
+
+    const SAVE_FIGURE: bool = true;
+
+    #[test]
+    pub fn stress_strain_plot_capture_errors() {
+        let stresses = vec![Tensor2::new_sym(true)];
+        let strains = vec![Tensor2::new_sym(true), Tensor2::new_sym(true)];
+        let mut plot = StressStrainPlot::new();
+        assert_eq!(
+            plot.dev_stress_dev_strain(&stresses, &strains, None).err(),
+            Some("arrays of stresses and strains must have the same length")
+        );
+    }
 
     #[test]
     pub fn stress_strain_plot_works() {
@@ -125,6 +147,32 @@ mod tests {
 
         let mut plot = StressStrainPlot::new();
         plot.dev_stress_dev_strain(&path.stresses, &path.strains, None).unwrap();
-        plot.save("/tmp/pmsim/test_stress_strain_plot_1.svg").unwrap();
+        if SAVE_FIGURE {
+            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_1.svg")
+                .unwrap();
+        }
+
+        let mut params = SSPlotParams::new();
+        params.percentage_strains = true;
+        params.divide_by_sigma_m = true;
+        let mut plot = StressStrainPlot::new();
+        plot.dev_stress_dev_strain(&path.stresses, &path.strains, Some(params))
+            .unwrap();
+        if SAVE_FIGURE {
+            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_2.svg")
+                .unwrap();
+        }
+
+        let mut params = SSPlotParams::new();
+        params.percentage_strains = true;
+        params.divide_by_sigma_m = true;
+        params.negative_sigma_m = true;
+        let mut plot = StressStrainPlot::new();
+        plot.dev_stress_dev_strain(&path.stresses, &path.strains, Some(params))
+            .unwrap();
+        if SAVE_FIGURE {
+            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_3.svg")
+                .unwrap();
+        }
     }
 }
