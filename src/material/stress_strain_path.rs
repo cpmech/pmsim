@@ -1,6 +1,7 @@
 use crate::StrError;
 use russell_lab::{mat_inverse, mat_vec_mul, vec_add, Matrix};
 use russell_tensor::{LinElasticity, Mandel, Tensor2};
+use std::fmt;
 
 /// Holds stress and strains related via linear elasticity defining stress paths
 pub struct StressStrainPath {
@@ -51,11 +52,11 @@ pub struct StressStrainPath {
     /// Holds all Lode invariants (strain)
     pub eps_lode: Vec<Option<f64>>,
 
-    /// Is an auxiliary Δσ
-    dsigma: Tensor2,
+    /// Holds all Δσ
+    pub deltas_stress: Vec<Tensor2>,
 
-    /// Is an auxiliary Δε
-    depsilon: Tensor2,
+    /// Holds all Δε
+    pub deltas_strain: Vec<Tensor2>,
 }
 
 impl StressStrainPath {
@@ -87,8 +88,8 @@ impl StressStrainPath {
             eps_v: Vec::new(),
             eps_d: Vec::new(),
             eps_lode: Vec::new(),
-            dsigma: Tensor2::new(mandel),
-            depsilon: Tensor2::new(mandel),
+            deltas_stress: Vec::new(),
+            deltas_strain: Vec::new(),
         }
     }
 
@@ -129,13 +130,17 @@ impl StressStrainPath {
         self.stresses.push(sigma);
         let n = self.stresses.len();
         if n >= 2 {
+            let mut dsigma = Tensor2::new(self.mandel);
+            let mut depsilon = Tensor2::new(self.mandel);
             let sigma_prev = &self.stresses[n - 2];
             let sigma_curr = &self.stresses[n - 1];
-            vec_add(&mut self.dsigma.vec, 1.0, &sigma_curr.vec, -1.0, &sigma_prev.vec).unwrap();
-            mat_vec_mul(&mut self.depsilon.vec, 1.0, &self.cc, &self.dsigma.vec).unwrap(); // ε = C : σ
+            vec_add(&mut dsigma.vec, 1.0, &sigma_curr.vec, -1.0, &sigma_prev.vec).unwrap();
+            mat_vec_mul(&mut depsilon.vec, 1.0, &self.cc, &dsigma.vec).unwrap(); // ε = C : σ
             let m = self.strains.len();
             let epsilon_prev = &mut self.strains[m - 1]; // must use "1" here because epsilon hasn't been "pushed" yet
-            vec_add(&mut epsilon.vec, 1.0, &epsilon_prev.vec, 1.0, &self.depsilon.vec).unwrap();
+            vec_add(&mut epsilon.vec, 1.0, &epsilon_prev.vec, 1.0, &depsilon.vec).unwrap();
+            self.deltas_stress.push(dsigma);
+            self.deltas_strain.push(depsilon);
         }
         self.eps_v.push(epsilon.invariant_eps_v());
         self.eps_d.push(epsilon.invariant_eps_d());
@@ -162,13 +167,17 @@ impl StressStrainPath {
         self.strains.push(epsilon);
         let n = self.strains.len();
         if n >= 2 {
+            let mut depsilon = Tensor2::new(self.mandel);
+            let mut dsigma = Tensor2::new(self.mandel);
             let epsilon_prev = &self.strains[n - 2];
             let epsilon_curr = &self.strains[n - 1];
-            vec_add(&mut self.depsilon.vec, 1.0, &epsilon_curr.vec, -1.0, &epsilon_prev.vec).unwrap();
-            mat_vec_mul(&mut self.dsigma.vec, 1.0, &self.dd, &self.depsilon.vec).unwrap(); // σ = D : ε
+            vec_add(&mut depsilon.vec, 1.0, &epsilon_curr.vec, -1.0, &epsilon_prev.vec).unwrap();
+            mat_vec_mul(&mut dsigma.vec, 1.0, &self.dd, &depsilon.vec).unwrap(); // σ = D : ε
             let m = self.stresses.len();
             let sigma_prev = &mut self.stresses[m - 1]; // must use "1" here because sigma hasn't been "pushed" yet
-            vec_add(&mut sigma.vec, 1.0, &sigma_prev.vec, 1.0, &self.dsigma.vec).unwrap();
+            vec_add(&mut sigma.vec, 1.0, &sigma_prev.vec, 1.0, &dsigma.vec).unwrap();
+            self.deltas_strain.push(depsilon);
+            self.deltas_stress.push(dsigma);
         }
         self.sigma_m.push(sigma.invariant_sigma_m());
         self.sigma_d.push(sigma.invariant_sigma_d());
@@ -176,6 +185,144 @@ impl StressStrainPath {
         self.stresses.push(sigma);
         self.strain_driven.push(strain_driven);
         Ok(self)
+    }
+}
+
+impl fmt::Display for StressStrainPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // auxiliary
+        let ncp = self.mandel.dim(); // number of mandel components
+        let width = 23 * ncp;
+        let thick_line = format!("{:━^1$}", "", width);
+        let thin_line = format!("{:─^1$}", "", width);
+
+        // stresses
+        let title = format!("{: ^1$}", "STRESSES", width);
+        writeln!(f, "{}", title).unwrap();
+        writeln!(f, "{}", thick_line).unwrap();
+        for i in 0..ncp {
+            write!(f, "{:>23}", format!("σ{}", i)).unwrap();
+        }
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
+        for sigma in &self.stresses {
+            for v in &sigma.vec {
+                write!(f, "{:>23?}", v).unwrap();
+            }
+            writeln!(f, "").unwrap();
+        }
+        writeln!(f, "{}", thick_line).unwrap();
+
+        // strains
+        let title = format!("{: ^1$}", "STRAINS", width);
+        writeln!(f, "").unwrap();
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", title).unwrap();
+        writeln!(f, "{}", thick_line).unwrap();
+        for i in 0..ncp {
+            write!(f, "{:>23}", format!("ε{}", i)).unwrap();
+        }
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
+        for epsilon in &self.strains {
+            for v in &epsilon.vec {
+                write!(f, "{:>23?}", v).unwrap();
+            }
+            writeln!(f, "").unwrap();
+        }
+        writeln!(f, "{}", thick_line).unwrap();
+
+        // increments of stress
+        let title = format!("{: ^1$}", "INCREMENTS OF STRESS", width);
+        writeln!(f, "").unwrap();
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", title).unwrap();
+        writeln!(f, "{}", thick_line).unwrap();
+        for i in 0..ncp {
+            write!(f, "{:>23}", format!("Δσ{}", i)).unwrap();
+        }
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
+        for dsigma in &self.deltas_stress {
+            for v in &dsigma.vec {
+                write!(f, "{:>23?}", v).unwrap();
+            }
+            writeln!(f, "").unwrap();
+        }
+        writeln!(f, "{}", thick_line).unwrap();
+
+        // increments of strain
+        let title = format!("{: ^1$}", "INCREMENTS OF STRAIN", width);
+        writeln!(f, "").unwrap();
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", title).unwrap();
+        writeln!(f, "{}", thick_line).unwrap();
+        for i in 0..ncp {
+            write!(f, "{:>23}", format!("Δε{}", i)).unwrap();
+        }
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
+        for depsilon in &self.deltas_strain {
+            for v in &depsilon.vec {
+                write!(f, "{:>23?}", v).unwrap();
+            }
+            writeln!(f, "").unwrap();
+        }
+        writeln!(f, "{}", thick_line).unwrap();
+
+        // auxiliary
+        let width = 23 * 3;
+        let thick_line = format!("{:━^1$}", "", width);
+        let thin_line = format!("{:─^1$}", "", width);
+
+        // stress invariants
+        let title = format!("{: ^1$}", "STRESS INVARIANTS", width);
+        writeln!(f, "").unwrap();
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", title).unwrap();
+        writeln!(f, "{}", thick_line).unwrap();
+        write!(f, "{:>23}", "σm").unwrap();
+        write!(f, "{:>23}", "σd").unwrap();
+        write!(f, "{:>23}", "lode").unwrap();
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
+        let n = self.sigma_m.len();
+        for i in 0..n {
+            let lode = match self.sigma_lode[i] {
+                Some(v) => format!("{:?}", v),
+                None => "None".to_string(),
+            };
+            write!(f, "{:>23?}", self.sigma_m[i]).unwrap();
+            write!(f, "{:>23?}", self.sigma_d[i]).unwrap();
+            write!(f, "{:>23}", lode).unwrap();
+            writeln!(f, "").unwrap();
+        }
+        writeln!(f, "{}", thick_line).unwrap();
+
+        // strain invariants
+        let title = format!("{: ^1$}", "STRAIN INVARIANTS", width);
+        writeln!(f, "").unwrap();
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", title).unwrap();
+        writeln!(f, "{}", thick_line).unwrap();
+        write!(f, "{:>23}", "εv").unwrap();
+        write!(f, "{:>23}", "εd").unwrap();
+        write!(f, "{:>23}", "lode").unwrap();
+        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
+        let n = self.eps_v.len();
+        for i in 0..n {
+            let lode = match self.eps_lode[i] {
+                Some(v) => format!("{:?}", v),
+                None => "None".to_string(),
+            };
+            write!(f, "{:>23?}", self.eps_v[i]).unwrap();
+            write!(f, "{:>23?}", self.eps_d[i]).unwrap();
+            write!(f, "{:>23}", lode).unwrap();
+            writeln!(f, "").unwrap();
+        }
+        writeln!(f, "{}", thick_line).unwrap();
+        Ok(())
     }
 }
 
@@ -211,6 +358,8 @@ mod tests {
                 path_b.push_strain(path_a.strains[i].clone(), true).unwrap();
             }
         }
+
+        println!("{}", path_a);
 
         let kk = young / (3.0 * (1.0 - 2.0 * poisson));
         let gg = young / (2.0 * (1.0 + poisson));
