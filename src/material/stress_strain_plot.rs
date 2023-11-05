@@ -55,12 +55,12 @@ impl Axis {
         match self {
             Self::EpsV(percent, negative) => {
                 let n = if *negative { "-" } else { "" };
-                let p = if *percent { " [%]" } else { "" };
-                format!("${}\\varepsilon_v${}", n, p)
+                let p = if *percent { "\\;[\\%]" } else { "" };
+                format!("${}\\varepsilon_v{}$", n, p)
             }
             Self::EpsD(percent) => {
-                let p = if *percent { " [%]" } else { "" };
-                format!("$\\varepsilon_d${}", p)
+                let p = if *percent { "\\;[\\%]" } else { "" };
+                format!("$\\varepsilon_d{}$", p)
             }
             Self::SigM(negative) => {
                 let n = if *negative { "-" } else { "" };
@@ -68,7 +68,7 @@ impl Axis {
             }
             Self::SigD(normalized) => {
                 if *normalized {
-                    "$\\sigma_d / |\\sigma_m|$".to_string()
+                    "$\\sigma_d\\,/\\,|\\sigma_m|$".to_string()
                 } else {
                     "$\\sigma_d$".to_string()
                 }
@@ -151,6 +151,7 @@ mod tests {
     use super::{Axis, StressStrainPlot};
     use crate::material::StressStrainPath;
     use plotpy::SlopeIcon;
+    use russell_lab::vec_approx_eq;
     use russell_tensor::Tensor2;
     use std::collections::HashSet;
 
@@ -169,7 +170,7 @@ mod tests {
         let dsigma_m = 1.0;
         let dsigma_d = 9.0;
         let lode = 1.0;
-        for i in 0..4 {
+        for i in 0..3 {
             let m = (i + 1) as f64;
             let sigma_m = m * dsigma_m;
             let sigma_d = m * dsigma_d;
@@ -190,7 +191,58 @@ mod tests {
     }
 
     #[test]
-    pub fn stress_strain_plot_capture_errors() {
+    fn calc_works() {
+        let path = generate_path();
+        // println!("{}", path);
+
+        let axis = Axis::EpsV(false, false);
+        let epsv = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&epsv, &[0.0, 0.001, 0.002], 1e-15);
+        assert_eq!(axis.label(), "$\\varepsilon_v$");
+
+        let axis = Axis::EpsV(true, false);
+        let epsv = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&epsv, &[0.0, 0.1, 0.2], 1e-15);
+        assert_eq!(axis.label(), "$\\varepsilon_v\\;[\\%]$");
+
+        let axis = Axis::EpsV(true, true);
+        let epsv = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&epsv, &[0.0, -0.1, -0.2], 1e-15);
+        assert_eq!(axis.label(), "$-\\varepsilon_v\\;[\\%]$");
+
+        let axis = Axis::EpsD(false);
+        let epsd = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&epsd, &[0.0, 0.005, 0.01], 1e-15);
+        assert_eq!(axis.label(), "$\\varepsilon_d$");
+
+        let axis = Axis::EpsD(true);
+        let epsd = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
+        assert_eq!(axis.label(), "$\\varepsilon_d\\;[\\%]$");
+
+        let axis = Axis::SigM(false);
+        let sigm = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&sigm, &[1.0, 2.0, 3.0], 1e-14);
+        assert_eq!(axis.label(), "$\\sigma_m$");
+
+        let axis = Axis::SigM(true);
+        let sigm = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&sigm, &[-1.0, -2.0, -3.0], 1e-14);
+        assert_eq!(axis.label(), "$-\\sigma_m$");
+
+        let axis = Axis::SigD(false);
+        let sigd = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&sigd, &[9.0, 18.0, 27.0], 1e-14);
+        assert_eq!(axis.label(), "$\\sigma_d$");
+
+        let axis = Axis::SigD(true);
+        let sigd = axis.calc(&path.stresses, &path.strains);
+        vec_approx_eq(&sigd, &[9.0, 9.0, 9.0], 1e-14);
+        assert_eq!(axis.label(), "$\\sigma_d\\,/\\,|\\sigma_m|$");
+    }
+
+    #[test]
+    pub fn draw_and_save_capture_errors() {
         let stresses = vec![Tensor2::new_sym(true)];
         let strains = vec![Tensor2::new_sym(true), Tensor2::new_sym(true)];
         let mut plot = StressStrainPlot::new();
@@ -198,6 +250,16 @@ mod tests {
             plot.draw(Axis::EpsD(false), Axis::SigD(false), &stresses, &strains, |_| {})
                 .err(),
             Some("arrays of stresses and strains must have the same length")
+        );
+        assert_eq!(
+            plot.save(
+                Axis::EpsD(false),
+                Axis::SigD(false),
+                "/tmp/pmsim/test_save_error.svg",
+                |_, _| {}
+            )
+            .err(),
+            Some("(x_axis, y_axis) curve is not available")
         );
     }
 
@@ -224,6 +286,15 @@ mod tests {
                 }
             })
             .unwrap();
+        }
+        let x = Axis::EpsV(true, true);
+        let y = Axis::SigM(true);
+        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+            curve.set_line_color("#1a9128").set_marker_style("d");
+        })
+        .unwrap();
+        if SAVE_FIGURE {
+            plot.save(x, y, "/tmp/pmsim/test_epsv_sigm_2.svg", |_, _| {}).unwrap();
         }
     }
 
@@ -302,6 +373,24 @@ mod tests {
                 }
             })
             .unwrap();
+        }
+        let x = Axis::EpsD(true);
+        let y = Axis::SigD(false);
+        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+            curve.set_line_color("magenta").set_marker_style(".");
+        })
+        .unwrap();
+        if SAVE_FIGURE {
+            plot.save(x, y, "/tmp/pmsim/test_epsd_sigd_2.svg", |_, _| {}).unwrap();
+        }
+        let x = Axis::EpsD(true);
+        let y = Axis::SigD(true);
+        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+            curve.set_line_color("magenta").set_marker_style("+");
+        })
+        .unwrap();
+        if SAVE_FIGURE {
+            plot.save(x, y, "/tmp/pmsim/test_epsd_sigd_3.svg", |_, _| {}).unwrap();
         }
     }
 }
