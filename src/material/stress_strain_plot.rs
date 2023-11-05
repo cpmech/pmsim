@@ -152,6 +152,7 @@ mod tests {
     use crate::material::StressStrainPath;
     use plotpy::SlopeIcon;
     use russell_tensor::Tensor2;
+    use std::collections::HashSet;
 
     const SAVE_FIGURE: bool = false;
 
@@ -175,6 +176,17 @@ mod tests {
             path.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
         }
         path
+    }
+
+    #[test]
+    fn derive_works() {
+        let axis = Axis::EpsD(false).clone();
+        let axes = HashSet::from([Axis::EpsD(false), Axis::EpsV(false, true)]);
+        assert_eq!(axis, Axis::EpsD(false));
+        assert_eq!(format!("{:?}", axis), "EpsD(false)");
+        assert_eq!(axes.contains(&Axis::EpsD(false)), true);
+        assert_eq!(axes.contains(&Axis::EpsV(false, false)), false);
+        assert_eq!(axes.contains(&Axis::EpsV(false, true)), true);
     }
 
     #[test]
