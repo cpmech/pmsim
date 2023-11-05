@@ -116,6 +116,8 @@ impl StressStrainPlot {
     ///
     /// # Input
     ///
+    /// * `x_axis` -- the key of the x-axis already drawn with `draw`
+    /// * `y_axis` -- the key of the y-axis already drawn with `draw`
     /// * `filepath` -- may be a String, &str, or Path
     /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
     ///   The two arguments of this function are:
@@ -142,6 +144,78 @@ impl StressStrainPlot {
             None => Err("(x_axis, y_axis) curve is not available"),
         }
     }
+
+    /// Saves a grid of stress/strain curves
+    ///
+    /// # Input
+    ///
+    /// * `axes` -- the keys of the (x-axis,y-axis) already drawn with `draw`
+    /// * `filepath` -- may be a String, &str, or Path
+    /// * `config` -- is a function `|plot, before| {}` to configure the plot before or after adding the curves
+    ///   The two arguments for this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra configurations (e.g., title).
+    ///     * `before: bool` -- **true** indicates that the function is being called before adding the curves.
+    ///       **false** indicates that the function is being called just before `save`.
+    /// * `extra` -- is a function `|plot, row, col, before| {}` to perform some {pre,post}-drawing on each sub-plot area.
+    ///   The four arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `row: usize` -- the zero-based index of the row in the grid matching the `axes` array
+    ///     * `col: usize` -- the zero-based index of the column in the grid matching the `axes` array
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _, _, _| {}` to do nothing.
+    pub fn save_grid<P, F, G>(
+        &self,
+        axes: &Vec<Vec<(Axis, Axis)>>,
+        filepath: &P,
+        mut config: F,
+        mut extra: G,
+        gridspec_params: Option<&str>,
+    ) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, bool),
+        G: FnMut(&mut Plot, usize, usize, bool),
+    {
+        let nrow = axes.len();
+        if nrow < 1 {
+            return Err("there are no rows in the axes array");
+        }
+        let ncol = axes[0].len();
+        if ncol < 1 {
+            return Err("there are no columns in the axes array");
+        }
+        let handle = "grid";
+        let mut plot = Plot::new();
+        config(&mut plot, true);
+        match gridspec_params {
+            Some(v) => plot.set_gridspec(handle, nrow, ncol, v),
+            None => plot.set_gridspec(handle, nrow, ncol, "wspace=0.38,hspace=0.35"),
+        };
+        for row in 0..nrow {
+            if axes[row].len() != ncol {
+                return Err("the number of columns is inconsistent");
+            }
+            for col in 0..ncol {
+                let (x_axis, y_axis) = axes[row][col];
+                plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
+                match self.curves.get(&(x_axis, y_axis)) {
+                    Some(curve) => {
+                        extra(&mut plot, row, col, true);
+                        plot.add(curve);
+                        extra(&mut plot, row, col, false);
+                        let x = x_axis.label();
+                        let y = y_axis.label();
+                        plot.grid_and_labels(&x, &y);
+                    }
+                    None => return Err("(x_axis, y_axis) curve is not available"),
+                }
+            }
+        }
+        config(&mut plot, false);
+        plot.save(filepath)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -150,7 +224,7 @@ impl StressStrainPlot {
 mod tests {
     use super::{Axis, StressStrainPlot};
     use crate::material::StressStrainPath;
-    use plotpy::SlopeIcon;
+    use plotpy::{SlopeIcon, SuperTitleParams};
     use russell_lab::vec_approx_eq;
     use russell_tensor::Tensor2;
     use std::collections::HashSet;
@@ -391,6 +465,54 @@ mod tests {
         .unwrap();
         if SAVE_FIGURE {
             plot.save(x, y, "/tmp/pmsim/test_epsd_sigd_3.svg", |_, _| {}).unwrap();
+        }
+    }
+
+    #[test]
+    pub fn save_grid_works() {
+        if SAVE_FIGURE {
+            let path = generate_path();
+            let axes = vec![
+                vec![
+                    (Axis::EpsD(true), Axis::SigD(true)),
+                    (Axis::EpsV(true, false), Axis::SigD(true)),
+                ],
+                vec![
+                    (Axis::EpsD(true), Axis::EpsV(true, true)),
+                    (Axis::SigM(true), Axis::EpsV(true, true)),
+                ],
+            ];
+            let mut plot = StressStrainPlot::new();
+            for row in &axes {
+                for (x_axis, y_axis) in row {
+                    plot.draw(*x_axis, *y_axis, &path.stresses, &path.strains, |_| {})
+                        .unwrap();
+                }
+            }
+            plot.save_grid(
+                &axes,
+                "/tmp/pmsim/test_save_grid_1.svg",
+                |_, _| {},
+                |_, _, _, _| {},
+                None,
+            )
+            .unwrap();
+            plot.save_grid(
+                &axes,
+                "/tmp/pmsim/test_save_grid_2.svg",
+                |plot, before| {
+                    if before {
+                        let mut params = SuperTitleParams::new();
+                        params.set_y(0.92);
+                        plot.set_super_title("TEST SAVE MOSAIC 1", Some(params));
+                    } else {
+                        plot.set_figure_size_points(600.0, 600.0);
+                    }
+                },
+                |_, _, _, _| {},
+                Some("wspace=0.33"),
+            )
+            .unwrap();
         }
     }
 }
