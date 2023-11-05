@@ -68,68 +68,139 @@ impl StressStrainPlot {
     }
 
     /// Saves the dev(stress)-dev(strain) curve
-    pub fn save_dev_stress_dev_strain<S>(&self, figure_path: &S) -> Result<(), StrError>
+    ///
+    /// # Input
+    ///
+    /// * `filepath` -- may be a String, &str, or Path
+    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
+    ///   The two arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _| {}` to do nothing.
+    pub fn save_dev_stress_dev_strain<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
     where
-        S: AsRef<OsStr> + ?Sized,
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, bool),
     {
         let mut plot = Plot::new();
-        plot.add(&self.curve_dev_stress_dev_strain)
-            .grid_and_labels(
-                &self.curve_dev_stress_dev_strain_x_label,
-                &self.curve_dev_stress_dev_strain_y_label,
-            )
-            .save(figure_path)
+        extra(&mut plot, true);
+        plot.add(&self.curve_dev_stress_dev_strain);
+        extra(&mut plot, false);
+        plot.grid_and_labels(
+            &self.curve_dev_stress_dev_strain_x_label,
+            &self.curve_dev_stress_dev_strain_y_label,
+        )
+        .save(filepath)
     }
 
     /// Saves the dev(stress)-vol(strain) curve
-    pub fn save_dev_stress_vol_strain<S>(&self, figure_path: &S) -> Result<(), StrError>
+    ///
+    /// # Input
+    ///
+    /// * `filepath` -- may be a String, &str, or Path
+    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
+    ///   The two arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _| {}` to do nothing.
+    pub fn save_dev_stress_vol_strain<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
     where
-        S: AsRef<OsStr> + ?Sized,
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, bool),
     {
         let mut plot = Plot::new();
-        plot.add(&self.curve_dev_stress_vol_strain)
-            .grid_and_labels(
-                &self.curve_dev_stress_vol_strain_x_label,
-                &self.curve_dev_stress_vol_strain_y_label,
-            )
-            .save(figure_path)
+        extra(&mut plot, true);
+        plot.add(&self.curve_dev_stress_vol_strain);
+        extra(&mut plot, false);
+        plot.grid_and_labels(
+            &self.curve_dev_stress_vol_strain_x_label,
+            &self.curve_dev_stress_vol_strain_y_label,
+        )
+        .save(filepath)
     }
 
     /// Saves the vol(strain)-dev(strain) curve
-    pub fn save_vol_strain_dev_strain<S>(&self, figure_path: &S) -> Result<(), StrError>
+    ///
+    /// # Input
+    ///
+    /// * `filepath` -- may be a String, &str, or Path
+    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
+    ///   The two arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _| {}` to do nothing.
+    pub fn save_vol_strain_dev_strain<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
     where
-        S: AsRef<OsStr> + ?Sized,
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, bool),
     {
         let mut plot = Plot::new();
-        plot.add(&self.curve_vol_strain_dev_strain)
-            .grid_and_labels(
-                &self.curve_vol_strain_dev_strain_x_label,
-                &self.curve_vol_strain_dev_strain_y_label,
-            )
-            .save(figure_path)
+        extra(&mut plot, true);
+        plot.add(&self.curve_vol_strain_dev_strain);
+        extra(&mut plot, false);
+        plot.grid_and_labels(
+            &self.curve_vol_strain_dev_strain_x_label,
+            &self.curve_vol_strain_dev_strain_y_label,
+        )
+        .save(filepath)
     }
 
     /// Saves the dev(stress)-mean(stress) path
-    pub fn save_dev_mean_stress_path<S>(&self, figure_path: &S) -> Result<(), StrError>
+    ///
+    /// # Input
+    ///
+    /// * `filepath` -- may be a String, &str, or Path
+    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
+    ///   The two arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _| {}` to do nothing.
+    pub fn save_dev_mean_stress_path<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
     where
-        S: AsRef<OsStr> + ?Sized,
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, bool),
     {
         let mut plot = Plot::new();
-        plot.add(&self.curve_dev_mean_stress_path)
-            .grid_and_labels(
-                &self.curve_dev_mean_stress_path_x_label,
-                &self.curve_dev_mean_stress_path_y_label,
-            )
-            .save(figure_path)
+        extra(&mut plot, true);
+        plot.add(&self.curve_dev_mean_stress_path);
+        extra(&mut plot, false);
+        plot.grid_and_labels(
+            &self.curve_dev_mean_stress_path_x_label,
+            &self.curve_dev_mean_stress_path_y_label,
+        )
+        .save(filepath)
     }
 
     /// Saves the octahedral stress path
-    pub fn save_octahedral_stress_path<S>(&self, figure_path: &S) -> Result<(), StrError>
+    ///
+    /// # Input
+    ///
+    /// * `filepath` -- may be a String, &str, or Path
+    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
+    ///   The two arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _| {}` to do nothing.
+    pub fn save_octahedral_stress_path<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
     where
-        S: AsRef<OsStr> + ?Sized,
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, bool),
     {
         let mut plot = Plot::new();
-        plot.add(&self.curve_octahedral_stress_path).save(figure_path)
+        extra(&mut plot, true);
+        plot.add(&self.curve_octahedral_stress_path);
+        extra(&mut plot, false);
+        plot.save(filepath)
     }
 
     /// Plots the dev(stress)-dev(strain) invariants curve
@@ -273,6 +344,7 @@ impl StressStrainPlot {
 mod tests {
     use super::{SSPlotParams, StressStrainPlot};
     use crate::material::StressStrainPath;
+    use plotpy::SlopeIcon;
     use russell_tensor::Tensor2;
 
     const SAVE_FIGURE: bool = true;
@@ -286,12 +358,26 @@ mod tests {
             plot.dev_stress_dev_strain(&stresses, &strains, None).err(),
             Some("arrays of stresses and strains must have the same length")
         );
+        assert_eq!(
+            plot.dev_stress_vol_strain(&stresses, &strains, None).err(),
+            Some("arrays of stresses and strains must have the same length")
+        );
+        assert_eq!(
+            plot.vol_strain_dev_strain(&stresses, &strains, None).err(),
+            Some("arrays of stresses and strains must have the same length")
+        );
     }
 
     #[test]
     pub fn dev_stress_dev_strain_works() {
-        let young = 1500.0;
-        let poisson = 0.25;
+        let bulk = 1000.0;
+        let shear = 600.0;
+        let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
+        let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
+        println!(" E = {:?}", young);
+        println!(" ν = {:?}", poisson);
+        println!(" K = {:?}", bulk);
+        println!("3G = {:?}", 3.0 * shear);
         let mut path = StressStrainPath::new(young, poisson, true);
         let dsigma_m = 1.0;
         let dsigma_d = 9.0;
@@ -307,8 +393,18 @@ mod tests {
         plot.curve_dev_stress_dev_strain.set_line_color("red");
         plot.dev_stress_dev_strain(&path.stresses, &path.strains, None).unwrap();
         if SAVE_FIGURE {
-            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_1.svg")
-                .unwrap();
+            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_1.svg", |plot, before| {
+                if !before {
+                    let mut icon = SlopeIcon::new();
+                    let j = path.sigma_d.len() - 1;
+                    let slope = (path.sigma_d[j] - path.sigma_d[0]) / (path.eps_d[j] - path.eps_d[0]);
+                    let x_mid = (path.eps_d[0] + path.eps_d[j]) / 2.0;
+                    let y_mid = (path.sigma_d[0] + path.sigma_d[j]) / 2.0;
+                    icon.draw(slope, x_mid, y_mid);
+                    plot.add(&icon);
+                }
+            })
+            .unwrap();
         }
 
         let mut params = SSPlotParams::new();
@@ -319,7 +415,7 @@ mod tests {
         plot.dev_stress_dev_strain(&path.stresses, &path.strains, Some(params))
             .unwrap();
         if SAVE_FIGURE {
-            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_2.svg")
+            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_2.svg", |_, _| {})
                 .unwrap();
         }
 
@@ -331,7 +427,7 @@ mod tests {
         plot.dev_stress_dev_strain(&path.stresses, &path.strains, Some(params))
             .unwrap();
         if SAVE_FIGURE {
-            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_3.svg")
+            plot.save_dev_stress_dev_strain("/tmp/pmsim/test_dev_stress_dev_strain_3.svg", |_, _| {})
                 .unwrap();
         }
     }
@@ -355,7 +451,7 @@ mod tests {
         plot.curve_dev_stress_vol_strain.set_line_color("red");
         plot.dev_stress_vol_strain(&path.stresses, &path.strains, None).unwrap();
         if SAVE_FIGURE {
-            plot.save_dev_stress_vol_strain("/tmp/pmsim/test_dev_stress_vol_strain_1.svg")
+            plot.save_dev_stress_vol_strain("/tmp/pmsim/test_dev_stress_vol_strain_1.svg", |_, _| {})
                 .unwrap();
         }
 
@@ -367,7 +463,7 @@ mod tests {
         plot.dev_stress_vol_strain(&path.stresses, &path.strains, Some(params))
             .unwrap();
         if SAVE_FIGURE {
-            plot.save_dev_stress_vol_strain("/tmp/pmsim/test_dev_stress_vol_strain_2.svg")
+            plot.save_dev_stress_vol_strain("/tmp/pmsim/test_dev_stress_vol_strain_2.svg", |_, _| {})
                 .unwrap();
         }
 
@@ -379,7 +475,7 @@ mod tests {
         plot.dev_stress_vol_strain(&path.stresses, &path.strains, Some(params))
             .unwrap();
         if SAVE_FIGURE {
-            plot.save_dev_stress_vol_strain("/tmp/pmsim/test_dev_stress_vol_strain_3.svg")
+            plot.save_dev_stress_vol_strain("/tmp/pmsim/test_dev_stress_vol_strain_3.svg", |_, _| {})
                 .unwrap();
         }
     }
@@ -403,7 +499,7 @@ mod tests {
         plot.curve_vol_strain_dev_strain.set_line_color("red");
         plot.vol_strain_dev_strain(&path.stresses, &path.strains, None).unwrap();
         if SAVE_FIGURE {
-            plot.save_vol_strain_dev_strain("/tmp/pmsim/test_vol_strain_dev_strain_1.svg")
+            plot.save_vol_strain_dev_strain("/tmp/pmsim/test_vol_strain_dev_strain_1.svg", |_, _| {})
                 .unwrap();
         }
 
@@ -414,7 +510,7 @@ mod tests {
         plot.vol_strain_dev_strain(&path.stresses, &path.strains, Some(params))
             .unwrap();
         if SAVE_FIGURE {
-            plot.save_vol_strain_dev_strain("/tmp/pmsim/test_vol_strain_dev_strain_2.svg")
+            plot.save_vol_strain_dev_strain("/tmp/pmsim/test_vol_strain_dev_strain_2.svg", |_, _| {})
                 .unwrap();
         }
     }
