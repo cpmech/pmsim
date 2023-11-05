@@ -193,99 +193,83 @@ impl fmt::Display for StressStrainPath {
         // auxiliary
         let ncp = self.mandel.dim(); // number of mandel components
         let width = 23 * ncp;
-        let thick_line = format!("{:━^1$}", "", width);
         let thin_line = format!("{:─^1$}", "", width);
 
         // stresses
         let title = format!("{: ^1$}", "STRESSES", width);
+        writeln!(f, "{}", thin_line).unwrap();
         writeln!(f, "{}", title).unwrap();
-        writeln!(f, "{}", thick_line).unwrap();
         for i in 0..ncp {
             write!(f, "{:>23}", format!("σ{}", i)).unwrap();
         }
         writeln!(f, "").unwrap();
-        writeln!(f, "{}", thin_line).unwrap();
         for sigma in &self.stresses {
             for v in &sigma.vec {
                 write!(f, "{:>23?}", v).unwrap();
             }
             writeln!(f, "").unwrap();
         }
-        writeln!(f, "{}", thick_line).unwrap();
 
         // strains
         let title = format!("{: ^1$}", "STRAINS", width);
-        writeln!(f, "").unwrap();
-        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
         writeln!(f, "{}", title).unwrap();
-        writeln!(f, "{}", thick_line).unwrap();
         for i in 0..ncp {
             write!(f, "{:>23}", format!("ε{}", i)).unwrap();
         }
         writeln!(f, "").unwrap();
-        writeln!(f, "{}", thin_line).unwrap();
         for epsilon in &self.strains {
             for v in &epsilon.vec {
                 write!(f, "{:>23?}", v).unwrap();
             }
             writeln!(f, "").unwrap();
         }
-        writeln!(f, "{}", thick_line).unwrap();
 
         // increments of stress
         let title = format!("{: ^1$}", "INCREMENTS OF STRESS", width);
-        writeln!(f, "").unwrap();
-        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
         writeln!(f, "{}", title).unwrap();
-        writeln!(f, "{}", thick_line).unwrap();
         for i in 0..ncp {
             write!(f, "{:>23}", format!("Δσ{}", i)).unwrap();
         }
         writeln!(f, "").unwrap();
-        writeln!(f, "{}", thin_line).unwrap();
         for dsigma in &self.deltas_stress {
             for v in &dsigma.vec {
                 write!(f, "{:>23?}", v).unwrap();
             }
             writeln!(f, "").unwrap();
         }
-        writeln!(f, "{}", thick_line).unwrap();
 
         // increments of strain
         let title = format!("{: ^1$}", "INCREMENTS OF STRAIN", width);
-        writeln!(f, "").unwrap();
-        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
         writeln!(f, "{}", title).unwrap();
-        writeln!(f, "{}", thick_line).unwrap();
         for i in 0..ncp {
             write!(f, "{:>23}", format!("Δε{}", i)).unwrap();
         }
         writeln!(f, "").unwrap();
-        writeln!(f, "{}", thin_line).unwrap();
         for depsilon in &self.deltas_strain {
             for v in &depsilon.vec {
                 write!(f, "{:>23?}", v).unwrap();
             }
             writeln!(f, "").unwrap();
         }
-        writeln!(f, "{}", thick_line).unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
 
         // auxiliary
         let width = 23 * 3;
-        let thick_line = format!("{:━^1$}", "", width);
         let thin_line = format!("{:─^1$}", "", width);
 
         // stress invariants
         let title = format!("{: ^1$}", "STRESS INVARIANTS", width);
         writeln!(f, "").unwrap();
         writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
         writeln!(f, "{}", title).unwrap();
-        writeln!(f, "{}", thick_line).unwrap();
         write!(f, "{:>23}", "σm").unwrap();
         write!(f, "{:>23}", "σd").unwrap();
         write!(f, "{:>23}", "lode").unwrap();
         writeln!(f, "").unwrap();
-        writeln!(f, "{}", thin_line).unwrap();
         let n = self.sigma_m.len();
         for i in 0..n {
             let lode = match self.sigma_lode[i] {
@@ -297,19 +281,15 @@ impl fmt::Display for StressStrainPath {
             write!(f, "{:>23}", lode).unwrap();
             writeln!(f, "").unwrap();
         }
-        writeln!(f, "{}", thick_line).unwrap();
 
         // strain invariants
         let title = format!("{: ^1$}", "STRAIN INVARIANTS", width);
-        writeln!(f, "").unwrap();
-        writeln!(f, "").unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
         writeln!(f, "{}", title).unwrap();
-        writeln!(f, "{}", thick_line).unwrap();
         write!(f, "{:>23}", "εv").unwrap();
         write!(f, "{:>23}", "εd").unwrap();
         write!(f, "{:>23}", "lode").unwrap();
         writeln!(f, "").unwrap();
-        writeln!(f, "{}", thin_line).unwrap();
         let n = self.eps_v.len();
         for i in 0..n {
             let lode = match self.eps_lode[i] {
@@ -321,7 +301,7 @@ impl fmt::Display for StressStrainPath {
             write!(f, "{:>23}", lode).unwrap();
             writeln!(f, "").unwrap();
         }
-        writeln!(f, "{}", thick_line).unwrap();
+        writeln!(f, "{}", thin_line).unwrap();
         Ok(())
     }
 }
