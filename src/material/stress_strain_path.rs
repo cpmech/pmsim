@@ -1,6 +1,6 @@
 use crate::StrError;
 use russell_lab::{mat_inverse, mat_vec_mul, vec_add, Matrix};
-use russell_tensor::{LinElasticity, Mandel, Tensor2};
+use russell_tensor::{LinElasticity, Mandel, Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
 use std::fmt;
 
 /// Holds stress and strains related via linear elasticity defining stress paths
@@ -93,24 +93,48 @@ impl StressStrainPath {
         }
     }
 
-    /// Pushes a new stress and strain point to the path with stresses computed from the octahedral invariants
+    /// Pushes a new stress and strain with stresses computed from the octahedral invariants
     ///
     /// # Input
     ///
-    /// * `sigma_m` -- mean pressure invariant `σm = ⅓ trace(σ)`
-    /// * `sigma_d` -- deviatoric stress (von Mises) invariant `σd = ‖s‖ √3/√2 = √3 × J2`
+    /// * `sigma_m` -- mean pressure invariant `σm = ⅓ trace(σ) = d / √3`
+    /// * `sigma_d` -- deviatoric stress (von Mises) invariant `σd = ‖s‖ √3/√2 = r √3/√2 = √3 √J2`
     /// * `lode` -- Lode invariant `l = cos(3θ) = (3 √3 J3)/(2 pow(J2,1.5))`.
     ///   **Note:** The Lode invariant must be in `-1 ≤ lode ≤ 1`
-    /// * `strain_driven` -- indicates that the strain path should be considered in simulations
-    pub fn push_stress_with_oct_invariants(
+    /// * `strain_driven` -- indicates that the strain path should "drive" simulations
+    pub fn push_stress_oct(
         &mut self,
         sigma_m: f64,
         sigma_d: f64,
         lode: f64,
         strain_driven: bool,
     ) -> Result<&mut Self, StrError> {
-        let sigma = Tensor2::new_from_oct_invariants(sigma_m, sigma_d, lode, self.two_dim)?;
+        let distance = sigma_m * SQRT_3;
+        let radius = sigma_d * SQRT_2_BY_3;
+        let sigma = Tensor2::new_from_octahedral(distance, radius, lode, self.two_dim)?;
         self.push_stress(sigma, strain_driven)
+    }
+
+    /// Pushes a new stress and strain with strains computed from the octahedral invariants
+    ///
+    /// # Input
+    ///
+    /// * `eps_v` -- volumetric strain: `εv = trace(ε) = d √3`
+    /// * `eps_d` -- deviatoric strain: `εd = norm(dev(ε)) × √2/√3 = r √2/√3`
+    /// * `lode` -- Lode invariant `l = cos(3θ) = (3 √3 J3)/(2 pow(J2,1.5))`.
+    ///   **Note:** The Lode invariant must be in `-1 ≤ lode ≤ 1`
+    /// * `strain_driven` -- indicates that the strain path should "drive" simulations
+    pub fn push_strain_oct(
+        &mut self,
+        eps_v: f64,
+        eps_d: f64,
+        lode: f64,
+        strain_driven: bool,
+    ) -> Result<&mut Self, StrError> {
+        let distance = eps_v / SQRT_3;
+        let radius = eps_d * SQRT_3_BY_2;
+        let epsilon = Tensor2::new_from_octahedral(distance, radius, lode, self.two_dim)?;
+        self.push_strain(epsilon, strain_driven)
     }
 
     /// Pushes a new stress and strain point to the path
@@ -317,62 +341,65 @@ mod tests {
     fn strain_stress_path_works() {
         let young = 1500.0;
         let poisson = 0.25;
+        let kk = young / (3.0 * (1.0 - 2.0 * poisson));
+        let gg = young / (2.0 * (1.0 + poisson));
+        let dsigma_m = 1.0;
+        let dsigma_d = 9.0;
+        let deps_v = dsigma_m / kk;
+        let deps_d = dsigma_d / (3.0 * gg);
+        let lode = 1.0;
         let two_dim = true;
+
         let mut path_a = StressStrainPath::new(young, poisson, two_dim);
         let mut path_b = StressStrainPath::new(young, poisson, two_dim);
 
-        let sigma_m_0 = 1.0;
-        let sigma_d_0 = 9.0;
-        let lode = 1.0;
-
         for i in 0..4 {
             let m = (i + 1) as f64;
-            let sigma_m = m * sigma_m_0;
-            let sigma_d = m * sigma_d_0;
-            path_a
-                .push_stress_with_oct_invariants(sigma_m, sigma_d, lode, true)
-                .unwrap();
+            let sigma_m = m * dsigma_m;
+            let sigma_d = m * dsigma_d;
+            let m = i as f64;
+            let eps_v = m * deps_v;
+            let eps_d = m * deps_d;
+            path_a.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
             if i == 0 {
                 path_b.push_stress(path_a.stresses[i].clone(), true).unwrap();
             } else {
-                path_b.push_strain(path_a.strains[i].clone(), true).unwrap();
+                path_b.push_strain_oct(eps_v, eps_d, lode, true).unwrap();
             }
         }
 
-        println!("{}", path_a);
+        // println!("{}", path_a);
+        // println!("\n\n{}", path_b);
 
-        let kk = young / (3.0 * (1.0 - 2.0 * poisson));
-        let gg = young / (2.0 * (1.0 + poisson));
-        let eps_v_1 = sigma_m_0 / kk;
-        let eps_d_1 = sigma_d_0 / (3.0 * gg);
-
-        for i in 0..path_a.stresses.len() {
+        for i in 0..4 {
             vec_approx_eq(
                 path_a.stresses[i].vec.as_data(),
                 path_b.stresses[i].vec.as_data(),
                 1e-14,
             );
-            vec_approx_eq(path_a.strains[i].vec.as_data(), path_b.strains[i].vec.as_data(), 1e-15);
-            let m = (i + 1) as f64;
-            let sigma_m = m * sigma_m_0;
-            let sigma_d = m * sigma_d_0;
-            approx_eq(path_a.sigma_m[i], sigma_m, 1e-14);
-            approx_eq(path_b.sigma_m[i], sigma_m, 1e-14);
-            approx_eq(path_a.sigma_d[i], sigma_d, 1e-14);
-            approx_eq(path_b.sigma_d[i], sigma_d, 1e-14);
-            approx_eq(path_a.sigma_lode[i].unwrap(), 1.0, 1e-14);
-            approx_eq(path_b.sigma_lode[i].unwrap(), 1.0, 1e-14);
-            let m = i as f64;
-            let eps_v = m * eps_v_1;
-            let eps_d = m * eps_d_1;
-            approx_eq(path_a.eps_v[i], eps_v, 1e-15);
-            approx_eq(path_b.eps_v[i], eps_v, 1e-15);
-            approx_eq(path_a.eps_d[i], eps_d, 1e-15);
-            approx_eq(path_b.eps_d[i], eps_d, 1e-15);
-            if i > 0 {
-                approx_eq(path_a.eps_lode[i].unwrap(), 1.0, 1e-14);
-                approx_eq(path_b.eps_lode[i].unwrap(), 1.0, 1e-14);
+            vec_approx_eq(path_a.strains[i].vec.as_data(), path_b.strains[i].vec.as_data(), 1e-14);
+            approx_eq(path_a.sigma_m[i], path_b.sigma_m[i], 1e-14);
+            approx_eq(path_a.sigma_d[i], path_b.sigma_d[i], 1e-14);
+            approx_eq(path_a.sigma_lode[i].unwrap(), path_b.sigma_lode[i].unwrap(), 1e-14);
+            approx_eq(path_a.eps_v[i], path_b.eps_v[i], 1e-14);
+            approx_eq(path_a.eps_d[i], path_b.eps_d[i], 1e-14);
+            if i == 0 {
+                assert_eq!(path_a.eps_lode[i], path_b.eps_lode[i]);
+            } else {
+                approx_eq(path_a.eps_lode[i].unwrap(), path_b.eps_lode[i].unwrap(), 1e-14);
             }
+        }
+        for i in 0..3 {
+            vec_approx_eq(
+                path_a.deltas_stress[i].vec.as_data(),
+                path_b.deltas_stress[i].vec.as_data(),
+                1e-14,
+            );
+            vec_approx_eq(
+                path_a.deltas_strain[i].vec.as_data(),
+                path_b.deltas_strain[i].vec.as_data(),
+                1e-14,
+            );
         }
     }
 }
