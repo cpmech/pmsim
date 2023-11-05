@@ -5,11 +5,15 @@
     "cylin",
     "dphi",
     "emap",
+    "epsd",
+    "epsv",
     "IFEM",
     "jacobians",
     "nafems",
     "Paraview",
     "rref",
+    "sigd",
+    "sigm",
     "UNSYM"
   ]
 }
