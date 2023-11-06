@@ -356,9 +356,9 @@ impl StressStrainPlot {
     /// Saves a figure with Mosaic 3x2 for structural mechanics
     ///
     /// ```text
-    /// (epsd,sigd)  (epsv,sigd)
-    /// (epsd,epsv)  (sigm,epsv)
-    /// (sigm,sigd)   octahedral
+    ///  m-d-path    octahedral
+    /// (epsd,sigd) (epsv,sigd)
+    /// (epsd,sigm) (epsv,sigm)
     /// ```
     ///
     /// # Input
@@ -387,15 +387,15 @@ impl StressStrainPlot {
     {
         let percent = true;
         let axes = vec![
+            vec![Some((Axis::SigM(false), Axis::SigD(false))), None],
             vec![
                 Some((Axis::EpsD(percent), Axis::SigD(false))),
                 Some((Axis::EpsV(percent, false), Axis::SigD(false))),
             ],
             vec![
-                Some((Axis::EpsD(percent), Axis::EpsV(percent, false))),
-                Some((Axis::SigM(false), Axis::EpsV(percent, false))),
+                Some((Axis::EpsD(percent), Axis::SigM(false))),
+                Some((Axis::EpsV(percent, false), Axis::SigM(false))),
             ],
-            vec![Some((Axis::SigM(false), Axis::SigD(false))), None],
         ];
         let mut ssp = StressStrainPlot::new();
         for row in &axes {
@@ -409,8 +409,11 @@ impl StressStrainPlot {
         let handle = "grid";
         let mut plot = Plot::new();
         let (nrow, ncol) = (3, 2);
-        plot.set_gridspec(handle, nrow, ncol, "wspace=0,hspace=0.2");
+        plot.set_gridspec(handle, nrow, ncol, "wspace=0,hspace=0.35");
         for row in 0..nrow {
+            if row == 1 {
+                plot.set_gridspec(handle, nrow, ncol, "wspace=0,hspace=0");
+            }
             for col in 0..ncol {
                 plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
                 extra(&mut plot, row, col, true);
@@ -420,11 +423,16 @@ impl StressStrainPlot {
                         plot.add(curve);
                         let x = x_axis.label();
                         let y = y_axis.label();
-                        if col > 0 {
-                            plot.grid_and_labels(&x, "");
-                            plot.extra("plt.gca().get_yaxis().set_ticklabels([])\n");
+                        plot.grid_and_labels("", "");
+                        if col == 0 {
+                            plot.set_label_y(&y);
                         } else {
-                            plot.grid_and_labels(&x, &y);
+                            plot.extra("plt.gca().get_yaxis().set_ticklabels([])\n");
+                        }
+                        if row == 0 || row == 2 {
+                            plot.set_label_x(&x);
+                        } else {
+                            plot.extra("plt.gca().get_xaxis().set_ticklabels([])\n");
                         }
                     }
                     None => {
@@ -460,7 +468,7 @@ mod tests {
     use russell_tensor::{Tensor2, SQRT_2_BY_3};
     use std::collections::HashSet;
 
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     fn generate_path() -> StressStrainPath {
         let bulk = 1000.0;
