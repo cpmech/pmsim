@@ -362,34 +362,64 @@ impl StressStrainPlot {
         }
     }
 
-    /// Saves a figure with Mosaic 3x2 for structural mechanics
+    /// Draws a 3x2 mosaic for structural mechanics
     ///
-    /// ```text
-    ///  m-d-path    octahedral
-    /// (epsd,sigd) (epsv,sigd)
-    /// (epsd,sigm) (epsv,sigm)
-    /// ```
-    ///
+    /// | row\col |     0      |     1      |
+    /// |:-------:|:----------:|:----------:|
+    /// |    0    | σd-σm path | octahedral |
+    /// |    1    |  (εd, σd)  |  (εv, σd)  |
+    /// |    2    |  (εd, σm)  |  (εv, σm)  |
+    ///  
     /// # Input
     ///
     /// * `stresses` -- the stress points
     /// * `strains` -- the strain points
+    /// * `extra` -- is a function `|curve| {}` to configure the curve
+    pub fn draw_3x2_mosaic_struct<F>(&mut self, stresses: &Vec<Tensor2>, strains: &Vec<Tensor2>, mut extra: F)
+    where
+        F: FnMut(&mut Curve),
+    {
+        let percent = true;
+        let axes = vec![
+            vec![Some((Axis::SigM(false), Axis::SigD(false))), None],
+            vec![
+                Some((Axis::EpsD(percent), Axis::SigD(false))),
+                Some((Axis::EpsV(percent, false), Axis::SigD(false))),
+            ],
+            vec![
+                Some((Axis::EpsD(percent), Axis::SigM(false))),
+                Some((Axis::EpsV(percent, false), Axis::SigM(false))),
+            ],
+        ];
+        for row in 0..3 {
+            for col in 0..2 {
+                match axes[row][col] {
+                    Some((x_axis, y_axis)) => self
+                        .draw(x_axis, y_axis, stresses, strains, |curve| extra(curve))
+                        .unwrap(),
+                    None => self.draw_oct_projection(stresses).unwrap(),
+                }
+            }
+        }
+    }
+
+    /// Saves the 3x2 mosaic for structural mechanics
+    ///
+    /// **Note:** Call this function after [StressStrainPlot::draw_3x2_mosaic_struct].
+    ///
+    /// # Input
+    ///
     /// * `filepath` -- may be a String, &str, or Path
     /// * `extra` -- is a function `|plot, row, col, before| {}` to perform some {pre,post}-drawing on the plot area.
     ///   The four arguments of this function are:
     ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
     ///     * `row: usize` -- the row index in the grid
-    ///     * `col: usize` -- the columns index in the grid
+    ///     * `col: usize` -- the column index in the grid
     ///     * `before: bool` -- **true** indicates that the function is being called before all other
     ///       drawing functions. Otherwise, **false* indicates that the function is being called after
     ///       all other drawing functions, and just before the `plot.save` call.
     ///   For example, use `|_, _, _, _| {}` to do nothing.
-    pub fn mosaic_3x2_structural<P, F>(
-        stresses: &Vec<Tensor2>,
-        strains: &Vec<Tensor2>,
-        filepath: &P,
-        mut extra: F,
-    ) -> Result<(), StrError>
+    pub fn save_3x2_mosaic_struct<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
     where
         P: AsRef<OsStr> + ?Sized,
         F: FnMut(&mut Plot, usize, usize, bool),
@@ -406,15 +436,6 @@ impl StressStrainPlot {
                 Some((Axis::EpsV(percent, false), Axis::SigM(false))),
             ],
         ];
-        let mut ssp = StressStrainPlot::new();
-        for row in &axes {
-            for pair in row {
-                match pair {
-                    Some((x_axis, y_axis)) => ssp.draw(*x_axis, *y_axis, stresses, strains, |_| {}).unwrap(),
-                    None => ssp.draw_oct_projection(stresses).unwrap(),
-                }
-            }
-        }
         let handle = "grid";
         let mut plot = Plot::new();
         let (nrow, ncol) = (3, 2);
@@ -428,7 +449,7 @@ impl StressStrainPlot {
                 extra(&mut plot, row, col, true);
                 match axes[row][col] {
                     Some((x_axis, y_axis)) => {
-                        for curve in ssp.curves.get(&(x_axis, y_axis)).unwrap() {
+                        for curve in self.curves.get(&(x_axis, y_axis)).unwrap() {
                             plot.add(curve);
                         }
                         let x = x_axis.label();
@@ -446,7 +467,7 @@ impl StressStrainPlot {
                         }
                     }
                     None => {
-                        let d = ssp.oct.as_ref().unwrap();
+                        let d = self.oct.as_ref().unwrap();
                         plot.add(&d.text);
                         plot.add(&d.pos_axes);
                         plot.add(&d.neg_axes);
@@ -473,7 +494,7 @@ impl StressStrainPlot {
 mod tests {
     use super::{Axis, StressStrainPlot};
     use crate::material::StressStrainPath;
-    use plotpy::{Canvas, SlopeIcon, SuperTitleParams};
+    use plotpy::{Canvas, Legend, SlopeIcon, SuperTitleParams};
     use russell_lab::vec_approx_eq;
     use russell_tensor::{Tensor2, SQRT_2_BY_3};
     use std::collections::HashSet;
@@ -775,16 +796,26 @@ mod tests {
     }
 
     #[test]
-    pub fn mosaic_3x2_structural_works() {
+    pub fn draw_3x2_mosaic_struct_works() {
+        let path_a = generate_path(1000.0, 600.0);
+        let path_b = generate_path(500.0, 200.0);
+        let mut ssp = StressStrainPlot::new();
+        ssp.draw_3x2_mosaic_struct(&path_a.stresses, &path_a.strains, |curve| {
+            curve.set_label("stiff");
+        });
+        ssp.draw_3x2_mosaic_struct(&path_b.stresses, &path_b.strains, |curve| {
+            curve.set_marker_style("o").set_label("soft");
+        });
         if SAVE_FIGURE {
-            let path = generate_path(1000.0, 600.0);
-            StressStrainPlot::mosaic_3x2_structural(
-                &path.stresses,
-                &path.strains,
-                "/tmp/pmsim/test_mosaic_3x2_structural.svg",
-                |_, _, _, _| {},
-            )
-            .unwrap()
+            let mut legend = Legend::new();
+            legend.set_outside(true).set_num_col(2);
+            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_3x2_mosaic_3x2_struct.svg", |plot, row, col, before| {
+                if !before && row == 1 && col == 1 {
+                    legend.draw();
+                    plot.add(&legend);
+                }
+            })
+            .unwrap();
         }
     }
 

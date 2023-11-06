@@ -197,39 +197,36 @@ mod tests {
                 // elastoplastic update
                 correct_sigma_m += kk * deps_v;
                 correct_sigma_d += 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
-                println!("{} => {}", sigma_d, correct_sigma_d);
+                println!("sigma_d = {} => {}", sigma_d, correct_sigma_d);
             }
             approx_eq(sigma_m, correct_sigma_m, 1e-14);
             approx_eq(sigma_d, correct_sigma_d, 1e-14);
         }
 
         if SAVE_FIGURE {
-            StressStrainPlot::mosaic_3x2_structural(
-                &stresses,
-                &strains,
-                "/tmp/pmsim/test_von_mises_1.svg",
-                |plot, row, col, before| {
-                    if before {
-                        let z_final = state.internal_values[0];
-                        if (row == 0 && col == 0) || row == 1 {
-                            let mut limit = Curve::new();
-                            limit.set_line_color("#a8a8a8");
-                            limit.draw_ray(0.0, z0, RayEndpoint::Horizontal);
-                            limit.set_line_color("black");
-                            limit.draw_ray(0.0, z_final, RayEndpoint::Horizontal);
-                            plot.add(&limit);
-                        }
-                        if row == 0 && col == 1 {
-                            let mut circle = Canvas::new();
-                            circle.set_edge_color("#a8a8a8").set_face_color("None");
-                            circle.draw_circle(0.0, 0.0, z0 * SQRT_2_BY_3);
-                            circle.set_edge_color("black");
-                            circle.draw_circle(0.0, 0.0, z_final * SQRT_2_BY_3);
-                            plot.add(&circle);
-                        }
+            let mut ssp = StressStrainPlot::new();
+            ssp.draw_3x2_mosaic_struct(&stresses, &strains, |_| {});
+            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_von_mises_1.svg", |plot, row, col, before| {
+                if before {
+                    let z_final = state.internal_values[0];
+                    if (row == 0 && col == 0) || row == 1 {
+                        let mut limit = Curve::new();
+                        limit.set_line_color("#a8a8a8");
+                        limit.draw_ray(0.0, z0, RayEndpoint::Horizontal);
+                        limit.set_line_color("black");
+                        limit.draw_ray(0.0, z_final, RayEndpoint::Horizontal);
+                        plot.add(&limit);
                     }
-                },
-            )
+                    if row == 0 && col == 1 {
+                        let mut circle = Canvas::new();
+                        circle.set_edge_color("#a8a8a8").set_face_color("None");
+                        circle.draw_circle(0.0, 0.0, z0 * SQRT_2_BY_3);
+                        circle.set_edge_color("black");
+                        circle.draw_circle(0.0, 0.0, z_final * SQRT_2_BY_3);
+                        plot.add(&circle);
+                    }
+                }
+            })
             .unwrap();
         }
     }
