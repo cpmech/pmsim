@@ -697,4 +697,31 @@ mod tests {
             .unwrap()
         }
     }
+
+    #[test]
+    pub fn stress_path_works() {
+        if SAVE_FIGURE {
+            let path = generate_path();
+            let mut ssp = StressStrainPlot::new();
+            let x_axis = Axis::SigM(false);
+            let y_axis = Axis::SigD(false);
+            ssp.draw(x_axis, y_axis, &path.stresses, &path.strains, |_| {}).unwrap();
+            ssp.save(x_axis, y_axis, "/tmp/pmsim/test_stress_path_1.svg", |plot, before| {
+                if !before {
+                    let mut max_sigma_d = 0.0;
+                    for sigma_d in &path.sigma_d {
+                        if *sigma_d > max_sigma_d {
+                            max_sigma_d = *sigma_d;
+                        }
+                    }
+                    let mut horiz_line = Canvas::new();
+                    horiz_line.set_edge_color("red");
+                    horiz_line.draw_polyline(&[[0.0, max_sigma_d], [30.0, max_sigma_d]], false);
+                    plot.add(&horiz_line);
+                    plot.set_range(0.0, 30.0, 0.0, 30.0).set_equal_axes(true);
+                }
+            })
+            .unwrap();
+        }
+    }
 }
