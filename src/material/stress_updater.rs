@@ -3,11 +3,13 @@
 use super::StressStrainModel;
 use russell_tensor::Tensor2;
 
+/// Simulates the stress-update process at the material point (Gauss point) level
 pub struct StressUpdater {
     model: StressStrainModel,
 }
 
 impl StressUpdater {
+    /// Allocates a new instance
     pub fn new(model: StressStrainModel) -> Self {
         StressUpdater { model }
     }

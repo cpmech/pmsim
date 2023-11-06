@@ -3,6 +3,7 @@ use crate::base::{ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
+/// Specifies the essential functions for stress-strain models
 pub trait StressStrainTrait: Send + Sync {
     /// Indicates that the stiffness matrix is symmetric and constant
     fn symmetric_and_constant_stiffness(&self) -> bool;
@@ -20,6 +21,7 @@ pub trait StressStrainTrait: Send + Sync {
     fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError>;
 }
 
+/// Holds the actual stress-strain model implementation
 pub struct StressStrainModel {
     /// Holds the actual model implementation
     pub actual: Box<dyn StressStrainTrait>,

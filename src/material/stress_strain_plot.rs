@@ -114,6 +114,8 @@ impl StressStrainPlot {
 
     /// Saves the stress/strain curve
     ///
+    /// **Note:** Call this function after [StressStrainPlot::draw].
+    ///
     /// # Input
     ///
     /// * `x_axis` -- the key of the x-axis already drawn with `draw`
@@ -146,6 +148,8 @@ impl StressStrainPlot {
     }
 
     /// Saves a grid of stress/strain curves
+    ///
+    /// **Note:** Call this function after [StressStrainPlot::draw].
     ///
     /// # Input
     ///
