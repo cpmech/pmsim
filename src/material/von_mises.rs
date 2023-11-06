@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use super::{StressState, StressStrainTrait};
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4, IDENTITY2};
@@ -125,18 +123,18 @@ mod tests {
     use super::VonMises;
     use crate::material::{StressState, StressStrainPath, StressStrainPlot, StressStrainTrait};
     use plotpy::{Canvas, Curve, RayEndpoint};
-    use russell_lab::vec_approx_eq;
-    use russell_tensor::SQRT_2_BY_3;
+    use russell_lab::{approx_eq, vec_update};
+    use russell_tensor::{Tensor2, SQRT_2_BY_3};
 
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     fn generate_path(young: f64, poisson: f64) -> StressStrainPath {
-        let bulk = young / (3.0 * (1.0 - 2.0 * poisson));
-        let shear = young / (2.0 * (1.0 + poisson));
-        println!(" E = {:?}", young);
-        println!(" ν = {:?}", poisson);
-        println!(" K = {:?}", bulk);
-        println!("3G = {:?}", 3.0 * shear);
+        // let kk = young / (3.0 * (1.0 - 2.0 * poisson));
+        // let gg = young / (2.0 * (1.0 + poisson));
+        // println!(" E = {:?}", young);
+        // println!(" ν = {:?}", poisson);
+        // println!(" K = {:?}", kk);
+        // println!("3G = {:?}", 3.0 * gg);
         let mut path = StressStrainPath::new(young, poisson, true);
         let dsigma_m = 1.0;
         let dsigma_d = 9.0;
@@ -154,6 +152,8 @@ mod tests {
     fn update_stress_works() {
         let young = 1500.0;
         let poisson = 0.25;
+        let kk = young / (3.0 * (1.0 - 2.0 * poisson));
+        let gg = young / (2.0 * (1.0 + poisson));
         let two_dim = true;
         let z0 = 9.0;
         let hh = 800.0;
@@ -165,24 +165,48 @@ mod tests {
         assert_eq!(state.internal_values.len(), 2);
 
         let path = generate_path(young, poisson);
-        println!("{}", path);
         state.sigma.mirror(&path.stresses[0]).unwrap();
         model.initialize_internal_values(&mut state).unwrap();
         assert_eq!(state.loading, false);
         assert_eq!(state.sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0]);
         assert_eq!(state.internal_values, &[z0, 0.0]);
 
-        let mut sigmas = vec![state.sigma.clone()];
+        let mut correct_sigma_m = 0.0;
+        let mut correct_sigma_d = 0.0;
 
-        for deps in &path.deltas_strain {
-            model.update_stress(&mut state, &path.deltas_strain[0]).unwrap();
-            sigmas.push(state.sigma.clone());
+        // let mut dsigma = Tensor2::new_sym(two_dim);
+        let mut epsilon = Tensor2::new_sym(two_dim);
+        let mut stresses = vec![state.sigma.clone()];
+        let mut strains = vec![epsilon.clone()];
+
+        for i in 0..path.deltas_strain.len() {
+            let deps = &path.deltas_strain[i];
+            model.update_stress(&mut state, deps).unwrap();
+            vec_update(&mut epsilon.vec, 1.0, &deps.vec).unwrap();
+            stresses.push(state.sigma.clone());
+            strains.push(epsilon.clone());
+            let sigma_m = stresses[i + 1].invariant_sigma_m();
+            let sigma_d = stresses[i + 1].invariant_sigma_d();
+            let deps_v = strains[i + 1].invariant_eps_v() - strains[i].invariant_eps_v();
+            let deps_d = strains[i + 1].invariant_eps_d() - strains[i].invariant_eps_d();
+            if i == 0 {
+                // elastic update
+                correct_sigma_m += kk * deps_v;
+                correct_sigma_d += 3.0 * gg * deps_d;
+            } else {
+                // elastoplastic update
+                correct_sigma_m += kk * deps_v;
+                correct_sigma_d += 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+                println!("{} => {}", sigma_d, correct_sigma_d);
+            }
+            approx_eq(sigma_m, correct_sigma_m, 1e-14);
+            approx_eq(sigma_d, correct_sigma_d, 1e-14);
         }
 
         if SAVE_FIGURE {
             StressStrainPlot::mosaic_3x2_structural(
-                &sigmas,
-                &path.strains,
+                &stresses,
+                &strains,
                 "/tmp/pmsim/test_von_mises_1.svg",
                 |plot, row, col, before| {
                     if before {
@@ -191,7 +215,7 @@ mod tests {
                             let mut limit = Curve::new();
                             limit.set_line_color("#a8a8a8");
                             limit.draw_ray(0.0, z0, RayEndpoint::Horizontal);
-                            limit.set_line_color("red");
+                            limit.set_line_color("black");
                             limit.draw_ray(0.0, z_final, RayEndpoint::Horizontal);
                             plot.add(&limit);
                         }
@@ -199,7 +223,7 @@ mod tests {
                             let mut circle = Canvas::new();
                             circle.set_edge_color("#a8a8a8").set_face_color("None");
                             circle.draw_circle(0.0, 0.0, z0 * SQRT_2_BY_3);
-                            circle.set_edge_color("red");
+                            circle.set_edge_color("black");
                             circle.draw_circle(0.0, 0.0, z_final * SQRT_2_BY_3);
                             plot.add(&circle);
                         }
