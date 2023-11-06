@@ -122,23 +122,21 @@ impl StressStrainTrait for VonMises {
 mod tests {
     use super::VonMises;
     use crate::material::{StressState, StressStrainPath, StressStrainPlot, StressStrainTrait};
-    use plotpy::{Canvas, Curve, RayEndpoint};
+    use plotpy::{Canvas, Curve, Legend, RayEndpoint};
     use russell_lab::{approx_eq, vec_update};
     use russell_tensor::{Tensor2, SQRT_2_BY_3};
 
-    const SAVE_FIGURE: bool = false;
+    const SAVE_FIGURE: bool = true;
 
-    fn generate_path(young: f64, poisson: f64) -> StressStrainPath {
+    fn generate_path(young: f64, poisson: f64, dsigma_m: f64, dsigma_d: f64, lode: f64) -> StressStrainPath {
         // let kk = young / (3.0 * (1.0 - 2.0 * poisson));
         // let gg = young / (2.0 * (1.0 + poisson));
         // println!(" E = {:?}", young);
         // println!(" ν = {:?}", poisson);
         // println!(" K = {:?}", kk);
         // println!("3G = {:?}", 3.0 * gg);
-        let mut path = StressStrainPath::new(young, poisson, true);
-        let dsigma_m = 1.0;
-        let dsigma_d = 9.0;
-        let lode = 1.0;
+        let two_dim = true;
+        let mut path = StressStrainPath::new(young, poisson, two_dim);
         for i in 0..3 {
             let m = i as f64;
             let sigma_m = m * dsigma_m;
@@ -146,6 +144,34 @@ mod tests {
             path.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
         }
         path
+    }
+
+    fn generate_state(z0: f64, path: &StressStrainPath, model: &VonMises) -> StressState {
+        let two_dim = true;
+        let n_internal_values = model.n_internal_values();
+        let mut state = StressState::new(two_dim, n_internal_values);
+        state.sigma.mirror(&path.stresses[0]).unwrap();
+        model.initialize_internal_values(&mut state).unwrap();
+        assert_eq!(state.loading, false);
+        assert_eq!(state.sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0]);
+        assert_eq!(state.internal_values, &[z0, 0.0]);
+        state
+    }
+
+    fn run_update(z0: f64, path: &StressStrainPath, model: &mut VonMises) -> (Vec<Tensor2>, Vec<Tensor2>) {
+        let two_dim = true;
+        let mut state = generate_state(z0, path, model);
+        let mut epsilon = Tensor2::new_sym(two_dim);
+        let mut stresses = vec![state.sigma.clone()];
+        let mut strains = vec![epsilon.clone()];
+        for i in 0..path.deltas_strain.len() {
+            let deps = &path.deltas_strain[i];
+            model.update_stress(&mut state, deps).unwrap();
+            vec_update(&mut epsilon.vec, 1.0, &deps.vec).unwrap();
+            stresses.push(state.sigma.clone());
+            strains.push(epsilon.clone());
+        }
+        (stresses, strains)
     }
 
     #[test]
@@ -159,37 +185,17 @@ mod tests {
         let hh = 800.0;
         let mut model = VonMises::new(young, poisson, two_dim, z0, hh);
 
-        let n_internal_values = model.n_internal_values();
-        let mut state = StressState::new(two_dim, n_internal_values);
-        assert_eq!(state.sigma.vec.dim(), 4);
-        assert_eq!(state.internal_values.len(), 2);
-
-        let path = generate_path(young, poisson);
-        state.sigma.mirror(&path.stresses[0]).unwrap();
-        model.initialize_internal_values(&mut state).unwrap();
-        assert_eq!(state.loading, false);
-        assert_eq!(state.sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0]);
-        assert_eq!(state.internal_values, &[z0, 0.0]);
-
+        // first update exactly to the yield surface, then load more
+        let path_a = generate_path(young, poisson, 1.0, 9.0, 1.0);
+        let (stresses_a, strains_a) = run_update(z0, &path_a, &mut model);
         let mut correct_sigma_m = 0.0;
         let mut correct_sigma_d = 0.0;
-
-        // let mut dsigma = Tensor2::new_sym(two_dim);
-        let mut epsilon = Tensor2::new_sym(two_dim);
-        let mut stresses = vec![state.sigma.clone()];
-        let mut strains = vec![epsilon.clone()];
-
-        for i in 0..path.deltas_strain.len() {
-            let deps = &path.deltas_strain[i];
-            model.update_stress(&mut state, deps).unwrap();
-            vec_update(&mut epsilon.vec, 1.0, &deps.vec).unwrap();
-            stresses.push(state.sigma.clone());
-            strains.push(epsilon.clone());
-            let sigma_m = stresses[i + 1].invariant_sigma_m();
-            let sigma_d = stresses[i + 1].invariant_sigma_d();
-            let deps_v = strains[i + 1].invariant_eps_v() - strains[i].invariant_eps_v();
-            let deps_d = strains[i + 1].invariant_eps_d() - strains[i].invariant_eps_d();
-            if i == 0 {
+        for i in 1..stresses_a.len() {
+            let sigma_m = stresses_a[i].invariant_sigma_m();
+            let sigma_d = stresses_a[i].invariant_sigma_d();
+            let deps_v = strains_a[i].invariant_eps_v() - strains_a[i - 1].invariant_eps_v();
+            let deps_d = strains_a[i].invariant_eps_d() - strains_a[i - 1].invariant_eps_d();
+            if i == 1 {
                 // elastic update
                 correct_sigma_m += kk * deps_v;
                 correct_sigma_d += 3.0 * gg * deps_d;
@@ -199,16 +205,54 @@ mod tests {
                 correct_sigma_d += 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
                 println!("sigma_d = {} => {}", sigma_d, correct_sigma_d);
             }
-            approx_eq(sigma_m, correct_sigma_m, 1e-14);
+            approx_eq(sigma_m, correct_sigma_m, 1e-15);
+            approx_eq(sigma_d, correct_sigma_d, 1e-14);
+        }
+
+        // update with a larger increment, over the yield surface
+        let path_b = generate_path(young, poisson, 1.0, 9.0, 0.0);
+        let (stresses_b, strains_b) = run_update(z0, &path_b, &mut model);
+        let mut correct_sigma_m = 0.0;
+        let mut correct_sigma_d = 0.0;
+        for i in 1..stresses_a.len() {
+            let sigma_m = stresses_b[i].invariant_sigma_m();
+            let sigma_d = stresses_b[i].invariant_sigma_d();
+            let deps_v = strains_b[i].invariant_eps_v() - strains_b[i - 1].invariant_eps_v();
+            let deps_d = strains_b[i].invariant_eps_d() - strains_b[i - 1].invariant_eps_d();
+            if i == 1 {
+                // elastic update
+                correct_sigma_m += kk * deps_v;
+                correct_sigma_d += 3.0 * gg * deps_d;
+            } else {
+                // elastoplastic update
+                correct_sigma_m += kk * deps_v;
+                correct_sigma_d += 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+                println!("sigma_d = {} => {}", sigma_d, correct_sigma_d);
+            }
+            approx_eq(sigma_m, correct_sigma_m, 1e-15);
             approx_eq(sigma_d, correct_sigma_d, 1e-14);
         }
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(&stresses, &strains, |_| {});
+            ssp.draw_3x2_mosaic_struct(&stresses_a, &strains_a, |curve, _, _| {
+                curve.set_marker_style("o").set_label("$\\ell=1$");
+            });
+            ssp.draw_3x2_mosaic_struct(&stresses_b, &strains_b, |curve, row, col| {
+                if row == 0 && col == 1 {
+                    curve.set_marker_style(".").set_label("$\\ell=0$");
+                } else {
+                    curve
+                        .set_marker_style(".")
+                        .set_label("$\\ell=0$")
+                        .set_line_style("None");
+                }
+            });
+            let mut legend = Legend::new();
+            legend.set_outside(true).set_num_col(2);
             ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_von_mises_1.svg", |plot, row, col, before| {
                 if before {
-                    let z_final = state.internal_values[0];
+                    let z_final = z0; // TODO state_a.internal_values[0];
                     if (row == 0 && col == 0) || row == 1 {
                         let mut limit = Curve::new();
                         limit.set_line_color("#a8a8a8");
@@ -224,6 +268,11 @@ mod tests {
                         circle.set_edge_color("black");
                         circle.draw_circle(0.0, 0.0, z_final * SQRT_2_BY_3);
                         plot.add(&circle);
+                    }
+                } else {
+                    if row == 1 && col == 1 {
+                        legend.draw();
+                        plot.add(&legend);
                     }
                 }
             })
