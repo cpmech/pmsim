@@ -5,6 +5,10 @@ use russell_tensor::{Spectral2, Tensor2};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 
+const OCT_PLOT_ROSETTA_M: f64 = 1.2;
+const OCT_PLOT_ROSETTA_TM: f64 = 1.1;
+const OCT_PLOT_RANGE_M: f64 = 1.15;
+
 /// Defines the stress or strain invariant to be plot along the x or y axis
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Axis {
@@ -283,8 +287,8 @@ impl StressStrainPlot {
             }
         }
 
-        r *= 1.15;
-        let tm = 1.05;
+        r *= OCT_PLOT_ROSETTA_M;
+        let tm = OCT_PLOT_ROSETTA_TM;
 
         let mut text = Text::new();
         let mut pos_axes = Canvas::new();
@@ -492,12 +496,11 @@ impl StressStrainPlot {
             let d = &self.oct[i];
             plot.add(&d.curve);
         }
-        let m = 1.1;
         plot.set_hide_axes(true).set_equal_axes(true).set_range(
-            -m * max_radius,
-            m * max_radius,
-            -m * max_radius,
-            m * max_radius,
+            -OCT_PLOT_RANGE_M * max_radius,
+            OCT_PLOT_RANGE_M * max_radius,
+            -OCT_PLOT_RANGE_M * max_radius,
+            OCT_PLOT_RANGE_M * max_radius,
         );
         Ok(())
     }

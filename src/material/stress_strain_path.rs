@@ -452,7 +452,7 @@ mod tests {
         let path = StressStrainPath::new_linear_oct(
             young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, lode,
         );
-        println!("{}", path);
+        // println!("{}", path);
         assert_eq!(path.stresses.len(), 3);
         assert_eq!(path.strains.len(), 3);
         assert_eq!(path.deltas_stress.len(), 2);

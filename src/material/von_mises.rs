@@ -126,25 +126,7 @@ mod tests {
     use russell_lab::{approx_eq, vec_update};
     use russell_tensor::{Tensor2, SQRT_2_BY_3};
 
-    const SAVE_FIGURE: bool = true;
-
-    fn generate_path(young: f64, poisson: f64, dsigma_m: f64, dsigma_d: f64, lode: f64) -> StressStrainPath {
-        // let kk = young / (3.0 * (1.0 - 2.0 * poisson));
-        // let gg = young / (2.0 * (1.0 + poisson));
-        // println!(" E = {:?}", young);
-        // println!(" ν = {:?}", poisson);
-        // println!(" K = {:?}", kk);
-        // println!("3G = {:?}", 3.0 * gg);
-        let two_dim = true;
-        let mut path = StressStrainPath::new(young, poisson, two_dim);
-        for i in 0..3 {
-            let m = i as f64;
-            let sigma_m = m * dsigma_m;
-            let sigma_d = m * dsigma_d;
-            path.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
-        }
-        path
-    }
+    const SAVE_FIGURE: bool = false;
 
     fn generate_state(z0: f64, path: &StressStrainPath, model: &VonMises) -> StressState {
         let two_dim = true;
@@ -158,7 +140,7 @@ mod tests {
         state
     }
 
-    fn run_update(z0: f64, path: &StressStrainPath, model: &mut VonMises) -> (Vec<Tensor2>, Vec<Tensor2>) {
+    fn run_update(z0: f64, path: &StressStrainPath, model: &mut VonMises) -> (Vec<Tensor2>, Vec<Tensor2>, f64) {
         let two_dim = true;
         let mut state = generate_state(z0, path, model);
         let mut epsilon = Tensor2::new_sym(two_dim);
@@ -171,7 +153,31 @@ mod tests {
             stresses.push(state.sigma.clone());
             strains.push(epsilon.clone());
         }
-        (stresses, strains)
+        (stresses, strains, state.internal_values[0])
+    }
+
+    fn check_1(young: f64, poisson: f64, hh: f64, stresses: &Vec<Tensor2>, strains: &Vec<Tensor2>) {
+        let kk = young / (3.0 * (1.0 - 2.0 * poisson));
+        let gg = young / (2.0 * (1.0 + poisson));
+        let mut correct_sigma_m = 0.0;
+        let mut correct_sigma_d = 0.0;
+        for i in 1..stresses.len() {
+            let sigma_m = stresses[i].invariant_sigma_m();
+            let sigma_d = stresses[i].invariant_sigma_d();
+            let deps_v = strains[i].invariant_eps_v() - strains[i - 1].invariant_eps_v();
+            let deps_d = strains[i].invariant_eps_d() - strains[i - 1].invariant_eps_d();
+            if i == 1 {
+                // elastic update
+                correct_sigma_m += kk * deps_v;
+                correct_sigma_d += 3.0 * gg * deps_d;
+            } else {
+                // elastoplastic update
+                correct_sigma_m += kk * deps_v;
+                correct_sigma_d += 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+            }
+            approx_eq(sigma_m, correct_sigma_m, 1e-15);
+            approx_eq(sigma_d, correct_sigma_d, 1e-14);
+        }
     }
 
     #[test]
@@ -185,74 +191,83 @@ mod tests {
         let hh = 800.0;
         let mut model = VonMises::new(young, poisson, two_dim, z0, hh);
 
-        // first update exactly to the yield surface, then load more
-        let path_a = generate_path(young, poisson, 1.0, 9.0, 1.0);
-        let (stresses_a, strains_a) = run_update(z0, &path_a, &mut model);
-        let mut correct_sigma_m = 0.0;
-        let mut correct_sigma_d = 0.0;
-        for i in 1..stresses_a.len() {
-            let sigma_m = stresses_a[i].invariant_sigma_m();
-            let sigma_d = stresses_a[i].invariant_sigma_d();
-            let deps_v = strains_a[i].invariant_eps_v() - strains_a[i - 1].invariant_eps_v();
-            let deps_d = strains_a[i].invariant_eps_d() - strains_a[i - 1].invariant_eps_d();
-            if i == 1 {
-                // elastic update
-                correct_sigma_m += kk * deps_v;
-                correct_sigma_d += 3.0 * gg * deps_d;
-            } else {
-                // elastoplastic update
-                correct_sigma_m += kk * deps_v;
-                correct_sigma_d += 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
-                println!("sigma_d = {} => {}", sigma_d, correct_sigma_d);
-            }
-            approx_eq(sigma_m, correct_sigma_m, 1e-15);
-            approx_eq(sigma_d, correct_sigma_d, 1e-14);
-        }
+        let sigma_m_0 = 0.0;
+        let sigma_d_0 = 0.0;
+        let dsigma_m = 1.0;
+        let dsigma_d = 9.0;
+
+        // first update exactly to the yield surface, then load more (lode = 1.0)
+        let path_a = StressStrainPath::new_linear_oct(
+            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
+        );
+        let (stresses_a, strains_a, z_final_a) = run_update(z0, &path_a, &mut model);
+        check_1(young, poisson, hh, &stresses_a, &strains_a);
+
+        // first update exactly to the yield surface, then load more (lode = 0.0)
+        let path_b = StressStrainPath::new_linear_oct(
+            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 0.0,
+        );
+        let (stresses_b, strains_b, z_final_b) = run_update(z0, &path_b, &mut model);
+        check_1(young, poisson, hh, &stresses_b, &strains_b);
+
+        // first update exactly to the yield surface, then load more (lode = -1.0)
+        let path_c = StressStrainPath::new_linear_oct(
+            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, -1.0,
+        );
+        let (stresses_c, strains_c, z_final_c) = run_update(z0, &path_c, &mut model);
+        check_1(young, poisson, hh, &stresses_c, &strains_c);
 
         // update with a larger increment, over the yield surface
-        let path_b = generate_path(young, poisson, 1.0, 9.0, 0.0);
-        let (stresses_b, strains_b) = run_update(z0, &path_b, &mut model);
-        let mut correct_sigma_m = 0.0;
-        let mut correct_sigma_d = 0.0;
-        for i in 1..stresses_a.len() {
-            let sigma_m = stresses_b[i].invariant_sigma_m();
-            let sigma_d = stresses_b[i].invariant_sigma_d();
-            let deps_v = strains_b[i].invariant_eps_v() - strains_b[i - 1].invariant_eps_v();
-            let deps_d = strains_b[i].invariant_eps_d() - strains_b[i - 1].invariant_eps_d();
-            if i == 1 {
-                // elastic update
-                correct_sigma_m += kk * deps_v;
-                correct_sigma_d += 3.0 * gg * deps_d;
-            } else {
-                // elastoplastic update
-                correct_sigma_m += kk * deps_v;
-                correct_sigma_d += 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
-                println!("sigma_d = {} => {}", sigma_d, correct_sigma_d);
-            }
-            approx_eq(sigma_m, correct_sigma_m, 1e-15);
-            approx_eq(sigma_d, correct_sigma_d, 1e-14);
-        }
+        let mut path_d = StressStrainPath::new(young, poisson, two_dim);
+        let deps_v = 2.0 * dsigma_m / kk;
+        let deps_d = 2.0 * dsigma_d / (3.0 * gg);
+        path_d.push_strain_oct(0.0, 0.0, 0.75, true).unwrap();
+        path_d.push_strain_oct(deps_v, deps_d, 0.75, true).unwrap();
+        let (stresses_d, strains_d, z_final_d) = run_update(z0, &path_d, &mut model);
+
+        approx_eq(z_final_b, z_final_a, 1e-14);
+        approx_eq(z_final_c, z_final_a, 1e-14);
+        approx_eq(z_final_d, z_final_a, 1e-14);
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(&stresses_a, &strains_a, |curve, _, _| {
-                curve.set_marker_style("o").set_label("$\\ell=1$");
+            ssp.draw_3x2_mosaic_struct(&stresses_a, &strains_a, |curve, row, col| {
+                if row == 0 && col == 1 {
+                    curve.set_marker_style(".").set_label("$\\ell=1$");
+                } else {
+                    curve.set_marker_style(".").set_label("$\\ell=1$").set_marker_size(7.0);
+                }
             });
             ssp.draw_3x2_mosaic_struct(&stresses_b, &strains_b, |curve, row, col| {
                 if row == 0 && col == 1 {
-                    curve.set_marker_style(".").set_label("$\\ell=0$");
+                    curve.set_marker_style("x").set_label("$\\ell=0$");
                 } else {
                     curve
-                        .set_marker_style(".")
+                        .set_marker_style("x")
+                        .set_marker_size(10.0)
                         .set_label("$\\ell=0$")
                         .set_line_style("None");
                 }
+            });
+            ssp.draw_3x2_mosaic_struct(&stresses_c, &strains_c, |curve, row, col| {
+                if row == 0 && col == 1 {
+                    curve.set_marker_style("+").set_label("$\\ell=-1$");
+                } else {
+                    curve
+                        .set_marker_style("+")
+                        .set_marker_size(10.0)
+                        .set_label("$\\ell=-1$")
+                        .set_line_style("None");
+                }
+            });
+            ssp.draw_3x2_mosaic_struct(&stresses_d, &strains_d, |curve, _, _| {
+                curve.set_label("$\\ell=0.75$").set_line_style("--");
             });
             let mut legend = Legend::new();
             legend.set_outside(true).set_num_col(2);
             ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_von_mises_1.svg", |plot, row, col, before| {
                 if before {
-                    let z_final = z0; // TODO state_a.internal_values[0];
+                    let z_final = z_final_a;
                     if (row == 0 && col == 0) || row == 1 {
                         let mut limit = Curve::new();
                         limit.set_line_color("#a8a8a8");
