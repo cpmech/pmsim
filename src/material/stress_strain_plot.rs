@@ -78,15 +78,27 @@ impl Axis {
     }
 }
 
+struct OctPlot {
+    curve: Curve,
+    text: Text,
+    pos_axes: Canvas,
+    neg_axes: Canvas,
+    radius: f64,
+}
+
 /// Plots stress versus strain invariants
 pub struct StressStrainPlot {
     curves: HashMap<(Axis, Axis), Curve>,
+    oct: Option<OctPlot>,
 }
 
 impl StressStrainPlot {
     /// Allocates a new instance
     pub fn new() -> Self {
-        StressStrainPlot { curves: HashMap::new() }
+        StressStrainPlot {
+            curves: HashMap::new(),
+            oct: None,
+        }
     }
 
     /// Draws the stress/strain curve
@@ -271,23 +283,12 @@ impl StressStrainPlot {
         plot.set_figure_size_points(600.0, 600.0).save(filepath)
     }
 
-    /// Plots the projection of the stress path on the octahedral plane
+    /// Draws the projection of the stress path on the octahedral plane
     ///
     /// # Input
     ///
     /// * `stresses` -- the stress points
-    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
-    ///   The two arguments of this function are:
-    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
-    ///     * `before: bool` -- **true** indicates that the function is being called before all other
-    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
-    ///       all other drawing functions, and just before the `plot.save` call.
-    ///   For example, use `|_, _| {}` to do nothing.
-    pub fn oct_projections<P, F>(stresses: &Vec<Tensor2>, filepath: &P, mut extra: F) -> Result<(), StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-        F: FnMut(&mut Plot, bool),
-    {
+    pub fn draw_oct_projection(&mut self, stresses: &Vec<Tensor2>) -> Result<(), StrError> {
         let n = stresses.len();
         if n < 1 {
             return Err("there are not enough stresses to plot");
@@ -308,14 +309,10 @@ impl StressStrainPlot {
             if f64::abs(y) > r {
                 r = f64::abs(y);
             }
-            let l = stresses[i].invariant_lode();
-            println!("r = {}, l = {:?}", r, l);
         }
 
         r *= 1.15;
         let tm = 1.05;
-
-        let mut plot = Plot::new();
 
         let mut text = Text::new();
         let mut pos_axes = Canvas::new();
@@ -344,24 +341,57 @@ impl StressStrainPlot {
         neg_axes.draw_arrow(0.0, 0.0, xf, -yf);
         text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_3$");
 
-        plot.add(&text);
-        plot.add(&pos_axes);
-        plot.add(&neg_axes);
-
-        extra(&mut plot, true);
-
         let mut curve = Curve::new();
         curve.set_line_color("blue").set_marker_color("blue");
         curve.set_marker_style(".");
         curve.draw(&xx, &yy);
-        plot.add(&curve);
 
-        let m = 1.1;
-        extra(&mut plot, false);
-        plot.set_hide_axes(true)
-            .set_equal_axes(true)
-            .set_range(-m * r, m * r, -m * r, m * r)
-            .save(filepath)
+        self.oct = Some(OctPlot {
+            curve,
+            text,
+            pos_axes,
+            neg_axes,
+            radius: r,
+        });
+        Ok(())
+    }
+
+    /// Saves the octahedral projection
+    ///
+    /// **Note:** Call this function after [StressStrainPlot::draw_oct_projection].
+    ///
+    /// # Input
+    ///
+    /// * `filepath` -- may be a String, &str, or Path
+    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
+    ///   The two arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _| {}` to do nothing.
+    pub fn save_oct_projection<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, bool),
+    {
+        match &self.oct {
+            Some(d) => {
+                let mut plot = Plot::new();
+                plot.add(&d.text);
+                plot.add(&d.pos_axes);
+                plot.add(&d.neg_axes);
+                extra(&mut plot, true);
+                plot.add(&d.curve);
+                let m = 1.1;
+                extra(&mut plot, false);
+                plot.set_hide_axes(true)
+                    .set_equal_axes(true)
+                    .set_range(-m * d.radius, m * d.radius, -m * d.radius, m * d.radius)
+                    .save(filepath)
+            }
+            None => Err("draw_oct_projection must be called first"),
+        }
     }
 }
 
@@ -376,7 +406,7 @@ mod tests {
     use russell_tensor::{Tensor2, SQRT_2_BY_3};
     use std::collections::HashSet;
 
-    const SAVE_FIGURE: bool = false;
+    const SAVE_FIGURE: bool = true;
 
     fn generate_path() -> StressStrainPath {
         let bulk = 1000.0;
@@ -392,7 +422,7 @@ mod tests {
         let dsigma_d = 9.0;
         let lode = 1.0;
         for i in 0..3 {
-            let m = (i + 1) as f64;
+            let m = i as f64;
             let sigma_m = m * dsigma_m;
             let sigma_d = m * dsigma_d;
             path.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
@@ -443,22 +473,22 @@ mod tests {
 
         let axis = Axis::SigM(false);
         let sigm = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&sigm, &[1.0, 2.0, 3.0], 1e-14);
+        vec_approx_eq(&sigm, &[0.0, 1.0, 2.0], 1e-14);
         assert_eq!(axis.label(), "$\\sigma_m$");
 
         let axis = Axis::SigM(true);
         let sigm = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&sigm, &[-1.0, -2.0, -3.0], 1e-14);
+        vec_approx_eq(&sigm, &[0.0, -1.0, -2.0], 1e-14);
         assert_eq!(axis.label(), "$-\\sigma_m$");
 
         let axis = Axis::SigD(false);
         let sigd = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&sigd, &[9.0, 18.0, 27.0], 1e-14);
+        vec_approx_eq(&sigd, &[0.0, 9.0, 18.0], 1e-14);
         assert_eq!(axis.label(), "$\\sigma_d$");
 
         let axis = Axis::SigD(true);
         let sigd = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&sigd, &[9.0, 9.0, 9.0], 1e-14);
+        vec_approx_eq(&sigd, &[f64::NAN, 9.0, 9.0], 1e-14); // <<<<<<<<< note NAN
         assert_eq!(axis.label(), "$\\sigma_d\\,/\\,|\\sigma_m|$");
     }
 
@@ -673,29 +703,27 @@ mod tests {
 
     #[test]
     pub fn oct_projections_works() {
+        let path = generate_path();
+        let mut ssp = StressStrainPlot::new();
+        ssp.draw_oct_projection(&path.stresses).unwrap();
         if SAVE_FIGURE {
-            let path = generate_path();
-            StressStrainPlot::oct_projections(
-                &path.stresses,
-                "/tmp/pmsim/test_oct_projections_1.svg",
-                |plot, before| {
-                    if before {
-                        let mut max_sigma_d = 0.0;
-                        for sigma_d in &path.sigma_d {
-                            if *sigma_d > max_sigma_d {
-                                max_sigma_d = *sigma_d;
-                            }
+            ssp.save_oct_projection("/tmp/pmsim/test_oct_projections_1.svg", |plot, before| {
+                if before {
+                    let mut max_sigma_d = 0.0;
+                    for sigma_d in &path.sigma_d {
+                        if *sigma_d > max_sigma_d {
+                            max_sigma_d = *sigma_d;
                         }
-                        let mut circle = Canvas::new();
-                        circle.set_edge_color("red").set_face_color("None");
-                        let radius = max_sigma_d * SQRT_2_BY_3;
-                        circle.draw_circle(0.0, 0.0, radius);
-                        plot.add(&circle);
                     }
-                },
-            )
+                    let mut circle = Canvas::new();
+                    circle.set_edge_color("red").set_face_color("None");
+                    let radius = max_sigma_d * SQRT_2_BY_3;
+                    circle.draw_circle(0.0, 0.0, radius);
+                    plot.add(&circle);
+                }
+            })
             .unwrap()
-        }
+        };
     }
 
     #[test]
