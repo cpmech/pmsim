@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::{StressState, StressStrainTrait};
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4, IDENTITY2};
@@ -121,7 +123,32 @@ impl StressStrainTrait for VonMises {
 #[cfg(test)]
 mod tests {
     use super::VonMises;
-    use crate::material::{StressState, StressStrainTrait};
+    use crate::material::{StressState, StressStrainPath, StressStrainPlot, StressStrainTrait};
+    use plotpy::{Canvas, Curve, RayEndpoint};
+    use russell_lab::vec_approx_eq;
+    use russell_tensor::SQRT_2_BY_3;
+
+    const SAVE_FIGURE: bool = true;
+
+    fn generate_path(young: f64, poisson: f64) -> StressStrainPath {
+        let bulk = young / (3.0 * (1.0 - 2.0 * poisson));
+        let shear = young / (2.0 * (1.0 + poisson));
+        println!(" E = {:?}", young);
+        println!(" ν = {:?}", poisson);
+        println!(" K = {:?}", bulk);
+        println!("3G = {:?}", 3.0 * shear);
+        let mut path = StressStrainPath::new(young, poisson, true);
+        let dsigma_m = 1.0;
+        let dsigma_d = 9.0;
+        let lode = 1.0;
+        for i in 0..3 {
+            let m = i as f64;
+            let sigma_m = m * dsigma_m;
+            let sigma_d = m * dsigma_d;
+            path.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
+        }
+        path
+    }
 
     #[test]
     fn update_stress_works() {
@@ -130,23 +157,56 @@ mod tests {
         let two_dim = true;
         let z0 = 9.0;
         let hh = 800.0;
-        let model = VonMises::new(young, poisson, two_dim, z0, hh);
+        let mut model = VonMises::new(young, poisson, two_dim, z0, hh);
 
         let n_internal_values = model.n_internal_values();
         let mut state = StressState::new(two_dim, n_internal_values);
         assert_eq!(state.sigma.vec.dim(), 4);
         assert_eq!(state.internal_values.len(), 2);
 
-        let sigma_m_ini = 10.0;
-        state.sigma.vec[0] = sigma_m_ini;
-        state.sigma.vec[1] = sigma_m_ini;
-        state.sigma.vec[2] = sigma_m_ini;
-
+        let path = generate_path(young, poisson);
+        println!("{}", path);
+        state.sigma.mirror(&path.stresses[0]).unwrap();
         model.initialize_internal_values(&mut state).unwrap();
         assert_eq!(state.loading, false);
-        assert_eq!(state.sigma.vec.as_data(), &[sigma_m_ini, sigma_m_ini, sigma_m_ini, 0.0]);
+        assert_eq!(state.sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0]);
         assert_eq!(state.internal_values, &[z0, 0.0]);
 
-        // model.update_stress(&mut state, &deps).unwrap();
+        let mut sigmas = vec![state.sigma.clone()];
+
+        for deps in &path.deltas_strain {
+            model.update_stress(&mut state, &path.deltas_strain[0]).unwrap();
+            sigmas.push(state.sigma.clone());
+        }
+
+        if SAVE_FIGURE {
+            StressStrainPlot::mosaic_3x2_structural(
+                &sigmas,
+                &path.strains,
+                "/tmp/pmsim/test_von_mises_1.svg",
+                |plot, row, col, before| {
+                    if before {
+                        let z_final = state.internal_values[0];
+                        if (row == 0 && col == 0) || row == 1 {
+                            let mut limit = Curve::new();
+                            limit.set_line_color("#a8a8a8");
+                            limit.draw_ray(0.0, z0, RayEndpoint::Horizontal);
+                            limit.set_line_color("red");
+                            limit.draw_ray(0.0, z_final, RayEndpoint::Horizontal);
+                            plot.add(&limit);
+                        }
+                        if row == 0 && col == 1 {
+                            let mut circle = Canvas::new();
+                            circle.set_edge_color("#a8a8a8").set_face_color("None");
+                            circle.draw_circle(0.0, 0.0, z0 * SQRT_2_BY_3);
+                            circle.set_edge_color("red");
+                            circle.draw_circle(0.0, 0.0, z_final * SQRT_2_BY_3);
+                            plot.add(&circle);
+                        }
+                    }
+                },
+            )
+            .unwrap();
+        }
     }
 }
