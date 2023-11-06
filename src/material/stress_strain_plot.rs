@@ -216,6 +216,55 @@ impl StressStrainPlot {
         config(&mut plot, false);
         plot.save(filepath)
     }
+
+    /// Saves a figure with Mosaic # 1
+    ///
+    /// ```text
+    /// (epsd,sigd/sigm)  (epsv,sigd/sigm)
+    /// (epsd,-epsv)      (-sigm,-epsv)
+    /// ```
+    pub fn mosaic_1<P>(stresses: &Vec<Tensor2>, strains: &Vec<Tensor2>, filepath: &P) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let axes = vec![
+            vec![
+                (Axis::EpsD(true), Axis::SigD(true)),
+                (Axis::EpsV(true, false), Axis::SigD(true)),
+            ],
+            vec![
+                (Axis::EpsD(true), Axis::EpsV(true, true)),
+                (Axis::SigM(true), Axis::EpsV(true, true)),
+            ],
+        ];
+        let mut ssp = StressStrainPlot::new();
+        for row in &axes {
+            for (x_axis, y_axis) in row {
+                ssp.draw(*x_axis, *y_axis, stresses, strains, |_| {}).unwrap();
+            }
+        }
+        let handle = "grid";
+        let mut plot = Plot::new();
+        let (nrow, ncol) = (2, 2);
+        plot.set_gridspec(handle, nrow, ncol, "wspace=0,hspace=0.2");
+        for row in 0..nrow {
+            for col in 0..ncol {
+                let (x_axis, y_axis) = axes[row][col];
+                plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
+                let curve = ssp.curves.get(&(x_axis, y_axis)).unwrap();
+                plot.add(curve);
+                let x = x_axis.label();
+                let y = y_axis.label();
+                if col > 0 {
+                    plot.grid_and_labels(&x, "");
+                    plot.extra("plt.gca().get_yaxis().set_ticklabels([])\n");
+                } else {
+                    plot.grid_and_labels(&x, &y);
+                }
+            }
+        }
+        plot.set_figure_size_points(600.0, 600.0).save(filepath)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -513,6 +562,14 @@ mod tests {
                 Some("wspace=0.33"),
             )
             .unwrap();
+        }
+    }
+
+    #[test]
+    pub fn mosaic_1_works() {
+        if SAVE_FIGURE {
+            let path = generate_path();
+            StressStrainPlot::mosaic_1(&path.stresses, &path.strains, "/tmp/pmsim/test_mosaic_1_1.svg").unwrap()
         }
     }
 }

@@ -16,7 +16,9 @@
     "rref",
     "sigd",
     "sigm",
+    "ticklabels",
     "UNSYM",
-    "wspace"
+    "wspace",
+    "yaxis"
   ]
 }
