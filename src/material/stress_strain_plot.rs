@@ -376,7 +376,7 @@ mod tests {
     use russell_tensor::{Tensor2, SQRT_2_BY_3};
     use std::collections::HashSet;
 
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     fn generate_path() -> StressStrainPath {
         let bulk = 1000.0;
