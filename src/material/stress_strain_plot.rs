@@ -102,6 +102,14 @@ impl StressStrainPlot {
     }
 
     /// Draws the stress/strain curve
+    ///
+    /// # Input
+    ///
+    /// * `x_axis` -- the key of the x-axis already drawn with `draw`
+    /// * `y_axis` -- the key of the y-axis already drawn with `draw`
+    /// * `stresses` -- the stress points
+    /// * `strains` -- the strain points
+    /// * `config` -- a function `|curve| {}` to configure the curve
     pub fn draw<F>(
         &mut self,
         x_axis: Axis,
@@ -234,55 +242,6 @@ impl StressStrainPlot {
         plot.save(filepath)
     }
 
-    /// Saves a figure with Mosaic # 1
-    ///
-    /// ```text
-    /// (epsd,sigd/sigm)  (epsv,sigd/sigm)
-    /// (epsd,-epsv)      (-sigm,-epsv)
-    /// ```
-    pub fn mosaic_1<P>(stresses: &Vec<Tensor2>, strains: &Vec<Tensor2>, filepath: &P) -> Result<(), StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-    {
-        let axes = vec![
-            vec![
-                (Axis::EpsD(true), Axis::SigD(true)),
-                (Axis::EpsV(true, false), Axis::SigD(true)),
-            ],
-            vec![
-                (Axis::EpsD(true), Axis::EpsV(true, true)),
-                (Axis::SigM(true), Axis::EpsV(true, true)),
-            ],
-        ];
-        let mut ssp = StressStrainPlot::new();
-        for row in &axes {
-            for (x_axis, y_axis) in row {
-                ssp.draw(*x_axis, *y_axis, stresses, strains, |_| {}).unwrap();
-            }
-        }
-        let handle = "grid";
-        let mut plot = Plot::new();
-        let (nrow, ncol) = (2, 2);
-        plot.set_gridspec(handle, nrow, ncol, "wspace=0,hspace=0.2");
-        for row in 0..nrow {
-            for col in 0..ncol {
-                let (x_axis, y_axis) = axes[row][col];
-                plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
-                let curve = ssp.curves.get(&(x_axis, y_axis)).unwrap();
-                plot.add(curve);
-                let x = x_axis.label();
-                let y = y_axis.label();
-                if col > 0 {
-                    plot.grid_and_labels(&x, "");
-                    plot.extra("plt.gca().get_yaxis().set_ticklabels([])\n");
-                } else {
-                    plot.grid_and_labels(&x, &y);
-                }
-            }
-        }
-        plot.set_figure_size_points(600.0, 600.0).save(filepath)
-    }
-
     /// Draws the projection of the stress path on the octahedral plane
     ///
     /// # Input
@@ -392,6 +351,101 @@ impl StressStrainPlot {
             }
             None => Err("draw_oct_projection must be called first"),
         }
+    }
+
+    /// Saves a figure with Mosaic 3x2 for structural mechanics
+    ///
+    /// ```text
+    /// (epsd,sigd)  (epsv,sigd)
+    /// (epsd,epsv)  (sigm,epsv)
+    /// (sigm,sigd)   octahedral
+    /// ```
+    ///
+    /// # Input
+    ///
+    /// * `stresses` -- the stress points
+    /// * `strains` -- the strain points
+    /// * `filepath` -- may be a String, &str, or Path
+    /// * `extra` -- is a function `|plot, row, col, before| {}` to perform some {pre,post}-drawing on the plot area.
+    ///   The four arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `row: usize` -- the row index in the grid
+    ///     * `col: usize` -- the columns index in the grid
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _, _, _| {}` to do nothing.
+    pub fn mosaic_3x2_structural<P, F>(
+        stresses: &Vec<Tensor2>,
+        strains: &Vec<Tensor2>,
+        filepath: &P,
+        mut extra: F,
+    ) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, usize, usize, bool),
+    {
+        let percent = true;
+        let axes = vec![
+            vec![
+                Some((Axis::EpsD(percent), Axis::SigD(false))),
+                Some((Axis::EpsV(percent, false), Axis::SigD(false))),
+            ],
+            vec![
+                Some((Axis::EpsD(percent), Axis::EpsV(percent, false))),
+                Some((Axis::SigM(false), Axis::EpsV(percent, false))),
+            ],
+            vec![Some((Axis::SigM(false), Axis::SigD(false))), None],
+        ];
+        let mut ssp = StressStrainPlot::new();
+        for row in &axes {
+            for pair in row {
+                match pair {
+                    Some((x_axis, y_axis)) => ssp.draw(*x_axis, *y_axis, stresses, strains, |_| {}).unwrap(),
+                    None => ssp.draw_oct_projection(stresses).unwrap(),
+                }
+            }
+        }
+        let handle = "grid";
+        let mut plot = Plot::new();
+        let (nrow, ncol) = (3, 2);
+        plot.set_gridspec(handle, nrow, ncol, "wspace=0,hspace=0.2");
+        for row in 0..nrow {
+            for col in 0..ncol {
+                plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
+                extra(&mut plot, row, col, true);
+                match axes[row][col] {
+                    Some((x_axis, y_axis)) => {
+                        let curve = ssp.curves.get(&(x_axis, y_axis)).unwrap();
+                        plot.add(curve);
+                        let x = x_axis.label();
+                        let y = y_axis.label();
+                        if col > 0 {
+                            plot.grid_and_labels(&x, "");
+                            plot.extra("plt.gca().get_yaxis().set_ticklabels([])\n");
+                        } else {
+                            plot.grid_and_labels(&x, &y);
+                        }
+                    }
+                    None => {
+                        let d = ssp.oct.as_ref().unwrap();
+                        plot.add(&d.text);
+                        plot.add(&d.pos_axes);
+                        plot.add(&d.neg_axes);
+                        plot.add(&d.curve);
+                        let m = 1.1;
+                        plot.set_hide_axes(true).set_equal_axes(true).set_range(
+                            -m * d.radius,
+                            m * d.radius,
+                            -m * d.radius,
+                            m * d.radius,
+                        );
+                    }
+                }
+                extra(&mut plot, row, col, false);
+            }
+        }
+        plot.set_figure_size_points(600.0, 800.0).save(filepath)
     }
 }
 
@@ -694,10 +748,16 @@ mod tests {
     }
 
     #[test]
-    pub fn mosaic_1_works() {
+    pub fn mosaic_3x2_structural_works() {
         if SAVE_FIGURE {
             let path = generate_path();
-            StressStrainPlot::mosaic_1(&path.stresses, &path.strains, "/tmp/pmsim/test_mosaic_1_1.svg").unwrap()
+            StressStrainPlot::mosaic_3x2_structural(
+                &path.stresses,
+                &path.strains,
+                "/tmp/pmsim/test_mosaic_3x2_structural.svg",
+                |_, _, _, _| {},
+            )
+            .unwrap()
         }
     }
 
