@@ -1,6 +1,7 @@
 use crate::StrError;
-use plotpy::{Curve, Plot};
-use russell_tensor::Tensor2;
+use plotpy::{Canvas, Curve, Plot, Text};
+use russell_lab::math::PI;
+use russell_tensor::{Spectral2, Tensor2};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 
@@ -269,6 +270,99 @@ impl StressStrainPlot {
         }
         plot.set_figure_size_points(600.0, 600.0).save(filepath)
     }
+
+    /// Plots the projection of the stress path on the octahedral plane
+    ///
+    /// # Input
+    ///
+    /// * `stresses` -- the stress points
+    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
+    ///   The two arguments of this function are:
+    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
+    ///     * `before: bool` -- **true** indicates that the function is being called before all other
+    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
+    ///       all other drawing functions, and just before the `plot.save` call.
+    ///   For example, use `|_, _| {}` to do nothing.
+    pub fn oct_projections<P, F>(stresses: &Vec<Tensor2>, filepath: &P, mut extra: F) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+        F: FnMut(&mut Plot, bool),
+    {
+        let n = stresses.len();
+        if n < 1 {
+            return Err("there are not enough stresses to plot");
+        }
+        let two_dim = stresses[0].mandel().two_dim();
+        let mut spectral = Spectral2::new(two_dim);
+        let mut xx = vec![0.0; n];
+        let mut yy = vec![0.0; n];
+        let mut r = 0.0;
+        for i in 0..n {
+            spectral.decompose(&stresses[i])?;
+            let (y, _, x) = spectral.octahedral_basis();
+            xx[i] = x;
+            yy[i] = y;
+            if f64::abs(x) > r {
+                r = f64::abs(x);
+            }
+            if f64::abs(y) > r {
+                r = f64::abs(y);
+            }
+            let l = stresses[i].invariant_lode();
+            println!("r = {}, l = {:?}", r, l);
+        }
+
+        r *= 1.15;
+        let tm = 1.05;
+
+        let mut plot = Plot::new();
+
+        let mut text = Text::new();
+        let mut pos_axes = Canvas::new();
+        let mut neg_axes = Canvas::new();
+        text.set_color("#7d7d7d")
+            .set_align_horizontal("center")
+            .set_align_vertical("center");
+        pos_axes.set_edge_color("#7d7d7d");
+        pos_axes.set_arrow_scale(20.0).set_arrow_style("->");
+        neg_axes.set_edge_color("#cccccc");
+
+        // sigma 1
+        pos_axes.draw_arrow(0.0, 0.0, 0.0, r);
+        neg_axes.draw_polyline(&[[0.0, 0.0], [0.0, -r]], false);
+        text.draw(0.0, tm * r, "$\\hat{\\sigma}_1$");
+
+        // sigma 2
+        let (xf, yf) = (r * f64::cos(210.0 * PI / 180.0), r * f64::sin(210.0 * PI / 180.0));
+        pos_axes.draw_arrow(0.0, 0.0, xf, yf);
+        neg_axes.draw_polyline(&[[0.0, 0.0], [xf, -yf]], false);
+        text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_2$");
+
+        // sigma 3
+        let (xf, yf) = (r * f64::cos(-30.0 * PI / 180.0), r * f64::sin(-30.0 * PI / 180.0));
+        pos_axes.draw_arrow(0.0, 0.0, xf, yf);
+        neg_axes.draw_arrow(0.0, 0.0, xf, -yf);
+        text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_3$");
+
+        plot.add(&text);
+        plot.add(&pos_axes);
+        plot.add(&neg_axes);
+
+        extra(&mut plot, true);
+
+        let mut curve = Curve::new();
+        curve.set_line_color("blue").set_marker_color("blue");
+        curve.set_marker_style(".");
+        curve.draw(&xx, &yy);
+        plot.add(&curve);
+
+        let m = 1.1;
+        extra(&mut plot, false);
+        plot.set_hide_axes(true)
+            .set_equal_axes(true)
+            .set_range(-m * r, m * r, -m * r, m * r)
+            .save(filepath)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -277,12 +371,12 @@ impl StressStrainPlot {
 mod tests {
     use super::{Axis, StressStrainPlot};
     use crate::material::StressStrainPath;
-    use plotpy::{SlopeIcon, SuperTitleParams};
+    use plotpy::{Canvas, SlopeIcon, SuperTitleParams};
     use russell_lab::vec_approx_eq;
-    use russell_tensor::Tensor2;
+    use russell_tensor::{Tensor2, SQRT_2_BY_3};
     use std::collections::HashSet;
 
-    const SAVE_FIGURE: bool = false;
+    const SAVE_FIGURE: bool = true;
 
     fn generate_path() -> StressStrainPath {
         let bulk = 1000.0;
@@ -574,6 +668,33 @@ mod tests {
         if SAVE_FIGURE {
             let path = generate_path();
             StressStrainPlot::mosaic_1(&path.stresses, &path.strains, "/tmp/pmsim/test_mosaic_1_1.svg").unwrap()
+        }
+    }
+
+    #[test]
+    pub fn oct_projections_works() {
+        if SAVE_FIGURE {
+            let path = generate_path();
+            StressStrainPlot::oct_projections(
+                &path.stresses,
+                "/tmp/pmsim/test_oct_projections_1.svg",
+                |plot, before| {
+                    if before {
+                        let mut max_sigma_d = 0.0;
+                        for sigma_d in &path.sigma_d {
+                            if *sigma_d > max_sigma_d {
+                                max_sigma_d = *sigma_d;
+                            }
+                        }
+                        let mut circle = Canvas::new();
+                        circle.set_edge_color("red").set_face_color("None");
+                        let radius = max_sigma_d * SQRT_2_BY_3;
+                        circle.draw_circle(0.0, 0.0, radius);
+                        plot.add(&circle);
+                    }
+                },
+            )
+            .unwrap()
         }
     }
 }
