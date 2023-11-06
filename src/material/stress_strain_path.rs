@@ -93,6 +93,41 @@ impl StressStrainPath {
         }
     }
 
+    /// Generates a new linear path on the octahedral invariants
+    ///
+    /// # Input
+    ///
+    /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
+    /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
+    /// * `two_dim` -- 2D instead of 3D
+    /// * `n_increments` -- number of increments
+    /// * `sigma_m_0` -- the first sigma_m
+    /// * `sigma_d_0` -- the first sigma_d
+    /// * `dsigma_m` -- the increment of sigma_m
+    /// * `dsigma_d` -- the increment of sigma_d
+    /// * `lode` -- the lode invariant
+    pub fn new_linear_oct(
+        young: f64,
+        poisson: f64,
+        two_dim: bool,
+        n_increments: usize,
+        sigma_m_0: f64,
+        sigma_d_0: f64,
+        dsigma_m: f64,
+        dsigma_d: f64,
+        lode: f64,
+    ) -> Self {
+        let mut path = StressStrainPath::new(young, poisson, two_dim);
+        path.push_stress_oct(sigma_m_0, sigma_d_0, lode, true).unwrap();
+        for i in 0..n_increments {
+            let m = (i + 1) as f64;
+            let sigma_m = sigma_m_0 + m * dsigma_m;
+            let sigma_d = sigma_d_0 + m * dsigma_d;
+            path.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
+        }
+        path
+    }
+
     /// Pushes a new stress and strain with stresses computed from the octahedral invariants
     ///
     /// # Input
@@ -336,6 +371,7 @@ impl fmt::Display for StressStrainPath {
 mod tests {
     use super::StressStrainPath;
     use russell_lab::{approx_eq, vec_approx_eq};
+    use russell_tensor::{SQRT_2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2, SQRT_6};
 
     #[test]
     fn strain_stress_path_works() {
@@ -401,5 +437,79 @@ mod tests {
                 1e-14,
             );
         }
+    }
+
+    #[test]
+    fn new_linear_oct_works() {
+        let young = 1500.0;
+        let poisson = 0.25;
+        let two_dim = true;
+        let sigma_m_0 = 10.0;
+        let sigma_d_0 = 1.0;
+        let dsigma_m = 1.0;
+        let dsigma_d = 9.0;
+        let lode = 1.0;
+        let path = StressStrainPath::new_linear_oct(
+            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, lode,
+        );
+        println!("{}", path);
+        assert_eq!(path.stresses.len(), 3);
+        assert_eq!(path.strains.len(), 3);
+        assert_eq!(path.deltas_stress.len(), 2);
+        assert_eq!(path.deltas_strain.len(), 2);
+        let star1 = sigma_d_0 * SQRT_2_BY_3;
+        let star2 = sigma_m_0 * SQRT_3;
+        let star3 = 0.0;
+        let s1 = (SQRT_2 * star1 + star2) / SQRT_3;
+        let s2 = -star1 / SQRT_6 + star2 / SQRT_3 - star3 / SQRT_2;
+        let s3 = -star1 / SQRT_6 + star2 / SQRT_3 + star3 / SQRT_2;
+        let d_star1 = dsigma_d * SQRT_2_BY_3;
+        let d_star2 = dsigma_m * SQRT_3;
+        let d_star3 = 0.0;
+        let ds1 = (SQRT_2 * d_star1 + d_star2) / SQRT_3;
+        let ds2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
+        let ds3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
+        vec_approx_eq(path.stresses[0].vec.as_data(), &[s1, s2, s3, 0.0], 1e-15);
+        vec_approx_eq(
+            path.stresses[1].vec.as_data(),
+            &[s1 + ds1, s2 + ds2, s3 + ds3, 0.0],
+            1e-14,
+        );
+        vec_approx_eq(
+            path.stresses[2].vec.as_data(),
+            &[s1 + 2.0 * ds1, s2 + 2.0 * ds2, s3 + 2.0 * ds3, 0.0],
+            1e-14,
+        );
+        vec_approx_eq(&path.sigma_m, &[10.0, 11.0, 12.0], 1e-14);
+        vec_approx_eq(&path.sigma_d, &[1.0, 10.0, 19.0], 1e-14);
+        approx_eq(path.sigma_lode[0].unwrap(), lode, 1e-13);
+        approx_eq(path.sigma_lode[1].unwrap(), lode, 1e-15);
+        approx_eq(path.sigma_lode[2].unwrap(), lode, 1e-15);
+        let kk = young / (3.0 * (1.0 - 2.0 * poisson));
+        let gg = young / (2.0 * (1.0 + poisson));
+        let deps_v = dsigma_m / kk;
+        let deps_d = dsigma_d / (3.0 * gg);
+        let d_star1 = deps_d * SQRT_3_BY_2;
+        let d_star2 = deps_v / SQRT_3;
+        let d_star3 = 0.0;
+        let de1 = (SQRT_2 * d_star1 + d_star2) / SQRT_3;
+        let de2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
+        let de3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
+        vec_approx_eq(path.strains[0].vec.as_data(), &[0.0, 0.0, 0.0, 0.0], 1e-15);
+        vec_approx_eq(
+            path.strains[1].vec.as_data(),
+            &[0.0 + de1, 0.0 + de2, 0.0 + de3, 0.0],
+            1e-15,
+        );
+        vec_approx_eq(
+            path.strains[2].vec.as_data(),
+            &[0.0 + 2.0 * de1, 0.0 + 2.0 * de2, 0.0 + 2.0 * de3, 0.0],
+            1e-15,
+        );
+        vec_approx_eq(&path.eps_v, &[0.0, deps_v, 2.0 * deps_v], 1e-14);
+        vec_approx_eq(&path.eps_d, &[0.0, deps_d, 2.0 * deps_d], 1e-14);
+        assert_eq!(path.eps_lode[0], None);
+        approx_eq(path.eps_lode[1].unwrap(), lode, 1e-15);
+        approx_eq(path.eps_lode[2].unwrap(), lode, 1e-15);
     }
 }
