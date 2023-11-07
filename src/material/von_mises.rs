@@ -334,34 +334,91 @@ mod tests {
         let mut model = VonMises::new(young, poisson, two_dim, z0, hh);
         let mut dd = Tensor4::new_sym(two_dim);
 
-        // path leading exactly to the yield surface, then hardening
-        let sigma_m_0 = 0.0;
-        let sigma_d_0 = 0.0;
-        let dsigma_m = 1.0;
-        let dsigma_d = 9.0;
-        let path = StressStrainPath::new_linear_oct(
-            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
-        );
+        // plane-strain strain increments reaching yield surface
+        let nu = poisson;
+        let nu2 = poisson * poisson;
+        let dy = z0 * (1.0 - nu2) / (young * f64::sqrt(1.0 - nu + nu2));
+        // println!("3*dy = {}", 3.0 * dy);
+        let eps_x = dy * nu / (1.0 - nu);
+        let eps_y = -dy;
+
+        // path reaching exactly to the yield surface, then hardening
+        let mut path = StressStrainPath::new(young, poisson, two_dim);
+        let zero = Tensor2::new_sym(two_dim);
+        path.push_stress(zero, true).unwrap();
+        let mut eps_1 = Tensor2::new_sym(two_dim);
+        eps_1.vec[0] = eps_x;
+        eps_1.vec[1] = eps_y;
+        path.push_strain(eps_1, true).unwrap();
+        let mut eps_2 = Tensor2::new_sym(two_dim);
+        eps_2.vec[0] = 2.0 * eps_x;
+        eps_2.vec[1] = 2.0 * eps_y;
+        path.push_strain(eps_2, true).unwrap();
+        // println!("{}", path);
 
         let mut state = generate_state(z0, &path, &model);
         model.stiffness(&mut dd, &state).unwrap();
-        println!("before:\n{}", state);
-        println!("dd =\n{}", dd.mat);
+        let mut stresses = vec![state.sigma.clone()];
 
         // first update
         let deps = &path.deltas_strain[0];
         model.update_stress(&mut state, deps).unwrap();
-
         model.stiffness(&mut dd, &state).unwrap();
-        println!("after 1:\n{}", state);
-        println!("dd =\n{}", dd.mat);
+        stresses.push(state.sigma.clone());
+        let dd_spo = &[
+            [1.800000000000000E+03, 6.000000000000000E+02, 0.000000000000000E+00],
+            [6.000000000000000E+02, 1.800000000000000E+03, 0.000000000000000E+00],
+            [0.000000000000000E+00, 0.000000000000000E+00, 6.000000000000000E+02],
+        ];
+        let map = &[0, 1, 3];
+        for i in 0..3 {
+            for j in 0..3 {
+                let m = if i == 2 && j == 2 { 2.0 } else { 1.0 };
+                approx_eq(dd.mat.get(map[i], map[j]), m * dd_spo[i][j], 1e-15);
+            }
+        }
+        assert_eq!(state.algo_lambda, 0.0);
 
         // second update
         let deps = &path.deltas_strain[1];
         model.update_stress(&mut state, deps).unwrap();
-
         model.stiffness(&mut dd, &state).unwrap();
-        println!("after 1:\n{}", state);
-        println!("dd =\n{}", dd.mat);
+        stresses.push(state.sigma.clone());
+        let dd_spo = &[
+            [1.389940828402367E+03, 9.248520710059172E+02, -2.081794007857600E-15],
+            [9.248520710059172E+02, 1.262130177514793E+03, 2.914511611000640E-15],
+            [-2.081794007857600E-15, 2.914511611000640E-15, 3.923076923076923E+02],
+        ];
+        for i in 0..3 {
+            for j in 0..3 {
+                let m = if i == 2 && j == 2 { 2.0 } else { 1.0 };
+                approx_eq(dd.mat.get(map[i], map[j]), m * dd_spo[i][j], 1e-12);
+            }
+        }
+        approx_eq(state.algo_lambda, 3.461538461538463E-03, 1e-15);
+
+        if SAVE_FIGURE {
+            let mut ssp = StressStrainPlot::new();
+            ssp.draw_3x2_mosaic_struct(&path.stresses, &path.strains, |curve, _, _| {
+                curve.set_marker_style(".");
+            });
+            ssp.draw_3x2_mosaic_struct(&stresses, &path.strains, |curve, row, col| {
+                curve.set_marker_style("+");
+                if row == 0 && col == 1 {
+                    curve.set_line_color("red");
+                }
+            });
+            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_von_mises_2.svg", |plot, row, col, before| {
+                if before {
+                    if row == 0 && col == 1 {
+                        let mut circle = Canvas::new();
+                        circle.set_edge_color("gray").set_face_color("None");
+                        circle.draw_circle(0.0, 0.0, z0 * SQRT_2_BY_3);
+                        plot.add(&circle);
+                    }
+                }
+            })
+            .unwrap();
+        }
     }
 }
