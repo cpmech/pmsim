@@ -3,7 +3,6 @@ use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4, IDENTITY2};
 
 const I_Z: usize = 0; // index of z internal variable (size of yield surface)
-const I_LAMBDA: usize = 1; // index of Λ internal variable (Lagrangian multiplier)
 
 /// Implements the von Mises plasticity model
 ///
@@ -59,19 +58,22 @@ impl StressStrainTrait for VonMises {
 
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
-        2 // [z, Λ]
+        1 // [z]
     }
 
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut StressState) -> Result<(), StrError> {
-        state.loading = false;
         state.internal_values[I_Z] = self.z0;
-        state.internal_values[I_LAMBDA] = 0.0;
         let f = self.yield_function(state);
         if f > 0.0 {
             return Err("stress is outside the yield surface");
         }
         Ok(())
+    }
+
+    /// Reset algorithm variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, state: &mut StressState) {
+        state.algo_lambda = 0.0;
     }
 
     /// Computes the consistent tangent stiffness
@@ -83,7 +85,7 @@ impl StressStrainTrait for VonMises {
     fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
         // reset flags
         state.loading = false; // not elastoplastic yet
-        state.internal_values[I_LAMBDA] = 0.0; // Λ := 0.0
+        state.algo_lambda = 0.0;
 
         // trial stress: σ := σ_trial
         let dd = self.lin_elasticity.get_modulus();
@@ -108,10 +110,10 @@ impl StressStrainTrait for VonMises {
             state.sigma.vec[i] = m * self.aux.vec[i] + sigma_m_trial * IDENTITY2[i];
         }
 
-        // update state
+        // set elastoplastic data
         state.loading = true;
+        state.algo_lambda = lambda;
         state.internal_values[I_Z] = state.sigma.invariant_sigma_d();
-        state.internal_values[I_LAMBDA] = lambda;
         Ok(())
     }
 }
@@ -135,8 +137,9 @@ mod tests {
         state.sigma.mirror(&path.stresses[0]).unwrap();
         model.initialize_internal_values(&mut state).unwrap();
         assert_eq!(state.loading, false);
+        assert_eq!(state.algo_lambda, 0.0);
         assert_eq!(state.sigma.vec.as_data(), &[0.0, 0.0, 0.0, 0.0]);
-        assert_eq!(state.internal_values, &[z0, 0.0]);
+        assert_eq!(state.internal_values, &[z0]);
         state
     }
 

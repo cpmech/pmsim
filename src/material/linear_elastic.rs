@@ -33,6 +33,9 @@ impl StressStrainTrait for LinearElastic {
         Ok(())
     }
 
+    /// Reset algorithm variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, _state: &mut StressState) {}
+
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
         copy_tensor4(dd, self.model.get_modulus())

@@ -14,6 +14,9 @@ pub trait StressStrainTrait: Send + Sync {
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut StressState) -> Result<(), StrError>;
 
+    /// Reset algorithm variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, state: &mut StressState);
+
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, state: &StressState) -> Result<(), StrError>;
 

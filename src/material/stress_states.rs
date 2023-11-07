@@ -7,6 +7,8 @@ use std::fmt;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StressState {
     pub loading: bool,
+    pub apex_return: bool,
+    pub algo_lambda: f64, // algorithmic Λ
     pub internal_values: Vec<f64>,
     pub sigma: Tensor2,
 }
@@ -23,6 +25,8 @@ impl StressState {
     pub fn new(two_dim: bool, n_internal_values: usize) -> Self {
         StressState {
             loading: false,
+            apex_return: false,
+            algo_lambda: 0.0,
             internal_values: vec![0.0; n_internal_values],
             sigma: Tensor2::new_sym(two_dim),
         }
