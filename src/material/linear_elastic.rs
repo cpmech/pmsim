@@ -1,7 +1,7 @@
 use super::StressState;
 use super::StressStrainTrait;
 use crate::StrError;
-use russell_tensor::{copy_tensor4, t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
+use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 
 /// Implements a linear elastic model
 pub struct LinearElastic {
@@ -38,7 +38,7 @@ impl StressStrainTrait for LinearElastic {
 
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
-        copy_tensor4(dd, self.model.get_modulus())
+        dd.mirror(self.model.get_modulus())
     }
 
     /// Updates the stress tensor given the strain increment tensor
