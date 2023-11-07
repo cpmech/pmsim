@@ -82,6 +82,8 @@ impl fmt::Display for StressState {
         }
         write!(f, "\nz = {:?}", self.internal_values).unwrap();
         write!(f, "\nloading = {}", self.loading).unwrap();
+        write!(f, "\napex_return = {}", self.apex_return).unwrap();
+        write!(f, "\nalgo_lambda = {:?}", self.algo_lambda).unwrap();
         Ok(())
     }
 }
@@ -109,7 +111,9 @@ mod tests {
              │  0  0 -3 │\n\
              └          ┘\n\
              z = [0.1, 0.2]\n\
-             loading = false"
+             loading = false\n\
+             apex_return = false\n\
+             algo_lambda = 0.0"
         );
         state.loading = true;
         assert_eq!(
@@ -121,7 +125,9 @@ mod tests {
              │  0.00  0.00 -3.00 │\n\
              └                   ┘\n\
              z = [0.1, 0.2]\n\
-             loading = true"
+             loading = true\n\
+             apex_return = false\n\
+             algo_lambda = 0.0"
         );
     }
 }
