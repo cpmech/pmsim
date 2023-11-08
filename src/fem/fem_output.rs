@@ -1,7 +1,7 @@
 use crate::base::Dof;
 use crate::fem::{FemInput, FemState};
 use crate::StrError;
-use gemlab::mesh::{At, Features, Mesh, PointId};
+use gemlab::mesh::{At, Features, PointId};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fmt::Write;
@@ -11,17 +11,15 @@ use std::path::Path;
 
 /// Assists in the post-processing of results
 pub struct FemOutput<'a> {
-    mesh: &'a Mesh,
     feat: &'a Features<'a>,
     input: &'a FemInput<'a>,
-    state: &'a FemState,
     enabled_dofs: HashSet<Dof>,
     not_displacement_dof: Vec<Dof>,
 }
 
 impl<'a> FemOutput<'a> {
     /// Allocates new instance
-    pub fn new(mesh: &'a Mesh, feat: &'a Features, input: &'a FemInput, state: &'a FemState) -> Self {
+    pub fn new(feat: &'a Features, input: &'a FemInput) -> Self {
         let mut enabled_dofs = HashSet::new();
         for map in &input.equations.all {
             for dof in map.keys() {
@@ -34,10 +32,8 @@ impl<'a> FemOutput<'a> {
             .copied()
             .collect();
         FemOutput {
-            mesh,
             feat,
             input,
-            state,
             enabled_dofs,
             not_displacement_dof,
         }
@@ -65,7 +61,13 @@ impl<'a> FemOutput<'a> {
     /// * `ids` -- contains the IDs of the points along x
     /// * `xx` -- are the x-coordinates
     /// * `dd` -- are the DOF values (e.g., temperature) along x and corresponding to the `ids` and `xx`
-    pub fn values_along_x<F>(&self, dof: Dof, y: f64, filter: F) -> Result<(Vec<PointId>, Vec<f64>, Vec<f64>), StrError>
+    pub fn values_along_x<F>(
+        &self,
+        state: &FemState,
+        dof: Dof,
+        y: f64,
+        filter: F,
+    ) -> Result<(Vec<PointId>, Vec<f64>, Vec<f64>), StrError>
     where
         F: FnMut(&[f64]) -> bool,
     {
@@ -73,14 +75,14 @@ impl<'a> FemOutput<'a> {
         let point_ids = self.feat.search_point_ids(At::Y(y), filter)?;
         let mut id_x_pairs: Vec<_> = point_ids
             .iter()
-            .map(|id| (*id, self.mesh.points[*id].coords[0]))
+            .map(|id| (*id, self.input.mesh.points[*id].coords[0]))
             .collect();
         id_x_pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         // extract dof values
         let dd: Vec<_> = id_x_pairs
             .iter()
-            .map(|(id, _)| self.state.uu[self.input.equations.eq(*id, dof).unwrap()])
+            .map(|(id, _)| state.uu[self.input.equations.eq(*id, dof).unwrap()])
             .collect();
 
         // unzip id_x_pairs
@@ -95,12 +97,11 @@ impl<'a> FemOutput<'a> {
     /// # Input
     ///
     /// * `full_path` -- may be a String, &str, or Path
-    pub fn write_vtu<P>(&self, full_path: &P) -> Result<(), StrError>
+    pub fn write_vtu<P>(&self, state: &FemState, full_path: &P) -> Result<(), StrError>
     where
         P: AsRef<OsStr> + ?Sized,
     {
-        let mesh = self.mesh;
-        let state = self.state;
+        let mesh = self.input.mesh;
         let ndim = mesh.ndim;
         let npoint = mesh.points.len();
         let ncell = mesh.cells.len();
@@ -285,8 +286,8 @@ mod tests {
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let output = FemOutput::new(&mesh, &feat, &input, &state);
-        let (ids, xx, dd) = output.values_along_x(Dof::T, 0.0, any_x).unwrap();
+        let output = FemOutput::new(&feat, &input);
+        let (ids, xx, dd) = output.values_along_x(&state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
         assert_eq!(dd, &[1.0, 4.0, 2.0]);
@@ -311,8 +312,8 @@ mod tests {
         }
 
         let path = "/tmp/pmsim/test_write_vtu_works.vtu";
-        let output = FemOutput::new(&mesh, &feat, &input, &state);
-        output.write_vtu(path).unwrap();
+        let output = FemOutput::new(&feat, &input);
+        output.write_vtu(&state, path).unwrap();
 
         let contents = fs::read_to_string(path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(

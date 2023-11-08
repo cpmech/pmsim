@@ -81,8 +81,8 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
 
     // generate Paraview file
     if WRITE_VTU {
-        let output = FemOutput::new(&mesh, &feat, &input, &state);
-        output.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
+        let output = FemOutput::new(&feat, &input);
+        output.write_vtu(&state, &format!("/tmp/pmsim/{}", NAME))?;
     }
 
     // check displacements

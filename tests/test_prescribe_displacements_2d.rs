@@ -97,9 +97,9 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
 
     // write file for Paraview
     if WRITE_VTU {
-        let output = FemOutput::new(&mesh, &feat, &input, &state);
+        let output = FemOutput::new(&feat, &input);
         output
-            .write_vtu("/tmp/pmsim/test_prescribe_displacements_2d.vtu")
+            .write_vtu(&state, "/tmp/pmsim/test_prescribe_displacements_2d.vtu")
             .unwrap();
     }
     Ok(())

@@ -104,8 +104,8 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // plot results
     if SAVE_FIGURE {
         // get temperature values along x
-        let post = FemOutput::new(&mesh, &feat, &input, &state);
-        let (_, x_values, tt_values) = post.values_along_x(Dof::T, 0.0, any_x)?;
+        let post = FemOutput::new(&feat, &input);
+        let (_, x_values, tt_values) = post.values_along_x(&state, Dof::T, 0.0, any_x)?;
 
         // compute plot data
         let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();

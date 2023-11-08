@@ -283,8 +283,8 @@ fn main() -> Result<(), StrError> {
 
         // vtu file
         if SAVE_VTU {
-            let post = FemOutput::new(&mesh, &feat, &input, &state);
-            post.write_vtu(&path_vtu)?;
+            let post = FemOutput::new(&feat, &input);
+            post.write_vtu(&state, &path_vtu)?;
         }
 
         // next mesh
