@@ -36,6 +36,7 @@ use russell_lab::*;
 // Coefficient ρ = 1
 
 const NAME: &str = "test_heat_lewis_transient_1d";
+const SAVE_FIGURE: bool = false;
 
 #[test]
 fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
@@ -100,7 +101,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     }
 
     // plot results
-    if false {
+    if SAVE_FIGURE {
         // compute analytical solution
         let xx_ana = Vector::linspace(0.0, 2.0, 11)?;
         let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));

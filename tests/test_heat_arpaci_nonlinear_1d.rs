@@ -40,6 +40,7 @@ use russell_lab::*;
 // result in k(T_inf) = kᵣ as required by the analytical solution.
 
 const NAME: &str = "test_heat_arpaci_nonlinear_1d";
+const SAVE_FIGURE: bool = false;
 
 #[test]
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
@@ -101,7 +102,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
 
     // plot results
-    if false {
+    if SAVE_FIGURE {
         // get temperature values along x
         let post = FemOutput::new(&mesh, &feat, &input, &state);
         let (_, x_values, tt_values) = post.values_along_x(Dof::T, 0.0, any_x)?;

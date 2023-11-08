@@ -30,6 +30,7 @@ use russell_lab::*;
 // Using reduced integration with 8 points
 
 const NAME: &str = "test_solid_smith_5d24_hex20_3d";
+const WRITE_VTU: bool = false;
 
 #[test]
 fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
@@ -91,7 +92,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     solver.solve(&mut state)?;
 
     // generate Paraview file
-    if false {
+    if WRITE_VTU {
         let output = FemOutput::new(&mesh, &feat, &input, &state);
         output.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
     }

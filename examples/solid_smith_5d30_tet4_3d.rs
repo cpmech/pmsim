@@ -29,6 +29,7 @@ use russell_lab::*;
 // Young = 100, Poisson = 0.3
 
 const NAME: &str = "ex_solid_smith_5d30_tet4_3d";
+const WRITE_VTU: bool = false;
 
 fn main() -> Result<(), StrError> {
     // mesh
@@ -75,7 +76,7 @@ fn main() -> Result<(), StrError> {
     solver.solve(&mut state)?;
 
     // generate Paraview file
-    if false {
+    if WRITE_VTU {
         let output = FemOutput::new(&mesh, &feat, &input, &state);
         output.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
     }
