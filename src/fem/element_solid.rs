@@ -135,6 +135,15 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         &self.local_to_global
     }
 
+    /// Initializes the internal values
+    fn initialize_internal_values(&mut self) -> Result<(), StrError> {
+        self.stresses
+            .all
+            .iter_mut()
+            .map(|state| self.model.actual.initialize_internal_values(state))
+            .collect()
+    }
+
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);

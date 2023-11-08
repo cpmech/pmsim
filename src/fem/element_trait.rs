@@ -10,6 +10,9 @@ pub trait ElementTrait: Send + Sync {
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize>;
 
+    /// Initializes the internal values
+    fn initialize_internal_values(&mut self) -> Result<(), StrError>;
+
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError>;
 

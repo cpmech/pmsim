@@ -183,6 +183,15 @@ impl<'a> Elements<'a> {
         Ok(())
     }
 
+    /// Initializes all secondary values
+    #[inline]
+    pub fn initialize_internal_values_parallel(&mut self) -> Result<(), StrError> {
+        self.all
+            .par_iter_mut()
+            .map(|e| e.actual.initialize_internal_values())
+            .collect()
+    }
+
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     #[inline]
     pub fn reset_algorithmic_variables_parallel(&mut self) {

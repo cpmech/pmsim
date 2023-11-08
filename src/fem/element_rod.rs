@@ -94,6 +94,11 @@ impl<'a> ElementTrait for ElementRod<'a> {
         &self.local_to_global
     }
 
+    /// Initializes the internal values
+    fn initialize_internal_values(&mut self) -> Result<(), StrError> {
+        Ok(())
+    }
+
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for local in 0..self.local_to_global.len() {

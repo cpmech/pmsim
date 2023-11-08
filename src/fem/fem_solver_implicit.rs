@@ -60,7 +60,7 @@ impl<'a> FemSolverImplicit<'a> {
         let kk = &mut self.linear_system.jacobian;
         let mdu = &mut self.linear_system.mdu;
 
-        // first residual vector
+        // residual vector
         let neq = rr.dim();
         let mut rr0 = Vector::new(neq);
 
@@ -71,6 +71,9 @@ impl<'a> FemSolverImplicit<'a> {
         if !config.linear_problem {
             control.print_header();
         }
+
+        // initialize internal values
+        self.elements.initialize_internal_values_parallel()?;
 
         // time loop
         let steady = !config.transient && !config.dynamics;
