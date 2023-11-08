@@ -1,0 +1,106 @@
+use gemlab::mesh::Samples;
+use gemlab::prelude::*;
+use pmsim::prelude::*;
+use russell_lab::*;
+
+const WRITE_VTU: bool = false;
+
+// Plane-strain linear elasticity with a single-element
+//
+// TEST GOAL
+//
+// Verifies the purely prescribed displacements case
+//
+// MESH
+//
+// Unit square
+//
+// displacement    displacement
+//         ↓         ↓
+//  roller 3---------2
+//         |         |   E = 1500
+//         |         |   ν = 0.25
+//         |         |
+//         0---------1
+//      fixed       roller
+//
+// BOUNDARY CONDITIONS
+//
+// * Vertically restrain the bottom edge
+// * Horizontally restrain the left edge
+// * Apply a vertical displacement -0.1 on the top edge
+//
+// CONFIGURATION AND PARAMETERS
+//
+// * Static non-linear plane-strain simulation
+// * Young: E = 1500, Poisson: ν = 0.25
+
+#[test]
+fn test_prescribe_displacements_2d() -> Result<(), StrError> {
+    // mesh
+    let mesh = Samples::one_qua4();
+
+    // features
+    let feat = Features::new(&mesh, false);
+    let left = feat.search_edges(At::X(0.0), any_x)?;
+    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
+    let top = feat.search_edges(At::Y(1.0), any_x)?;
+
+    // constants
+    const YOUNG: f64 = 1500.0;
+    const POISSON: f64 = 0.25;
+    const DY: f64 = 0.1;
+
+    // input data
+    let p1 = ParamSolid {
+        density: 1.0,
+        stress_strain: ParamStressStrain::LinearElastic {
+            young: YOUNG,
+            poisson: POISSON,
+        },
+    };
+    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
+
+    // essential boundary conditions
+    let mut essential = Essential::new();
+    essential
+        .on(&left, Ebc::Ux(|_| 0.0))
+        .on(&bottom, Ebc::Uy(|_| 0.0))
+        .on(&top, Ebc::Uy(|_| -DY));
+    println!("{}", essential);
+
+    // natural boundary conditions
+    let natural = Natural::new();
+
+    // configuration
+    let config = Config::new();
+
+    // FEM state
+    let mut state = FemState::new(&input, &config)?;
+
+    // solve problem
+    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    solver.solve(&mut state)?;
+    let eps_x = -DY * POISSON / (POISSON - 1.0);
+    println!("eps_x = {}", eps_x);
+    println!("U =\n{}", state.uu);
+    vec_approx_eq(
+        &state.uu.as_data(),
+        &[
+            0.0, 0.0, //   node 0
+            eps_x, 0.0, // node 1
+            eps_x, -DY, // node 2
+            0.0, -DY, //   node 3
+        ],
+        1e-15,
+    );
+
+    // write file for Paraview
+    if WRITE_VTU {
+        let output = FemOutput::new(&mesh, &feat, &input, &state);
+        output
+            .write_vtu("/tmp/pmsim/test_prescribe_displacements_2d.vtu")
+            .unwrap();
+    }
+    Ok(())
+}
