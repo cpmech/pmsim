@@ -40,7 +40,7 @@ impl StressStrainTrait for CamClay {
         Err("TODO")
     }
 
-    /// Reset algorithm variables such as Λ at the beginning of implicit iterations
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, _state: &mut StressState) {}
 
     /// Computes the consistent tangent stiffness

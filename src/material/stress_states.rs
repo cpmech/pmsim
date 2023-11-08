@@ -38,6 +38,8 @@ impl StressState {
             return Err("number of internal values is different among states");
         }
         self.loading = other.loading;
+        self.apex_return = other.apex_return;
+        self.algo_lambda = other.algo_lambda;
         self.internal_values.copy_from_slice(other.internal_values.as_slice());
         self.sigma.mirror(&other.sigma)
     }
@@ -52,21 +54,26 @@ impl StressStates {
         StressStates { all, backup }
     }
 
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    pub fn reset_algorithmic_variables(&mut self) {
+        self.all.iter_mut().for_each(|state| state.algo_lambda = 0.0);
+    }
+
     /// Creates a copy of the state
-    pub fn backup(&mut self) -> Result<(), StrError> {
+    pub fn backup(&mut self) {
         self.backup
             .iter_mut()
             .enumerate()
-            .map(|(i, backup)| backup.mirror(&self.all[i]))
+            .map(|(i, backup)| backup.mirror(&self.all[i]).unwrap())
             .collect()
     }
 
     /// Restores the state from the backup
-    pub fn restore(&mut self) -> Result<(), StrError> {
+    pub fn restore(&mut self) {
         self.all
             .iter_mut()
             .enumerate()
-            .map(|(i, state)| state.mirror(&self.backup[i]))
+            .map(|(i, state)| state.mirror(&self.backup[i]).unwrap())
             .collect()
     }
 }

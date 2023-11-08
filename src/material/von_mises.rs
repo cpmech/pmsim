@@ -75,7 +75,7 @@ impl StressStrainTrait for VonMises {
         Ok(())
     }
 
-    /// Reset algorithm variables such as Λ at the beginning of implicit iterations
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, state: &mut StressState) {
         state.algo_lambda = 0.0;
     }

@@ -16,11 +16,14 @@ pub trait ElementTrait: Send + Sync {
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError>;
 
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&mut self);
+
     /// Creates a copy of the secondary values (e.g., stresses and internal values)
-    fn backup_secondary_values(&mut self) -> Result<(), StrError>;
+    fn backup_secondary_values(&mut self);
 
     /// Restores the secondary values from the backup (e.g., stresses and internal values)
-    fn restore_secondary_values(&mut self) -> Result<(), StrError>;
+    fn restore_secondary_values(&mut self);
 
     /// Updates secondary values such as stresses and internal values
     ///

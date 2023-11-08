@@ -100,6 +100,11 @@ impl<'a> FemSolverImplicit<'a> {
             // reset cumulated primary values
             state.duu.fill(0.0);
 
+            // reset algorithmic variables
+            if !config.linear_problem {
+                self.elements.reset_algorithmic_variables_parallel();
+            }
+
             // message
             control.print_timestep(timestep, state.t, state.dt);
 
@@ -185,6 +190,15 @@ impl<'a> FemSolverImplicit<'a> {
                     for i in 0..neq {
                         state.uu[i] -= mdu[i];
                         state.duu[i] -= mdu[i];
+                    }
+                }
+
+                // backup/restore secondary variables
+                if !config.linear_problem {
+                    if iteration == 0 {
+                        self.elements.backup_secondary_values_parallel();
+                    } else {
+                        self.elements.restore_secondary_values_parallel();
                     }
                 }
 

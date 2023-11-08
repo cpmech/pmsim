@@ -85,10 +85,10 @@ impl<'a> GenericElement<'a> {
                     let original_duu = a.state.duu[j];
                     a.state.uu[j] = u;
                     a.state.duu[j] = u - original_uu;
-                    self.actual.backup_secondary_values().unwrap();
+                    self.actual.backup_secondary_values();
                     self.actual.update_secondary_values(&a.state).unwrap();
                     self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
-                    self.actual.restore_secondary_values().unwrap();
+                    self.actual.restore_secondary_values();
                     a.state.uu[j] = original_uu;
                     a.state.duu[j] = original_duu;
                     a.residual[i]
@@ -97,14 +97,6 @@ impl<'a> GenericElement<'a> {
             }
         }
         Ok(())
-    }
-
-    /// Updates secondary variables such as stresses and internal values
-    ///
-    /// Note that state.uu, state.vv, and state.aa have been updated already
-    #[inline]
-    pub fn update_secondary_values(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.actual.update_secondary_values(state)
     }
 }
 
@@ -191,6 +183,33 @@ impl<'a> Elements<'a> {
         Ok(())
     }
 
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    #[inline]
+    pub fn reset_algorithmic_variables_parallel(&mut self) {
+        self.all
+            .par_iter_mut()
+            .map(|e| e.actual.reset_algorithmic_variables())
+            .collect()
+    }
+
+    /// Creates a copy of the secondary values (e.g., stresses and internal values)
+    #[inline]
+    pub fn backup_secondary_values_parallel(&mut self) {
+        self.all
+            .par_iter_mut()
+            .map(|e| e.actual.backup_secondary_values())
+            .collect()
+    }
+
+    /// Restores the secondary values from the backup (e.g., stresses and internal values)
+    #[inline]
+    pub fn restore_secondary_values_parallel(&mut self) {
+        self.all
+            .par_iter_mut()
+            .map(|e| e.actual.restore_secondary_values())
+            .collect()
+    }
+
     /// Updates secondary variables such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
@@ -198,7 +217,7 @@ impl<'a> Elements<'a> {
     pub fn update_secondary_values_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all
             .par_iter_mut()
-            .map(|e| e.update_secondary_values(state))
+            .map(|e| e.actual.update_secondary_values(state))
             .collect()
     }
 }
@@ -334,7 +353,7 @@ mod tests {
         for i in 0..6 {
             state.uu[i] = state.duu[i];
         }
-        ele.update_secondary_values(&state).unwrap();
+        ele.actual.update_secondary_values(&state).unwrap();
         println!("uu =\n{}", state.uu);
 
         ele.calc_jacobian(&state).unwrap();
