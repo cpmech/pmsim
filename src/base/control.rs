@@ -204,14 +204,14 @@ impl Control {
     }
 
     /// Saves the global K matrix for debugging
-    pub fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix, output_counter: usize) -> Result<(), StrError> {
+    pub fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix) -> Result<(), StrError> {
         if self.save_matrix_market_file || self.save_vismatrix_file {
             if self.save_matrix_market_file {
-                let name = format!("/tmp/pmsim/K-matrix-{:0>20}.mtx", output_counter);
+                let name = format!("/tmp/pmsim/K-matrix.mtx");
                 kk.write_matrix_market(&name, false).unwrap();
             }
             if self.save_vismatrix_file {
-                let name = format!("/tmp/pmsim/K-matrix-{:0>20}.smat", output_counter);
+                let name = format!("/tmp/pmsim/K-matrix.smat");
                 kk.write_matrix_market(&name, true).unwrap();
             }
             Err("K matrix written; will stop now")

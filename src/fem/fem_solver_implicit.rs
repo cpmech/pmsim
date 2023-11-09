@@ -64,9 +64,6 @@ impl<'a> FemSolverImplicit<'a> {
         let neq = rr.dim();
         let mut rr0 = Vector::new(neq);
 
-        // counter for numbering output files
-        let mut output_counter = 0;
-
         // message
         if !config.linear_problem {
             control.print_header();
@@ -171,7 +168,7 @@ impl<'a> FemSolverImplicit<'a> {
                         .factorize(kk, Some(config.lin_sol_params))?;
 
                     // Debug K matrix
-                    control.debug_save_kk_matrix(kk, output_counter)?;
+                    control.debug_save_kk_matrix(kk)?;
                 }
 
                 // solve linear system
@@ -207,9 +204,6 @@ impl<'a> FemSolverImplicit<'a> {
 
                 // update secondary variables
                 self.elements.update_secondary_values_parallel(state)?;
-
-                // update counter for numbering output files
-                output_counter += 1;
 
                 // exit if linear problem
                 if config.linear_problem {
