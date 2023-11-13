@@ -1,4 +1,4 @@
-use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, FemState};
+use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, FemState, SecondaryValues};
 use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
@@ -20,6 +20,9 @@ pub struct GenericElement<'a> {
 
 /// Holds a collection of (generic) finite elements
 pub struct Elements<'a> {
+    /// Holds configuration parameters
+    pub config: &'a Config,
+
     /// All elements
     pub all: Vec<GenericElement<'a>>,
 }
@@ -110,7 +113,7 @@ impl<'a> Elements<'a> {
             .map(|cell| GenericElement::new(input, config, cell))
             .collect();
         match res {
-            Ok(all) => Ok(Elements { all }),
+            Ok(all) => Ok(Elements { config, all }),
             Err(e) => Err(e),
         }
     }
@@ -219,7 +222,7 @@ impl<'a> Elements<'a> {
             .collect()
     }
 
-    /// Updates secondary variables such as stresses and internal values
+    /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     #[inline]
@@ -228,6 +231,21 @@ impl<'a> Elements<'a> {
             .par_iter_mut()
             .map(|e| e.actual.update_secondary_values(state))
             .collect()
+    }
+
+    /// Outputs secondary values for post-processing
+    pub fn output_internal_values(&mut self, state: &mut FemState) {
+        if self.config.out_secondary_values {
+            let n_cells = self.all.len();
+            if state.secondary_values.is_none() {
+                state.secondary_values = Some(vec![SecondaryValues::new_empty(); n_cells]);
+            }
+            // let all_internal_values = state.out_second_values.as_mut().unwrap();
+            // for c in 0..n_cells {
+            //     self.all[c].actual.output_internal_values(state);
+            // }
+            self.all.iter_mut().for_each(|e| e.actual.output_internal_values(state));
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
-use crate::material::{StressStates, StressStrainModel};
+use crate::material::{StrainStates, StressStates, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -122,6 +122,47 @@ impl<'a> ElementSolid<'a> {
         }
         Ok(())
     }
+
+    /// Calculates strains or strain increments from the global {U} or {ΔU} vectors
+    #[rustfmt::skip]
+    fn calc_strains(&mut self, eps: &mut Tensor2, uu: &Vector, integ_point_index: usize) -> Result<(), StrError> {
+        self.pad.calc_gradient(&self.ips[integ_point_index])?;
+        let nnode = self.cell.points.len();
+        let l2g = &self.local_to_global;
+        let gg = &self.pad.gradient;
+        eps.clear();
+        if self.ndim == 2 {
+            for m in 0..nnode {
+                eps.sym_add(0, 0, 1.0,  uu[l2g[0+2*m]] * gg.get(m,0));
+                eps.sym_add(1, 1, 1.0,  uu[l2g[1+2*m]] * gg.get(m,1));
+                eps.sym_add(0, 1, 1.0, (uu[l2g[0+2*m]] * gg.get(m,1) + uu[l2g[1+2*m]] * gg.get(m,0))/2.0);
+            }
+            if self.config.axisymmetric {
+                // calculate radius
+                let iota = &self.ips[integ_point_index];
+                (self.pad.fn_interp)(&mut self.pad.interp, iota);
+                let nn = &self.pad.interp;
+                let mut r = 0.0; // radius @ x(ιᵖ)
+                for m in 0..nnode {
+                    r += nn[m] * self.pad.xxt.get(0,m);
+                }
+                // compute out-of-plane strain increment component
+                for m in 0..nnode {
+                    eps.sym_add(2, 2, 1.0, uu[l2g[0+2*m]] * nn[m] / r);
+                }
+            }
+        } else {
+            for m in 0..nnode {
+                eps.sym_add(0, 0, 1.0,  uu[l2g[0+3*m]] * gg.get(m,0));
+                eps.sym_add(1, 1, 1.0,  uu[l2g[1+3*m]] * gg.get(m,1));
+                eps.sym_add(2, 2, 1.0,  uu[l2g[2+3*m]] * gg.get(m,2));
+                eps.sym_add(0, 1, 1.0, (uu[l2g[0+3*m]] * gg.get(m,1) + uu[l2g[1+3*m]] * gg.get(m,0))/2.0);
+                eps.sym_add(1, 2, 1.0, (uu[l2g[1+3*m]] * gg.get(m,2) + uu[l2g[2+3*m]] * gg.get(m,1))/2.0);
+                eps.sym_add(0, 2, 1.0, (uu[l2g[0+3*m]] * gg.get(m,2) + uu[l2g[2+3*m]] * gg.get(m,0))/2.0);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<'a> ElementTrait for ElementSolid<'a> {
@@ -225,6 +266,32 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             self.model.actual.update_stress(&mut self.stresses.all[p], &self.deps)?;
         }
         Ok(())
+    }
+
+    /// Performs the output of internal values
+    ///
+    /// Will save the results into [FemState::secondary_values]
+    fn output_internal_values(&mut self, state: &mut FemState) {
+        let second_values = &mut state.secondary_values.as_mut().unwrap()[self.cell.id];
+        let two_dim = self.ndim == 2;
+        let n_integ_point = self.ips.len();
+        if !self.config.out_no_strains {
+            if second_values.strains.is_none() {
+                second_values.strains = Some(StrainStates::new(two_dim, n_integ_point));
+            }
+            let strains = &mut second_values.strains.as_mut().unwrap().all;
+            for p in 0..self.ips.len() {
+                self.calc_strains(&mut strains[p], &state.uu, p).unwrap(); // TODO: remove unwrap
+            }
+        }
+        if second_values.stresses.is_none() {
+            let n_internal_values = self.model.actual.n_internal_values();
+            second_values.stresses = Some(StressStates::new(two_dim, n_internal_values, n_integ_point));
+        }
+        let stresses = &mut second_values.stresses.as_mut().unwrap().all;
+        for p in 0..self.ips.len() {
+            stresses[p].mirror(&self.stresses.all[p]).unwrap(); // TODO: remove unwrap
+        }
     }
 }
 

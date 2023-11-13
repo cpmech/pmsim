@@ -3,6 +3,7 @@
 mod camclay;
 mod conductivity;
 mod linear_elastic;
+mod strain_states;
 mod stress_states;
 mod stress_strain_model;
 mod stress_strain_path;
@@ -12,6 +13,7 @@ mod von_mises;
 pub use crate::material::camclay::*;
 pub use crate::material::conductivity::*;
 pub use crate::material::linear_elastic::*;
+pub use crate::material::strain_states::*;
 pub use crate::material::stress_states::*;
 pub use crate::material::stress_strain_model::*;
 pub use crate::material::stress_strain_path::*;

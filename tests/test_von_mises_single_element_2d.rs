@@ -84,6 +84,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new();
+    config.out_secondary_values = true;
     config.control.dt = |_| 1.0;
 
     // FEM state
@@ -92,6 +93,11 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state)?;
-    println!("{}", state.uu);
+
+    // print results
+    println!("U =\n{}", state.uu);
+    let (stress_state, epsilon) = state.extract_stresses_and_strains(0, 0)?;
+    println!("ε = {:?}", epsilon.vec.as_data());
+    println!("{:.6}", stress_state);
     Ok(())
 }

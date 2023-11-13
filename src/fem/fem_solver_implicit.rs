@@ -64,6 +64,10 @@ impl<'a> FemSolverImplicit<'a> {
         let neq = rr.dim();
         let mut rr0 = Vector::new(neq);
 
+        // first output
+        self.elements.output_internal_values(state);
+        let mut t_out = state.t + (control.dt_out)(state.t);
+
         // message
         if !config.linear_problem {
             control.print_header();
@@ -214,6 +218,13 @@ impl<'a> FemSolverImplicit<'a> {
                 if iteration == control.n_max_iterations - 1 {
                     return Err("Newton-Raphson did not converge");
                 }
+            }
+
+            // perform output
+            let last_timestep = timestep == control.n_max_time_steps - 1;
+            if state.t >= t_out || last_timestep {
+                self.elements.output_internal_values(state); // TODO
+                t_out += (control.dt_out)(state.t);
             }
 
             // final time step
