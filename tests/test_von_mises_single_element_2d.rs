@@ -3,8 +3,6 @@ use gemlab::prelude::*;
 use pmsim::prelude::*;
 use russell_lab::*;
 
-// const WRITE_VTU: bool = false;
-
 // von Mises plasticity with a single-element
 //
 // TEST GOAL

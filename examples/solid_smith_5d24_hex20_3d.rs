@@ -29,9 +29,6 @@ use russell_lab::*;
 // Lower layer: Young = 50, Poisson = 0.3
 // Using reduced integration with 8 points
 
-const NAME: &str = "ex_solid_smith_5d24_hex20_3d";
-const SAVE_VTU: bool = false;
-
 fn main() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d24_hex20();
@@ -83,8 +80,7 @@ fn main() -> Result<(), StrError> {
     let mut state = FemState::new(&input, &config)?;
 
     // FEM output
-    let fn_stem = if SAVE_VTU { Some(NAME.to_string()) } else { None };
-    let mut output = FemOutput::new(&input, fn_stem, None, None)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;

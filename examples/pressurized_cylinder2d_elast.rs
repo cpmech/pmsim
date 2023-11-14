@@ -8,7 +8,6 @@ use std::env;
 
 const NAME: &str = "pressurized_cylinder2d_elast";
 const SAVE_FIGURE_MESH: bool = false;
-const SAVE_VTU: bool = false;
 
 // constants
 const R1: f64 = 3.0; // inner radius
@@ -228,12 +227,7 @@ fn main() -> Result<(), StrError> {
         let mut state = FemState::new(&input, &config)?;
 
         // FEM output
-        let fn_stem = if SAVE_VTU {
-            Some(format!("{}_{}_{}_{}", NAME, g_str, k_str, n_str))
-        } else {
-            None
-        };
-        let mut output = FemOutput::new(&input, fn_stem, None, None)?;
+        let mut output = FemOutput::new(&input, None, None, None)?;
 
         // solve problem
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
