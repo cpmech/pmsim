@@ -72,7 +72,7 @@ fn main() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
@@ -104,7 +104,7 @@ fn main() -> Result<(), StrError> {
     let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
     // get temperature values along x
-    let post = FemOutput::new(&input, None, None)?;
+    let post = FemOutput::new(&input, None, None, None)?;
     let (_, xx_num, tt_num) = post.values_along_x(&feat, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
     // plot

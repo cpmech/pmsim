@@ -233,7 +233,7 @@ fn main() -> Result<(), StrError> {
         } else {
             None
         };
-        let mut output = FemOutput::new(&input, fn_stem, None)?;
+        let mut output = FemOutput::new(&input, fn_stem, None, None)?;
 
         // solve problem
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;

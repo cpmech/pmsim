@@ -119,6 +119,7 @@ impl StressStrainTrait for VonMises {
 
         // elastic update
         let f_trial = self.yield_function(state);
+        println!("f_trial = {}", f_trial);
         if f_trial <= 0.0 {
             return Ok(());
         }

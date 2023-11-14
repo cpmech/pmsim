@@ -84,7 +84,7 @@ fn main() -> Result<(), StrError> {
 
     // FEM output
     let fn_stem = if SAVE_VTU { Some(NAME.to_string()) } else { None };
-    let mut output = FemOutput::new(&input, fn_stem, None)?;
+    let mut output = FemOutput::new(&input, fn_stem, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;

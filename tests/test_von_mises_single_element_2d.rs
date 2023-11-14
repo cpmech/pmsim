@@ -86,12 +86,22 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new();
+    config.n_integ_point.insert(1, 1);
     config.out_secondary_values = true;
     config.control.dt = |_| 1.0;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, Some(NAME.to_string()), None)?;
+
+    // FEM output
+    let mut output = FemOutput::new(
+        &input,
+        Some(NAME.to_string()),
+        None,
+        Some(|state, count| {
+            println!("{:>3}: time = {}", count, state.t);
+        }),
+    )?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
@@ -102,5 +112,13 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let (stress_state, epsilon) = state.extract_stresses_and_strains(0, 0)?;
     println!("ε = {:?}", epsilon.vec.as_data());
     println!("{:.6}", stress_state);
+
+    // check
+    let spo_eps = &[2.080125735844610E-03, -6.240377207533829E-03, 0.0, 0.0];
+    let spo_sig = &[0.0, -9.984603532054127E+00, -2.496150883013531E+00, 0.0];
+    vec_approx_eq(epsilon.vec.as_data(), spo_eps, 1e-15);
+    vec_approx_eq(stress_state.sigma.vec.as_data(), spo_sig, 1e-15);
+    // assert_eq!(stress_state.loading, false);
+
     Ok(())
 }

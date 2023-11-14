@@ -247,7 +247,7 @@ fn main() -> Result<(), StrError> {
         } else {
             None
         };
-        let mut output = FemOutput::new(&input, fn_stem, None)?;
+        let mut output = FemOutput::new(&input, fn_stem, None, None)?;
 
         // println!("5. running simulation");
 

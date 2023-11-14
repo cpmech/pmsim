@@ -72,7 +72,7 @@ fn main() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // check Jacobian matrix of first element
     elements.calc_jacobians(&state)?;

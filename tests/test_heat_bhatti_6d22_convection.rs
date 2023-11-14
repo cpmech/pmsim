@@ -286,7 +286,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;

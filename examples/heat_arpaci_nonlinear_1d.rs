@@ -78,7 +78,7 @@ fn main() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
@@ -105,7 +105,7 @@ fn main() -> Result<(), StrError> {
 
     // plot results
     // get temperature values along x
-    let post = FemOutput::new(&input, None, None)?;
+    let post = FemOutput::new(&input, None, None, None)?;
     let (_, x_values, tt_values) = post.values_along_x(&feat, &state, Dof::T, 0.0, any_x)?;
 
     // compute plot data

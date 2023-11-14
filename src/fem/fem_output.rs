@@ -19,6 +19,7 @@ pub struct FemOutput<'a> {
     filename_stem: Option<String>,
     output_directory: String,
     output_count: usize,
+    callback: Option<fn(&FemState, usize)>,
 }
 
 impl<'a> FemOutput<'a> {
@@ -31,10 +32,14 @@ impl<'a> FemOutput<'a> {
     ///   None means that no files will be written.
     /// * `output_directory` -- the directory to save the output files.
     ///   None means that the default directory will be used; see [DEFAULT_OUTPUT_DIR]
+    /// * `callback` -- is a function to be called at each time-output.
+    ///   Example use `Some(|state, count| { ... })` to perform some processing on state at time `state.t`.
+    ///   `count` is the corresponding `output_count` used to generate the output file.
     pub fn new(
         input: &'a FemInput,
         filename_stem: Option<String>,
         output_directory: Option<&str>,
+        callback: Option<fn(&FemState, usize)>,
     ) -> Result<Self, StrError> {
         // auxiliary information
         let mut enabled_dofs = HashSet::new();
@@ -64,6 +69,7 @@ impl<'a> FemOutput<'a> {
             filename_stem,
             output_directory: out_dir.to_string(),
             output_count: 0,
+            callback,
         })
     }
 
@@ -77,6 +83,9 @@ impl<'a> FemOutput<'a> {
             let path_vtu = format!("{}/{}-{:0>20}.vtu", self.output_directory, fn_stem, self.output_count);
             state.write(&path_state)?;
             self.write_vtu(state, &path_vtu)?;
+            if let Some(callback) = self.callback {
+                (callback)(state, self.output_count);
+            }
             self.output_count += 1;
         }
         Ok(())
@@ -327,7 +336,7 @@ mod tests {
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let output = FemOutput::new(&input, None, None).unwrap();
+        let output = FemOutput::new(&input, None, None, None).unwrap();
         let (ids, xx, dd) = output.values_along_x(&feat, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
@@ -351,7 +360,7 @@ mod tests {
             state.uu[0 + mesh.ndim * p] = strain * y;
         }
 
-        let output = FemOutput::new(&input, Some("test_write_vtu_works".to_string()), None).unwrap();
+        let output = FemOutput::new(&input, Some("test_write_vtu_works".to_string()), None, None).unwrap();
         let path = format!(
             "{}/{}-{:0>20}.vtu",
             output.output_directory,
