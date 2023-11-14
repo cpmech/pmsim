@@ -1,5 +1,5 @@
 use crate::base::Dof;
-use crate::fem::{FemInput, FemState};
+use crate::fem::{Elements, FemInput, FemState};
 use crate::StrError;
 use gemlab::mesh::{At, Features, PointId};
 use std::collections::HashSet;
@@ -9,17 +9,34 @@ use std::fs::{self, File};
 use std::io::Write as IoWrite;
 use std::path::Path;
 
+pub const DEFAULT_OUTPUT_DIR: &str = "/tmp/pmsim/results";
+
 /// Assists in the post-processing of results
 pub struct FemOutput<'a> {
-    feat: &'a Features<'a>,
     input: &'a FemInput<'a>,
     enabled_dofs: HashSet<Dof>,
     not_displacement_dof: Vec<Dof>,
+    filename_stem: Option<String>,
+    output_directory: String,
+    output_count: usize,
 }
 
 impl<'a> FemOutput<'a> {
     /// Allocates new instance
-    pub fn new(feat: &'a Features, input: &'a FemInput) -> Self {
+    ///
+    /// # Input
+    ///
+    /// * `input` -- the FEM input data
+    /// * `filename_steam` -- the last part of the filename without extension, e.g., "my_simulation".
+    ///   None means that no files will be written.
+    /// * `output_directory` -- the directory to save the output files.
+    ///   None means that the default directory will be used; see [DEFAULT_OUTPUT_DIR]
+    pub fn new(
+        input: &'a FemInput,
+        filename_stem: Option<String>,
+        output_directory: Option<&str>,
+    ) -> Result<Self, StrError> {
+        // auxiliary information
         let mut enabled_dofs = HashSet::new();
         for map in &input.equations.all {
             for dof in map.keys() {
@@ -31,12 +48,38 @@ impl<'a> FemOutput<'a> {
             .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
             .copied()
             .collect();
-        FemOutput {
-            feat,
+
+        // output directory
+        let out_dir = match output_directory {
+            Some(d) => d,
+            None => DEFAULT_OUTPUT_DIR,
+        };
+        fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
+
+        // results
+        Ok(FemOutput {
             input,
             enabled_dofs,
             not_displacement_dof,
+            filename_stem,
+            output_directory: out_dir.to_string(),
+            output_count: 0,
+        })
+    }
+
+    /// Writes the current FEM state to a binary file and the results to a VTU file
+    ///
+    /// **Note:** No output is generated if `filename_stem` is None.
+    pub(crate) fn write(&mut self, state: &mut FemState, elements: &mut Elements) -> Result<(), StrError> {
+        if let Some(fn_stem) = &self.filename_stem {
+            elements.output_internal_values(state)?;
+            let path_state = format!("{}/{}-{:0>20}.state", self.output_directory, fn_stem, self.output_count);
+            let path_vtu = format!("{}/{}-{:0>20}.vtu", self.output_directory, fn_stem, self.output_count);
+            state.write(&path_state)?;
+            self.write_vtu(state, &path_vtu)?;
+            self.output_count += 1;
         }
+        Ok(())
     }
 
     /// Extracts primary values along x
@@ -63,6 +106,7 @@ impl<'a> FemOutput<'a> {
     /// * `dd` -- are the DOF values (e.g., temperature) along x and corresponding to the `ids` and `xx`
     pub fn values_along_x<F>(
         &self,
+        feat: &Features,
         state: &FemState,
         dof: Dof,
         y: f64,
@@ -72,7 +116,7 @@ impl<'a> FemOutput<'a> {
         F: FnMut(&[f64]) -> bool,
     {
         // find points and sort by x-coordinates
-        let point_ids = self.feat.search_point_ids(At::Y(y), filter)?;
+        let point_ids = feat.search_point_ids(At::Y(y), filter)?;
         let mut id_x_pairs: Vec<_> = point_ids
             .iter()
             .map(|id| (*id, self.input.mesh.points[*id].coords[0]))
@@ -97,7 +141,7 @@ impl<'a> FemOutput<'a> {
     /// # Input
     ///
     /// * `full_path` -- may be a String, &str, or Path
-    pub fn write_vtu<P>(&self, state: &FemState, full_path: &P) -> Result<(), StrError>
+    pub(crate) fn write_vtu<P>(&self, state: &FemState, full_path: &P) -> Result<(), StrError>
     where
         P: AsRef<OsStr> + ?Sized,
     {
@@ -254,10 +298,7 @@ impl<'a> FemOutput<'a> {
         // write file
         let mut file = File::create(path).map_err(|_| "cannot create file")?;
         file.write_all(buffer.as_bytes()).map_err(|_| "cannot write file")?;
-
-        // force sync
-        file.sync_all().map_err(|_| "cannot sync file")?;
-        Ok(())
+        file.sync_all().map_err(|_| "cannot sync file")
     }
 }
 
@@ -286,8 +327,8 @@ mod tests {
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let output = FemOutput::new(&feat, &input);
-        let (ids, xx, dd) = output.values_along_x(&state, Dof::T, 0.0, any_x).unwrap();
+        let output = FemOutput::new(&input, None, None).unwrap();
+        let (ids, xx, dd) = output.values_along_x(&feat, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
         assert_eq!(dd, &[1.0, 4.0, 2.0]);
@@ -296,7 +337,6 @@ mod tests {
     #[test]
     fn write_vtu_works() {
         let mesh = Samples::three_tri3();
-        let feat = Features::new(&mesh, false);
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
@@ -311,9 +351,14 @@ mod tests {
             state.uu[0 + mesh.ndim * p] = strain * y;
         }
 
-        let path = "/tmp/pmsim/test_write_vtu_works.vtu";
-        let output = FemOutput::new(&feat, &input);
-        output.write_vtu(&state, path).unwrap();
+        let output = FemOutput::new(&input, Some("test_write_vtu_works".to_string()), None).unwrap();
+        let path = format!(
+            "{}/{}-{:0>20}.vtu",
+            output.output_directory,
+            output.filename_stem.as_ref().unwrap(),
+            output.output_count
+        );
+        output.write_vtu(&state, &path).unwrap();
 
         let contents = fs::read_to_string(path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(

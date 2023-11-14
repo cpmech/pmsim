@@ -73,6 +73,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None)?;
 
     // check Jacobian matrix of first element
     elements.calc_jacobians(&state)?;
@@ -89,7 +90,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // check displacements
     #[rustfmt::skip]

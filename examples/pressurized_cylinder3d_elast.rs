@@ -176,7 +176,6 @@ fn main() -> Result<(), StrError> {
         // filepaths
         let ext = if ndof < 20000 { "svg" } else { "png" };
         let path_mesh = format!("/tmp/pmsim/{}_{}_{}_{}.{}", NAME, g_str, k_str, n_str, ext);
-        let path_vtu = format!("/tmp/pmsim/{}_{}_{}_{}.vtu", NAME, g_str, k_str, n_str);
 
         // save mesh figure
         if SAVE_FIGURE_MESH {
@@ -242,12 +241,20 @@ fn main() -> Result<(), StrError> {
         // FEM state
         let mut state = FemState::new(&input, &config)?;
 
+        // FEM output
+        let fn_stem = if SAVE_VTU {
+            Some(format!("{}_{}_{}_{}", NAME, g_str, k_str, n_str))
+        } else {
+            None
+        };
+        let mut output = FemOutput::new(&input, fn_stem, None)?;
+
         // println!("5. running simulation");
 
         // solve problem
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
-        match solver.solve(&mut state) {
+        match solver.solve(&mut state, &mut output) {
             Err(e) => {
                 println!("{:?} failed with: {}", genie, e);
                 continue;
@@ -280,12 +287,6 @@ fn main() -> Result<(), StrError> {
             "{:>15} {:>6} {:>11.2} {:>9.2e} {:>10.2e}",
             ns, ndof, lx, error, study_error
         );
-
-        // vtu file
-        if SAVE_VTU {
-            let post = FemOutput::new(&feat, &input);
-            post.write_vtu(&state, &path_vtu)?;
-        }
 
         // next mesh
         idx += 1;

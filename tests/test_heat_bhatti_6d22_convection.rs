@@ -1,6 +1,8 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamConductivity, ParamDiffusion, SampleMeshes};
-use pmsim::fem::{Boundaries, Elements, FemInput, FemSolverImplicit, FemState, LinearSystem, PrescribedValues};
+use pmsim::fem::{
+    Boundaries, Elements, FemInput, FemOutput, FemSolverImplicit, FemState, LinearSystem, PrescribedValues,
+};
 use russell_lab::*;
 
 // Bhatti's Example 6.22 on page 449
@@ -284,10 +286,11 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // check U vector
     let tt_bhatti = Vector::from(&[

@@ -1,5 +1,4 @@
 use gemlab::prelude::*;
-use plotpy::{Curve, Plot};
 use pmsim::prelude::*;
 use russell_lab::*;
 
@@ -40,7 +39,6 @@ use russell_lab::*;
 // result in k(T_inf) = kᵣ as required by the analytical solution.
 
 const NAME: &str = "test_heat_arpaci_nonlinear_1d";
-const SAVE_FIGURE: bool = false;
 
 #[test]
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
@@ -77,10 +75,11 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // analytical solution
     let coef = BETA * SOURCE * L * L / (2.0 * K_R);
@@ -100,35 +99,6 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let ref_tt = state.uu[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
-
-    // plot results
-    if SAVE_FIGURE {
-        // get temperature values along x
-        let post = FemOutput::new(&feat, &input);
-        let (_, x_values, tt_values) = post.values_along_x(&state, Dof::T, 0.0, any_x)?;
-
-        // compute plot data
-        let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();
-        let yy_num: Vec<_> = tt_values.iter().map(|tt| 2.0 * K_R * tt / (SOURCE * L * L)).collect();
-        let yy_ana: Vec<_> = x_values.iter().map(|x| normalized(*x)).collect();
-
-        // plot
-        let mut curve_num = Curve::new();
-        let mut curve_ana = Curve::new();
-        curve_num
-            .set_line_color("#cd0000")
-            .set_line_style("None")
-            .set_marker_style("+");
-        curve_num.draw(&xx, &yy_num);
-        curve_ana.draw(&xx, &yy_ana);
-        let mut plot = Plot::new();
-        plot.add(&curve_ana);
-        plot.add(&curve_num);
-        plot.set_title(format!("$\\beta\\;s\\;L^2\\;/\\;(2\\;k_r)$ = {:.2}", coef).as_str())
-            .grid_and_labels("$x\\;/\\;L$", "$2\\,k_r\\,T\\;/\\;(s\\,L^2)$")
-            .legend()
-            .save(&["/tmp/pmsim/", NAME, "_results.svg"].concat())?;
-    }
     Ok(())
 }
 

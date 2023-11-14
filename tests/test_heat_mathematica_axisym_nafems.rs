@@ -100,10 +100,11 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // check
     let eq = input.equations.eq(ref_point, Dof::T).unwrap();

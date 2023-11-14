@@ -3,8 +3,6 @@ use gemlab::prelude::*;
 use pmsim::prelude::*;
 use russell_lab::*;
 
-const WRITE_VTU: bool = false;
-
 // Plane-strain linear elasticity with a single-element
 //
 // TEST GOAL
@@ -77,10 +75,11 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
     let eps_x = -DY * POISSON / (POISSON - 1.0);
     println!("eps_x = {}", eps_x);
     println!("U =\n{}", state.uu);
@@ -94,13 +93,5 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
         ],
         1e-15,
     );
-
-    // write file for Paraview
-    if WRITE_VTU {
-        let output = FemOutput::new(&feat, &input);
-        output
-            .write_vtu(&state, "/tmp/pmsim/test_prescribe_displacements_2d.vtu")
-            .unwrap();
-    }
     Ok(())
 }

@@ -1,4 +1,4 @@
-use super::{Boundaries, ConcentratedLoads, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
+use super::{Boundaries, ConcentratedLoads, Elements, FemInput, FemOutput, FemState, LinearSystem, PrescribedValues};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
@@ -51,7 +51,7 @@ impl<'a> FemSolverImplicit<'a> {
     }
 
     /// Solves the associated system of partial differential equations
-    pub fn solve(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    pub fn solve(&mut self, state: &mut FemState, output: &mut FemOutput) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
         let control = &self.config.control;
@@ -65,7 +65,7 @@ impl<'a> FemSolverImplicit<'a> {
         let mut rr0 = Vector::new(neq);
 
         // first output
-        self.elements.output_internal_values(state);
+        output.write(state, &mut self.elements)?;
         let mut t_out = state.t + (control.dt_out)(state.t);
 
         // message
@@ -223,7 +223,7 @@ impl<'a> FemSolverImplicit<'a> {
             // perform output
             let last_timestep = timestep == control.n_max_time_steps - 1;
             if state.t >= t_out || last_timestep {
-                self.elements.output_internal_values(state); // TODO
+                output.write(state, &mut self.elements)?;
                 t_out += (control.dt_out)(state.t);
             }
 
@@ -242,7 +242,7 @@ impl<'a> FemSolverImplicit<'a> {
 mod tests {
     use super::FemSolverImplicit;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
-    use crate::fem::{FemInput, FemState};
+    use crate::fem::{FemInput, FemOutput, FemState};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -329,8 +329,9 @@ mod tests {
         let natural = Natural::new();
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&input, &config).unwrap();
+        let mut output = FemOutput::new(&input, None, None).unwrap();
         assert_eq!(
-            solver.solve(&mut state).err(),
+            solver.solve(&mut state, &mut output).err(),
             Some("Δt is smaller than the allowed minimum")
         );
     }

@@ -78,10 +78,11 @@ fn main() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // analytical solution
     let coef = BETA * SOURCE * L * L / (2.0 * K_R);
@@ -104,8 +105,8 @@ fn main() -> Result<(), StrError> {
 
     // plot results
     // get temperature values along x
-    let post = FemOutput::new(&feat, &input);
-    let (_, x_values, tt_values) = post.values_along_x(&state, Dof::T, 0.0, any_x)?;
+    let post = FemOutput::new(&input, None, None)?;
+    let (_, x_values, tt_values) = post.values_along_x(&feat, &state, Dof::T, 0.0, any_x)?;
 
     // compute plot data
     let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();

@@ -29,7 +29,7 @@ use russell_lab::*;
 // Young = 100, Poisson = 0.3
 
 const NAME: &str = "ex_solid_smith_5d30_tet4_3d";
-const WRITE_VTU: bool = false;
+const SAVE_VTU: bool = false;
 
 fn main() -> Result<(), StrError> {
     // mesh
@@ -71,15 +71,13 @@ fn main() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&input, &config)?;
 
+    // FEM output
+    let fn_stem = if SAVE_VTU { Some(NAME.to_string()) } else { None };
+    let mut output = FemOutput::new(&input, fn_stem, None)?;
+
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
-
-    // generate Paraview file
-    if WRITE_VTU {
-        let output = FemOutput::new(&feat, &input);
-        output.write_vtu(&state, &format!("/tmp/pmsim/{}", NAME))?;
-    }
+    solver.solve(&mut state, &mut output)?;
 
     // check displacements
     #[rustfmt::skip]

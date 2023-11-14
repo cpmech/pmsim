@@ -234,17 +234,18 @@ impl<'a> Elements<'a> {
     }
 
     /// Outputs secondary values for post-processing
-    pub fn output_internal_values(&mut self, state: &mut FemState) {
+    pub fn output_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         if self.config.out_secondary_values {
             let n_cells = self.all.len();
             if state.secondary_values.is_none() {
                 state.secondary_values = Some(vec![SecondaryValues::new_empty(); n_cells]);
             }
-            // let all_internal_values = state.out_second_values.as_mut().unwrap();
-            // for c in 0..n_cells {
-            //     self.all[c].actual.output_internal_values(state);
-            // }
-            self.all.iter_mut().for_each(|e| e.actual.output_internal_values(state));
+            self.all
+                .iter_mut()
+                .map(|e| e.actual.output_internal_values(state))
+                .collect()
+        } else {
+            Ok(())
         }
     }
 }

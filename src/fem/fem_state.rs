@@ -170,14 +170,17 @@ impl FemState {
         self.serialize(&mut ser).map_err(|_| "serialize failed")?;
         let mut file = File::create(&path).map_err(|_| "cannot create file")?;
         file.write_all(&bin).map_err(|_| "cannot write file")?;
-        Ok(())
+        file.sync_all().map_err(|_| "cannot sync file")
     }
 
     /// Extracts stresses, strains, and internal values
     ///
     /// Returns `(stress_state, epsilon)`
     ///
-    /// **Note:** This function will return and error if stresses/strains are not available (e.g. in a Diffusion simulation)
+    /// The results are only available if [crate::fem::FemOutput] was provided a `filename_stem`
+    /// and [Config::out_secondary_values] was set true.
+    ///
+    /// **Note:** This function will return an error if stresses/strains are not available (e.g. in a Diffusion simulation)
     /// or not present in the integration (Gauss) point of the selected cell/element.
     pub fn extract_stresses_and_strains(
         &self,
@@ -197,7 +200,9 @@ impl FemState {
                 };
                 Ok((stress_state, epsilon))
             }
-            None => Err("secondary values are not available for this problems (diffusion?)"),
+            None => {
+                Err("secondary values are not available for this problem (need config.out_secondary_values = true)")
+            }
         }
     }
 }

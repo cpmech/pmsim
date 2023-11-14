@@ -36,5 +36,5 @@ pub trait ElementTrait: Send + Sync {
     /// Performs the output of internal values
     ///
     /// Will save the results into [FemState::secondary_values]
-    fn output_internal_values(&mut self, state: &mut FemState);
+    fn output_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError>;
 }

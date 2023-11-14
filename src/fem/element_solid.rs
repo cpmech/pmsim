@@ -271,7 +271,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     /// Performs the output of internal values
     ///
     /// Will save the results into [FemState::secondary_values]
-    fn output_internal_values(&mut self, state: &mut FemState) {
+    fn output_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         let second_values = &mut state.secondary_values.as_mut().unwrap()[self.cell.id];
         let two_dim = self.ndim == 2;
         let n_integ_point = self.ips.len();
@@ -281,7 +281,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             }
             let strains = &mut second_values.strains.as_mut().unwrap().all;
             for p in 0..self.ips.len() {
-                self.calc_strains(&mut strains[p], &state.uu, p).unwrap(); // TODO: remove unwrap
+                self.calc_strains(&mut strains[p], &state.uu, p)?;
             }
         }
         if second_values.stresses.is_none() {
@@ -290,8 +290,9 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         }
         let stresses = &mut second_values.stresses.as_mut().unwrap().all;
         for p in 0..self.ips.len() {
-            stresses[p].mirror(&self.stresses.all[p]).unwrap(); // TODO: remove unwrap
+            stresses[p].mirror(&self.stresses.all[p])?;
         }
+        Ok(())
     }
 }
 

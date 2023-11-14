@@ -1,5 +1,4 @@
 use gemlab::prelude::*;
-use plotpy::{Curve, Plot};
 use pmsim::prelude::*;
 use russell_lab::math::{erfc, PI};
 use russell_lab::*;
@@ -36,7 +35,6 @@ use russell_lab::*;
 // Coefficient ρ = 1
 
 const NAME: &str = "test_heat_lewis_transient_1d";
-const SAVE_FIGURE: bool = false;
 
 #[test]
 fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
@@ -74,10 +72,11 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // check
     let analytical = |t: f64, x: f64| {
@@ -98,33 +97,6 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         let diff = f64::abs(tt - analytical(state.t, x));
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
         assert!(diff < 3e-2);
-    }
-
-    // plot results
-    if SAVE_FIGURE {
-        // compute analytical solution
-        let xx_ana = Vector::linspace(0.0, 2.0, 11)?;
-        let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
-
-        // get temperature values along x
-        let post = FemOutput::new(&feat, &input);
-        let (_, xx_num, tt_num) = post.values_along_x(&state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
-
-        // plot
-        let mut curve_ana = Curve::new();
-        let mut curve_num = Curve::new();
-        curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
-        curve_num
-            .set_line_color("#cd0000")
-            .set_line_style("None")
-            .set_marker_style("+");
-        curve_num.draw(&xx_num, &tt_num);
-        let mut plot = Plot::new();
-        plot.add(&curve_ana).add(&curve_num);
-        plot.grid_and_labels("x", "T")
-            .set_yrange(0.0, 1.2)
-            .legend()
-            .save("/tmp/pmsim/test_heat_transient_1d.svg")?;
     }
     Ok(())
 }

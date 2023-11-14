@@ -38,6 +38,8 @@ use russell_lab::*;
 // * Young: E = 1500, Poisson: ν = 0.25
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 
+const NAME: &str = "test_von_mises_single_element_2d";
+
 #[test]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
@@ -89,10 +91,11 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, Some(NAME.to_string()), None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // print results
     println!("U =\n{}", state.uu);
