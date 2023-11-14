@@ -232,7 +232,9 @@ impl<'a> FemSolverImplicit<'a> {
                 break;
             }
         }
-        Ok(())
+
+        // write the summary file
+        output.write_summary()
     }
 }
 

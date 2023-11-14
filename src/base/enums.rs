@@ -2,6 +2,7 @@ use super::{
     ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod,
     ParamSolid,
 };
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Defines a function of time that returns f64 (e.g., to calculate boundary condition values)
@@ -10,7 +11,7 @@ pub type FnTime = fn(t: f64) -> f64;
 /// Defines degrees-of-freedom (DOF) types
 ///
 /// Note: The fixed numbering scheme assists in sorting the DOFs.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Dof {
     /// Displacement along the first dimension
     Ux = 0,

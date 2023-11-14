@@ -2,9 +2,43 @@ use crate::base::Dof;
 use crate::fem::{Elements, FemInput, FemState};
 use crate::StrError;
 use gemlab::mesh::{At, Features, PointId};
-use std::fs;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use std::collections::HashSet;
+use std::ffi::OsStr;
+use std::fs::{self, File};
+use std::io::BufReader;
+use std::path::Path;
 
 pub const DEFAULT_OUTPUT_DIR: &str = "/tmp/pmsim/results";
+
+/// Holds a summary of the generated files
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FemOutputSummary {
+    /// Last part of the filename without extension
+    pub filename_stem: String,
+
+    /// Space dimension
+    pub ndim: usize,
+
+    /// Number of points in the mesh
+    pub npoint: usize,
+
+    /// Number of cells in the mesh
+    pub ncell: usize,
+
+    /// Holds a subset of the currently DOFs in use
+    pub dofs_in_use: Vec<Dof>,
+
+    /// Holds a subset of the currently DOFs in use that aren't displacement DOF
+    pub not_displacement_dof: Vec<Dof>,
+
+    /// Holds the indices of the output files
+    pub indices: Vec<usize>,
+
+    /// Holds the simulation times corresponding to each output file
+    pub times: Vec<f64>,
+}
 
 /// Assists in the post-processing of results
 pub struct FemOutput<'a> {
@@ -13,6 +47,75 @@ pub struct FemOutput<'a> {
     output_directory: String,
     output_count: usize,
     callback: Option<fn(&FemState, usize)>,
+    summary: FemOutputSummary,
+}
+
+impl FemOutputSummary {
+    /// Allocates a new instance
+    pub(crate) fn new(input: &FemInput, filename_stem: String) -> Self {
+        // DOFs in use
+        let mut enabled_dofs = HashSet::new();
+        for map in &input.equations.all {
+            for dof in map.keys() {
+                enabled_dofs.insert(*dof);
+            }
+        }
+        let mut dofs_in_use: Vec<_> = enabled_dofs.iter().copied().collect();
+        dofs_in_use.sort();
+
+        // DOFs that aren't displacement DOFs
+        let not_displacement_dof: Vec<_> = dofs_in_use
+            .iter()
+            .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
+            .copied()
+            .collect();
+
+        // summary
+        FemOutputSummary {
+            filename_stem,
+            ndim: input.mesh.ndim,
+            npoint: input.mesh.points.len(),
+            ncell: input.mesh.cells.len(),
+            dofs_in_use,
+            not_displacement_dof,
+            indices: Vec::new(),
+            times: Vec::new(),
+        }
+    }
+
+    /// Reads a JSON file containing the summary
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        let input = File::open(path).map_err(|_| "cannot open file")?;
+        let buffered = BufReader::new(input);
+        let summary = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
+        Ok(summary)
+    }
+
+    /// Writes a JSON file with the summary
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn write_json<P>(&self, full_path: &P) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        if let Some(p) = path.parent() {
+            fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
+        }
+        let mut file = File::create(&path).map_err(|_| "cannot create file")?;
+        serde_json::to_writer_pretty(&mut file, &self).map_err(|_| "cannot write file")?;
+        Ok(())
+    }
 }
 
 impl<'a> FemOutput<'a> {
@@ -41,13 +144,21 @@ impl<'a> FemOutput<'a> {
         };
         fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
 
-        // results
+        // make a copy of the filename_stem
+        let fn_stem = if let Some(f) = &filename_stem {
+            f.clone()
+        } else {
+            "".to_string()
+        };
+
+        // output
         Ok(FemOutput {
             input,
             filename_stem,
             output_directory: out_dir.to_string(),
             output_count: 0,
             callback,
+            summary: FemOutputSummary::new(input, fn_stem),
         })
     }
 
@@ -62,7 +173,18 @@ impl<'a> FemOutput<'a> {
             if let Some(callback) = self.callback {
                 (callback)(state, self.output_count);
             }
+            self.summary.indices.push(self.output_count);
+            self.summary.times.push(state.t);
             self.output_count += 1;
+        }
+        Ok(())
+    }
+
+    /// Writes the summary of generated files (at the end of the simulation)
+    pub(crate) fn write_summary(&self) -> Result<(), StrError> {
+        if let Some(fn_stem) = &self.filename_stem {
+            let path = format!("{}/{}-summary.json", self.output_directory, fn_stem);
+            self.summary.write_json(&path)?;
         }
         Ok(())
     }
