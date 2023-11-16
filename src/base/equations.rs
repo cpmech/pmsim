@@ -1,6 +1,7 @@
 use super::{Dof, ElementDofsMap};
 use crate::StrError;
 use gemlab::mesh::{Mesh, PointId};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
@@ -59,6 +60,7 @@ use std::fmt;
 ///     Ok(())
 /// }
 /// ```
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Equations {
     /// Holds all points DOFs and numbers
     ///

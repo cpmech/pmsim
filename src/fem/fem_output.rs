@@ -1,10 +1,9 @@
-use crate::base::{Dof, DEFAULT_OUT_DIR};
+use crate::base::{Dof, Equations, DEFAULT_OUT_DIR};
 use crate::fem::{Elements, FemInput, FemState};
 use crate::StrError;
 use gemlab::mesh::{At, Features, PointId};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::BufReader;
@@ -13,29 +12,14 @@ use std::path::Path;
 /// Holds a summary of the generated files
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemOutputSummary {
-    /// Last part of the filename without extension
-    pub filename_stem: String,
-
-    /// Space dimension
-    pub ndim: usize,
-
-    /// Number of points in the mesh
-    pub npoint: usize,
-
-    /// Number of cells in the mesh
-    pub ncell: usize,
-
-    /// Holds a subset of the currently DOFs in use
-    pub dofs_in_use: Vec<Dof>,
-
-    /// Holds a subset of the currently DOFs in use that aren't displacement DOF
-    pub not_displacement_dof: Vec<Dof>,
-
     /// Holds the indices of the output files
     pub indices: Vec<usize>,
 
     /// Holds the simulation times corresponding to each output file
     pub times: Vec<f64>,
+
+    /// Holds equation numbers (DOF numbers)
+    pub equations: Option<Equations>,
 }
 
 /// Assists in the post-processing of results
@@ -49,38 +33,6 @@ pub struct FemOutput<'a> {
 }
 
 impl FemOutputSummary {
-    /// Allocates a new instance
-    pub(crate) fn new(input: &FemInput, filename_stem: String) -> Self {
-        // DOFs in use
-        let mut enabled_dofs = HashSet::new();
-        for map in &input.equations.all {
-            for dof in map.keys() {
-                enabled_dofs.insert(*dof);
-            }
-        }
-        let mut dofs_in_use: Vec<_> = enabled_dofs.iter().copied().collect();
-        dofs_in_use.sort();
-
-        // DOFs that aren't displacement DOFs
-        let not_displacement_dof: Vec<_> = dofs_in_use
-            .iter()
-            .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
-            .copied()
-            .collect();
-
-        // summary
-        FemOutputSummary {
-            filename_stem,
-            ndim: input.mesh.ndim,
-            npoint: input.mesh.points.len(),
-            ncell: input.mesh.cells.len(),
-            dofs_in_use,
-            not_displacement_dof,
-            indices: Vec::new(),
-            times: Vec::new(),
-        }
-    }
-
     /// Reads a JSON file containing the summary
     ///
     /// # Input
@@ -140,13 +92,24 @@ impl<'a> FemOutput<'a> {
             Some(d) => d,
             None => DEFAULT_OUT_DIR,
         };
-        fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
 
-        // make a copy of the filename_stem
-        let fn_stem = if let Some(f) = &filename_stem {
-            f.clone()
-        } else {
-            "".to_string()
+        // create directory only if filename_stem is provided
+        if let Some(_) = filename_stem {
+            fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
+        }
+
+        // summary
+        let summary = match &filename_stem {
+            Some(_) => FemOutputSummary {
+                indices: Vec::new(),
+                times: Vec::new(),
+                equations: Some(input.equations.clone()),
+            },
+            None => FemOutputSummary {
+                indices: Vec::new(),
+                times: Vec::new(),
+                equations: None,
+            },
         };
 
         // output
@@ -156,7 +119,7 @@ impl<'a> FemOutput<'a> {
             output_directory: out_dir.to_string(),
             output_count: 0,
             callback,
-            summary: FemOutputSummary::new(input, fn_stem),
+            summary,
         })
     }
 
@@ -165,12 +128,26 @@ impl<'a> FemOutput<'a> {
     /// **Note:** No output is generated if `filename_stem` is None.
     pub(crate) fn write(&mut self, state: &mut FemState, elements: &mut Elements) -> Result<(), StrError> {
         if let Some(fn_stem) = &self.filename_stem {
+            // save the mesh
+            if self.output_count == 0 {
+                self.input
+                    .mesh
+                    .write_json(&format!("{}/{}-mesh.json", self.output_directory, fn_stem))?;
+            }
+
+            // save internal values
             elements.output_internal_values(state)?;
-            let path = format!("{}/{}-{:0>20}.state", self.output_directory, fn_stem, self.output_count);
-            state.write(&path)?;
+            state.write(&format!(
+                "{}/{}-{:0>20}.json",
+                self.output_directory, fn_stem, self.output_count
+            ))?;
+
+            // handle callback
             if let Some(callback) = self.callback {
                 (callback)(state, self.output_count);
             }
+
+            // update summary
             self.summary.indices.push(self.output_count);
             self.summary.times.push(state.t);
             self.output_count += 1;
