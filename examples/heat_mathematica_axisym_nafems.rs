@@ -61,7 +61,7 @@ fn main() -> Result<(), StrError> {
     let (ya, yb, h) = (0.04, 0.1, 0.14);
 
     // mesh
-    let mesh = Mesh::read(&["data/meshes/", NAME, ".mesh"].concat())?;
+    let mesh = Mesh::read_json(&format!("data/meshes/{}.json", NAME))?;
 
     // features
     let feat = Features::new(&mesh, false);

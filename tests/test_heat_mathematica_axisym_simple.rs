@@ -101,15 +101,14 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         block.set_ndiv(&[10, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
-        // write mesh
-        mesh.write(&["/tmp/pmsim/", NAME].concat()).unwrap();
+        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
-        mesh.draw(None, &["/tmp/pmsim/", NAME, "_mesh"].concat(), |_, _| {})
+        mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
             .unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&["data/meshes/", NAME, ".mesh"].concat()).unwrap()
+        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
     }
 }

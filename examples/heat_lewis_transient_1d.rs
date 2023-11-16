@@ -39,7 +39,7 @@ const NAME: &str = "test_heat_lewis_transient_1d";
 
 fn main() -> Result<(), StrError> {
     // mesh
-    let mesh = Mesh::read(&["data/meshes/", NAME, ".mesh"].concat())?;
+    let mesh = Mesh::read_json(&format!("data/meshes/{}.json", NAME))?;
 
     // features
     let feat = Features::new(&mesh, false);

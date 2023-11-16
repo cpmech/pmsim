@@ -50,7 +50,7 @@ fn main() -> Result<(), StrError> {
     const BETA: f64 = 0.01;
 
     // mesh
-    let mesh = Mesh::read(&["data/meshes/", NAME, ".mesh"].concat())?;
+    let mesh = Mesh::read_json(&format!("data/meshes/{}.json", NAME))?;
 
     // features
     let feat = Features::new(&mesh, false);

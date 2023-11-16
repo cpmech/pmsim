@@ -1,4 +1,4 @@
-use crate::base::Dof;
+use crate::base::{Dof, DEFAULT_OUT_DIR};
 use crate::fem::{Elements, FemInput, FemState};
 use crate::StrError;
 use gemlab::mesh::{At, Features, PointId};
@@ -9,8 +9,6 @@ use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
-
-pub const DEFAULT_OUTPUT_DIR: &str = "/tmp/pmsim/results";
 
 /// Holds a summary of the generated files
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -113,7 +111,7 @@ impl FemOutputSummary {
             fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
         }
         let mut file = File::create(&path).map_err(|_| "cannot create file")?;
-        serde_json::to_writer_pretty(&mut file, &self).map_err(|_| "cannot write file")?;
+        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
         Ok(())
     }
 }
@@ -140,7 +138,7 @@ impl<'a> FemOutput<'a> {
         // output directory
         let out_dir = match output_directory {
             Some(d) => d,
-            None => DEFAULT_OUTPUT_DIR,
+            None => DEFAULT_OUT_DIR,
         };
         fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
 
