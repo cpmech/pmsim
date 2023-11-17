@@ -68,6 +68,7 @@ fn main() -> Result<(), StrError> {
     let mut config = Config::new();
     let t_fin = 1.0;
     config.transient = true;
+    config.control.dt = |_| 0.1;
     config.control.t_fin = t_fin;
 
     // FEM state
