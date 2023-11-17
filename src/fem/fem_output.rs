@@ -123,6 +123,24 @@ impl<'a> FemOutput<'a> {
         })
     }
 
+    /// Generates the filename path for the mesh file
+    #[inline]
+    pub fn path_mesh(out_dir: &str, fn_stem: &str) -> String {
+        format!("{}/{}-mesh.json", out_dir, fn_stem)
+    }
+
+    /// Generates the filename path for the summary file
+    #[inline]
+    pub fn path_summary(out_dir: &str, fn_stem: &str) -> String {
+        format!("{}/{}-summary.json", out_dir, fn_stem)
+    }
+
+    /// Generates the filename path for the state files
+    #[inline]
+    pub fn path_state(out_dir: &str, fn_stem: &str, index: usize) -> String {
+        format!("{}/{}-{:0>20}.json", out_dir, fn_stem, index)
+    }
+
     /// Writes the current FEM state to a binary file
     ///
     /// **Note:** No output is generated if `filename_stem` is None.
@@ -130,17 +148,14 @@ impl<'a> FemOutput<'a> {
         if let Some(fn_stem) = &self.filename_stem {
             // save the mesh
             if self.output_count == 0 {
-                self.input
-                    .mesh
-                    .write_json(&format!("{}/{}-mesh.json", self.output_directory, fn_stem))?;
+                let path = &FemOutput::path_mesh(&self.output_directory, fn_stem);
+                self.input.mesh.write_json(&path)?;
             }
 
             // save internal values
             elements.output_internal_values(state)?;
-            state.write(&format!(
-                "{}/{}-{:0>20}.json",
-                self.output_directory, fn_stem, self.output_count
-            ))?;
+            let path = FemOutput::path_state(&self.output_directory, fn_stem, self.output_count);
+            state.write(&path)?;
 
             // handle callback
             if let Some(callback) = self.callback {
@@ -158,7 +173,7 @@ impl<'a> FemOutput<'a> {
     /// Writes the summary of generated files (at the end of the simulation)
     pub(crate) fn write_summary(&self) -> Result<(), StrError> {
         if let Some(fn_stem) = &self.filename_stem {
-            let path = format!("{}/{}-summary.json", self.output_directory, fn_stem);
+            let path = FemOutput::path_summary(&self.output_directory, fn_stem);
             self.summary.write_json(&path)?;
         }
         Ok(())
