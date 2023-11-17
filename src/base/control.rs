@@ -73,8 +73,8 @@ impl Control {
         Control {
             t_ini: 0.0,
             t_fin: 1.0,
-            dt: |_| 0.1,
-            dt_out: |_| 0.1,
+            dt: |_| 1.0,
+            dt_out: |_| 1.0,
             dt_min: CONTROL_MIN_DT_MIN,
             n_max_time_steps: 1_000,
             divergence_control: false,
