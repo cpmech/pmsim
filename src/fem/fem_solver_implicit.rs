@@ -77,7 +77,6 @@ impl<'a> FemSolverImplicit<'a> {
         self.elements.initialize_internal_values_parallel()?;
 
         // time loop
-        let steady = !config.transient && !config.dynamics;
         for timestep in 0..control.n_max_time_steps {
             // update time
             state.dt = (control.dt)(state.t);
@@ -228,7 +227,7 @@ impl<'a> FemSolverImplicit<'a> {
             }
 
             // final time step
-            if state.t >= control.t_fin || steady {
+            if state.t >= control.t_fin {
                 break;
             }
         }
