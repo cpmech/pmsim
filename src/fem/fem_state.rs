@@ -301,7 +301,7 @@ mod tests {
         let config = Config::new();
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.dt, 0.1);
+        assert_eq!(state.dt, 1.0);
         assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }

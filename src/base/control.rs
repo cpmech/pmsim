@@ -232,8 +232,8 @@ mod tests {
         let control = Control::new();
         assert_eq!(control.t_ini, 0.0);
         assert_eq!(control.t_fin, 1.0);
-        assert_eq!((control.dt)(123.0), 0.1);
-        assert_eq!((control.dt_out)(123.0), 0.1);
+        assert_eq!((control.dt)(123.0), 1.0);
+        assert_eq!((control.dt_out)(123.0), 1.0);
         assert_eq!(control.dt_min, CONTROL_MIN_DT_MIN);
         assert_eq!(control.divergence_control, false);
         assert_eq!(control.div_ctrl_max_steps, 10);
