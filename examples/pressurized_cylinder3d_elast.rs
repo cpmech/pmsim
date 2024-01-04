@@ -287,6 +287,6 @@ fn main() -> Result<(), StrError> {
     }
 
     // save results
-    results.write(&path_json)?;
+    results.write_json(&path_json)?;
     Ok(())
 }

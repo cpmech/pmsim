@@ -49,7 +49,7 @@ fn main() -> Result<(), StrError> {
     // generate VTU file
     for count in &indices {
         let mesh = Mesh::read_json(&format!("{}/{}-mesh.json", options.results_dir, options.filename_stem))?;
-        let state = FemState::read(&format!(
+        let state = FemState::read_json(&format!(
             "{}/{}-{:0>20}.json",
             options.results_dir, options.filename_stem, count
         ))?;

@@ -4,8 +4,9 @@ use plotpy::Canvas;
 use pmsim::fem::FemOutputSummary;
 use pmsim::material::StressStrainPlot;
 use pmsim::prelude::*;
+use pmsim::util::ReferenceDataSet;
 use russell_lab::*;
-use russell_tensor::SQRT_2_BY_3;
+use russell_tensor::{Tensor2, SQRT_2_BY_3};
 
 // von Mises plasticity with a single-element
 //
@@ -60,7 +61,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     const Z0: f64 = 9.0;
     const NU: f64 = POISSON;
     const NU2: f64 = POISSON * POISSON;
-    const N_STEPS: f64 = 3.0;
+    const N_STEPS: f64 = 2.0;
 
     // input data
     let p1 = ParamSolid {
@@ -84,7 +85,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             -delta_y * t
         }),
     );
-    println!("{}", essential);
 
     // natural boundary conditions
     let natural = Natural::new();
@@ -110,10 +110,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             if count == 0 {
                 return;
             }
-            println!("{:>3}: time = {}", count, state.t);
-            // println!("U =\n{}", state.uu);
-            println!("ε = {:?}", epsilon.vec.as_data());
-            println!("{:.6}", stress_state);
             if count == 1 {
                 let spo_eps_1 = &[2.080125735844610E-03, -6.240377207533829E-03, 0.0, 0.0];
                 let spo_sig_1 = &[0.0, -9.984603532054127E+00, -2.496150883013531E+00, 0.0];
@@ -130,33 +126,71 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
+    // load results
+    let mut displacements = Vec::new();
+    let mut stresses = Vec::new();
+    let mut strains = Vec::new();
+    let summary = FemOutputSummary::read_json(&FemOutput::path_summary(DEFAULT_OUT_DIR, NAME))?;
+    for index in &summary.indices {
+        let state = FemState::read_json(&FemOutput::path_state(DEFAULT_OUT_DIR, NAME, *index))?;
+        let (stress_state, epsilon) = state.extract_stresses_and_strains(0, 0).unwrap();
+        displacements.push(state.uu.clone());
+        stresses.push(stress_state.sigma.clone());
+        strains.push(epsilon.clone());
+    }
+
+    // load reference results
+    let reference = ReferenceDataSet::read_json("data/results/spo_von_mises_single_element_2d.json")?;
+    let mut ref_displacements = Vec::new();
+    let mut ref_stresses = Vec::new();
+    ref_stresses.push(Tensor2::new_sym(true));
+    for data in &reference.all {
+        ref_displacements.push(data.displacement.clone());
+        let mut sigma = Tensor2::new_sym(true);
+        for i in 0..4 {
+            sigma.vec[i] = data.stresses[0][0][i];
+        }
+        ref_stresses.push(sigma);
+    }
+
+    let ndim = mesh.ndim;
+    println!("displacements =");
+    for step in 1..(N_STEPS as usize + 1) {
+        for m in 0..mesh.points.len() {
+            for i in 0..mesh.ndim {
+                print!(
+                    "{:21.15e}({:21.15e}), ",
+                    displacements[step][ndim * m + i],
+                    ref_displacements[step - 1][m][i]
+                );
+            }
+            println!();
+        }
+        println!();
+    }
+
     // plotting
     if SAVE_FIGURE {
-        let mut stresses = Vec::new();
-        let mut strains = Vec::new();
-        let summary = FemOutputSummary::read_json(&FemOutput::path_summary(DEFAULT_OUT_DIR, NAME))?;
-        for index in &summary.indices {
-            let state = FemState::read(&FemOutput::path_state(DEFAULT_OUT_DIR, NAME, *index))?;
-            let (stress_state, epsilon) = state.extract_stresses_and_strains(0, 0).unwrap();
-            stresses.push(stress_state.sigma.clone());
-            strains.push(epsilon.clone());
-        }
         let mut ssp = StressStrainPlot::new();
-        ssp.draw_3x2_mosaic_struct(&stresses, &strains, |curve, row, col| {
-            curve.set_marker_style("+");
-            if row == 0 && col == 1 {
-                curve.set_line_color("red");
-            }
-        });
+        ssp.draw_oct_projection(&stresses, |curve| {
+            curve.set_label("PMSIM").set_line_color("blue").set_marker_style("+");
+        })?;
+        ssp.draw_oct_projection(&ref_stresses, |curve| {
+            curve
+                .set_label("HYPLAS")
+                .set_line_color("red")
+                .set_marker_style("o")
+                .set_marker_void(true);
+        })?;
         let path_svg = format!("{}/{}.svg", DEFAULT_OUT_DIR, NAME);
-        ssp.save_3x2_mosaic_struct(&path_svg, |plot, row, col, before| {
+        ssp.save_oct_projection(&path_svg, |plot, before| {
             if before {
-                if row == 0 && col == 1 {
-                    let mut circle = Canvas::new();
-                    circle.set_edge_color("gray").set_face_color("None");
-                    circle.draw_circle(0.0, 0.0, Z0 * SQRT_2_BY_3);
-                    plot.add(&circle);
-                }
+                let mut circle = Canvas::new();
+                circle.set_edge_color("gray").set_face_color("None");
+                circle.draw_circle(0.0, 0.0, Z0 * SQRT_2_BY_3);
+                plot.add(&circle);
+            } else {
+                plot.legend().set_figure_size_points(800.0, 800.0);
             }
         })
         .unwrap();

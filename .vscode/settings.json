@@ -9,6 +9,7 @@
     "epsv",
     "gridspec",
     "hspace",
+    "HYPLAS",
     "IFEM",
     "jacobians",
     "nafems",

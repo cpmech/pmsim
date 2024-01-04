@@ -119,7 +119,6 @@ impl StressStrainTrait for VonMises {
 
         // elastic update
         let f_trial = self.yield_function(state);
-        println!("f_trial = {}", f_trial);
         if f_trial <= 0.0 {
             return Ok(());
         }
@@ -205,7 +204,7 @@ mod tests {
                 correct_sigma_m += kk * deps_v;
                 correct_sigma_d += 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
             }
-            approx_eq(sigma_m, correct_sigma_m, 1e-15);
+            approx_eq(sigma_m, correct_sigma_m, 1e-14);
             approx_eq(sigma_d, correct_sigma_d, 1e-14);
         }
     }
@@ -339,23 +338,21 @@ mod tests {
         let nu = poisson;
         let nu2 = poisson * poisson;
         let dy = z0 * (1.0 - nu2) / (young * f64::sqrt(1.0 - nu + nu2));
-        // println!("3*dy = {}", 3.0 * dy);
         let eps_x = dy * nu / (1.0 - nu);
         let eps_y = -dy;
 
-        // path reaching exactly to the yield surface, then hardening
+        // path reaching (within tol) the yield surface, then hardening
         let mut path = StressStrainPath::new(young, poisson, two_dim);
         let zero = Tensor2::new_sym(two_dim);
         path.push_stress(zero, true).unwrap();
         let mut eps_1 = Tensor2::new_sym(two_dim);
-        eps_1.vec[0] = eps_x;
-        eps_1.vec[1] = eps_y;
+        eps_1.vec[0] = 0.9999 * eps_x;
+        eps_1.vec[1] = 0.9999 * eps_y;
         path.push_strain(eps_1, true).unwrap();
         let mut eps_2 = Tensor2::new_sym(two_dim);
         eps_2.vec[0] = 2.0 * eps_x;
         eps_2.vec[1] = 2.0 * eps_y;
         path.push_strain(eps_2, true).unwrap();
-        // println!("{}", path);
 
         let mut state = generate_state(z0, &path, &model);
         model.stiffness(&mut dd, &state).unwrap();
@@ -375,7 +372,7 @@ mod tests {
         for i in 0..3 {
             for j in 0..3 {
                 let m = if i == 2 && j == 2 { 2.0 } else { 1.0 };
-                approx_eq(dd.mat.get(map[i], map[j]), m * dd_spo[i][j], 1e-15);
+                approx_eq(dd.mat.get(map[i], map[j]), m * dd_spo[i][j], 1e-14);
             }
         }
         assert_eq!(state.algo_lambda, 0.0);

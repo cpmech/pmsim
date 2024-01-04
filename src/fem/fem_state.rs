@@ -8,7 +8,7 @@ use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::BufReader;
 use std::path::Path;
 
 /// Holds state of a simulation, including primary and secondary variables
@@ -133,31 +133,28 @@ impl FemState {
         });
     }
 
-    /// Reads a binary file containing the state data
+    /// Reads a JSON file containing the state data
     ///
     /// # Input
     ///
     /// * `full_path` -- may be a String, &str, or Path
-    pub fn read<P>(full_path: &P) -> Result<Self, StrError>
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
     where
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let mut file = File::open(&path).map_err(|_| "file not found")?;
-        let metadata = fs::metadata(&path).map_err(|_| "unable to read metadata")?;
-        let mut bin = vec![0; metadata.len() as usize];
-        file.read(&mut bin).expect("buffer overflow");
-        let mut des = rmp_serde::Deserializer::new(&bin[..]);
-        let state: FemState = Deserialize::deserialize(&mut des).map_err(|_| "deserialize failed")?;
+        let input = File::open(path).map_err(|_| "cannot open file")?;
+        let buffered = BufReader::new(input);
+        let state = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
         Ok(state)
     }
 
-    /// Writes a binary file with the state data
+    /// Writes a JSON file with the state data
     ///
     /// # Input
     ///
     /// * `full_path` -- may be a String, &str, or Path
-    pub fn write<P>(&self, full_path: &P) -> Result<(), StrError>
+    pub fn write_json<P>(&self, full_path: &P) -> Result<(), StrError>
     where
         P: AsRef<OsStr> + ?Sized,
     {
@@ -165,12 +162,9 @@ impl FemState {
         if let Some(p) = path.parent() {
             fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
         }
-        let mut bin = Vec::new();
-        let mut ser = rmp_serde::Serializer::new(&mut bin);
-        self.serialize(&mut ser).map_err(|_| "serialize failed")?;
         let mut file = File::create(&path).map_err(|_| "cannot create file")?;
-        file.write_all(&bin).map_err(|_| "cannot write file")?;
-        file.sync_all().map_err(|_| "cannot sync file")
+        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
+        Ok(())
     }
 
     /// Extracts stresses, strains, and internal values

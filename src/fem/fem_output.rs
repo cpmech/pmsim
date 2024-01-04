@@ -155,7 +155,7 @@ impl<'a> FemOutput<'a> {
             // save internal values
             elements.output_internal_values(state)?;
             let path = FemOutput::path_state(&self.output_directory, fn_stem, self.output_count);
-            state.write(&path)?;
+            state.write_json(&path)?;
 
             // handle callback
             if let Some(callback) = self.callback {
