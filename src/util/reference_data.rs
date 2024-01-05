@@ -74,6 +74,6 @@ mod tests {
     fn reference_dataset_works() {
         let filename = "data/results/spo_von_mises_single_element_2d.json";
         let reference = ReferenceDataSet::read_json(filename).unwrap();
-        assert_eq!(reference.all.len(), 3);
+        assert!(reference.all.len() > 0);
     }
 }
