@@ -64,6 +64,11 @@ impl<'a> FemSolverImplicit<'a> {
         let neq = rr.dim();
         let mut rr0 = Vector::new(neq);
 
+        // collect the unknown equations
+        let unknown_equations: Vec<_> = (0..neq)
+            .filter_map(|eq| if prescribed[eq] { None } else { Some(eq) })
+            .collect();
+
         // first output
         output.write(state, &mut self.elements)?;
         let mut t_out = state.t + (control.dt_out)(state.t);
@@ -91,17 +96,13 @@ impl<'a> FemSolverImplicit<'a> {
                 vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
 
-            // handle prescribed values
-            if self.prescribed_values.equations.len() > 0 {
-                // set prescribed U and ΔU at the new time
-                self.prescribed_values.apply(&mut state.duu, &mut state.uu, state.t);
-
-                // update secondary variables for given prescribed U and ΔU at the new time
-                self.elements.update_secondary_values_parallel(state)?;
-            }
-
             // reset cumulated primary values
             state.duu.fill(0.0);
+
+            // set prescribed U and ΔU at the new time
+            if self.prescribed_values.equations.len() > 0 {
+                self.prescribed_values.apply(&mut state.duu, &mut state.uu, state.t);
+            }
 
             // reset algorithmic variables
             if !config.linear_problem {
@@ -183,16 +184,16 @@ impl<'a> FemSolverImplicit<'a> {
                 // updates
                 if config.transient {
                     // update U, V, and ΔU vectors
-                    for i in 0..neq {
-                        state.uu[i] -= mdu[i];
-                        state.vv[i] = beta_1 * state.uu[i] - state.uu_star[i];
-                        state.duu[i] -= mdu[i];
+                    for i in &unknown_equations {
+                        state.uu[*i] -= mdu[*i];
+                        state.vv[*i] = beta_1 * state.uu[*i] - state.uu_star[*i];
+                        state.duu[*i] -= mdu[*i];
                     }
                 } else {
                     // update U and ΔU vectors
-                    for i in 0..neq {
-                        state.uu[i] -= mdu[i];
-                        state.duu[i] -= mdu[i];
+                    for i in &unknown_equations {
+                        state.uu[*i] -= mdu[*i];
+                        state.duu[*i] -= mdu[*i];
                     }
                 }
 

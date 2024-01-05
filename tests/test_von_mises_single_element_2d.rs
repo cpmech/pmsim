@@ -61,7 +61,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     const Z0: f64 = 9.0;
     const NU: f64 = POISSON;
     const NU2: f64 = POISSON * POISSON;
-    const N_STEPS: f64 = 2.0;
+    const N_STEPS: f64 = 5.0;
 
     // input data
     let p1 = ParamSolid {
@@ -81,7 +81,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         &top,
         Ebc::Uy(|t| {
             let delta_y = Z0 * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-            println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
+            // println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
             -delta_y * t
         }),
     );
@@ -96,6 +96,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     config.control.dt = |_| 1.0;
     config.control.dt_out = |_| 1.0;
     config.control.t_fin = N_STEPS;
+    config.control.n_max_iterations = 20;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
@@ -111,10 +112,10 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
                 return;
             }
             if count == 1 {
-                let spo_eps_1 = &[2.080125735844610E-03, -6.240377207533829E-03, 0.0, 0.0];
-                let spo_sig_1 = &[0.0, -9.984603532054127E+00, -2.496150883013531E+00, 0.0];
-                vec_approx_eq(epsilon.vec.as_data(), spo_eps_1, 1e-15);
-                vec_approx_eq(stress_state.sigma.vec.as_data(), spo_sig_1, 1e-15);
+                // let spo_eps_1 = &[2.080125735844610E-03, -6.240377207533829E-03, 0.0, 0.0];
+                // let spo_sig_1 = &[0.0, -9.984603532054127E+00, -2.496150883013531E+00, 0.0];
+                // vec_approx_eq(epsilon.vec.as_data(), spo_eps_1, 1e-15);
+                // vec_approx_eq(stress_state.sigma.vec.as_data(), spo_sig_1, 1e-15);
             } else if count == 2 {
                 // let spo_eps_2 = &[4.160251471689219E-03, -1.248075441506766E-02, 0.0, 0.0];
                 // vec_approx_eq(epsilon.vec.as_data(), spo_eps_2, 1e-15);
@@ -154,15 +155,20 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     }
 
     let ndim = mesh.ndim;
-    println!("displacements =");
+    println!("error on displacements =");
     for step in 1..(N_STEPS as usize + 1) {
         for m in 0..mesh.points.len() {
             for i in 0..mesh.ndim {
-                print!(
-                    "{:21.15e}({:21.15e}), ",
-                    displacements[step][ndim * m + i],
-                    ref_displacements[step - 1][m][i]
-                );
+                let pmsim = displacements[step][ndim * m + i];
+                let hyplas = ref_displacements[step - 1][m][i];
+                // print!(
+                //     "{:21.15e}({:21.15e})({:12.6e}), ",
+                //     pmsim,
+                //     hyplas,
+                //     f64::abs(pmsim - hyplas)
+                // );
+                print!("({:12.6e}), ", f64::abs(pmsim - hyplas));
+                approx_eq(pmsim, hyplas, 1e-12);
             }
             println!();
         }
@@ -173,13 +179,18 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     if SAVE_FIGURE {
         let mut ssp = StressStrainPlot::new();
         ssp.draw_oct_projection(&stresses, |curve| {
-            curve.set_label("PMSIM").set_line_color("blue").set_marker_style("+");
+            curve
+                .set_label("PMSIM")
+                .set_line_color("blue")
+                .set_marker_style(".")
+                .set_marker_size(8.0);
         })?;
         ssp.draw_oct_projection(&ref_stresses, |curve| {
             curve
                 .set_label("HYPLAS")
                 .set_line_color("red")
                 .set_marker_style("o")
+                .set_marker_size(10.0)
                 .set_marker_void(true);
         })?;
         let path_svg = format!("{}/{}.svg", DEFAULT_OUT_DIR, NAME);
