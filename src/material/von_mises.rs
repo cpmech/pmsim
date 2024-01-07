@@ -88,7 +88,7 @@ impl StressStrainTrait for VonMises {
         let d = 3.0 * self.gg + self.hh;
         let a = 2.0 * self.gg * (1.0 - lambda * 3.0 * self.gg / sigma_d_trial);
         let b = 6.0 * self.gg * self.gg * (lambda / sigma_d_trial - 1.0 / d) / (norm_s * norm_s);
-        sigma.deviator(&mut self.aux)?; // aux := dev(σ)
+        sigma.deviator(&mut self.aux).unwrap(); // aux := dev(σ)
         let nsigma = state.sigma.vec.dim();
         for i in 0..nsigma {
             for j in 0..nsigma {
