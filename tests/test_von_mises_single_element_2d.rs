@@ -1,12 +1,11 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
 use plotpy::Canvas;
-use pmsim::fem::FemOutputSummary;
 use pmsim::material::StressStrainPlot;
 use pmsim::prelude::*;
-use pmsim::util::ReferenceDataSet;
+use pmsim::util::check_displacements_and_stresses;
 use russell_lab::*;
-use russell_tensor::{Tensor2, SQRT_2_BY_3};
+use russell_tensor::SQRT_2_BY_3;
 
 // von Mises plasticity with a single-element
 //
@@ -42,7 +41,7 @@ use russell_tensor::{Tensor2, SQRT_2_BY_3};
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 
 const NAME: &str = "test_von_mises_single_element_2d";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 #[test]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
@@ -61,7 +60,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     const Z0: f64 = 9.0;
     const NU: f64 = POISSON;
     const NU2: f64 = POISSON * POISSON;
-    const N_STEPS: f64 = 5.0;
+    const N_STEPS: usize = 5;
 
     // input data
     let p1 = ParamSolid {
@@ -95,85 +94,28 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     config.out_secondary_values = true;
     config.control.dt = |_| 1.0;
     config.control.dt_out = |_| 1.0;
-    config.control.t_fin = N_STEPS;
+    config.control.t_fin = N_STEPS as f64;
     config.control.n_max_iterations = 20;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
 
     // FEM output
-    let mut output = FemOutput::new(
-        &input,
-        Some(NAME.to_string()),
-        None,
-        Some(|state, count| {
-            let (stress_state, epsilon) = state.extract_stresses_and_strains(0, 0).unwrap();
-            if count == 0 {
-                return;
-            }
-            if count == 1 {
-                // let spo_eps_1 = &[2.080125735844610E-03, -6.240377207533829E-03, 0.0, 0.0];
-                // let spo_sig_1 = &[0.0, -9.984603532054127E+00, -2.496150883013531E+00, 0.0];
-                // vec_approx_eq(epsilon.vec.as_data(), spo_eps_1, 1e-15);
-                // vec_approx_eq(stress_state.sigma.vec.as_data(), spo_sig_1, 1e-15);
-            } else if count == 2 {
-                // let spo_eps_2 = &[4.160251471689219E-03, -1.248075441506766E-02, 0.0, 0.0];
-                // vec_approx_eq(epsilon.vec.as_data(), spo_eps_2, 1e-15);
-            }
-        }),
-    )?;
+    let mut output = FemOutput::new(&input, Some(NAME.to_string()), None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
-    // load results
-    let mut displacements = Vec::new();
-    let mut stresses = Vec::new();
-    let mut strains = Vec::new();
-    let summary = FemOutputSummary::read_json(&FemOutput::path_summary(DEFAULT_OUT_DIR, NAME))?;
-    for index in &summary.indices {
-        let state = FemState::read_json(&FemOutput::path_state(DEFAULT_OUT_DIR, NAME, *index))?;
-        let (stress_state, epsilon) = state.extract_stresses_and_strains(0, 0).unwrap();
-        displacements.push(state.uu.clone());
-        stresses.push(stress_state.sigma.clone());
-        strains.push(epsilon.clone());
-    }
-
-    // load reference results
-    let reference = ReferenceDataSet::read_json("data/results/spo_von_mises_single_element_2d.json")?;
-    let mut ref_displacements = Vec::new();
-    let mut ref_stresses = Vec::new();
-    ref_stresses.push(Tensor2::new_sym(true));
-    for data in &reference.all {
-        ref_displacements.push(data.displacement.clone());
-        let mut sigma = Tensor2::new_sym(true);
-        for i in 0..4 {
-            sigma.vec[i] = data.stresses[0][0][i];
-        }
-        ref_stresses.push(sigma);
-    }
-
-    let ndim = mesh.ndim;
-    println!("error on displacements =");
-    for step in 1..(N_STEPS as usize + 1) {
-        for m in 0..mesh.points.len() {
-            for i in 0..mesh.ndim {
-                let pmsim = displacements[step][ndim * m + i];
-                let hyplas = ref_displacements[step - 1][m][i];
-                // print!(
-                //     "{:21.15e}({:21.15e})({:12.6e}), ",
-                //     pmsim,
-                //     hyplas,
-                //     f64::abs(pmsim - hyplas)
-                // );
-                print!("({:12.6e}), ", f64::abs(pmsim - hyplas));
-                approx_eq(pmsim, hyplas, 1e-12);
-            }
-            println!();
-        }
-        println!();
-    }
+    // check results
+    let (stresses, ref_stresses) = check_displacements_and_stresses(
+        &mesh,
+        NAME,
+        "spo_von_mises_single_element_2d.json",
+        (0, 0),
+        1e-13,
+        1e-10,
+    )?;
 
     // plotting
     if SAVE_FIGURE {
