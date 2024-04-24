@@ -62,15 +62,15 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
     // configuration
-    let mut config = Config::new();
-    config.control.n_max_time_steps = 2;
+    let config = Config::new();
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // check displacements
     #[rustfmt::skip]

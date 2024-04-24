@@ -8,7 +8,6 @@ use std::env;
 
 const NAME: &str = "pressurized_cylinder2d_elast";
 const SAVE_FIGURE_MESH: bool = false;
-const SAVE_VTU: bool = false;
 
 // constants
 const R1: f64 = 3.0; // inner radius
@@ -161,7 +160,6 @@ fn main() -> Result<(), StrError> {
         // filepaths
         let ext = if ndof < 20000 { "svg" } else { "png" };
         let path_mesh = format!("/tmp/pmsim/{}_{}_{}_{}.{}", NAME, g_str, k_str, n_str, ext);
-        let path_vtu = format!("/tmp/pmsim/{}_{}_{}_{}.vtu", NAME, g_str, k_str, n_str);
 
         // save mesh figure
         if SAVE_FIGURE_MESH {
@@ -228,10 +226,13 @@ fn main() -> Result<(), StrError> {
         // FEM state
         let mut state = FemState::new(&input, &config)?;
 
+        // FEM output
+        let mut output = FemOutput::new(&input, None, None, None)?;
+
         // solve problem
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new("");
-        solver.solve(&mut state)?;
+        solver.solve(&mut state, &mut output)?;
         results.time[idx] = stopwatch.stop();
 
         // compute error
@@ -257,17 +258,11 @@ fn main() -> Result<(), StrError> {
             ns, ndof, lx, error, study_error
         );
 
-        // vtu file
-        if SAVE_VTU {
-            let post = FemOutput::new(&mesh, &feat, &input, &state);
-            post.write_vtu(&path_vtu)?;
-        }
-
         // next mesh
         idx += 1;
     }
 
     // save results
-    results.write(&path_json)?;
+    results.write_json(&path_json)?;
     Ok(())
 }

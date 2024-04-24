@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemInput, FemState};
-use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamDiffusion};
+use crate::base::{compute_local_to_global, Config, ParamDiffusion};
 use crate::material::ConductivityModel;
 use crate::StrError;
 use gemlab::integ;
@@ -64,7 +64,7 @@ impl<'a> ElementDiffusion<'a> {
             pad,
             ips: config.integ_point_data(cell)?,
             model: ConductivityModel::new(&param.conductivity, ndim == 2),
-            conductivity: new_tensor2_ndim(ndim),
+            conductivity: Tensor2::new_sym_ndim(ndim),
             grad_tt: Vector::new(ndim),
         })
     }
@@ -79,6 +79,11 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global
+    }
+
+    /// Initializes the internal values
+    fn initialize_internal_values(&mut self) -> Result<(), StrError> {
+        Ok(())
     }
 
     /// Calculates the residual vector
@@ -197,20 +202,26 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         Ok(())
     }
 
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&mut self) {}
+
     /// Creates a copy of the secondary values (e.g., stresses and internal values)
-    fn backup_secondary_values(&mut self) -> Result<(), StrError> {
-        Ok(())
-    }
+    fn backup_secondary_values(&mut self) {}
 
     /// Restores the secondary values from the backup (e.g., stresses and internal values)
-    fn restore_secondary_values(&mut self) -> Result<(), StrError> {
-        Ok(())
-    }
+    fn restore_secondary_values(&mut self) {}
 
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     fn update_secondary_values(&mut self, _state: &FemState) -> Result<(), StrError> {
+        Ok(())
+    }
+
+    /// Performs the output of internal values
+    ///
+    /// Will save the results into [FemState::secondary_values]
+    fn output_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
 }

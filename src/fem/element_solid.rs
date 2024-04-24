@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
-use crate::base::{compute_local_to_global, new_tensor2_ndim, Config, ParamSolid};
-use crate::material::{allocate_stress_strain_model, StressStates, StressStrainModel};
+use crate::base::{compute_local_to_global, Config, ParamSolid};
+use crate::material::{StrainStates, StressStates, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -32,7 +32,7 @@ pub struct ElementSolid<'a> {
     pub ips: integ::IntegPointData,
 
     /// Stress-strain model
-    pub model: Box<dyn StressStrainModel>,
+    pub model: StressStrainModel,
 
     /// Stresses and internal values at all integration points
     pub stresses: StressStates,
@@ -63,8 +63,9 @@ impl<'a> ElementSolid<'a> {
 
         // model and stresses
         let two_dim = ndim == 2;
-        let model = allocate_stress_strain_model(param, two_dim, config.plane_stress);
-        let stresses = StressStates::new(two_dim, model.n_internal_vars(), n_integ_point);
+        let model = StressStrainModel::new(param, two_dim, config.plane_stress)?;
+        let n_internal_values = model.actual.n_internal_values();
+        let stresses = StressStates::new(two_dim, n_internal_values, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -77,7 +78,7 @@ impl<'a> ElementSolid<'a> {
             ips,
             model,
             stresses,
-            deps: new_tensor2_ndim(ndim),
+            deps: Tensor2::new_sym_ndim(ndim),
         })
     }
 
@@ -121,17 +122,67 @@ impl<'a> ElementSolid<'a> {
         }
         Ok(())
     }
+
+    /// Calculates strains or strain increments from the global {U} or {ΔU} vectors
+    #[rustfmt::skip]
+    fn calc_strains(&mut self, eps: &mut Tensor2, uu: &Vector, integ_point_index: usize) -> Result<(), StrError> {
+        self.pad.calc_gradient(&self.ips[integ_point_index])?;
+        let nnode = self.cell.points.len();
+        let l2g = &self.local_to_global;
+        let gg = &self.pad.gradient;
+        eps.clear();
+        if self.ndim == 2 {
+            for m in 0..nnode {
+                eps.sym_add(0, 0, 1.0,  uu[l2g[0+2*m]] * gg.get(m,0));
+                eps.sym_add(1, 1, 1.0,  uu[l2g[1+2*m]] * gg.get(m,1));
+                eps.sym_add(0, 1, 1.0, (uu[l2g[0+2*m]] * gg.get(m,1) + uu[l2g[1+2*m]] * gg.get(m,0))/2.0);
+            }
+            if self.config.axisymmetric {
+                // calculate radius
+                let iota = &self.ips[integ_point_index];
+                (self.pad.fn_interp)(&mut self.pad.interp, iota);
+                let nn = &self.pad.interp;
+                let mut r = 0.0; // radius @ x(ιᵖ)
+                for m in 0..nnode {
+                    r += nn[m] * self.pad.xxt.get(0,m);
+                }
+                // compute out-of-plane strain increment component
+                for m in 0..nnode {
+                    eps.sym_add(2, 2, 1.0, uu[l2g[0+2*m]] * nn[m] / r);
+                }
+            }
+        } else {
+            for m in 0..nnode {
+                eps.sym_add(0, 0, 1.0,  uu[l2g[0+3*m]] * gg.get(m,0));
+                eps.sym_add(1, 1, 1.0,  uu[l2g[1+3*m]] * gg.get(m,1));
+                eps.sym_add(2, 2, 1.0,  uu[l2g[2+3*m]] * gg.get(m,2));
+                eps.sym_add(0, 1, 1.0, (uu[l2g[0+3*m]] * gg.get(m,1) + uu[l2g[1+3*m]] * gg.get(m,0))/2.0);
+                eps.sym_add(1, 2, 1.0, (uu[l2g[1+3*m]] * gg.get(m,2) + uu[l2g[2+3*m]] * gg.get(m,1))/2.0);
+                eps.sym_add(0, 2, 1.0, (uu[l2g[0+3*m]] * gg.get(m,2) + uu[l2g[2+3*m]] * gg.get(m,0))/2.0);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<'a> ElementTrait for ElementSolid<'a> {
     /// Returns whether the local Jacobian matrix is symmetric or not
     fn symmetric_jacobian(&self) -> bool {
-        self.model.symmetric_and_constant_stiffness()
+        self.model.actual.symmetric_and_constant_stiffness()
     }
 
     /// Returns the local-to-global mapping
     fn local_to_global(&self) -> &Vec<usize> {
         &self.local_to_global
+    }
+
+    /// Initializes the internal values
+    fn initialize_internal_values(&mut self) -> Result<(), StrError> {
+        self.stresses
+            .all
+            .iter_mut()
+            .map(|state| self.model.actual.initialize_internal_values(state))
+            .collect()
     }
 
     /// Calculates the residual vector
@@ -185,17 +236,22 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
         integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
-            self.model.stiffness(dd, &self.stresses.all[p])
+            self.model.actual.stiffness(dd, &self.stresses.all[p])
         })
     }
 
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&mut self) {
+        self.stresses.reset_algorithmic_variables();
+    }
+
     /// Creates a copy of the secondary values (e.g., stresses and internal values)
-    fn backup_secondary_values(&mut self) -> Result<(), StrError> {
+    fn backup_secondary_values(&mut self) {
         self.stresses.backup()
     }
 
     /// Restores the secondary values from the backup (e.g., stresses and internal values)
-    fn restore_secondary_values(&mut self) -> Result<(), StrError> {
+    fn restore_secondary_values(&mut self) {
         self.stresses.restore()
     }
 
@@ -207,7 +263,34 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             // interpolate increment of strains Δε at integration point
             self.calc_delta_eps(&state.duu, p)?;
             // perform stress-update
-            self.model.update_stress(&mut self.stresses.all[p], &self.deps)?;
+            self.model.actual.update_stress(&mut self.stresses.all[p], &self.deps)?;
+        }
+        Ok(())
+    }
+
+    /// Performs the output of internal values
+    ///
+    /// Will save the results into [FemState::secondary_values]
+    fn output_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        let second_values = &mut state.secondary_values.as_mut().unwrap()[self.cell.id];
+        let two_dim = self.ndim == 2;
+        let n_integ_point = self.ips.len();
+        if !self.config.out_no_strains {
+            if second_values.strains.is_none() {
+                second_values.strains = Some(StrainStates::new(two_dim, n_integ_point));
+            }
+            let strains = &mut second_values.strains.as_mut().unwrap().all;
+            for p in 0..self.ips.len() {
+                self.calc_strains(&mut strains[p], &state.uu, p)?;
+            }
+        }
+        if second_values.stresses.is_none() {
+            let n_internal_values = self.model.actual.n_internal_values();
+            second_values.stresses = Some(StressStates::new(two_dim, n_internal_values, n_integ_point));
+        }
+        let stresses = &mut second_values.stresses.as_mut().unwrap().all;
+        for p in 0..self.ips.len() {
+            stresses[p].mirror(&self.stresses.all[p])?;
         }
         Ok(())
     }

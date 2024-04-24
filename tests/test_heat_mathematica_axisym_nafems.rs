@@ -100,10 +100,11 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // check
     let eq = input.equations.eq(ref_point, Dof::T).unwrap();
@@ -135,7 +136,7 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         mesh.points[ref_points[0]].marker = REF_POINT_MARKER;
 
         // write mesh
-        mesh.write(&["/tmp/pmsim/", NAME].concat()).unwrap();
+        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // reference point
         let mut circle = Canvas::new();
@@ -149,17 +150,21 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         fig.canvas_points.set_marker_size(3.0).set_marker_line_color("none");
 
         // generate figure
-        mesh.draw(Some(fig), &["/tmp/pmsim/", NAME, "_mesh"].concat(), |plot, before| {
-            if !before {
-                plot.add(&circle);
-            }
-        })
+        mesh.draw(
+            Some(fig),
+            &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME),
+            |plot, before| {
+                if !before {
+                    plot.add(&circle);
+                }
+            },
+        )
         .unwrap();
 
         // return generated mesh
         mesh
     } else {
         // read mesh
-        Mesh::read(&["data/meshes/", NAME, ".mesh"].concat()).unwrap()
+        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
     }
 }

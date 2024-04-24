@@ -13,11 +13,11 @@ keywords = ["mechanics", "fem"]
 
 [dependencies]
 plotpy = "0.5"
-gemlab = { path = "../gemlab", version = "0.8" }
-russell_lab = { path = "../russell/russell_lab", version = "0.7" }
-russell_sparse = { path = "../russell/russell_sparse", version = "0.7" }
-russell_tensor = { path = "../russell/russell_tensor", version = "0.7" }
-rayon = "1.7"
-rmp-serde = "1.1"
+gemlab = "0.9"
+russell_lab = "0.7"
+russell_sparse = "0.7"
+russell_tensor = "0.7"
+rayon = "1.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+structopt = "0.3"

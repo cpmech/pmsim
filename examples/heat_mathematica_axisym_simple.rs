@@ -42,7 +42,7 @@ fn main() -> Result<(), StrError> {
     let (rin, rout) = (1.0, 2.0);
 
     // mesh
-    let mesh = Mesh::read(&["data/meshes/", NAME, ".mesh"].concat())?;
+    let mesh = Mesh::read_json(&format!("data/meshes/{}.json", NAME))?;
 
     // features
     let feat = Features::new(&mesh, false);
@@ -72,10 +72,11 @@ fn main() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
     // println!("{}", state.uu);
 
     // check

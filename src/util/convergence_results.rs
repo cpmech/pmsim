@@ -30,7 +30,7 @@ impl ConvergenceResults {
     /// # Input
     ///
     /// * `full_path` -- may be a String, &str, or Path
-    pub fn from<P>(full_path: &P) -> Result<Self, StrError>
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
     where
         P: AsRef<OsStr> + ?Sized,
     {
@@ -46,7 +46,7 @@ impl ConvergenceResults {
     /// # Input
     ///
     /// * `full_path` -- may be a String, &str, or Path
-    pub fn write<P>(&self, full_path: &P) -> Result<(), StrError>
+    pub fn write_json<P>(&self, full_path: &P) -> Result<(), StrError>
     where
         P: AsRef<OsStr> + ?Sized,
     {
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn convergence_results_read_works() {
         let filename = "data/tests/convergence_results.json";
-        let results = ConvergenceResults::from(filename).unwrap();
+        let results = ConvergenceResults::read_json(filename).unwrap();
         assert_eq!(results.time, &[1, 2, 3]);
         assert_eq!(results.ndof, &[10, 20, 30]);
         vec_approx_eq(&results.error, &[100.0, 50.0, 0.1], 1e-15);
@@ -90,7 +90,7 @@ mod tests {
         results.error[1] = 50.0;
         results.error[2] = 0.1;
         let filename = "/tmp/pmsim/test_convergence_results_write.json";
-        results.write(&filename).unwrap();
+        results.write_json(&filename).unwrap();
         let contents = fs::read_to_string(&filename).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,

@@ -84,8 +84,21 @@ impl SampleParams {
         ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::LinearElastic {
-                young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
+                young: 1500.0, // kPa
+                poisson: 0.25, // [-]
+            },
+        }
+    }
+
+    /// Returns sample parameters for a solid medium (von Mises)
+    pub fn param_solid_von_mises() -> ParamSolid {
+        ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: ParamStressStrain::VonMises {
+                young: 1500.0, // kPa
+                poisson: 0.25, // [-]
+                z0: 9.0,       // kPa
+                hh: 600.0,     // kPa
             },
         }
     }
@@ -95,11 +108,11 @@ impl SampleParams {
         ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::DruckerPrager {
-                young: 10_000.0, // kPa
-                poisson: 0.2,    // [-]
-                c: 0.0,          // kPa
-                phi: 25.0,       // degree
-                hh: 0.0,         // [-]
+                young: 1500.0, // kPa
+                poisson: 0.25, // [-]
+                c: 0.0,        // kPa
+                phi: 25.0,     // degree
+                hh: 600.0,     // [-]
             },
         }
     }

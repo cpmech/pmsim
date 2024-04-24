@@ -52,7 +52,7 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
             let path_json = Path::new(&json);
             if path_json.exists() {
                 // load results
-                let results = ConvergenceResults::from(&path_json)?;
+                let results = ConvergenceResults::read_json(&path_json)?;
                 assert_eq!(results.name, *str_kind);
                 match *str_genie {
                     "mumps" => {

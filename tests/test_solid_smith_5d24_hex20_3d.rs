@@ -29,8 +29,6 @@ use russell_lab::*;
 // Lower layer: Young = 50, Poisson = 0.3
 // Using reduced integration with 8 points
 
-const NAME: &str = "test_solid_smith_5d24_hex20_3d";
-
 #[test]
 fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     // mesh
@@ -85,16 +83,11 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
-
-    // generate Paraview file
-    if false {
-        let output = FemOutput::new(&mesh, &feat, &input, &state);
-        output.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
-    }
+    solver.solve(&mut state, &mut output)?;
 
     // check displacements
     #[rustfmt::skip]

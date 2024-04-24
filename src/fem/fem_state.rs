@@ -1,8 +1,15 @@
-use super::FemInput;
+use super::{FemInput, SecondaryValues};
 use crate::base::{Config, Element};
+use crate::material::StressState;
 use crate::StrError;
+use gemlab::mesh::CellId;
 use russell_lab::Vector;
+use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
+use std::ffi::OsStr;
+use std::fs::{self, File};
+use std::io::BufReader;
+use std::path::Path;
 
 /// Holds state of a simulation, including primary and secondary variables
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -45,9 +52,15 @@ pub struct FemState {
     ///
     /// (n_equation)
     pub aa_star: Vector,
+
+    /// Secondary values at all elements and all integration points (output only)
+    ///
+    /// (n_cells)
+    pub secondary_values: Option<Vec<SecondaryValues>>,
 }
 
 impl FemState {
+    /// Allocates a new instance
     pub fn new(input: &FemInput, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
         if input.mesh.cells.len() == 0 {
@@ -116,7 +129,75 @@ impl FemState {
             uu_star,
             vv_star,
             aa_star,
+            secondary_values: None,
         });
+    }
+
+    /// Reads a JSON file containing the state data
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        let input = File::open(path).map_err(|_| "cannot open file")?;
+        let buffered = BufReader::new(input);
+        let state = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
+        Ok(state)
+    }
+
+    /// Writes a JSON file with the state data
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn write_json<P>(&self, full_path: &P) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        if let Some(p) = path.parent() {
+            fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
+        }
+        let mut file = File::create(&path).map_err(|_| "cannot create file")?;
+        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
+        Ok(())
+    }
+
+    /// Extracts stresses, strains, and internal values
+    ///
+    /// Returns `(stress_state, epsilon)`
+    ///
+    /// The results are only available if [crate::fem::FemOutput] was provided a `filename_stem`
+    /// and [Config::out_secondary_values] was set true.
+    ///
+    /// **Note:** This function will return an error if stresses/strains are not available (e.g. in a Diffusion simulation)
+    /// or not present in the integration (Gauss) point of the selected cell/element.
+    pub fn extract_stresses_and_strains(
+        &self,
+        cell_id: CellId,
+        integ_point: usize,
+    ) -> Result<(&StressState, &Tensor2), StrError> {
+        match &self.secondary_values {
+            Some(all_values) => {
+                let values = &all_values[cell_id];
+                let stress_state = match &values.stresses {
+                    Some(stress_states) => &stress_states.all[integ_point],
+                    None => return Err("element does not have stresses at the selected integration point"),
+                };
+                let epsilon = match &values.strains {
+                    Some(strain_states) => &strain_states.all[integ_point],
+                    None => return Err("element does not have strains at the selected integration point"),
+                };
+                Ok((stress_state, epsilon))
+            }
+            None => {
+                Err("secondary values are not available for this problem (need config.out_secondary_values = true)")
+            }
+        }
     }
 }
 
@@ -214,7 +295,7 @@ mod tests {
         let config = Config::new();
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.dt, 0.1);
+        assert_eq!(state.dt, 1.0);
         assert_eq!(state.duu.dim(), input.equations.n_equation);
         assert_eq!(state.uu.dim(), input.equations.n_equation);
     }

@@ -5,11 +5,22 @@
     "cylin",
     "dphi",
     "emap",
+    "epsd",
+    "epsv",
+    "gridspec",
+    "hspace",
+    "HYPLAS",
     "IFEM",
     "jacobians",
     "nafems",
     "Paraview",
     "rref",
-    "UNSYM"
+    "sigd",
+    "sigm",
+    "ticklabels",
+    "UNSYM",
+    "wspace",
+    "xaxis",
+    "yaxis"
   ]
 }

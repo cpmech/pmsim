@@ -55,6 +55,13 @@ pub struct Config {
     pub param_fluids: Option<ParamFluids>,
 
     /// Number of integration points
+    ///
+    /// To set the number of integration points, use the map [Config::n_integ_point] directly, e.g.:
+    ///
+    /// ```text
+    /// let cell_attribute = 1;
+    /// config.n_integ_point.insert(cell_attribute, 4);
+    /// ```
     pub n_integ_point: HashMap<CellAttribute, usize>,
 
     /// Ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
@@ -65,6 +72,12 @@ pub struct Config {
 
     /// Parameters for the sparse solver
     pub lin_sol_params: LinSolParams,
+
+    /// Output secondary values such as a stresses, strains, and internal values
+    pub out_secondary_values: bool,
+
+    /// Do not output strains when outputting stresses
+    pub out_no_strains: bool,
 }
 
 impl Config {
@@ -87,6 +100,8 @@ impl Config {
             ignore_jacobian_symmetry: false,
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
+            out_secondary_values: false,
+            out_no_strains: false,
         }
     }
 
@@ -156,6 +171,13 @@ impl Config {
     }
 
     /// Returns the integration (Gauss) points data
+    ///
+    /// To set the number of integration points, use the map [Config::n_integ_point] directly, e.g.:
+    ///
+    /// ```text
+    /// let cell_attribute = 1;
+    /// config.n_integ_point.insert(cell_attribute, 4);
+    /// ```
     pub fn integ_point_data(&self, cell: &Cell) -> Result<integ::IntegPointData, StrError> {
         match self.n_integ_point.get(&cell.attribute) {
             Some(n) => integ::points(cell.kind.class(), *n),

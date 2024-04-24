@@ -28,8 +28,6 @@ use russell_lab::*;
 //
 // Young = 100, Poisson = 0.3
 
-const NAME: &str = "ex_solid_smith_5d30_tet4_3d";
-
 fn main() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d30_tet4();
@@ -70,15 +68,12 @@ fn main() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&input, &config)?;
 
+    // FEM output
+    let mut output = FemOutput::new(&input, None, None, None)?;
+
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
-
-    // generate Paraview file
-    if false {
-        let output = FemOutput::new(&mesh, &feat, &input, &state);
-        output.write_vtu(&["/tmp/pmsim/", NAME].concat())?;
-    }
+    solver.solve(&mut state, &mut output)?;
 
     // check displacements
     #[rustfmt::skip]

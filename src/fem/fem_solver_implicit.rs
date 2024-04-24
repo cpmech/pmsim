@@ -1,4 +1,4 @@
-use super::{Boundaries, ConcentratedLoads, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
+use super::{Boundaries, ConcentratedLoads, Elements, FemInput, FemOutput, FemState, LinearSystem, PrescribedValues};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
@@ -51,7 +51,7 @@ impl<'a> FemSolverImplicit<'a> {
     }
 
     /// Solves the associated system of partial differential equations
-    pub fn solve(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    pub fn solve(&mut self, state: &mut FemState, output: &mut FemOutput) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
         let control = &self.config.control;
@@ -60,20 +60,28 @@ impl<'a> FemSolverImplicit<'a> {
         let kk = &mut self.linear_system.jacobian;
         let mdu = &mut self.linear_system.mdu;
 
-        // first residual vector
+        // residual vector
         let neq = rr.dim();
         let mut rr0 = Vector::new(neq);
 
-        // counter for numbering output files
-        let mut output_counter = 0;
+        // collect the unknown equations
+        let unknown_equations: Vec<_> = (0..neq)
+            .filter_map(|eq| if prescribed[eq] { None } else { Some(eq) })
+            .collect();
+
+        // first output
+        output.write(state, &mut self.elements)?;
+        let mut t_out = state.t + (control.dt_out)(state.t);
 
         // message
         if !config.linear_problem {
             control.print_header();
         }
 
+        // initialize internal values
+        self.elements.initialize_internal_values_parallel()?;
+
         // time loop
-        let steady = !config.transient && !config.dynamics;
         for timestep in 0..control.n_max_time_steps {
             // update time
             state.dt = (control.dt)(state.t);
@@ -88,17 +96,18 @@ impl<'a> FemSolverImplicit<'a> {
                 vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
 
-            // handle prescribed values
-            if self.prescribed_values.equations.len() > 0 {
-                // set prescribed U and ΔU at the new time
-                self.prescribed_values.apply(&mut state.duu, &mut state.uu, state.t);
-
-                // update secondary variables for given prescribed U and ΔU at the new time
-                self.elements.update_secondary_values_parallel(state)?;
-            }
-
             // reset cumulated primary values
             state.duu.fill(0.0);
+
+            // set prescribed U and ΔU at the new time
+            if self.prescribed_values.equations.len() > 0 {
+                self.prescribed_values.apply(&mut state.duu, &mut state.uu, state.t);
+            }
+
+            // reset algorithmic variables
+            if !config.linear_problem {
+                self.elements.reset_algorithmic_variables_parallel();
+            }
 
             // message
             control.print_timestep(timestep, state.t, state.dt);
@@ -163,7 +172,7 @@ impl<'a> FemSolverImplicit<'a> {
                         .factorize(kk, Some(config.lin_sol_params))?;
 
                     // Debug K matrix
-                    control.debug_save_kk_matrix(kk, output_counter)?;
+                    control.debug_save_kk_matrix(kk)?;
                 }
 
                 // solve linear system
@@ -175,24 +184,30 @@ impl<'a> FemSolverImplicit<'a> {
                 // updates
                 if config.transient {
                     // update U, V, and ΔU vectors
-                    for i in 0..neq {
-                        state.uu[i] -= mdu[i];
-                        state.vv[i] = beta_1 * state.uu[i] - state.uu_star[i];
-                        state.duu[i] -= mdu[i];
+                    for i in &unknown_equations {
+                        state.uu[*i] -= mdu[*i];
+                        state.vv[*i] = beta_1 * state.uu[*i] - state.uu_star[*i];
+                        state.duu[*i] -= mdu[*i];
                     }
                 } else {
                     // update U and ΔU vectors
-                    for i in 0..neq {
-                        state.uu[i] -= mdu[i];
-                        state.duu[i] -= mdu[i];
+                    for i in &unknown_equations {
+                        state.uu[*i] -= mdu[*i];
+                        state.duu[*i] -= mdu[*i];
+                    }
+                }
+
+                // backup/restore secondary variables
+                if !config.linear_problem {
+                    if iteration == 0 {
+                        self.elements.backup_secondary_values_parallel();
+                    } else {
+                        self.elements.restore_secondary_values_parallel();
                     }
                 }
 
                 // update secondary variables
                 self.elements.update_secondary_values_parallel(state)?;
-
-                // update counter for numbering output files
-                output_counter += 1;
 
                 // exit if linear problem
                 if config.linear_problem {
@@ -205,12 +220,21 @@ impl<'a> FemSolverImplicit<'a> {
                 }
             }
 
+            // perform output
+            let last_timestep = timestep == control.n_max_time_steps - 1;
+            if state.t >= t_out || last_timestep {
+                output.write(state, &mut self.elements)?;
+                t_out += (control.dt_out)(state.t);
+            }
+
             // final time step
-            if state.t >= control.t_fin || steady {
+            if state.t >= control.t_fin {
                 break;
             }
         }
-        Ok(())
+
+        // write the summary file
+        output.write_summary()
     }
 }
 
@@ -220,7 +244,7 @@ impl<'a> FemSolverImplicit<'a> {
 mod tests {
     use super::FemSolverImplicit;
     use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
-    use crate::fem::{FemInput, FemState};
+    use crate::fem::{FemInput, FemOutput, FemState};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -307,8 +331,9 @@ mod tests {
         let natural = Natural::new();
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&input, &config).unwrap();
+        let mut output = FemOutput::new(&input, None, None, None).unwrap();
         assert_eq!(
-            solver.solve(&mut state).err(),
+            solver.solve(&mut state, &mut output).err(),
             Some("Δt is smaller than the allowed minimum")
         );
     }

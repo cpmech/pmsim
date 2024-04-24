@@ -39,7 +39,7 @@ const NAME: &str = "test_heat_lewis_transient_1d";
 
 fn main() -> Result<(), StrError> {
     // mesh
-    let mesh = Mesh::read(&["data/meshes/", NAME, ".mesh"].concat())?;
+    let mesh = Mesh::read_json(&format!("data/meshes/{}.json", NAME))?;
 
     // features
     let feat = Features::new(&mesh, false);
@@ -68,14 +68,16 @@ fn main() -> Result<(), StrError> {
     let mut config = Config::new();
     let t_fin = 1.0;
     config.transient = true;
+    config.control.dt = |_| 0.1;
     config.control.t_fin = t_fin;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
 
     // check
     let analytical = |t: f64, x: f64| {
@@ -98,31 +100,28 @@ fn main() -> Result<(), StrError> {
         assert!(diff < 3e-2);
     }
 
-    // plot results
-    if false {
-        // compute analytical solution
-        let xx_ana = Vector::linspace(0.0, 2.0, 11)?;
-        let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
+    // compute analytical solution
+    let xx_ana = Vector::linspace(0.0, 2.0, 11)?;
+    let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
-        // get temperature values along x
-        let post = FemOutput::new(&mesh, &feat, &input, &state);
-        let (_, xx_num, tt_num) = post.values_along_x(Dof::T, 0.0, |x| x[0] <= 2.0)?;
+    // get temperature values along x
+    let post = FemOutput::new(&input, None, None, None)?;
+    let (_, xx_num, tt_num) = post.values_along_x(&feat, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
-        // plot
-        let mut curve_ana = Curve::new();
-        let mut curve_num = Curve::new();
-        curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
-        curve_num
-            .set_line_color("#cd0000")
-            .set_line_style("None")
-            .set_marker_style("+");
-        curve_num.draw(&xx_num, &tt_num);
-        let mut plot = Plot::new();
-        plot.add(&curve_ana).add(&curve_num);
-        plot.grid_and_labels("x", "T")
-            .set_yrange(0.0, 1.2)
-            .legend()
-            .save(&["/tmp/pmsim/", NAME].concat())?;
-    }
+    // plot
+    let mut curve_ana = Curve::new();
+    let mut curve_num = Curve::new();
+    curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
+    curve_num
+        .set_line_color("#cd0000")
+        .set_line_style("None")
+        .set_marker_style("+");
+    curve_num.draw(&xx_num, &tt_num);
+    let mut plot = Plot::new();
+    plot.add(&curve_ana).add(&curve_num);
+    plot.grid_and_labels("x", "T")
+        .set_yrange(0.0, 1.2)
+        .legend()
+        .save(&["/tmp/pmsim/", NAME].concat())?;
     Ok(())
 }

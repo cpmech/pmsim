@@ -73,8 +73,8 @@ impl Control {
         Control {
             t_ini: 0.0,
             t_fin: 1.0,
-            dt: |_| 0.1,
-            dt_out: |_| 0.1,
+            dt: |_| 1.0,
+            dt_out: |_| 1.0,
             dt_min: CONTROL_MIN_DT_MIN,
             n_max_time_steps: 1_000,
             divergence_control: false,
@@ -204,14 +204,14 @@ impl Control {
     }
 
     /// Saves the global K matrix for debugging
-    pub fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix, output_counter: usize) -> Result<(), StrError> {
+    pub fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix) -> Result<(), StrError> {
         if self.save_matrix_market_file || self.save_vismatrix_file {
             if self.save_matrix_market_file {
-                let name = format!("/tmp/pmsim/K-matrix-{:0>20}.mtx", output_counter);
+                let name = format!("/tmp/pmsim/K-matrix.mtx");
                 kk.write_matrix_market(&name, false).unwrap();
             }
             if self.save_vismatrix_file {
-                let name = format!("/tmp/pmsim/K-matrix-{:0>20}.smat", output_counter);
+                let name = format!("/tmp/pmsim/K-matrix.smat");
                 kk.write_matrix_market(&name, true).unwrap();
             }
             Err("K matrix written; will stop now")
@@ -232,8 +232,8 @@ mod tests {
         let control = Control::new();
         assert_eq!(control.t_ini, 0.0);
         assert_eq!(control.t_fin, 1.0);
-        assert_eq!((control.dt)(123.0), 0.1);
-        assert_eq!((control.dt_out)(123.0), 0.1);
+        assert_eq!((control.dt)(123.0), 1.0);
+        assert_eq!((control.dt_out)(123.0), 1.0);
         assert_eq!(control.dt_min, CONTROL_MIN_DT_MIN);
         assert_eq!(control.divergence_control, false);
         assert_eq!(control.div_ctrl_max_steps, 10);

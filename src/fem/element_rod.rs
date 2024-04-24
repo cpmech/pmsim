@@ -94,6 +94,11 @@ impl<'a> ElementTrait for ElementRod<'a> {
         &self.local_to_global
     }
 
+    /// Initializes the internal values
+    fn initialize_internal_values(&mut self) -> Result<(), StrError> {
+        Ok(())
+    }
+
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for local in 0..self.local_to_global.len() {
@@ -105,26 +110,31 @@ impl<'a> ElementTrait for ElementRod<'a> {
     }
 
     /// Calculates the Jacobian matrix
-    #[rustfmt::skip]
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &FemState) -> Result<(), StrError> {
         mat_copy(jacobian, &self.stiffness).unwrap();
         Ok(())
     }
 
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&mut self) {}
+
     /// Creates a copy of the secondary values (e.g., stresses and internal values)
-    fn backup_secondary_values(&mut self) -> Result<(), StrError> {
-        Ok(())
-    }
+    fn backup_secondary_values(&mut self) {}
 
     /// Restores the secondary values from the backup (e.g., stresses and internal values)
-    fn restore_secondary_values(&mut self) -> Result<(), StrError> {
-        Ok(())
-    }
+    fn restore_secondary_values(&mut self) {}
 
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     fn update_secondary_values(&mut self, _state: &FemState) -> Result<(), StrError> {
+        Ok(())
+    }
+
+    /// Performs the output of internal values
+    ///
+    /// Will save the results into [FemState::secondary_values]
+    fn output_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
 }

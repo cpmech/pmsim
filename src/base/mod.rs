@@ -2,8 +2,8 @@
 
 mod assembly;
 mod attributes;
-mod auxiliary;
 mod config;
+mod constants;
 mod control;
 mod element_dofs;
 mod enums;
@@ -15,8 +15,8 @@ mod sample_meshes;
 mod sample_params;
 pub use crate::base::assembly::*;
 pub use crate::base::attributes::*;
-pub use crate::base::auxiliary::*;
 pub use crate::base::config::*;
+pub use crate::base::constants::*;
 pub use crate::base::control::*;
 pub use crate::base::element_dofs::*;
 pub use crate::base::enums::*;

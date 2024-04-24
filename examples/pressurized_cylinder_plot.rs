@@ -54,7 +54,7 @@ fn main() -> Result<(), StrError> {
         }
 
         // load results
-        let results = ConvergenceResults::from(&path_json)?;
+        let results = ConvergenceResults::read_json(&path_json)?;
         assert_eq!(results.name, *str_kind);
 
         // add error curve

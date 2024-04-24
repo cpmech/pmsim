@@ -73,10 +73,11 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
+    let mut output = FemOutput::new(&input, None, None, None)?;
 
     // solve problem
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state)?;
+    solver.solve(&mut state, &mut output)?;
     // println!("{}", state.uu);
 
     // check
@@ -100,15 +101,14 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         block.set_ndiv(&[10, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
-        // write mesh
-        mesh.write(&["/tmp/pmsim/", NAME].concat()).unwrap();
+        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
-        mesh.draw(None, &["/tmp/pmsim/", NAME, "_mesh"].concat(), |_, _| {})
+        mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
             .unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read(&["data/meshes/", NAME, ".mesh"].concat()).unwrap()
+        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
     }
 }
