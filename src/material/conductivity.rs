@@ -90,7 +90,7 @@ impl<'a> ConductivityModel<'a> {
 mod tests {
     use super::ConductivityModel;
     use crate::base::ParamConductivity;
-    use russell_lab::{approx_eq, deriv_central5};
+    use russell_lab::{approx_eq, deriv1_central5};
     use russell_tensor::{Mandel, Tensor2};
 
     #[test]
@@ -111,10 +111,11 @@ mod tests {
 
         for i in 0..2 {
             for j in 0..2 {
-                let num = deriv_central5(phi_ini, &mut args, |phi_at, a| {
+                let num = deriv1_central5(phi_ini, &mut args, |phi_at, a| {
                     model.calc_k(&mut a.temp, phi_at).unwrap();
-                    a.temp.get(i, j)
-                });
+                    Ok(a.temp.get(i, j))
+                })
+                .unwrap();
                 // println!("k[{},{}] = {:?} → {:?}", i, j, dk_dphi_ana.get(i, j), num);
                 approx_eq(dk_dphi_ana.get(i, j), num, 1e-10);
             }

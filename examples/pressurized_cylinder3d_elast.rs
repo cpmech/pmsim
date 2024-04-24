@@ -150,11 +150,11 @@ fn main() -> Result<(), StrError> {
 
         // reference point to compare analytical vs numerical result
         let ref_point_id = feat.search_point_ids(At::XYZ(R1, 0.0, 0.0), any_x)?[0];
-        vec_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0, 0.0], 1e-15);
+        array_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0, 0.0], 1e-15);
 
         // study point (for debugging)
         let study_point = feat.search_point_ids(At::XYZ(0.0, R2, 0.0), any_x)?[0];
-        vec_approx_eq(&mesh.points[study_point].coords, &[0.0, R2, 0.0], 1e-13); // << some error
+        array_approx_eq(&mesh.points[study_point].coords, &[0.0, R2, 0.0], 1e-13); // << some error
 
         // input data
         let param1 = ParamSolid {
@@ -192,8 +192,8 @@ fn main() -> Result<(), StrError> {
             // cylinders
             let mut cylin_in = Surface::new();
             let mut cylin_out = Surface::new();
-            cylin_in.set_solid_color("#ff000020");
-            cylin_out.set_solid_color("#ff000020");
+            cylin_in.set_surf_color("#ff000020");
+            cylin_out.set_surf_color("#ff000020");
             cylin_in.draw_cylinder(&[0.0, 0.0, 0.0], &[0.0, 0.0, 1.0], R1, 5, 81)?;
             cylin_out.draw_cylinder(&[0.0, 0.0, 0.0], &[0.0, 0.0, 1.0], R2, 5, 81)?;
 
@@ -247,7 +247,7 @@ fn main() -> Result<(), StrError> {
 
         // solve problem
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-        let mut stopwatch = Stopwatch::new("");
+        let mut stopwatch = Stopwatch::new();
         match solver.solve(&mut state, &mut output) {
             Err(e) => {
                 println!("{:?} failed with: {}", genie, e);

@@ -137,11 +137,11 @@ fn main() -> Result<(), StrError> {
 
         // reference point to compare analytical vs numerical result
         let ref_point_id = feat.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
-        vec_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0], 1e-15);
+        array_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0], 1e-15);
 
         // study point (for debugging)
         let study_point = feat.search_point_ids(At::XY(0.0, R2), any_x)?[0];
-        vec_approx_eq(&mesh.points[study_point].coords, &[0.0, R2], 1e-13); // << some error
+        array_approx_eq(&mesh.points[study_point].coords, &[0.0, R2], 1e-13); // << some error
 
         // input data
         let param1 = ParamSolid {
@@ -231,7 +231,7 @@ fn main() -> Result<(), StrError> {
 
         // solve problem
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-        let mut stopwatch = Stopwatch::new("");
+        let mut stopwatch = Stopwatch::new();
         solver.solve(&mut state, &mut output)?;
         results.time[idx] = stopwatch.stop();
 

@@ -370,7 +370,7 @@ impl fmt::Display for StressStrainPath {
 #[cfg(test)]
 mod tests {
     use super::StressStrainPath;
-    use russell_lab::{approx_eq, vec_approx_eq};
+    use russell_lab::{approx_eq, array_approx_eq, vec_approx_eq};
     use russell_tensor::{SQRT_2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2, SQRT_6};
 
     #[test]
@@ -408,12 +408,8 @@ mod tests {
         // println!("\n\n{}", path_b);
 
         for i in 0..4 {
-            vec_approx_eq(
-                path_a.stresses[i].vec.as_data(),
-                path_b.stresses[i].vec.as_data(),
-                1e-14,
-            );
-            vec_approx_eq(path_a.strains[i].vec.as_data(), path_b.strains[i].vec.as_data(), 1e-14);
+            vec_approx_eq(&path_a.stresses[i].vec, &path_b.stresses[i].vec, 1e-14);
+            vec_approx_eq(&path_a.strains[i].vec, &path_b.strains[i].vec, 1e-14);
             approx_eq(path_a.sigma_m[i], path_b.sigma_m[i], 1e-14);
             approx_eq(path_a.sigma_d[i], path_b.sigma_d[i], 1e-14);
             approx_eq(path_a.sigma_lode[i].unwrap(), path_b.sigma_lode[i].unwrap(), 1e-14);
@@ -426,16 +422,8 @@ mod tests {
             }
         }
         for i in 0..3 {
-            vec_approx_eq(
-                path_a.deltas_stress[i].vec.as_data(),
-                path_b.deltas_stress[i].vec.as_data(),
-                1e-14,
-            );
-            vec_approx_eq(
-                path_a.deltas_strain[i].vec.as_data(),
-                path_b.deltas_strain[i].vec.as_data(),
-                1e-14,
-            );
+            vec_approx_eq(&path_a.deltas_stress[i].vec, &path_b.deltas_stress[i].vec, 1e-14);
+            vec_approx_eq(&path_a.deltas_strain[i].vec, &path_b.deltas_strain[i].vec, 1e-14);
         }
     }
 
@@ -469,19 +457,15 @@ mod tests {
         let ds1 = (SQRT_2 * d_star1 + d_star2) / SQRT_3;
         let ds2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
         let ds3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
-        vec_approx_eq(path.stresses[0].vec.as_data(), &[s1, s2, s3, 0.0], 1e-15);
+        vec_approx_eq(&path.stresses[0].vec, &[s1, s2, s3, 0.0], 1e-15);
+        vec_approx_eq(&path.stresses[1].vec, &[s1 + ds1, s2 + ds2, s3 + ds3, 0.0], 1e-14);
         vec_approx_eq(
-            path.stresses[1].vec.as_data(),
-            &[s1 + ds1, s2 + ds2, s3 + ds3, 0.0],
-            1e-14,
-        );
-        vec_approx_eq(
-            path.stresses[2].vec.as_data(),
+            &path.stresses[2].vec,
             &[s1 + 2.0 * ds1, s2 + 2.0 * ds2, s3 + 2.0 * ds3, 0.0],
             1e-14,
         );
-        vec_approx_eq(&path.sigma_m, &[10.0, 11.0, 12.0], 1e-14);
-        vec_approx_eq(&path.sigma_d, &[1.0, 10.0, 19.0], 1e-14);
+        array_approx_eq(&path.sigma_m, &[10.0, 11.0, 12.0], 1e-14);
+        array_approx_eq(&path.sigma_d, &[1.0, 10.0, 19.0], 1e-14);
         approx_eq(path.sigma_lode[0].unwrap(), lode, 1e-13);
         approx_eq(path.sigma_lode[1].unwrap(), lode, 1e-15);
         approx_eq(path.sigma_lode[2].unwrap(), lode, 1e-15);
@@ -495,19 +479,15 @@ mod tests {
         let de1 = (SQRT_2 * d_star1 + d_star2) / SQRT_3;
         let de2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
         let de3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
-        vec_approx_eq(path.strains[0].vec.as_data(), &[0.0, 0.0, 0.0, 0.0], 1e-15);
+        vec_approx_eq(&path.strains[0].vec, &[0.0, 0.0, 0.0, 0.0], 1e-15);
+        vec_approx_eq(&path.strains[1].vec, &[0.0 + de1, 0.0 + de2, 0.0 + de3, 0.0], 1e-15);
         vec_approx_eq(
-            path.strains[1].vec.as_data(),
-            &[0.0 + de1, 0.0 + de2, 0.0 + de3, 0.0],
-            1e-15,
-        );
-        vec_approx_eq(
-            path.strains[2].vec.as_data(),
+            &path.strains[2].vec,
             &[0.0 + 2.0 * de1, 0.0 + 2.0 * de2, 0.0 + 2.0 * de3, 0.0],
             1e-15,
         );
-        vec_approx_eq(&path.eps_v, &[0.0, deps_v, 2.0 * deps_v], 1e-14);
-        vec_approx_eq(&path.eps_d, &[0.0, deps_d, 2.0 * deps_d], 1e-14);
+        array_approx_eq(&path.eps_v, &[0.0, deps_v, 2.0 * deps_v], 1e-14);
+        array_approx_eq(&path.eps_d, &[0.0, deps_d, 2.0 * deps_d], 1e-14);
         assert_eq!(path.eps_lode[0], None);
         approx_eq(path.eps_lode[1].unwrap(), lode, 1e-15);
         approx_eq(path.eps_lode[2].unwrap(), lode, 1e-15);

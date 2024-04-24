@@ -119,7 +119,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     elem.update_secondary_values(&state)?;
     for p in 0..elem.ips.len() {
         println!("σ = {:?}", elem.stresses.all[p].sigma.vec.as_data());
-        vec_approx_eq(elem.stresses.all[p].sigma.vec.as_data(), &stress, 1e-15);
+        vec_approx_eq(&elem.stresses.all[p].sigma.vec, &stress, 1e-15);
     }
 
     // compute external forces
@@ -148,7 +148,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
         rr2[i] = rr[*ii];
     }
     println!("internal F2 = \n{}", rr2);
-    vec_approx_eq(ee2.as_data(), rr2.as_data(), 1e-15);
+    vec_approx_eq(&ee2, &rr2, 1e-15);
     Ok(())
 }
 
@@ -234,7 +234,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     elem.calc_jacobian(&mut kk_local, &state)?;
 
     // global Jacobian matrix
-    let mut kk_global = SparseMatrix::new_coo(neq, neq, neq * neq, None, false)?;
+    let mut kk_global = SparseMatrix::new_coo(neq, neq, neq * neq, Sym::No)?;
     assemble_matrix(kk_global.get_coo_mut()?, &kk_local, &elem.local_to_global, &prescribed).unwrap();
     for eq in &values.equations {
         kk_global.put(*eq, *eq, 1.0)?;
@@ -276,7 +276,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // σ = [0.0, -2.0000000000000004, -0.5, 4.4408920985006264e-17]
     for p in 0..elem.ips.len() {
         println!("σ = {:?}", elem.stresses.all[p].sigma.vec.as_data());
-        vec_approx_eq(elem.stresses.all[p].sigma.vec.as_data(), &stress, 1e-15);
+        vec_approx_eq(&elem.stresses.all[p].sigma.vec, &stress, 1e-15);
     }
     Ok(())
 }

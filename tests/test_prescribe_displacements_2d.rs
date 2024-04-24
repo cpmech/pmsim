@@ -84,7 +84,7 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     println!("eps_x = {}", eps_x);
     println!("U =\n{}", state.uu);
     vec_approx_eq(
-        &state.uu.as_data(),
+        &state.uu,
         &[
             0.0, 0.0, //   node 0
             eps_x, 0.0, // node 1

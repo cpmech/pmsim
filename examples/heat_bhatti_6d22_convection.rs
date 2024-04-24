@@ -98,6 +98,6 @@ fn main() -> Result<(), StrError> {
         144.67542222443012,
         129.13200798820264,
     ]);
-    vec_approx_eq(state.uu.as_data(), tt_bhatti.as_data(), 1e-12);
+    vec_approx_eq(&state.uu, &tt_bhatti, 1e-12);
     Ok(())
 }

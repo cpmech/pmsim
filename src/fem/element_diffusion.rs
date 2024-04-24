@@ -236,7 +236,7 @@ mod tests {
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
-    use russell_lab::{vec_add, vec_approx_eq, Matrix, Vector};
+    use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
     /// Finds the symmetry status of the Jacobian matrix
@@ -360,13 +360,13 @@ mod tests {
         let w0 = -kx * dtt_dx;
         let w1 = 0.0;
         let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1));
-        vec_approx_eq(residual.as_data(), correct_r.as_data(), 1e-15);
+        vec_approx_eq(&residual, &correct_r, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let correct_kk = ana.mat_03_btb(kx, ky, false);
-        vec_approx_eq(jacobian.as_data(), correct_kk.as_data(), 1e-15);
+        mat_approx_eq(&jacobian, &correct_kk, 1e-15);
 
         // with source term -------------------------------------------------
 
@@ -383,7 +383,7 @@ mod tests {
         let correct_src = ana.vec_01_ns(-source, false);
         let mut correct_r_new = Vector::new(neq);
         vec_add(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
-        vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
+        vec_approx_eq(&residual, &correct_r_new, 1e-15);
 
         // error in transient -----------------------------------------------
 
@@ -431,7 +431,7 @@ mod tests {
         let w1 = 0.0;
         let w2 = -kz * dtt_dz;
         let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
-        vec_approx_eq(residual.as_data(), correct_r.as_data(), 1e-15);
+        vec_approx_eq(&residual, &correct_r, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
@@ -439,7 +439,7 @@ mod tests {
         let conductivity =
             Tensor2::from_matrix(&[[kx, 0.0, 0.0], [0.0, ky, 0.0], [0.0, 0.0, kz]], Mandel::Symmetric).unwrap();
         let correct_kk = ana.mat_03_btb(&conductivity);
-        vec_approx_eq(jacobian.as_data(), correct_kk.as_data(), 1e-15);
+        mat_approx_eq(&jacobian, &correct_kk, 1e-15);
 
         // with source term -------------------------------------------------
 
@@ -456,6 +456,6 @@ mod tests {
         let correct_src = Vector::from(&ana.vec_01_ns(-source));
         let mut correct_r_new = Vector::new(neq);
         vec_add(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
-        vec_approx_eq(residual.as_data(), correct_r_new.as_data(), 1e-15);
+        vec_approx_eq(&residual, &correct_r_new, 1e-15);
     }
 }

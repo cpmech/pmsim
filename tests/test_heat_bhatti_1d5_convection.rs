@@ -83,6 +83,6 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
         3.000000000000000e+02,
         1.828327235474901e+02,
     ]);
-    vec_approx_eq(state.uu.as_data(), tt_bhatti.as_data(), 1e-13);
+    vec_approx_eq(&state.uu, &tt_bhatti, 1e-13);
     Ok(())
 }

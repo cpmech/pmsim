@@ -3,7 +3,7 @@ use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
 use rayon::prelude::*;
-use russell_lab::{deriv_central5, Matrix, Vector};
+use russell_lab::{deriv1_central5, Matrix, Vector};
 use russell_sparse::CooMatrix;
 
 /// Defines a generic finite element, wrapping an "actual" implementation
@@ -83,7 +83,7 @@ impl<'a> GenericElement<'a> {
         for i in 0..neq {
             for j in 0..neq {
                 let at_u = args.state.uu[j];
-                let res = deriv_central5(at_u, &mut args, |u, a| {
+                let res = deriv1_central5(at_u, &mut args, |u, a| {
                     let original_uu = a.state.uu[j];
                     let original_duu = a.state.duu[j];
                     a.state.uu[j] = u;
@@ -94,9 +94,9 @@ impl<'a> GenericElement<'a> {
                     self.actual.restore_secondary_values();
                     a.state.uu[j] = original_uu;
                     a.state.duu[j] = original_duu;
-                    a.residual[i]
+                    Ok(a.residual[i])
                 });
-                self.jacobian.set(i, j, res);
+                self.jacobian.set(i, j, res.unwrap());
             }
         }
         Ok(())
@@ -258,7 +258,7 @@ mod tests {
     use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::Samples;
-    use russell_lab::vec_approx_eq;
+    use russell_lab::mat_approx_eq;
 
     #[test]
     fn new_handles_errors() {
@@ -323,7 +323,7 @@ mod tests {
         ele.calc_jacobian(&state).unwrap();
         let jj_ana = ele.jacobian.clone();
         ele.numerical_jacobian(&mut state).unwrap();
-        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-11);
+        mat_approx_eq(&jj_ana, &ele.jacobian, 1e-11);
 
         // transient simulation
         let mut config = Config::new();
@@ -341,7 +341,7 @@ mod tests {
         ele.calc_jacobian(&state).unwrap();
         let jj_ana = ele.jacobian.clone();
         ele.numerical_jacobian(&mut state).unwrap();
-        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-10);
+        mat_approx_eq(&jj_ana, &ele.jacobian, 1e-10);
 
         // variable conductivity
         let p1 = ParamDiffusion {
@@ -357,7 +357,7 @@ mod tests {
         ele.numerical_jacobian(&mut state).unwrap();
         // println!("ana: J = \n{}", ele.jacobian);
         // println!("num: J = \n{}", num_jacobian);
-        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-7);
+        mat_approx_eq(&jj_ana, &ele.jacobian, 1e-7);
         // note that the "stiffness" is now unsymmetric
         // println!("difference = {:?}", num_jacobian[0][2] - num_jacobian[2][0]);
     }
@@ -391,7 +391,7 @@ mod tests {
         println!("J(ana)=\n{:.2}", jj_ana);
         println!("J(num)=\n{:.2}", ele.jacobian);
 
-        vec_approx_eq(jj_ana.as_data(), ele.jacobian.as_data(), 1e-8);
+        mat_approx_eq(&jj_ana, &ele.jacobian, 1e-8);
     }
 
     // ----------------- temporary ----------------------------------------

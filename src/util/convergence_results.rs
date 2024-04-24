@@ -65,7 +65,7 @@ impl ConvergenceResults {
 #[cfg(test)]
 mod tests {
     use super::ConvergenceResults;
-    use russell_lab::vec_approx_eq;
+    use russell_lab::array_approx_eq;
     use std::fs;
 
     #[test]
@@ -74,7 +74,7 @@ mod tests {
         let results = ConvergenceResults::read_json(filename).unwrap();
         assert_eq!(results.time, &[1, 2, 3]);
         assert_eq!(results.ndof, &[10, 20, 30]);
-        vec_approx_eq(&results.error, &[100.0, 50.0, 0.1], 1e-15);
+        array_approx_eq(&results.error, &[100.0, 50.0, 0.1], 1e-15);
     }
 
     #[test]

@@ -101,7 +101,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // with state = 0, the residual is equal to -b (negative of integral of source term)
     let neg_b = Vector::from(&[250.0, 312.5, 312.5, 250.0, -1125., -1000.0, -1125., -1250.0]);
     elements.calc_residuals(&state)?;
-    vec_approx_eq(elements.all[0].residual.as_data(), neg_b.as_data(), 1e-12);
+    vec_approx_eq(&elements.all[0].residual, &neg_b, 1e-12);
 
     // check Jacobian of first element (independent of state)
     elements.calc_jacobians(&state)?;
@@ -167,7 +167,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         -5732.301587301586,
         -30884.92063492062,
     ];
-    vec_approx_eq(rr.as_data(), bhatti_rr, 1e-10);
+    vec_approx_eq(&rr, bhatti_rr, 1e-10);
     let norm_rr = vec_norm(rr, Norm::Max);
     println!("norm_rr = {:?}", norm_rr);
 
@@ -233,7 +233,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         144.67542222443012,
         129.13200798820264,
     ]);
-    vec_approx_eq(uu_new.as_data(), tt_bhatti.as_data(), 1e-12);
+    vec_approx_eq(&uu_new, &tt_bhatti, 1e-12);
 
     // set state with new U vector and check the residuals
     vec_copy(&mut state.uu, &uu_new)?;
@@ -308,6 +308,6 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         144.67542222443012,
         129.13200798820264,
     ]);
-    vec_approx_eq(state.uu.as_data(), tt_bhatti.as_data(), 1e-12);
+    vec_approx_eq(&state.uu, &tt_bhatti, 1e-12);
     Ok(())
 }
