@@ -3,7 +3,6 @@ use crate::fem::{Elements, FemInput, FemState};
 use crate::StrError;
 use gemlab::mesh::{At, Features, PointId};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::BufReader;
