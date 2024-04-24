@@ -2,7 +2,7 @@ use super::{Boundaries, Elements, FemInput, PrescribedValues};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::{Genie, LinSolver, SparseMatrix, Storage};
+use russell_sparse::{LinSolver, SparseMatrix};
 
 /// Holds variables to solve the global linear system
 pub struct LinearSystem<'a> {
@@ -74,12 +74,12 @@ impl<'a> LinearSystem<'a> {
 
         // estimate the number of non-zero values
         let mut nnz_sup = prescribed_values.equations.len();
-        let triangular = config.lin_sol_genie.storage() != Storage::Full;
+        let sym = config.lin_sol_genie.symmetry(symmetric);
 
         // elements always have a Jacobian matrix (all must be symmetric to use symmetry)
         nnz_sup += elements.all.iter().fold(0, |acc, e| {
             let n = e.actual.local_to_global().len();
-            if symmetric && triangular {
+            if sym.triangular() {
                 acc + (n * n + n) / 2
             } else {
                 acc + n * n
@@ -91,7 +91,7 @@ impl<'a> LinearSystem<'a> {
             let n = e.local_to_global.len();
             match e.jacobian {
                 Some(_) => {
-                    if symmetric && triangular {
+                    if sym.triangular() {
                         acc + (n * n + n) / 2
                     } else {
                         acc + n * n
@@ -101,21 +101,12 @@ impl<'a> LinearSystem<'a> {
             }
         });
 
-        // information about the linear solver and the Jacobian matrix' storage
-        let one_based = config.lin_sol_genie.one_based();
-        let pos_def = if config.lin_sol_genie == Genie::IntelDss {
-            false // Intel DSS fails with the positive-definite option
-        } else {
-            symmetric
-        };
-        let symmetry = config.lin_sol_genie.symmetry(symmetric, pos_def);
-
         // allocate new instance
         Ok(LinearSystem {
             n_equation,
             nnz_sup,
             residual: Vector::new(n_equation),
-            jacobian: SparseMatrix::new_coo(n_equation, n_equation, nnz_sup, symmetry, one_based)?,
+            jacobian: SparseMatrix::new_coo(n_equation, n_equation, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,
             mdu: Vector::new(n_equation),
         })
@@ -131,7 +122,7 @@ mod tests {
     use crate::fem::{Boundaries, Elements, FemInput, PrescribedValues};
     use gemlab::mesh::{Feature, Mesh, Samples};
     use gemlab::shapes::GeoKind;
-    use russell_sparse::{Genie, Storage, Symmetry};
+    use russell_sparse::{Genie, Sym};
 
     #[test]
     fn new_handles_errors() {
@@ -209,7 +200,7 @@ mod tests {
                 n_equation_global,
                 n_equation_global,
                 0, // nnz currently is zero
-                Some(Symmetry::PositiveDefinite(Storage::Full))
+                Sym::YesFull,
             )
         );
 
@@ -226,7 +217,7 @@ mod tests {
                 n_equation_global,
                 n_equation_global,
                 0, // nnz currently is zero
-                Some(Symmetry::PositiveDefinite(Storage::Lower))
+                Sym::YesLower,
             )
         );
 
@@ -244,7 +235,7 @@ mod tests {
                 n_equation_global,
                 n_equation_global,
                 0, // nnz currently is zero
-                None
+                Sym::No,
             )
         );
     }

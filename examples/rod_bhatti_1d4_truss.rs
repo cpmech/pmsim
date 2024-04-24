@@ -80,6 +80,6 @@ fn main() -> Result<(), StrError> {
         2.647036149579491e-01, -2.647036149579491e-01, // 2: Ux,Uy
         0.000000000000000e+00,  0.000000000000000e+00, // 3: Ux,Uy
     ];
-    vec_approx_eq(state.uu.as_data(), uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
     Ok(())
 }

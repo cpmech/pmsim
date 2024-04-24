@@ -307,7 +307,7 @@ mod tests {
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;
-    use russell_lab::{vec_approx_eq, vec_copy, vec_update, Matrix, Vector};
+    use russell_lab::{mat_approx_eq, vec_approx_eq, vec_copy, vec_update, Matrix, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
     #[test]
@@ -359,7 +359,7 @@ mod tests {
         )
         .unwrap();
         let correct = ana.vec_04_tb(&sigma, false);
-        vec_approx_eq(residual.as_data(), correct.as_data(), 1e-15);
+        vec_approx_eq(&residual, &correct, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
@@ -367,7 +367,7 @@ mod tests {
         let correct = ana
             .mat_10_bdb(young, poisson, config.plane_stress, config.thickness)
             .unwrap();
-        vec_approx_eq(jacobian.as_data(), correct.as_data(), 1e-12);
+        mat_approx_eq(&jacobian, &correct, 1e-12);
     }
 
     // Generates a displacement field corresponding to a (confined) horizontal stretching
@@ -455,13 +455,13 @@ mod tests {
             for p in 0..element.ips.len() {
                 // horizontal strain
                 element.calc_delta_eps(&duu_h, p).unwrap();
-                vec_approx_eq(element.deps.vec.as_data(), &solution_h, 1e-13);
+                vec_approx_eq(&element.deps.vec, &solution_h, 1e-13);
                 // vertical strain
                 element.calc_delta_eps(&duu_v, p).unwrap();
-                vec_approx_eq(element.deps.vec.as_data(), &solution_v, 1e-13);
+                vec_approx_eq(&element.deps.vec, &solution_v, 1e-13);
                 // shear strain
                 element.calc_delta_eps(&duu_s, p).unwrap();
-                vec_approx_eq(element.deps.vec.as_data(), &solution_s, 1e-13);
+                vec_approx_eq(&element.deps.vec, &solution_s, 1e-13);
             }
         }
     }
@@ -555,7 +555,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_h, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -565,7 +565,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_v, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -575,7 +575,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_s, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_s, 1e-13);
             }
         }
     }
@@ -626,7 +626,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_h, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -636,7 +636,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_v, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -646,7 +646,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(element.stresses.all[p].sigma.vec.as_data(), &solution_s, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_s, 1e-13);
             }
         }
     }
@@ -697,7 +697,7 @@ mod tests {
         elem.calc_residual(&mut residual, &state).unwrap();
         // println!("{}", residual);
         let felippa_neg_rr_1ip = &[0.0, 12.0, 0.0, 12.0, 0.0, 12.0, 0.0, 12.0];
-        vec_approx_eq(&residual.as_data(), felippa_neg_rr_1ip, 1e-15);
+        vec_approx_eq(&residual, felippa_neg_rr_1ip, 1e-15);
 
         // check residual vector (4 integ point)
         config.n_integ_point.insert(1, 4);
@@ -705,6 +705,6 @@ mod tests {
         let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
         elem.calc_residual(&mut residual, &state).unwrap();
         // println!("{}", residual);
-        vec_approx_eq(&residual.as_data(), felippa_neg_rr_4ip, 1e-14);
+        vec_approx_eq(&residual, felippa_neg_rr_4ip, 1e-14);
     }
 }

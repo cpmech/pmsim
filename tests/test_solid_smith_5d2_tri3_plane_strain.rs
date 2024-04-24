@@ -97,6 +97,6 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
         1.950000000000004e-07,  0.000000000000000e+00,
         3.900000000000004e-07,  0.000000000000000e+00,
     ];
-    vec_approx_eq(state.uu.as_data(), uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
     Ok(())
 }

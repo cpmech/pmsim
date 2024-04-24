@@ -206,13 +206,14 @@ impl Control {
     /// Saves the global K matrix for debugging
     pub fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix) -> Result<(), StrError> {
         if self.save_matrix_market_file || self.save_vismatrix_file {
+            let csc = kk.get_csc()?;
             if self.save_matrix_market_file {
                 let name = format!("/tmp/pmsim/K-matrix.mtx");
-                kk.write_matrix_market(&name, false).unwrap();
+                csc.write_matrix_market(&name, false).unwrap();
             }
             if self.save_vismatrix_file {
                 let name = format!("/tmp/pmsim/K-matrix.smat");
-                kk.write_matrix_market(&name, true).unwrap();
+                csc.write_matrix_market(&name, true).unwrap();
             }
             Err("K matrix written; will stop now")
         } else {

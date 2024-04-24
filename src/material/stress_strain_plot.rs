@@ -513,7 +513,7 @@ mod tests {
     use super::{Axis, StressStrainPlot};
     use crate::material::StressStrainPath;
     use plotpy::{Canvas, Legend, SlopeIcon, SuperTitleParams};
-    use russell_lab::vec_approx_eq;
+    use russell_lab::{array_approx_eq, assert_alike};
     use russell_tensor::{Tensor2, SQRT_2_BY_3};
     use std::collections::HashSet;
 
@@ -556,47 +556,48 @@ mod tests {
 
         let axis = Axis::EpsV(false, false);
         let epsv = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&epsv, &[0.0, 0.001, 0.002], 1e-15);
+        array_approx_eq(&epsv, &[0.0, 0.001, 0.002], 1e-15);
         assert_eq!(axis.label(), "$\\varepsilon_v$");
 
         let axis = Axis::EpsV(true, false);
         let epsv = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&epsv, &[0.0, 0.1, 0.2], 1e-15);
+        array_approx_eq(&epsv, &[0.0, 0.1, 0.2], 1e-15);
         assert_eq!(axis.label(), "$\\varepsilon_v\\;[\\%]$");
 
         let axis = Axis::EpsV(true, true);
         let epsv = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&epsv, &[0.0, -0.1, -0.2], 1e-15);
+        array_approx_eq(&epsv, &[0.0, -0.1, -0.2], 1e-15);
         assert_eq!(axis.label(), "$-\\varepsilon_v\\;[\\%]$");
 
         let axis = Axis::EpsD(false);
         let epsd = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&epsd, &[0.0, 0.005, 0.01], 1e-15);
+        array_approx_eq(&epsd, &[0.0, 0.005, 0.01], 1e-15);
         assert_eq!(axis.label(), "$\\varepsilon_d$");
 
         let axis = Axis::EpsD(true);
         let epsd = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
+        array_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
         assert_eq!(axis.label(), "$\\varepsilon_d\\;[\\%]$");
 
         let axis = Axis::SigM(false);
         let sigm = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&sigm, &[0.0, 1.0, 2.0], 1e-14);
+        array_approx_eq(&sigm, &[0.0, 1.0, 2.0], 1e-14);
         assert_eq!(axis.label(), "$\\sigma_m$");
 
         let axis = Axis::SigM(true);
         let sigm = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&sigm, &[0.0, -1.0, -2.0], 1e-14);
+        array_approx_eq(&sigm, &[0.0, -1.0, -2.0], 1e-14);
         assert_eq!(axis.label(), "$-\\sigma_m$");
 
         let axis = Axis::SigD(false);
         let sigd = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&sigd, &[0.0, 9.0, 18.0], 1e-14);
+        array_approx_eq(&sigd, &[0.0, 9.0, 18.0], 1e-14);
         assert_eq!(axis.label(), "$\\sigma_d$");
 
         let axis = Axis::SigD(true);
         let sigd = axis.calc(&path.stresses, &path.strains);
-        vec_approx_eq(&sigd, &[f64::NAN, 9.0, 9.0], 1e-14); // <<<<<<<<< note NAN
+        assert_alike(sigd[0], f64::NAN); // <<<<<<<<< note NAN
+        array_approx_eq(&sigd[1..], &[9.0, 9.0], 1e-14); // <<<<<<<<< note without NAN
         assert_eq!(axis.label(), "$\\sigma_d\\,/\\,|\\sigma_m|$");
     }
 

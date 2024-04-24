@@ -114,7 +114,7 @@ fn main() -> Result<(), StrError> {
         0.000000000000000e+00,  3.090608328409013e-04,
         0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(state.uu.as_data(), uu_correct, 1e-9);
+    vec_approx_eq(&state.uu, uu_correct, 1e-9);
 
     #[rustfmt::skip]
     let kk_e0_ref = Matrix::from(&[

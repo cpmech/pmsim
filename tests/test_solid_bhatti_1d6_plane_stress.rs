@@ -103,6 +103,6 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
          8.389015766816341e-05, -5.556637423271112e-02
     ];
     println!("{}", state.uu);
-    vec_approx_eq(state.uu.as_data(), uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
     Ok(())
 }

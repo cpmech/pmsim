@@ -2,7 +2,7 @@ use super::{ElementDofsMap, Equations};
 use crate::StrError;
 use gemlab::mesh::Cell;
 use russell_lab::{Matrix, Vector};
-use russell_sparse::{CooMatrix, Storage};
+use russell_sparse::{CooMatrix, Sym};
 
 const SYMMETRY_CHECK_TOLERANCE: f64 = 1e-12;
 
@@ -75,7 +75,10 @@ pub fn assemble_matrix(
     prescribed: &[bool],
 ) -> Result<(), StrError> {
     let n_equation_local = kk_local.dims().0;
-    if kk_global.get_symmetric() {
+    // check symmetry of local matrices
+    let sym = kk_global.get_info().3;
+    let symmetric = sym != Sym::No;
+    if symmetric {
         for l in 0..n_equation_local {
             for ll in (l + 1)..n_equation_local {
                 if f64::abs(kk_local.get(l, ll) - kk_local.get(ll, l)) > SYMMETRY_CHECK_TOLERANCE {
@@ -84,8 +87,9 @@ pub fn assemble_matrix(
             }
         }
     }
-    match kk_global.get_storage() {
-        Storage::Lower => {
+    // assemble
+    match sym {
+        Sym::YesLower => {
             for l in 0..n_equation_local {
                 let g = local_to_global[l];
                 if !prescribed[g] {
@@ -100,7 +104,7 @@ pub fn assemble_matrix(
                 }
             }
         }
-        Storage::Upper => {
+        Sym::YesUpper => {
             for l in 0..n_equation_local {
                 let g = local_to_global[l];
                 if !prescribed[g] {
@@ -115,7 +119,7 @@ pub fn assemble_matrix(
                 }
             }
         }
-        Storage::Full => {
+        Sym::YesFull | Sym::No => {
             for l in 0..n_equation_local {
                 let g = local_to_global[l];
                 if !prescribed[g] {
@@ -140,7 +144,7 @@ mod tests {
     use crate::base::{compute_local_to_global, Attributes, Element, ElementDofsMap, Equations, SampleParams};
     use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{mat_approx_eq, Matrix, Vector};
-    use russell_sparse::{CooMatrix, Symmetry};
+    use russell_sparse::{CooMatrix, Sym};
 
     #[test]
     fn compute_local_to_global_handles_errors() {
@@ -276,7 +280,7 @@ mod tests {
         let l2g = vec![vec![0, 1, 4], vec![1, 3, 4], vec![1, 2, 3]];
         let neq = 5;
         let nnz = neq * neq;
-        let mut kk = CooMatrix::new(neq, neq, nnz, None, false).unwrap();
+        let mut kk = CooMatrix::new(neq, neq, nnz, Sym::No).unwrap();
         #[rustfmt::skip]
         let k0 = Matrix::from(&[
             [10.0, 11.0, 14.0],
@@ -365,16 +369,13 @@ mod tests {
         ];
 
         // capture non-symmetric local matrix
-        let sym = Symmetry::new_general_lower();
-        let mut kk = CooMatrix::new(neq, neq, nnz, sym, false).unwrap();
+        let mut kk = CooMatrix::new(neq, neq, nnz, Sym::YesLower).unwrap();
         assert_eq!(
             assemble_matrix(&mut kk, &k0_wrong, &l2g[0], &prescribed).err(),
             Some("local matrix is not symmetric")
         );
 
         // lower
-        let sym = Symmetry::new_general_lower();
-        let mut kk = CooMatrix::new(neq, neq, nnz, sym, false).unwrap();
         assemble_matrix(&mut kk, &k0, &l2g[0], &prescribed).unwrap();
         assemble_matrix(&mut kk, &k1, &l2g[1], &prescribed).unwrap();
         assemble_matrix(&mut kk, &k2, &l2g[2], &prescribed).unwrap();
@@ -382,8 +383,15 @@ mod tests {
         mat_approx_eq(&mat, kk_correct, 1e-15);
 
         // upper
-        let sym = Symmetry::new_general_upper();
-        let mut kk = CooMatrix::new(neq, neq, nnz, sym, false).unwrap();
+        let mut kk = CooMatrix::new(neq, neq, nnz, Sym::YesUpper).unwrap();
+        assemble_matrix(&mut kk, &k0, &l2g[0], &prescribed).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &prescribed).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &prescribed).unwrap();
+        let mat = kk.as_dense();
+        mat_approx_eq(&mat, kk_correct, 1e-15);
+
+        // full
+        let mut kk = CooMatrix::new(neq, neq, nnz, Sym::YesFull).unwrap();
         assemble_matrix(&mut kk, &k0, &l2g[0], &prescribed).unwrap();
         assemble_matrix(&mut kk, &k1, &l2g[1], &prescribed).unwrap();
         assemble_matrix(&mut kk, &k2, &l2g[2], &prescribed).unwrap();

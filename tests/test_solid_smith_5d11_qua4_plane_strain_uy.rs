@@ -98,6 +98,6 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
         0.000000000000000e+00,  3.474895306354719e-07,
         0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(state.uu.as_data(), uu_correct, 1e-13);
+    vec_approx_eq(&state.uu, uu_correct, 1e-13);
     Ok(())
 }
