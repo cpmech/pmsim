@@ -12,6 +12,7 @@
     "HYPLAS",
     "IFEM",
     "jacobians",
+    "llambda",
     "nafems",
     "Paraview",
     "rref",
