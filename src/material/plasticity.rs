@@ -2,7 +2,8 @@
 
 use super::StressState;
 use crate::{prelude::ParamSolid, StrError};
-use russell_tensor::{t2_ddot_t2, Mandel, Tensor2, Tensor4};
+use russell_lab::{vec_inner, Vector};
+use russell_tensor::{t2_ddot_t2, t4_ddot_t2, Mandel, Tensor2, Tensor4};
 
 const TOO_SMALL: f64 = 1e-8;
 
@@ -36,16 +37,22 @@ pub trait ClassicalPlasticityTrait: Send + Sync {
     fn plastic_potential(&self, state: &StressState) -> Result<(), StrError>;
 
     /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
-    fn hardening(&self, hh: &mut &[f64], state: &StressState) -> Result<(), StrError>;
+    fn hardening(&self, hh: &mut Vector, state: &StressState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the yield function w.r.t stress
-    fn calc_df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressState) -> Result<(), StrError>;
+    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the plastic potential w.r.t stress
-    fn calc_dg_dsigma(&self, dg_dsigma: &mut Tensor2, df_dz: &mut [f64], state: &StressState) -> Result<(), StrError>;
+    fn dg_dsigma(&self, dg_dsigma: &mut Tensor2, state: &StressState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the yield function w.r.t internal variables
-    fn calc_df_dz(&self, df_dz: &mut [f64], state: &StressState) -> Result<(), StrError>;
+    fn df_dz(&self, df_dz: &mut Vector, state: &StressState) -> Result<(), StrError>;
+
+    /// Calculates the elastic compliance modulus
+    fn elastic_compliance(&self, cce: &mut Tensor4, state: &StressState) -> Result<(), StrError>;
+
+    /// Calculates the elastic rigidity modulus
+    fn elastic_rigidity(&self, dde: &mut Tensor4, state: &StressState) -> Result<(), StrError>;
 }
 
 pub trait SubloadingPlasticityTrait: Send + Sync {
@@ -59,8 +66,11 @@ pub struct ClassicalPlasticity {
     pub actual: Box<dyn ClassicalPlasticityTrait>,
     pub df_dsigma: Tensor2,
     pub dg_dsigma: Tensor2,
-    pub df_dz: Vec<f64>,
-    pub hh: Vec<f64>,
+    pub df_dz: Vector,
+    pub hh: Vector,
+    aux: Tensor2,
+    cce: Tensor4,
+    dde: Tensor4,
 }
 
 impl ClassicalPlasticity {
@@ -86,8 +96,11 @@ impl ClassicalPlasticity {
             actual,
             df_dsigma: Tensor2::new(mandel),
             dg_dsigma: Tensor2::new(mandel),
-            df_dz: vec![0.0; nz],
-            hh: vec![0.0; nz],
+            df_dz: Vector::new(nz),
+            hh: Vector::new(nz),
+            aux: Tensor2::new(mandel),
+            cce: Tensor4::new(mandel),
+            dde: Tensor4::new(mandel),
         })
     }
 
@@ -108,11 +121,10 @@ impl ClassicalPlasticity {
         state: &StressState,
         dsigma: &Tensor2,
     ) -> Result<f64, StrError> {
-        self.actual.calc_df_dsigma(&mut self.df_dsigma, state)?;
-        let mut mmp = 0.0;
-        for i in 0..self.df_dz.len() {
-            mmp += self.df_dz[i] * self.hh[i];
-        }
+        self.actual.df_dsigma(&mut self.df_dsigma, state)?;
+        self.actual.df_dz(&mut self.df_dz, state)?;
+        self.actual.hardening(&mut self.hh, state)?;
+        let mut mmp = -vec_inner(&self.df_dz, &self.hh);
         if f64::abs(mmp) < TOO_SMALL {
             return Err("Mp modulus is too small");
         }
@@ -125,7 +137,22 @@ impl ClassicalPlasticity {
         state: &StressState,
         depsilon: &Tensor2,
     ) -> Result<f64, StrError> {
-        Err("TODO")
+        self.actual.df_dsigma(&mut self.df_dsigma, state)?;
+        self.actual.df_dz(&mut self.df_dz, state)?;
+        let dg_dsigma = if self.actual.associated() {
+            &self.df_dsigma
+        } else {
+            self.actual.dg_dsigma(&mut self.dg_dsigma, state)?;
+            &self.dg_dsigma
+        };
+        self.actual.hardening(&mut self.hh, state)?;
+        let mut mmp = -vec_inner(&self.df_dz, &self.hh);
+        self.actual.elastic_rigidity(&mut self.dde, state)?;
+        t4_ddot_t2(&mut self.aux, 1.0, &self.dde, dg_dsigma)?; // aux := De:(dg/dσ)
+        let nnp = mmp + t2_ddot_t2(&self.df_dsigma, &self.aux);
+        t4_ddot_t2(&mut self.aux, 1.0, &self.dde, depsilon)?; // aux := De:dε
+        let llambda = t2_ddot_t2(&self.df_dsigma, &self.aux) / nnp;
+        Ok(llambda)
     }
 
     pub fn modulus_elastic_compliance(&mut self, cce: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
