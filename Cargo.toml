@@ -14,7 +14,7 @@ keywords = ["mechanics", "fem"]
 [dependencies]
 plotpy = "0.6"
 gemlab = "1.1"
-russell_lab = "1.4"
+russell_lab = { version = "1.4", features = ["intel_mkl"] }
 russell_sparse = { version = "1.4", features = [
   "local_suitesparse",
   "with_mumps",
