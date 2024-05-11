@@ -2,8 +2,10 @@
 
 use super::StressState;
 use crate::{prelude::ParamSolid, StrError};
-use russell_lab::{vec_inner, Vector};
-use russell_tensor::{t2_ddot_t2, t4_ddot_t2, Mandel, Tensor2, Tensor4};
+use russell_lab::{mat_update, vec_inner, Vector};
+use russell_tensor::{
+    t2_ddot_t2, t2_ddot_t4_ddot_t2, t2_dyad_t2, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4, Mandel, Tensor2, Tensor4,
+};
 
 const TOO_SMALL: f64 = 1e-8;
 
@@ -63,7 +65,7 @@ pub trait SubloadingPlasticityTrait: Send + Sync {
 pub trait VariableModulusPlasticityTrait: Send + Sync {}
 
 pub struct ClassicalPlasticity {
-    pub actual: Box<dyn ClassicalPlasticityTrait>,
+    pub model: Box<dyn ClassicalPlasticityTrait>,
     pub df_dsigma: Tensor2,
     pub dg_dsigma: Tensor2,
     pub df_dz: Vector,
@@ -75,12 +77,12 @@ pub struct ClassicalPlasticity {
 
 impl ClassicalPlasticity {
     pub fn new(
-        model: ClassicalPlasticityModel,
+        plasticity_model: ClassicalPlasticityModel,
         param: &ParamSolid,
         two_dim: bool,
         plane_stress: bool,
     ) -> Result<Self, StrError> {
-        let actual: Box<dyn ClassicalPlasticityTrait> = match model {
+        let model: Box<dyn ClassicalPlasticityTrait> = match plasticity_model {
             ClassicalPlasticityModel::CamClay => return Err("TODO"),
             ClassicalPlasticityModel::CamClayOriginal => return Err("TODO"),
             ClassicalPlasticityModel::DruckerPrager => return Err("TODO"),
@@ -91,9 +93,9 @@ impl ClassicalPlasticity {
         } else {
             Mandel::Symmetric2D
         };
-        let nz = actual.n_internal_values();
+        let nz = model.n_internal_values();
         Ok(ClassicalPlasticity {
-            actual,
+            model,
             df_dsigma: Tensor2::new(mandel),
             dg_dsigma: Tensor2::new(mandel),
             df_dz: Vector::new(nz),
@@ -121,14 +123,19 @@ impl ClassicalPlasticity {
         state: &StressState,
         dsigma: &Tensor2,
     ) -> Result<f64, StrError> {
-        self.actual.df_dsigma(&mut self.df_dsigma, state)?;
-        self.actual.df_dz(&mut self.df_dz, state)?;
-        self.actual.hardening(&mut self.hh, state)?;
+        // derivatives
+        self.model.df_dsigma(&mut self.df_dsigma, state)?;
+        self.model.df_dz(&mut self.df_dz, state)?;
+
+        // Mₚ
+        self.model.hardening(&mut self.hh, state)?;
         let mut mmp = -vec_inner(&self.df_dz, &self.hh);
         if f64::abs(mmp) < TOO_SMALL {
-            return Err("Mp modulus is too small");
+            return Err("Mₚ modulus is too small");
         }
-        let llambda = t2_ddot_t2(&self.df_dsigma, dsigma) / mmp;
+
+        // Λ
+        let llambda = t2_ddot_t2(&self.df_dsigma, dsigma).unwrap() / mmp;
         Ok(llambda)
     }
 
@@ -137,37 +144,114 @@ impl ClassicalPlasticity {
         state: &StressState,
         depsilon: &Tensor2,
     ) -> Result<f64, StrError> {
-        self.actual.df_dsigma(&mut self.df_dsigma, state)?;
-        self.actual.df_dz(&mut self.df_dz, state)?;
-        let dg_dsigma = if self.actual.associated() {
+        // Dₑ
+        self.model.elastic_rigidity(&mut self.dde, state)?;
+
+        // derivatives
+        self.model.df_dsigma(&mut self.df_dsigma, state)?;
+        self.model.df_dz(&mut self.df_dz, state)?;
+        let dg_dsigma = if self.model.associated() {
             &self.df_dsigma
         } else {
-            self.actual.dg_dsigma(&mut self.dg_dsigma, state)?;
+            self.model.dg_dsigma(&mut self.dg_dsigma, state)?;
             &self.dg_dsigma
         };
-        self.actual.hardening(&mut self.hh, state)?;
+
+        // Mₚ
+        self.model.hardening(&mut self.hh, state)?;
         let mut mmp = -vec_inner(&self.df_dz, &self.hh);
-        self.actual.elastic_rigidity(&mut self.dde, state)?;
-        t4_ddot_t2(&mut self.aux, 1.0, &self.dde, dg_dsigma)?; // aux := De:(dg/dσ)
-        let nnp = mmp + t2_ddot_t2(&self.df_dsigma, &self.aux);
-        t4_ddot_t2(&mut self.aux, 1.0, &self.dde, depsilon)?; // aux := De:dε
-        let llambda = t2_ddot_t2(&self.df_dsigma, &self.aux) / nnp;
+
+        // Nₚ
+        let nnp = mmp + t2_ddot_t4_ddot_t2(&self.df_dsigma, &self.dde, dg_dsigma).unwrap();
+
+        // Λ
+        let llambda = t2_ddot_t4_ddot_t2(&self.df_dsigma, &self.dde, depsilon).unwrap() / nnp;
         Ok(llambda)
     }
 
     pub fn modulus_elastic_compliance(&mut self, cce: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
-        Err("TODO")
+        self.model.elastic_compliance(cce, state)
     }
 
     pub fn modulus_elastic_rigidity(&mut self, dde: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
-        Err("TODO")
+        self.model.elastic_rigidity(dde, state)
     }
 
     pub fn modulus_compliance(&mut self, cc: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
-        Err("TODO")
+        // Cₑ
+        self.model.elastic_compliance(&mut self.cce, state)?;
+
+        // derivatives
+        self.model.df_dsigma(&mut self.df_dsigma, state)?;
+        self.model.df_dz(&mut self.df_dz, state)?;
+        let dg_dsigma = if self.model.associated() {
+            &self.df_dsigma
+        } else {
+            self.model.dg_dsigma(&mut self.dg_dsigma, state)?;
+            &self.dg_dsigma
+        };
+
+        // Mₚ
+        self.model.hardening(&mut self.hh, state)?;
+        let mut mmp = -vec_inner(&self.df_dz, &self.hh);
+        if f64::abs(mmp) < TOO_SMALL {
+            return Err("Mₚ modulus is too small");
+        }
+
+        // Cₑₚ
+        t2_dyad_t2(cc, 1.0 / mmp, dg_dsigma, &self.df_dsigma).unwrap();
+        cc.update(1.0, &self.cce).unwrap();
+        Ok(())
     }
 
     pub fn modulus_rigidity(&mut self, dd: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
-        Err("TODO")
+        // Dₑ
+        self.model.elastic_rigidity(&mut self.dde, state)?;
+
+        // derivatives
+        self.model.df_dsigma(&mut self.df_dsigma, state)?;
+        self.model.df_dz(&mut self.df_dz, state)?;
+        let dg_dsigma = if self.model.associated() {
+            &self.df_dsigma
+        } else {
+            self.model.dg_dsigma(&mut self.dg_dsigma, state)?;
+            &self.dg_dsigma
+        };
+
+        // Mₚ
+        self.model.hardening(&mut self.hh, state)?;
+        let mut mmp = -vec_inner(&self.df_dz, &self.hh);
+
+        // Nₚ
+        let nnp = mmp + t2_ddot_t4_ddot_t2(&self.df_dsigma, &self.dde, dg_dsigma).unwrap();
+
+        // Dₑₚ
+        t4_ddot_t2_dyad_t2_ddot_t4(dd, -1.0 / nnp, dg_dsigma, &self.df_dsigma, &self.dde).unwrap();
+        dd.update(1.0, &self.dde).unwrap();
+        Ok(())
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_works() {
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: crate::prelude::ParamStressStrain::VonMises {
+                young: 1000.0,
+                poisson: 0.25,
+                z0: 1.0,
+                hh: 1.0,
+            },
+        };
+        let mut model = ClassicalPlasticity::new(ClassicalPlasticityModel::VonMises, &param, false, false).unwrap();
+        let mut dde = Tensor4::new(Mandel::General);
+        let state = StressState::new(false, 1);
+        model.modulus_elastic_rigidity(&mut dde, &state).unwrap();
     }
 }
