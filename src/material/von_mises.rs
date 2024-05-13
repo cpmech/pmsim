@@ -1,6 +1,7 @@
-use super::{StressState, StressStrainTrait};
+use super::{ClassicalPlasticityTrait, StressState, StressStrainTrait};
 use crate::StrError;
-use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
+use russell_lab::Vector;
+use russell_tensor::{deriv1_invariant_sigma_d, t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
 
 /// Defines an alias to IDENTITY2
@@ -19,6 +20,15 @@ pub struct VonMises {
     /// Linear elasticity
     lin_elasticity: LinElasticity,
 
+    /// Bulk modulus K
+    kk: f64,
+
+    /// Shear modulus G
+    gg: f64,
+
+    /// Hardening coefficient
+    hh: f64,
+
     /// Initial size of the yield surface
     ///
     /// This value corresponds to the von Mises stress:
@@ -28,37 +38,23 @@ pub struct VonMises {
     /// ```
     z0: f64,
 
-    /// Hardening coefficient
-    hh: f64,
-
-    /// Bulk modulus K
-    kk: f64,
-
-    /// Shear modulus G
-    gg: f64,
-
-    /// Auxiliary tensor
-    aux: Tensor2,
+    /// Deviatoric stress: s = dev(σ)
+    s: Tensor2,
 }
 
 impl VonMises {
     /// Allocates a new instance
     pub fn new(young: f64, poisson: f64, two_dim: bool, z0: f64, hh: f64) -> Self {
+        let lin_elasticity = LinElasticity::new(young, poisson, two_dim, false);
+        let (kk, gg) = lin_elasticity.get_bulk_shear();
         VonMises {
-            lin_elasticity: LinElasticity::new(young, poisson, two_dim, false),
-            z0,
+            lin_elasticity,
+            kk,
+            gg,
             hh,
-            kk: young / (3.0 * (1.0 - 2.0 * poisson)),
-            gg: young / (2.0 * (1.0 + poisson)),
-            aux: Tensor2::new_sym(two_dim),
+            z0,
+            s: Tensor2::new_sym(two_dim),
         }
-    }
-
-    /// Evaluates the yield function value at a stress/internal-values state
-    pub fn yield_function(&self, state: &StressState) -> f64 {
-        let q = state.sigma.invariant_sigma_d();
-        let z = state.internal_values[Z0];
-        q - z
     }
 }
 
@@ -76,7 +72,7 @@ impl StressStrainTrait for VonMises {
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut StressState) -> Result<(), StrError> {
         state.internal_values[Z0] = self.z0;
-        let f = self.yield_function(state);
+        let f = self.yield_function(state).unwrap();
         if f > 0.0 {
             return Err("stress is outside the yield surface");
         }
@@ -94,25 +90,26 @@ impl StressStrainTrait for VonMises {
         // extract current state variables
         let sigma = &state.sigma;
         let lambda = state.algo_lambda;
-        sigma.deviator(&mut self.aux); // aux := dev(σ) = s
+        sigma.deviator(&mut self.s); // s = dev(σ)
 
         // coefficients
+        let (kk, gg, hh) = (self.kk, self.gg, self.hh);
         let sigma_d = sigma.invariant_sigma_d();
-        let sigma_d_trial = sigma_d + lambda * 3.0 * self.gg;
+        let sigma_d_trial = sigma_d + lambda * 3.0 * gg;
         let norm_s = sigma_d * SQRT_2_BY_3;
-        let d = 3.0 * self.gg + self.hh;
-        let a = 2.0 * self.gg * (1.0 - lambda * 3.0 * self.gg / sigma_d_trial);
-        let b = 6.0 * self.gg * self.gg * (lambda / sigma_d_trial - 1.0 / d) / (norm_s * norm_s);
+        let d = 3.0 * gg + hh;
+        let a = 2.0 * gg * (1.0 - lambda * 3.0 * gg / sigma_d_trial);
+        let b = 6.0 * gg * gg * (lambda / sigma_d_trial - 1.0 / d) / (norm_s * norm_s);
 
         // access Mandel representation
         let nd = sigma.dim();
         let mat = dd.matrix_mut();
-        let s = self.aux.vector();
+        let s = self.s.vector();
 
         // consistent tangent modulus
         for i in 0..nd {
             for j in 0..nd {
-                mat.set(i, j, a * PSD[i][j] + b * s[i] * s[j] + self.kk * I[i] * I[j]);
+                mat.set(i, j, a * PSD[i][j] + b * s[i] * s[j] + kk * I[i] * I[j]);
             }
         }
         Ok(())
@@ -129,24 +126,25 @@ impl StressStrainTrait for VonMises {
         t4_ddot_t2_update(&mut state.sigma, 1.0, dd, deps, 1.0); // σ += D : Δε
 
         // elastic update
-        let f_trial = self.yield_function(state);
+        let f_trial = self.yield_function(state).unwrap();
         if f_trial <= 0.0 {
             return Ok(());
         }
 
         // coefficients
+        let (gg, hh) = (self.gg, self.hh);
         let sigma_m_trial = state.sigma.invariant_sigma_m();
         let sigma_d_trial = state.sigma.invariant_sigma_d();
-        let lambda = f_trial / (3.0 * self.gg + self.hh);
-        let m = 1.0 - lambda * 3.0 * self.gg / sigma_d_trial;
+        let lambda = f_trial / (3.0 * gg + hh);
+        let m = 1.0 - lambda * 3.0 * gg / sigma_d_trial;
 
         // s_trial = dev(σ_trial)
-        state.sigma.deviator(&mut self.aux); // aux ← s_trial
+        state.sigma.deviator(&mut self.s); // s ← s_trial
 
         // access Mandel representation
         let nd = state.sigma.dim();
         let vec = state.sigma.vector_mut();
-        let s_trial = self.aux.vector();
+        let s_trial = self.s.vector();
 
         // σ_new = m s_trial + σm_trial I
         for i in 0..nd {
@@ -157,6 +155,67 @@ impl StressStrainTrait for VonMises {
         state.loading = true;
         state.algo_lambda = lambda;
         state.internal_values[Z0] = state.sigma.invariant_sigma_d();
+        Ok(())
+    }
+}
+
+impl ClassicalPlasticityTrait for VonMises {
+    /// Returns the number of internal values
+    fn n_internal_values(&self) -> usize {
+        1
+    }
+
+    /// Returns whether this model is associated or not
+    fn associated(&self) -> bool {
+        true
+    }
+
+    /// Calculates the yield function f
+    fn yield_function(&self, state: &StressState) -> Result<f64, StrError> {
+        let sigma_d = state.sigma.invariant_sigma_d();
+        let z = state.internal_values[Z0];
+        Ok(sigma_d - z)
+    }
+
+    /// Calculates the plastic potential function g
+    fn plastic_potential(&self, _state: &StressState) -> Result<(), StrError> {
+        Err("plastic potential is not available")
+    }
+
+    /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
+    fn hardening(&self, hh: &mut Vector, _state: &StressState) -> Result<(), StrError> {
+        hh[Z0] = self.hh;
+        Ok(())
+    }
+
+    /// Calculates the derivative of the yield function w.r.t stress
+    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressState) -> Result<(), StrError> {
+        // df/dσ = dσd/dσ
+        match deriv1_invariant_sigma_d(df_dsigma, &state.sigma) {
+            Some(_) => Ok(()),
+            None => Err("cannot compute df/dσ due to singularity"),
+        }
+    }
+
+    /// Calculates the derivative of the plastic potential w.r.t stress
+    fn dg_dsigma(&self, _dg_dsigma: &mut Tensor2, _state: &StressState) -> Result<(), StrError> {
+        Err("dg/dσ is not available")
+    }
+
+    /// Calculates the derivative of the yield function w.r.t internal variables
+    fn df_dz(&self, df_dz: &mut Vector, _state: &StressState) -> Result<(), StrError> {
+        df_dz[Z0] = -1.0;
+        Ok(())
+    }
+
+    /// Calculates the elastic compliance modulus
+    fn elastic_compliance(&self, cce: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
+        self.lin_elasticity.calc_compliance(cce)
+    }
+
+    /// Calculates the elastic rigidity modulus
+    fn elastic_rigidity(&self, dde: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
+        dde.mirror(self.lin_elasticity.get_modulus());
         Ok(())
     }
 }

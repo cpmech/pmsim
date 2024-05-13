@@ -34,7 +34,7 @@ pub trait ClassicalPlasticityTrait: Send + Sync {
     fn associated(&self) -> bool;
 
     /// Calculates the yield function f
-    fn yield_function(&self, state: &StressState) -> Result<(), StrError>;
+    fn yield_function(&self, state: &StressState) -> Result<f64, StrError>;
 
     /// Calculates the plastic potential function g
     fn plastic_potential(&self, state: &StressState) -> Result<(), StrError>;
