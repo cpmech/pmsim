@@ -1,4 +1,4 @@
-use super::{CamClay, LinearElastic, StressState, VonMises};
+use super::{CamClay, ClassicalPlasticity, LinearElastic, StressState, VonMises};
 use crate::base::{ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -35,17 +35,31 @@ impl StressStrainModel {
             ParamStressStrain::LinearElastic { young, poisson } => {
                 Box::new(LinearElastic::new(young, poisson, two_dim, plane_stress))
             }
-            // von Mises model
-            ParamStressStrain::VonMises { young, poisson, z0, hh } => {
-                if plane_stress {
-                    return Err("von Mises model does not work in plane-stress at the moment");
-                }
-                Box::new(VonMises::new(young, poisson, two_dim, z0, hh))
-            }
-            // Drucker-Prager model
-            ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
-            // Modified Cam-clay model
+
+            // Modified Cambridge (Cam) clay model
             ParamStressStrain::CamClay { mm, lambda, kappa } => Box::new(CamClay::new(mm, lambda, kappa)),
+
+            // Drucker-Prager plasticity model
+            ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
+
+            // von Mises plasticity model
+            ParamStressStrain::VonMises {
+                young,
+                poisson,
+                z0,
+                hh,
+                general,
+                continuum,
+            } => {
+                if plane_stress {
+                    return Err("von Mises model does not work in plane-stress");
+                }
+                if general {
+                    Box::new(ClassicalPlasticity::new(param, two_dim, plane_stress, continuum)?)
+                } else {
+                    Box::new(VonMises::new(young, poisson, two_dim, z0, hh))
+                }
+            }
         };
         Ok(StressStrainModel { actual })
     }
@@ -66,7 +80,7 @@ mod tests {
         let param = SampleParams::param_solid_von_mises();
         assert_eq!(
             StressStrainModel::new(&param, true, true).err(),
-            Some("von Mises model does not work in plane-stress at the moment")
+            Some("von Mises model does not work in plane-stress")
         );
 
         let param = SampleParams::param_solid_von_mises();

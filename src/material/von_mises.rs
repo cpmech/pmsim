@@ -160,11 +160,6 @@ impl StressStrainTrait for VonMises {
 }
 
 impl ClassicalPlasticityTrait for VonMises {
-    /// Returns the number of internal values
-    fn n_internal_values(&self) -> usize {
-        1
-    }
-
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool {
         true

@@ -1,7 +1,8 @@
 #![allow(unused)]
 
-use super::StressState;
-use crate::{prelude::ParamSolid, StrError};
+use super::{StressState, StressStrainTrait, VonMises};
+use crate::base::{ParamSolid, ParamStressStrain};
+use crate::StrError;
 use russell_lab::{mat_update, vec_inner, Vector};
 use russell_tensor::{
     t2_ddot_t2, t2_ddot_t4_ddot_t2, t2_dyad_t2, t2_dyad_t2_update, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4, Mandel,
@@ -26,10 +27,7 @@ pub enum VariableModulusPlasticityModel {
     CamClay,
 }
 
-pub trait ClassicalPlasticityTrait: Send + Sync {
-    /// Returns the number of internal values
-    fn n_internal_values(&self) -> usize;
-
+pub trait ClassicalPlasticityTrait: StressStrainTrait {
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool;
 
@@ -67,6 +65,7 @@ pub trait VariableModulusPlasticityTrait: Send + Sync {}
 
 pub struct ClassicalPlasticity {
     pub model: Box<dyn ClassicalPlasticityTrait>,
+    continuum: bool,
     pub df_dsigma: Tensor2,
     pub dg_dsigma: Tensor2,
     pub df_dz: Vector,
@@ -78,16 +77,36 @@ pub struct ClassicalPlasticity {
 
 impl ClassicalPlasticity {
     pub fn new(
-        plasticity_model: ClassicalPlasticityModel,
+        // plasticity_model: ClassicalPlasticityModel,
         param: &ParamSolid,
         two_dim: bool,
         plane_stress: bool,
+        continuum: bool,
     ) -> Result<Self, StrError> {
-        let model: Box<dyn ClassicalPlasticityTrait> = match plasticity_model {
-            ClassicalPlasticityModel::CamClay => return Err("TODO"),
-            ClassicalPlasticityModel::CamClayOriginal => return Err("TODO"),
-            ClassicalPlasticityModel::DruckerPrager => return Err("TODO"),
-            ClassicalPlasticityModel::VonMises => return Err("TODO"),
+        if plane_stress {
+            return Err("the classical plasticity models here do not work in plane-stress");
+        }
+        let model: Box<dyn ClassicalPlasticityTrait> = match param.stress_strain {
+            // Linear elastic model
+            ParamStressStrain::LinearElastic { .. } => {
+                return Err("LinearElastic is invalid as classical plasticity model")
+            }
+
+            // Modified Cambridge (Cam) clay model
+            ParamStressStrain::CamClay { .. } => return Err("TODO: CamClay"),
+
+            // Drucker-Prager plasticity model
+            ParamStressStrain::DruckerPrager { .. } => return Err("TODO: DruckerPrager"),
+
+            // von Mises plasticity model
+            ParamStressStrain::VonMises {
+                young,
+                poisson,
+                z0,
+                hh,
+                general,
+                continuum,
+            } => Box::new(VonMises::new(young, poisson, two_dim, z0, hh)),
         };
         let mandel = if two_dim {
             Mandel::Symmetric
@@ -97,6 +116,7 @@ impl ClassicalPlasticity {
         let nz = model.n_internal_values();
         Ok(ClassicalPlasticity {
             model,
+            continuum,
             df_dsigma: Tensor2::new(mandel),
             dg_dsigma: Tensor2::new(mandel),
             df_dz: Vector::new(nz),
@@ -232,24 +252,45 @@ impl ClassicalPlasticity {
     }
 }
 
+impl StressStrainTrait for ClassicalPlasticity {
+    /// Indicates that the stiffness matrix is symmetric
+    fn symmetric_stiffness(&self) -> bool {
+        self.model.symmetric_stiffness()
+    }
+
+    /// Returns the number of internal values
+    fn n_internal_values(&self) -> usize {
+        self.model.n_internal_values()
+    }
+
+    /// Initializes the internal values for the initial stress state
+    fn initialize_internal_values(&self, state: &mut StressState) -> Result<(), StrError> {
+        self.model.initialize_internal_values(state)
+    }
+
+    /// Computes the consistent tangent stiffness
+    fn stiffness(&mut self, dd: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
+        self.model.stiffness(dd, state)
+    }
+
+    /// Updates the stress tensor given the strain increment tensor
+    fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
+        self.model.update_stress(state, deps)
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::base::SampleParams;
 
     // #[test]
     fn _new_works() {
-        let param = ParamSolid {
-            density: 1.0,
-            stress_strain: crate::prelude::ParamStressStrain::VonMises {
-                young: 1000.0,
-                poisson: 0.25,
-                z0: 1.0,
-                hh: 1.0,
-            },
-        };
-        let mut model = ClassicalPlasticity::new(ClassicalPlasticityModel::VonMises, &param, false, false).unwrap();
+        let param = SampleParams::param_solid_von_mises();
+        // let mut model = ClassicalPlasticity::new(ClassicalPlasticityModel::VonMises, &param, false, false).unwrap();
+        let mut model = ClassicalPlasticity::new(&param, false, false, false).unwrap();
         let mut dde = Tensor4::new(Mandel::General);
         let state = StressState::new(false, 1);
         model.modulus_elastic_rigidity(&mut dde, &state).unwrap();

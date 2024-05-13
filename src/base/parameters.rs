@@ -1,6 +1,7 @@
 /// Holds parameters for stress-strain relations (total or effective stress)
 #[derive(Clone, Copy, Debug)]
 pub enum ParamStressStrain {
+    /// Linear elastic model
     LinearElastic {
         /// Young's modulus
         young: f64,
@@ -8,12 +9,17 @@ pub enum ParamStressStrain {
         /// Poisson's coefficient
         poisson: f64,
     },
+
+    /// von Mises plasticity model
     VonMises {
         /// Young's modulus
         young: f64,
 
         /// Poisson's coefficient
         poisson: f64,
+
+        /// Hardening coefficient
+        hh: f64,
 
         /// Initial size of the yield surface
         ///
@@ -24,9 +30,14 @@ pub enum ParamStressStrain {
         /// ```
         z0: f64,
 
-        /// Hardening coefficient
-        hh: f64,
+        /// Use the general formulation instead of the specialized formulation
+        general: bool,
+
+        /// Use the continuum modulus instead of the consistent tangent stiffness
+        continuum: bool,
     },
+
+    /// Drucker-Prager plasticity model
     DruckerPrager {
         /// Young's modulus
         young: f64,
@@ -43,11 +54,16 @@ pub enum ParamStressStrain {
         /// Hardening
         hh: f64,
     },
+
+    /// Modified Cambridge (Cam) clay model
     CamClay {
+        /// Critical state line slope
         mm: f64,
 
+        /// Compression coefficient
         lambda: f64,
 
+        /// Recompression coefficient
         kappa: f64,
     },
 }

@@ -99,6 +99,8 @@ impl SampleParams {
                 poisson: 0.25, // [-]
                 z0: 9.0,       // kPa
                 hh: 600.0,     // kPa
+                general: false,
+                continuum: false,
             },
         }
     }

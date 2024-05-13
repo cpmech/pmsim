@@ -70,6 +70,8 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             poisson: POISSON,
             z0: Z0,
             hh: 800.0,
+            general: false,
+            continuum: false,
         },
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
