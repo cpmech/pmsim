@@ -1,4 +1,3 @@
-use crate::StrError;
 use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -33,15 +32,13 @@ impl StressState {
     }
 
     /// Sets this state equal to another one
-    pub fn mirror(&mut self, other: &StressState) -> Result<(), StrError> {
-        if other.internal_values.len() != self.internal_values.len() {
-            return Err("number of internal values is different among states");
-        }
+    pub fn mirror(&mut self, other: &StressState) {
+        assert_eq!(other.internal_values.len(), self.internal_values.len());
         self.loading = other.loading;
         self.apex_return = other.apex_return;
         self.algo_lambda = other.algo_lambda;
         self.internal_values.copy_from_slice(other.internal_values.as_slice());
-        self.sigma.mirror(&other.sigma)
+        self.sigma.mirror(&other.sigma);
     }
 }
 
@@ -64,7 +61,7 @@ impl StressStates {
         self.backup
             .iter_mut()
             .enumerate()
-            .map(|(i, backup)| backup.mirror(&self.all[i]).unwrap())
+            .map(|(i, backup)| backup.mirror(&self.all[i]))
             .collect()
     }
 
@@ -73,7 +70,7 @@ impl StressStates {
         self.all
             .iter_mut()
             .enumerate()
-            .map(|(i, state)| state.mirror(&self.backup[i]).unwrap())
+            .map(|(i, state)| state.mirror(&self.backup[i]))
             .collect()
     }
 }
@@ -81,7 +78,7 @@ impl StressStates {
 impl fmt::Display for StressState {
     /// Returns a nicely formatted string representing the stress state
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mat = self.sigma.to_matrix();
+        let mat = self.sigma.as_matrix();
         write!(f, "σ =\n").unwrap();
         match f.precision() {
             Some(v) => write!(f, "{:.1$}", mat, v).unwrap(),
@@ -104,9 +101,9 @@ mod tests {
     #[test]
     fn display_trait_works() {
         let mut state = StressState::new(false, 2);
-        state.sigma.vec[0] = 1.0;
-        state.sigma.vec[1] = 2.0;
-        state.sigma.vec[2] = -3.0;
+        state.sigma.vector_mut()[0] = 1.0;
+        state.sigma.vector_mut()[1] = 2.0;
+        state.sigma.vector_mut()[2] = -3.0;
         state.internal_values[0] = 0.1;
         state.internal_values[1] = 0.2;
         assert_eq!(

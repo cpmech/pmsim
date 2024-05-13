@@ -112,7 +112,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             // compute conductivity tensor at integration point
             self.model.calc_k(&mut self.conductivity, tt)?;
             // the residual must get -w; however w = -k·∇T, thus -w = -(-k·∇T) = k·∇T
-            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt)
+            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt);
+            Ok(())
         })
         .unwrap();
 
@@ -189,7 +190,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 // conductivity ← ∂k/∂ϕ
                 self.model.calc_dk_dphi(&mut self.conductivity, tt)?;
                 // compute hₖ = ∂k/∂ϕ · ∇T
-                t2_dot_vec(hk, 1.0, &self.conductivity, &self.grad_tt)
+                t2_dot_vec(hk, 1.0, &self.conductivity, &self.grad_tt);
+                Ok(())
             })
             .unwrap();
         }

@@ -35,12 +35,14 @@ impl StressStrainTrait for LinearElastic {
 
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
-        dd.mirror(self.model.get_modulus())
+        dd.mirror(self.model.get_modulus());
+        Ok(())
     }
 
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
         let dd = self.model.get_modulus();
-        t4_ddot_t2_update(&mut state.sigma, 1.0, dd, deps, 1.0) // σ += D : Δε
+        t4_ddot_t2_update(&mut state.sigma, 1.0, dd, deps, 1.0); // σ += D : Δε
+        Ok(())
     }
 }

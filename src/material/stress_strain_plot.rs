@@ -526,7 +526,7 @@ mod tests {
         // println!(" ν = {:?}", poisson);
         // println!(" K = {:?}", bulk);
         // println!("3G = {:?}", 3.0 * shear);
-        let mut path = StressStrainPath::new(young, poisson, true);
+        let mut path = StressStrainPath::new(young, poisson, true).unwrap();
         let dsigma_m = 1.0;
         let dsigma_d = 9.0;
         for i in 0..3 {

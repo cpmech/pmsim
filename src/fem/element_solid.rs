@@ -200,7 +200,8 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         //     \____________/
         //     we compute this
         integ::vec_04_tb(residual, &mut args, |sig, p, _, _| {
-            sig.mirror(&self.stresses.all[p].sigma)
+            sig.mirror(&self.stresses.all[p].sigma);
+            Ok(())
         })?;
 
         // enable updates on the residual vector
@@ -290,7 +291,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         }
         let stresses = &mut second_values.stresses.as_mut().unwrap().all;
         for p in 0..self.ips.len() {
-            stresses[p].mirror(&self.stresses.all[p])?;
+            stresses[p].mirror(&self.stresses.all[p]);
         }
         Ok(())
     }
@@ -455,13 +456,13 @@ mod tests {
             for p in 0..element.ips.len() {
                 // horizontal strain
                 element.calc_delta_eps(&duu_h, p).unwrap();
-                vec_approx_eq(&element.deps.vec, &solution_h, 1e-13);
+                vec_approx_eq(&element.deps.vector(), &solution_h, 1e-13);
                 // vertical strain
                 element.calc_delta_eps(&duu_v, p).unwrap();
-                vec_approx_eq(&element.deps.vec, &solution_v, 1e-13);
+                vec_approx_eq(&element.deps.vector(), &solution_v, 1e-13);
                 // shear strain
                 element.calc_delta_eps(&duu_s, p).unwrap();
-                vec_approx_eq(&element.deps.vec, &solution_s, 1e-13);
+                vec_approx_eq(&element.deps.vector(), &solution_s, 1e-13);
             }
         }
     }
@@ -555,7 +556,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_h, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -565,7 +566,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_v, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -575,7 +576,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_s, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_s, 1e-13);
             }
         }
     }
@@ -626,7 +627,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_h, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -636,7 +637,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_v, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -646,7 +647,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vec, &solution_s, 1e-13);
+                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_s, 1e-13);
             }
         }
     }

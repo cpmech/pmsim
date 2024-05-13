@@ -1,29 +1,31 @@
 use crate::StrError;
-use russell_lab::{mat_inverse, mat_vec_mul, vec_add, Matrix};
-use russell_tensor::{LinElasticity, Mandel, Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
+use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Mandel, Tensor2, Tensor4};
+use russell_tensor::{SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
 use std::fmt;
 
 /// Holds stress and strains related via linear elasticity defining stress paths
 pub struct StressStrainPath {
-    /// Indicates 2D instead of 3D
+    /// Indicates 2D (plane-strain, axisymmetric) instead of 3D
     pub two_dim: bool,
 
     /// Holds the Mandel representation
     pub mandel: Mandel,
 
-    /// Holds the stiffness matrix in Mandel basis
+    /// Holds the linear elastic rigidity modulus
     ///
     /// ```text
     /// σ = D : ε
     /// ```
-    pub dd: Matrix,
+    pub dd: Tensor4,
 
-    /// Holds the compliance matrix in Mandel basis
+    /// Holds the linear elastic compliance modulus
+    ///
+    /// **Note:** This is not available in plane-stress.
     ///
     /// ```text
     /// ε = C : σ = D⁻¹ : σ
     /// ```
-    pub cc: Matrix,
+    pub cc: Tensor4,
 
     /// Stress path, possibly calculated from strain using the elastic model if strain is given
     pub stresses: Vec<Tensor2>,
@@ -66,18 +68,16 @@ impl StressStrainPath {
     ///
     /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
     /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
-    /// * `two_dim` -- 2D instead of 3D
-    pub fn new(young: f64, poisson: f64, two_dim: bool) -> Self {
+    /// * `two_dim` -- Indicates 2D (plane-strain, axisymmetric) instead of 3D
+    pub fn new(young: f64, poisson: f64, two_dim: bool) -> Result<Self, StrError> {
         let ela = LinElasticity::new(young, poisson, two_dim, false);
-        let dd_tensor = ela.get_modulus();
-        let mandel = dd_tensor.mandel();
-        let n = dd_tensor.mandel().dim();
-        let mut cc = Matrix::new(n, n);
-        mat_inverse(&mut cc, &dd_tensor.mat).unwrap();
-        StressStrainPath {
+        let mandel = ela.mandel();
+        let mut cc = Tensor4::new(mandel);
+        ela.calc_compliance(&mut cc)?;
+        Ok(StressStrainPath {
             two_dim,
             mandel,
-            dd: dd_tensor.mat.clone(),
+            dd: ela.get_modulus().clone(),
             cc,
             stresses: Vec::new(),
             strains: Vec::new(),
@@ -90,7 +90,7 @@ impl StressStrainPath {
             eps_lode: Vec::new(),
             deltas_stress: Vec::new(),
             deltas_strain: Vec::new(),
-        }
+        })
     }
 
     /// Generates a new linear path on the octahedral invariants
@@ -99,7 +99,7 @@ impl StressStrainPath {
     ///
     /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
     /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
-    /// * `two_dim` -- 2D instead of 3D
+    /// * `two_dim` -- Indicates 2D (plane-strain, axisymmetric) instead of 3D
     /// * `n_increments` -- number of increments
     /// * `sigma_m_0` -- the first sigma_m
     /// * `sigma_d_0` -- the first sigma_d
@@ -116,8 +116,8 @@ impl StressStrainPath {
         dsigma_m: f64,
         dsigma_d: f64,
         lode: f64,
-    ) -> Self {
-        let mut path = StressStrainPath::new(young, poisson, two_dim);
+    ) -> Result<Self, StrError> {
+        let mut path = StressStrainPath::new(young, poisson, two_dim)?;
         path.push_stress_oct(sigma_m_0, sigma_d_0, lode, true).unwrap();
         for i in 0..n_increments {
             let m = (i + 1) as f64;
@@ -125,7 +125,7 @@ impl StressStrainPath {
             let sigma_d = sigma_d_0 + m * dsigma_d;
             path.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
         }
-        path
+        Ok(path)
     }
 
     /// Pushes a new stress and strain with stresses computed from the octahedral invariants
@@ -193,11 +193,11 @@ impl StressStrainPath {
             let mut depsilon = Tensor2::new(self.mandel);
             let sigma_prev = &self.stresses[n - 2];
             let sigma_curr = &self.stresses[n - 1];
-            vec_add(&mut dsigma.vec, 1.0, &sigma_curr.vec, -1.0, &sigma_prev.vec).unwrap();
-            mat_vec_mul(&mut depsilon.vec, 1.0, &self.cc, &dsigma.vec).unwrap(); // ε = C : σ
+            t2_add(&mut dsigma, 1.0, &sigma_curr, -1.0, &sigma_prev);
+            t4_ddot_t2(&mut depsilon, 1.0, &self.cc, &dsigma); // dε = C : dσ
             let m = self.strains.len();
             let epsilon_prev = &mut self.strains[m - 1]; // must use "1" here because epsilon hasn't been "pushed" yet
-            vec_add(&mut epsilon.vec, 1.0, &epsilon_prev.vec, 1.0, &depsilon.vec).unwrap();
+            t2_add(&mut epsilon, 1.0, &epsilon_prev, 1.0, &depsilon);
             self.deltas_stress.push(dsigma);
             self.deltas_strain.push(depsilon);
         }
@@ -230,11 +230,11 @@ impl StressStrainPath {
             let mut dsigma = Tensor2::new(self.mandel);
             let epsilon_prev = &self.strains[n - 2];
             let epsilon_curr = &self.strains[n - 1];
-            vec_add(&mut depsilon.vec, 1.0, &epsilon_curr.vec, -1.0, &epsilon_prev.vec).unwrap();
-            mat_vec_mul(&mut dsigma.vec, 1.0, &self.dd, &depsilon.vec).unwrap(); // σ = D : ε
+            t2_add(&mut depsilon, 1.0, &epsilon_curr, -1.0, &epsilon_prev);
+            t4_ddot_t2(&mut dsigma, 1.0, &self.dd, &depsilon); // dσ = D : dε
             let m = self.stresses.len();
             let sigma_prev = &mut self.stresses[m - 1]; // must use "1" here because sigma hasn't been "pushed" yet
-            vec_add(&mut sigma.vec, 1.0, &sigma_prev.vec, 1.0, &dsigma.vec).unwrap();
+            t2_add(&mut sigma, 1.0, &sigma_prev, 1.0, &dsigma);
             self.deltas_strain.push(depsilon);
             self.deltas_stress.push(dsigma);
         }
@@ -263,7 +263,7 @@ impl fmt::Display for StressStrainPath {
         }
         writeln!(f, "").unwrap();
         for sigma in &self.stresses {
-            for v in &sigma.vec {
+            for v in sigma.vector() {
                 write!(f, "{:>23?}", v).unwrap();
             }
             writeln!(f, "").unwrap();
@@ -278,7 +278,7 @@ impl fmt::Display for StressStrainPath {
         }
         writeln!(f, "").unwrap();
         for epsilon in &self.strains {
-            for v in &epsilon.vec {
+            for v in epsilon.vector() {
                 write!(f, "{:>23?}", v).unwrap();
             }
             writeln!(f, "").unwrap();
@@ -293,7 +293,7 @@ impl fmt::Display for StressStrainPath {
         }
         writeln!(f, "").unwrap();
         for dsigma in &self.deltas_stress {
-            for v in &dsigma.vec {
+            for v in dsigma.vector() {
                 write!(f, "{:>23?}", v).unwrap();
             }
             writeln!(f, "").unwrap();
@@ -308,7 +308,7 @@ impl fmt::Display for StressStrainPath {
         }
         writeln!(f, "").unwrap();
         for depsilon in &self.deltas_strain {
-            for v in &depsilon.vec {
+            for v in depsilon.vector() {
                 write!(f, "{:>23?}", v).unwrap();
             }
             writeln!(f, "").unwrap();
@@ -386,8 +386,8 @@ mod tests {
         let lode = 1.0;
         let two_dim = true;
 
-        let mut path_a = StressStrainPath::new(young, poisson, two_dim);
-        let mut path_b = StressStrainPath::new(young, poisson, two_dim);
+        let mut path_a = StressStrainPath::new(young, poisson, two_dim).unwrap();
+        let mut path_b = StressStrainPath::new(young, poisson, two_dim).unwrap();
 
         for i in 0..4 {
             let m = (i + 1) as f64;
@@ -408,8 +408,8 @@ mod tests {
         // println!("\n\n{}", path_b);
 
         for i in 0..4 {
-            vec_approx_eq(&path_a.stresses[i].vec, &path_b.stresses[i].vec, 1e-14);
-            vec_approx_eq(&path_a.strains[i].vec, &path_b.strains[i].vec, 1e-14);
+            vec_approx_eq(path_a.stresses[i].vector(), path_b.stresses[i].vector(), 1e-14);
+            vec_approx_eq(path_a.strains[i].vector(), path_b.strains[i].vector(), 1e-14);
             approx_eq(path_a.sigma_m[i], path_b.sigma_m[i], 1e-14);
             approx_eq(path_a.sigma_d[i], path_b.sigma_d[i], 1e-14);
             approx_eq(path_a.sigma_lode[i].unwrap(), path_b.sigma_lode[i].unwrap(), 1e-14);
@@ -422,8 +422,16 @@ mod tests {
             }
         }
         for i in 0..3 {
-            vec_approx_eq(&path_a.deltas_stress[i].vec, &path_b.deltas_stress[i].vec, 1e-14);
-            vec_approx_eq(&path_a.deltas_strain[i].vec, &path_b.deltas_strain[i].vec, 1e-14);
+            vec_approx_eq(
+                path_a.deltas_stress[i].vector(),
+                path_b.deltas_stress[i].vector(),
+                1e-14,
+            );
+            vec_approx_eq(
+                path_a.deltas_strain[i].vector(),
+                path_b.deltas_strain[i].vector(),
+                1e-14,
+            );
         }
     }
 
@@ -439,7 +447,8 @@ mod tests {
         let lode = 1.0;
         let path = StressStrainPath::new_linear_oct(
             young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, lode,
-        );
+        )
+        .unwrap();
         // println!("{}", path);
         assert_eq!(path.stresses.len(), 3);
         assert_eq!(path.strains.len(), 3);
@@ -457,10 +466,10 @@ mod tests {
         let ds1 = (SQRT_2 * d_star1 + d_star2) / SQRT_3;
         let ds2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
         let ds3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
-        vec_approx_eq(&path.stresses[0].vec, &[s1, s2, s3, 0.0], 1e-15);
-        vec_approx_eq(&path.stresses[1].vec, &[s1 + ds1, s2 + ds2, s3 + ds3, 0.0], 1e-14);
+        vec_approx_eq(path.stresses[0].vector(), &[s1, s2, s3, 0.0], 1e-15);
+        vec_approx_eq(path.stresses[1].vector(), &[s1 + ds1, s2 + ds2, s3 + ds3, 0.0], 1e-14);
         vec_approx_eq(
-            &path.stresses[2].vec,
+            path.stresses[2].vector(),
             &[s1 + 2.0 * ds1, s2 + 2.0 * ds2, s3 + 2.0 * ds3, 0.0],
             1e-14,
         );
@@ -479,10 +488,10 @@ mod tests {
         let de1 = (SQRT_2 * d_star1 + d_star2) / SQRT_3;
         let de2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
         let de3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
-        vec_approx_eq(&path.strains[0].vec, &[0.0, 0.0, 0.0, 0.0], 1e-15);
-        vec_approx_eq(&path.strains[1].vec, &[0.0 + de1, 0.0 + de2, 0.0 + de3, 0.0], 1e-15);
+        vec_approx_eq(path.strains[0].vector(), &[0.0, 0.0, 0.0, 0.0], 1e-15);
+        vec_approx_eq(path.strains[1].vector(), &[0.0 + de1, 0.0 + de2, 0.0 + de3, 0.0], 1e-15);
         vec_approx_eq(
-            &path.strains[2].vec,
+            &path.strains[2].vector(),
             &[0.0 + 2.0 * de1, 0.0 + 2.0 * de2, 0.0 + 2.0 * de3, 0.0],
             1e-15,
         );
