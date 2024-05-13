@@ -60,8 +60,8 @@ impl VonMises {
 
 impl StressStrainTrait for VonMises {
     /// Indicates that the stiffness matrix is symmetric and constant
-    fn symmetric_and_constant_stiffness(&self) -> bool {
-        false
+    fn symmetric_stiffness(&self) -> bool {
+        true
     }
 
     /// Returns the number of internal values
