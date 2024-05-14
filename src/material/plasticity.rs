@@ -349,7 +349,9 @@ impl StressStrainTrait for ClassicalPlasticity {
 
         // solve from t = 0 to t = 1
         solver.solve(&mut sigma_vec, 0.0, 1.0, None, None, &mut args)?;
-        println!("sigma_vec =\n{}", sigma_vec);
+
+        // set state
+        vec_copy(state.sigma.vector_mut(), &sigma_vec);
 
         Ok(())
     }
@@ -361,7 +363,9 @@ impl StressStrainTrait for ClassicalPlasticity {
 mod tests {
     use super::*;
     use crate::base::SampleParams;
-    use crate::material::StressStrainPath;
+    use crate::material::{StressStrainPath, StressStrainPlot};
+
+    const SAVE_FIGURE: bool = true;
 
     #[test]
     fn update_stress_works() {
@@ -382,9 +386,13 @@ mod tests {
         let path_a =
             StressStrainPath::new_linear_oct(young, poisson, two_dim, 1, 0.0, 0.0, dsigma_m, dsigma_d, 1.0).unwrap();
 
-        for i in 0..path_a.deltas_strain.len() {
-            let deps = &path_a.deltas_strain[i];
-            model.update_stress(&mut state, deps);
+        let (stresses, strains, state) = path_a.follow_strain(&mut model);
+        println!("{}", state);
+
+        if SAVE_FIGURE {
+            let mut ssp = StressStrainPlot::new();
+            ssp.draw_3x2_mosaic_struct(&stresses, &strains, |_, _, _| {});
+            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1.svg", |_, _, _, _| {});
         }
     }
 }

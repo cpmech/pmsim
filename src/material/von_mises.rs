@@ -222,39 +222,10 @@ mod tests {
     use super::VonMises;
     use crate::material::{StressState, StressStrainPath, StressStrainPlot, StressStrainTrait};
     use plotpy::{Canvas, Curve, Legend, RayEndpoint};
-    use russell_lab::{approx_eq, vec_update};
+    use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, Tensor4, SQRT_2_BY_3};
 
     const SAVE_FIGURE: bool = false;
-
-    fn generate_state(z0: f64, path: &StressStrainPath, model: &VonMises) -> StressState {
-        let two_dim = true;
-        let n_internal_values = model.n_internal_values();
-        let mut state = StressState::new(two_dim, n_internal_values);
-        state.sigma.mirror(&path.stresses[0]);
-        model.initialize_internal_values(&mut state).unwrap();
-        assert_eq!(state.loading, false);
-        assert_eq!(state.algo_lambda, 0.0);
-        assert_eq!(state.sigma.vector().as_data(), &[0.0, 0.0, 0.0, 0.0]);
-        assert_eq!(state.internal_values, &[z0]);
-        state
-    }
-
-    fn run_update(z0: f64, path: &StressStrainPath, model: &mut VonMises) -> (Vec<Tensor2>, Vec<Tensor2>, StressState) {
-        let two_dim = true;
-        let mut state = generate_state(z0, path, model);
-        let mut epsilon = Tensor2::new_sym(two_dim);
-        let mut stresses = vec![state.sigma.clone()];
-        let mut strains = vec![epsilon.clone()];
-        for i in 0..path.deltas_strain.len() {
-            let deps = &path.deltas_strain[i];
-            model.update_stress(&mut state, deps).unwrap();
-            vec_update(&mut epsilon.vector_mut(), 1.0, deps.vector()).unwrap();
-            stresses.push(state.sigma.clone());
-            strains.push(epsilon.clone());
-        }
-        (stresses, strains, state)
-    }
 
     fn check_1(young: f64, poisson: f64, hh: f64, stresses: &Vec<Tensor2>, strains: &Vec<Tensor2>) {
         let kk = young / (3.0 * (1.0 - 2.0 * poisson));
@@ -301,7 +272,7 @@ mod tests {
             young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
         )
         .unwrap();
-        let (stresses_a, strains_a, state_a) = run_update(z0, &path_a, &mut model);
+        let (stresses_a, strains_a, state_a) = path_a.follow_strain(&mut model);
         check_1(young, poisson, hh, &stresses_a, &strains_a);
 
         // first update exactly to the yield surface, then load more (lode = 0.0)
@@ -309,7 +280,7 @@ mod tests {
             young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 0.0,
         )
         .unwrap();
-        let (stresses_b, strains_b, state_b) = run_update(z0, &path_b, &mut model);
+        let (stresses_b, strains_b, state_b) = path_b.follow_strain(&mut model);
         check_1(young, poisson, hh, &stresses_b, &strains_b);
 
         // first update exactly to the yield surface, then load more (lode = -1.0)
@@ -317,7 +288,7 @@ mod tests {
             young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, -1.0,
         )
         .unwrap();
-        let (stresses_c, strains_c, state_c) = run_update(z0, &path_c, &mut model);
+        let (stresses_c, strains_c, state_c) = path_c.follow_strain(&mut model);
         check_1(young, poisson, hh, &stresses_c, &strains_c);
 
         // update with a larger increment, over the yield surface
@@ -326,7 +297,7 @@ mod tests {
         let deps_d = 2.0 * dsigma_d / (3.0 * gg);
         path_d.push_strain_oct(0.0, 0.0, 0.75, true).unwrap();
         path_d.push_strain_oct(deps_v, deps_d, 0.75, true).unwrap();
-        let (stresses_d, strains_d, state_d) = run_update(z0, &path_d, &mut model);
+        let (stresses_d, strains_d, state_d) = path_d.follow_strain(&mut model);
 
         let z_final = state_a.internal_values[0];
         approx_eq(state_b.internal_values[0], z_final, 1e-14);
@@ -428,8 +399,11 @@ mod tests {
         eps_2.vector_mut()[1] = 2.0 * eps_y;
         path.push_strain(eps_2, true).unwrap();
 
-        let mut state = generate_state(z0, &path, &model);
-        model.stiffness(&mut dd, &state).unwrap();
+        // initial state
+        let n_internal_values = model.n_internal_values();
+        let mut state = StressState::new(two_dim, n_internal_values);
+        state.sigma.mirror(&path.stresses[0]);
+        model.initialize_internal_values(&mut state).unwrap();
         let mut stresses = vec![state.sigma.clone()];
 
         // first update

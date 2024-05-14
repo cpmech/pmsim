@@ -1,3 +1,4 @@
+use super::{StressState, StressStrainTrait};
 use crate::StrError;
 use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Mandel, Tensor2, Tensor4};
 use russell_tensor::{SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
@@ -244,6 +245,33 @@ impl StressStrainPath {
         self.stresses.push(sigma);
         self.strain_driven.push(strain_driven);
         Ok(self)
+    }
+
+    /// Follows the strain path by updating stresses and strains
+    ///
+    /// Returns `(stresses, strains, state)`
+    pub fn follow_strain(&self, model: &mut dyn StressStrainTrait) -> (Vec<Tensor2>, Vec<Tensor2>, StressState) {
+        assert!(self.stresses.len() > 0);
+
+        // initial state
+        let n_internal_values = model.n_internal_values();
+        let mut state = StressState::new(self.two_dim, n_internal_values);
+        state.sigma.mirror(&self.stresses[0]);
+        model.initialize_internal_values(&mut state).unwrap();
+
+        // update
+        let mut epsilon = Tensor2::new(self.mandel);
+        let mut stresses = vec![state.sigma.clone()];
+        let mut strains = vec![epsilon.clone()];
+        for deps in &self.deltas_strain {
+            model.update_stress(&mut state, deps).unwrap();
+            epsilon.update(1.0, &deps);
+            stresses.push(state.sigma.clone());
+            strains.push(epsilon.clone());
+        }
+
+        // results
+        (stresses, strains, state)
     }
 }
 
