@@ -132,7 +132,7 @@ impl ClassicalPlasticity {
         };
         let nz = model.n_internal_values();
 
-        const BETA: f64 = 5.0;
+        const BETA: f64 = 0.5;
         const YOUNG: f64 = 1500.0;
         const POISSON: f64 = 0.25;
 
@@ -340,7 +340,8 @@ impl StressStrainTrait for ClassicalPlasticity {
         let system = System::new(
             state.sigma.dim(),
             |dsigma_dt_vec, _, sigma_vec, args: &mut NonlinElastArgs| {
-                let young = args.calc_young(sigma_vec, true);
+                let deviatoric = true;
+                let young = args.calc_young(sigma_vec, deviatoric);
                 args.ela.set_young_poisson(young, args.poisson);
                 t4_ddot_t2(&mut args.aux, 1.0, args.ela.get_modulus(), &args.deps); // aux := Dₑ : Δε
                 vec_copy(dsigma_dt_vec, args.aux.vector()).unwrap();
@@ -387,27 +388,44 @@ mod tests {
     use super::*;
     use crate::base::SampleParams;
     use crate::material::{StressStrainPath, StressStrainPlot};
+    use plotpy::{Canvas, Curve, Legend, RayEndpoint};
+    use russell_lab::math::SQRT_2_BY_3;
 
     const SAVE_FIGURE: bool = true;
 
     #[test]
     fn update_stress_works() {
-        let young = 1500.0;
-        let poisson = 0.25;
+        const YOUNG: f64 = 1500.0;
+        const POISSON: f64 = 0.25;
+        const Z0: f64 = 9.0;
+        const H: f64 = 600.0;
         let two_dim = false;
         let plane_stress = false;
         let continuum = true;
 
-        let param = SampleParams::param_solid_von_mises();
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::VonMises {
+                young: YOUNG,
+                poisson: POISSON,
+                z0: Z0,
+                hh: H,
+                general: false,
+                continuum: false,
+            },
+        };
+
         let mut model = ClassicalPlasticity::new(&param, two_dim, plane_stress, continuum).unwrap();
         let mut state = StressState::new(false, 1);
 
         let sigma_m_0 = 0.0;
         let sigma_d_0 = 0.0;
-        let dsigma_m = 1.0;
-        let dsigma_d = 9.0;
+        // let dsigma_m = 1.0;
+        // let dsigma_d = 9.0;
+        let dsigma_m = 10.0;
+        let dsigma_d = 100.0;
         let path_a =
-            StressStrainPath::new_linear_oct(young, poisson, two_dim, 1, 0.0, 0.0, dsigma_m, dsigma_d, 1.0).unwrap();
+            StressStrainPath::new_linear_oct(YOUNG, POISSON, two_dim, 1, 0.0, 0.0, dsigma_m, dsigma_d, 1.0).unwrap();
 
         let (mut stresses, mut strains, state) = path_a.follow_strain(&mut model);
         println!("{}", state);
@@ -418,7 +436,24 @@ mod tests {
             ssp.draw_3x2_mosaic_struct(&model.args.stresses, &model.args.strains, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
-            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1.svg", |_, _, _, _| {});
+            // ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1.svg", |_, _, _, _| {});
+            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1.svg", |plot, row, col, before| {
+                if before {
+                    if (row == 0 && col == 0) || row == 1 {
+                        let mut limit = Curve::new();
+                        limit.set_line_color("#FC6A6A");
+                        limit.draw_ray(0.0, Z0, RayEndpoint::Horizontal);
+                        plot.add(&limit);
+                    }
+                    if row == 0 && col == 1 {
+                        let mut circle = Canvas::new();
+                        circle.set_edge_color("#FC6A6A").set_face_color("None");
+                        circle.draw_circle(0.0, 0.0, Z0 * SQRT_2_BY_3);
+                        plot.add(&circle);
+                    }
+                }
+            })
+            .unwrap();
         }
     }
 }
