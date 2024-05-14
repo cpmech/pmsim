@@ -163,6 +163,8 @@ fn main() -> Result<(), StrError> {
                 young: YOUNG,
                 poisson: POISSON,
             },
+            nonlin_elast: None,
+            stress_update: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
 

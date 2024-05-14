@@ -87,6 +87,8 @@ impl SampleParams {
                 young: 1500.0, // kPa
                 poisson: 0.25, // [-]
             },
+            nonlin_elast: None,
+            stress_update: None,
         }
     }
 
@@ -99,9 +101,9 @@ impl SampleParams {
                 poisson: 0.25, // [-]
                 z0: 9.0,       // kPa
                 hh: 600.0,     // kPa
-                general: false,
-                continuum: false,
             },
+            nonlin_elast: None,
+            stress_update: None,
         }
     }
 
@@ -116,6 +118,8 @@ impl SampleParams {
                 phi: 25.0,     // degree
                 hh: 600.0,     // [-]
             },
+            nonlin_elast: None,
+            stress_update: None,
         }
     }
 

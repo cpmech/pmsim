@@ -66,6 +66,8 @@ fn test_solid_smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
             young: 1e6,
             poisson: 0.3,
         },
+        nonlin_elast: None,
+        stress_update: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
 

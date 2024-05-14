@@ -333,6 +333,8 @@ mod tests {
         let p1 = ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+            nonlin_elast: None,
+            stress_update: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new();
@@ -476,6 +478,8 @@ mod tests {
         let p1 = ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+            nonlin_elast: None,
+            stress_update: None,
         };
         let config = Config::new();
 
@@ -590,6 +594,8 @@ mod tests {
         let p1 = ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+            nonlin_elast: None,
+            stress_update: None,
         };
         let mut config = Config::new();
         config.plane_stress = true;
@@ -678,6 +684,8 @@ mod tests {
         let p1 = ParamSolid {
             density: 2.0,
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+            nonlin_elast: None,
+            stress_update: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new();

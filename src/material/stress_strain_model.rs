@@ -30,6 +30,10 @@ pub struct StressStrainModel {
 impl StressStrainModel {
     /// Allocates a new instance
     pub fn new(param: &ParamSolid, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
+        let general = match param.stress_update {
+            Some(p) => p.general_plasticity,
+            None => false,
+        };
         let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
             // Linear elastic model
             ParamStressStrain::LinearElastic { young, poisson } => {
@@ -43,19 +47,12 @@ impl StressStrainModel {
             ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
 
             // von Mises plasticity model
-            ParamStressStrain::VonMises {
-                young,
-                poisson,
-                z0,
-                hh,
-                general,
-                continuum,
-            } => {
+            ParamStressStrain::VonMises { young, poisson, z0, hh } => {
                 if plane_stress {
                     return Err("von Mises model does not work in plane-stress");
                 }
                 if general {
-                    Box::new(ClassicalPlasticity::new(param, two_dim, plane_stress, continuum)?)
+                    Box::new(ClassicalPlasticity::new(param, two_dim, plane_stress)?)
                 } else {
                     Box::new(VonMises::new(young, poisson, two_dim, z0, hh))
                 }

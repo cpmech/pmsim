@@ -29,12 +29,6 @@ pub enum ParamStressStrain {
         /// f = σd - z
         /// ```
         z0: f64,
-
-        /// Use the general formulation instead of the specialized formulation
-        general: bool,
-
-        /// Use the continuum modulus instead of the consistent tangent stiffness
-        continuum: bool,
     },
 
     /// Drucker-Prager plasticity model
@@ -262,6 +256,29 @@ pub struct ParamBeam {
     pub jj_tt: f64,
 }
 
+/// Holds parameters to convert a linear elastic model into a non-linear elastic model
+///
+/// **Note:** These options only work with the general Plasticity formulation
+#[derive(Clone, Copy, Debug)]
+pub struct NonlinElast {
+    /// Coefficient for nonlinear elasticity (zero renders linear elasticity)
+    ///
+    pub beta: f64,
+
+    /// Make the Young modulus vary with σm instead of σd
+    pub isotropic: bool,
+}
+
+/// Holds data to control the stress update algorithms
+#[derive(Clone, Copy, Debug)]
+pub struct StressUpdate {
+    /// Use the general formulation instead of the specialized formulation
+    pub general_plasticity: bool,
+
+    /// Use the continuum modulus instead of the consistent tangent stiffness
+    pub continuum_modulus: bool,
+}
+
 /// Holds parameters for solid media mechanics simulations
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSolid {
@@ -270,6 +287,12 @@ pub struct ParamSolid {
 
     /// Parameters for the stress-strain model
     pub stress_strain: ParamStressStrain,
+
+    /// Options for nonlinear elasticity
+    pub nonlin_elast: Option<NonlinElast>,
+
+    /// Options for the stress update algorithms
+    pub stress_update: Option<StressUpdate>,
 }
 
 /// Holds parameters for seepage simulations with liquid only
@@ -482,11 +505,13 @@ mod tests {
                 young: 10_000.0, // kPa
                 poisson: 0.2,    // [-]
             },
+            nonlin_elast: None,
+            stress_update: None,
         };
         let q = p.clone();
         p.density = 111.0;
         assert_eq!(q.density, 2.7);
-        let correct = "ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 } }";
+        let correct = "ParamSolid { density: 2.7, stress_strain: LinearElastic { young: 10000.0, poisson: 0.2 }, nonlin_elast: None, stress_update: None }";
         assert_eq!(format!("{:?}", q), correct);
     }
 
