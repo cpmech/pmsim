@@ -200,7 +200,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         //     \____________/
         //     we compute this
         integ::vec_04_tb(residual, &mut args, |sig, p, _, _| {
-            sig.mirror(&self.stresses.all[p].sigma);
+            sig.set_tensor(1.0, &self.stresses.all[p].sigma);
             Ok(())
         })?;
 

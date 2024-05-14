@@ -35,7 +35,7 @@ impl StressStrainTrait for LinearElastic {
 
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
-        dd.mirror(self.model.get_modulus());
+        dd.set_tensor(1.0, self.model.get_modulus());
         Ok(())
     }
 

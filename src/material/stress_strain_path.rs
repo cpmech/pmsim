@@ -256,7 +256,7 @@ impl StressStrainPath {
         // initial state
         let n_internal_values = model.n_internal_values();
         let mut state = StressState::new(self.two_dim, n_internal_values);
-        state.sigma.mirror(&self.stresses[0]);
+        state.sigma.set_tensor(1.0, &self.stresses[0]);
         model.initialize_internal_values(&mut state).unwrap();
 
         // update

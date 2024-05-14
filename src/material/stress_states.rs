@@ -38,7 +38,7 @@ impl StressState {
         self.apex_return = other.apex_return;
         self.algo_lambda = other.algo_lambda;
         self.internal_values.copy_from_slice(other.internal_values.as_slice());
-        self.sigma.mirror(&other.sigma);
+        self.sigma.set_tensor(1.0, &other.sigma);
     }
 }
 

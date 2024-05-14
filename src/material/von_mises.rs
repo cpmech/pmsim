@@ -83,7 +83,7 @@ impl StressStrainTrait for VonMises {
     fn stiffness(&mut self, dd: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
         // handle elastic case
         if !state.loading {
-            dd.mirror(self.lin_elasticity.get_modulus()); // D ← Dₑ
+            dd.set_tensor(1.0, self.lin_elasticity.get_modulus()); // D ← Dₑ
             return Ok(());
         }
 
@@ -210,7 +210,7 @@ impl ClassicalPlasticityTrait for VonMises {
 
     /// Calculates the elastic rigidity modulus
     fn elastic_rigidity(&self, dde: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
-        dde.mirror(self.lin_elasticity.get_modulus());
+        dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
         Ok(())
     }
 }
@@ -402,7 +402,7 @@ mod tests {
         // initial state
         let n_internal_values = model.n_internal_values();
         let mut state = StressState::new(two_dim, n_internal_values);
-        state.sigma.mirror(&path.stresses[0]);
+        state.sigma.set_tensor(1.0, &path.stresses[0]);
         model.initialize_internal_values(&mut state).unwrap();
         let mut stresses = vec![state.sigma.clone()];
 
