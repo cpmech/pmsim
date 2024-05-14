@@ -1,3 +1,5 @@
+use russell_ode::Method;
+
 /// Holds parameters for stress-strain relations (total or effective stress)
 #[derive(Clone, Copy, Debug)]
 pub enum ParamStressStrain {
@@ -277,6 +279,9 @@ pub struct StressUpdate {
 
     /// Use the continuum modulus instead of the consistent tangent stiffness
     pub continuum_modulus: bool,
+
+    /// ODE method
+    pub ode_method: Method,
 }
 
 /// Holds parameters for solid media mechanics simulations
