@@ -4,7 +4,7 @@ use std::fmt;
 
 /// Holds the stress state at a single integration point
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StressState {
+pub struct StressStrainState {
     pub loading: bool,
     pub apex_return: bool,
     pub algo_lambda: f64, // algorithmic Λ
@@ -14,15 +14,15 @@ pub struct StressState {
 
 /// Holds a set of stress state at all integration points of an element
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StressStates {
-    pub all: Vec<StressState>,
-    backup: Vec<StressState>,
+pub struct StressStrainStates {
+    pub all: Vec<StressStrainState>,
+    backup: Vec<StressStrainState>,
 }
 
-impl StressState {
+impl StressStrainState {
     /// Allocates a new instance
     pub fn new(two_dim: bool, n_internal_values: usize) -> Self {
-        StressState {
+        StressStrainState {
             loading: false,
             apex_return: false,
             algo_lambda: 0.0,
@@ -32,7 +32,7 @@ impl StressState {
     }
 
     /// Sets this state equal to another one
-    pub fn mirror(&mut self, other: &StressState) {
+    pub fn mirror(&mut self, other: &StressStrainState) {
         assert_eq!(other.internal_values.len(), self.internal_values.len());
         self.loading = other.loading;
         self.apex_return = other.apex_return;
@@ -42,13 +42,13 @@ impl StressState {
     }
 }
 
-impl StressStates {
+impl StressStrainStates {
     /// Allocates a new instance
     pub fn new(two_dim: bool, n_internal_values: usize, n_integ_point: usize) -> Self {
-        let zero_state = StressState::new(two_dim, n_internal_values);
+        let zero_state = StressStrainState::new(two_dim, n_internal_values);
         let all = vec![zero_state; n_integ_point];
         let backup = all.clone();
-        StressStates { all, backup }
+        StressStrainStates { all, backup }
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
@@ -75,7 +75,7 @@ impl StressStates {
     }
 }
 
-impl fmt::Display for StressState {
+impl fmt::Display for StressStrainState {
     /// Returns a nicely formatted string representing the stress state
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mat = self.sigma.as_matrix();
@@ -96,11 +96,11 @@ impl fmt::Display for StressState {
 
 #[cfg(test)]
 mod tests {
-    use super::StressState;
+    use super::StressStrainState;
 
     #[test]
     fn display_trait_works() {
-        let mut state = StressState::new(false, 2);
+        let mut state = StressStrainState::new(false, 2);
         state.sigma.vector_mut()[0] = 1.0;
         state.sigma.vector_mut()[1] = 2.0;
         state.sigma.vector_mut()[2] = -3.0;

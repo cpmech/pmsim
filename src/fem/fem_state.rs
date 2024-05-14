@@ -1,6 +1,6 @@
 use super::{FemInput, SecondaryValues};
 use crate::base::{Config, Element};
-use crate::material::StressState;
+use crate::material::StressStrainState;
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::Vector;
@@ -180,7 +180,7 @@ impl FemState {
         &self,
         cell_id: CellId,
         integ_point: usize,
-    ) -> Result<(&StressState, &Tensor2), StrError> {
+    ) -> Result<(&StressStrainState, &Tensor2), StrError> {
         match &self.secondary_values {
             Some(all_values) => {
                 let values = &all_values[cell_id];

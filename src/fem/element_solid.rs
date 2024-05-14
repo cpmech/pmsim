@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
-use crate::material::{StrainStates, StressStates, StressStrainModel};
+use crate::material::{StrainStates, StressStrainModel, StressStrainStates};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -35,7 +35,7 @@ pub struct ElementSolid<'a> {
     pub model: StressStrainModel,
 
     /// Stresses and internal values at all integration points
-    pub stresses: StressStates,
+    pub stresses: StressStrainStates,
 
     /// (temporary) Strain increment at integration point
     ///
@@ -65,7 +65,7 @@ impl<'a> ElementSolid<'a> {
         let two_dim = ndim == 2;
         let model = StressStrainModel::new(param, two_dim, config.plane_stress)?;
         let n_internal_values = model.actual.n_internal_values();
-        let stresses = StressStates::new(two_dim, n_internal_values, n_integ_point);
+        let stresses = StressStrainStates::new(two_dim, n_internal_values, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -287,7 +287,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         }
         if second_values.stresses.is_none() {
             let n_internal_values = self.model.actual.n_internal_values();
-            second_values.stresses = Some(StressStates::new(two_dim, n_internal_values, n_integ_point));
+            second_values.stresses = Some(StressStrainStates::new(two_dim, n_internal_values, n_integ_point));
         }
         let stresses = &mut second_values.stresses.as_mut().unwrap().all;
         for p in 0..self.ips.len() {

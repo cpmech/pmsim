@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use super::{StressState, StressStrainTrait, VonMises};
+use super::{StressStrainState, StressStrainTrait, VonMises};
 use crate::base::{NonlinElast, ParamSolid, ParamStressStrain, StressUpdate};
 use crate::StrError;
 use russell_lab::{mat_update, vec_copy, vec_inner, vec_scale, Vector};
@@ -34,33 +34,33 @@ pub trait ClassicalPlasticityTrait: StressStrainTrait {
     fn associated(&self) -> bool;
 
     /// Calculates the yield function f
-    fn yield_function(&self, state: &StressState) -> Result<f64, StrError>;
+    fn yield_function(&self, state: &StressStrainState) -> Result<f64, StrError>;
 
     /// Calculates the plastic potential function g
-    fn plastic_potential(&self, state: &StressState) -> Result<(), StrError>;
+    fn plastic_potential(&self, state: &StressStrainState) -> Result<(), StrError>;
 
     /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
-    fn hardening(&self, hh: &mut Vector, state: &StressState) -> Result<(), StrError>;
+    fn hardening(&self, hh: &mut Vector, state: &StressStrainState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the yield function w.r.t stress
-    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressState) -> Result<(), StrError>;
+    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressStrainState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the plastic potential w.r.t stress
-    fn dg_dsigma(&self, dg_dsigma: &mut Tensor2, state: &StressState) -> Result<(), StrError>;
+    fn dg_dsigma(&self, dg_dsigma: &mut Tensor2, state: &StressStrainState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the yield function w.r.t internal variables
-    fn df_dz(&self, df_dz: &mut Vector, state: &StressState) -> Result<(), StrError>;
+    fn df_dz(&self, df_dz: &mut Vector, state: &StressStrainState) -> Result<(), StrError>;
 
     /// Calculates the elastic compliance modulus
-    fn elastic_compliance(&self, cce: &mut Tensor4, state: &StressState) -> Result<(), StrError>;
+    fn elastic_compliance(&self, cce: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError>;
 
     /// Calculates the elastic rigidity modulus
-    fn elastic_rigidity(&self, dde: &mut Tensor4, state: &StressState) -> Result<(), StrError>;
+    fn elastic_rigidity(&self, dde: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError>;
 }
 
 pub trait SubloadingPlasticityTrait: Send + Sync {
     /// Calculates the subloading function f
-    fn subloading_function(state: &StressState) -> Result<(), StrError>;
+    fn subloading_function(state: &StressStrainState) -> Result<(), StrError>;
 }
 
 pub trait VariableModulusPlasticityTrait: Send + Sync {}
@@ -160,13 +160,17 @@ impl ClassicalPlasticity {
         })
     }
 
-    pub fn find_intersection_stress_driven(&mut self, state: &StressState, dsigma: &Tensor2) -> Result<f64, StrError> {
+    pub fn find_intersection_stress_driven(
+        &mut self,
+        state: &StressStrainState,
+        dsigma: &Tensor2,
+    ) -> Result<f64, StrError> {
         Err("TODO")
     }
 
     pub fn find_intersection_strain_driven(
         &mut self,
-        state: &StressState,
+        state: &StressStrainState,
         depsilon: &Tensor2,
     ) -> Result<f64, StrError> {
         Err("TODO")
@@ -174,7 +178,7 @@ impl ClassicalPlasticity {
 
     pub fn lagrange_multiplier_stress_driven(
         &mut self,
-        state: &StressState,
+        state: &StressStrainState,
         dsigma: &Tensor2,
     ) -> Result<f64, StrError> {
         // derivatives
@@ -195,7 +199,7 @@ impl ClassicalPlasticity {
 
     pub fn lagrange_multiplier_strain_driven(
         &mut self,
-        state: &StressState,
+        state: &StressStrainState,
         depsilon: &Tensor2,
     ) -> Result<f64, StrError> {
         // Dₑ
@@ -223,15 +227,15 @@ impl ClassicalPlasticity {
         Ok(llambda)
     }
 
-    pub fn modulus_elastic_compliance(&mut self, cce: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
+    pub fn modulus_elastic_compliance(&mut self, cce: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         self.model.elastic_compliance(cce, state)
     }
 
-    pub fn modulus_elastic_rigidity(&mut self, dde: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
+    pub fn modulus_elastic_rigidity(&mut self, dde: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         self.model.elastic_rigidity(dde, state)
     }
 
-    pub fn modulus_compliance(&mut self, cc: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
+    pub fn modulus_compliance(&mut self, cc: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         // derivatives
         self.model.df_dsigma(&mut self.df_dsigma, state)?;
         self.model.df_dz(&mut self.df_dz, state)?;
@@ -257,7 +261,7 @@ impl ClassicalPlasticity {
         Ok(())
     }
 
-    pub fn modulus_rigidity(&mut self, dd: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
+    pub fn modulus_rigidity(&mut self, dd: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         // derivatives
         self.model.df_dsigma(&mut self.df_dsigma, state)?;
         self.model.df_dz(&mut self.df_dz, state)?;
@@ -310,12 +314,12 @@ impl StressStrainTrait for ClassicalPlasticity {
     }
 
     /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, state: &mut StressState) -> Result<(), StrError> {
+    fn initialize_internal_values(&self, state: &mut StressStrainState) -> Result<(), StrError> {
         self.model.initialize_internal_values(state)
     }
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
+    fn stiffness(&mut self, dd: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         if self.continuum {
             self.modulus_rigidity(dd, state)
         } else {
@@ -324,7 +328,7 @@ impl StressStrainTrait for ClassicalPlasticity {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut StressStrainState, deps: &Tensor2) -> Result<(), StrError> {
         if !self.continuum {
             return self.model.update_stress(state, deps);
         }

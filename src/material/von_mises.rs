@@ -1,4 +1,4 @@
-use super::{ClassicalPlasticityTrait, StressState, StressStrainTrait};
+use super::{ClassicalPlasticityTrait, StressStrainState, StressStrainTrait};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::{deriv1_invariant_sigma_d, t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
@@ -70,7 +70,7 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, state: &mut StressState) -> Result<(), StrError> {
+    fn initialize_internal_values(&self, state: &mut StressStrainState) -> Result<(), StrError> {
         state.internal_values[Z0] = self.z0;
         let f = self.yield_function(state).unwrap();
         if f > 0.0 {
@@ -80,7 +80,7 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, state: &StressState) -> Result<(), StrError> {
+    fn stiffness(&mut self, dd: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         // handle elastic case
         if !state.loading {
             dd.set_tensor(1.0, self.lin_elasticity.get_modulus()); // D ← Dₑ
@@ -116,7 +116,7 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut StressStrainState, deps: &Tensor2) -> Result<(), StrError> {
         // reset flags
         state.loading = false; // not elastoplastic by default
         state.algo_lambda = 0.0;
@@ -166,25 +166,25 @@ impl ClassicalPlasticityTrait for VonMises {
     }
 
     /// Calculates the yield function f
-    fn yield_function(&self, state: &StressState) -> Result<f64, StrError> {
+    fn yield_function(&self, state: &StressStrainState) -> Result<f64, StrError> {
         let sigma_d = state.sigma.invariant_sigma_d();
         let z = state.internal_values[Z0];
         Ok(sigma_d - z)
     }
 
     /// Calculates the plastic potential function g
-    fn plastic_potential(&self, _state: &StressState) -> Result<(), StrError> {
+    fn plastic_potential(&self, _state: &StressStrainState) -> Result<(), StrError> {
         Err("plastic potential is not available")
     }
 
     /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
-    fn hardening(&self, hh: &mut Vector, _state: &StressState) -> Result<(), StrError> {
+    fn hardening(&self, hh: &mut Vector, _state: &StressStrainState) -> Result<(), StrError> {
         hh[Z0] = self.hh;
         Ok(())
     }
 
     /// Calculates the derivative of the yield function w.r.t stress
-    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressState) -> Result<(), StrError> {
+    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressStrainState) -> Result<(), StrError> {
         // df/dσ = dσd/dσ
         match deriv1_invariant_sigma_d(df_dsigma, &state.sigma) {
             Some(_) => Ok(()),
@@ -193,23 +193,23 @@ impl ClassicalPlasticityTrait for VonMises {
     }
 
     /// Calculates the derivative of the plastic potential w.r.t stress
-    fn dg_dsigma(&self, _dg_dsigma: &mut Tensor2, _state: &StressState) -> Result<(), StrError> {
+    fn dg_dsigma(&self, _dg_dsigma: &mut Tensor2, _state: &StressStrainState) -> Result<(), StrError> {
         Err("dg/dσ is not available")
     }
 
     /// Calculates the derivative of the yield function w.r.t internal variables
-    fn df_dz(&self, df_dz: &mut Vector, _state: &StressState) -> Result<(), StrError> {
+    fn df_dz(&self, df_dz: &mut Vector, _state: &StressStrainState) -> Result<(), StrError> {
         df_dz[Z0] = -1.0;
         Ok(())
     }
 
     /// Calculates the elastic compliance modulus
-    fn elastic_compliance(&self, cce: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
+    fn elastic_compliance(&self, cce: &mut Tensor4, _state: &StressStrainState) -> Result<(), StrError> {
         self.lin_elasticity.calc_compliance(cce)
     }
 
     /// Calculates the elastic rigidity modulus
-    fn elastic_rigidity(&self, dde: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
+    fn elastic_rigidity(&self, dde: &mut Tensor4, _state: &StressStrainState) -> Result<(), StrError> {
         dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
         Ok(())
     }
@@ -220,7 +220,7 @@ impl ClassicalPlasticityTrait for VonMises {
 #[cfg(test)]
 mod tests {
     use super::VonMises;
-    use crate::material::{StressState, StressStrainPath, StressStrainPlot, StressStrainTrait};
+    use crate::material::{StressStrainState, StressStrainPath, StressStrainPlot, StressStrainTrait};
     use plotpy::{Canvas, Curve, Legend, RayEndpoint};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, Tensor4, SQRT_2_BY_3};
@@ -401,7 +401,7 @@ mod tests {
 
         // initial state
         let n_internal_values = model.n_internal_values();
-        let mut state = StressState::new(two_dim, n_internal_values);
+        let mut state = StressStrainState::new(two_dim, n_internal_values);
         state.sigma.set_tensor(1.0, &path.stresses[0]);
         model.initialize_internal_values(&mut state).unwrap();
         let mut stresses = vec![state.sigma.clone()];

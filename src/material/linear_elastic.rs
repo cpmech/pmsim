@@ -1,4 +1,4 @@
-use super::StressState;
+use super::StressStrainState;
 use super::StressStrainTrait;
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
@@ -29,18 +29,18 @@ impl StressStrainTrait for LinearElastic {
     }
 
     /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, _state: &mut StressState) -> Result<(), StrError> {
+    fn initialize_internal_values(&self, _state: &mut StressStrainState) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressState) -> Result<(), StrError> {
+    fn stiffness(&mut self, dd: &mut Tensor4, _state: &StressStrainState) -> Result<(), StrError> {
         dd.set_tensor(1.0, self.model.get_modulus());
         Ok(())
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut StressState, deps: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut StressStrainState, deps: &Tensor2) -> Result<(), StrError> {
         let dd = self.model.get_modulus();
         t4_ddot_t2_update(&mut state.sigma, 1.0, dd, deps, 1.0); // σ += D : Δε
         Ok(())
