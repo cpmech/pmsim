@@ -95,9 +95,9 @@ pub fn check_displacements_and_stresses(
             }
             for ip in 0..n_integ_point {
                 // check sigma
-                let (stress_state, _) = state.extract_stresses_and_strains(e, ip).unwrap();
+                let state = state.extract_stresses_and_strains(e, ip).unwrap();
                 for i in 0..nsigma {
-                    let a = stress_state.sigma.vector()[i];
+                    let a = state.sigma.vector()[i];
                     let b = if i > 3 {
                         compare.stresses[e][ip][i] * SQRT_2
                     } else {
@@ -110,7 +110,7 @@ pub fn check_displacements_and_stresses(
 
                 // save stress path at selected (CellId, IntegrationPointId)
                 if e == extract.0 && ip == extract.1 {
-                    stresses.push(stress_state.sigma.clone());
+                    stresses.push(state.sigma.clone());
                     let mut sigma = Tensor2::new_sym(true);
                     for i in 0..nsigma {
                         if i > 3 {

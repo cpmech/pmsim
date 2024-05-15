@@ -76,8 +76,8 @@ pub struct Config {
     /// Output secondary values such as a stresses, strains, and internal values
     pub out_secondary_values: bool,
 
-    /// Do not output strains when outputting stresses
-    pub out_no_strains: bool,
+    /// Output strains during the output of secondary values
+    pub out_strains: bool,
 }
 
 impl Config {
@@ -101,7 +101,7 @@ impl Config {
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
             out_secondary_values: false,
-            out_no_strains: false,
+            out_strains: false,
         }
     }
 

@@ -4,7 +4,6 @@ use crate::material::StressStrainState;
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::Vector;
-use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs::{self, File};
@@ -180,19 +179,15 @@ impl FemState {
         &self,
         cell_id: CellId,
         integ_point: usize,
-    ) -> Result<(&StressStrainState, &Tensor2), StrError> {
+    ) -> Result<&StressStrainState, StrError> {
         match &self.secondary_values {
             Some(all_values) => {
                 let values = &all_values[cell_id];
-                let stress_state = match &values.stresses {
-                    Some(stress_states) => &stress_states.all[integ_point],
+                let state = match &values.stresses_and_strains {
+                    Some(states) => &states.all[integ_point],
                     None => return Err("element does not have stresses at the selected integration point"),
                 };
-                let epsilon = match &values.strains {
-                    Some(strain_states) => &strain_states.all[integ_point],
-                    None => return Err("element does not have strains at the selected integration point"),
-                };
-                Ok((stress_state, epsilon))
+                Ok(state)
             }
             None => {
                 Err("secondary values are not available for this problem (need config.out_secondary_values = true)")

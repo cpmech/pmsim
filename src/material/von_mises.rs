@@ -220,7 +220,7 @@ impl ClassicalPlasticityTrait for VonMises {
 #[cfg(test)]
 mod tests {
     use super::VonMises;
-    use crate::material::{StressStrainState, StressStrainPath, StressStrainPlot, StressStrainTrait};
+    use crate::material::{StressStrainPath, StressStrainPlot, StressStrainState, StressStrainTrait};
     use plotpy::{Canvas, Curve, Legend, RayEndpoint};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, Tensor4, SQRT_2_BY_3};

@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
-use crate::material::{StrainStates, StressStrainModel, StressStrainStates};
+use crate::material::{StressStrainModel, StressStrainStates};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -276,22 +276,23 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         let second_values = &mut state.secondary_values.as_mut().unwrap()[self.cell.id];
         let two_dim = self.ndim == 2;
         let n_integ_point = self.ips.len();
-        if !self.config.out_no_strains {
-            if second_values.strains.is_none() {
-                second_values.strains = Some(StrainStates::new(two_dim, n_integ_point));
-            }
-            let strains = &mut second_values.strains.as_mut().unwrap().all;
-            for p in 0..self.ips.len() {
-                self.calc_strains(&mut strains[p], &state.uu, p)?;
-            }
-        }
-        if second_values.stresses.is_none() {
+        if second_values.stresses_and_strains.is_none() {
             let n_internal_values = self.model.actual.n_internal_values();
-            second_values.stresses = Some(StressStrainStates::new(two_dim, n_internal_values, n_integ_point));
+            second_values.stresses_and_strains =
+                Some(StressStrainStates::new(two_dim, n_internal_values, n_integ_point));
         }
-        let stresses = &mut second_values.stresses.as_mut().unwrap().all;
+        let states = &mut second_values.stresses_and_strains.as_mut().unwrap().all;
         for p in 0..self.ips.len() {
-            stresses[p].mirror(&self.stresses.all[p]);
+            states[p].copy_non_optional(&self.stresses.all[p]);
+        }
+        if self.config.out_strains {
+            for p in 0..self.ips.len() {
+                if states[p].epsilon.is_none() {
+                    states[p].epsilon = Some(Tensor2::new_sym(two_dim));
+                }
+                let epsilon = states[p].epsilon.as_mut().unwrap();
+                self.calc_strains(epsilon, &state.uu, p)?;
+            }
         }
         Ok(())
     }
