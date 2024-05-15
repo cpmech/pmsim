@@ -65,7 +65,7 @@ fn main() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qt(|_| 1.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     let t_fin = 1.0;
     config.transient = true;
     config.control.dt = |_| 0.1;

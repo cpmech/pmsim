@@ -72,7 +72,7 @@ fn main() -> Result<(), StrError> {
     let natural = Natural::new();
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.lin_sol_genie = Genie::Mumps;
     config.lin_sol_params.verbose = false;
 

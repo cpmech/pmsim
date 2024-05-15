@@ -1,7 +1,7 @@
 use super::{Control, FnTime, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{Cell, CellAttribute};
+use gemlab::mesh::{Cell, CellAttribute, Mesh};
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::HashMap;
 use std::fmt;
@@ -78,11 +78,17 @@ pub struct Config {
 
     /// Output strains during the output of secondary values
     pub out_strains: bool,
+
+    /// The space dimension (2 or 3)
+    pub(crate) ndim: usize,
+
+    /// Indicates 2D instead of 3D
+    pub(crate) two_dim: bool,
 }
 
 impl Config {
     /// Allocates a new instance
-    pub fn new() -> Self {
+    pub fn new(mesh: &Mesh) -> Self {
         Config {
             linear_problem: false,
             transient: false,
@@ -102,6 +108,8 @@ impl Config {
             lin_sol_params: LinSolParams::new(),
             out_secondary_values: false,
             out_strains: false,
+            ndim: mesh.ndim,
+            two_dim: mesh.ndim == 2,
         }
     }
 
@@ -213,13 +221,15 @@ impl fmt::Display for Config {
 #[cfg(test)]
 mod tests {
     use super::Config;
-    use crate::base::{Init, ParamFluids, ParamRealDensity};
+    use crate::base::{Init, ParamFluids, ParamRealDensity, SampleMeshes};
     use gemlab::mesh::Samples;
     use std::collections::HashMap;
 
     #[test]
     fn new_works() {
-        let config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+
+        let config = Config::new(&mesh);
         assert_eq!(config.linear_problem, false);
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
@@ -229,7 +239,7 @@ mod tests {
         assert_eq!(config.total_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
 
         config.param_fluids = Some(ParamFluids {
             density_liquid: ParamRealDensity {
@@ -275,7 +285,8 @@ mod tests {
 
     #[test]
     fn validate_works() {
-        let mut config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
 
         config.control.t_ini = -1.0;
         assert_eq!(
@@ -334,14 +345,16 @@ mod tests {
 
     #[test]
     fn validate_or_panic_works() {
-        let config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let config = Config::new(&mesh);
         config.validate_or_panic(2, false);
     }
 
     #[test]
     #[should_panic(expected = "config.validate() failed")]
     fn validate_or_panic_panics() {
-        let mut config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
         config.control.t_ini = -1.0;
         config.validate_or_panic(3, false);
     }
@@ -349,7 +362,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "config.validate() failed")]
     fn validate_or_panic_panics_verbose() {
-        let mut config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
         config.control.t_ini = -1.0;
         config.validate_or_panic(3, true);
     }

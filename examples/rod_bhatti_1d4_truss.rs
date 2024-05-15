@@ -61,7 +61,7 @@ fn main() -> Result<(), StrError> {
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.control.n_max_time_steps = 2;
 
     // FEM state

@@ -262,7 +262,7 @@ mod tests {
             SampleParams::param_diffusion()
         };
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the right to the left
@@ -315,7 +315,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
             ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).err(),
@@ -340,7 +340,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the right to the left
@@ -377,7 +377,7 @@ mod tests {
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 
         // check residual vector
@@ -389,7 +389,7 @@ mod tests {
 
         // error in transient -----------------------------------------------
 
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.transient = true;
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         state.dt = 0.0; // wrong
@@ -409,7 +409,7 @@ mod tests {
         let mesh = Samples::one_tet4();
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the top to bottom and right to left
@@ -450,7 +450,7 @@ mod tests {
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 
         // check residual vector

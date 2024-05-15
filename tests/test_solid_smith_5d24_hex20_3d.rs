@@ -81,7 +81,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -1.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.n_integ_point.insert(1, 8);
     config.n_integ_point.insert(2, 8);
 

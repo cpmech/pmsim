@@ -68,7 +68,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qt(|_| 100.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.axisymmetric = true;
 
     // FEM state

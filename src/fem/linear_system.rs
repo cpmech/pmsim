@@ -133,7 +133,7 @@ mod tests {
         };
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&empty_mesh);
         let essential = Essential::new();
         let natural = Natural::new();
         let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
@@ -188,7 +188,7 @@ mod tests {
             + n_equation_convection * n_equation_convection;
 
         // allowing symmetry, but with full matrix (UMFPACK)
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.lin_sol_genie = Genie::Umfpack;
         let elements = Elements::new(&input, &config).unwrap();
         let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
@@ -205,7 +205,7 @@ mod tests {
         );
 
         // using symmetry (MUMPS)
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.lin_sol_genie = Genie::Mumps;
         let elements = Elements::new(&input, &config).unwrap();
         let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
@@ -222,7 +222,7 @@ mod tests {
         );
 
         // ignoring symmetry (MUMPS)
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.lin_sol_genie = Genie::Mumps;
         config.ignore_jacobian_symmetry = true;
         let elements = Elements::new(&input, &config).unwrap();

@@ -59,7 +59,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
         .on(&outer_circle, Nbc::Qn(|_| -P2));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.lin_sol_genie = Genie::Umfpack;
     config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = true;
 

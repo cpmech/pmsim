@@ -72,7 +72,7 @@ fn main() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qn(|_| -PRESSURE));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.axisymmetric = true;
     config.n_integ_point.insert(1, 4); // reduced integration => better results
 

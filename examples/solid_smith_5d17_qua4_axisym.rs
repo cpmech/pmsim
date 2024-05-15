@@ -89,7 +89,7 @@ fn main() -> Result<(), StrError> {
         .at(&[6], Pbc::Fy(|_| -24.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.axisymmetric = true;
     config.n_integ_point.insert(1, 9);
     config.n_integ_point.insert(2, 9);

@@ -92,7 +92,7 @@ fn main() -> Result<(), StrError> {
     natural.on(&edges_flux, Nbc::Qt(|_| 5e5));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.axisymmetric = true;
 
     // FEM state

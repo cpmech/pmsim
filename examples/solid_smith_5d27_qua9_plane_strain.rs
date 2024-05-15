@@ -82,7 +82,7 @@ fn main() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -1.0));
 
     // configuration
-    let config = Config::new();
+    let config = Config::new(&mesh);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

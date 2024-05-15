@@ -65,7 +65,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     natural.on(&left, Nbc::Qt(|_| 1.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.transient = true;
     config.control.dt = |_| 0.1;
     config.control.t_fin = 1.0;

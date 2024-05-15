@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.n_integ_point.insert(1, 100); // wrong
 
         let p1 = SampleParams::param_solid();
@@ -294,12 +294,12 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
         Elements::new(&input, &config).unwrap();
@@ -310,7 +310,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
@@ -326,7 +326,7 @@ mod tests {
         mat_approx_eq(&jj_ana, &ele.jacobian, 1e-11);
 
         // transient simulation
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.transient = true;
         let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
         let mut state = FemState::new(&input, &config).unwrap();
@@ -350,7 +350,7 @@ mod tests {
             source: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
         ele.calc_jacobian(&state).unwrap();
         let jj_ana = ele.jacobian.clone();
@@ -367,7 +367,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
         // linear displacement field
@@ -402,7 +402,7 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_beam();
         let input = FemInput::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -412,7 +412,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_porous_liq();
         let input = FemInput::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -422,7 +422,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_porous_liq_gas();
         let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -432,7 +432,7 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq();
         let input = FemInput::new(&mesh, [(1, Element::PorousSldLiq(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -442,7 +442,7 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq_gas();
         let input = FemInput::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
     }
 }

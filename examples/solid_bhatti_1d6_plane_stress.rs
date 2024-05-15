@@ -64,7 +64,7 @@ fn main() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.plane_stress = true;
     config.thickness = 0.25;
     config.validate_or_panic(mesh.ndim, true);

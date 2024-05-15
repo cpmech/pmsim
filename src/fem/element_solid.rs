@@ -317,7 +317,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
             ElementSolid::new(&input, &config, &mesh.cells[0], &p1).err(),
@@ -338,7 +338,7 @@ mod tests {
             stress_update: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
         // set stress state
@@ -415,7 +415,6 @@ mod tests {
     fn calc_delta_eps_works() {
         // parameters (not relevant to this test though)
         let p1 = SampleParams::param_solid();
-        let config = Config::new();
 
         // loop over meshes
         let meshes = &[
@@ -453,6 +452,11 @@ mod tests {
             // check the first cell/element only
             let cell = &mesh.cells[0];
             let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+
+            // configuration
+            let config = Config::new(&mesh);
+
+            // element
             let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
 
             // check increment of strains for all integration points
@@ -482,7 +486,6 @@ mod tests {
             nonlin_elast: None,
             stress_update: None,
         };
-        let config = Config::new();
 
         // loop over meshes
         let meshes = &[
@@ -554,6 +557,9 @@ mod tests {
             let cell = &mesh.cells[id];
             let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 
+            // configuration
+            let config = Config::new(&mesh);
+
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
             let mut state = FemState::new(&input, &config).unwrap();
@@ -598,8 +604,6 @@ mod tests {
             nonlin_elast: None,
             stress_update: None,
         };
-        let mut config = Config::new();
-        config.plane_stress = true;
 
         // loop over meshes
         let meshes = &[
@@ -626,6 +630,10 @@ mod tests {
             let id = 0;
             let cell = &mesh.cells[id];
             let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+
+            // configuration
+            let mut config = Config::new(&mesh);
+            config.plane_stress = true;
 
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
@@ -689,7 +697,9 @@ mod tests {
             stress_update: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let mut config = Config::new();
+
+        // configuration
+        let mut config = Config::new(&mesh);
         config.axisymmetric = true;
         config.n_integ_point.insert(1, 1);
 

@@ -66,7 +66,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     assert_eq!(eq_unknown, &[2, 4, 6]);
 
     // element and state
-    let config = Config::new();
+    let config = Config::new(&mesh);
     let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
     let mut state = FemState::new(&input, &config)?;
 
@@ -194,7 +194,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     let n_unknown = eq_unknown.len();
 
     // element and state
-    let config = Config::new();
+    let config = Config::new(&mesh);
     let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
     let mut state = FemState::new(&input, &config)?;
 

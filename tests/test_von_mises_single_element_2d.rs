@@ -91,7 +91,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let natural = Natural::new();
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.n_integ_point.insert(1, 1);
     config.out_secondary_values = true;
     config.control.dt = |_| 1.0;

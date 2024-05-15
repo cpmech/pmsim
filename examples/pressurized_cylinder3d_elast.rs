@@ -231,7 +231,7 @@ fn main() -> Result<(), StrError> {
             .on(&faces_outer, Nbc::Qn(|_| -P2));
 
         // configuration
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.linear_problem = true;
         config.control.verbose_timesteps = false;
         config.control.save_vismatrix_file = false;

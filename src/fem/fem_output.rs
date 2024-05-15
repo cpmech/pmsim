@@ -249,7 +249,7 @@ mod tests {
         let feat = Features::new(&mesh, false);
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut state = FemState::new(&input, &config).unwrap();
         state.uu[0] = 1.0;
         state.uu[1] = 2.0;

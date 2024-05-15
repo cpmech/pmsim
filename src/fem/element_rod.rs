@@ -172,7 +172,7 @@ mod tests {
             density: 1.0,
         };
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         assert_eq!(
             ElementRod::new(&input, &config, &mesh.cells[0], &p1).err(),
             Some("number of nodes for Rod must be 2")
@@ -208,7 +208,7 @@ mod tests {
             density: 1.0,
         };
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
         let state = FemState::new(&input, &config).unwrap();
@@ -246,7 +246,7 @@ mod tests {
             density: 1.0,
         };
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
         let state = FemState::new(&input, &config).unwrap();
@@ -287,7 +287,7 @@ mod tests {
             density: 1.0,
         };
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
         let state = FemState::new(&input, &config).unwrap();
@@ -353,7 +353,7 @@ mod tests {
         )
         .unwrap();
 
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut rod0 = ElementRod::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         let mut rod1 = ElementRod::new(&input, &config, &mesh.cells[1], &p2).unwrap();
         let mut rod2 = ElementRod::new(&input, &config, &mesh.cells[2], &p3).unwrap();

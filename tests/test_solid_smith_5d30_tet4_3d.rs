@@ -69,7 +69,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
         .at(&[1, 4], Pbc::Fz(|_| -0.3333));
 
     // configuration
-    let config = Config::new();
+    let config = Config::new(&mesh);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

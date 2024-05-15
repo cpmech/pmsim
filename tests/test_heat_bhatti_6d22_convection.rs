@@ -85,7 +85,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     println!("{}", natural);
 
     // configuration
-    let config = Config::new();
+    let config = Config::new(&mesh);
 
     // elements
     let mut elements = Elements::new(&input, &config)?;
@@ -272,7 +272,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         source: Some(source),
     };
     let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
-    let config = Config::new();
+    let config = Config::new(&mesh);
 
     // essential boundary conditions
     let mut essential = Essential::new();
