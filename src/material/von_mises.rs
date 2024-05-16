@@ -1,4 +1,5 @@
 use super::{ClassicalPlasticityTrait, StressStrainState, StressStrainTrait};
+use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::{deriv1_invariant_sigma_d, t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
@@ -44,8 +45,9 @@ pub struct VonMises {
 
 impl VonMises {
     /// Allocates a new instance
-    pub fn new(young: f64, poisson: f64, two_dim: bool, z0: f64, hh: f64) -> Self {
-        let lin_elasticity = LinElasticity::new(young, poisson, two_dim, false);
+    pub fn new(config: &Config, young: f64, poisson: f64, z0: f64, hh: f64) -> Self {
+        assert!(!config.plane_stress);
+        let lin_elasticity = LinElasticity::new(young, poisson, config.two_dim, false);
         let (kk, gg) = lin_elasticity.get_bulk_shear();
         VonMises {
             lin_elasticity,
@@ -53,7 +55,7 @@ impl VonMises {
             gg,
             hh,
             z0,
-            s: Tensor2::new_sym(two_dim),
+            s: Tensor2::new(config.mandel),
         }
     }
 }
@@ -220,6 +222,7 @@ impl ClassicalPlasticityTrait for VonMises {
 #[cfg(test)]
 mod tests {
     use super::VonMises;
+    use crate::base::new_empty_config_2d;
     use crate::material::{StressStrainPath, StressStrainPlot, StressStrainState, StressStrainTrait};
     use plotpy::{Canvas, Curve, Legend, RayEndpoint};
     use russell_lab::approx_eq;
@@ -253,14 +256,15 @@ mod tests {
 
     #[test]
     fn update_stress_works() {
+        let config = new_empty_config_2d();
+
         let young = 1500.0;
         let poisson = 0.25;
         let kk = young / (3.0 * (1.0 - 2.0 * poisson));
         let gg = young / (2.0 * (1.0 + poisson));
-        let two_dim = true;
         let z0 = 9.0;
         let hh = 800.0;
-        let mut model = VonMises::new(young, poisson, two_dim, z0, hh);
+        let mut model = VonMises::new(&config, young, poisson, z0, hh);
 
         let sigma_m_0 = 0.0;
         let sigma_d_0 = 0.0;
@@ -269,7 +273,7 @@ mod tests {
 
         // first update exactly to the yield surface, then load more (lode = 1.0)
         let path_a = StressStrainPath::new_linear_oct(
-            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
+            &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
         )
         .unwrap();
         let (stresses_a, strains_a, state_a) = path_a.follow_strain(&mut model);
@@ -277,7 +281,7 @@ mod tests {
 
         // first update exactly to the yield surface, then load more (lode = 0.0)
         let path_b = StressStrainPath::new_linear_oct(
-            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 0.0,
+            &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 0.0,
         )
         .unwrap();
         let (stresses_b, strains_b, state_b) = path_b.follow_strain(&mut model);
@@ -285,14 +289,14 @@ mod tests {
 
         // first update exactly to the yield surface, then load more (lode = -1.0)
         let path_c = StressStrainPath::new_linear_oct(
-            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, -1.0,
+            &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, -1.0,
         )
         .unwrap();
         let (stresses_c, strains_c, state_c) = path_c.follow_strain(&mut model);
         check_1(young, poisson, hh, &stresses_c, &strains_c);
 
         // update with a larger increment, over the yield surface
-        let mut path_d = StressStrainPath::new(young, poisson, two_dim).unwrap();
+        let mut path_d = StressStrainPath::new(&config, young, poisson).unwrap();
         let deps_v = 2.0 * dsigma_m / kk;
         let deps_d = 2.0 * dsigma_d / (3.0 * gg);
         path_d.push_strain_oct(0.0, 0.0, 0.75, true).unwrap();
@@ -371,13 +375,14 @@ mod tests {
 
     #[test]
     fn stiffness_works() {
+        let config = new_empty_config_2d();
+
         let young = 1500.0;
         let poisson = 0.25;
-        let two_dim = true;
         let z0 = 9.0;
         let hh = 800.0;
-        let mut model = VonMises::new(young, poisson, two_dim, z0, hh);
-        let mut dd = Tensor4::new_sym(two_dim);
+        let mut model = VonMises::new(&config, young, poisson, z0, hh);
+        let mut dd = Tensor4::new(config.mandel);
 
         // plane-strain strain increments reaching yield surface
         let nu = poisson;
@@ -387,21 +392,21 @@ mod tests {
         let eps_y = -dy;
 
         // path reaching (within tol) the yield surface, then hardening
-        let mut path = StressStrainPath::new(young, poisson, two_dim).unwrap();
-        let zero = Tensor2::new_sym(two_dim);
+        let mut path = StressStrainPath::new(&config, young, poisson).unwrap();
+        let zero = Tensor2::new(config.mandel);
         path.push_stress(zero, true).unwrap();
-        let mut eps_1 = Tensor2::new_sym(two_dim);
+        let mut eps_1 = Tensor2::new(config.mandel);
         eps_1.vector_mut()[0] = 0.9999 * eps_x;
         eps_1.vector_mut()[1] = 0.9999 * eps_y;
         path.push_strain(eps_1, true).unwrap();
-        let mut eps_2 = Tensor2::new_sym(two_dim);
+        let mut eps_2 = Tensor2::new(config.mandel);
         eps_2.vector_mut()[0] = 2.0 * eps_x;
         eps_2.vector_mut()[1] = 2.0 * eps_y;
         path.push_strain(eps_2, true).unwrap();
 
         // initial state
         let n_internal_values = model.n_internal_values();
-        let mut state = StressStrainState::new(two_dim, n_internal_values);
+        let mut state = StressStrainState::new(config.mandel, n_internal_values);
         state.sigma.set_tensor(1.0, &path.stresses[0]);
         model.initialize_internal_values(&mut state).unwrap();
         let mut stresses = vec![state.sigma.clone()];

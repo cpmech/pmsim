@@ -1,4 +1,5 @@
 use super::{StressStrainState, StressStrainTrait};
+use crate::base::Config;
 use crate::StrError;
 use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Mandel, Tensor2, Tensor4};
 use russell_tensor::{SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
@@ -7,10 +8,10 @@ use std::fmt;
 /// Holds stress and strains related via linear elasticity defining stress paths
 pub struct StressStrainPath {
     /// Indicates 2D (plane-strain, axisymmetric) instead of 3D
-    pub two_dim: bool,
+    two_dim: bool,
 
     /// Holds the Mandel representation
-    pub mandel: Mandel,
+    mandel: Mandel,
 
     /// Holds the linear elastic rigidity modulus
     ///
@@ -67,17 +68,16 @@ impl StressStrainPath {
     ///
     /// # Input
     ///
+    /// * `config` -- Configuration
     /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
     /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
-    /// * `two_dim` -- Indicates 2D (plane-strain, axisymmetric) instead of 3D
-    pub fn new(young: f64, poisson: f64, two_dim: bool) -> Result<Self, StrError> {
-        let ela = LinElasticity::new(young, poisson, two_dim, false);
-        let mandel = ela.mandel();
-        let mut cc = Tensor4::new(mandel);
+    pub fn new(config: &Config, young: f64, poisson: f64) -> Result<Self, StrError> {
+        let ela = LinElasticity::new(young, poisson, config.two_dim, false);
+        let mut cc = Tensor4::new(config.mandel);
         ela.calc_compliance(&mut cc)?;
         Ok(StressStrainPath {
-            two_dim,
-            mandel,
+            two_dim: config.two_dim,
+            mandel: config.mandel,
             dd: ela.get_modulus().clone(),
             cc,
             stresses: Vec::new(),
@@ -98,9 +98,9 @@ impl StressStrainPath {
     ///
     /// # Input
     ///
+    /// * `config` -- Configuration
     /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
     /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
-    /// * `two_dim` -- Indicates 2D (plane-strain, axisymmetric) instead of 3D
     /// * `n_increments` -- number of increments
     /// * `sigma_m_0` -- the first sigma_m
     /// * `sigma_d_0` -- the first sigma_d
@@ -108,9 +108,9 @@ impl StressStrainPath {
     /// * `dsigma_d` -- the increment of sigma_d
     /// * `lode` -- the lode invariant
     pub fn new_linear_oct(
+        config: &Config,
         young: f64,
         poisson: f64,
-        two_dim: bool,
         n_increments: usize,
         sigma_m_0: f64,
         sigma_d_0: f64,
@@ -118,7 +118,7 @@ impl StressStrainPath {
         dsigma_d: f64,
         lode: f64,
     ) -> Result<Self, StrError> {
-        let mut path = StressStrainPath::new(young, poisson, two_dim)?;
+        let mut path = StressStrainPath::new(config, young, poisson)?;
         path.push_stress_oct(sigma_m_0, sigma_d_0, lode, true).unwrap();
         for i in 0..n_increments {
             let m = (i + 1) as f64;
@@ -255,7 +255,7 @@ impl StressStrainPath {
 
         // initial state
         let n_internal_values = model.n_internal_values();
-        let mut state = StressStrainState::new(self.two_dim, n_internal_values);
+        let mut state = StressStrainState::new(self.mandel, n_internal_values);
         state.sigma.set_tensor(1.0, &self.stresses[0]);
         model.initialize_internal_values(&mut state).unwrap();
 
@@ -398,11 +398,14 @@ impl fmt::Display for StressStrainPath {
 #[cfg(test)]
 mod tests {
     use super::StressStrainPath;
+    use crate::base::new_empty_config_2d;
     use russell_lab::{approx_eq, array_approx_eq, vec_approx_eq};
     use russell_tensor::{SQRT_2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2, SQRT_6};
 
     #[test]
     fn strain_stress_path_works() {
+        let config = new_empty_config_2d();
+
         let young = 1500.0;
         let poisson = 0.25;
         let kk = young / (3.0 * (1.0 - 2.0 * poisson));
@@ -412,10 +415,9 @@ mod tests {
         let deps_v = dsigma_m / kk;
         let deps_d = dsigma_d / (3.0 * gg);
         let lode = 1.0;
-        let two_dim = true;
 
-        let mut path_a = StressStrainPath::new(young, poisson, two_dim).unwrap();
-        let mut path_b = StressStrainPath::new(young, poisson, two_dim).unwrap();
+        let mut path_a = StressStrainPath::new(&config, young, poisson).unwrap();
+        let mut path_b = StressStrainPath::new(&config, young, poisson).unwrap();
 
         for i in 0..4 {
             let m = (i + 1) as f64;
@@ -465,18 +467,21 @@ mod tests {
 
     #[test]
     fn new_linear_oct_works() {
+        let config = new_empty_config_2d();
+
         let young = 1500.0;
         let poisson = 0.25;
-        let two_dim = true;
         let sigma_m_0 = 10.0;
         let sigma_d_0 = 1.0;
         let dsigma_m = 1.0;
         let dsigma_d = 9.0;
         let lode = 1.0;
+
         let path = StressStrainPath::new_linear_oct(
-            young, poisson, two_dim, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, lode,
+            &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, lode,
         )
         .unwrap();
+
         // println!("{}", path);
         assert_eq!(path.stresses.len(), 3);
         assert_eq!(path.strains.len(), 3);

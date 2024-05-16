@@ -511,6 +511,7 @@ impl StressStrainPlot {
 #[cfg(test)]
 mod tests {
     use super::{Axis, StressStrainPlot};
+    use crate::base::{new_empty_config_2d, Config};
     use crate::material::StressStrainPath;
     use plotpy::{Canvas, Legend, SlopeIcon, SuperTitleParams};
     use russell_lab::{array_approx_eq, assert_alike};
@@ -519,14 +520,14 @@ mod tests {
 
     const SAVE_FIGURE: bool = false;
 
-    fn generate_path(bulk: f64, shear: f64, lode: f64) -> StressStrainPath {
+    fn generate_path(config: &Config, bulk: f64, shear: f64, lode: f64) -> StressStrainPath {
         let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
         let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
         // println!(" E = {:?}", young);
         // println!(" ν = {:?}", poisson);
         // println!(" K = {:?}", bulk);
         // println!("3G = {:?}", 3.0 * shear);
-        let mut path = StressStrainPath::new(young, poisson, true).unwrap();
+        let mut path = StressStrainPath::new(&config, young, poisson).unwrap();
         let dsigma_m = 1.0;
         let dsigma_d = 9.0;
         for i in 0..3 {
@@ -551,7 +552,8 @@ mod tests {
 
     #[test]
     fn calc_works() {
-        let path = generate_path(1000.0, 600.0, 1.0);
+        let config = new_empty_config_2d();
+        let path = generate_path(&config, 1000.0, 600.0, 1.0);
         // println!("{}", path);
 
         let axis = Axis::EpsV(false, false);
@@ -625,7 +627,8 @@ mod tests {
 
     #[test]
     pub fn draw_epsv_sigm_works() {
-        let path = generate_path(1000.0, 600.0, 1.0);
+        let config = new_empty_config_2d();
+        let path = generate_path(&config, 1000.0, 600.0, 1.0);
         let mut plot = StressStrainPlot::new();
         let x = Axis::EpsV(false, false);
         let y = Axis::SigM(false);
@@ -660,7 +663,8 @@ mod tests {
 
     #[test]
     pub fn draw_epsv_sigd_works() {
-        let path = generate_path(1000.0, 600.0, 1.0);
+        let config = new_empty_config_2d();
+        let path = generate_path(&config, 1000.0, 600.0, 1.0);
         let mut plot = StressStrainPlot::new();
         let x = Axis::EpsV(false, false);
         let y = Axis::SigD(false);
@@ -686,7 +690,8 @@ mod tests {
 
     #[test]
     pub fn draw_epsd_sigm_works() {
-        let path = generate_path(1000.0, 600.0, 1.0);
+        let config = new_empty_config_2d();
+        let path = generate_path(&config, 1000.0, 600.0, 1.0);
         let mut plot = StressStrainPlot::new();
         let x = Axis::EpsD(false);
         let y = Axis::SigM(false);
@@ -712,7 +717,8 @@ mod tests {
 
     #[test]
     pub fn draw_epsd_sigd_works() {
-        let path = generate_path(1000.0, 600.0, 1.0);
+        let config = new_empty_config_2d();
+        let path = generate_path(&config, 1000.0, 600.0, 1.0);
         let mut plot = StressStrainPlot::new();
         let x = Axis::EpsD(false);
         let y = Axis::SigD(false);
@@ -757,8 +763,9 @@ mod tests {
     #[test]
     pub fn save_grid_works() {
         if SAVE_FIGURE {
-            let path_a = generate_path(1000.0, 600.0, 1.0);
-            let path_b = generate_path(500.0, 200.0, 0.0);
+            let config = new_empty_config_2d();
+            let path_a = generate_path(&config, 1000.0, 600.0, 1.0);
+            let path_b = generate_path(&config, 500.0, 200.0, 0.0);
             let axes = vec![
                 vec![
                     (Axis::EpsD(true), Axis::SigD(false)),
@@ -815,8 +822,9 @@ mod tests {
 
     #[test]
     pub fn draw_3x2_mosaic_struct_works() {
-        let path_a = generate_path(1000.0, 600.0, 1.0);
-        let path_b = generate_path(500.0, 200.0, 0.0);
+        let config = new_empty_config_2d();
+        let path_a = generate_path(&config, 1000.0, 600.0, 1.0);
+        let path_b = generate_path(&config, 500.0, 200.0, 0.0);
         let mut ssp = StressStrainPlot::new();
         ssp.draw_3x2_mosaic_struct(&path_a.stresses, &path_a.strains, |curve, _, _| {
             curve.set_label("stiff");
@@ -839,8 +847,9 @@ mod tests {
 
     #[test]
     pub fn oct_projections_works() {
-        let path_a = generate_path(1000.0, 600.0, 1.0);
-        let path_b = generate_path(500.0, 200.0, 0.0);
+        let config = new_empty_config_2d();
+        let path_a = generate_path(&config, 1000.0, 600.0, 1.0);
+        let path_b = generate_path(&config, 500.0, 200.0, 0.0);
         let mut ssp = StressStrainPlot::new();
         ssp.draw_oct_projection(&path_a.stresses, |curve| {
             curve.set_marker_style("o").set_label("$\\ell=1$");
@@ -875,7 +884,8 @@ mod tests {
     #[test]
     pub fn stress_path_works() {
         if SAVE_FIGURE {
-            let path = generate_path(1000.0, 600.0, 1.0);
+            let config = new_empty_config_2d();
+            let path = generate_path(&config, 1000.0, 600.0, 1.0);
             let mut ssp = StressStrainPlot::new();
             let x_axis = Axis::SigM(false);
             let y_axis = Axis::SigD(false);

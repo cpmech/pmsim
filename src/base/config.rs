@@ -3,6 +3,7 @@ use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
 use russell_sparse::{Genie, LinSolParams};
+use russell_tensor::Mandel;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -79,11 +80,14 @@ pub struct Config {
     /// Output strains during the output of secondary values
     pub out_strains: bool,
 
-    /// The space dimension (2 or 3)
-    pub(crate) ndim: usize,
-
     /// Indicates 2D instead of 3D
     pub(crate) two_dim: bool,
+
+    /// Holds the Mandel representation type (for symmetric tensors)
+    ///
+    /// **Note:** This constant will be Symmetric or Symmetric2D. Thus, models
+    /// requiring the General representation will have to use Mandel::General directly
+    pub(crate) mandel: Mandel,
 }
 
 impl Config {
@@ -108,8 +112,12 @@ impl Config {
             lin_sol_params: LinSolParams::new(),
             out_secondary_values: false,
             out_strains: false,
-            ndim: mesh.ndim,
             two_dim: mesh.ndim == 2,
+            mandel: if mesh.ndim == 2 {
+                Mandel::Symmetric2D
+            } else {
+                Mandel::Symmetric
+            },
         }
     }
 

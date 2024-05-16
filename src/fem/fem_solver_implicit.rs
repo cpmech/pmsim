@@ -243,9 +243,9 @@ impl<'a> FemSolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemSolverImplicit;
-    use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
+    use crate::base::{new_empty_mesh_2d, Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
     use crate::fem::{FemInput, FemOutput, FemState};
-    use gemlab::mesh::{Feature, Mesh, Samples};
+    use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
@@ -308,11 +308,8 @@ mod tests {
         let natural = Natural::new();
 
         // error due to linear_system
-        let empty_mesh = Mesh {
-            ndim: 2,
-            points: Vec::new(),
-            cells: Vec::new(),
-        };
+        let empty_mesh = new_empty_mesh_2d();
+        let config = Config::new(&empty_mesh);
         let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),

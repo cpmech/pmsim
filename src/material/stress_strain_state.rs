@@ -1,4 +1,4 @@
-use russell_tensor::Tensor2;
+use russell_tensor::{Mandel, Tensor2};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -23,13 +23,13 @@ pub struct StressStrainStates {
 
 impl StressStrainState {
     /// Allocates a new instance
-    pub fn new(two_dim: bool, n_internal_values: usize) -> Self {
+    pub fn new(mandel: Mandel, n_internal_values: usize) -> Self {
         StressStrainState {
             loading: false,
             apex_return: false,
             algo_lambda: 0.0,
             internal_values: vec![0.0; n_internal_values],
-            sigma: Tensor2::new_sym(two_dim),
+            sigma: Tensor2::new(mandel),
             epsilon: None,
             yield_function_value: None,
         }
@@ -52,8 +52,8 @@ impl StressStrainState {
 
 impl StressStrainStates {
     /// Allocates a new instance
-    pub fn new(two_dim: bool, n_internal_values: usize, n_integ_point: usize) -> Self {
-        let zero_state = StressStrainState::new(two_dim, n_internal_values);
+    pub fn new(mandel: Mandel, n_internal_values: usize, n_integ_point: usize) -> Self {
+        let zero_state = StressStrainState::new(mandel, n_internal_values);
         let all = vec![zero_state; n_integ_point];
         let backup = all.clone();
         StressStrainStates { all, backup }
@@ -116,18 +116,18 @@ impl fmt::Display for StressStrainState {
 #[cfg(test)]
 mod tests {
     use super::StressStrainState;
-    use russell_tensor::Tensor2;
+    use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn display_trait_works() {
-        let two_dim = false;
-        let mut state = StressStrainState::new(two_dim, 2);
+        let mandel = Mandel::Symmetric2D;
+        let mut state = StressStrainState::new(mandel, 2);
         state.sigma.vector_mut()[0] = 1.0;
         state.sigma.vector_mut()[1] = 2.0;
         state.sigma.vector_mut()[2] = -3.0;
         state.internal_values[0] = 0.1;
         state.internal_values[1] = 0.2;
-        state.epsilon = Some(Tensor2::new_sym(two_dim));
+        state.epsilon = Some(Tensor2::new(mandel));
         let epsilon = state.epsilon.as_mut().unwrap();
         epsilon.vector_mut()[0] = 0.001;
         epsilon.vector_mut()[1] = 0.002;

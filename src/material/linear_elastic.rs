@@ -1,5 +1,6 @@
 use super::StressStrainState;
 use super::StressStrainTrait;
+use crate::base::Config;
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 
@@ -10,9 +11,9 @@ pub struct LinearElastic {
 
 impl LinearElastic {
     /// Allocates a new instance
-    pub fn new(young: f64, poisson: f64, two_dim: bool, plane_stress: bool) -> Self {
+    pub fn new(config: &Config, young: f64, poisson: f64) -> Self {
         LinearElastic {
-            model: LinElasticity::new(young, poisson, two_dim, plane_stress),
+            model: LinElasticity::new(young, poisson, config.two_dim, config.plane_stress),
         }
     }
 }

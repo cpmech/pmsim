@@ -1,10 +1,10 @@
 #![allow(unused)]
 
 use super::{StressStrainState, StressStrainTrait, VonMises};
-use crate::base::{NonlinElast, ParamSolid, ParamStressStrain, StressUpdate};
+use crate::base::{Config, NonlinElast, ParamSolid, ParamStressStrain, StressUpdate};
 use crate::StrError;
 use russell_lab::{mat_update, vec_copy, vec_inner, vec_scale, Vector};
-use russell_ode::{no_jacobian, HasJacobian, Method, NoArgs, OdeSolver, Output, Params, System};
+use russell_ode::{Method, NoArgs, OdeSolver, Output, Params, System};
 use russell_sparse::CooMatrix;
 use russell_tensor::{
     t2_add, t2_ddot_t2, t2_ddot_t4_ddot_t2, t2_dyad_t2, t2_dyad_t2_update, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4,
@@ -83,8 +83,6 @@ pub struct ClassicalPlasticity {
     pub model: Box<dyn ClassicalPlasticityTrait>,
     continuum: bool,
     ode_method: Method,
-    mandel: Mandel,
-    two_dim: bool,
     pub df_dsigma: Tensor2,
     pub dg_dsigma: Tensor2,
     pub df_dz: Vector,
@@ -96,8 +94,8 @@ pub struct ClassicalPlasticity {
 }
 
 impl ClassicalPlasticity {
-    pub fn new(param: &ParamSolid, two_dim: bool, plane_stress: bool) -> Result<Self, StrError> {
-        if plane_stress {
+    pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
+        if config.plane_stress {
             return Err("the classical plasticity models here do not work in plane-stress");
         }
         let (young, poisson, model) = match param.stress_strain {
@@ -114,7 +112,7 @@ impl ClassicalPlasticity {
 
             // von Mises plasticity model
             ParamStressStrain::VonMises { young, poisson, z0, hh } => {
-                (young, poisson, Box::new(VonMises::new(young, poisson, two_dim, z0, hh)))
+                (young, poisson, Box::new(VonMises::new(config, young, poisson, z0, hh)))
             }
         };
         let (continuum, ode_method) = match param.stress_update {
@@ -125,35 +123,28 @@ impl ClassicalPlasticity {
             Some(p) => (p.beta, p.isotropic),
             None => (0.0, false),
         };
-        let mandel = if two_dim {
-            Mandel::Symmetric2D
-        } else {
-            Mandel::Symmetric
-        };
         let nz = model.n_internal_values();
         Ok(ClassicalPlasticity {
             model,
             continuum,
             ode_method,
-            mandel,
-            two_dim,
-            df_dsigma: Tensor2::new(mandel),
-            dg_dsigma: Tensor2::new(mandel),
+            df_dsigma: Tensor2::new(config.mandel),
+            dg_dsigma: Tensor2::new(config.mandel),
             df_dz: Vector::new(nz),
             hh: Vector::new(nz),
-            aux: Tensor2::new(mandel),
-            cce: Tensor4::new(mandel),
-            dde: Tensor4::new(mandel),
+            aux: Tensor2::new(config.mandel),
+            cce: Tensor4::new(config.mandel),
+            dde: Tensor4::new(config.mandel),
             args: NonlinElastArgs {
                 beta,
                 isotropic,
                 young0: young,
                 poisson,
-                ela: LinElasticity::new(young, poisson, two_dim, false),
-                sigma: Tensor2::new(mandel),
-                aux: Tensor2::new(mandel),
-                deps: Tensor2::new(mandel),
-                epsilon0: Tensor2::new(mandel),
+                ela: LinElasticity::new(young, poisson, config.two_dim, false),
+                sigma: Tensor2::new(config.mandel),
+                aux: Tensor2::new(config.mandel),
+                deps: Tensor2::new(config.mandel),
+                epsilon0: Tensor2::new(config.mandel),
                 stresses: Vec::new(),
                 strains: Vec::new(),
             },
@@ -346,31 +337,28 @@ impl StressStrainTrait for ClassicalPlasticity {
                 vec_copy(dsigma_dt_vec, args.aux.vector()).unwrap();
                 Ok(())
             },
-            no_jacobian,
-            HasJacobian::No,
-            None,
-            None,
         );
-
-        // dense output
-        let mut out = Output::new();
-        out.set_dense_callback(true, 0.05, |_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
-            t2_add(&mut args.aux, 1.0, &args.epsilon0, t, &args.deps); // aux := ε₀ + t Δε
-            args.sigma.set_mandel_vector(1.0, sigma_vec);
-            args.stresses.push(args.sigma.clone());
-            args.strains.push(args.aux.clone());
-            Ok(false)
-        });
 
         // solver
         let params = Params::new(self.ode_method);
         let mut solver = OdeSolver::new(params, &system)?;
 
+        // dense output
+        solver
+            .enable_output()
+            .set_dense_callback(true, 0.05, |_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
+                t2_add(&mut args.aux, 1.0, &args.epsilon0, t, &args.deps); // aux := ε₀ + t Δε
+                args.sigma.set_mandel_vector(1.0, sigma_vec);
+                args.stresses.push(args.sigma.clone());
+                args.strains.push(args.aux.clone());
+                Ok(false)
+            });
+
         // initial values
         let mut sigma_vec = Vector::from(state.sigma.vector());
 
         // solve from t = 0 to t = 1
-        solver.solve(&mut sigma_vec, 0.0, 1.0, None, Some(&mut out), &mut self.args)?;
+        solver.solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.args)?;
         println!("{}", solver.stats());
 
         // set state
@@ -385,7 +373,7 @@ impl StressStrainTrait for ClassicalPlasticity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base::SampleParams;
+    use crate::base::{new_empty_config_3d, SampleParams};
     use crate::material::{StressStrainPath, StressStrainPlot};
     use plotpy::{Canvas, Curve, Legend, RayEndpoint};
     use russell_lab::math::SQRT_2_BY_3;
@@ -394,12 +382,12 @@ mod tests {
 
     #[test]
     fn update_stress_works() {
+        let config = new_empty_config_3d();
+
         const YOUNG: f64 = 1500.0;
         const POISSON: f64 = 0.25;
         const Z0: f64 = 9.0;
         const H: f64 = 600.0;
-        let two_dim = false;
-        let plane_stress = false;
         let continuum = true;
 
         let param_a = ParamSolid {
@@ -424,8 +412,8 @@ mod tests {
         let mut param_b = param_a.clone();
         param_b.nonlin_elast = None;
 
-        let mut model_a = ClassicalPlasticity::new(&param_a, two_dim, plane_stress).unwrap();
-        let mut model_b = ClassicalPlasticity::new(&param_b, two_dim, plane_stress).unwrap();
+        let mut model_a = ClassicalPlasticity::new(&config, &param_a).unwrap();
+        let mut model_b = ClassicalPlasticity::new(&config, &param_b).unwrap();
 
         let lode = 0.0;
         let sigma_m_0 = 0.0;
@@ -435,7 +423,7 @@ mod tests {
         let dsigma_m = 10.0;
         let dsigma_d = 10.0;
         let path_a =
-            StressStrainPath::new_linear_oct(YOUNG, POISSON, two_dim, 1, 0.0, 0.0, dsigma_m, dsigma_d, lode).unwrap();
+            StressStrainPath::new_linear_oct(&config, YOUNG, POISSON, 1, 0.0, 0.0, dsigma_m, dsigma_d, lode).unwrap();
 
         let (stresses_a, strains_a, _) = path_a.follow_strain(&mut model_a);
         let (stresses_b, strains_b, _) = path_a.follow_strain(&mut model_b);

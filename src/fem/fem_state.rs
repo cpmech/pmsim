@@ -201,17 +201,13 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{Config, Element, SampleParams};
+    use crate::base::{new_empty_mesh_2d, Config, Element, SampleParams};
     use crate::fem::FemInput;
-    use gemlab::mesh::{Mesh, Samples};
+    use gemlab::mesh::Samples;
 
     #[test]
     fn new_handles_errors() {
-        let empty_mesh = Mesh {
-            ndim: 2,
-            points: Vec::new(),
-            cells: Vec::new(),
-        };
+        let empty_mesh = new_empty_mesh_2d();
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new(&empty_mesh);
