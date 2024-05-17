@@ -230,16 +230,16 @@ mod tests {
 
     const SAVE_FIGURE: bool = false;
 
-    fn check_1(young: f64, poisson: f64, hh: f64, stresses: &Vec<Tensor2>, strains: &Vec<Tensor2>) {
+    fn check_1(young: f64, poisson: f64, hh: f64, states: &Vec<StressStrainState>) {
         let kk = young / (3.0 * (1.0 - 2.0 * poisson));
         let gg = young / (2.0 * (1.0 + poisson));
         let mut correct_sigma_m = 0.0;
         let mut correct_sigma_d = 0.0;
-        for i in 1..stresses.len() {
-            let sigma_m = stresses[i].invariant_sigma_m();
-            let sigma_d = stresses[i].invariant_sigma_d();
-            let deps_v = strains[i].invariant_eps_v() - strains[i - 1].invariant_eps_v();
-            let deps_d = strains[i].invariant_eps_d() - strains[i - 1].invariant_eps_d();
+        for i in 1..states.len() {
+            let sigma_m = states[i].sigma.invariant_sigma_m();
+            let sigma_d = states[i].sigma.invariant_sigma_d();
+            let deps_v = states[i].eps().invariant_eps_v() - states[i - 1].eps().invariant_eps_v();
+            let deps_d = states[i].eps().invariant_eps_d() - states[i - 1].eps().invariant_eps_d();
             if i == 1 {
                 // elastic update
                 correct_sigma_m += kk * deps_v;
@@ -276,48 +276,49 @@ mod tests {
             &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
         )
         .unwrap();
-        let (stresses_a, strains_a, state_a) = path_a.follow_strain(&mut model);
-        check_1(young, poisson, hh, &stresses_a, &strains_a);
+        let states_a = path_a.follow_strain(&mut model);
+        check_1(young, poisson, hh, &states_a);
 
         // first update exactly to the yield surface, then load more (lode = 0.0)
         let path_b = StressStrainPath::new_linear_oct(
             &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 0.0,
         )
         .unwrap();
-        let (stresses_b, strains_b, state_b) = path_b.follow_strain(&mut model);
-        check_1(young, poisson, hh, &stresses_b, &strains_b);
+        let states_b = path_b.follow_strain(&mut model);
+        check_1(young, poisson, hh, &states_b);
 
         // first update exactly to the yield surface, then load more (lode = -1.0)
         let path_c = StressStrainPath::new_linear_oct(
             &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, -1.0,
         )
         .unwrap();
-        let (stresses_c, strains_c, state_c) = path_c.follow_strain(&mut model);
-        check_1(young, poisson, hh, &stresses_c, &strains_c);
+        let states_c = path_c.follow_strain(&mut model);
+        check_1(young, poisson, hh, &states_c);
 
         // update with a larger increment, over the yield surface
         let mut path_d = StressStrainPath::new(&config, young, poisson).unwrap();
         let deps_v = 2.0 * dsigma_m / kk;
         let deps_d = 2.0 * dsigma_d / (3.0 * gg);
-        path_d.push_strain_oct(0.0, 0.0, 0.75, true).unwrap();
-        path_d.push_strain_oct(deps_v, deps_d, 0.75, true).unwrap();
-        let (stresses_d, strains_d, state_d) = path_d.follow_strain(&mut model);
+        let strain_driven = true;
+        path_d.push_strain_oct(0.0, 0.0, 0.75, strain_driven);
+        path_d.push_strain_oct(deps_v, deps_d, 0.75, strain_driven);
+        let states_d = path_d.follow_strain(&mut model);
 
-        let z_final = state_a.internal_values[0];
-        approx_eq(state_b.internal_values[0], z_final, 1e-14);
-        approx_eq(state_c.internal_values[0], z_final, 1e-14);
-        approx_eq(state_d.internal_values[0], z_final, 1e-14);
+        let z_final = states_a.last().unwrap().internal_values[0];
+        approx_eq(states_b.last().unwrap().internal_values[0], z_final, 1e-14);
+        approx_eq(states_c.last().unwrap().internal_values[0], z_final, 1e-14);
+        approx_eq(states_d.last().unwrap().internal_values[0], z_final, 1e-14);
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(&stresses_a, &strains_a, |curve, row, col| {
+            ssp.draw_3x2_mosaic_struct(&states_a, |curve, row, col| {
                 if row == 0 && col == 1 {
                     curve.set_marker_style(".").set_label("$\\ell=1$");
                 } else {
                     curve.set_marker_style(".").set_label("$\\ell=1$").set_marker_size(7.0);
                 }
             });
-            ssp.draw_3x2_mosaic_struct(&stresses_b, &strains_b, |curve, row, col| {
+            ssp.draw_3x2_mosaic_struct(&states_b, |curve, row, col| {
                 if row == 0 && col == 1 {
                     curve.set_marker_style("x").set_label("$\\ell=0$");
                 } else {
@@ -328,7 +329,7 @@ mod tests {
                         .set_line_style("None");
                 }
             });
-            ssp.draw_3x2_mosaic_struct(&stresses_c, &strains_c, |curve, row, col| {
+            ssp.draw_3x2_mosaic_struct(&states_c, |curve, row, col| {
                 if row == 0 && col == 1 {
                     curve.set_marker_style("+").set_label("$\\ell=-1$");
                 } else {
@@ -339,7 +340,7 @@ mod tests {
                         .set_line_style("None");
                 }
             });
-            ssp.draw_3x2_mosaic_struct(&stresses_d, &strains_d, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&states_d, |curve, _, _| {
                 curve.set_label("$\\ell=0.75$").set_line_style("--");
             });
             let mut legend = Legend::new();
@@ -394,28 +395,33 @@ mod tests {
         // path reaching (within tol) the yield surface, then hardening
         let mut path = StressStrainPath::new(&config, young, poisson).unwrap();
         let zero = Tensor2::new(config.mandel);
-        path.push_stress(zero, true).unwrap();
+        let strain_driven = true;
+        path.push_stress(&zero, strain_driven);
         let mut eps_1 = Tensor2::new(config.mandel);
         eps_1.vector_mut()[0] = 0.9999 * eps_x;
         eps_1.vector_mut()[1] = 0.9999 * eps_y;
-        path.push_strain(eps_1, true).unwrap();
+        path.push_strain(&eps_1, strain_driven);
         let mut eps_2 = Tensor2::new(config.mandel);
         eps_2.vector_mut()[0] = 2.0 * eps_x;
         eps_2.vector_mut()[1] = 2.0 * eps_y;
-        path.push_strain(eps_2, true).unwrap();
+        path.push_strain(&eps_2, strain_driven);
 
         // initial state
         let n_internal_values = model.n_internal_values();
-        let mut state = StressStrainState::new(config.mandel, n_internal_values);
-        state.sigma.set_tensor(1.0, &path.stresses[0]);
+        let with_strain = true;
+        let mut state = StressStrainState::new(config.mandel, n_internal_values, with_strain);
+        state.sigma.set_tensor(1.0, &path.states[0].sigma);
         model.initialize_internal_values(&mut state).unwrap();
-        let mut stresses = vec![state.sigma.clone()];
+
+        // states array
+        let mut states = vec![state.clone()];
 
         // first update
-        let deps = &path.deltas_strain[0];
+        let deps = &path.deltas_epsilon[0];
+        state.update_strain(1.0, deps);
         model.update_stress(&mut state, deps).unwrap();
         model.stiffness(&mut dd, &state).unwrap();
-        stresses.push(state.sigma.clone());
+        states.push(state.clone());
         let dd_spo = &[
             [1.800000000000000E+03, 6.000000000000000E+02, 0.000000000000000E+00],
             [6.000000000000000E+02, 1.800000000000000E+03, 0.000000000000000E+00],
@@ -431,10 +437,11 @@ mod tests {
         assert_eq!(state.algo_lambda, 0.0);
 
         // second update
-        let deps = &path.deltas_strain[1];
+        let deps = &path.deltas_epsilon[1];
+        state.update_strain(1.0, deps);
         model.update_stress(&mut state, deps).unwrap();
         model.stiffness(&mut dd, &state).unwrap();
-        stresses.push(state.sigma.clone());
+        states.push(state.clone());
         let dd_spo = &[
             [1.389940828402367E+03, 9.248520710059172E+02, -2.081794007857600E-15],
             [9.248520710059172E+02, 1.262130177514793E+03, 2.914511611000640E-15],
@@ -450,10 +457,10 @@ mod tests {
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(&path.stresses, &path.strains, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&path.states, |curve, _, _| {
                 curve.set_marker_style(".");
             });
-            ssp.draw_3x2_mosaic_struct(&stresses, &path.strains, |curve, row, col| {
+            ssp.draw_3x2_mosaic_struct(&states, |curve, row, col| {
                 curve.set_marker_style("+");
                 if row == 0 && col == 1 {
                     curve.set_line_color("red");

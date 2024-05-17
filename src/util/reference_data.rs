@@ -16,10 +16,33 @@ pub struct ReferenceIterationInfo {
 /// Holds reference results for comparisons and tests
 #[derive(Serialize, Deserialize)]
 pub struct ReferenceData {
+    /// Holds the load factor
     pub load_factor: f64,
+
+    /// Holds the information about iterations
     pub iterations: Vec<ReferenceIterationInfo>,
-    pub displacement: Vec<Vec<f64>>,  // [npoint][ndim]
-    pub stresses: Vec<Vec<Vec<f64>>>, // [nele][n_integ_point][n_components]
+
+    /// Holds the displacements
+    ///
+    /// Size: `[npoint][ndim]`
+    pub displacement: Vec<Vec<f64>>,
+
+    /// Holds the stresses (standard components)
+    /// Size: `[nele][n_integ_point][n_components]`
+    pub stresses: Vec<Vec<Vec<f64>>>,
+
+    /// Holds the total strains (standard components)
+    ///
+    /// Size: `[nele][n_integ_point][n_components]`
+    pub strains: Vec<Vec<Vec<f64>>>,
+
+    /// Holds the elastic strains (standard components)
+    ///
+    /// Size: `[nele][n_integ_point][n_components]`
+    pub elastic_strains: Vec<Vec<Vec<f64>>>,
+
+    /// Holds (plastic_loading, apex_return, acc_plastic_strain)
+    pub plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][n_integ_point][3]
 }
 
 /// Holds reference results for comparisons and tests
@@ -62,6 +85,24 @@ impl ReferenceDataSet {
         serde_json::to_writer_pretty(&mut file, &self).map_err(|_| "cannot write file")?;
         Ok(())
     }
+
+    /// Returns the number of mesh points (nodes)
+    pub fn n_point(&self) -> usize {
+        if self.all.len() > 0 {
+            self.all[0].displacement.len()
+        } else {
+            0
+        }
+    }
+
+    /// Returns the number of elements
+    pub fn n_element(&self) -> usize {
+        if self.all.len() > 0 {
+            self.all[0].stresses.len()
+        } else {
+            0
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -75,5 +116,7 @@ mod tests {
         let filename = "data/results/spo_von_mises_single_element_2d.json";
         let reference = ReferenceDataSet::read_json(filename).unwrap();
         assert!(reference.all.len() > 0);
+        assert_eq!(reference.n_point(), 4);
+        assert_eq!(reference.n_element(), 1);
     }
 }

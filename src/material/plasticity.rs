@@ -71,12 +71,10 @@ pub struct NonlinElastArgs {
     young0: f64,
     poisson: f64,
     ela: LinElasticity,
-    sigma: Tensor2,
     aux: Tensor2,
-    deps: Tensor2,
     epsilon0: Tensor2,
-    pub stresses: Vec<Tensor2>,
-    pub strains: Vec<Tensor2>,
+    state: StressStrainState,
+    pub states: Vec<StressStrainState>,
 }
 
 pub struct ClassicalPlasticity {
@@ -124,6 +122,7 @@ impl ClassicalPlasticity {
             None => (0.0, false),
         };
         let nz = model.n_internal_values();
+        let with_strain = true;
         Ok(ClassicalPlasticity {
             model,
             continuum,
@@ -141,12 +140,10 @@ impl ClassicalPlasticity {
                 young0: young,
                 poisson,
                 ela: LinElasticity::new(young, poisson, config.two_dim, false),
-                sigma: Tensor2::new(config.mandel),
                 aux: Tensor2::new(config.mandel),
-                deps: Tensor2::new(config.mandel),
                 epsilon0: Tensor2::new(config.mandel),
-                stresses: Vec::new(),
-                strains: Vec::new(),
+                state: StressStrainState::new(config.mandel, nz, with_strain),
+                states: Vec::new(),
             },
         })
     }
@@ -282,11 +279,11 @@ impl ClassicalPlasticity {
 
 impl NonlinElastArgs {
     pub fn calc_young(&mut self, sigma_vec: &Vector) -> f64 {
-        vec_copy(self.sigma.vector_mut(), sigma_vec);
+        vec_copy(self.state.sigma.vector_mut(), sigma_vec);
         let sig = if self.isotropic {
-            self.sigma.invariant_sigma_m()
+            self.state.sigma.invariant_sigma_m()
         } else {
-            self.sigma.invariant_sigma_d()
+            self.state.sigma.invariant_sigma_d()
         };
         let ex = f64::exp(self.beta * sig);
         4.0 * self.young0 * ex / f64::powi(ex + 1.0, 2)
@@ -324,8 +321,8 @@ impl StressStrainTrait for ClassicalPlasticity {
             return self.model.update_stress(state, deps);
         }
 
-        // set arguments
-        self.args.deps.set_tensor(1.0, deps);
+        // freeze internal values
+        vec_copy(&mut self.args.state.internal_values, &state.internal_values).unwrap();
 
         // elastic update; solving dσ/dt = Dₑ : Δε
         let system = System::new(
@@ -333,7 +330,7 @@ impl StressStrainTrait for ClassicalPlasticity {
             |dsigma_dt_vec, _, sigma_vec, args: &mut NonlinElastArgs| {
                 let young = args.calc_young(sigma_vec);
                 args.ela.set_young_poisson(young, args.poisson);
-                t4_ddot_t2(&mut args.aux, 1.0, args.ela.get_modulus(), &args.deps); // aux := Dₑ : Δε
+                t4_ddot_t2(&mut args.aux, 1.0, args.ela.get_modulus(), deps); // aux := Dₑ : Δε
                 vec_copy(dsigma_dt_vec, args.aux.vector()).unwrap();
                 Ok(())
             },
@@ -347,10 +344,14 @@ impl StressStrainTrait for ClassicalPlasticity {
         solver
             .enable_output()
             .set_dense_callback(true, 0.05, |_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
-                t2_add(&mut args.aux, 1.0, &args.epsilon0, t, &args.deps); // aux := ε₀ + t Δε
-                args.sigma.set_mandel_vector(1.0, sigma_vec);
-                args.stresses.push(args.sigma.clone());
-                args.strains.push(args.aux.clone());
+                t2_add(&mut args.state.eps_mut(), 1.0, &args.epsilon0, t, deps); // ε := ε₀ + t Δε
+                args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
+                args.states.push(args.state.clone());
+                let yf = self.model.yield_function(&args.state)?;
+                println!("yf = {}", yf);
+                if yf >= 0.0 {
+                    return Ok(true); // stop
+                }
                 Ok(false)
             });
 
@@ -425,22 +426,21 @@ mod tests {
         let path_a =
             StressStrainPath::new_linear_oct(&config, YOUNG, POISSON, 1, 0.0, 0.0, dsigma_m, dsigma_d, lode).unwrap();
 
-        let (stresses_a, strains_a, _) = path_a.follow_strain(&mut model_a);
-        let (stresses_b, strains_b, _) = path_a.follow_strain(&mut model_b);
+        let states_a = path_a.follow_strain(&mut model_a);
+        let states_b = path_a.follow_strain(&mut model_b);
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(&stresses_a, &strains_a, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&states_a, |curve, _, _| {
                 curve.set_marker_style("o").set_line_style("None");
             });
-            ssp.draw_3x2_mosaic_struct(&stresses_b, &strains_b, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&states_b, |curve, _, _| {
                 curve.set_marker_style("o").set_line_style("None");
             });
-            ssp.draw_3x2_mosaic_struct(&stresses_b, &strains_b, |_, _, _| {});
-            ssp.draw_3x2_mosaic_struct(&model_a.args.stresses, &model_a.args.strains, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&model_a.args.states, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
-            ssp.draw_3x2_mosaic_struct(&model_b.args.stresses, &model_b.args.strains, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&model_b.args.states, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
             // ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1.svg", |_, _, _, _| {});

@@ -1,7 +1,8 @@
+use super::StressStrainState;
 use crate::StrError;
 use plotpy::{Canvas, Curve, Plot, Text};
 use russell_lab::math::PI;
-use russell_tensor::{Spectral2, Tensor2};
+use russell_tensor::Spectral2;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 
@@ -27,29 +28,29 @@ pub enum Axis {
 
 impl Axis {
     /// Calculate the invariants and labels
-    fn calc(&self, stresses: &Vec<Tensor2>, strains: &Vec<Tensor2>) -> Vec<f64> {
+    fn calc(&self, states: &Vec<StressStrainState>) -> Vec<f64> {
         match self {
             Self::EpsV(percent, negative) => {
                 let n = if *negative { -1.0 } else { 1.0 };
                 let p = if *percent { 100.0 * n } else { 1.0 * n };
-                strains.iter().map(|e| p * e.invariant_eps_v()).collect()
+                states.iter().map(|s| p * s.eps().invariant_eps_v()).collect()
             }
             Self::EpsD(percent) => {
                 let p = if *percent { 100.0 } else { 1.0 };
-                strains.iter().map(|e| p * e.invariant_eps_d()).collect()
+                states.iter().map(|s| p * s.eps().invariant_eps_d()).collect()
             }
             Self::SigM(negative) => {
                 let n = if *negative { -1.0 } else { 1.0 };
-                stresses.iter().map(|s| n * s.invariant_sigma_m()).collect()
+                states.iter().map(|s| n * s.sigma.invariant_sigma_m()).collect()
             }
             Self::SigD(normalized) => {
                 if *normalized {
-                    stresses
+                    states
                         .iter()
-                        .map(|s| s.invariant_sigma_d() / f64::abs(s.invariant_sigma_m()))
+                        .map(|s| s.sigma.invariant_sigma_d() / f64::abs(s.sigma.invariant_sigma_m()))
                         .collect()
                 } else {
-                    stresses.iter().map(|s| s.invariant_sigma_d()).collect()
+                    states.iter().map(|s| s.sigma.invariant_sigma_d()).collect()
                 }
             }
         }
@@ -111,25 +112,19 @@ impl StressStrainPlot {
     ///
     /// * `x_axis` -- the key of the x-axis already drawn with `draw`
     /// * `y_axis` -- the key of the y-axis already drawn with `draw`
-    /// * `stresses` -- the stress points
-    /// * `strains` -- the strain points
+    /// * `states` -- the stress and strain points
     /// * `config` -- a function `|curve| {}` to configure the curve
-    pub fn draw<F>(
-        &mut self,
-        x_axis: Axis,
-        y_axis: Axis,
-        stresses: &Vec<Tensor2>,
-        strains: &Vec<Tensor2>,
-        mut config: F,
-    ) -> Result<(), StrError>
+    ///
+    /// # Panics
+    ///
+    /// A panic may occur if strains are not available in `states` and
+    /// the requested graph require strains.
+    pub fn draw<F>(&mut self, x_axis: Axis, y_axis: Axis, states: &Vec<StressStrainState>, mut config: F)
     where
         F: FnMut(&mut Curve),
     {
-        if stresses.len() != strains.len() {
-            return Err("arrays of stresses and strains must have the same length");
-        }
-        let x = x_axis.calc(stresses, strains);
-        let y = y_axis.calc(stresses, strains);
+        let x = x_axis.calc(states);
+        let y = y_axis.calc(states);
         let mut curve = Curve::new();
         config(&mut curve);
         curve.draw(&x, &y);
@@ -139,7 +134,6 @@ impl StressStrainPlot {
                 self.curves.insert((x_axis, y_axis), vec![curve]);
             }
         };
-        Ok(())
     }
 
     /// Saves the stress/strain curve
@@ -259,23 +253,23 @@ impl StressStrainPlot {
     ///
     /// # Input
     ///
-    /// * `stresses` -- the stress points
+    /// * `states` -- the states with the stress points
     /// * `extra` -- is a function `|curve| {}` to configure the curve
-    pub fn draw_oct_projection<F>(&mut self, stresses: &Vec<Tensor2>, mut extra: F) -> Result<(), StrError>
+    pub fn draw_oct_projection<F>(&mut self, states: &Vec<StressStrainState>, mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve),
     {
-        let n = stresses.len();
+        let n = states.len();
         if n < 1 {
             return Err("there are not enough stresses to plot");
         }
-        let two_dim = stresses[0].mandel().two_dim();
+        let two_dim = states[0].sigma.mandel().two_dim();
         let mut spectral = Spectral2::new(two_dim);
         let mut xx = vec![0.0; n];
         let mut yy = vec![0.0; n];
         let mut r = 0.0;
         for i in 0..n {
-            spectral.decompose(&stresses[i])?;
+            spectral.decompose(&states[i].sigma)?;
             let (y, _, x) = spectral.octahedral_basis();
             xx[i] = x;
             yy[i] = y;
@@ -368,10 +362,9 @@ impl StressStrainPlot {
     ///  
     /// # Input
     ///
-    /// * `stresses` -- the stress points
-    /// * `strains` -- the strain points
+    /// * `states` -- the stress and strain points
     /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_3x2_mosaic_struct<F>(&mut self, stresses: &Vec<Tensor2>, strains: &Vec<Tensor2>, mut extra: F)
+    pub fn draw_3x2_mosaic_struct<F>(&mut self, states: &Vec<StressStrainState>, mut extra: F)
     where
         F: FnMut(&mut Curve, usize, usize),
     {
@@ -390,11 +383,9 @@ impl StressStrainPlot {
         for row in 0..3 {
             for col in 0..2 {
                 match axes[row][col] {
-                    Some((x_axis, y_axis)) => self
-                        .draw(x_axis, y_axis, stresses, strains, |curve| extra(curve, row, col))
-                        .unwrap(),
+                    Some((x_axis, y_axis)) => self.draw(x_axis, y_axis, states, |curve| extra(curve, row, col)),
                     None => self
-                        .draw_oct_projection(stresses, |curve| extra(curve, row, col))
+                        .draw_oct_projection(states, |curve| extra(curve, row, col))
                         .unwrap(),
                 }
             }
@@ -488,6 +479,7 @@ impl StressStrainPlot {
                 index_max_radius = i;
             }
         }
+        max_radius = f64::max(1.0, max_radius);
         let d = &self.oct[index_max_radius];
         plot.add(&d.text);
         plot.add(&d.pos_axes);
@@ -513,9 +505,8 @@ mod tests {
     use super::{Axis, StressStrainPlot};
     use crate::base::{new_empty_config_2d, Config};
     use crate::material::StressStrainPath;
-    use plotpy::{Canvas, Legend, SlopeIcon, SuperTitleParams};
+    use plotpy::{Legend, SuperTitleParams};
     use russell_lab::{array_approx_eq, assert_alike};
-    use russell_tensor::{Tensor2, SQRT_2_BY_3};
     use std::collections::HashSet;
 
     const SAVE_FIGURE: bool = false;
@@ -530,11 +521,12 @@ mod tests {
         let mut path = StressStrainPath::new(&config, young, poisson).unwrap();
         let dsigma_m = 1.0;
         let dsigma_d = 9.0;
+        let strain_driven = true;
         for i in 0..3 {
             let m = i as f64;
             let sigma_m = m * dsigma_m;
             let sigma_d = m * dsigma_d;
-            path.push_stress_oct(sigma_m, sigma_d, lode, true).unwrap();
+            path.push_stress_oct(sigma_m, sigma_d, lode, strain_driven);
         }
         path
     }
@@ -557,47 +549,47 @@ mod tests {
         // println!("{}", path);
 
         let axis = Axis::EpsV(false, false);
-        let epsv = axis.calc(&path.stresses, &path.strains);
+        let epsv = axis.calc(&path.states);
         array_approx_eq(&epsv, &[0.0, 0.001, 0.002], 1e-15);
         assert_eq!(axis.label(), "$\\varepsilon_v$");
 
         let axis = Axis::EpsV(true, false);
-        let epsv = axis.calc(&path.stresses, &path.strains);
+        let epsv = axis.calc(&path.states);
         array_approx_eq(&epsv, &[0.0, 0.1, 0.2], 1e-15);
         assert_eq!(axis.label(), "$\\varepsilon_v\\;[\\%]$");
 
         let axis = Axis::EpsV(true, true);
-        let epsv = axis.calc(&path.stresses, &path.strains);
+        let epsv = axis.calc(&path.states);
         array_approx_eq(&epsv, &[0.0, -0.1, -0.2], 1e-15);
         assert_eq!(axis.label(), "$-\\varepsilon_v\\;[\\%]$");
 
         let axis = Axis::EpsD(false);
-        let epsd = axis.calc(&path.stresses, &path.strains);
+        let epsd = axis.calc(&path.states);
         array_approx_eq(&epsd, &[0.0, 0.005, 0.01], 1e-15);
         assert_eq!(axis.label(), "$\\varepsilon_d$");
 
         let axis = Axis::EpsD(true);
-        let epsd = axis.calc(&path.stresses, &path.strains);
+        let epsd = axis.calc(&path.states);
         array_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
         assert_eq!(axis.label(), "$\\varepsilon_d\\;[\\%]$");
 
         let axis = Axis::SigM(false);
-        let sigm = axis.calc(&path.stresses, &path.strains);
+        let sigm = axis.calc(&path.states);
         array_approx_eq(&sigm, &[0.0, 1.0, 2.0], 1e-14);
         assert_eq!(axis.label(), "$\\sigma_m$");
 
         let axis = Axis::SigM(true);
-        let sigm = axis.calc(&path.stresses, &path.strains);
+        let sigm = axis.calc(&path.states);
         array_approx_eq(&sigm, &[0.0, -1.0, -2.0], 1e-14);
         assert_eq!(axis.label(), "$-\\sigma_m$");
 
         let axis = Axis::SigD(false);
-        let sigd = axis.calc(&path.stresses, &path.strains);
+        let sigd = axis.calc(&path.states);
         array_approx_eq(&sigd, &[0.0, 9.0, 18.0], 1e-14);
         assert_eq!(axis.label(), "$\\sigma_d$");
 
         let axis = Axis::SigD(true);
-        let sigd = axis.calc(&path.stresses, &path.strains);
+        let sigd = axis.calc(&path.states);
         assert_alike(sigd[0], f64::NAN); // <<<<<<<<< note NAN
         array_approx_eq(&sigd[1..], &[9.0, 9.0], 1e-14); // <<<<<<<<< note without NAN
         assert_eq!(axis.label(), "$\\sigma_d\\,/\\,|\\sigma_m|$");
@@ -605,14 +597,7 @@ mod tests {
 
     #[test]
     pub fn draw_and_save_capture_errors() {
-        let stresses = vec![Tensor2::new_sym(true)];
-        let strains = vec![Tensor2::new_sym(true), Tensor2::new_sym(true)];
-        let mut plot = StressStrainPlot::new();
-        assert_eq!(
-            plot.draw(Axis::EpsD(false), Axis::SigD(false), &stresses, &strains, |_| {})
-                .err(),
-            Some("arrays of stresses and strains must have the same length")
-        );
+        let plot = StressStrainPlot::new();
         assert_eq!(
             plot.save(
                 Axis::EpsD(false),
@@ -632,30 +617,28 @@ mod tests {
         let mut plot = StressStrainPlot::new();
         let x = Axis::EpsV(false, false);
         let y = Axis::SigM(false);
-        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+        plot.draw(x, y, &path.states, |curve| {
             curve.set_line_color("#1a9128").set_marker_style("^");
-        })
-        .unwrap();
+        });
         if SAVE_FIGURE {
-            plot.save(x, y, "/tmp/pmsim/test_epsv_sigm_1.svg", |plot, before| {
+            plot.save(x, y, "/tmp/pmsim/test_epsv_sigm_1.svg", |_plot, before| {
                 if !before {
-                    let mut icon = SlopeIcon::new();
-                    let j = path.sigma_m.len() - 1;
-                    let slope = (path.sigma_m[j] - path.sigma_m[0]) / (path.eps_v[j] - path.eps_v[0]);
-                    let x_mid = (path.eps_v[0] + path.eps_v[j]) / 2.0;
-                    let y_mid = (path.sigma_m[0] + path.sigma_m[j]) / 2.0;
-                    icon.draw(slope, x_mid, y_mid);
-                    plot.add(&icon);
+                    // let mut icon = SlopeIcon::new();
+                    // let j = path.sigma_m.len() - 1;
+                    // let slope = (path.sigma_m[j] - path.sigma_m[0]) / (path.eps_v[j] - path.eps_v[0]);
+                    // let x_mid = (path.eps_v[0] + path.eps_v[j]) / 2.0;
+                    // let y_mid = (path.sigma_m[0] + path.sigma_m[j]) / 2.0;
+                    // icon.draw(slope, x_mid, y_mid);
+                    // plot.add(&icon);
                 }
             })
             .unwrap();
         }
         let x = Axis::EpsV(true, true);
         let y = Axis::SigM(true);
-        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+        plot.draw(x, y, &path.states, |curve| {
             curve.set_line_color("#1a9128").set_marker_style("d");
-        })
-        .unwrap();
+        });
         if SAVE_FIGURE {
             plot.save(x, y, "/tmp/pmsim/test_epsv_sigm_2.svg", |_, _| {}).unwrap();
         }
@@ -668,23 +651,11 @@ mod tests {
         let mut plot = StressStrainPlot::new();
         let x = Axis::EpsV(false, false);
         let y = Axis::SigD(false);
-        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+        plot.draw(x, y, &path.states, |curve| {
             curve.set_line_color("blue").set_marker_style("o").set_marker_void(true);
-        })
-        .unwrap();
+        });
         if SAVE_FIGURE {
-            plot.save(x, y, "/tmp/pmsim/test_epsv_sigd_1.svg", |plot, before| {
-                if !before {
-                    let mut icon = SlopeIcon::new();
-                    let j = path.sigma_d.len() - 1;
-                    let slope = (path.sigma_d[j] - path.sigma_d[0]) / (path.eps_v[j] - path.eps_v[0]);
-                    let x_mid = (path.eps_v[0] + path.eps_v[j]) / 2.0;
-                    let y_mid = (path.sigma_d[0] + path.sigma_d[j]) / 2.0;
-                    icon.draw(slope, x_mid, y_mid);
-                    plot.add(&icon);
-                }
-            })
-            .unwrap();
+            plot.save(x, y, "/tmp/pmsim/test_epsv_sigd_1.svg", |_, _| {}).unwrap();
         }
     }
 
@@ -695,23 +666,11 @@ mod tests {
         let mut plot = StressStrainPlot::new();
         let x = Axis::EpsD(false);
         let y = Axis::SigM(false);
-        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+        plot.draw(x, y, &path.states, |curve| {
             curve.set_line_color("#911a52").set_marker_style("s");
-        })
-        .unwrap();
+        });
         if SAVE_FIGURE {
-            plot.save(x, y, "/tmp/pmsim/test_epsd_sigm_1.svg", |plot, before| {
-                if !before {
-                    let mut icon = SlopeIcon::new();
-                    let j = path.sigma_m.len() - 1;
-                    let slope = (path.sigma_m[j] - path.sigma_m[0]) / (path.eps_d[j] - path.eps_d[0]);
-                    let x_mid = (path.eps_d[0] + path.eps_d[j]) / 2.0;
-                    let y_mid = (path.sigma_m[0] + path.sigma_m[j]) / 2.0;
-                    icon.draw(slope, x_mid, y_mid);
-                    plot.add(&icon);
-                }
-            })
-            .unwrap();
+            plot.save(x, y, "/tmp/pmsim/test_epsd_sigm_1.svg", |_, _| {}).unwrap();
         }
     }
 
@@ -722,39 +681,25 @@ mod tests {
         let mut plot = StressStrainPlot::new();
         let x = Axis::EpsD(false);
         let y = Axis::SigD(false);
-        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+        plot.draw(x, y, &path.states, |curve| {
             curve.set_line_color("magenta").set_marker_style("o");
-        })
-        .unwrap();
+        });
         if SAVE_FIGURE {
-            plot.save(x, y, "/tmp/pmsim/test_epsd_sigd_1.svg", |plot, before| {
-                if !before {
-                    let mut icon = SlopeIcon::new();
-                    let j = path.sigma_d.len() - 1;
-                    let slope = (path.sigma_d[j] - path.sigma_d[0]) / (path.eps_d[j] - path.eps_d[0]);
-                    let x_mid = (path.eps_d[0] + path.eps_d[j]) / 2.0;
-                    let y_mid = (path.sigma_d[0] + path.sigma_d[j]) / 2.0;
-                    icon.draw(slope, x_mid, y_mid);
-                    plot.add(&icon);
-                }
-            })
-            .unwrap();
+            plot.save(x, y, "/tmp/pmsim/test_epsd_sigd_1.svg", |_, _| {}).unwrap();
         }
         let x = Axis::EpsD(true);
         let y = Axis::SigD(false);
-        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+        plot.draw(x, y, &path.states, |curve| {
             curve.set_line_color("magenta").set_marker_style(".");
-        })
-        .unwrap();
+        });
         if SAVE_FIGURE {
             plot.save(x, y, "/tmp/pmsim/test_epsd_sigd_2.svg", |_, _| {}).unwrap();
         }
         let x = Axis::EpsD(true);
         let y = Axis::SigD(true);
-        plot.draw(x, y, &path.stresses, &path.strains, |curve| {
+        plot.draw(x, y, &path.states, |curve| {
             curve.set_line_color("magenta").set_marker_style("+");
-        })
-        .unwrap();
+        });
         if SAVE_FIGURE {
             plot.save(x, y, "/tmp/pmsim/test_epsd_sigd_3.svg", |_, _| {}).unwrap();
         }
@@ -779,14 +724,12 @@ mod tests {
             let mut plot = StressStrainPlot::new();
             for row in &axes {
                 for (x_axis, y_axis) in row {
-                    plot.draw(*x_axis, *y_axis, &path_a.stresses, &path_a.strains, |curve| {
+                    plot.draw(*x_axis, *y_axis, &path_a.states, |curve| {
                         curve.set_label("stiff");
-                    })
-                    .unwrap();
-                    plot.draw(*x_axis, *y_axis, &path_b.stresses, &path_b.strains, |curve| {
+                    });
+                    plot.draw(*x_axis, *y_axis, &path_b.states, |curve| {
                         curve.set_marker_style("o").set_label("soft");
-                    })
-                    .unwrap();
+                    });
                 }
             }
             plot.save_grid(
@@ -826,10 +769,10 @@ mod tests {
         let path_a = generate_path(&config, 1000.0, 600.0, 1.0);
         let path_b = generate_path(&config, 500.0, 200.0, 0.0);
         let mut ssp = StressStrainPlot::new();
-        ssp.draw_3x2_mosaic_struct(&path_a.stresses, &path_a.strains, |curve, _, _| {
+        ssp.draw_3x2_mosaic_struct(&path_a.states, |curve, _, _| {
             curve.set_label("stiff");
         });
-        ssp.draw_3x2_mosaic_struct(&path_b.stresses, &path_b.strains, |curve, _, _| {
+        ssp.draw_3x2_mosaic_struct(&path_b.states, |curve, _, _| {
             curve.set_marker_style("o").set_label("soft");
         });
         if SAVE_FIGURE {
@@ -851,29 +794,15 @@ mod tests {
         let path_a = generate_path(&config, 1000.0, 600.0, 1.0);
         let path_b = generate_path(&config, 500.0, 200.0, 0.0);
         let mut ssp = StressStrainPlot::new();
-        ssp.draw_oct_projection(&path_a.stresses, |curve| {
+        let _ = ssp.draw_oct_projection(&path_a.states, |curve| {
             curve.set_marker_style("o").set_label("$\\ell=1$");
-        })
-        .unwrap();
-        ssp.draw_oct_projection(&path_b.stresses, |curve| {
+        });
+        let _ = ssp.draw_oct_projection(&path_b.states, |curve| {
             curve.set_marker_style("d").set_label("$\\ell=0$");
-        })
-        .unwrap();
+        });
         if SAVE_FIGURE {
             ssp.save_oct_projection("/tmp/pmsim/test_oct_projections_1.svg", |plot, before| {
-                if before {
-                    let mut max_sigma_d = 0.0;
-                    for sigma_d in &path_a.sigma_d {
-                        if *sigma_d > max_sigma_d {
-                            max_sigma_d = *sigma_d;
-                        }
-                    }
-                    let mut circle = Canvas::new();
-                    circle.set_edge_color("red").set_face_color("None");
-                    let radius = max_sigma_d * SQRT_2_BY_3;
-                    circle.draw_circle(0.0, 0.0, radius);
-                    plot.add(&circle);
-                } else {
+                if !before {
                     plot.legend();
                 }
             })
@@ -889,23 +818,9 @@ mod tests {
             let mut ssp = StressStrainPlot::new();
             let x_axis = Axis::SigM(false);
             let y_axis = Axis::SigD(false);
-            ssp.draw(x_axis, y_axis, &path.stresses, &path.strains, |_| {}).unwrap();
-            ssp.save(x_axis, y_axis, "/tmp/pmsim/test_stress_path_1.svg", |plot, before| {
-                if !before {
-                    let mut max_sigma_d = 0.0;
-                    for sigma_d in &path.sigma_d {
-                        if *sigma_d > max_sigma_d {
-                            max_sigma_d = *sigma_d;
-                        }
-                    }
-                    let mut horiz_line = Canvas::new();
-                    horiz_line.set_edge_color("red");
-                    horiz_line.draw_polyline(&[[0.0, max_sigma_d], [30.0, max_sigma_d]], false);
-                    plot.add(&horiz_line);
-                    plot.set_range(0.0, 30.0, 0.0, 30.0).set_equal_axes(true);
-                }
-            })
-            .unwrap();
+            ssp.draw(x_axis, y_axis, &path.states, |_| {});
+            ssp.save(x_axis, y_axis, "/tmp/pmsim/test_stress_path_1.svg", |_, _| {})
+                .unwrap();
         }
     }
 }
