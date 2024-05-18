@@ -157,11 +157,11 @@ pub fn check_displacements_and_stresses(
         // save the results at selected integration points
         for e in 0..ncell {
             let n_integ_point = compare.stresses[e].len();
-            let with_strain = true;
+            let with_optional = true;
             for ip in 0..n_integ_point {
                 if e == extract.0 && ip == extract.1 {
                     let state = fem_state.extract_stresses_and_strains(e, ip).unwrap();
-                    let mut state_ref = StressStrainState::new(mandel, 0, with_strain);
+                    let mut state_ref = StressStrainState::new(mandel, 0, with_optional);
                     for i in 0..ncp {
                         if i > 3 {
                             state_ref.sigma.vector_mut()[i] = compare.stresses[e][ip][i] * SQRT_2;

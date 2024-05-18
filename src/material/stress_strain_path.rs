@@ -174,8 +174,8 @@ impl StressStrainPath {
     /// A panic will occur if the Mandel representation is incompatible
     pub fn push_stress(&mut self, sigma: &Tensor2, strain_driven: bool) {
         assert_eq!(sigma.mandel(), self.mandel);
-        let with_strain = true;
-        let mut state = StressStrainState::new(self.mandel, 0, with_strain); // 0 => no internal variables
+        let with_optional = true;
+        let mut state = StressStrainState::new(self.mandel, 0, with_optional); // 0 => no internal variables
         state.sigma.set_tensor(1.0, &sigma);
         if self.states.len() > 0 {
             let sigma_prev = &self.states.last().unwrap().sigma;
@@ -203,8 +203,8 @@ impl StressStrainPath {
     /// A panic will occur if the Mandel representation is incompatible
     pub fn push_strain(&mut self, epsilon: &Tensor2, strain_driven: bool) {
         assert_eq!(epsilon.mandel(), self.mandel);
-        let with_strain = true;
-        let mut state = StressStrainState::new(self.mandel, 0, with_strain); // 0 => no internal variables
+        let with_optional = true;
+        let mut state = StressStrainState::new(self.mandel, 0, with_optional); // 0 => no internal variables
         state.eps_mut().set_tensor(1.0, &epsilon);
         if self.states.len() > 0 {
             let sigma_prev = &self.states.last().unwrap().sigma;
@@ -232,8 +232,8 @@ impl StressStrainPath {
 
         // initial model state
         let n_internal_values = model.n_internal_values();
-        let with_strain = true;
-        let mut state = StressStrainState::new(self.mandel, n_internal_values, with_strain);
+        let with_optional = true;
+        let mut state = StressStrainState::new(self.mandel, n_internal_values, with_optional);
         state.sigma.set_tensor(1.0, &self.states[0].sigma);
         model.initialize_internal_values(&mut state).unwrap();
 

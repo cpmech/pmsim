@@ -408,8 +408,8 @@ mod tests {
 
         // initial state
         let n_internal_values = model.n_internal_values();
-        let with_strain = true;
-        let mut state = StressStrainState::new(config.mandel, n_internal_values, with_strain);
+        let with_optional = true;
+        let mut state = StressStrainState::new(config.mandel, n_internal_values, with_optional);
         state.sigma.set_tensor(1.0, &path.states[0].sigma);
         model.initialize_internal_values(&mut state).unwrap();
 

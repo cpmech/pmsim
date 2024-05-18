@@ -122,7 +122,7 @@ impl ClassicalPlasticity {
             None => (0.0, false),
         };
         let nz = model.n_internal_values();
-        let with_strain = true;
+        let with_optional = true;
         Ok(ClassicalPlasticity {
             model,
             continuum,
@@ -142,7 +142,7 @@ impl ClassicalPlasticity {
                 ela: LinElasticity::new(young, poisson, config.two_dim, false),
                 aux: Tensor2::new(config.mandel),
                 epsilon0: Tensor2::new(config.mandel),
-                state: StressStrainState::new(config.mandel, nz, with_strain),
+                state: StressStrainState::new(config.mandel, nz, with_optional),
                 states: Vec::new(),
             },
         })
@@ -343,13 +343,13 @@ impl StressStrainTrait for ClassicalPlasticity {
         // dense output
         solver
             .enable_output()
-            .set_dense_callback(true, 0.05, |_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
+            .set_dense_callback(true, 0.04, |_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
                 t2_add(&mut args.state.eps_mut(), 1.0, &args.epsilon0, t, deps); // ε := ε₀ + t Δε
                 args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
                 args.states.push(args.state.clone());
-                let yf = self.model.yield_function(&args.state)?;
-                println!("yf = {}", yf);
-                if yf >= 0.0 {
+                let yf_value = self.model.yield_function(&args.state)?;
+                *args.state.yf_value_mut() = yf_value;
+                if yf_value >= 0.0 {
                     return Ok(true); // stop
                 }
                 Ok(false)

@@ -63,9 +63,9 @@ impl<'a> ElementSolid<'a> {
 
         // model and stresses
         let model = StressStrainModel::new(config, param)?;
-        let n_internal_values = model.actual.n_internal_values();
-        let with_strain = false;
-        let stresses = StressStrainStates::new(config.mandel, n_internal_values, with_strain, n_integ_point);
+        let n_int_values = model.actual.n_internal_values();
+        let with_optional = false;
+        let stresses = StressStrainStates::new(config.mandel, n_int_values, with_optional, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -277,11 +277,11 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         let n_integ_point = self.ips.len();
         if second_values.stresses_and_strains.is_none() {
             let n_internal_values = self.model.actual.n_internal_values();
-            let with_strain = self.config.out_strains;
+            let with_optional = self.config.out_strains;
             second_values.stresses_and_strains = Some(StressStrainStates::new(
                 self.config.mandel,
                 n_internal_values,
-                with_strain,
+                with_optional,
                 n_integ_point,
             ));
         }

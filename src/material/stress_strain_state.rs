@@ -24,15 +24,29 @@ pub struct StressStrainStates {
 
 impl StressStrainState {
     /// Allocates a new instance
-    pub fn new(mandel: Mandel, n_internal_values: usize, with_strain: bool) -> Self {
+    ///
+    /// # Input
+    ///
+    /// * `mandel` -- the Mandel representation type
+    /// * `n_internal_values` -- the number of internal values used by the model (or zero)
+    /// * `with_optional` -- with the optional data such as epsilon and yield function value
+    pub fn new(mandel: Mandel, n_internal_values: usize, with_optional: bool) -> Self {
         StressStrainState {
             loading: false,
             apex_return: false,
             algo_lambda: 0.0,
             internal_values: Vector::new(n_internal_values),
             sigma: Tensor2::new(mandel),
-            epsilon: if with_strain { Some(Tensor2::new(mandel)) } else { None },
-            yield_function_value: None,
+            epsilon: if with_optional {
+                Some(Tensor2::new(mandel))
+            } else {
+                None
+            },
+            yield_function_value: if with_optional {
+                Some(f64::NEG_INFINITY) // use -∞ to indicate not set yet
+            } else {
+                None
+            },
         }
     }
 
@@ -67,6 +81,24 @@ impl StressStrainState {
         self.epsilon.as_mut().unwrap()
     }
 
+    /// Returns an access to the yield function value or panics
+    ///
+    /// # Panics
+    ///
+    /// A panic will occur if yield_function_value is not available.
+    pub fn yf_value(&self) -> f64 {
+        self.yield_function_value.unwrap()
+    }
+
+    /// Returns a mutable access to the yield function value or panics
+    ///
+    /// # Panics
+    ///
+    /// A panic will occur if yield_function_value is not available.
+    pub fn yf_value_mut(&mut self) -> &mut f64 {
+        self.yield_function_value.as_mut().unwrap()
+    }
+
     /// Updates the strain tensor given Δε
     ///
     /// ```text
@@ -88,8 +120,8 @@ impl StressStrainState {
 
 impl StressStrainStates {
     /// Allocates a new instance
-    pub fn new(mandel: Mandel, n_internal_values: usize, with_strain: bool, n_integ_point: usize) -> Self {
-        let zero_state = StressStrainState::new(mandel, n_internal_values, with_strain);
+    pub fn new(mandel: Mandel, n_internal_values: usize, with_optional: bool, n_integ_point: usize) -> Self {
+        let zero_state = StressStrainState::new(mandel, n_internal_values, with_optional);
         let all = vec![zero_state; n_integ_point];
         let backup = all.clone();
         StressStrainStates { all, backup }
