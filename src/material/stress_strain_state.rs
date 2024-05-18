@@ -12,6 +12,7 @@ pub struct StressStrainState {
     pub internal_values: Vector,
     pub sigma: Tensor2,
     epsilon: Option<Tensor2>,
+    pseudo_time: Option<f64>,
     yield_function_value: Option<f64>,
 }
 
@@ -31,22 +32,24 @@ impl StressStrainState {
     /// * `n_internal_values` -- the number of internal values used by the model (or zero)
     /// * `with_optional` -- with the optional data such as epsilon and yield function value
     pub fn new(mandel: Mandel, n_internal_values: usize, with_optional: bool) -> Self {
+        let (epsilon, pseudo_time, yield_function_value) = if with_optional {
+            (
+                Some(Tensor2::new(mandel)),
+                Some(f64::NEG_INFINITY), // use -∞ to indicate not set yet
+                Some(f64::NEG_INFINITY), // use -∞ to indicate not set yet
+            )
+        } else {
+            (None, None, None)
+        };
         StressStrainState {
             loading: false,
             apex_return: false,
             algo_lambda: 0.0,
             internal_values: Vector::new(n_internal_values),
             sigma: Tensor2::new(mandel),
-            epsilon: if with_optional {
-                Some(Tensor2::new(mandel))
-            } else {
-                None
-            },
-            yield_function_value: if with_optional {
-                Some(f64::NEG_INFINITY) // use -∞ to indicate not set yet
-            } else {
-                None
-            },
+            epsilon,
+            pseudo_time,
+            yield_function_value,
         }
     }
 
@@ -79,6 +82,24 @@ impl StressStrainState {
     /// A panic will occur if epsilon is not available.
     pub fn eps_mut(&mut self) -> &mut Tensor2 {
         self.epsilon.as_mut().unwrap()
+    }
+
+    /// Returns an access to the pseudo time or panics
+    ///
+    /// # Panics
+    ///
+    /// A panic will occur if time is not available.
+    pub fn time(&self) -> f64 {
+        self.pseudo_time.unwrap()
+    }
+
+    /// Returns a mutable access to the pseudo time or panics
+    ///
+    /// # Panics
+    ///
+    /// A panic will occur if time is not available.
+    pub fn time_mut(&mut self) -> &mut f64 {
+        self.pseudo_time.as_mut().unwrap()
     }
 
     /// Returns an access to the yield function value or panics

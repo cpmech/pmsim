@@ -24,6 +24,12 @@ pub enum Axis {
 
     /// Deviatoric stress (normalized)
     SigD(/*normalized*/ bool),
+
+    /// (pseudo) time
+    Time,
+
+    /// Yield function value
+    Yield,
 }
 
 impl Axis {
@@ -53,6 +59,8 @@ impl Axis {
                     states.iter().map(|s| s.sigma.invariant_sigma_d()).collect()
                 }
             }
+            Self::Time => states.iter().map(|s| s.time()).collect(),
+            Self::Yield => states.iter().map(|s| s.yf_value()).collect(),
         }
     }
 
@@ -79,6 +87,8 @@ impl Axis {
                     "$\\sigma_d$".to_string()
                 }
             }
+            Self::Time => "pseudo time".to_string(),
+            Self::Yield => "yield function value".to_string(),
         }
     }
 }

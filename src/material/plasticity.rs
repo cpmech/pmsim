@@ -346,9 +346,10 @@ impl StressStrainTrait for ClassicalPlasticity {
             .set_dense_callback(true, 0.04, |_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
                 t2_add(&mut args.state.eps_mut(), 1.0, &args.epsilon0, t, deps); // ε := ε₀ + t Δε
                 args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
-                args.states.push(args.state.clone());
                 let yf_value = self.model.yield_function(&args.state)?;
+                *args.state.time_mut() = t;
                 *args.state.yf_value_mut() = yf_value;
+                args.states.push(args.state.clone());
                 if yf_value >= 0.0 {
                     return Ok(true); // stop
                 }
@@ -375,7 +376,7 @@ impl StressStrainTrait for ClassicalPlasticity {
 mod tests {
     use super::*;
     use crate::base::{new_empty_config_3d, SampleParams};
-    use crate::material::{StressStrainPath, StressStrainPlot};
+    use crate::material::{Axis, StressStrainPath, StressStrainPlot};
     use plotpy::{Canvas, Curve, Legend, RayEndpoint};
     use russell_lab::math::SQRT_2_BY_3;
 
@@ -391,7 +392,7 @@ mod tests {
         const H: f64 = 600.0;
         let continuum = true;
 
-        let param_a = ParamSolid {
+        let param_nli = ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::VonMises {
                 young: YOUNG,
@@ -410,11 +411,11 @@ mod tests {
             }),
         };
 
-        let mut param_b = param_a.clone();
-        param_b.nonlin_elast = None;
+        let mut param_lin = param_nli.clone();
+        param_lin.nonlin_elast = None;
 
-        let mut model_a = ClassicalPlasticity::new(&config, &param_a).unwrap();
-        let mut model_b = ClassicalPlasticity::new(&config, &param_b).unwrap();
+        let mut model_nli = ClassicalPlasticity::new(&config, &param_nli).unwrap();
+        let mut model_lin = ClassicalPlasticity::new(&config, &param_lin).unwrap();
 
         let lode = 0.0;
         let sigma_m_0 = 0.0;
@@ -426,25 +427,25 @@ mod tests {
         let path_a =
             StressStrainPath::new_linear_oct(&config, YOUNG, POISSON, 1, 0.0, 0.0, dsigma_m, dsigma_d, lode).unwrap();
 
-        let states_a = path_a.follow_strain(&mut model_a);
-        let states_b = path_a.follow_strain(&mut model_b);
+        let states_nli = path_a.follow_strain(&mut model_nli);
+        let states_lin = path_a.follow_strain(&mut model_lin);
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(&states_a, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&states_nli, |curve, _, _| {
                 curve.set_marker_style("o").set_line_style("None");
             });
-            ssp.draw_3x2_mosaic_struct(&states_b, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&states_lin, |curve, _, _| {
                 curve.set_marker_style("o").set_line_style("None");
             });
-            ssp.draw_3x2_mosaic_struct(&model_a.args.states, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&model_nli.args.states, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
-            ssp.draw_3x2_mosaic_struct(&model_b.args.states, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(&model_lin.args.states, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
             // ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1.svg", |_, _, _, _| {});
-            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1.svg", |plot, row, col, before| {
+            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1a.svg", |plot, row, col, before| {
                 if before {
                     if (row == 0 && col == 0) || row == 1 {
                         let mut limit = Curve::new();
@@ -461,6 +462,16 @@ mod tests {
                 }
             })
             .unwrap();
+            let mut ssp_yf = StressStrainPlot::new();
+            ssp_yf.draw(Axis::Time, Axis::Yield, &model_nli.args.states, |curve| {
+                curve.set_label("non-lin");
+            });
+            ssp_yf.draw(Axis::Time, Axis::Yield, &model_lin.args.states, |curve| {
+                curve.set_label("linear");
+            });
+            ssp_yf
+                .save(Axis::Time, Axis::Yield, "/tmp/pmsim/test_plasticity_1b.svg", |_, _| {})
+                .unwrap();
         }
     }
 }
