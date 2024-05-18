@@ -193,6 +193,9 @@ impl fmt::Display for StressStrainState {
         write!(f, "\nloading = {}", self.loading).unwrap();
         write!(f, "\napex_return = {}", self.apex_return).unwrap();
         write!(f, "\nalgo_lambda = {:?}", self.algo_lambda).unwrap();
+        if let Some(v) = self.pseudo_time {
+            write!(f, "\npseudo_time = {:?}", v).unwrap();
+        }
         if let Some(v) = self.yield_function_value {
             write!(f, "\nyield_function_value = {:?}", v).unwrap();
         }
@@ -210,7 +213,33 @@ mod tests {
     #[test]
     fn display_trait_works() {
         let mandel = Mandel::Symmetric2D;
-        let mut state = StressStrainState::new(mandel, 2, true);
+        let with_optional = false;
+        let mut state = StressStrainState::new(mandel, 2, with_optional);
+        state.sigma.vector_mut()[0] = 1.0;
+        state.sigma.vector_mut()[1] = 2.0;
+        state.sigma.vector_mut()[2] = -3.0;
+        state.internal_values[0] = 0.1;
+        state.internal_values[1] = 0.2;
+        assert_eq!(
+            format!("{}", state),
+            "σ =\n\
+             ┌          ┐\n\
+             │  1  0  0 │\n\
+             │  0  2  0 │\n\
+             │  0  0 -3 │\n\
+             └          ┘\n\
+             z = [0.1, 0.2]\n\
+             loading = false\n\
+             apex_return = false\n\
+             algo_lambda = 0.0"
+        );
+    }
+
+    #[test]
+    fn display_trait_with_optional_works() {
+        let mandel = Mandel::Symmetric2D;
+        let with_optional = true;
+        let mut state = StressStrainState::new(mandel, 2, with_optional);
         state.sigma.vector_mut()[0] = 1.0;
         state.sigma.vector_mut()[1] = 2.0;
         state.sigma.vector_mut()[2] = -3.0;
@@ -220,6 +249,8 @@ mod tests {
         epsilon.vector_mut()[0] = 0.001;
         epsilon.vector_mut()[1] = 0.002;
         epsilon.vector_mut()[2] = -0.003;
+        *state.yf_value_mut() = -0.5;
+        println!("{}", state);
         assert_eq!(
             format!("{}", state),
             "σ =\n\
@@ -237,28 +268,8 @@ mod tests {
              z = [0.1, 0.2]\n\
              loading = false\n\
              apex_return = false\n\
-             algo_lambda = 0.0"
-        );
-        state.loading = true;
-        state.yield_function_value = Some(-0.5);
-        assert_eq!(
-            format!("{:.3}", state),
-            "σ =\n\
-             ┌                      ┐\n\
-             │  1.000  0.000  0.000 │\n\
-             │  0.000  2.000  0.000 │\n\
-             │  0.000  0.000 -3.000 │\n\
-             └                      ┘\n\
-             ε =\n\
-             ┌                      ┐\n\
-             │  0.001  0.000  0.000 │\n\
-             │  0.000  0.002  0.000 │\n\
-             │  0.000  0.000 -0.003 │\n\
-             └                      ┘\n\
-             z = [0.1, 0.2]\n\
-             loading = true\n\
-             apex_return = false\n\
              algo_lambda = 0.0\n\
+             pseudo_time = -inf\n\
              yield_function_value = -0.5"
         );
     }

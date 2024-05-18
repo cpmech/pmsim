@@ -386,6 +386,7 @@ mod tests {
     fn update_stress_works() {
         let config = new_empty_config_3d();
 
+        const BETA: f64 = 0.5;
         const YOUNG: f64 = 1500.0;
         const POISSON: f64 = 0.25;
         const Z0: f64 = 9.0;
@@ -401,7 +402,7 @@ mod tests {
                 hh: H,
             },
             nonlin_elast: Some(NonlinElast {
-                beta: 0.5,
+                beta: BETA,
                 isotropic: false,
             }),
             stress_update: Some(StressUpdate {
@@ -470,7 +471,16 @@ mod tests {
                 curve.set_label("linear");
             });
             ssp_yf
-                .save(Axis::Time, Axis::Yield, "/tmp/pmsim/test_plasticity_1b.svg", |_, _| {})
+                .save(
+                    Axis::Time,
+                    Axis::Yield,
+                    "/tmp/pmsim/test_plasticity_1b.svg",
+                    |plot, before| {
+                        if before {
+                            plot.set_cross(0.0, 0.0, "gray", "-", 1.1);
+                        }
+                    },
+                )
                 .unwrap();
         }
     }
