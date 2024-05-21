@@ -3,7 +3,7 @@
 use super::{StressStrainState, StressStrainTrait, VonMises};
 use crate::base::{Config, NonlinElast, ParamSolid, ParamStressStrain, StressUpdate};
 use crate::StrError;
-use russell_lab::{mat_update, vec_copy, vec_inner, vec_scale, InterpLagrange, Vector};
+use russell_lab::{mat_update, vec_copy, vec_inner, vec_scale, InterpLagrange, RootSolver, Vector};
 use russell_ode::{Method, NoArgs, OdeSolver, Output, Params, System};
 use russell_sparse::CooMatrix;
 use russell_tensor::{
@@ -76,9 +76,13 @@ pub struct NonlinElastArgs {
     state: StressStrainState,
     pub states: Vec<StressStrainState>,
     pub yf_at_nodes: Vector,
+    count: usize,
     h_dense: f64,
     interp: InterpLagrange,
+    t_neg: f64,
+    t_pos: f64,
     t_shift: f64,
+    t_intersection: f64,
 }
 
 pub struct ClassicalPlasticity {
@@ -92,6 +96,7 @@ pub struct ClassicalPlasticity {
     aux: Tensor2,
     cce: Tensor4,
     dde: Tensor4,
+    root_solver: RootSolver,
     pub args: NonlinElastArgs,
 }
 
@@ -141,6 +146,7 @@ impl ClassicalPlasticity {
             aux: Tensor2::new(config.mandel),
             cce: Tensor4::new(config.mandel),
             dde: Tensor4::new(config.mandel),
+            root_solver: RootSolver::new(),
             args: NonlinElastArgs {
                 beta,
                 isotropic,
@@ -152,9 +158,13 @@ impl ClassicalPlasticity {
                 state: StressStrainState::new(config.mandel, nz, with_optional),
                 states: Vec::new(),
                 yf_at_nodes: Vector::new(npoint),
+                count: 0,
                 h_dense: 1.0 / (degree as f64),
                 interp: InterpLagrange::new(degree, None).unwrap(),
                 t_shift: 0.0,
+                t_neg: 0.0,
+                t_pos: 0.0,
+                t_intersection: 0.0,
             },
         })
     }
@@ -360,14 +370,15 @@ impl StressStrainTrait for ClassicalPlasticity {
             interior_t_out[i] = (u + 1.0) / 2.0;
         }
         solver.enable_output().set_dense_x_out(&interior_t_out)?;
+        self.args.count = 0;
 
         // dense output
-        println!(
-            "degree = {}, npoint = {}, h = {}",
-            self.args.interp.get_degree(),
-            self.args.interp.get_degree() + 1,
-            self.args.h_dense
-        );
+        // println!(
+        //     "degree = {}, npoint = {}, h = {}",
+        //     self.args.interp.get_degree(),
+        //     self.args.interp.get_degree() + 1,
+        //     self.args.h_dense
+        // );
         solver
             .enable_output()
             .set_dense_callback(|_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
@@ -382,7 +393,14 @@ impl StressStrainTrait for ClassicalPlasticity {
                 // }
                 let m = f64::round(t / args.h_dense) as usize;
                 println!("{:2}: t={:23.15e}, yf={:.6}", m, t, yf_value);
-                // args.yf_at_nodes[args.count] = yf_value;
+                args.yf_at_nodes[args.count] = yf_value;
+                args.count += 1;
+                if yf_value < 0.0 {
+                    args.t_neg = t;
+                }
+                if yf_value > 0.0 {
+                    args.t_pos = t;
+                }
                 Ok(false)
             });
 
@@ -391,13 +409,30 @@ impl StressStrainTrait for ClassicalPlasticity {
 
         // solve from t = 0 to t = 1
         solver.solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.args)?;
-        println!("{}", solver.stats());
+        // println!("{}", solver.stats());
+        println!("t_neg = {}, t_pos = {}", self.args.t_neg, self.args.t_pos);
 
         // set state
         vec_copy(state.sigma.vector_mut(), &sigma_vec);
 
         // time shift for plotting
         self.args.t_shift += 1.0;
+
+        // intersection
+        let yf_value = self.args.states.last().unwrap().yf_value();
+        if yf_value > 0.0 {
+            let ua = 2.0 * self.args.t_neg - 1.0; // normalized pseudo-time
+            let ub = 2.0 * self.args.t_pos - 1.0; // normalized pseudo-time
+            let fa = self.args.interp.eval(ua, &self.args.yf_at_nodes)?;
+            let fb = self.args.interp.eval(ub, &self.args.yf_at_nodes)?;
+            if fa < 0.0 && fb > 0.0 {
+                let (u_int, _) = self.root_solver.brent(ua, ub, &mut self.args, |t, args| {
+                    let f_int = args.interp.eval(t, &args.yf_at_nodes)?;
+                    Ok(f_int)
+                })?;
+                self.args.t_intersection = (u_int + 1.0) / 2.0;
+            }
+        }
 
         Ok(())
     }
@@ -448,34 +483,32 @@ mod tests {
         let mut param_lin = param_nli.clone();
         param_lin.nonlin_elast = None;
 
-        let mut model_nli = ClassicalPlasticity::new(&config, &param_nli).unwrap();
+        // let mut model_nli = ClassicalPlasticity::new(&config, &param_nli).unwrap();
         let mut model_lin = ClassicalPlasticity::new(&config, &param_lin).unwrap();
 
         let lode = 0.0;
         let sigma_m_0 = 0.0;
         let sigma_d_0 = 0.0;
-        // let dsigma_m = 1.0;
-        // let dsigma_d = 9.0;
         let dsigma_m = 10.0;
         let dsigma_d = 10.0;
         let mut path_a =
             StressStrainPath::new_linear_oct(&config, YOUNG, POISSON, 1, 0.0, 0.0, dsigma_m, dsigma_d, lode).unwrap();
-        path_a.push_stress_oct(0.0, 0.0, lode, true);
+        // path_a.push_stress_oct(0.0, 0.0, lode, true);
 
-        let states_nli = path_a.follow_strain(&mut model_nli);
+        // let states_nli = path_a.follow_strain(&mut model_nli);
         let states_lin = path_a.follow_strain(&mut model_lin);
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(&states_nli, |curve, _, _| {
-                curve.set_marker_style("o").set_line_style("None");
-            });
+            // ssp.draw_3x2_mosaic_struct(&states_nli, |curve, _, _| {
+            //     curve.set_marker_style("o").set_line_style("None");
+            // });
             ssp.draw_3x2_mosaic_struct(&states_lin, |curve, _, _| {
                 curve.set_marker_style("o").set_line_style("None");
             });
-            ssp.draw_3x2_mosaic_struct(&model_nli.args.states, |curve, _, _| {
-                curve.set_marker_style(".").set_line_style("--");
-            });
+            // ssp.draw_3x2_mosaic_struct(&model_nli.args.states, |curve, _, _| {
+            //     curve.set_marker_style(".").set_line_style("--");
+            // });
             ssp.draw_3x2_mosaic_struct(&model_lin.args.states, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
@@ -497,9 +530,9 @@ mod tests {
             })
             .unwrap();
             let mut ssp_yf = StressStrainPlot::new();
-            ssp_yf.draw(Axis::Time, Axis::Yield, &model_nli.args.states, |curve| {
-                curve.set_marker_style("o").set_label("non-lin");
-            });
+            // ssp_yf.draw(Axis::Time, Axis::Yield, &model_nli.args.states, |curve| {
+            //     curve.set_marker_style("o").set_label("non-lin");
+            // });
             ssp_yf.draw(Axis::Time, Axis::Yield, &model_lin.args.states, |curve| {
                 curve.set_marker_style("o").set_marker_void(true).set_label("linear");
             });
@@ -511,6 +544,8 @@ mod tests {
                     |plot, before| {
                         if before {
                             plot.set_cross(0.0, 0.0, "gray", "-", 1.1);
+                        } else {
+                            plot.set_vert_line(model_lin.args.t_intersection, "green", "--", 1.5);
                         }
                     },
                 )
