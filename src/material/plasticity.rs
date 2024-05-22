@@ -86,6 +86,7 @@ pub struct NonlinElastArgs {
 }
 
 pub struct ClassicalPlasticity {
+    pub(crate) mandel: Mandel,
     pub model: Box<dyn ClassicalPlasticityTrait>,
     continuum: bool,
     ode_method: Method,
@@ -95,7 +96,7 @@ pub struct ClassicalPlasticity {
     pub hh: Vector,
     aux: Tensor2,
     cce: Tensor4,
-    dde: Tensor4,
+    pub(crate) dde: Tensor4,
     root_solver: RootSolver,
     pub args: NonlinElastArgs,
 }
@@ -136,6 +137,7 @@ impl ClassicalPlasticity {
         let npoint = degree + 1;
         let interp = InterpLagrange::new(degree, None);
         Ok(ClassicalPlasticity {
+            mandel: config.mandel,
             model,
             continuum,
             ode_method,
@@ -240,8 +242,8 @@ impl ClassicalPlasticity {
         self.model.elastic_compliance(cce, state)
     }
 
-    pub fn modulus_elastic_rigidity(&mut self, dde: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
-        self.model.elastic_rigidity(dde, state)
+    pub fn modulus_elastic_rigidity(&mut self, state: &StressStrainState) -> Result<(), StrError> {
+        self.model.elastic_rigidity(&mut self.dde, state)
     }
 
     pub fn modulus_compliance(&mut self, cc: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
@@ -349,27 +351,31 @@ impl StressStrainTrait for ClassicalPlasticity {
         vec_copy(&mut self.args.state.internal_values, &state.internal_values).unwrap();
 
         // elastic update; solving dσ/dt = Dₑ : Δε
-        let system = System::new(
-            state.sigma.dim(),
-            |dsigma_dt_vec, _, sigma_vec, args: &mut NonlinElastArgs| {
-                let young = args.calc_young(sigma_vec);
-                args.ela.set_young_poisson(young, args.poisson);
-                t4_ddot_t2(&mut args.aux, 1.0, args.ela.get_modulus(), deps); // aux := Dₑ : Δε
-                vec_copy(dsigma_dt_vec, args.aux.vector()).unwrap();
-                Ok(())
-            },
-        );
+        let ndim = state.sigma.dim();
+        let system_ee = System::new(ndim, |dsigma_dt_vec, _, sigma_vec, args: &mut NonlinElastArgs| {
+            let young = args.calc_young(sigma_vec);
+            args.ela.set_young_poisson(young, args.poisson);
+            t4_ddot_t2(&mut args.aux, 1.0, args.ela.get_modulus(), deps); // aux := Dₑ : Δε
+            vec_copy(dsigma_dt_vec, args.aux.vector()).unwrap();
+            Ok(())
+        });
+
+        // elastoplastic update; solving dσ/dt = Dₑₚ : Δε
+        let system_ep = System::new(ndim, |dsigma_dt_vec, _, sigma_vec, args: &mut NonlinElastArgs| {
+            // TODO
+            Ok(())
+        });
 
         // solver
         let params = Params::new(self.ode_method);
-        let mut solver = OdeSolver::new(params, &system)?;
+        let mut solver_ee = OdeSolver::new(params, system_ee)?;
         let nstation = self.args.interp.get_degree() + 1;
         let mut interior_t_out = vec![0.0; nstation - 2];
         for i in 0..(nstation - 2) {
             let u = self.args.interp.get_points()[1 + i];
             interior_t_out[i] = (u + 1.0) / 2.0;
         }
-        solver.enable_output().set_dense_x_out(&interior_t_out)?;
+        solver_ee.enable_output().set_dense_x_out(&interior_t_out)?;
         self.args.count = 0;
 
         // dense output
@@ -379,7 +385,7 @@ impl StressStrainTrait for ClassicalPlasticity {
         //     self.args.interp.get_degree() + 1,
         //     self.args.h_dense
         // );
-        solver
+        solver_ee
             .enable_output()
             .set_dense_callback(|_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
                 t2_add(&mut args.state.eps_mut(), 1.0, &args.epsilon0, t, deps); // ε := ε₀ + t Δε
@@ -408,15 +414,12 @@ impl StressStrainTrait for ClassicalPlasticity {
         let mut sigma_vec = Vector::from(state.sigma.vector());
 
         // solve from t = 0 to t = 1
-        solver.solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.args)?;
+        solver_ee.solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.args)?;
         // println!("{}", solver.stats());
         println!("t_neg = {}, t_pos = {}", self.args.t_neg, self.args.t_pos);
 
         // set state
         vec_copy(state.sigma.vector_mut(), &sigma_vec);
-
-        // time shift for plotting
-        self.args.t_shift += 1.0;
 
         // intersection
         let yf_value = self.args.states.last().unwrap().yf_value();
@@ -434,6 +437,10 @@ impl StressStrainTrait for ClassicalPlasticity {
             }
         }
 
+        // elastoplastic update
+
+        // time shift for plotting
+        self.args.t_shift += 1.0;
         Ok(())
     }
 }
