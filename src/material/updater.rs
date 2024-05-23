@@ -1,9 +1,12 @@
+#![allow(unused)]
+
 use super::{ClassicalPlasticity, StressStrainState};
+use crate::StrError;
 use russell_lab::{vec_copy, InterpLagrange, RootSolver, Vector};
 use russell_ode::{Method, OdeSolver, Params, System};
 use russell_tensor::{t2_add, t4_ddot_t2, Mandel, Tensor2};
 
-pub struct ArgsUpdater<'a> {
+pub struct ArgsForUpdater<'a> {
     /// Interpolated f(σ,z) values
     yf_values: Vector,
 
@@ -11,7 +14,7 @@ pub struct ArgsUpdater<'a> {
     yf_count: usize,
 
     /// Model
-    plasticity: &'a mut ClassicalPlasticity,
+    plasticity: &'a mut ClassicalPlasticity<'a>,
 
     /// State
     state: StressStrainState,
@@ -22,9 +25,6 @@ pub struct ArgsUpdater<'a> {
     /// dσ/dt
     dsigma_dt: Tensor2,
 
-    /// ε at the beginning of the update
-    epsilon0: Tensor2,
-
     /// (pseudo) Time before intersection
     t_neg: f64,
 
@@ -32,13 +32,37 @@ pub struct ArgsUpdater<'a> {
     t_pos: f64,
 
     /// (pseudo) Time at intersection
-    t_intersection: f64,
+    pub(crate) t_intersection: f64,
 
     /// Initial pseudo time for plotting
     t0: f64,
 
+    /// Initial ε for plotting
+    epsilon0: Option<Tensor2>,
+
     /// History of results (for plotting)
     pub history: Option<Vec<StressStrainState>>,
+}
+
+impl<'a> ArgsForUpdater<'a> {
+    pub fn new(mandel: Mandel, plasticity: &'a mut ClassicalPlasticity<'a>) -> Self {
+        let nz = plasticity.model.n_internal_values();
+        let with_optional = true;
+        ArgsForUpdater {
+            yf_values: Vector::new(0),
+            yf_count: 0,
+            plasticity,
+            state: StressStrainState::new(mandel, nz, with_optional),
+            delta_eps: Tensor2::new(mandel),
+            dsigma_dt: Tensor2::new(mandel),
+            t_neg: 0.0,
+            t_pos: 0.0,
+            t_intersection: 0.0,
+            t0: 0.0,
+            epsilon0: None,
+            history: None,
+        }
+    }
 }
 
 pub struct Updater<'a> {
@@ -49,10 +73,10 @@ pub struct Updater<'a> {
     root_solver: RootSolver,
 
     /// ODE solver: dσ/dt = Dₑ : Δε
-    solver_el: OdeSolver<'a, ArgsUpdater<'a>>,
+    solver_el: OdeSolver<'a, ArgsForUpdater<'a>>,
 
     /// ODE solver: dσ/dt = Dₑₚ : Δε
-    solver_ep: OdeSolver<'a, ArgsUpdater<'a>>,
+    solver_ep: OdeSolver<'a, ArgsForUpdater<'a>>,
 }
 
 impl<'a> Updater<'a> {
@@ -61,7 +85,7 @@ impl<'a> Updater<'a> {
         let ndim = mandel.dim();
 
         // ODE system: dσ/dt = Dₑ : Δε
-        let system_el = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut ArgsUpdater| {
+        let system_el = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut ArgsForUpdater| {
             // σ := σ(t)
             args.state.sigma.set_mandel_vector(1.0, sigma_vec);
 
@@ -77,7 +101,7 @@ impl<'a> Updater<'a> {
         });
 
         // ODE system: dσ/dt = Dₑₚ : Δε
-        let system_ep = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut ArgsUpdater| {
+        let system_ep = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut ArgsForUpdater| {
             // σ := σ(t)
             args.state.sigma.set_mandel_vector(1.0, sigma_vec);
 
@@ -113,19 +137,14 @@ impl<'a> Updater<'a> {
             .enable_output()
             .set_dense_x_out(&interior_t_out)
             .unwrap()
-            .set_dense_callback(|stats, _, t, sigma_vec, args: &mut ArgsUpdater| {
+            .set_dense_callback(|stats, _, t, sigma_vec, args: &mut ArgsForUpdater| {
                 // reset counter
                 if stats.n_accepted == 1 {
                     args.yf_count = 0;
                 }
 
-                // ε := ε₀ + t Δε
-                t2_add(&mut args.state.eps_mut(), 1.0, &args.epsilon0, t, &args.delta_eps);
-
-                // σ := σ(t)
-                args.state.sigma.set_mandel_vector(1.0, sigma_vec);
-
                 // yield function value: f(σ, z)
+                args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
                 let yf = args.plasticity.model.yield_function(&args.state)?;
                 args.yf_values[args.yf_count] = yf;
                 args.yf_count += 1;
@@ -138,13 +157,14 @@ impl<'a> Updater<'a> {
 
                 // history
                 if let Some(history) = args.history.as_mut() {
+                    let epsilon0 = args.epsilon0.as_mut().unwrap();
+                    let epsilon = args.state.eps_mut();
+                    t2_add(epsilon, 1.0, epsilon0, t, &args.delta_eps); // ε := ε₀ + t Δε
                     *args.state.time_mut() = args.t0 + t;
                     *args.state.yf_value_mut() = yf;
                     history.push(args.state.clone());
                 }
-
-                // true => keep running until the end
-                Ok(false)
+                Ok(false) // false => keep running
             });
 
         // solver for the elastoplastic update
@@ -159,5 +179,48 @@ impl<'a> Updater<'a> {
         }
     }
 
-    pub fn stress_update(&mut self) {}
+    pub fn stress_update(
+        &mut self,
+        state: &mut StressStrainState,
+        deps: &Tensor2,
+        args: &'a mut ArgsForUpdater<'a>,
+    ) -> Result<(), StrError> {
+        // set Δε
+        args.delta_eps.set_tensor(1.0, deps);
+
+        // set initial ε (for plotting)
+        if args.history.is_some() {
+            let epsilon0 = args.epsilon0.as_mut().unwrap();
+            let epsilon = state.eps();
+            epsilon0.set_tensor(1.0, epsilon);
+        }
+
+        // elastic update
+        let mut sigma_vec = Vector::from(state.sigma.vector());
+        self.solver_el.solve(&mut sigma_vec, 0.0, 1.0, None, args)?;
+        vec_copy(state.sigma.vector_mut(), &sigma_vec);
+
+        // intersection
+        assert_eq!(args.yf_count, self.interp.get_degree() + 1);
+        let yf = args.yf_values[args.yf_count];
+        if yf > 0.0 {
+            let ua = 2.0 * args.t_neg - 1.0; // normalized pseudo-time
+            let ub = 2.0 * args.t_pos - 1.0; // normalized pseudo-time
+            let fa = self.interp.eval(ua, &args.yf_values)?;
+            let fb = self.interp.eval(ub, &args.yf_values)?;
+            if fa < 0.0 && fb > 0.0 {
+                let (u_int, _) = self.root_solver.brent(ua, ub, &mut 0, |t, _| {
+                    let f_int = self.interp.eval(t, &args.yf_values)?;
+                    Ok(f_int)
+                })?;
+                args.t_intersection = (u_int + 1.0) / 2.0;
+            }
+        }
+
+        // update pseudo time (for plotting)
+        if args.history.is_some() {
+            args.t0 += 1.0;
+        }
+        Ok(())
+    }
 }

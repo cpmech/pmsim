@@ -1,33 +1,14 @@
 #![allow(unused)]
 
-use super::{StressStrainState, StressStrainTrait, VonMises};
+use super::{ArgsForUpdater, StressStrainState, StressStrainTrait, Updater, VonMises};
 use crate::base::{Config, NonlinElast, ParamSolid, ParamStressStrain, StressUpdate};
 use crate::StrError;
-use russell_lab::{mat_update, vec_copy, vec_inner, vec_scale, InterpLagrange, RootSolver, Vector};
-use russell_ode::{Method, NoArgs, OdeSolver, Output, Params, System};
-use russell_sparse::CooMatrix;
-use russell_tensor::{
-    t2_add, t2_ddot_t2, t2_ddot_t4_ddot_t2, t2_dyad_t2, t2_dyad_t2_update, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4,
-    LinElasticity, Mandel, Tensor2, Tensor4,
-};
+use russell_lab::{vec_inner, Vector};
+use russell_ode::{Method, OdeSolver};
+use russell_tensor::{t2_ddot_t4_ddot_t2, t2_dyad_t2_update, t4_ddot_t2_dyad_t2_ddot_t4};
+use russell_tensor::{LinElasticity, Mandel, Tensor2, Tensor4};
 
-const TOO_SMALL: f64 = 1e-8;
-
-pub enum ClassicalPlasticityModel {
-    CamClay,
-    CamClayOriginal,
-    DruckerPrager,
-    VonMises,
-}
-
-pub enum SubloadingPlasticityModel {
-    CamClay,
-    TijClay,
-}
-
-pub enum VariableModulusPlasticityModel {
-    CamClay,
-}
+const MP_TOO_SMALL: f64 = 1e-8;
 
 pub trait ClassicalPlasticityTrait: StressStrainTrait {
     /// Returns whether this model is associated or not
@@ -58,50 +39,55 @@ pub trait ClassicalPlasticityTrait: StressStrainTrait {
     fn elastic_rigidity(&self, dde: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError>;
 }
 
-pub trait SubloadingPlasticityTrait: Send + Sync {
-    /// Calculates the subloading function f
-    fn subloading_function(state: &StressStrainState) -> Result<(), StrError>;
-}
+pub struct ClassicalPlasticity<'a> {
+    /// Mandel representation
+    mandel: Mandel,
 
-pub trait VariableModulusPlasticityTrait: Send + Sync {}
+    /// Parameters regarding the stress update algorithm
+    params_stress_update: StressUpdate,
 
-pub struct NonlinElastArgs {
-    beta: f64,
-    isotropic: bool,
+    /// Actual model
+    pub(crate) model: Box<dyn ClassicalPlasticityTrait>,
+
+    /// Linear elastic model
+    lin_elast: Option<LinElasticity>,
+
+    /// Parameters for the nonlinear elastic model
+    params_nonlin_elast: Option<NonlinElast>,
+
+    /// Initial (or constant) Young's modulus
     young0: f64,
+
+    /// Constant Poisson's coefficient
     poisson: f64,
-    ela: LinElasticity,
-    aux: Tensor2,
-    epsilon0: Tensor2,
-    state: StressStrainState,
-    pub states: Vec<StressStrainState>,
-    pub yf_at_nodes: Vector,
-    count: usize,
-    h_dense: f64,
-    interp: InterpLagrange,
-    t_neg: f64,
-    t_pos: f64,
-    t_shift: f64,
-    t_intersection: f64,
-}
 
-pub struct ClassicalPlasticity {
-    pub(crate) mandel: Mandel,
-    pub model: Box<dyn ClassicalPlasticityTrait>,
-    continuum: bool,
-    ode_method: Method,
-    pub df_dsigma: Tensor2,
-    pub dg_dsigma: Tensor2,
-    pub df_dz: Vector,
-    pub hh: Vector,
-    aux: Tensor2,
+    /// Derivative of the yield function w.r.t stress
+    df_dsigma: Tensor2,
+
+    /// Derivative of the plastic potential function w.r.t stress
+    dg_dsigma: Tensor2,
+
+    /// Derivative of the yield function w.r.t internal variable
+    df_dz: Vector,
+
+    /// Hardening coefficients
+    hh: Vector,
+
+    /// Elastic compliance
     cce: Tensor4,
+
+    /// Elastic stiffness
     pub(crate) dde: Tensor4,
-    root_solver: RootSolver,
-    pub args: NonlinElastArgs,
+
+    /// Arguments for the updater
+    args: Option<ArgsForUpdater<'a>>,
+
+    // Stress-strain updater
+    // updater: Option<Updater<'a>>,
+    updater: Option<OdeSolver<'a, ArgsForUpdater<'a>>>,
 }
 
-impl ClassicalPlasticity {
+impl<'a> ClassicalPlasticity<'a> {
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
         if config.plane_stress {
             return Err("the classical plasticity models here do not work in plane-stress");
@@ -123,127 +109,72 @@ impl ClassicalPlasticity {
                 (young, poisson, Box::new(VonMises::new(config, young, poisson, z0, hh)))
             }
         };
-        let (continuum, ode_method) = match param.stress_update {
-            Some(p) => (p.continuum_modulus, p.ode_method),
-            None => (false, Method::DoPri8),
+        let params_stress_update = match param.stress_update {
+            Some(p) => p,
+            None => StressUpdate {
+                general_plasticity: true,
+                continuum_modulus: true,
+                ode_method: Method::DoPri8,
+                save_history: false,
+            },
         };
-        let (beta, isotropic) = match param.nonlin_elast {
-            Some(p) => (p.beta, p.isotropic),
-            None => (0.0, false),
+        let lin_elast = match param.nonlin_elast {
+            Some(_) => Some(LinElasticity::new(young, poisson, config.two_dim, false)),
+            None => None,
         };
         let nz = model.n_internal_values();
-        let with_optional = true;
-        let degree = 10;
-        let npoint = degree + 1;
-        let interp = InterpLagrange::new(degree, None);
         Ok(ClassicalPlasticity {
             mandel: config.mandel,
+            params_stress_update,
             model,
-            continuum,
-            ode_method,
+            lin_elast,
+            params_nonlin_elast: param.nonlin_elast,
+            young0: young,
+            poisson,
             df_dsigma: Tensor2::new(config.mandel),
             dg_dsigma: Tensor2::new(config.mandel),
             df_dz: Vector::new(nz),
             hh: Vector::new(nz),
-            aux: Tensor2::new(config.mandel),
             cce: Tensor4::new(config.mandel),
             dde: Tensor4::new(config.mandel),
-            root_solver: RootSolver::new(),
-            args: NonlinElastArgs {
-                beta,
-                isotropic,
-                young0: young,
-                poisson,
-                ela: LinElasticity::new(young, poisson, config.two_dim, false),
-                aux: Tensor2::new(config.mandel),
-                epsilon0: Tensor2::new(config.mandel),
-                state: StressStrainState::new(config.mandel, nz, with_optional),
-                states: Vec::new(),
-                yf_at_nodes: Vector::new(npoint),
-                count: 0,
-                h_dense: 1.0 / (degree as f64),
-                interp: InterpLagrange::new(degree, None).unwrap(),
-                t_shift: 0.0,
-                t_neg: 0.0,
-                t_pos: 0.0,
-                t_intersection: 0.0,
-            },
+            args: None,
+            updater: None,
+            // solver: None,
         })
     }
 
-    pub fn find_intersection_stress_driven(
-        &mut self,
-        state: &StressStrainState,
-        dsigma: &Tensor2,
-    ) -> Result<f64, StrError> {
-        Err("TODO")
-    }
-
-    pub fn find_intersection_strain_driven(
-        &mut self,
-        state: &StressStrainState,
-        depsilon: &Tensor2,
-    ) -> Result<f64, StrError> {
-        Err("TODO")
-    }
-
-    pub fn lagrange_multiplier_stress_driven(
-        &mut self,
-        state: &StressStrainState,
-        dsigma: &Tensor2,
-    ) -> Result<f64, StrError> {
-        // derivatives
-        self.model.df_dsigma(&mut self.df_dsigma, state)?;
-        self.model.df_dz(&mut self.df_dz, state)?;
-
-        // Mₚ
-        self.model.hardening(&mut self.hh, state)?;
-        let mut mmp = -vec_inner(&self.df_dz, &self.hh);
-        if f64::abs(mmp) < TOO_SMALL {
-            return Err("Mₚ modulus is too small");
-        }
-
-        // Λ
-        let llambda = t2_ddot_t2(&self.df_dsigma, dsigma) / mmp;
-        Ok(llambda)
-    }
-
-    pub fn lagrange_multiplier_strain_driven(
-        &mut self,
-        state: &StressStrainState,
-        depsilon: &Tensor2,
-    ) -> Result<f64, StrError> {
-        // Dₑ
-        self.model.elastic_rigidity(&mut self.dde, state)?;
-
-        // derivatives
-        self.model.df_dsigma(&mut self.df_dsigma, state)?;
-        self.model.df_dz(&mut self.df_dz, state)?;
-        let dg_dsigma = if self.model.associated() {
-            &self.df_dsigma
+    fn set_nonlin_elast_params(&mut self, state: &StressStrainState) {
+        let le = self.lin_elast.as_mut().unwrap();
+        let nle = self.params_nonlin_elast.as_mut().unwrap();
+        let sig = if nle.isotropic {
+            state.sigma.invariant_sigma_m()
         } else {
-            self.model.dg_dsigma(&mut self.dg_dsigma, state)?;
-            &self.dg_dsigma
+            state.sigma.invariant_sigma_d()
         };
-
-        // Mₚ
-        self.model.hardening(&mut self.hh, state)?;
-        let mut mmp = -vec_inner(&self.df_dz, &self.hh);
-
-        // Nₚ
-        let nnp = mmp + t2_ddot_t4_ddot_t2(&self.df_dsigma, &self.dde, dg_dsigma);
-
-        // Λ
-        let llambda = t2_ddot_t4_ddot_t2(&self.df_dsigma, &self.dde, depsilon) / nnp;
-        Ok(llambda)
+        let val = f64::exp(nle.beta * sig);
+        let young = 4.0 * self.young0 * val / f64::powi(val + 1.0, 2);
+        le.set_young_poisson(young, self.poisson);
     }
 
-    pub fn modulus_elastic_compliance(&mut self, cce: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
-        self.model.elastic_compliance(cce, state)
+    pub fn modulus_elastic_compliance(&mut self, state: &StressStrainState) -> Result<(), StrError> {
+        match self.params_nonlin_elast.as_ref() {
+            Some(_) => {
+                self.set_nonlin_elast_params(state);
+                self.lin_elast.as_mut().unwrap().calc_compliance(&mut self.cce)
+            }
+            None => self.model.elastic_compliance(&mut self.cce, state),
+        }
     }
 
     pub fn modulus_elastic_rigidity(&mut self, state: &StressStrainState) -> Result<(), StrError> {
-        self.model.elastic_rigidity(&mut self.dde, state)
+        match self.params_nonlin_elast.as_ref() {
+            Some(_) => {
+                self.set_nonlin_elast_params(state);
+                self.dde.set_tensor(1.0, self.lin_elast.as_ref().unwrap().get_modulus());
+                Ok(())
+            }
+            None => self.model.elastic_rigidity(&mut self.dde, state),
+        }
     }
 
     pub fn modulus_compliance(&mut self, cc: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
@@ -259,8 +190,8 @@ impl ClassicalPlasticity {
 
         // Mₚ = - (df/dz) · H
         self.model.hardening(&mut self.hh, state)?;
-        let mut mmp = -vec_inner(&self.df_dz, &self.hh);
-        if f64::abs(mmp) < TOO_SMALL {
+        let mmp = -vec_inner(&self.df_dz, &self.hh);
+        if f64::abs(mmp) < MP_TOO_SMALL {
             return Err("Mₚ modulus is too small");
         }
 
@@ -286,7 +217,7 @@ impl ClassicalPlasticity {
 
         // Mₚ = - (df/dz) · H
         self.model.hardening(&mut self.hh, state)?;
-        let mut mmp = -vec_inner(&self.df_dz, &self.hh);
+        let mmp = -vec_inner(&self.df_dz, &self.hh);
 
         // Dₑ
         self.model.elastic_rigidity(&mut self.dde, state)?;
@@ -300,20 +231,7 @@ impl ClassicalPlasticity {
     }
 }
 
-impl NonlinElastArgs {
-    pub fn calc_young(&mut self, sigma_vec: &Vector) -> f64 {
-        vec_copy(self.state.sigma.vector_mut(), sigma_vec);
-        let sig = if self.isotropic {
-            self.state.sigma.invariant_sigma_m()
-        } else {
-            self.state.sigma.invariant_sigma_d()
-        };
-        let ex = f64::exp(self.beta * sig);
-        4.0 * self.young0 * ex / f64::powi(ex + 1.0, 2)
-    }
-}
-
-impl StressStrainTrait for ClassicalPlasticity {
+impl<'a> StressStrainTrait for ClassicalPlasticity<'a> {
     /// Indicates that the stiffness matrix is symmetric
     fn symmetric_stiffness(&self) -> bool {
         self.model.symmetric_stiffness()
@@ -331,7 +249,7 @@ impl StressStrainTrait for ClassicalPlasticity {
 
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
-        if self.continuum {
+        if self.params_stress_update.continuum_modulus {
             self.modulus_rigidity(dd, state)
         } else {
             self.model.stiffness(dd, state)
@@ -340,107 +258,10 @@ impl StressStrainTrait for ClassicalPlasticity {
 
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut StressStrainState, deps: &Tensor2) -> Result<(), StrError> {
-        if !self.continuum {
+        if self.params_stress_update.continuum_modulus {
+        } else {
             return self.model.update_stress(state, deps);
         }
-
-        // set initial ε
-        self.args.epsilon0.set_tensor(1.0, self.args.state.eps());
-
-        // freeze internal values
-        vec_copy(&mut self.args.state.internal_values, &state.internal_values).unwrap();
-
-        // elastic update; solving dσ/dt = Dₑ : Δε
-        let ndim = state.sigma.dim();
-        let system_ee = System::new(ndim, |dsigma_dt_vec, _, sigma_vec, args: &mut NonlinElastArgs| {
-            let young = args.calc_young(sigma_vec);
-            args.ela.set_young_poisson(young, args.poisson);
-            t4_ddot_t2(&mut args.aux, 1.0, args.ela.get_modulus(), deps); // aux := Dₑ : Δε
-            vec_copy(dsigma_dt_vec, args.aux.vector()).unwrap();
-            Ok(())
-        });
-
-        // elastoplastic update; solving dσ/dt = Dₑₚ : Δε
-        let system_ep = System::new(ndim, |dsigma_dt_vec, _, sigma_vec, args: &mut NonlinElastArgs| {
-            // TODO
-            Ok(())
-        });
-
-        // solver
-        let params = Params::new(self.ode_method);
-        let mut solver_ee = OdeSolver::new(params, system_ee)?;
-        let nstation = self.args.interp.get_degree() + 1;
-        let mut interior_t_out = vec![0.0; nstation - 2];
-        for i in 0..(nstation - 2) {
-            let u = self.args.interp.get_points()[1 + i];
-            interior_t_out[i] = (u + 1.0) / 2.0;
-        }
-        solver_ee.enable_output().set_dense_x_out(&interior_t_out)?;
-        self.args.count = 0;
-
-        // dense output
-        // println!(
-        //     "degree = {}, npoint = {}, h = {}",
-        //     self.args.interp.get_degree(),
-        //     self.args.interp.get_degree() + 1,
-        //     self.args.h_dense
-        // );
-        solver_ee
-            .enable_output()
-            .set_dense_callback(|_, _, t, sigma_vec, args: &mut NonlinElastArgs| {
-                t2_add(&mut args.state.eps_mut(), 1.0, &args.epsilon0, t, deps); // ε := ε₀ + t Δε
-                args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
-                let yf_value = self.model.yield_function(&args.state)?;
-                *args.state.time_mut() = args.t_shift + t;
-                *args.state.yf_value_mut() = yf_value;
-                args.states.push(args.state.clone());
-                // if yf_value >= 0.0 {
-                //     return Ok(true); // stop
-                // }
-                let m = f64::round(t / args.h_dense) as usize;
-                println!("{:2}: t={:23.15e}, yf={:.6}", m, t, yf_value);
-                args.yf_at_nodes[args.count] = yf_value;
-                args.count += 1;
-                if yf_value < 0.0 {
-                    args.t_neg = t;
-                }
-                if yf_value > 0.0 {
-                    args.t_pos = t;
-                }
-                Ok(false)
-            });
-
-        // initial values
-        let mut sigma_vec = Vector::from(state.sigma.vector());
-
-        // solve from t = 0 to t = 1
-        solver_ee.solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.args)?;
-        // println!("{}", solver.stats());
-        println!("t_neg = {}, t_pos = {}", self.args.t_neg, self.args.t_pos);
-
-        // set state
-        vec_copy(state.sigma.vector_mut(), &sigma_vec);
-
-        // intersection
-        let yf_value = self.args.states.last().unwrap().yf_value();
-        if yf_value > 0.0 {
-            let ua = 2.0 * self.args.t_neg - 1.0; // normalized pseudo-time
-            let ub = 2.0 * self.args.t_pos - 1.0; // normalized pseudo-time
-            let fa = self.args.interp.eval(ua, &self.args.yf_at_nodes)?;
-            let fb = self.args.interp.eval(ub, &self.args.yf_at_nodes)?;
-            if fa < 0.0 && fb > 0.0 {
-                let (u_int, _) = self.root_solver.brent(ua, ub, &mut self.args, |t, args| {
-                    let f_int = args.interp.eval(t, &args.yf_at_nodes)?;
-                    Ok(f_int)
-                })?;
-                self.args.t_intersection = (u_int + 1.0) / 2.0;
-            }
-        }
-
-        // elastoplastic update
-
-        // time shift for plotting
-        self.args.t_shift += 1.0;
         Ok(())
     }
 }
@@ -484,14 +305,15 @@ mod tests {
                 general_plasticity: true,
                 continuum_modulus: true,
                 ode_method: Method::DoPri5,
+                save_history: true,
             }),
         };
 
         let mut param_lin = param_nli.clone();
         param_lin.nonlin_elast = None;
 
-        // let mut model_nli = ClassicalPlasticity::new(&config, &param_nli).unwrap();
         let mut model_lin = ClassicalPlasticity::new(&config, &param_lin).unwrap();
+        // let mut model_nli = ClassicalPlasticity::new(&config, &param_nli).unwrap();
 
         let lode = 0.0;
         let sigma_m_0 = 0.0;
@@ -502,8 +324,11 @@ mod tests {
             StressStrainPath::new_linear_oct(&config, YOUNG, POISSON, 1, 0.0, 0.0, dsigma_m, dsigma_d, lode).unwrap();
         // path_a.push_stress_oct(0.0, 0.0, lode, true);
 
-        // let states_nli = path_a.follow_strain(&mut model_nli);
         let states_lin = path_a.follow_strain(&mut model_lin);
+        // let states_nli = path_a.follow_strain(&mut model_nli);
+
+        let args_lin = model_lin.args.as_ref().unwrap();
+        let history_lin = args_lin.history.as_ref().unwrap();
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
@@ -516,7 +341,7 @@ mod tests {
             // ssp.draw_3x2_mosaic_struct(&model_nli.args.states, |curve, _, _| {
             //     curve.set_marker_style(".").set_line_style("--");
             // });
-            ssp.draw_3x2_mosaic_struct(&model_lin.args.states, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(history_lin, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
             ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1a.svg", |plot, row, col, before| {
@@ -540,7 +365,7 @@ mod tests {
             // ssp_yf.draw(Axis::Time, Axis::Yield, &model_nli.args.states, |curve| {
             //     curve.set_marker_style("o").set_label("non-lin");
             // });
-            ssp_yf.draw(Axis::Time, Axis::Yield, &model_lin.args.states, |curve| {
+            ssp_yf.draw(Axis::Time, Axis::Yield, history_lin, |curve| {
                 curve.set_marker_style("o").set_marker_void(true).set_label("linear");
             });
             ssp_yf
@@ -552,7 +377,7 @@ mod tests {
                         if before {
                             plot.set_cross(0.0, 0.0, "gray", "-", 1.1);
                         } else {
-                            plot.set_vert_line(model_lin.args.t_intersection, "green", "--", 1.5);
+                            plot.set_vert_line(args_lin.t_intersection, "green", "--", 1.5);
                         }
                     },
                 )

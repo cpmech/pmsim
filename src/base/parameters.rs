@@ -282,6 +282,9 @@ pub struct StressUpdate {
 
     /// ODE method
     pub ode_method: Method,
+
+    /// Save stress-strain history
+    pub save_history: bool,
 }
 
 /// Holds parameters for solid media mechanics simulations
