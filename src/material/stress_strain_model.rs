@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Specifies the essential functions for stress-strain models
-pub trait StressStrainTrait: Send + Sync {
+pub trait StressStrainTrait: Send {
     /// Indicates that the stiffness matrix is symmetric
     fn symmetric_stiffness(&self) -> bool;
 
