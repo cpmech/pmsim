@@ -1,4 +1,4 @@
-use super::{CamClay, ClassicalPlasticity, LinearElastic, StressStrainState, VonMises};
+use super::{CamClay, LinearElastic, StressStrainState, VonMises};
 use crate::base::{Config, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -30,7 +30,7 @@ pub struct StressStrainModel {
 impl StressStrainModel {
     /// Allocates a new instance
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
-        let general = match param.stress_update {
+        let _general = match param.stress_update {
             Some(p) => p.general_plasticity,
             None => false,
         };
@@ -49,11 +49,7 @@ impl StressStrainModel {
                 if config.plane_stress {
                     return Err("von Mises model does not work in plane-stress");
                 }
-                if general {
-                    Box::new(ClassicalPlasticity::new(config, param)?)
-                } else {
-                    Box::new(VonMises::new(config, young, poisson, z0, hh))
-                }
+                Box::new(VonMises::new(config, young, poisson, z0, hh))
             }
         };
         Ok(StressStrainModel { actual })
