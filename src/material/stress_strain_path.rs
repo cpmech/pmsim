@@ -240,8 +240,8 @@ impl StressStrainPath {
         // update
         let mut results = vec![state.clone()];
         for deps in &self.deltas_epsilon {
-            state.update_strain(1.0, deps);
-            model.update_stress(&mut state, deps).unwrap();
+            state.update_strain(1.0, deps); // update ε
+            model.update_stress(&mut state, deps).unwrap(); // Note: ε is already updated
             results.push(state.clone());
         }
         results

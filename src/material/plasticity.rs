@@ -1,12 +1,9 @@
-#![allow(unused)]
-
-use super::{ArgsForUpdater, StressStrainState, StressStrainTrait, Updater, VonMises};
-use crate::base::{Config, NonlinElast, ParamSolid, ParamStressStrain, StressUpdate};
+use super::{StressStrainState, StressStrainTrait, VonMises};
+use crate::base::{Config, NonlinElast, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_lab::{vec_inner, Vector};
-use russell_ode::{Method, OdeSolver};
 use russell_tensor::{t2_ddot_t4_ddot_t2, t2_dyad_t2_update, t4_ddot_t2_dyad_t2_ddot_t4};
-use russell_tensor::{LinElasticity, Mandel, Tensor2, Tensor4};
+use russell_tensor::{LinElasticity, Tensor2, Tensor4};
 
 const MP_TOO_SMALL: f64 = 1e-8;
 
@@ -40,9 +37,6 @@ pub trait ClassicalPlasticityTrait: StressStrainTrait {
 }
 
 pub struct ClassicalPlasticity {
-    /// Mandel representation
-    mandel: Mandel,
-
     /// Actual model
     pub(crate) model: Box<dyn ClassicalPlasticityTrait>,
 
@@ -105,7 +99,6 @@ impl ClassicalPlasticity {
         };
         let nz = model.n_internal_values();
         Ok(ClassicalPlasticity {
-            mandel: config.mandel,
             model,
             lin_elast,
             params_nonlin_elast: param.nonlin_elast,

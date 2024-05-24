@@ -5,25 +5,26 @@ use crate::base::{Config, ParamSolid, StressUpdate};
 use crate::StrError;
 use russell_lab::{vec_copy, InterpLagrange, RootSolver, Vector};
 use russell_ode::{Method, OdeSolver, Params, System};
-use russell_tensor::{t2_add, t4_ddot_t2, Mandel, Tensor2, Tensor4};
+use russell_tensor::{t2_add, t4_ddot_t2, Tensor2, Tensor4};
 
-pub struct ArgsForUpdater {
+/// Holds arguments for the ODE solver
+struct Arguments {
+    /// Plasticity formulation
+    plasticity: ClassicalPlasticity,
+
     /// Interpolated f(σ,z) values
     yf_values: Vector,
 
     /// Counts the number of calls to dense output and corresponds to the index in yf_interp
     yf_count: usize,
 
-    /// Model
-    plasticity: ClassicalPlasticity,
-
-    /// State
+    /// Current state
     state: StressStrainState,
 
-    /// Δε
+    /// Strain increment Δε
     delta_eps: Tensor2,
 
-    /// dσ/dt
+    /// Rate of stress dσ/dt
     dsigma_dt: Tensor2,
 
     /// (pseudo) Time before intersection
@@ -33,60 +34,77 @@ pub struct ArgsForUpdater {
     t_pos: f64,
 
     /// (pseudo) Time at intersection
-    pub(crate) t_intersection: f64,
+    t_intersection: f64,
 
     /// Initial pseudo time for plotting
     t0: f64,
 
-    /// Initial ε for plotting
+    /// Initial ε (for plotting)
+    ///
+    /// Allocated only if with_history == true
     epsilon0: Option<Tensor2>,
 
     /// History of results (for plotting)
-    pub history: Option<Vec<StressStrainState>>,
+    ///
+    /// Allocated only if with_history == true
+    history: Option<Vec<StressStrainState>>,
 }
 
-impl ArgsForUpdater {
-    pub fn new(config: &Config, param: &ParamSolid, interp_npoint: usize) -> Result<Self, StrError> {
+impl Arguments {
+    /// Allocates a new instance
+    pub fn new(
+        config: &Config,
+        param: &ParamSolid,
+        interp_npoint: usize,
+        with_history: bool,
+    ) -> Result<Self, StrError> {
         let plasticity = ClassicalPlasticity::new(config, param).unwrap();
-        let nz = plasticity.model.n_internal_values();
-        let with_optional = true;
-        Ok(ArgsForUpdater {
+        let n_internal_values = plasticity.model.n_internal_values();
+        let with_optional = with_history;
+        Ok(Arguments {
+            plasticity,
             yf_values: Vector::new(interp_npoint),
             yf_count: 0,
-            plasticity,
-            state: StressStrainState::new(config.mandel, nz, with_optional),
+            state: StressStrainState::new(config.mandel, n_internal_values, with_optional),
             delta_eps: Tensor2::new(config.mandel),
             dsigma_dt: Tensor2::new(config.mandel),
             t_neg: 0.0,
             t_pos: 0.0,
             t_intersection: 0.0,
             t0: 0.0,
-            epsilon0: Some(Tensor2::new(config.mandel)),
-            history: Some(Vec::new()),
+            epsilon0: if with_history {
+                Some(Tensor2::new(config.mandel))
+            } else {
+                None
+            },
+            history: if with_history { Some(Vec::new()) } else { None },
         })
     }
 }
 
+/// Implements the classical plasticity model with stress update
 pub struct Updater<'a> {
     /// Configuration regarding the stress update algorithm
     stress_update_config: StressUpdate,
 
-    /// Interpolant for yield function values versus pseudo-time
+    /// Interpolant for yield function values as function of pseudo-time
     interp: InterpLagrange,
 
     /// Solver for the intersection finding algorithm
     root_solver: RootSolver,
 
-    /// ODE solver: dσ/dt = Dₑ : Δε
-    solver_el: OdeSolver<'a, ArgsForUpdater>,
+    /// ODE solver for the elastic update: dσ/dt = Dₑ : Δε
+    solver_el: OdeSolver<'a, Arguments>,
 
-    /// ODE solver: dσ/dt = Dₑₚ : Δε
-    solver_ep: OdeSolver<'a, ArgsForUpdater>,
+    /// ODE solver for the elastoplastic update: dσ/dt = Dₑₚ : Δε
+    solver_ep: OdeSolver<'a, Arguments>,
 
-    args: ArgsForUpdater,
+    /// Arguments for the ODE solvers
+    args: Arguments,
 }
 
 impl<'a> Updater<'a> {
+    /// Allocates a new instance
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
         // stress update configuration
         let stress_update_config = match param.stress_update {
@@ -103,7 +121,7 @@ impl<'a> Updater<'a> {
         let ndim = config.mandel.dim();
 
         // ODE system: dσ/dt = Dₑ : Δε
-        let system_el = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut ArgsForUpdater| {
+        let system_el = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
             // σ := σ(t)
             args.state.sigma.set_mandel_vector(1.0, sigma_vec);
 
@@ -119,12 +137,12 @@ impl<'a> Updater<'a> {
         });
 
         // ODE system: dσ/dt = Dₑₚ : Δε
-        let system_ep = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut ArgsForUpdater| {
+        let system_ep = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
             // σ := σ(t)
             args.state.sigma.set_mandel_vector(1.0, sigma_vec);
 
             // Dₑₚ := Dₑₚ(t)
-            args.plasticity.modulus_elastic_rigidity(&args.state)?;
+            args.plasticity.modulus_elastic_rigidity(&args.state)?; // TODO: fix this
 
             // dσ/dt := Dₑₚ : Δε
             t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.dde, &args.delta_eps);
@@ -155,7 +173,7 @@ impl<'a> Updater<'a> {
             .enable_output()
             .set_dense_x_out(&interior_t_out)
             .unwrap()
-            .set_dense_callback(|stats, _, t, sigma_vec, args: &mut ArgsForUpdater| {
+            .set_dense_callback(|stats, _, t, sigma_vec, args: &mut Arguments| {
                 // reset counter
                 if stats.n_accepted == 0 {
                     args.yf_count = 0;
@@ -189,7 +207,7 @@ impl<'a> Updater<'a> {
         let solver_ep = OdeSolver::new(params, system_ep).unwrap();
 
         // arguments for the integrator
-        let args = ArgsForUpdater::new(config, param, npoint)?;
+        let args = Arguments::new(config, param, npoint, stress_update_config.save_history)?;
 
         // allocate updater
         Ok(Updater {
@@ -237,17 +255,10 @@ impl<'a> StressStrainTrait for Updater<'a> {
         // set Δε
         self.args.delta_eps.set_tensor(1.0, deps);
 
-        // set initial ε (for plotting)
-        if self.args.history.is_some() {
-            let epsilon0 = self.args.epsilon0.as_mut().unwrap();
-            let epsilon = state.eps();
-            epsilon0.set_tensor(1.0, epsilon);
-        }
-
         // elastic update
         let mut sigma_vec = Vector::from(state.sigma.vector());
         self.solver_el.solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.args)?;
-        vec_copy(state.sigma.vector_mut(), &sigma_vec);
+        vec_copy(state.sigma.vector_mut(), &sigma_vec).unwrap();
 
         // intersection
         assert_eq!(self.args.yf_count, self.interp.get_degree() + 1);
@@ -266,9 +277,12 @@ impl<'a> StressStrainTrait for Updater<'a> {
             }
         }
 
-        // update pseudo time (for plotting)
+        // update initial pseudo time and initial strain (for plotting)
         if self.args.history.is_some() {
             self.args.t0 += 1.0;
+            let epsilon0 = self.args.epsilon0.as_mut().unwrap();
+            let epsilon = self.args.state.eps();
+            epsilon0.set_tensor(1.0, epsilon);
         }
         Ok(())
     }
@@ -279,9 +293,9 @@ impl<'a> StressStrainTrait for Updater<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base::{new_empty_config_3d, NonlinElast, ParamStressStrain, SampleParams};
+    use crate::base::{new_empty_config_3d, NonlinElast, ParamStressStrain};
     use crate::material::{Axis, StressStrainPath, StressStrainPlot};
-    use plotpy::{Canvas, Curve, Legend, RayEndpoint};
+    use plotpy::{Canvas, Curve, RayEndpoint};
     use russell_lab::math::SQRT_2_BY_3;
 
     const SAVE_FIGURE: bool = true;
@@ -295,7 +309,6 @@ mod tests {
         const POISSON: f64 = 0.25;
         const Z0: f64 = 7.0;
         const H: f64 = 600.0;
-        let continuum = true;
 
         let param_nli = ParamSolid {
             density: 1.0,
@@ -328,8 +341,10 @@ mod tests {
         let sigma_d_0 = 0.0;
         let dsigma_m = 10.0;
         let dsigma_d = 10.0;
-        let mut path_a =
-            StressStrainPath::new_linear_oct(&config, YOUNG, POISSON, 1, 0.0, 0.0, dsigma_m, dsigma_d, lode).unwrap();
+        let path_a = StressStrainPath::new_linear_oct(
+            &config, YOUNG, POISSON, 1, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, lode,
+        )
+        .unwrap();
         // path_a.push_stress_oct(0.0, 0.0, lode, true);
 
         let states_lin = path_a.follow_strain(&mut model_lin);
@@ -339,18 +354,18 @@ mod tests {
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
-            // ssp.draw_3x2_mosaic_struct(&states_nli, |curve, _, _| {
-            //     curve.set_marker_style("o").set_line_style("None");
-            // });
-            ssp.draw_3x2_mosaic_struct(&states_lin, |curve, _, _| {
-                curve.set_marker_style("o").set_line_style("None");
-            });
-            // ssp.draw_3x2_mosaic_struct(&model_nli.args.states, |curve, _, _| {
-            //     curve.set_marker_style(".").set_line_style("--");
-            // });
             ssp.draw_3x2_mosaic_struct(history_lin, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
+            ssp.draw_3x2_mosaic_struct(&states_lin, |curve, _, _| {
+                curve.set_marker_style("o").set_line_style("None");
+            });
+            // ssp.draw_3x2_mosaic_struct(&states_nli, |curve, _, _| {
+            //     curve.set_marker_style("o").set_line_style("None");
+            // });
+            // ssp.draw_3x2_mosaic_struct(&model_nli.args.states, |curve, _, _| {
+            //     curve.set_marker_style(".").set_line_style("--");
+            // });
             ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1a.svg", |plot, row, col, before| {
                 if before {
                     if (row == 0 && col == 0) || row == 1 {
