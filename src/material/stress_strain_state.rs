@@ -130,11 +130,11 @@ impl StressStrainState {
     ///
     /// 1. A panic will occur if the tensors have different [Mandel].
     /// 2. A panic will occur if epsilon is not available.
-    pub fn update_strain(&mut self, alpha: f64, deps: &Tensor2) {
-        assert_eq!(deps.mandel(), self.sigma.mandel());
-        let eps = self.epsilon.as_mut().unwrap().vector_mut();
-        for i in 0..eps.dim() {
-            eps[i] += alpha * deps.vector()[i];
+    pub fn update_strain(&mut self, alpha: f64, delta_epsilon: &Tensor2) {
+        assert_eq!(delta_epsilon.mandel(), self.sigma.mandel());
+        let epsilon = self.epsilon.as_mut().unwrap().vector_mut();
+        for i in 0..epsilon.dim() {
+            epsilon[i] += alpha * delta_epsilon.vector()[i];
         }
     }
 }

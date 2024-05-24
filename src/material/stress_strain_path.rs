@@ -44,10 +44,10 @@ pub struct StressStrainPath {
     pub deltas_sigma: Vec<Tensor2>,
 
     /// Auxiliary Δε
-    depsilon: Tensor2,
+    delta_epsilon: Tensor2,
 
     /// Auxiliary Δσ
-    dsigma: Tensor2,
+    delta_sigma: Tensor2,
 
     /// Auxiliary ε
     epsilon: Tensor2,
@@ -77,8 +77,8 @@ impl StressStrainPath {
             strain_driven: Vec::new(),
             deltas_epsilon: Vec::new(),
             deltas_sigma: Vec::new(),
-            depsilon: Tensor2::new(config.mandel),
-            dsigma: Tensor2::new(config.mandel),
+            delta_epsilon: Tensor2::new(config.mandel),
+            delta_sigma: Tensor2::new(config.mandel),
             epsilon: Tensor2::new(config.mandel),
             sigma: Tensor2::new(config.mandel),
         })
@@ -180,12 +180,12 @@ impl StressStrainPath {
         if self.states.len() > 0 {
             let sigma_prev = &self.states.last().unwrap().sigma;
             let epsilon_prev = &self.states.last().unwrap().eps();
-            t2_add(&mut self.dsigma, 1.0, &sigma, -1.0, &sigma_prev); // Δσ = σ - σ_prev
-            t4_ddot_t2(&mut self.depsilon, 1.0, &self.cc, &self.dsigma); // Δε = C : Δσ
-            t2_add(&mut self.epsilon, 1.0, &epsilon_prev, 1.0, &self.depsilon); // ε = ε_prev + Δε
+            t2_add(&mut self.delta_sigma, 1.0, &sigma, -1.0, &sigma_prev); // Δσ = σ - σ_prev
+            t4_ddot_t2(&mut self.delta_epsilon, 1.0, &self.cc, &self.delta_sigma); // Δε = C : Δσ
+            t2_add(&mut self.epsilon, 1.0, &epsilon_prev, 1.0, &self.delta_epsilon); // ε = ε_prev + Δε
             state.eps_mut().set_tensor(1.0, &self.epsilon);
-            self.deltas_sigma.push(self.dsigma.clone());
-            self.deltas_epsilon.push(self.depsilon.clone());
+            self.deltas_sigma.push(self.delta_sigma.clone());
+            self.deltas_epsilon.push(self.delta_epsilon.clone());
         }
         self.states.push(state);
         self.strain_driven.push(strain_driven);
@@ -209,12 +209,12 @@ impl StressStrainPath {
         if self.states.len() > 0 {
             let sigma_prev = &self.states.last().unwrap().sigma;
             let epsilon_prev = &self.states.last().unwrap().eps();
-            t2_add(&mut self.depsilon, 1.0, &epsilon, -1.0, &epsilon_prev); // Δε = ε - ε_prev
-            t4_ddot_t2(&mut self.dsigma, 1.0, &self.dd, &self.depsilon); // Δσ = D : Δε
-            t2_add(&mut self.sigma, 1.0, &sigma_prev, 1.0, &self.dsigma); // σ = σ_prev + Δσ
+            t2_add(&mut self.delta_epsilon, 1.0, &epsilon, -1.0, &epsilon_prev); // Δε = ε - ε_prev
+            t4_ddot_t2(&mut self.delta_sigma, 1.0, &self.dd, &self.delta_epsilon); // Δσ = D : Δε
+            t2_add(&mut self.sigma, 1.0, &sigma_prev, 1.0, &self.delta_sigma); // σ = σ_prev + Δσ
             state.sigma.set_tensor(1.0, &self.sigma);
-            self.deltas_sigma.push(self.dsigma.clone());
-            self.deltas_epsilon.push(self.depsilon.clone());
+            self.deltas_sigma.push(self.delta_sigma.clone());
+            self.deltas_epsilon.push(self.delta_epsilon.clone());
         }
         self.states.push(state);
         self.strain_driven.push(strain_driven);
@@ -239,9 +239,9 @@ impl StressStrainPath {
 
         // update
         let mut results = vec![state.clone()];
-        for deps in &self.deltas_epsilon {
-            state.update_strain(1.0, deps); // update ε
-            model.update_stress(&mut state, deps).unwrap(); // Note: ε is already updated
+        for delta_epsilon in &self.deltas_epsilon {
+            state.update_strain(1.0, delta_epsilon); // update ε
+            model.update_stress(&mut state, delta_epsilon).unwrap(); // Note: ε is already updated
             results.push(state.clone());
         }
         results

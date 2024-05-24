@@ -40,7 +40,7 @@ pub struct ElementSolid<'a> {
     /// (temporary) Strain increment at integration point
     ///
     ///  Δε @ ip
-    deps: Tensor2,
+    delta_epsilon: Tensor2,
 }
 
 impl<'a> ElementSolid<'a> {
@@ -78,7 +78,7 @@ impl<'a> ElementSolid<'a> {
             ips,
             model,
             stresses,
-            deps: Tensor2::new_sym_ndim(ndim),
+            delta_epsilon: Tensor2::new_sym_ndim(ndim),
         })
     }
 
@@ -89,12 +89,12 @@ impl<'a> ElementSolid<'a> {
         let nnode = self.cell.points.len();
         let l2g = &self.local_to_global;
         let gg = &self.pad.gradient;
-        self.deps.clear();
+        self.delta_epsilon.clear();
         if self.ndim == 2 {
             for m in 0..nnode {
-                self.deps.sym_add(0, 0, 1.0,  duu[l2g[0+2*m]] * gg.get(m,0));
-                self.deps.sym_add(1, 1, 1.0,  duu[l2g[1+2*m]] * gg.get(m,1));
-                self.deps.sym_add(0, 1, 1.0, (duu[l2g[0+2*m]] * gg.get(m,1) + duu[l2g[1+2*m]] * gg.get(m,0))/2.0);
+                self.delta_epsilon.sym_add(0, 0, 1.0,  duu[l2g[0+2*m]] * gg.get(m,0));
+                self.delta_epsilon.sym_add(1, 1, 1.0,  duu[l2g[1+2*m]] * gg.get(m,1));
+                self.delta_epsilon.sym_add(0, 1, 1.0, (duu[l2g[0+2*m]] * gg.get(m,1) + duu[l2g[1+2*m]] * gg.get(m,0))/2.0);
             }
             if self.config.axisymmetric {
                 // calculate radius
@@ -107,17 +107,17 @@ impl<'a> ElementSolid<'a> {
                 }
                 // compute out-of-plane strain increment component
                 for m in 0..nnode {
-                    self.deps.sym_add(2, 2, 1.0, duu[l2g[0+2*m]] * nn[m] / r);
+                    self.delta_epsilon.sym_add(2, 2, 1.0, duu[l2g[0+2*m]] * nn[m] / r);
                 }
             }
         } else {
             for m in 0..nnode {
-                self.deps.sym_add(0, 0, 1.0,  duu[l2g[0+3*m]] * gg.get(m,0));
-                self.deps.sym_add(1, 1, 1.0,  duu[l2g[1+3*m]] * gg.get(m,1));
-                self.deps.sym_add(2, 2, 1.0,  duu[l2g[2+3*m]] * gg.get(m,2));
-                self.deps.sym_add(0, 1, 1.0, (duu[l2g[0+3*m]] * gg.get(m,1) + duu[l2g[1+3*m]] * gg.get(m,0))/2.0);
-                self.deps.sym_add(1, 2, 1.0, (duu[l2g[1+3*m]] * gg.get(m,2) + duu[l2g[2+3*m]] * gg.get(m,1))/2.0);
-                self.deps.sym_add(0, 2, 1.0, (duu[l2g[0+3*m]] * gg.get(m,2) + duu[l2g[2+3*m]] * gg.get(m,0))/2.0);
+                self.delta_epsilon.sym_add(0, 0, 1.0,  duu[l2g[0+3*m]] * gg.get(m,0));
+                self.delta_epsilon.sym_add(1, 1, 1.0,  duu[l2g[1+3*m]] * gg.get(m,1));
+                self.delta_epsilon.sym_add(2, 2, 1.0,  duu[l2g[2+3*m]] * gg.get(m,2));
+                self.delta_epsilon.sym_add(0, 1, 1.0, (duu[l2g[0+3*m]] * gg.get(m,1) + duu[l2g[1+3*m]] * gg.get(m,0))/2.0);
+                self.delta_epsilon.sym_add(1, 2, 1.0, (duu[l2g[1+3*m]] * gg.get(m,2) + duu[l2g[2+3*m]] * gg.get(m,1))/2.0);
+                self.delta_epsilon.sym_add(0, 2, 1.0, (duu[l2g[0+3*m]] * gg.get(m,2) + duu[l2g[2+3*m]] * gg.get(m,0))/2.0);
             }
         }
         Ok(())
@@ -264,7 +264,9 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             // interpolate increment of strains Δε at integration point
             self.calc_delta_eps(&state.duu, p)?;
             // perform stress-update
-            self.model.actual.update_stress(&mut self.stresses.all[p], &self.deps)?;
+            self.model
+                .actual
+                .update_stress(&mut self.stresses.all[p], &self.delta_epsilon)?;
         }
         Ok(())
     }
@@ -463,13 +465,13 @@ mod tests {
             for p in 0..element.ips.len() {
                 // horizontal strain
                 element.calc_delta_eps(&duu_h, p).unwrap();
-                vec_approx_eq(&element.deps.vector(), &solution_h, 1e-13);
+                vec_approx_eq(&element.delta_epsilon.vector(), &solution_h, 1e-13);
                 // vertical strain
                 element.calc_delta_eps(&duu_v, p).unwrap();
-                vec_approx_eq(&element.deps.vector(), &solution_v, 1e-13);
+                vec_approx_eq(&element.delta_epsilon.vector(), &solution_v, 1e-13);
                 // shear strain
                 element.calc_delta_eps(&duu_s, p).unwrap();
-                vec_approx_eq(&element.deps.vector(), &solution_s, 1e-13);
+                vec_approx_eq(&element.delta_epsilon.vector(), &solution_s, 1e-13);
             }
         }
     }

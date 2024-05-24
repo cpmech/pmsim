@@ -172,14 +172,14 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut StressStrainState, deps: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut StressStrainState, delta_epsilon: &Tensor2) -> Result<(), StrError> {
         // reset flags
         state.loading = false; // not elastoplastic by default
         state.algo_lambda = 0.0;
 
         // trial stress: σ ← σ_trial
         let dd = self.lin_elasticity.get_modulus();
-        t4_ddot_t2_update(&mut state.sigma, 1.0, dd, deps, 1.0); // σ += D : Δε
+        t4_ddot_t2_update(&mut state.sigma, 1.0, dd, delta_epsilon, 1.0); // σ += D : Δε
 
         // elastic update
         let f_trial = self.yield_function(state).unwrap();
@@ -471,9 +471,9 @@ mod tests {
         let mut states = vec![state.clone()];
 
         // first update
-        let deps = &path.deltas_epsilon[0];
-        state.update_strain(1.0, deps);
-        model.update_stress(&mut state, deps).unwrap();
+        let delta_epsilon = &path.deltas_epsilon[0];
+        state.update_strain(1.0, delta_epsilon);
+        model.update_stress(&mut state, delta_epsilon).unwrap();
         model.stiffness(&mut dd, &state).unwrap();
         states.push(state.clone());
         let dd_spo = &[
@@ -491,9 +491,9 @@ mod tests {
         assert_eq!(state.algo_lambda, 0.0);
 
         // second update
-        let deps = &path.deltas_epsilon[1];
-        state.update_strain(1.0, deps);
-        model.update_stress(&mut state, deps).unwrap();
+        let delta_epsilon = &path.deltas_epsilon[1];
+        state.update_strain(1.0, delta_epsilon);
+        model.update_stress(&mut state, delta_epsilon).unwrap();
         model.stiffness(&mut dd, &state).unwrap();
         states.push(state.clone());
         let dd_spo = &[

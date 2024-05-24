@@ -247,13 +247,13 @@ impl<'a> StressStrainTrait for Updater<'a> {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut StressStrainState, deps: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut StressStrainState, delta_epsilon: &Tensor2) -> Result<(), StrError> {
         if !self.stress_update_config.continuum_modulus {
-            return self.args.plasticity.model.update_stress(state, deps);
+            return self.args.plasticity.model.update_stress(state, delta_epsilon);
         }
 
         // set Δε
-        self.args.delta_eps.set_tensor(1.0, deps);
+        self.args.delta_eps.set_tensor(1.0, delta_epsilon);
 
         // elastic update
         let mut sigma_vec = Vector::from(state.sigma.vector());

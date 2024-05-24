@@ -41,9 +41,9 @@ impl StressStrainTrait for LinearElastic {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut StressStrainState, deps: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut StressStrainState, delta_epsilon: &Tensor2) -> Result<(), StrError> {
         let dd = self.model.get_modulus();
-        t4_ddot_t2_update(&mut state.sigma, 1.0, dd, deps, 1.0); // σ += D : Δε
+        t4_ddot_t2_update(&mut state.sigma, 1.0, dd, delta_epsilon, 1.0); // σ += D : Δε
         Ok(())
     }
 }
