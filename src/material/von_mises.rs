@@ -1,6 +1,4 @@
-#![allow(unused)]
-
-use super::{StressStrainState, StressStrainTrait};
+use super::{ClassicalPlasticityTrait, StressStrainState, StressStrainTrait};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
@@ -213,6 +211,62 @@ impl StressStrainTrait for VonMises {
         state.loading = true;
         state.algo_lambda = lambda;
         state.internal_values[Z0] = state.sigma.invariant_sigma_d();
+        Ok(())
+    }
+}
+
+impl ClassicalPlasticityTrait for VonMises {
+    /// Returns whether this model is associated or not
+    fn associated(&self) -> bool {
+        true
+    }
+
+    /// Calculates the yield function f
+    fn yield_function(&self, state: &StressStrainState) -> Result<f64, StrError> {
+        let sigma_d = state.sigma.invariant_sigma_d();
+        let z = state.internal_values[Z0];
+        Ok(sigma_d - z)
+    }
+
+    /// Calculates the plastic potential function g
+    fn plastic_potential(&self, _state: &StressStrainState) -> Result<(), StrError> {
+        Err("plastic potential is not available")
+    }
+
+    /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
+    fn hardening(&self, hh: &mut Vector, _state: &StressStrainState) -> Result<(), StrError> {
+        hh[Z0] = self.hh;
+        Ok(())
+    }
+
+    /// Calculates the derivative of the yield function w.r.t stress
+    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressStrainState) -> Result<(), StrError> {
+        // df/dσ = dσd/dσ
+        match deriv1_invariant_sigma_d(df_dsigma, &state.sigma) {
+            Some(_) => Ok(()),
+            None => Err("cannot compute df/dσ due to singularity"),
+        }
+    }
+
+    /// Calculates the derivative of the plastic potential w.r.t stress
+    fn dg_dsigma(&self, _dg_dsigma: &mut Tensor2, _state: &StressStrainState) -> Result<(), StrError> {
+        Err("dg/dσ is not available")
+    }
+
+    /// Calculates the derivative of the yield function w.r.t internal variables
+    fn df_dz(&self, df_dz: &mut Vector, _state: &StressStrainState) -> Result<(), StrError> {
+        df_dz[Z0] = -1.0;
+        Ok(())
+    }
+
+    /// Calculates the elastic compliance modulus
+    fn elastic_compliance(&self, cce: &mut Tensor4, _state: &StressStrainState) -> Result<(), StrError> {
+        self.lin_elasticity.calc_compliance(cce)
+    }
+
+    /// Calculates the elastic rigidity modulus
+    fn elastic_rigidity(&self, dde: &mut Tensor4, _state: &StressStrainState) -> Result<(), StrError> {
+        dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
         Ok(())
     }
 }
