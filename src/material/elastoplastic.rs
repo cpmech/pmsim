@@ -15,7 +15,7 @@ struct Arguments {
     /// Interpolated f(σ,z) values
     yf_values: Vector,
 
-    /// Counts the number of calls to dense output and corresponds to the index in yf_interp
+    /// Counts the number of calls to dense output and corresponds to the index in yf_values
     yf_count: usize,
 
     /// Current state
