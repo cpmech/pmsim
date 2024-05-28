@@ -82,8 +82,8 @@ impl Arguments {
     }
 }
 
-/// Implements the classical plasticity model with stress update
-pub struct Updater<'a> {
+/// Implements a general elastoplastic model
+pub struct Elastoplastic<'a> {
     /// Configuration regarding the stress update algorithm
     stress_update_config: StressUpdate,
 
@@ -103,7 +103,7 @@ pub struct Updater<'a> {
     arguments: Arguments,
 }
 
-impl<'a> Updater<'a> {
+impl<'a> Elastoplastic<'a> {
     /// Allocates a new instance
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
         // stress update configuration
@@ -210,7 +210,7 @@ impl<'a> Updater<'a> {
         let args = Arguments::new(config, param, npoint, stress_update_config.save_history)?;
 
         // allocate updater
-        Ok(Updater {
+        Ok(Elastoplastic {
             stress_update_config,
             interp,
             root_solver: RootSolver::new(),
@@ -221,7 +221,7 @@ impl<'a> Updater<'a> {
     }
 }
 
-impl<'a> StressStrainTrait for Updater<'a> {
+impl<'a> StressStrainTrait for Elastoplastic<'a> {
     /// Indicates that the stiffness matrix is symmetric
     fn symmetric_stiffness(&self) -> bool {
         self.arguments.plasticity.model.symmetric_stiffness()
@@ -334,7 +334,7 @@ mod tests {
         let mut param_lin = param_nli.clone();
         param_lin.nonlin_elast = None;
 
-        let mut model_lin = Updater::new(&config, &param_lin).unwrap();
+        let mut model_lin = Elastoplastic::new(&config, &param_lin).unwrap();
         // let mut model_nli = ClassicalPlasticity::new(&config, &param_nli).unwrap();
 
         let lode = 0.0;

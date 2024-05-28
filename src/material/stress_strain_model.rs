@@ -1,4 +1,4 @@
-use super::{CamClay, LinearElastic, StressStrainState, Updater, VonMises};
+use super::{CamClay, Elastoplastic, LinearElastic, StressStrainState, VonMises};
 use crate::base::{Config, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -50,7 +50,7 @@ impl StressStrainModel {
                     return Err("von Mises model does not work in plane-stress");
                 }
                 if general {
-                    Box::new(Updater::new(config, param)?)
+                    Box::new(Elastoplastic::new(config, param)?)
                 } else {
                     Box::new(VonMises::new(config, young, poisson, z0, hh))
                 }
