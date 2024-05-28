@@ -22,7 +22,7 @@ struct Arguments {
     state: StressStrainState,
 
     /// Strain increment Δε
-    delta_eps: Tensor2,
+    delta_epsilon: Tensor2,
 
     /// Rate of stress dσ/dt
     dsigma_dt: Tensor2,
@@ -66,7 +66,7 @@ impl Arguments {
             yf_values: Vector::new(interp_npoint),
             yf_count: 0,
             state: StressStrainState::new(config.mandel, n_internal_values, with_optional),
-            delta_eps: Tensor2::new(config.mandel),
+            delta_epsilon: Tensor2::new(config.mandel),
             dsigma_dt: Tensor2::new(config.mandel),
             t_neg: 0.0,
             t_pos: 0.0,
@@ -94,13 +94,13 @@ pub struct Updater<'a> {
     root_solver: RootSolver,
 
     /// ODE solver for the elastic update: dσ/dt = Dₑ : Δε
-    solver_el: OdeSolver<'a, Arguments>,
+    solver_elastic: OdeSolver<'a, Arguments>,
 
     /// ODE solver for the elastoplastic update: dσ/dt = Dₑₚ : Δε
-    solver_ep: OdeSolver<'a, Arguments>,
+    solver_elastoplastic: OdeSolver<'a, Arguments>,
 
     /// Arguments for the ODE solvers
-    args: Arguments,
+    arguments: Arguments,
 }
 
 impl<'a> Updater<'a> {
@@ -121,7 +121,7 @@ impl<'a> Updater<'a> {
         let ndim = config.mandel.dim();
 
         // ODE system: dσ/dt = Dₑ : Δε
-        let system_el = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
+        let system_e = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
             // σ := σ(t)
             args.state.sigma.set_mandel_vector(1.0, sigma_vec);
 
@@ -129,7 +129,7 @@ impl<'a> Updater<'a> {
             args.plasticity.modulus_elastic_rigidity(&args.state)?;
 
             // dσ/dt := Dₑ : Δε
-            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.dde, &args.delta_eps);
+            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.dde, &args.delta_epsilon);
 
             // copy Mandel vector
             vec_copy(dsigma_dt_vec, args.dsigma_dt.vector()).unwrap();
@@ -145,7 +145,7 @@ impl<'a> Updater<'a> {
             args.plasticity.modulus_elastic_rigidity(&args.state)?; // TODO: fix this
 
             // dσ/dt := Dₑₚ : Δε
-            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.dde, &args.delta_eps);
+            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.dde, &args.delta_epsilon);
 
             // copy Mandel vector
             vec_copy(dsigma_dt_vec, args.dsigma_dt.vector()).unwrap();
@@ -168,7 +168,7 @@ impl<'a> Updater<'a> {
         let params = Params::new(stress_update_config.ode_method);
 
         // solver for the elastic update
-        let mut solver_el = OdeSolver::new(params, system_el).unwrap();
+        let mut solver_el = OdeSolver::new(params, system_e).unwrap();
         solver_el
             .enable_output()
             .set_dense_x_out(&interior_t_out)
@@ -195,7 +195,7 @@ impl<'a> Updater<'a> {
                 if let Some(history) = args.history.as_mut() {
                     let epsilon0 = args.epsilon0.as_mut().unwrap();
                     let epsilon = args.state.eps_mut();
-                    t2_add(epsilon, 1.0, epsilon0, t, &args.delta_eps); // ε := ε₀ + t Δε
+                    t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon); // ε := ε₀ + t Δε
                     *args.state.time_mut() = args.t0 + t;
                     *args.state.yf_value_mut() = yf;
                     history.push(args.state.clone());
@@ -214,9 +214,9 @@ impl<'a> Updater<'a> {
             stress_update_config,
             interp,
             root_solver: RootSolver::new(),
-            solver_el,
-            solver_ep,
-            args,
+            solver_elastic: solver_el,
+            solver_elastoplastic: solver_ep,
+            arguments: args,
         })
     }
 }
@@ -224,64 +224,65 @@ impl<'a> Updater<'a> {
 impl<'a> StressStrainTrait for Updater<'a> {
     /// Indicates that the stiffness matrix is symmetric
     fn symmetric_stiffness(&self) -> bool {
-        self.args.plasticity.model.symmetric_stiffness()
+        self.arguments.plasticity.model.symmetric_stiffness()
     }
 
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
-        self.args.plasticity.model.n_internal_values()
+        self.arguments.plasticity.model.n_internal_values()
     }
 
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut StressStrainState) -> Result<(), StrError> {
-        self.args.plasticity.model.initialize_internal_values(state)
+        self.arguments.plasticity.model.initialize_internal_values(state)
     }
 
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         if self.stress_update_config.continuum_modulus {
-            self.args.plasticity.modulus_rigidity(dd, state)
+            self.arguments.plasticity.modulus_rigidity(dd, state)
         } else {
-            self.args.plasticity.model.stiffness(dd, state)
+            self.arguments.plasticity.model.stiffness(dd, state)
         }
     }
 
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut StressStrainState, delta_epsilon: &Tensor2) -> Result<(), StrError> {
         if !self.stress_update_config.continuum_modulus {
-            return self.args.plasticity.model.update_stress(state, delta_epsilon);
+            return self.arguments.plasticity.model.update_stress(state, delta_epsilon);
         }
 
-        // set Δε
-        self.args.delta_eps.set_tensor(1.0, delta_epsilon);
+        // set Δε in arguments struct
+        self.arguments.delta_epsilon.set_tensor(1.0, delta_epsilon);
 
         // elastic update
         let mut sigma_vec = Vector::from(state.sigma.vector());
-        self.solver_el.solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.args)?;
+        self.solver_elastic
+            .solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.arguments)?;
         vec_copy(state.sigma.vector_mut(), &sigma_vec).unwrap();
 
         // intersection
-        assert_eq!(self.args.yf_count, self.interp.get_degree() + 1);
-        let yf = self.args.yf_values.as_data().last().unwrap();
+        assert_eq!(self.arguments.yf_count, self.interp.get_degree() + 1);
+        let yf = self.arguments.yf_values.as_data().last().unwrap();
         if *yf > 0.0 {
-            let ua = 2.0 * self.args.t_neg - 1.0; // normalized pseudo-time
-            let ub = 2.0 * self.args.t_pos - 1.0; // normalized pseudo-time
-            let fa = self.interp.eval(ua, &self.args.yf_values)?;
-            let fb = self.interp.eval(ub, &self.args.yf_values)?;
+            let ua = 2.0 * self.arguments.t_neg - 1.0; // normalized pseudo-time
+            let ub = 2.0 * self.arguments.t_pos - 1.0; // normalized pseudo-time
+            let fa = self.interp.eval(ua, &self.arguments.yf_values)?;
+            let fb = self.interp.eval(ub, &self.arguments.yf_values)?;
             if fa < 0.0 && fb > 0.0 {
                 let (u_int, _) = self.root_solver.brent(ua, ub, &mut 0, |t, _| {
-                    let f_int = self.interp.eval(t, &self.args.yf_values)?;
+                    let f_int = self.interp.eval(t, &self.arguments.yf_values)?;
                     Ok(f_int)
                 })?;
-                self.args.t_intersection = (u_int + 1.0) / 2.0;
+                self.arguments.t_intersection = (u_int + 1.0) / 2.0;
             }
         }
 
         // update initial pseudo time and initial strain (for plotting)
-        if self.args.history.is_some() {
-            self.args.t0 += 1.0;
-            let epsilon0 = self.args.epsilon0.as_mut().unwrap();
-            let epsilon = self.args.state.eps();
+        if self.arguments.history.is_some() {
+            self.arguments.t0 += 1.0;
+            let epsilon0 = self.arguments.epsilon0.as_mut().unwrap();
+            let epsilon = self.arguments.state.eps();
             epsilon0.set_tensor(1.0, epsilon);
         }
         Ok(())
@@ -350,7 +351,7 @@ mod tests {
         let states_lin = path_a.follow_strain(&mut model_lin);
         // let states_nli = path_a.follow_strain(&mut model_nli);
 
-        let history_lin = model_lin.args.history.as_ref().unwrap();
+        let history_lin = model_lin.arguments.history.as_ref().unwrap();
 
         if SAVE_FIGURE {
             let mut ssp = StressStrainPlot::new();
@@ -399,7 +400,7 @@ mod tests {
                         if before {
                             plot.set_cross(0.0, 0.0, "gray", "-", 1.1);
                         } else {
-                            plot.set_vert_line(model_lin.args.t_intersection, "green", "--", 1.5);
+                            plot.set_vert_line(model_lin.arguments.t_intersection, "green", "--", 1.5);
                         }
                     },
                 )
