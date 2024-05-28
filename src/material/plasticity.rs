@@ -7,7 +7,7 @@ use russell_tensor::{LinElasticity, Tensor2, Tensor4};
 
 const MP_TOO_SMALL: f64 = 1e-8;
 
-pub trait ClassicalPlasticityTrait: StressStrainTrait {
+pub trait PlasticityTrait: StressStrainTrait {
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool;
 
@@ -36,9 +36,9 @@ pub trait ClassicalPlasticityTrait: StressStrainTrait {
     fn elastic_rigidity(&self, dde: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError>;
 }
 
-pub struct ClassicalPlasticity {
+pub struct Plasticity {
     /// Actual model
-    pub(crate) model: Box<dyn ClassicalPlasticityTrait>,
+    pub(crate) model: Box<dyn PlasticityTrait>,
 
     /// Linear elastic model
     lin_elast: Option<LinElasticity>,
@@ -71,7 +71,7 @@ pub struct ClassicalPlasticity {
     pub(crate) dde: Tensor4,
 }
 
-impl ClassicalPlasticity {
+impl Plasticity {
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
         if config.plane_stress {
             return Err("the classical plasticity models here do not work in plane-stress");
@@ -98,7 +98,7 @@ impl ClassicalPlasticity {
             None => None,
         };
         let nz = model.n_internal_values();
-        Ok(ClassicalPlasticity {
+        Ok(Plasticity {
             model,
             lin_elast,
             params_nonlin_elast: param.nonlin_elast,

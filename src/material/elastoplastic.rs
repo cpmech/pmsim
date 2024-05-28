@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use super::{ClassicalPlasticity, StressStrainState, StressStrainTrait};
+use super::{Plasticity, StressStrainState, StressStrainTrait};
 use crate::base::{Config, ParamSolid, StressUpdate};
 use crate::StrError;
 use russell_lab::{vec_copy, InterpLagrange, RootSolver, Vector};
@@ -10,7 +10,7 @@ use russell_tensor::{t2_add, t4_ddot_t2, Tensor2, Tensor4};
 /// Holds arguments for the ODE solver
 struct Arguments {
     /// Plasticity formulation
-    plasticity: ClassicalPlasticity,
+    plasticity: Plasticity,
 
     /// Interpolated f(σ,z) values
     yf_values: Vector,
@@ -58,7 +58,7 @@ impl Arguments {
         interp_npoint: usize,
         with_history: bool,
     ) -> Result<Self, StrError> {
-        let plasticity = ClassicalPlasticity::new(config, param).unwrap();
+        let plasticity = Plasticity::new(config, param).unwrap();
         let n_internal_values = plasticity.model.n_internal_values();
         let with_optional = with_history;
         Ok(Arguments {

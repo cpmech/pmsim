@@ -1,4 +1,4 @@
-use super::{ClassicalPlasticityTrait, StressStrainState, StressStrainTrait};
+use super::{PlasticityTrait, StressStrainState, StressStrainTrait};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
@@ -215,7 +215,7 @@ impl StressStrainTrait for VonMises {
     }
 }
 
-impl ClassicalPlasticityTrait for VonMises {
+impl PlasticityTrait for VonMises {
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool {
         true
