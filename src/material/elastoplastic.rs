@@ -1,11 +1,9 @@
-#![allow(unused)]
-
 use super::{Plasticity, StressStrainState, StressStrainTrait};
 use crate::base::{Config, ParamSolid, StressUpdate};
 use crate::StrError;
 use russell_lab::{vec_copy, InterpLagrange, RootSolver, Vector};
 use russell_ode::{Method, OdeSolver, Params, System};
-use russell_tensor::{t2_add, t4_ddot_t2, Tensor2, Tensor4};
+use russell_tensor::{t2_add, t2_ddot_t2, t4_ddot_t2, Mandel, Tensor2, Tensor4};
 
 const KEEP_RUNNING: bool = false;
 
@@ -28,6 +26,9 @@ struct Arguments {
 
     /// Rate of stress dσ/dt
     dsigma_dt: Tensor2,
+
+    /// Rate of internal variables dz/dt
+    dz_dt: Vector,
 
     /// (pseudo) Time before intersection
     t_neg: f64,
@@ -70,6 +71,7 @@ impl Arguments {
             state: StressStrainState::new(config.mandel, n_internal_values, with_optional),
             delta_epsilon: Tensor2::new(config.mandel),
             dsigma_dt: Tensor2::new(config.mandel),
+            dz_dt: Vector::new(n_internal_values),
             t_neg: 0.0,
             t_pos: 0.0,
             t_intersection: 0.0,
@@ -119,11 +121,28 @@ impl<'a> Elastoplastic<'a> {
             },
         };
 
-        // ODE system dimension
-        let ndim = config.mandel.dim();
+        // interpolant
+        let degree = 10;
+        let npoint = degree + 1;
+        let interp = InterpLagrange::new(degree, None).unwrap();
+
+        // interior stations for dense output
+        let mut interior_t_out = vec![0.0; npoint - 2];
+        for i in 0..(npoint - 2) {
+            let u = interp.get_points()[1 + i];
+            interior_t_out[i] = (u + 1.0) / 2.0;
+        }
+
+        // arguments for the integrator
+        let arguments = Arguments::new(config, param, npoint, stress_update_config.save_history)?;
+
+        // dimensions
+        let n_internal_values = arguments.plasticity.model.n_internal_values();
+        let ndim_e = config.mandel.dim();
+        let ndim_ep = ndim_e + n_internal_values;
 
         // elastic ODE system: dσ/dt = Dₑ : Δε
-        let system_e = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
+        let system_e = System::new(ndim_e, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
             // σ := σ(t)
             args.state.sigma.set_mandel_vector(1.0, sigma_vec.as_data());
 
@@ -138,39 +157,34 @@ impl<'a> Elastoplastic<'a> {
             Ok(())
         });
 
-        // elastoplastic ODE system: dσ/dt = Dₑₚ : Δε
-        let system_ep = System::new(ndim, |dsigma_dt_vec, _t, sigma_and_z, args: &mut Arguments| {
+        // elastoplastic ODE system: dy/dt = {dσ/dt, dz/dt}ᵀ = {Dₑₚ : Δε, Λd H}ᵀ
+        let system_ep = System::new(ndim_ep, |dydt, _t, y, args: &mut Arguments| {
             // σ := σ(t)
             let n = args.state.sigma.dim();
-            let sigma_vec = &sigma_and_z.as_data()[..n];
+            let sigma_vec = &y.as_data()[..n];
             args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
 
             // z := z(t)
-            let z_vec = &sigma_and_z.as_data()[n..];
+            let z_vec = &y.as_data()[n..];
             args.state.internal_values.set_vector(z_vec); // z := z(t)
 
-            // Dₑₚ := Dₑₚ(t)
-            args.plasticity.elastoplastic_rigidity(&args.state)?;
+            // dσ/dt = Dₑₚ : Δε and dz/dt = Λd H
+            let _ = args.plasticity.elastoplastic_rates(
+                &mut args.dsigma_dt,
+                &mut args.dz_dt,
+                &args.state,
+                &args.delta_epsilon,
+            )?;
 
-            // dσ/dt := Dₑₚ : Δε
-            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.ddep, &args.delta_epsilon);
-
-            // copy Mandel vector
-            vec_copy(dsigma_dt_vec, args.dsigma_dt.vector()).unwrap();
+            // map dσ/dt and dz/dt back into dy/dt
+            for i in 0..n {
+                dydt[i] = args.dsigma_dt.vector()[i];
+            }
+            for i in 0..args.dz_dt.dim() {
+                dydt[n + i] = args.dz_dt[i];
+            }
             Ok(())
         });
-
-        // interpolant
-        let degree = 10;
-        let npoint = degree + 1;
-        let interp = InterpLagrange::new(degree, None).unwrap();
-
-        // interior stations for dense output
-        let mut interior_t_out = vec![0.0; npoint - 2];
-        for i in 0..(npoint - 2) {
-            let u = interp.get_points()[1 + i];
-            interior_t_out[i] = (u + 1.0) / 2.0;
-        }
 
         // parameters for the ODE solver
         let params = Params::new(stress_update_config.ode_method);
@@ -222,7 +236,7 @@ impl<'a> Elastoplastic<'a> {
             solver_ep
                 .enable_output()
                 .set_dense_x_out(&interior_t_out)?
-                .set_dense_callback(|stats, _h, t, sigma_and_z, args: &mut Arguments| {
+                .set_dense_callback(|_stats, _h, t, sigma_and_z, args: &mut Arguments| {
                     if let Some(history) = args.history.as_mut() {
                         // σ := σ(t)
                         let n = args.state.sigma.dim();
@@ -250,9 +264,6 @@ impl<'a> Elastoplastic<'a> {
                 });
         }
 
-        // arguments for the integrator
-        let args = Arguments::new(config, param, npoint, stress_update_config.save_history)?;
-
         // allocate updater
         Ok(Elastoplastic {
             stress_update_config,
@@ -260,7 +271,7 @@ impl<'a> Elastoplastic<'a> {
             root_solver: RootSolver::new(),
             solver_elastic: solver_el,
             solver_elastoplastic: solver_ep,
-            arguments: args,
+            arguments,
         })
     }
 }
@@ -285,8 +296,8 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     fn stiffness(&mut self, dd: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         if self.stress_update_config.continuum_modulus {
             // TODO
-            self.arguments.plasticity.elastoplastic_rigidity(state)?;
-            dd.set_tensor(1.0, &self.arguments.plasticity.ddep);
+            // self.arguments.plasticity.elastoplastic_rigidity(state)?;
+            // dd.set_tensor(1.0, &self.arguments.plasticity.ddep);
             Ok(())
         } else {
             self.arguments.plasticity.model.stiffness(dd, state)
@@ -299,6 +310,10 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             return self.arguments.plasticity.model.update_stress(state, delta_epsilon);
         }
 
+        // set σ and z vector
+        // let n = self.mandel;
+        // self.sigma_and_z.as_mut_data()[];
+
         // set Δε in arguments struct
         self.arguments.delta_epsilon.set_tensor(1.0, delta_epsilon);
 
@@ -310,8 +325,8 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
         // intersection
         assert_eq!(self.arguments.yf_count, self.interp.get_degree() + 1);
-        let yf = self.arguments.yf_values.as_data().last().unwrap();
-        if *yf > 0.0 {
+        let yf_last = self.arguments.yf_values.as_data().last().unwrap();
+        if *yf_last > 0.0 {
             let ua = 2.0 * self.arguments.t_neg - 1.0; // normalized pseudo-time
             let ub = 2.0 * self.arguments.t_pos - 1.0; // normalized pseudo-time
             let fa = self.interp.eval(ua, &self.arguments.yf_values)?;
@@ -322,6 +337,11 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                     Ok(f_int)
                 })?;
                 self.arguments.t_intersection = (u_int + 1.0) / 2.0;
+
+                // TODO
+                // let mut sigma_and_z = Vector::from(state.sigma.vector());
+                // elastoplastic update
+                // self.solver_elastoplastic.solve(y0, x0, x1, h_equal, args)
             }
         }
 

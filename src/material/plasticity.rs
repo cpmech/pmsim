@@ -2,7 +2,7 @@ use super::{StressStrainState, StressStrainTrait, VonMises};
 use crate::base::{Config, NonlinElast, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_lab::{vec_inner, Vector};
-use russell_tensor::{t2_ddot_t4_ddot_t2, t2_dyad_t2_update, t4_ddot_t2_dyad_t2_ddot_t4};
+use russell_tensor::{t2_ddot_t4_ddot_t2, t2_dyad_t2_update, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4};
 use russell_tensor::{LinElasticity, Tensor2, Tensor4};
 
 const MP_TOO_SMALL: f64 = 1e-8;
@@ -100,7 +100,7 @@ impl Plasticity {
             Some(_) => Some(LinElasticity::new(young, poisson, config.two_dim, false)),
             None => None,
         };
-        let nz = model.n_internal_values();
+        let n_internal_values = model.n_internal_values();
         Ok(Plasticity {
             model,
             lin_elast,
@@ -109,8 +109,8 @@ impl Plasticity {
             poisson,
             df_dsigma: Tensor2::new(config.mandel),
             dg_dsigma: Tensor2::new(config.mandel),
-            df_dz: Vector::new(nz),
-            hh: Vector::new(nz),
+            df_dz: Vector::new(n_internal_values),
+            hh: Vector::new(n_internal_values),
             cce: Tensor4::new(config.mandel),
             dde: Tensor4::new(config.mandel),
             ddep: Tensor4::new(config.mandel),
@@ -177,7 +177,23 @@ impl Plasticity {
         Ok(())
     }
 
-    pub fn elastoplastic_rigidity(&mut self, state: &StressStrainState) -> Result<(), StrError> {
+    /// Calculates the elastoplastic rates
+    ///
+    /// Returns `indicator = (df/dσ) : Dₑ : Δε`
+    ///
+    /// Computes:
+    ///
+    /// ```text
+    /// dσ/dt = Dₑₚ : Δε
+    /// dz/dt = Λd H
+    /// ```
+    pub fn elastoplastic_rates(
+        &mut self,
+        dsigma_dt: &mut Tensor2,
+        dz_dt: &mut Vector,
+        state: &StressStrainState,
+        delta_epsilon: &Tensor2,
+    ) -> Result<f64, StrError> {
         // derivatives
         self.model.df_dsigma(&mut self.df_dsigma, state)?;
         self.model.df_dz(&mut self.df_dz, state)?;
@@ -189,7 +205,7 @@ impl Plasticity {
             &self.dg_dsigma
         };
 
-        // Mₚ = - (df/dz) · H
+        // Mₚ = - (df/dz) · H (TODO: fix this; it's not an inner product)
         self.model.hardening(&mut self.hh, state)?;
         let mmp = -vec_inner(&self.df_dz, &self.hh);
 
@@ -201,6 +217,21 @@ impl Plasticity {
 
         // Dₑₚ = α Dₑ + β (Dₑ : a) ⊗ (b : Dₑ)
         t4_ddot_t2_dyad_t2_ddot_t4(&mut self.ddep, 1.0, &self.dde, -1.0 / nnp, dg_dsigma, df_dsigma);
-        Ok(())
+
+        // dσ/dt = Dₑₚ : Δε
+        t4_ddot_t2(dsigma_dt, 1.0, &self.dde, delta_epsilon);
+
+        // indicator = (df/dσ) : Dₑ : Δε
+        let indicator = t2_ddot_t4_ddot_t2(df_dsigma, &self.dde, delta_epsilon);
+
+        // Λd = ((df/dσ) : Dₑ : Δε) / Nₚ
+        let llambda_d = indicator / nnp;
+
+        // dz/dt = Λd H
+        self.model.hardening(dz_dt, state)?; // dz/dt ← H
+        dz_dt.scale(llambda_d); // dz/dt = Λd H
+
+        // done
+        Ok(indicator)
     }
 }
