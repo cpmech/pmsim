@@ -7,6 +7,8 @@ use russell_lab::{vec_copy, InterpLagrange, RootSolver, Vector};
 use russell_ode::{Method, OdeSolver, Params, System};
 use russell_tensor::{t2_add, t4_ddot_t2, Tensor2, Tensor4};
 
+const KEEP_RUNNING: bool = false;
+
 /// Holds arguments for the ODE solver
 struct Arguments {
     /// Plasticity formulation
@@ -120,13 +122,13 @@ impl<'a> Elastoplastic<'a> {
         // ODE system dimension
         let ndim = config.mandel.dim();
 
-        // ODE system: dσ/dt = Dₑ : Δε
+        // elastic ODE system: dσ/dt = Dₑ : Δε
         let system_e = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
             // σ := σ(t)
-            args.state.sigma.set_mandel_vector(1.0, sigma_vec);
+            args.state.sigma.set_mandel_vector(1.0, sigma_vec.as_data());
 
             // Dₑ := Dₑ(t)
-            args.plasticity.modulus_elastic_rigidity(&args.state)?;
+            args.plasticity.elastic_rigidity(&args.state)?;
 
             // dσ/dt := Dₑ : Δε
             t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.dde, &args.delta_epsilon);
@@ -136,16 +138,22 @@ impl<'a> Elastoplastic<'a> {
             Ok(())
         });
 
-        // ODE system: dσ/dt = Dₑₚ : Δε
-        let system_ep = System::new(ndim, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
+        // elastoplastic ODE system: dσ/dt = Dₑₚ : Δε
+        let system_ep = System::new(ndim, |dsigma_dt_vec, _t, sigma_and_z, args: &mut Arguments| {
             // σ := σ(t)
-            args.state.sigma.set_mandel_vector(1.0, sigma_vec);
+            let n = args.state.sigma.dim();
+            let sigma_vec = &sigma_and_z.as_data()[..n];
+            args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
+
+            // z := z(t)
+            let z_vec = &sigma_and_z.as_data()[n..];
+            args.state.internal_values.set_vector(z_vec); // z := z(t)
 
             // Dₑₚ := Dₑₚ(t)
-            args.plasticity.modulus_elastic_rigidity(&args.state)?; // TODO: fix this
+            args.plasticity.elastoplastic_rigidity(&args.state)?;
 
             // dσ/dt := Dₑₚ : Δε
-            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.dde, &args.delta_epsilon);
+            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.ddep, &args.delta_epsilon);
 
             // copy Mandel vector
             vec_copy(dsigma_dt_vec, args.dsigma_dt.vector()).unwrap();
@@ -173,14 +181,16 @@ impl<'a> Elastoplastic<'a> {
             .enable_output()
             .set_dense_x_out(&interior_t_out)
             .unwrap()
-            .set_dense_callback(|stats, _, t, sigma_vec, args: &mut Arguments| {
+            .set_dense_callback(|stats, _h, t, sigma_vec, args: &mut Arguments| {
                 // reset counter
                 if stats.n_accepted == 0 {
                     args.yf_count = 0;
                 }
 
+                // σ := σ(t)
+                args.state.sigma.set_mandel_vector(1.0, sigma_vec.as_data()); // σ := σ(t)
+
                 // yield function value: f(σ, z)
-                args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
                 let yf = args.plasticity.model.yield_function(&args.state)?;
                 args.yf_values[args.yf_count] = yf;
                 args.yf_count += 1;
@@ -193,18 +203,52 @@ impl<'a> Elastoplastic<'a> {
 
                 // history
                 if let Some(history) = args.history.as_mut() {
+                    // ε := ε₀ + t Δε
                     let epsilon0 = args.epsilon0.as_mut().unwrap();
                     let epsilon = args.state.eps_mut();
                     t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon); // ε := ε₀ + t Δε
+
+                    // update history
                     *args.state.time_mut() = args.t0 + t;
                     *args.state.yf_value_mut() = yf;
                     history.push(args.state.clone());
                 }
-                Ok(false) // false => keep running
+                Ok(KEEP_RUNNING)
             });
 
         // solver for the elastoplastic update
-        let solver_ep = OdeSolver::new(params, system_ep).unwrap();
+        let mut solver_ep = OdeSolver::new(params, system_ep).unwrap();
+        if stress_update_config.save_history {
+            solver_ep
+                .enable_output()
+                .set_dense_x_out(&interior_t_out)?
+                .set_dense_callback(|stats, _h, t, sigma_and_z, args: &mut Arguments| {
+                    if let Some(history) = args.history.as_mut() {
+                        // σ := σ(t)
+                        let n = args.state.sigma.dim();
+                        let sigma_vec = &sigma_and_z.as_data()[..n];
+                        args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
+
+                        // z := z(t)
+                        let z_vec = &sigma_and_z.as_data()[n..];
+                        args.state.internal_values.set_vector(z_vec); // z := z(t)
+
+                        // yield function value: f(σ, z)
+                        let yf = args.plasticity.model.yield_function(&args.state)?; // f := f(σ,z)
+
+                        // ε := ε₀ + t Δε
+                        let epsilon0 = args.epsilon0.as_mut().unwrap();
+                        let epsilon = args.state.eps_mut();
+                        t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon); // ε := ε₀ + t Δε
+
+                        // update history
+                        *args.state.time_mut() = args.t0 + t;
+                        *args.state.yf_value_mut() = yf;
+                        history.push(args.state.clone());
+                    }
+                    Ok(KEEP_RUNNING)
+                });
+        }
 
         // arguments for the integrator
         let args = Arguments::new(config, param, npoint, stress_update_config.save_history)?;
@@ -240,7 +284,10 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         if self.stress_update_config.continuum_modulus {
-            self.arguments.plasticity.modulus_rigidity(dd, state)
+            // TODO
+            self.arguments.plasticity.elastoplastic_rigidity(state)?;
+            dd.set_tensor(1.0, &self.arguments.plasticity.ddep);
+            Ok(())
         } else {
             self.arguments.plasticity.model.stiffness(dd, state)
         }

@@ -67,8 +67,11 @@ pub struct Plasticity {
     /// Elastic compliance
     cce: Tensor4,
 
-    /// Elastic stiffness
+    /// Elastic rigidity (stiffness)
     pub(crate) dde: Tensor4,
+
+    /// Elastoplastic rigidity (stiffness)
+    pub(crate) ddep: Tensor4,
 }
 
 impl Plasticity {
@@ -110,6 +113,7 @@ impl Plasticity {
             hh: Vector::new(nz),
             cce: Tensor4::new(config.mandel),
             dde: Tensor4::new(config.mandel),
+            ddep: Tensor4::new(config.mandel),
         })
     }
 
@@ -126,7 +130,7 @@ impl Plasticity {
         le.set_young_poisson(young, self.poisson);
     }
 
-    pub fn modulus_elastic_compliance(&mut self, state: &StressStrainState) -> Result<(), StrError> {
+    pub fn elastic_compliance(&mut self, state: &StressStrainState) -> Result<(), StrError> {
         match self.params_nonlin_elast.as_ref() {
             Some(_) => {
                 self.set_nonlin_elast_params(state);
@@ -136,7 +140,7 @@ impl Plasticity {
         }
     }
 
-    pub fn modulus_elastic_rigidity(&mut self, state: &StressStrainState) -> Result<(), StrError> {
+    pub fn elastic_rigidity(&mut self, state: &StressStrainState) -> Result<(), StrError> {
         match self.params_nonlin_elast.as_ref() {
             Some(_) => {
                 self.set_nonlin_elast_params(state);
@@ -147,7 +151,7 @@ impl Plasticity {
         }
     }
 
-    pub fn modulus_compliance(&mut self, cc: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
+    pub fn elastoplastic_compliance(&mut self, cc: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
         // derivatives
         self.model.df_dsigma(&mut self.df_dsigma, state)?;
         self.model.df_dz(&mut self.df_dz, state)?;
@@ -173,7 +177,7 @@ impl Plasticity {
         Ok(())
     }
 
-    pub fn modulus_rigidity(&mut self, dd: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
+    pub fn elastoplastic_rigidity(&mut self, state: &StressStrainState) -> Result<(), StrError> {
         // derivatives
         self.model.df_dsigma(&mut self.df_dsigma, state)?;
         self.model.df_dz(&mut self.df_dz, state)?;
@@ -196,7 +200,7 @@ impl Plasticity {
         let nnp = mmp + t2_ddot_t4_ddot_t2(df_dsigma, &self.dde, dg_dsigma);
 
         // Dₑₚ = α Dₑ + β (Dₑ : a) ⊗ (b : Dₑ)
-        t4_ddot_t2_dyad_t2_ddot_t4(dd, 1.0, &self.dde, -1.0 / nnp, dg_dsigma, df_dsigma);
+        t4_ddot_t2_dyad_t2_ddot_t4(&mut self.ddep, 1.0, &self.dde, -1.0 / nnp, dg_dsigma, df_dsigma);
         Ok(())
     }
 }
