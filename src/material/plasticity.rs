@@ -177,9 +177,28 @@ impl Plasticity {
         Ok(())
     }
 
-    /// Calculates the elastoplastic rates
+    /// Calculates the loading/unloading indicator
     ///
     /// Returns `indicator = (df/dσ) : Dₑ : Δε`
+    pub fn loading_unloading_indicator(
+        &mut self,
+        state: &StressStrainState,
+        delta_epsilon: &Tensor2,
+    ) -> Result<f64, StrError> {
+        // gradients of the yield function
+        self.model.df_dsigma(&mut self.df_dsigma, state)?;
+
+        // Dₑ
+        self.model.elastic_rigidity(&mut self.dde, state)?;
+
+        // indicator = (df/dσ) : Dₑ : Δε
+        let indicator = t2_ddot_t4_ddot_t2(&self.df_dsigma, &self.dde, delta_epsilon);
+
+        // done
+        Ok(indicator)
+    }
+
+    /// Calculates the elastoplastic rates
     ///
     /// Computes:
     ///
@@ -193,8 +212,8 @@ impl Plasticity {
         dz_dt: &mut Vector,
         state: &StressStrainState,
         delta_epsilon: &Tensor2,
-    ) -> Result<f64, StrError> {
-        // derivatives
+    ) -> Result<(), StrError> {
+        // gradients of the yield function
         self.model.df_dsigma(&mut self.df_dsigma, state)?;
         self.model.df_dz(&mut self.df_dz, state)?;
         let df_dsigma = &self.df_dsigma;
@@ -232,6 +251,6 @@ impl Plasticity {
         dz_dt.scale(llambda_d); // dz/dt = Λd H
 
         // done
-        Ok(indicator)
+        Ok(())
     }
 }

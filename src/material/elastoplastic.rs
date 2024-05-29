@@ -1,9 +1,9 @@
 use super::{Plasticity, StressStrainState, StressStrainTrait};
 use crate::base::{Config, ParamSolid, StressUpdate};
 use crate::StrError;
-use russell_lab::{vec_copy, InterpLagrange, RootSolver, Vector};
+use russell_lab::{mat_vec_mul, InterpLagrange, RootSolver, Vector};
 use russell_ode::{Method, OdeSolver, Params, System};
-use russell_tensor::{t2_add, t2_ddot_t2, t4_ddot_t2, Mandel, Tensor2, Tensor4};
+use russell_tensor::{t2_add, Tensor2, Tensor4};
 
 const KEEP_RUNNING: bool = false;
 
@@ -97,6 +97,9 @@ pub struct Elastoplastic<'a> {
     /// Solver for the intersection finding algorithm
     root_solver: RootSolver,
 
+    /// ODE solver for the elastic update: dσ/dt = Dₑ : Δε (with intersection data)
+    solver_elastic_intersect: OdeSolver<'a, Arguments>,
+
     /// ODE solver for the elastic update: dσ/dt = Dₑ : Δε
     solver_elastic: OdeSolver<'a, Arguments>,
 
@@ -105,6 +108,12 @@ pub struct Elastoplastic<'a> {
 
     /// Arguments for the ODE solvers
     arguments: Arguments,
+
+    /// Holds the Mandel components of the stress tensor
+    sigma_vec: Vector,
+
+    /// Holds the Mandel components of the stress tensor and the internal variables
+    sigma_and_z: Vector,
 }
 
 impl<'a> Elastoplastic<'a> {
@@ -141,42 +150,43 @@ impl<'a> Elastoplastic<'a> {
         let ndim_e = config.mandel.dim();
         let ndim_ep = ndim_e + n_internal_values;
 
-        // elastic ODE system: dσ/dt = Dₑ : Δε
-        let system_e = System::new(ndim_e, |dsigma_dt_vec, _t, sigma_vec, args: &mut Arguments| {
-            // σ := σ(t)
-            args.state.sigma.set_mandel_vector(1.0, sigma_vec.as_data());
+        // elastic ODE system
+        // calculates: {dy/dt} = {dσ/dt} = {Dₑ : Δε}ᵀ
+        // with: {y} = {σ}
+        let system_e = System::new(ndim_e, |dydt, _t, y, args: &mut Arguments| {
+            // map: σ ← {σ}(t)
+            args.state.sigma.set_mandel_vector(1.0, y.as_data());
 
-            // Dₑ := Dₑ(t)
+            // calculate: Dₑ(t)
             args.plasticity.elastic_rigidity(&args.state)?;
 
-            // dσ/dt := Dₑ : Δε
-            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.plasticity.dde, &args.delta_epsilon);
-
-            // copy Mandel vector
-            vec_copy(dsigma_dt_vec, args.dsigma_dt.vector()).unwrap();
+            // calculate: {dσ/dt} = [Dₑ]{Δε}
+            mat_vec_mul(dydt, 1.0, &args.plasticity.dde.matrix(), &args.delta_epsilon.vector()).unwrap();
             Ok(())
         });
 
-        // elastoplastic ODE system: dy/dt = {dσ/dt, dz/dt}ᵀ = {Dₑₚ : Δε, Λd H}ᵀ
+        // elastoplastic ODE system
+        // calculates: {dy/dt} = {dσ/dt, dz/dt}ᵀ = {Dₑₚ : Δε, Λd H}ᵀ
+        // with: {y} = {σ, z}
         let system_ep = System::new(ndim_ep, |dydt, _t, y, args: &mut Arguments| {
-            // σ := σ(t)
+            // map: σ ← {σ}(t)
             let n = args.state.sigma.dim();
             let sigma_vec = &y.as_data()[..n];
-            args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
+            args.state.sigma.set_mandel_vector(1.0, sigma_vec);
 
-            // z := z(t)
+            // map: z ← {z}(t)
             let z_vec = &y.as_data()[n..];
-            args.state.internal_values.set_vector(z_vec); // z := z(t)
+            args.state.internal_values.set_vector(z_vec);
 
-            // dσ/dt = Dₑₚ : Δε and dz/dt = Λd H
-            let _ = args.plasticity.elastoplastic_rates(
+            // calculate: dσ/dt = Dₑₚ : Δε and dz/dt = Λd H
+            args.plasticity.elastoplastic_rates(
                 &mut args.dsigma_dt,
                 &mut args.dz_dt,
                 &args.state,
                 &args.delta_epsilon,
             )?;
 
-            // map dσ/dt and dz/dt back into dy/dt
+            // map dσ/dt and dz/dt back into {dy/dt}
             for i in 0..n {
                 dydt[i] = args.dsigma_dt.vector()[i];
             }
@@ -189,9 +199,9 @@ impl<'a> Elastoplastic<'a> {
         // parameters for the ODE solver
         let params = Params::new(stress_update_config.ode_method);
 
-        // solver for the elastic update
-        let mut solver_el = OdeSolver::new(params, system_e).unwrap();
-        solver_el
+        // solver for the elastic update (to find yield surface intersection)
+        let mut solver_elastic_intersect = OdeSolver::new(params, system_e.clone()).unwrap();
+        solver_elastic_intersect
             .enable_output()
             .set_dense_x_out(&interior_t_out)
             .unwrap()
@@ -201,8 +211,8 @@ impl<'a> Elastoplastic<'a> {
                     args.yf_count = 0;
                 }
 
-                // σ := σ(t)
-                args.state.sigma.set_mandel_vector(1.0, sigma_vec.as_data()); // σ := σ(t)
+                // map: σ ← {σ}(t)
+                args.state.sigma.set_mandel_vector(1.0, sigma_vec.as_data());
 
                 // yield function value: f(σ, z)
                 let yf = args.plasticity.model.yield_function(&args.state)?;
@@ -220,7 +230,7 @@ impl<'a> Elastoplastic<'a> {
                     // ε := ε₀ + t Δε
                     let epsilon0 = args.epsilon0.as_mut().unwrap();
                     let epsilon = args.state.eps_mut();
-                    t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon); // ε := ε₀ + t Δε
+                    t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon);
 
                     // update history
                     *args.state.time_mut() = args.t0 + t;
@@ -230,30 +240,33 @@ impl<'a> Elastoplastic<'a> {
                 Ok(KEEP_RUNNING)
             });
 
+        // solver for the elastic update
+        let solver_elastic = OdeSolver::new(params, system_e).unwrap();
+
         // solver for the elastoplastic update
-        let mut solver_ep = OdeSolver::new(params, system_ep).unwrap();
+        let mut solver_elastoplastic = OdeSolver::new(params, system_ep).unwrap();
         if stress_update_config.save_history {
-            solver_ep
+            solver_elastoplastic
                 .enable_output()
                 .set_dense_x_out(&interior_t_out)?
                 .set_dense_callback(|_stats, _h, t, sigma_and_z, args: &mut Arguments| {
                     if let Some(history) = args.history.as_mut() {
-                        // σ := σ(t)
+                        // map: σ ← {σ}(t)
                         let n = args.state.sigma.dim();
                         let sigma_vec = &sigma_and_z.as_data()[..n];
-                        args.state.sigma.set_mandel_vector(1.0, sigma_vec); // σ := σ(t)
+                        args.state.sigma.set_mandel_vector(1.0, sigma_vec);
 
-                        // z := z(t)
+                        // map: z ← {z}(t)
                         let z_vec = &sigma_and_z.as_data()[n..];
-                        args.state.internal_values.set_vector(z_vec); // z := z(t)
+                        args.state.internal_values.set_vector(z_vec);
 
                         // yield function value: f(σ, z)
-                        let yf = args.plasticity.model.yield_function(&args.state)?; // f := f(σ,z)
+                        let yf = args.plasticity.model.yield_function(&args.state)?;
 
                         // ε := ε₀ + t Δε
                         let epsilon0 = args.epsilon0.as_mut().unwrap();
                         let epsilon = args.state.eps_mut();
-                        t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon); // ε := ε₀ + t Δε
+                        t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon);
 
                         // update history
                         *args.state.time_mut() = args.t0 + t;
@@ -269,9 +282,12 @@ impl<'a> Elastoplastic<'a> {
             stress_update_config,
             interp,
             root_solver: RootSolver::new(),
-            solver_elastic: solver_el,
-            solver_elastoplastic: solver_ep,
+            solver_elastic_intersect,
+            solver_elastic,
+            solver_elastoplastic,
             arguments,
+            sigma_vec: Vector::new(ndim_e),
+            sigma_and_z: Vector::new(ndim_ep),
         })
     }
 }
@@ -306,43 +322,111 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut StressStrainState, delta_epsilon: &Tensor2) -> Result<(), StrError> {
+        // use implicit (consistent) method
         if !self.stress_update_config.continuum_modulus {
             return self.arguments.plasticity.model.update_stress(state, delta_epsilon);
         }
 
-        // set σ and z vector
-        // let n = self.mandel;
-        // self.sigma_and_z.as_mut_data()[];
-
         // set Δε in arguments struct
         self.arguments.delta_epsilon.set_tensor(1.0, delta_epsilon);
 
-        // elastic update
-        let mut sigma_vec = Vector::from(state.sigma.vector());
-        self.solver_elastic
-            .solve(&mut sigma_vec, 0.0, 1.0, None, &mut self.arguments)?;
-        vec_copy(state.sigma.vector_mut(), &sigma_vec).unwrap();
+        // yield function value: f(σ, z)
+        let plasticity = &mut self.arguments.plasticity;
+        let f = plasticity.model.yield_function(state)?;
 
-        // intersection
-        assert_eq!(self.arguments.yf_count, self.interp.get_degree() + 1);
-        let yf_last = self.arguments.yf_values.as_data().last().unwrap();
-        if *yf_last > 0.0 {
-            let ua = 2.0 * self.arguments.t_neg - 1.0; // normalized pseudo-time
-            let ub = 2.0 * self.arguments.t_pos - 1.0; // normalized pseudo-time
-            let fa = self.interp.eval(ua, &self.arguments.yf_values)?;
-            let fb = self.interp.eval(ub, &self.arguments.yf_values)?;
-            if fa < 0.0 && fb > 0.0 {
+        // check if the elastic path must be calculated first
+        let run_elastic = if f < 0.0 {
+            // starting from point A (inside of the yield surface)
+            // possible future cases: B, C, I, A*
+            true
+        } else {
+            // starting from point A* (on the yield surface or slightly outside)
+            let indicator = plasticity.loading_unloading_indicator(state, delta_epsilon)?;
+            if indicator < 0.0 {
+                // possible future cases: B*, C*, I*, A**
+                true
+            } else {
+                // possible future cases: E*
+                false
+            }
+        };
+
+        // run elastic path first
+        let (need_elastoplastic_run, t0) = if run_elastic {
+            // map: {y} = {σ} ← σ
+            let y = &mut self.sigma_vec;
+            y.set_vector(state.sigma.vector().as_data());
+
+            // solve the elastic problem with intersection data
+            self.solver_elastic_intersect
+                .solve(y, 0.0, 1.0, None, &mut self.arguments)?;
+
+            // handle intersection
+            assert_eq!(self.arguments.yf_count, self.interp.get_degree() + 1);
+            let f_last = self.arguments.yf_values.as_data().last().unwrap();
+            if *f_last > 0.0 {
+                // normalized pseudo times
+                let ua = 2.0 * self.arguments.t_neg - 1.0;
+                let ub = 2.0 * self.arguments.t_pos - 1.0;
+
+                // yield function values before and after the intersection
+                let fa = self.interp.eval(ua, &self.arguments.yf_values)?;
+                let fb = self.interp.eval(ub, &self.arguments.yf_values)?;
+                assert!(fa < 0.0);
+                assert!(fb > 0.0);
+
+                // calculate intersection
                 let (u_int, _) = self.root_solver.brent(ua, ub, &mut 0, |t, _| {
                     let f_int = self.interp.eval(t, &self.arguments.yf_values)?;
                     Ok(f_int)
                 })?;
-                self.arguments.t_intersection = (u_int + 1.0) / 2.0;
 
-                // TODO
-                // let mut sigma_and_z = Vector::from(state.sigma.vector());
-                // elastoplastic update
-                // self.solver_elastoplastic.solve(y0, x0, x1, h_equal, args)
+                // de-normalize pseudo time
+                let t_int = (u_int + 1.0) / 2.0;
+                self.arguments.t_intersection = t_int;
+
+                // map: {y} = {σ} ← σ
+                y.set_vector(state.sigma.vector().as_data());
+
+                // solve the elastic problem again to update σ to the intersection point
+                self.solver_elastic.solve(y, 0.0, t_int, None, &mut self.arguments)?;
+
+                // update stress at intersection (points I and I*)
+                state.sigma.vector_mut().set_vector(y.as_data()); // map: σ ← {σ}
+
+                // need elastoplastic update starting from t_int
+                (true, t_int)
+            } else {
+                // no intersection (pure elastic regime)
+                // potential cases: B, C, B*, C*
+                state.sigma.vector_mut().set_vector(y.as_data()); // map: σ ← {σ}
+
+                // all done (no need for elastoplastic update)
+                (false, 1.0)
             }
+        } else {
+            // run elastoplastic path directly starting from 0.0
+            (true, 0.0)
+        };
+
+        // run elastoplastic update
+        if need_elastoplastic_run {
+            // map σ and z into {y}
+            let y = &mut self.sigma_and_z;
+            let n = state.sigma.dim();
+            for i in 0..n {
+                y[i] = state.sigma.vector()[i];
+            }
+            for i in 0..state.internal_values.dim() {
+                y[n + i] = state.internal_values[i];
+            }
+
+            // solve elastoplastic problem
+            self.solver_elastoplastic.solve(y, t0, 1.0, None, &mut self.arguments)?;
+
+            // map back: {z} into σ and z
+            state.sigma.set_mandel_vector(1.0, &y.as_data()[..n]);
+            state.internal_values.set_vector(&y.as_data()[n..]);
         }
 
         // update initial pseudo time and initial strain (for plotting)
