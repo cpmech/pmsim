@@ -51,7 +51,12 @@ struct Arguments {
     /// History of results (for plotting)
     ///
     /// Allocated only if with_history == true
-    history: Option<Vec<StressStrainState>>,
+    history_elastic: Option<Vec<StressStrainState>>,
+
+    /// History of results (for plotting)
+    ///
+    /// Allocated only if with_history == true
+    history_elastoplastic: Option<Vec<StressStrainState>>,
 }
 
 impl Arguments {
@@ -81,7 +86,8 @@ impl Arguments {
             } else {
                 None
             },
-            history: if with_history { Some(Vec::new()) } else { None },
+            history_elastic: if with_history { Some(Vec::new()) } else { None },
+            history_elastoplastic: if with_history { Some(Vec::new()) } else { None },
         })
     }
 }
@@ -175,6 +181,8 @@ impl<'a> Elastoplastic<'a> {
                 args.state.internal_values.as_mut_data(),
             );
 
+            println!("z0 = {}", args.state.internal_values[0]);
+
             // calculate: dσ/dt = Dₑₚ : Δε and dz/dt = Λd H
             args.plasticity.elastoplastic_rates(
                 &mut args.dsigma_dt,
@@ -216,7 +224,7 @@ impl<'a> Elastoplastic<'a> {
                 }
 
                 // history
-                if let Some(history) = args.history.as_mut() {
+                if let Some(history) = args.history_elastic.as_mut() {
                     // ε(t) = ε₀ + t Δε
                     let epsilon0 = args.epsilon0.as_mut().unwrap();
                     let epsilon = args.state.eps_mut();
@@ -236,11 +244,13 @@ impl<'a> Elastoplastic<'a> {
         // solver for the elastoplastic update
         let mut solver_elastoplastic = OdeSolver::new(params, system_ep).unwrap();
         if stress_update_config.save_history {
+            let h_out = 1.0 / (degree as f64);
             solver_elastoplastic
                 .enable_output()
-                .set_dense_x_out(&interior_t_out)?
+                .set_dense_h_out(h_out)
+                .unwrap()
                 .set_dense_callback(|_stats, _h, t, y, args: &mut Arguments| {
-                    if let Some(history) = args.history.as_mut() {
+                    if let Some(history) = args.history_elastoplastic.as_mut() {
                         // split {y}(t) into σ and z
                         y.split2(
                             args.state.sigma.vector_mut().as_mut_data(),
@@ -249,6 +259,7 @@ impl<'a> Elastoplastic<'a> {
 
                         // yield function value: f(σ, z)
                         let f = args.plasticity.model.yield_function(&args.state)?;
+                        println!("f = {}", f);
 
                         // ε(t) = ε₀ + t Δε
                         let epsilon0 = args.epsilon0.as_mut().unwrap();
@@ -340,6 +351,12 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
         // run elastic path first
         let (need_elastoplastic_run, t0) = if run_elastic {
+            // copy z into arguments (z is frozen)
+            self.arguments
+                .state
+                .internal_values
+                .set_vector(state.internal_values.as_data());
+
             // copy σ into {y}
             let y = &mut self.sigma_vec;
             y.set_vector(state.sigma.vector().as_data());
@@ -413,7 +430,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         }
 
         // update initial pseudo time and initial strain (for plotting)
-        if self.arguments.history.is_some() {
+        if self.arguments.history_elastic.is_some() {
             self.arguments.t0 += 1.0;
             let epsilon0 = self.arguments.epsilon0.as_mut().unwrap();
             let epsilon = self.arguments.state.eps();
@@ -485,11 +502,16 @@ mod tests {
         let states_lin = path_a.follow_strain(&mut model_lin);
         // let states_nli = path_a.follow_strain(&mut model_nli);
 
-        let history_lin = model_lin.arguments.history.as_ref().unwrap();
+        let history_lin_e = model_lin.arguments.history_elastic.as_ref().unwrap();
+        let history_lin_ep = model_lin.arguments.history_elastoplastic.as_ref().unwrap();
 
         if SAVE_FIGURE {
+            // A ------------------------------------------------------------------------------------------------
             let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(history_lin, |curve, _, _| {
+            ssp.draw_3x2_mosaic_struct(history_lin_e, |curve, _, _| {
+                curve.set_marker_style(".").set_line_style(":");
+            });
+            ssp.draw_3x2_mosaic_struct(history_lin_ep, |curve, _, _| {
                 curve.set_marker_style(".").set_line_style("--");
             });
             ssp.draw_3x2_mosaic_struct(&states_lin, |curve, _, _| {
@@ -510,21 +532,33 @@ mod tests {
                         plot.add(&limit);
                     }
                     if row == 0 && col == 1 {
+                        let z0_final = history_lin_ep.last().unwrap().internal_values[0];
                         let mut circle = Canvas::new();
-                        circle.set_edge_color("black").set_face_color("None");
+                        circle.set_edge_color("grey").set_face_color("None");
                         circle.draw_circle(0.0, 0.0, Z0 * SQRT_2_BY_3);
+                        circle.set_edge_color("black").set_face_color("None");
+                        circle.draw_circle(0.0, 0.0, z0_final);
                         plot.add(&circle);
                     }
                 }
             })
             .unwrap();
+
+            // B ------------------------------------------------------------------------------------------------
             let mut ssp_yf = StressStrainPlot::new();
+            ssp_yf.draw(Axis::Time, Axis::Yield, history_lin_e, |curve| {
+                curve
+                    .set_marker_style("o")
+                    .set_label("linear elastic model; elastic path");
+            });
+            ssp_yf.draw(Axis::Time, Axis::Yield, history_lin_ep, |curve| {
+                curve
+                    .set_marker_style("s")
+                    .set_label("linear elastic model; elastoplastic path");
+            });
             // ssp_yf.draw(Axis::Time, Axis::Yield, &model_nli.args.states, |curve| {
             //     curve.set_marker_style("o").set_label("non-lin");
             // });
-            ssp_yf.draw(Axis::Time, Axis::Yield, history_lin, |curve| {
-                curve.set_marker_style("o").set_marker_void(true).set_label("linear");
-            });
             ssp_yf
                 .save(
                     Axis::Time,

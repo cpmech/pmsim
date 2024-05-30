@@ -242,6 +242,7 @@ impl Plasticity {
 
         // indicator = (df/dσ) : Dₑ : Δε
         let indicator = t2_ddot_t4_ddot_t2(df_dsigma, &self.dde, delta_epsilon);
+        assert!(indicator >= 0.0);
 
         // Λd = ((df/dσ) : Dₑ : Δε) / Nₚ
         let llambda_d = indicator / nnp;
