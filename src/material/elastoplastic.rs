@@ -154,8 +154,8 @@ impl<'a> Elastoplastic<'a> {
         // calculates: {dy/dt} = {dσ/dt} = {Dₑ : Δε}ᵀ
         // with: {y} = {σ}
         let system_e = System::new(ndim_e, |dydt, _t, y, args: &mut Arguments| {
-            // map: σ ← {σ}(t)
-            args.state.sigma.set_mandel_vector(1.0, y.as_data());
+            // copy {y}(t) into σ
+            args.state.sigma.vector_mut().set_vector(y.as_data());
 
             // calculate: Dₑ(t)
             args.plasticity.elastic_rigidity(&args.state)?;
@@ -169,14 +169,11 @@ impl<'a> Elastoplastic<'a> {
         // calculates: {dy/dt} = {dσ/dt, dz/dt}ᵀ = {Dₑₚ : Δε, Λd H}ᵀ
         // with: {y} = {σ, z}
         let system_ep = System::new(ndim_ep, |dydt, _t, y, args: &mut Arguments| {
-            // map: σ ← {σ}(t)
-            let n = args.state.sigma.dim();
-            let sigma_vec = &y.as_data()[..n];
-            args.state.sigma.set_mandel_vector(1.0, sigma_vec);
-
-            // map: z ← {z}(t)
-            let z_vec = &y.as_data()[n..];
-            args.state.internal_values.set_vector(z_vec);
+            // split {y}(t) into σ and z
+            y.split2(
+                args.state.sigma.vector_mut().as_mut_data(),
+                args.state.internal_values.as_mut_data(),
+            );
 
             // calculate: dσ/dt = Dₑₚ : Δε and dz/dt = Λd H
             args.plasticity.elastoplastic_rates(
@@ -186,13 +183,8 @@ impl<'a> Elastoplastic<'a> {
                 &args.delta_epsilon,
             )?;
 
-            // map dσ/dt and dz/dt back into {dy/dt}
-            for i in 0..n {
-                dydt[i] = args.dsigma_dt.vector()[i];
-            }
-            for i in 0..args.dz_dt.dim() {
-                dydt[n + i] = args.dz_dt[i];
-            }
+            // join dσ/dt and dz/dt into {dy/dt}
+            dydt.join2(args.dsigma_dt.vector().as_data(), args.dz_dt.as_data());
             Ok(())
         });
 
@@ -205,36 +197,36 @@ impl<'a> Elastoplastic<'a> {
             .enable_output()
             .set_dense_x_out(&interior_t_out)
             .unwrap()
-            .set_dense_callback(|stats, _h, t, sigma_vec, args: &mut Arguments| {
+            .set_dense_callback(|stats, _h, t, y, args: &mut Arguments| {
                 // reset counter
                 if stats.n_accepted == 0 {
                     args.yf_count = 0;
                 }
 
-                // map: σ ← {σ}(t)
-                args.state.sigma.set_mandel_vector(1.0, sigma_vec.as_data());
+                // copy {y}(t) into σ
+                args.state.sigma.vector_mut().set_vector(y.as_data());
 
                 // yield function value: f(σ, z)
-                let yf = args.plasticity.model.yield_function(&args.state)?;
-                args.yf_values[args.yf_count] = yf;
+                let f = args.plasticity.model.yield_function(&args.state)?;
+                args.yf_values[args.yf_count] = f;
                 args.yf_count += 1;
-                if yf < 0.0 {
+                if f < 0.0 {
                     args.t_neg = t;
                 }
-                if yf > 0.0 {
+                if f > 0.0 {
                     args.t_pos = t;
                 }
 
                 // history
                 if let Some(history) = args.history.as_mut() {
-                    // ε := ε₀ + t Δε
+                    // ε(t) = ε₀ + t Δε
                     let epsilon0 = args.epsilon0.as_mut().unwrap();
                     let epsilon = args.state.eps_mut();
                     t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon);
 
                     // update history
                     *args.state.time_mut() = args.t0 + t;
-                    *args.state.yf_value_mut() = yf;
+                    *args.state.yf_value_mut() = f;
                     history.push(args.state.clone());
                 }
                 Ok(KEEP_RUNNING)
@@ -249,28 +241,25 @@ impl<'a> Elastoplastic<'a> {
             solver_elastoplastic
                 .enable_output()
                 .set_dense_x_out(&interior_t_out)?
-                .set_dense_callback(|_stats, _h, t, sigma_and_z, args: &mut Arguments| {
+                .set_dense_callback(|_stats, _h, t, y, args: &mut Arguments| {
                     if let Some(history) = args.history.as_mut() {
-                        // map: σ ← {σ}(t)
-                        let n = args.state.sigma.dim();
-                        let sigma_vec = &sigma_and_z.as_data()[..n];
-                        args.state.sigma.set_mandel_vector(1.0, sigma_vec);
-
-                        // map: z ← {z}(t)
-                        let z_vec = &sigma_and_z.as_data()[n..];
-                        args.state.internal_values.set_vector(z_vec);
+                        // split {y}(t) into σ and z
+                        y.split2(
+                            args.state.sigma.vector_mut().as_mut_data(),
+                            args.state.internal_values.as_mut_data(),
+                        );
 
                         // yield function value: f(σ, z)
-                        let yf = args.plasticity.model.yield_function(&args.state)?;
+                        let f = args.plasticity.model.yield_function(&args.state)?;
 
-                        // ε := ε₀ + t Δε
+                        // ε(t) = ε₀ + t Δε
                         let epsilon0 = args.epsilon0.as_mut().unwrap();
                         let epsilon = args.state.eps_mut();
                         t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon);
 
                         // update history
                         *args.state.time_mut() = args.t0 + t;
-                        *args.state.yf_value_mut() = yf;
+                        *args.state.yf_value_mut() = f;
                         history.push(args.state.clone());
                     }
                     Ok(KEEP_RUNNING)
@@ -353,7 +342,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
         // run elastic path first
         let (need_elastoplastic_run, t0) = if run_elastic {
-            // map: {y} = {σ} ← σ
+            // copy σ into {y}
             let y = &mut self.sigma_vec;
             y.set_vector(state.sigma.vector().as_data());
 
@@ -385,21 +374,21 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 let t_int = (u_int + 1.0) / 2.0;
                 self.arguments.t_intersection = t_int;
 
-                // map: {y} = {σ} ← σ
+                // copy σ into {y} again (to start from scratch)
                 y.set_vector(state.sigma.vector().as_data());
 
                 // solve the elastic problem again to update σ to the intersection point
                 self.solver_elastic.solve(y, 0.0, t_int, None, &mut self.arguments)?;
 
-                // update stress at intersection (points I and I*)
-                state.sigma.vector_mut().set_vector(y.as_data()); // map: σ ← {σ}
+                // set stress at intersection (points I and I*)
+                state.sigma.vector_mut().set_vector(y.as_data());
 
                 // need elastoplastic update starting from t_int
                 (true, t_int)
             } else {
                 // no intersection (pure elastic regime)
                 // potential cases: B, C, B*, C*
-                state.sigma.vector_mut().set_vector(y.as_data()); // map: σ ← {σ}
+                state.sigma.vector_mut().set_vector(y.as_data());
 
                 // all done (no need for elastoplastic update)
                 (false, 1.0)
@@ -411,22 +400,18 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
         // run elastoplastic update
         if need_elastoplastic_run {
-            // map σ and z into {y}
+            // join σ and z into {y}
             let y = &mut self.sigma_and_z;
-            let n = state.sigma.dim();
-            for i in 0..n {
-                y[i] = state.sigma.vector()[i];
-            }
-            for i in 0..state.internal_values.dim() {
-                y[n + i] = state.internal_values[i];
-            }
+            y.join2(state.sigma.vector().as_data(), state.internal_values.as_data());
 
             // solve elastoplastic problem
             self.solver_elastoplastic.solve(y, t0, 1.0, None, &mut self.arguments)?;
 
-            // map back: {z} into σ and z
-            state.sigma.set_mandel_vector(1.0, &y.as_data()[..n]);
-            state.internal_values.set_vector(&y.as_data()[n..]);
+            // split {y} into σ and z
+            y.split2(
+                state.sigma.vector_mut().as_mut_data(),
+                state.internal_values.as_mut_data(),
+            );
         }
 
         // update initial pseudo time and initial strain (for plotting)
