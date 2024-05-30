@@ -7,6 +7,8 @@ use russell_tensor::{t2_add, Tensor2, Tensor4};
 
 const KEEP_RUNNING: bool = false;
 
+const T_MAX_NEG_NO_INTERSECTION: f64 = 1.0;
+
 /// Holds arguments for the ODE solver
 struct Arguments {
     /// Plasticity formulation
@@ -30,11 +32,10 @@ struct Arguments {
     /// Rate of internal variables dz/dt
     dz_dt: Vector,
 
-    /// (pseudo) Time before intersection
-    t_neg: f64,
-
-    /// (pseudo) Time after intersection
-    t_pos: f64,
+    /// (pseudo) Max time when the yield function value is still negative
+    ///
+    /// `t_max_neg` is the max time in `[0, 1]` when `f(σ, z)` is still negative
+    t_max_neg: f64,
 
     /// (pseudo) Time at intersection
     t_intersection: f64,
@@ -72,8 +73,7 @@ impl Arguments {
             delta_epsilon: Tensor2::new(config.mandel),
             dsigma_dt: Tensor2::new(config.mandel),
             dz_dt: Vector::new(n_internal_values),
-            t_neg: 0.0,
-            t_pos: 0.0,
+            t_max_neg: 0.0,
             t_intersection: 0.0,
             t0: 0.0,
             epsilon0: if with_history {
@@ -198,9 +198,10 @@ impl<'a> Elastoplastic<'a> {
             .set_dense_x_out(&interior_t_out)
             .unwrap()
             .set_dense_callback(|stats, _h, t, y, args: &mut Arguments| {
-                // reset counter
+                // reset counter and t_max_neg
                 if stats.n_accepted == 0 {
                     args.yf_count = 0;
+                    args.t_max_neg = T_MAX_NEG_NO_INTERSECTION;
                 }
 
                 // copy {y}(t) into σ
@@ -211,10 +212,7 @@ impl<'a> Elastoplastic<'a> {
                 args.yf_values[args.yf_count] = f;
                 args.yf_count += 1;
                 if f < 0.0 {
-                    args.t_neg = t;
-                }
-                if f > 0.0 {
-                    args.t_pos = t;
+                    args.t_max_neg = t;
                 }
 
                 // history
@@ -353,10 +351,10 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             // handle intersection
             assert_eq!(self.arguments.yf_count, self.interp.get_degree() + 1);
             let f_last = self.arguments.yf_values.as_data().last().unwrap();
-            if *f_last > 0.0 {
+            if *f_last > 0.0 && self.arguments.t_max_neg < T_MAX_NEG_NO_INTERSECTION {
                 // normalized pseudo times
-                let ua = 2.0 * self.arguments.t_neg - 1.0;
-                let ub = 2.0 * self.arguments.t_pos - 1.0;
+                let ua = 2.0 * self.arguments.t_max_neg - 1.0;
+                let ub = 1.0;
 
                 // yield function values before and after the intersection
                 let fa = self.interp.eval(ua, &self.arguments.yf_values)?;
