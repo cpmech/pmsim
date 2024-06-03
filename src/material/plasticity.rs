@@ -255,3 +255,57 @@ impl Plasticity {
         Ok(())
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::base::new_empty_config_3d;
+    use russell_lab::mat_approx_eq;
+
+    #[test]
+    fn elastoplastic_rigidity_works() {
+        // parameters
+        let config = new_empty_config_3d();
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::VonMises { young, poisson, z0, hh },
+            nonlin_elast: None,
+            stress_update: None,
+        };
+
+        // models
+        let mut von_mises = VonMises::new(&config, young, poisson, z0, hh);
+        let mut plasticity = Plasticity::new(&config, &param).unwrap();
+
+        // initialize state on yield surface
+        let mut state = StressStrainState::new(config.mandel, 1, false);
+        state.sigma.set_mandel_vector(1.0, &[7.0, -2.0, -2.0, 0.0, 0.0, 0.0]);
+        state.internal_values[0] = z0;
+        state.loading = true;
+        let f = von_mises.yield_function(&state).unwrap();
+        assert_eq!(f, 0.0);
+
+        // compute elastoplastic rigidity
+        let mut dd_von_mises = Tensor4::new(config.mandel);
+        von_mises.stiffness(&mut dd_von_mises, &state).unwrap();
+        let mut dsigma_dt = Tensor2::new(config.mandel);
+        let mut dz_dt = Vector::new(1);
+        let delta_epsilon = Tensor2::new(config.mandel);
+        plasticity
+            .elastoplastic_rates(&mut dsigma_dt, &mut dz_dt, &state, &delta_epsilon)
+            .unwrap();
+
+        // check
+        let dd1 = dd_von_mises.as_matrix();
+        let dd2 = plasticity.ddep.as_matrix();
+        // println!("D_von_mises =\n{:.2}", dd1);
+        // println!("D_plasticity =\n{:.2}", dd2);
+        mat_approx_eq(&dd1, &dd2, 1e-12);
+    }
+}
