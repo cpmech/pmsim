@@ -419,7 +419,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             println!("sigma (initial) =\n{}", state.sigma.vector());
             println!("sigma_d (initial) = {}", state.sigma.invariant_sigma_d());
             let yf = self.arguments.plasticity.model.yield_function(state)?;
-            println!("yf (initial) = {}", yf);
+            println!("yf (initial) = {:.2e}", yf);
 
             // solve elastoplastic problem
             self.solver_elastoplastic.solve(y, t0, 1.0, None, &mut self.arguments)?;
@@ -432,7 +432,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             println!("sigma (final) =\n{}", state.sigma.vector());
             println!("sigma_d (final) = {}", state.sigma.invariant_sigma_d());
             let yf = self.arguments.plasticity.model.yield_function(state)?;
-            println!("yf (final) = {} <<<<<<<<<<<<<<<<<<<<<<<<<<<", yf);
+            println!("yf (final) = {:.2e} <<<<<<<<<<<<<<<<<<<<<<<<<<<", yf);
         }
 
         // update initial pseudo time and initial strain (for plotting)
