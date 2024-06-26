@@ -238,7 +238,7 @@ impl Plasticity {
         t4_ddot_t2_dyad_t2_ddot_t4(&mut self.ddep, 1.0, &self.dde, -1.0 / nnp, dg_dsigma, df_dsigma);
 
         // dσ/dt = Dₑₚ : Δε
-        t4_ddot_t2(dsigma_dt, 1.0, &self.dde, delta_epsilon);
+        t4_ddot_t2(dsigma_dt, 1.0, &self.ddep, delta_epsilon);
 
         // indicator = (df/dσ) : Dₑ : Δε
         let indicator = t2_ddot_t4_ddot_t2(df_dsigma, &self.dde, delta_epsilon);

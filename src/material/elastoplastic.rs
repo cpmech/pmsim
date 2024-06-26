@@ -1,20 +1,24 @@
 use super::{Plasticity, StressStrainState, StressStrainTrait};
 use crate::base::{Config, ParamSolid, StressUpdate};
 use crate::StrError;
-use russell_lab::{mat_vec_mul, InterpLagrange, RootSolver, Vector};
+use russell_lab::{mat_vec_mul, InterpChebyshev, RootFinder, Vector};
 use russell_ode::{Method, OdeSolver, Params, System};
 use russell_tensor::{t2_add, Tensor2, Tensor4};
 
 const KEEP_RUNNING: bool = false;
 
-const T_MAX_NEG_NO_INTERSECTION: f64 = 1.0;
+const YF_TOL: f64 = 1e-8;
+
+const CHEBYSHEV_TOL: f64 = 1e-8;
+
+const T_BOUNDARY_TOL: f64 = 1e-7;
 
 /// Holds arguments for the ODE solver
 struct Arguments {
     /// Plasticity formulation
     plasticity: Plasticity,
 
-    /// Interpolated f(σ,z) values
+    /// Interpolated f(σ,z) values (reversed order from 1 to -1 because of standard Chebyshev points)
     yf_values: Vector,
 
     /// Counts the number of calls to dense output and corresponds to the index in yf_values
@@ -32,13 +36,8 @@ struct Arguments {
     /// Rate of internal variables dz/dt
     dz_dt: Vector,
 
-    /// (pseudo) Max time when the yield function value is still negative
-    ///
-    /// `t_max_neg` is the max time in `[0, 1]` when `f(σ, z)` is still negative
-    t_max_neg: f64,
-
     /// (pseudo) Time at intersection
-    t_intersection: f64,
+    t_intersection: Option<f64>,
 
     /// Initial pseudo time for plotting
     t0: f64,
@@ -78,8 +77,7 @@ impl Arguments {
             delta_epsilon: Tensor2::new(config.mandel),
             dsigma_dt: Tensor2::new(config.mandel),
             dz_dt: Vector::new(n_internal_values),
-            t_max_neg: 0.0,
-            t_intersection: 0.0,
+            t_intersection: None,
             t0: 0.0,
             epsilon0: if with_history {
                 Some(Tensor2::new(config.mandel))
@@ -98,10 +96,10 @@ pub struct Elastoplastic<'a> {
     stress_update_config: StressUpdate,
 
     /// Interpolant for yield function values as function of pseudo-time
-    interp: InterpLagrange,
+    interp: InterpChebyshev,
 
     /// Solver for the intersection finding algorithm
-    root_solver: RootSolver,
+    root_finder: RootFinder,
 
     /// ODE solver for the elastic update: dσ/dt = Dₑ : Δε (with intersection data)
     solver_elastic_intersect: OdeSolver<'a, Arguments>,
@@ -137,16 +135,17 @@ impl<'a> Elastoplastic<'a> {
         };
 
         // interpolant
-        let degree = 10;
-        let npoint = degree + 1;
-        let interp = InterpLagrange::new(degree, None).unwrap();
+        let degree = 3;
+        let interp = InterpChebyshev::new(degree, 0.0, 1.0).unwrap();
 
         // interior stations for dense output
+        let chebyshev_points = InterpChebyshev::points(degree);
+        let npoint = chebyshev_points.dim();
         let mut interior_t_out = vec![0.0; npoint - 2];
-        for i in 0..(npoint - 2) {
-            let u = interp.get_points()[1 + i];
-            interior_t_out[i] = (u + 1.0) / 2.0;
-        }
+        let xx_interior = &chebyshev_points.as_data()[1..(npoint - 1)];
+        xx_interior.into_iter().enumerate().for_each(|(i, x)| {
+            interior_t_out[i] = (1.0 + x) / 2.0;
+        });
 
         // arguments for the integrator
         let arguments = Arguments::new(config, param, npoint, stress_update_config.save_history)?;
@@ -181,8 +180,6 @@ impl<'a> Elastoplastic<'a> {
                 args.state.internal_values.as_mut_data(),
             );
 
-            println!("z0 = {}", args.state.internal_values[0]);
-
             // calculate: dσ/dt = Dₑₚ : Δε and dz/dt = Λd H
             args.plasticity.elastoplastic_rates(
                 &mut args.dsigma_dt,
@@ -206,10 +203,9 @@ impl<'a> Elastoplastic<'a> {
             .set_dense_x_out(&interior_t_out)
             .unwrap()
             .set_dense_callback(|stats, _h, t, y, args: &mut Arguments| {
-                // reset counter and t_max_neg
+                // reset counter
                 if stats.n_accepted == 0 {
                     args.yf_count = 0;
-                    args.t_max_neg = T_MAX_NEG_NO_INTERSECTION;
                 }
 
                 // copy {y}(t) into σ
@@ -219,9 +215,6 @@ impl<'a> Elastoplastic<'a> {
                 let f = args.plasticity.model.yield_function(&args.state)?;
                 args.yf_values[args.yf_count] = f;
                 args.yf_count += 1;
-                if f < 0.0 {
-                    args.t_max_neg = t;
-                }
 
                 // history
                 if let Some(history) = args.history_elastic.as_mut() {
@@ -259,7 +252,6 @@ impl<'a> Elastoplastic<'a> {
 
                         // yield function value: f(σ, z)
                         let f = args.plasticity.model.yield_function(&args.state)?;
-                        println!("f = {}", f);
 
                         // ε(t) = ε₀ + t Δε
                         let epsilon0 = args.epsilon0.as_mut().unwrap();
@@ -279,7 +271,7 @@ impl<'a> Elastoplastic<'a> {
         Ok(Elastoplastic {
             stress_update_config,
             interp,
-            root_solver: RootSolver::new(),
+            root_finder: RootFinder::new(),
             solver_elastic_intersect,
             solver_elastic,
             solver_elastoplastic,
@@ -325,20 +317,21 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             return self.arguments.plasticity.model.update_stress(state, delta_epsilon);
         }
 
-        // set Δε in arguments struct
+        // set Δε in arguments struct and reset t_intersection
         self.arguments.delta_epsilon.set_tensor(1.0, delta_epsilon);
+        self.arguments.t_intersection = None;
 
         // yield function value: f(σ, z)
         let plasticity = &mut self.arguments.plasticity;
         let f = plasticity.model.yield_function(state)?;
 
         // check if the elastic path must be calculated first
-        let run_elastic = if f < 0.0 {
+        let run_elastic = if f < -YF_TOL {
             // starting from point A (inside of the yield surface)
             // possible future cases: B, C, I, A*
             true
         } else {
-            // starting from point A* (on the yield surface or slightly outside)
+            // starting from point A* (slightly inside, on the yield surface, or slightly outside)
             let indicator = plasticity.loading_unloading_indicator(state, delta_epsilon)?;
             if indicator < 0.0 {
                 // possible future cases: B*, C*, I*, A**
@@ -365,29 +358,32 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             self.solver_elastic_intersect
                 .solve(y, 0.0, 1.0, None, &mut self.arguments)?;
 
-            // handle intersection
-            assert_eq!(self.arguments.yf_count, self.interp.get_degree() + 1);
-            let f_last = self.arguments.yf_values.as_data().last().unwrap();
-            if *f_last > 0.0 && self.arguments.t_max_neg < T_MAX_NEG_NO_INTERSECTION {
-                // normalized pseudo times
-                let ua = 2.0 * self.arguments.t_max_neg - 1.0;
-                let ub = 1.0;
+            // set data for interpolation
+            println!("yf_values = {:?}", self.arguments.yf_values);
+            self.interp
+                .adapt_data(CHEBYSHEV_TOL, self.arguments.yf_values.as_data())?;
 
-                // yield function values before and after the intersection
-                let fa = self.interp.eval(ua, &self.arguments.yf_values)?;
-                let fb = self.interp.eval(ub, &self.arguments.yf_values)?;
-                assert!(fa < 0.0);
-                assert!(fb > 0.0);
+            // find roots == intersections
+            let roots = self.root_finder.chebyshev(&self.interp)?;
+            println!("roots = {:?}", roots);
+            let has_intersection = match roots.last() {
+                Some(t_int) => *t_int < 1.0 - T_BOUNDARY_TOL,
+                None => false,
+            };
+            println!("has_intersection = {}", has_intersection);
 
-                // calculate intersection
-                let (u_int, _) = self.root_solver.brent(ua, ub, &mut 0, |t, _| {
-                    let f_int = self.interp.eval(t, &self.arguments.yf_values)?;
-                    Ok(f_int)
-                })?;
+            // handle eventual intersection
+            // let f_last = self.arguments.yf_values.as_data().last().unwrap();
+            // if *f_last > 0.0 && self.arguments.t_max_neg < T_MAX_NEG_NO_INTERSECTION {
+            if has_intersection {
+                let t_int = *roots.last().unwrap();
+                self.arguments.t_intersection = Some(t_int);
 
-                // de-normalize pseudo time
-                let t_int = (u_int + 1.0) / 2.0;
-                self.arguments.t_intersection = t_int;
+                // handle case when f = 1e-15 and t_int = 0
+                if t_int == 0.0 {
+                    panic!("STOP");
+                }
+                assert!(t_int > 0.0);
 
                 // copy σ into {y} again (to start from scratch)
                 y.set_vector(state.sigma.vector().as_data());
@@ -403,12 +399,14 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             } else {
                 // no intersection (pure elastic regime)
                 // potential cases: B, C, B*, C*
+                self.arguments.t_intersection = None;
                 state.sigma.vector_mut().set_vector(y.as_data());
 
                 // all done (no need for elastoplastic update)
                 (false, 1.0)
             }
         } else {
+            println!(">>>>>>>>>>>>>>>>>>>>>>> running elastoplastic path <<<<<<<<<<<<<<<<<<<<<<<<<");
             // run elastoplastic path directly starting from 0.0
             (true, 0.0)
         };
@@ -418,6 +416,10 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             // join σ and z into {y}
             let y = &mut self.sigma_and_z;
             y.join2(state.sigma.vector().as_data(), state.internal_values.as_data());
+            println!("sigma (initial) =\n{}", state.sigma.vector());
+            println!("sigma_d (initial) = {}", state.sigma.invariant_sigma_d());
+            let yf = self.arguments.plasticity.model.yield_function(state)?;
+            println!("yf (initial) = {}", yf);
 
             // solve elastoplastic problem
             self.solver_elastoplastic.solve(y, t0, 1.0, None, &mut self.arguments)?;
@@ -427,6 +429,10 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 state.sigma.vector_mut().as_mut_data(),
                 state.internal_values.as_mut_data(),
             );
+            println!("sigma (final) =\n{}", state.sigma.vector());
+            println!("sigma_d (final) = {}", state.sigma.invariant_sigma_d());
+            let yf = self.arguments.plasticity.model.yield_function(state)?;
+            println!("yf (final) = {} <<<<<<<<<<<<<<<<<<<<<<<<<<<", yf);
         }
 
         // update initial pseudo time and initial strain (for plotting)
@@ -445,15 +451,155 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base::{new_empty_config_3d, NonlinElast, ParamStressStrain};
-    use crate::material::{Axis, StressStrainPath, StressStrainPlot};
-    use plotpy::{Canvas, Curve, RayEndpoint};
+    use crate::base::new_empty_config_3d;
+    use crate::base::{NonlinElast, ParamStressStrain};
+    use crate::material::{Axis, StressStrainPath, StressStrainPlot, VonMises};
+    use plotpy::{Canvas, Curve, Legend, RayEndpoint};
+    use russell_lab::approx_eq;
     use russell_lab::math::SQRT_2_BY_3;
 
     const SAVE_FIGURE: bool = true;
 
     #[test]
-    fn update_stress_works() {
+    fn general_and_standard_update_are_equal() {
+        let config = new_empty_config_3d();
+
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+
+        let mut standard = VonMises::new(&config, young, poisson, z0, hh);
+
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::VonMises { young, poisson, z0, hh },
+            nonlin_elast: None,
+            stress_update: Some(StressUpdate {
+                general_plasticity: true,
+                continuum_modulus: true,
+                ode_method: Method::DoPri5,
+                save_history: true,
+            }),
+        };
+
+        let mut general = Elastoplastic::new(&config, &param).unwrap();
+
+        let sigma_m_0 = 0.0;
+        let sigma_d_0 = 0.0;
+        let dsigma_m = 1.0;
+        let dsigma_d = 9.0;
+
+        // first update exactly to the yield surface
+        let path = StressStrainPath::new_linear_oct(
+            &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
+        )
+        .unwrap();
+
+        let states_std = path.follow_strain(&mut standard);
+        let z_final_std = states_std.last().unwrap().internal_values[0];
+
+        let states_gen = path.follow_strain(&mut general);
+        let z_final_gen = states_gen.last().unwrap().internal_values[0];
+        let history_e = general.arguments.history_elastic.as_ref().unwrap();
+        let history_ep = general.arguments.history_elastoplastic.as_ref().unwrap();
+
+        println!("z_final_std = {}", z_final_std);
+        println!("z_final_gen = {}", z_final_gen);
+        println!("STANDARD:\n{}", states_std.last().unwrap());
+        println!("\nGENERAL:\n{}", states_gen.last().unwrap());
+        approx_eq(z_final_gen, z_final_std, 1e-14);
+
+        if SAVE_FIGURE {
+            // A ------------------------------------------------------------------------------------------------
+            let mut ssp = StressStrainPlot::new();
+            ssp.draw_3x2_mosaic_struct(history_e, |curve, _, _| {
+                curve.set_marker_style("+").set_line_style(":").set_label("history(e)");
+            });
+            ssp.draw_3x2_mosaic_struct(history_ep, |curve, _, _| {
+                curve.set_marker_style("*").set_line_style(":").set_label("history(ep)");
+            });
+            ssp.draw_3x2_mosaic_struct(&states_gen, |curve, row, col| {
+                curve
+                    .set_marker_style("o")
+                    .set_marker_void(true)
+                    .set_line_style(":")
+                    .set_label("general");
+                if !(row == 0 && col == 1) {
+                    curve.set_marker_size(7.0);
+                }
+            });
+            ssp.draw_3x2_mosaic_struct(&states_std, |curve, row, col| {
+                curve.set_marker_style(".").set_label("standard");
+                if !(row == 0 && col == 1) {
+                    curve.set_marker_size(7.0);
+                }
+            });
+            let mut legend = Legend::new();
+            legend.set_outside(true).set_num_col(2);
+            ssp.save_3x2_mosaic_struct(
+                "/tmp/pmsim/test_general_and_standard_von_mises_1a.svg",
+                |plot, row, col, before| {
+                    if before {
+                        if (row == 0 && col == 0) || row == 1 {
+                            let mut limit = Curve::new();
+                            limit.set_line_color("#a8a8a8");
+                            limit.draw_ray(0.0, z0, RayEndpoint::Horizontal);
+                            limit.set_line_color("black");
+                            limit.draw_ray(0.0, z_final_std, RayEndpoint::Horizontal);
+                            plot.add(&limit);
+                        }
+                        if row == 0 && col == 1 {
+                            let mut circle = Canvas::new();
+                            circle.set_edge_color("#a8a8a8").set_face_color("None");
+                            circle.draw_circle(0.0, 0.0, z0 * SQRT_2_BY_3);
+                            circle.set_edge_color("black");
+                            circle.draw_circle(0.0, 0.0, z_final_std * SQRT_2_BY_3);
+                            plot.add(&circle);
+                        }
+                    } else {
+                        if row == 1 && col == 1 {
+                            legend.draw();
+                            plot.add(&legend);
+                        }
+                    }
+                },
+            )
+            .unwrap();
+
+            // B ------------------------------------------------------------------------------------------------
+            let mut ssp_yf = StressStrainPlot::new();
+            ssp_yf.draw(Axis::Time, Axis::Yield, history_e, |curve| {
+                curve
+                    .set_marker_style("o")
+                    .set_label("linear elastic model; elastic path");
+            });
+            ssp_yf.draw(Axis::Time, Axis::Yield, history_ep, |curve| {
+                curve
+                    .set_marker_style("s")
+                    .set_label("linear elastic model; elastoplastic path");
+            });
+            ssp_yf
+                .save(
+                    Axis::Time,
+                    Axis::Yield,
+                    "/tmp/pmsim/test_general_and_standard_von_mises_1b.svg",
+                    |plot, before| {
+                        if before {
+                            plot.set_cross(0.0, 0.0, "gray", "-", 1.1);
+                        } else {
+                            if let Some(t_int) = general.arguments.t_intersection {
+                                plot.set_vert_line(t_int, "green", "--", 1.5);
+                            }
+                        }
+                    },
+                )
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn nonlinear_update_stress_works() {
         let config = new_empty_config_3d();
 
         const BETA: f64 = 0.5;
@@ -568,7 +714,9 @@ mod tests {
                         if before {
                             plot.set_cross(0.0, 0.0, "gray", "-", 1.1);
                         } else {
-                            plot.set_vert_line(model_lin.arguments.t_intersection, "green", "--", 1.5);
+                            if let Some(t_int) = model_lin.arguments.t_intersection {
+                                plot.set_vert_line(t_int, "green", "--", 1.5);
+                            }
                         }
                     },
                 )
