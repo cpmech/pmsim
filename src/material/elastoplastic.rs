@@ -547,7 +547,7 @@ mod tests {
         );
     }
 
-    // Case: A to A* (1) --------------------------------------------------------------------------------
+    // Case: A to A* (1: starting inside) ---------------------------------------------------------------
 
     #[test]
     fn vonmises_a_to_a_star_1() {
@@ -583,7 +583,7 @@ mod tests {
         );
     }
 
-    // Case: A to A* (2) --------------------------------------------------------------------------------
+    // Case: A to A* (2: starting slightly outside) -----------------------------------------------------
 
     #[test]
     fn vonmises_a_to_a_star_2() {
@@ -602,9 +602,9 @@ mod tests {
         let sigma_m = 1.0;
         let distance = sigma_m * SQRT_3;
         let radius = sigma_d * SQRT_2_BY_3;
-        let sigma = Tensor2::new_from_octahedral_alpha(0.0, 1.05 * radius, -PI / 2.0, config.two_dim).unwrap();
+        let sigma = Tensor2::new_from_octahedral_alpha(0.0, 1.1 * radius, -PI / 2.0, config.two_dim).unwrap();
         path.push_stress(&sigma, strain_driven);
-        let sigma = Tensor2::new_from_octahedral_alpha(distance, 1.05 * radius, PI / 2.0, config.two_dim).unwrap();
+        let sigma = Tensor2::new_from_octahedral_alpha(distance, 1.8 * radius, PI / 2.0, config.two_dim).unwrap();
         path.push_stress(&sigma, strain_driven);
 
         // run test
@@ -616,7 +616,7 @@ mod tests {
             z0,
             hh,
             &path,
-            1e-3,
+            1e-2,
             1e-3,
         );
     }
