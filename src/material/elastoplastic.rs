@@ -509,15 +509,6 @@ mod tests {
             t += 1.0;
         }
 
-        // last states
-        let std_last = std_states.last().unwrap();
-        let gen_last = gen_states.last().unwrap();
-
-        // check strains, stresses and internal variables
-        vec_approx_eq(std_last.eps().vector(), gen_last.eps().vector(), 1e-17);
-        vec_approx_eq(std_last.sigma.vector(), gen_last.sigma.vector(), 1e-14);
-        vec_approx_eq(&std_last.internal_values, &gen_last.internal_values, 1e-14);
-
         // plot
         if SAVE_FIGURE {
             let graph = GraphElastoplastic::new();
@@ -529,6 +520,15 @@ mod tests {
                 Some(&gen_history_e),
                 Some(&gen_history_ep),
             );
+        }
+
+        // check strains, stresses and internal variables
+        assert_eq!(std_states.len(), gen_states.len());
+        let n_state = std_states.len();
+        for i in 0..n_state {
+            vec_approx_eq(std_states[i].eps().vector(), gen_states[i].eps().vector(), 1e-17);
+            vec_approx_eq(std_states[i].sigma.vector(), gen_states[i].sigma.vector(), 1e-14);
+            vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, 1e-14);
         }
     }
 
