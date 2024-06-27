@@ -50,24 +50,22 @@ impl GraphElastoplastic {
         ssp.no_grid = true;
         // general: history elastic
         if let Some(history_e) = gen_history_e {
-            // trim part after intersection
-            let l = if let Some(history_ep) = gen_history_ep {
-                let first = history_ep.first().unwrap();
-                let t = first.time();
-                let index = history_e.into_iter().position(|state| state.time() >= t);
-                if let Some(i) = index {
-                    i
-                } else {
-                    history_e.len()
-                }
-            } else {
-                history_e.len()
-            };
-            let slice = &history_e[..=l];
-            // plot
-            let n_state = history_e.len();
-            if n_state > 0 {
-                let mark_every = n_state / self.n_markers;
+            if history_e.len() > 0 {
+                // trim part after intersection
+                let mut l = history_e.len() - 1;
+                if let Some(history_ep) = gen_history_ep {
+                    if history_ep.len() > 0 {
+                        let first = history_ep.first().unwrap();
+                        let t = first.time();
+                        let index = history_e.into_iter().position(|state| state.time() >= t);
+                        if let Some(i) = index {
+                            l = i;
+                        }
+                    }
+                };
+                let slice = &history_e[..=l];
+                // plot
+                let mark_every = slice.len() / self.n_markers;
                 ssp.draw_2x2_mosaic_struct(slice, |curve, _, _| {
                     curve
                         .set_line_color(&self.color_gen_history_e)

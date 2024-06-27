@@ -512,8 +512,10 @@ mod tests {
         }
     }
 
+    // Case: A to A* (1: using two increments) ----------------------------------------------------------
+
     #[test]
-    fn vonmises_standard_vs_general() {
+    fn vonmises_a_to_a_star_1() {
         // parameters
         let config = new_empty_config_2d();
         let young = 1500.0;
@@ -535,7 +537,7 @@ mod tests {
 
         // run test
         run_vonmises_test(
-            "test_vonmises_standard_vs_general",
+            "test_vonmises_a_to_a_star_1",
             &config,
             young,
             poisson,
@@ -547,10 +549,10 @@ mod tests {
         );
     }
 
-    // Case: A to A* (1: starting inside) ---------------------------------------------------------------
+    // Case: A to A* (2: using one increment) -----------------------------------------------------------
 
     #[test]
-    fn vonmises_a_to_a_star_1() {
+    fn vonmises_a_to_a_star_2() {
         // parameters
         let config = new_empty_config_3d();
         let young = 1500.0;
@@ -571,7 +573,7 @@ mod tests {
 
         // run test
         run_vonmises_test(
-            "test_vonmises_a_to_a_star_1",
+            "test_vonmises_a_to_a_star_2",
             &config,
             young,
             poisson,
@@ -583,10 +585,10 @@ mod tests {
         );
     }
 
-    // Case: A to A* (2: starting slightly outside) -----------------------------------------------------
+    // Case: A* to C* (1: no drift) -------------------------------------------------------------------
 
     #[test]
-    fn vonmises_a_to_a_star_2() {
+    fn vonmises_a_star_to_c_star_1() {
         // parameters
         let mut config = new_empty_config_3d();
         config.model_allow_initial_drift = true;
@@ -602,14 +604,14 @@ mod tests {
         let sigma_m = 1.0;
         let distance = sigma_m * SQRT_3;
         let radius = sigma_d * SQRT_2_BY_3;
-        let sigma = Tensor2::new_from_octahedral_alpha(0.0, 1.1 * radius, -PI / 2.0, config.two_dim).unwrap();
+        let sigma = Tensor2::new_from_octahedral_alpha(0.0, radius, -PI / 2.0, config.two_dim).unwrap();
         path.push_stress(&sigma, strain_driven);
-        let sigma = Tensor2::new_from_octahedral_alpha(distance, 1.8 * radius, PI / 2.0, config.two_dim).unwrap();
+        let sigma = Tensor2::new_from_octahedral_alpha(distance, radius, PI / 2.0, config.two_dim).unwrap();
         path.push_stress(&sigma, strain_driven);
 
         // run test
         run_vonmises_test(
-            "test_vonmises_a_to_a_star_2",
+            "test_vonmises_a_star_to_c_star_1",
             &config,
             young,
             poisson,
@@ -621,10 +623,10 @@ mod tests {
         );
     }
 
-    // Case: A to A* (3: starting slightly outside) -----------------------------------------------------
+    // Case: A* to A** (1: alpha = 60) --------------------------------------------------------------------
 
     #[test]
-    fn vonmises_a_to_a_star_3() {
+    fn vonmises_a_star_to_a_2star_1() {
         // parameters
         let mut config = new_empty_config_3d();
         config.model_allow_initial_drift = true;
@@ -647,7 +649,7 @@ mod tests {
 
         // run test
         run_vonmises_test(
-            "test_vonmises_a_to_a_star_3",
+            "test_vonmises_a_star_to_a_2star_1",
             &config,
             young,
             poisson,
