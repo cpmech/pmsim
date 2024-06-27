@@ -546,7 +546,7 @@ impl StressStrainPlot {
         let handle = "grid";
         let mut plot = Plot::new();
         let (nrow, ncol) = (2, 2);
-        plot.set_gridspec(handle, nrow, ncol, "wspace=0.30");
+        plot.set_gridspec(handle, nrow, ncol, "wspace=0.25");
         for row in 0..nrow {
             for col in 0..ncol {
                 plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
@@ -567,7 +567,7 @@ impl StressStrainPlot {
                 extra(&mut plot, row, col, false);
             }
         }
-        plot.set_figure_size_points(600.0, 500.0).save(filepath)
+        plot.set_figure_size_points(600.0, 600.0).save(filepath)
     }
 
     // --------------------------------------------------------------------------------------------------------------

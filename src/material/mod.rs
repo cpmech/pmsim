@@ -3,6 +3,7 @@
 mod camclay;
 mod conductivity;
 mod elastoplastic;
+mod graphs;
 mod linear_elastic;
 mod plasticity;
 mod stress_strain_model;
@@ -13,6 +14,7 @@ mod von_mises;
 pub use crate::material::camclay::*;
 pub use crate::material::conductivity::*;
 pub use crate::material::elastoplastic::*;
+pub use crate::material::graphs::*;
 pub use crate::material::linear_elastic::*;
 pub use crate::material::plasticity::*;
 pub use crate::material::stress_strain_model::*;

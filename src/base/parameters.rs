@@ -283,6 +283,9 @@ pub struct StressUpdate {
     /// ODE method
     pub ode_method: Method,
 
+    /// Degree of the interpolant for the yield function intersection
+    pub interp_degree: usize,
+
     /// Save stress-strain history
     pub save_history: bool,
 }

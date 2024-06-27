@@ -13,6 +13,8 @@ const CHEBYSHEV_TOL: f64 = 1e-8;
 
 const T_BOUNDARY_TOL: f64 = 1e-7;
 
+const DEFAULT_INTERP_DEGREE: usize = 30;
+
 /// Holds arguments for the ODE solver
 struct Arguments {
     /// Plasticity formulation
@@ -130,12 +132,13 @@ impl<'a> Elastoplastic<'a> {
                 general_plasticity: true,
                 continuum_modulus: true,
                 ode_method: Method::DoPri8,
+                interp_degree: DEFAULT_INTERP_DEGREE,
                 save_history: false,
             },
         };
 
         // interpolant
-        let degree = 3;
+        let degree = stress_update_config.interp_degree;
         let interp = InterpChebyshev::new(degree, 0.0, 1.0).unwrap();
 
         // interior stations for dense output
@@ -453,15 +456,13 @@ mod tests {
     use super::*;
     use crate::base::new_empty_config_3d;
     use crate::base::{NonlinElast, ParamStressStrain};
-    use crate::material::{Axis, StressStrainPath, StressStrainPlot, VonMises};
-    use plotpy::{Canvas, Curve, Legend, RayEndpoint};
+    use crate::material::{GraphElastoplastic, PlasticityTrait, StressStrainModelName, StressStrainPath, VonMises};
     use russell_lab::approx_eq;
-    use russell_lab::math::SQRT_2_BY_3;
 
     const SAVE_FIGURE: bool = true;
 
     #[test]
-    fn general_and_standard_update_are_equal() {
+    fn vonmises_standard_vs_general() {
         let config = new_empty_config_3d();
 
         let young = 1500.0;
@@ -479,6 +480,7 @@ mod tests {
                 general_plasticity: true,
                 continuum_modulus: true,
                 ode_method: Method::DoPri5,
+                interp_degree: DEFAULT_INTERP_DEGREE,
                 save_history: true,
             }),
         };
@@ -496,105 +498,42 @@ mod tests {
         )
         .unwrap();
 
-        let states_std = path.follow_strain(&mut standard);
-        let z_final_std = states_std.last().unwrap().internal_values[0];
+        let mut std_states = path.follow_strain(&mut standard);
+        let z_final_std = std_states.last().unwrap().internal_values[0];
+        let mut t = 0.0;
+        for state in &mut std_states {
+            *state.yf_value_mut() = standard.yield_function(state).unwrap();
+            *state.time_mut() = t;
+            t += 1.0;
+        }
 
-        let states_gen = path.follow_strain(&mut general);
-        let z_final_gen = states_gen.last().unwrap().internal_values[0];
-        let history_e = general.arguments.history_elastic.as_ref().unwrap();
-        let history_ep = general.arguments.history_elastoplastic.as_ref().unwrap();
+        let mut gen_states = path.follow_strain(&mut general);
+        let z_final_gen = gen_states.last().unwrap().internal_values[0];
+        let gen_history_e = general.arguments.history_elastic.as_ref().unwrap();
+        let gen_history_ep = general.arguments.history_elastoplastic.as_ref().unwrap();
+        let mut t = 0.0;
+        for state in &mut gen_states {
+            *state.yf_value_mut() = general.arguments.plasticity.model.yield_function(state).unwrap();
+            *state.time_mut() = t;
+            t += 1.0;
+        }
 
         println!("z_final_std = {}", z_final_std);
         println!("z_final_gen = {}", z_final_gen);
-        println!("STANDARD:\n{}", states_std.last().unwrap());
-        println!("\nGENERAL:\n{}", states_gen.last().unwrap());
+        println!("STANDARD:\n{}", std_states.last().unwrap());
+        println!("\nGENERAL:\n{}", gen_states.last().unwrap());
         approx_eq(z_final_gen, z_final_std, 1e-14);
 
         if SAVE_FIGURE {
-            // A ------------------------------------------------------------------------------------------------
-            let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(history_e, |curve, _, _| {
-                curve.set_marker_style("+").set_line_style(":").set_label("history(e)");
-            });
-            ssp.draw_3x2_mosaic_struct(history_ep, |curve, _, _| {
-                curve.set_marker_style("*").set_line_style(":").set_label("history(ep)");
-            });
-            ssp.draw_3x2_mosaic_struct(&states_gen, |curve, row, col| {
-                curve
-                    .set_marker_style("o")
-                    .set_marker_void(true)
-                    .set_line_style(":")
-                    .set_label("general");
-                if !(row == 0 && col == 1) {
-                    curve.set_marker_size(7.0);
-                }
-            });
-            ssp.draw_3x2_mosaic_struct(&states_std, |curve, row, col| {
-                curve.set_marker_style(".").set_label("standard");
-                if !(row == 0 && col == 1) {
-                    curve.set_marker_size(7.0);
-                }
-            });
-            let mut legend = Legend::new();
-            legend.set_outside(true).set_num_col(2);
-            ssp.save_3x2_mosaic_struct(
-                "/tmp/pmsim/test_general_and_standard_von_mises_1a.svg",
-                |plot, row, col, before| {
-                    if before {
-                        if (row == 0 && col == 0) || row == 1 {
-                            let mut limit = Curve::new();
-                            limit.set_line_color("#a8a8a8");
-                            limit.draw_ray(0.0, z0, RayEndpoint::Horizontal);
-                            limit.set_line_color("black");
-                            limit.draw_ray(0.0, z_final_std, RayEndpoint::Horizontal);
-                            plot.add(&limit);
-                        }
-                        if row == 0 && col == 1 {
-                            let mut circle = Canvas::new();
-                            circle.set_edge_color("#a8a8a8").set_face_color("None");
-                            circle.draw_circle(0.0, 0.0, z0 * SQRT_2_BY_3);
-                            circle.set_edge_color("black");
-                            circle.draw_circle(0.0, 0.0, z_final_std * SQRT_2_BY_3);
-                            plot.add(&circle);
-                        }
-                    } else {
-                        if row == 1 && col == 1 {
-                            legend.draw();
-                            plot.add(&legend);
-                        }
-                    }
-                },
-            )
-            .unwrap();
-
-            // B ------------------------------------------------------------------------------------------------
-            let mut ssp_yf = StressStrainPlot::new();
-            ssp_yf.draw(Axis::Time, Axis::Yield, history_e, |curve| {
-                curve
-                    .set_marker_style("o")
-                    .set_label("linear elastic model; elastic path");
-            });
-            ssp_yf.draw(Axis::Time, Axis::Yield, history_ep, |curve| {
-                curve
-                    .set_marker_style("s")
-                    .set_label("linear elastic model; elastoplastic path");
-            });
-            ssp_yf
-                .save(
-                    Axis::Time,
-                    Axis::Yield,
-                    "/tmp/pmsim/test_general_and_standard_von_mises_1b.svg",
-                    |plot, before| {
-                        if before {
-                            plot.set_cross(0.0, 0.0, "gray", "-", 1.1);
-                        } else {
-                            if let Some(t_int) = general.arguments.t_intersection {
-                                plot.set_vert_line(t_int, "green", "--", 1.5);
-                            }
-                        }
-                    },
-                )
-                .unwrap();
+            let graph = GraphElastoplastic::new();
+            graph.standard_vs_general(
+                "test_vonmises_standard_vs_general",
+                StressStrainModelName::VonMises,
+                &std_states,
+                &gen_states,
+                Some(&gen_history_e),
+                Some(&gen_history_ep),
+            );
         }
     }
 
@@ -624,6 +563,7 @@ mod tests {
                 general_plasticity: true,
                 continuum_modulus: true,
                 ode_method: Method::DoPri5,
+                interp_degree: DEFAULT_INTERP_DEGREE,
                 save_history: true,
             }),
         };
@@ -651,76 +591,6 @@ mod tests {
         let history_lin_e = model_lin.arguments.history_elastic.as_ref().unwrap();
         let history_lin_ep = model_lin.arguments.history_elastoplastic.as_ref().unwrap();
 
-        if SAVE_FIGURE {
-            // A ------------------------------------------------------------------------------------------------
-            let mut ssp = StressStrainPlot::new();
-            ssp.draw_3x2_mosaic_struct(history_lin_e, |curve, _, _| {
-                curve.set_marker_style(".").set_line_style(":");
-            });
-            ssp.draw_3x2_mosaic_struct(history_lin_ep, |curve, _, _| {
-                curve.set_marker_style(".").set_line_style("--");
-            });
-            ssp.draw_3x2_mosaic_struct(&states_lin, |curve, _, _| {
-                curve.set_marker_style("o").set_line_style("None");
-            });
-            // ssp.draw_3x2_mosaic_struct(&states_nli, |curve, _, _| {
-            //     curve.set_marker_style("o").set_line_style("None");
-            // });
-            // ssp.draw_3x2_mosaic_struct(&model_nli.args.states, |curve, _, _| {
-            //     curve.set_marker_style(".").set_line_style("--");
-            // });
-            ssp.save_3x2_mosaic_struct("/tmp/pmsim/test_plasticity_1a.svg", |plot, row, col, before| {
-                if before {
-                    if (row == 0 && col == 0) || row == 1 {
-                        let mut limit = Curve::new();
-                        limit.set_line_color("black");
-                        limit.draw_ray(0.0, Z0, RayEndpoint::Horizontal);
-                        plot.add(&limit);
-                    }
-                    if row == 0 && col == 1 {
-                        let z0_final = history_lin_ep.last().unwrap().internal_values[0];
-                        let mut circle = Canvas::new();
-                        circle.set_edge_color("grey").set_face_color("None");
-                        circle.draw_circle(0.0, 0.0, Z0 * SQRT_2_BY_3);
-                        circle.set_edge_color("black").set_face_color("None");
-                        circle.draw_circle(0.0, 0.0, z0_final);
-                        plot.add(&circle);
-                    }
-                }
-            })
-            .unwrap();
-
-            // B ------------------------------------------------------------------------------------------------
-            let mut ssp_yf = StressStrainPlot::new();
-            ssp_yf.draw(Axis::Time, Axis::Yield, history_lin_e, |curve| {
-                curve
-                    .set_marker_style("o")
-                    .set_label("linear elastic model; elastic path");
-            });
-            ssp_yf.draw(Axis::Time, Axis::Yield, history_lin_ep, |curve| {
-                curve
-                    .set_marker_style("s")
-                    .set_label("linear elastic model; elastoplastic path");
-            });
-            // ssp_yf.draw(Axis::Time, Axis::Yield, &model_nli.args.states, |curve| {
-            //     curve.set_marker_style("o").set_label("non-lin");
-            // });
-            ssp_yf
-                .save(
-                    Axis::Time,
-                    Axis::Yield,
-                    "/tmp/pmsim/test_plasticity_1b.svg",
-                    |plot, before| {
-                        if before {
-                            plot.set_cross(0.0, 0.0, "gray", "-", 1.1);
-                        } else {
-                            if let Some(t_int) = model_lin.arguments.t_intersection {
-                                plot.set_vert_line(t_int, "green", "--", 1.5);
-                            }
-                        }
-                    },
-                )
-                .unwrap();
-        }
+        if SAVE_FIGURE {}
     }
 }
