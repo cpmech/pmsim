@@ -616,8 +616,46 @@ mod tests {
             z0,
             hh,
             &path,
-            1e-2,
-            1e-3,
+            0.006,
+            0.004,
+        );
+    }
+
+    // Case: A to A* (3: starting slightly outside) -----------------------------------------------------
+
+    #[test]
+    fn vonmises_a_to_a_star_3() {
+        // parameters
+        let mut config = new_empty_config_3d();
+        config.model_allow_initial_drift = true;
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+
+        // generate path
+        let mut path = StressStrainPath::new(&config, young, poisson).unwrap();
+        let strain_driven = true;
+        let sigma_d = 9.0;
+        let sigma_m = 1.0;
+        let distance = sigma_m * SQRT_3;
+        let radius = sigma_d * SQRT_2_BY_3;
+        let sigma = Tensor2::new_from_octahedral_alpha(0.0, 1.1 * radius, -PI / 3.0, config.two_dim).unwrap();
+        path.push_stress(&sigma, strain_driven);
+        let sigma = Tensor2::new_from_octahedral_alpha(distance, 1.8 * radius, PI / 3.0, config.two_dim).unwrap();
+        path.push_stress(&sigma, strain_driven);
+
+        // run test
+        run_vonmises_test(
+            "test_vonmises_a_to_a_star_3",
+            &config,
+            young,
+            poisson,
+            z0,
+            hh,
+            &path,
+            0.38,
+            0.03,
         );
     }
 

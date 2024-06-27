@@ -34,7 +34,7 @@ pub enum Axis {
 
 impl Axis {
     /// Calculate the invariants and labels
-    fn calc(&self, states: &Vec<StressStrainState>) -> Vec<f64> {
+    fn calc(&self, states: &[StressStrainState]) -> Vec<f64> {
         match self {
             Self::EpsV(percent, negative) => {
                 let n = if *negative { -1.0 } else { 1.0 };
@@ -103,6 +103,9 @@ struct OctPlot {
 
 /// Plots stress versus strain invariants
 pub struct StressStrainPlot {
+    /// Do not draw the grid lines
+    pub no_grid: bool,
+
     curves: HashMap<(Axis, Axis), Vec<Curve>>,
     oct: Vec<OctPlot>,
 }
@@ -111,6 +114,7 @@ impl StressStrainPlot {
     /// Allocates a new instance
     pub fn new() -> Self {
         StressStrainPlot {
+            no_grid: false,
             curves: HashMap::new(),
             oct: Vec::new(),
         }
@@ -129,7 +133,7 @@ impl StressStrainPlot {
     ///
     /// A panic may occur if strains are not available in `states` and
     /// the requested graph require strains.
-    pub fn draw<F>(&mut self, x_axis: Axis, y_axis: Axis, states: &Vec<StressStrainState>, mut config: F)
+    pub fn draw<F>(&mut self, x_axis: Axis, y_axis: Axis, states: &[StressStrainState], mut config: F)
     where
         F: FnMut(&mut Curve),
     {
@@ -265,7 +269,7 @@ impl StressStrainPlot {
     ///
     /// * `states` -- the states with the stress points
     /// * `extra` -- is a function `|curve| {}` to configure the curve
-    pub fn draw_oct_projection<F>(&mut self, states: &Vec<StressStrainState>, mut extra: F) -> Result<(), StrError>
+    pub fn draw_oct_projection<F>(&mut self, states: &[StressStrainState], mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve),
     {
@@ -376,7 +380,7 @@ impl StressStrainPlot {
     ///
     /// * `states` -- the stress and strain points
     /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_3x2_mosaic_struct<F>(&mut self, states: &Vec<StressStrainState>, mut extra: F)
+    pub fn draw_3x2_mosaic_struct<F>(&mut self, states: &[StressStrainState], mut extra: F)
     where
         F: FnMut(&mut Curve, usize, usize),
     {
@@ -455,7 +459,9 @@ impl StressStrainPlot {
                         }
                         let x = x_axis.label();
                         let y = y_axis.label();
-                        plot.grid_and_labels("", "");
+                        if !self.no_grid {
+                            plot.grid_and_labels("", "");
+                        }
                         if col == 0 {
                             plot.set_label_y(&y);
                         } else {
@@ -490,7 +496,7 @@ impl StressStrainPlot {
     ///
     /// * `states` -- the stress and strain points
     /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_2x2_mosaic_struct<F>(&mut self, states: &Vec<StressStrainState>, mut extra: F)
+    pub fn draw_2x2_mosaic_struct<F>(&mut self, states: &[StressStrainState], mut extra: F)
     where
         F: FnMut(&mut Curve, usize, usize),
     {
@@ -558,7 +564,11 @@ impl StressStrainPlot {
                         }
                         let x = x_axis.label();
                         let y = y_axis.label();
-                        plot.grid_and_labels(&x, &y);
+                        if !self.no_grid {
+                            plot.grid_and_labels("", "");
+                        }
+                        plot.set_label_x(&x);
+                        plot.set_label_y(&y);
                     }
                     None => {
                         self.add_oct_projections_to_plot(&mut plot)?;
