@@ -7,6 +7,11 @@ pub struct GraphElastoplastic {
     pub out_dir: String,
     pub color_yield_f_ini: String,
     pub color_yield_f_fin: String,
+    pub color_std: String,
+    pub color_gen: String,
+    pub color_gen_history_e: String,
+    pub color_gen_history_ep: String,
+    pub marker_size_gen: f64,
 }
 
 impl GraphElastoplastic {
@@ -16,6 +21,11 @@ impl GraphElastoplastic {
             out_dir: "/tmp/pmsim/material".to_string(),
             color_yield_f_ini: "#CD54DF".to_string(),
             color_yield_f_fin: "#B12AC4".to_string(),
+            color_std: "#283593".to_string(),
+            color_gen: "#C62828".to_string(),
+            color_gen_history_e: "#388E3C".to_string(),
+            color_gen_history_ep: "#FFA000".to_string(),
+            marker_size_gen: 12.0,
         }
     }
 
@@ -29,37 +39,48 @@ impl GraphElastoplastic {
         gen_history_ep: Option<&Vec<StressStrainState>>,
     ) {
         let mut ssp = StressStrainPlot::new();
+        // standard
+        ssp.draw_2x2_mosaic_struct(std_states, |curve, _row, _col| {
+            curve
+                .set_line_color(&self.color_std)
+                .set_marker_style("o")
+                .set_label("standard");
+        });
+        // general
+        ssp.draw_2x2_mosaic_struct(gen_states, |curve, _row, _col| {
+            curve
+                .set_line_color(&self.color_gen)
+                .set_marker_style("o")
+                .set_marker_void(true)
+                .set_line_style(":")
+                .set_marker_size(self.marker_size_gen)
+                .set_label("general");
+        });
+        // general: history elastic
         if let Some(history_e) = gen_history_e {
             let mark_every = history_e.len() / self.n_markers;
             ssp.draw_2x2_mosaic_struct(history_e, |curve, _, _| {
                 curve
+                    .set_line_color(&self.color_gen_history_e)
                     .set_marker_style("s")
                     .set_line_style(":")
                     .set_label("history(e)")
                     .set_marker_every(mark_every);
             });
         }
+        // general: history elastoplastic
         if let Some(history_ep) = gen_history_ep {
             let mark_every = history_ep.len() / self.n_markers;
             ssp.draw_2x2_mosaic_struct(history_ep, |curve, _, _| {
                 curve
+                    .set_line_color(&self.color_gen_history_ep)
                     .set_marker_style("^")
                     .set_line_style(":")
                     .set_label("history(ep)")
                     .set_marker_every(mark_every);
             });
         }
-        ssp.draw_2x2_mosaic_struct(gen_states, |curve, _row, _col| {
-            curve
-                .set_marker_style("o")
-                .set_marker_void(true)
-                .set_line_style(":")
-                .set_marker_size(10.0)
-                .set_label("general");
-        });
-        ssp.draw_2x2_mosaic_struct(std_states, |curve, _row, _col| {
-            curve.set_marker_style("o").set_label("standard");
-        });
+        // save figure
         let mut legend = Legend::new();
         legend.set_outside(true).set_num_col(2);
         let filepath = &format!("{}/{}.svg", self.out_dir, filename_key);

@@ -6,7 +6,7 @@ use russell_tensor::Spectral2;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 
-const OCT_PLOT_ROSETTA_M: f64 = 1.2;
+const OCT_PLOT_ROSETTA_M: f64 = 1.25;
 const OCT_PLOT_ROSETTA_TM: f64 = 1.1;
 const OCT_PLOT_RANGE_M: f64 = 1.15;
 
