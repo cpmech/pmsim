@@ -327,15 +327,18 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         let run_elastic = if f < -YF_TOL {
             // starting from point A (inside of the yield surface)
             // possible future cases: B, C, I, A*
+            println!("A: possible future cases: B, C, I, A*");
             true
         } else {
             // starting from point A* (slightly inside, on the yield surface, or slightly outside)
             let indicator = plasticity.loading_unloading_indicator(state, delta_epsilon)?;
             if indicator < 0.0 {
                 // possible future cases: B*, C*, I*, A**
+                println!("A*: possible future cases: B*, C*, I*, A**");
                 true
             } else {
                 // possible future cases: E*
+                println!("A*: possible future cases: E*");
                 false
             }
         };
@@ -356,21 +359,26 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             self.solver_elastic_intersect
                 .solve(y, 0.0, 1.0, None, &mut self.arguments)?;
 
-            // set data for interpolation
-            self.interp
-                .adapt_data(CHEBYSHEV_TOL, self.arguments.yf_values.as_data())?;
+            // intersection data
+            let mut t_int = 0.0;
+            let mut has_intersection = false;
+            let yf_final = *self.arguments.yf_values.as_data().last().unwrap();
+            if yf_final > 0.0 {
+                // set data for interpolation
+                self.interp
+                    .adapt_data(CHEBYSHEV_TOL, self.arguments.yf_values.as_data())?;
 
-            // find roots == intersections
-            let roots = self.root_finder.chebyshev(&self.interp)?;
-            println!(">>>>>>>> roots = {:?}", roots);
-            let has_intersection = match roots.last() {
-                Some(t_int) => *t_int < 1.0 - T_BOUNDARY_TOL,
-                None => false,
-            };
+                // find roots == intersections
+                let roots = self.root_finder.chebyshev(&self.interp)?;
+                println!(">>>>>>>> roots = {:?}", roots);
+                if let Some(r) = roots.last() {
+                    t_int = *r;
+                    has_intersection = t_int < 1.0 - T_BOUNDARY_TOL;
+                };
+            }
 
             // handle eventual intersection
             if has_intersection {
-                let t_int = *roots.last().unwrap();
                 println!(">>>>>>>> t_int = {:?}", t_int);
 
                 // handle case when f = 1e-15 and t_int = 0
@@ -650,6 +658,48 @@ mod tests {
         // run test
         run_vonmises_test(
             "test_vonmises_a_star_to_a_2star_1",
+            &config,
+            young,
+            poisson,
+            z0,
+            hh,
+            &path,
+            0.38,
+            0.03,
+        );
+    }
+
+    // multiple increments --------------------------------------------------------------------------------
+
+    #[test]
+    fn vonmises_multiple_increments_1() {
+        // parameters
+        let mut config = new_empty_config_3d();
+        config.model_allow_initial_drift = true;
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+
+        // generate path
+        let mut path = StressStrainPath::new(&config, young, poisson).unwrap();
+        let strain_driven = true;
+        let sigma_d = 9.0;
+        let sigma_m = 1.0;
+        let distance = sigma_m * SQRT_3;
+        let radius = sigma_d * SQRT_2_BY_3;
+        let sigma = Tensor2::new(config.mandel);
+        path.push_stress(&sigma, strain_driven);
+        let sigma = Tensor2::new_from_octahedral_alpha(distance, 1.8 * radius, PI / 3.0, config.two_dim).unwrap();
+        path.push_stress(&sigma, strain_driven);
+        let sigma = Tensor2::new_from_octahedral_alpha(1.5 * distance, 2.0 * radius, 0.0, config.two_dim).unwrap();
+        path.push_stress(&sigma, strain_driven);
+        let sigma = Tensor2::new_from_octahedral_alpha(2.0 * distance, 0.0 * radius, 0.0, config.two_dim).unwrap();
+        path.push_stress(&sigma, strain_driven);
+
+        // run test
+        run_vonmises_test(
+            "test_vonmises_multiple_increments_1",
             &config,
             young,
             poisson,

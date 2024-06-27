@@ -118,8 +118,8 @@ impl GraphElastoplastic {
                 if col == 0 {
                     match model_name {
                         StressStrainModelName::VonMises => {
-                            let z_ini = std_states.first().unwrap().internal_values[0];
-                            let z_fin = std_states.last().unwrap().internal_values[0];
+                            let z_ini = gen_states.first().unwrap().internal_values[0];
+                            let z_fin = gen_states.last().unwrap().internal_values[0];
                             let mut surf = Curve::new();
                             surf.set_line_color(&self.color_yield_f_ini)
                                 .set_line_style("--")
@@ -136,8 +136,8 @@ impl GraphElastoplastic {
                 if row == 0 && col == 1 {
                     match model_name {
                         StressStrainModelName::VonMises => {
-                            let z_ini = std_states.first().unwrap().internal_values[0];
-                            let z_fin = std_states.last().unwrap().internal_values[0];
+                            let z_ini = gen_states.first().unwrap().internal_values[0];
+                            let z_fin = gen_states.last().unwrap().internal_values[0];
                             let mut surf = Canvas::new();
                             surf.set_face_color("None");
                             surf.set_edge_color(&self.color_yield_f_ini)
