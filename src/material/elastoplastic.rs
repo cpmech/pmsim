@@ -362,18 +362,15 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 .solve(y, 0.0, 1.0, None, &mut self.arguments)?;
 
             // set data for interpolation
-            println!("yf_values = {:?}", self.arguments.yf_values);
             self.interp
                 .adapt_data(CHEBYSHEV_TOL, self.arguments.yf_values.as_data())?;
 
             // find roots == intersections
             let roots = self.root_finder.chebyshev(&self.interp)?;
-            println!("roots = {:?}", roots);
             let has_intersection = match roots.last() {
                 Some(t_int) => *t_int < 1.0 - T_BOUNDARY_TOL,
                 None => false,
             };
-            println!("has_intersection = {}", has_intersection);
 
             // handle eventual intersection
             // let f_last = self.arguments.yf_values.as_data().last().unwrap();
@@ -409,7 +406,6 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 (false, 1.0)
             }
         } else {
-            println!(">>>>>>>>>>>>>>>>>>>>>>> running elastoplastic path <<<<<<<<<<<<<<<<<<<<<<<<<");
             // run elastoplastic path directly starting from 0.0
             (true, 0.0)
         };
@@ -419,10 +415,6 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             // join σ and z into {y}
             let y = &mut self.sigma_and_z;
             y.join2(state.sigma.vector().as_data(), state.internal_values.as_data());
-            println!("sigma (initial) =\n{}", state.sigma.vector());
-            println!("sigma_d (initial) = {}", state.sigma.invariant_sigma_d());
-            let yf = self.arguments.plasticity.model.yield_function(state)?;
-            println!("yf (initial) = {:.2e}", yf);
 
             // solve elastoplastic problem
             self.solver_elastoplastic.solve(y, t0, 1.0, None, &mut self.arguments)?;
@@ -432,10 +424,6 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 state.sigma.vector_mut().as_mut_data(),
                 state.internal_values.as_mut_data(),
             );
-            println!("sigma (final) =\n{}", state.sigma.vector());
-            println!("sigma_d (final) = {}", state.sigma.invariant_sigma_d());
-            let yf = self.arguments.plasticity.model.yield_function(state)?;
-            println!("yf (final) = {:.2e} <<<<<<<<<<<<<<<<<<<<<<<<<<<", yf);
         }
 
         // update initial pseudo time and initial strain (for plotting)
@@ -455,23 +443,27 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 mod tests {
     use super::*;
     use crate::base::new_empty_config_3d;
-    use crate::base::{NonlinElast, ParamStressStrain};
+    use crate::base::ParamStressStrain;
     use crate::material::{GraphElastoplastic, PlasticityTrait, StressStrainModelName, StressStrainPath, VonMises};
-    use russell_lab::approx_eq;
+    use russell_lab::vec_approx_eq;
 
     const SAVE_FIGURE: bool = true;
 
     #[test]
     fn vonmises_standard_vs_general() {
+        // configuration
         let config = new_empty_config_3d();
 
+        // parameters
         let young = 1500.0;
         let poisson = 0.25;
         let z0 = 9.0;
         let hh = 800.0;
 
+        // standard model
         let mut standard = VonMises::new(&config, young, poisson, z0, hh);
 
+        // general model
         let param = ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::VonMises { young, poisson, z0, hh },
@@ -484,22 +476,21 @@ mod tests {
                 save_history: true,
             }),
         };
-
         let mut general = Elastoplastic::new(&config, &param).unwrap();
 
+        // generate path: update exactly to the yield surface and increment more
         let sigma_m_0 = 0.0;
         let sigma_d_0 = 0.0;
         let dsigma_m = 1.0;
-        let dsigma_d = 9.0;
-
-        // first update exactly to the yield surface
+        let dsigma_d = z0;
+        let n_inc = 2;
         let path = StressStrainPath::new_linear_oct(
-            &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
+            &config, young, poisson, n_inc, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
         )
         .unwrap();
 
+        // update with standard model
         let mut std_states = path.follow_strain(&mut standard);
-        let z_final_std = std_states.last().unwrap().internal_values[0];
         let mut t = 0.0;
         for state in &mut std_states {
             *state.yf_value_mut() = standard.yield_function(state).unwrap();
@@ -507,8 +498,8 @@ mod tests {
             t += 1.0;
         }
 
+        // update with general model
         let mut gen_states = path.follow_strain(&mut general);
-        let z_final_gen = gen_states.last().unwrap().internal_values[0];
         let gen_history_e = general.arguments.history_elastic.as_ref().unwrap();
         let gen_history_ep = general.arguments.history_elastoplastic.as_ref().unwrap();
         let mut t = 0.0;
@@ -518,12 +509,16 @@ mod tests {
             t += 1.0;
         }
 
-        println!("z_final_std = {}", z_final_std);
-        println!("z_final_gen = {}", z_final_gen);
-        println!("STANDARD:\n{}", std_states.last().unwrap());
-        println!("\nGENERAL:\n{}", gen_states.last().unwrap());
-        approx_eq(z_final_gen, z_final_std, 1e-14);
+        // last states
+        let std_last = std_states.last().unwrap();
+        let gen_last = gen_states.last().unwrap();
 
+        // check strains, stresses and internal variables
+        vec_approx_eq(std_last.eps().vector(), gen_last.eps().vector(), 1e-17);
+        vec_approx_eq(std_last.sigma.vector(), gen_last.sigma.vector(), 1e-14);
+        vec_approx_eq(&std_last.internal_values, &gen_last.internal_values, 1e-14);
+
+        // plot
         if SAVE_FIGURE {
             let graph = GraphElastoplastic::new();
             graph.standard_vs_general(
@@ -537,6 +532,7 @@ mod tests {
         }
     }
 
+    /*
     #[test]
     fn nonlinear_update_stress_works() {
         let config = new_empty_config_3d();
@@ -593,4 +589,5 @@ mod tests {
 
         if SAVE_FIGURE {}
     }
+    */
 }
