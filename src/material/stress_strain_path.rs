@@ -157,27 +157,6 @@ impl StressStrainPath {
         Ok(path)
     }
 
-    pub fn new_from_extension_to_compression(config: &Config, young: f64, poisson: f64) -> Result<Self, StrError> {
-        let mut path = StressStrainPath::new(config, young, poisson)?;
-        let strain_driven = true;
-        // let mut sigma = Tensor2::new(config.mandel);
-        let sigma_d = 9.0;
-        let sigma_m = 1.0;
-        let distance = sigma_m * SQRT_3;
-        let radius = sigma_d * SQRT_2_BY_3;
-        let sigma = Tensor2::new_from_octahedral_alpha(0.0, 1.01 * radius, -PI / 2.0, config.two_dim).unwrap();
-        // sigma.vector_mut()[0] = -5.0;
-        // sigma.vector_mut()[1] = 2.5;
-        // sigma.vector_mut()[2] = 2.5;
-        path.push_stress(&sigma, strain_driven);
-        let sigma = Tensor2::new_from_octahedral_alpha(distance, 1.01 * radius, PI / 2.0, config.two_dim).unwrap();
-        // sigma.vector_mut()[0] = 5.0;
-        // sigma.vector_mut()[1] = -2.5;
-        // sigma.vector_mut()[2] = -2.5;
-        path.push_stress(&sigma, strain_driven);
-        Ok(path)
-    }
-
     /// Pushes a new stress and strain with stresses computed from the octahedral invariants
     ///
     /// # Input

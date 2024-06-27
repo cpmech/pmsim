@@ -362,22 +362,19 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
             // find roots == intersections
             let roots = self.root_finder.chebyshev(&self.interp)?;
+            println!(">>>>>>>> roots = {:?}", roots);
             let has_intersection = match roots.last() {
                 Some(t_int) => *t_int < 1.0 - T_BOUNDARY_TOL,
                 None => false,
             };
 
             // handle eventual intersection
-            // let f_last = self.arguments.yf_values.as_data().last().unwrap();
-            // if *f_last > 0.0 && self.arguments.t_max_neg < T_MAX_NEG_NO_INTERSECTION {
             if has_intersection {
                 let t_int = *roots.last().unwrap();
+                println!(">>>>>>>> t_int = {:?}", t_int);
 
                 // handle case when f = 1e-15 and t_int = 0
-                if t_int == 0.0 {
-                    panic!("STOP");
-                }
-                assert!(t_int > 0.0);
+                assert!(t_int > 0.0, "intersection pseudo time must be greater than zero");
 
                 // copy σ into {y} again (to start from scratch)
                 y.set_vector(state.sigma.vector().as_data());
@@ -438,6 +435,7 @@ mod tests {
     use crate::base::ParamStressStrain;
     use crate::base::{new_empty_config_2d, new_empty_config_3d};
     use crate::material::{GraphElastoplastic, PlasticityTrait, StressStrainModelName, StressStrainPath, VonMises};
+    use russell_lab::math::{PI, SQRT_2_BY_3, SQRT_3};
     use russell_lab::vec_approx_eq;
 
     const SAVE_FIGURE: bool = true;
@@ -450,6 +448,8 @@ mod tests {
         z0: f64,
         hh: f64,
         path: &StressStrainPath,
+        tol_sigma: f64,
+        tol_z: f64,
     ) {
         // standard model
         let mut standard = VonMises::new(config, young, poisson, z0, hh);
@@ -507,8 +507,8 @@ mod tests {
         let n_state = std_states.len();
         for i in 0..n_state {
             vec_approx_eq(std_states[i].eps().vector(), gen_states[i].eps().vector(), 1e-17);
-            vec_approx_eq(std_states[i].sigma.vector(), gen_states[i].sigma.vector(), 1e-13);
-            vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, 1e-14);
+            vec_approx_eq(std_states[i].sigma.vector(), gen_states[i].sigma.vector(), tol_sigma);
+            vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, tol_z);
         }
     }
 
@@ -542,10 +542,12 @@ mod tests {
             z0,
             hh,
             &path,
+            1e-14,
+            1e-14,
         );
     }
 
-    // Case: A to A* ------------------------------------------------------------------------------------
+    // Case: A to A* (1) --------------------------------------------------------------------------------
 
     #[test]
     fn vonmises_a_to_a_star_1() {
@@ -568,7 +570,55 @@ mod tests {
         .unwrap();
 
         // run test
-        run_vonmises_test("test_vonmises_a_to_a_star_1", &config, young, poisson, z0, hh, &path);
+        run_vonmises_test(
+            "test_vonmises_a_to_a_star_1",
+            &config,
+            young,
+            poisson,
+            z0,
+            hh,
+            &path,
+            1e-13,
+            1e-14,
+        );
+    }
+
+    // Case: A to A* (2) --------------------------------------------------------------------------------
+
+    #[test]
+    fn vonmises_a_to_a_star_2() {
+        // parameters
+        let mut config = new_empty_config_3d();
+        config.model_allow_initial_drift = true;
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+
+        // generate path
+        let mut path = StressStrainPath::new(&config, young, poisson).unwrap();
+        let strain_driven = true;
+        let sigma_d = 9.0;
+        let sigma_m = 1.0;
+        let distance = sigma_m * SQRT_3;
+        let radius = sigma_d * SQRT_2_BY_3;
+        let sigma = Tensor2::new_from_octahedral_alpha(0.0, 1.05 * radius, -PI / 2.0, config.two_dim).unwrap();
+        path.push_stress(&sigma, strain_driven);
+        let sigma = Tensor2::new_from_octahedral_alpha(distance, 1.05 * radius, PI / 2.0, config.two_dim).unwrap();
+        path.push_stress(&sigma, strain_driven);
+
+        // run test
+        run_vonmises_test(
+            "test_vonmises_a_to_a_star_2",
+            &config,
+            young,
+            poisson,
+            z0,
+            hh,
+            &path,
+            1e-3,
+            1e-3,
+        );
     }
 
     /*
