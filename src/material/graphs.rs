@@ -58,27 +58,33 @@ impl GraphElastoplastic {
         });
         // general: history elastic
         if let Some(history_e) = gen_history_e {
-            let mark_every = history_e.len() / self.n_markers;
-            ssp.draw_2x2_mosaic_struct(history_e, |curve, _, _| {
-                curve
-                    .set_line_color(&self.color_gen_history_e)
-                    .set_marker_style("s")
-                    .set_line_style(":")
-                    .set_label("history(e)")
-                    .set_marker_every(mark_every);
-            });
+            let n_state = history_e.len();
+            if n_state > 0 {
+                let mark_every = n_state / self.n_markers;
+                ssp.draw_2x2_mosaic_struct(history_e, |curve, _, _| {
+                    curve
+                        .set_line_color(&self.color_gen_history_e)
+                        .set_marker_style("s")
+                        .set_line_style(":")
+                        .set_label("history(e)")
+                        .set_marker_every(mark_every);
+                });
+            }
         }
         // general: history elastoplastic
         if let Some(history_ep) = gen_history_ep {
-            let mark_every = history_ep.len() / self.n_markers;
-            ssp.draw_2x2_mosaic_struct(history_ep, |curve, _, _| {
-                curve
-                    .set_line_color(&self.color_gen_history_ep)
-                    .set_marker_style("^")
-                    .set_line_style(":")
-                    .set_label("history(ep)")
-                    .set_marker_every(mark_every);
-            });
+            let n_state = history_ep.len();
+            if n_state > 0 {
+                let mark_every = n_state / self.n_markers;
+                ssp.draw_2x2_mosaic_struct(history_ep, |curve, _, _| {
+                    curve
+                        .set_line_color(&self.color_gen_history_ep)
+                        .set_marker_style("^")
+                        .set_line_style(":")
+                        .set_label("history(ep)")
+                        .set_marker_every(mark_every);
+                });
+            }
         }
         // save figure
         let mut legend = Legend::new();
@@ -123,7 +129,7 @@ impl GraphElastoplastic {
                     }
                 }
                 if row == 1 && col == 1 {
-                    plot.set_cross(0.0, 0.0, "grey", "-", 2.0);
+                    plot.set_cross(0.0, 0.0, "grey", "-", 1.3);
                 }
             } else {
                 if row == 1 && col == 1 {

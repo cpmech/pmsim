@@ -41,6 +41,9 @@ pub struct VonMises {
 
     /// Deviatoric stress: s = dev(σ)
     s: Tensor2,
+
+    /// Allow initial yield surface drift (e.g., for debugging)
+    allow_initial_drift: bool,
 }
 
 impl VonMises {
@@ -56,6 +59,7 @@ impl VonMises {
             hh,
             z0,
             s: Tensor2::new(config.mandel),
+            allow_initial_drift: config.model_allow_initial_drift,
         }
     }
 }
@@ -74,9 +78,11 @@ impl StressStrainTrait for VonMises {
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut StressStrainState) -> Result<(), StrError> {
         state.internal_values[Z0] = self.z0;
-        let f = self.yield_function(state).unwrap();
-        if f > 0.0 {
-            return Err("stress is outside the yield surface");
+        if !self.allow_initial_drift {
+            let f = self.yield_function(state).unwrap();
+            if f > 0.0 {
+                return Err("stress is outside the yield surface");
+            }
         }
         Ok(())
     }

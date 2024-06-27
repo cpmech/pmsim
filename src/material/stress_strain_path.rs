@@ -1,6 +1,7 @@
 use super::{StressStrainState, StressStrainTrait};
 use crate::base::Config;
 use crate::StrError;
+use russell_lab::math::PI;
 use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Mandel, Tensor2, Tensor4};
 use russell_tensor::{SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
 
@@ -96,7 +97,7 @@ impl StressStrainPath {
     /// * `sigma_d_0` -- the first sigma_d
     /// * `dsigma_m` -- the increment of sigma_m
     /// * `dsigma_d` -- the increment of sigma_d
-    /// * `lode` -- the lode invariant
+    /// * `lode` -- the lode invariant in -1 ≤ lode ≤ 1
     pub fn new_linear_oct(
         config: &Config,
         young: f64,
@@ -120,6 +121,63 @@ impl StressStrainPath {
         Ok(path)
     }
 
+    /// Generates a new linear path on the octahedral invariants (using alpha angle)
+    ///
+    /// # Input
+    ///
+    /// * `config` -- Configuration
+    /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
+    /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
+    /// * `n_increments` -- number of increments
+    /// * `sigma_m_0` -- the first sigma_m
+    /// * `sigma_d_0` -- the first sigma_d
+    /// * `dsigma_m` -- the increment of sigma_m
+    /// * `dsigma_d` -- the increment of sigma_d
+    /// * `alpha` -- alpha angle in -π ≤ alpha ≤ π
+    pub fn new_linear_oct_alpha(
+        config: &Config,
+        young: f64,
+        poisson: f64,
+        n_increments: usize,
+        sigma_m_0: f64,
+        sigma_d_0: f64,
+        dsigma_m: f64,
+        dsigma_d: f64,
+        alpha: f64,
+    ) -> Result<Self, StrError> {
+        let mut path = StressStrainPath::new(config, young, poisson)?;
+        let strain_driven = true;
+        path.push_stress_oct_alpha(sigma_m_0, sigma_d_0, alpha, strain_driven);
+        for i in 0..n_increments {
+            let m = (i + 1) as f64;
+            let sigma_m = sigma_m_0 + m * dsigma_m;
+            let sigma_d = sigma_d_0 + m * dsigma_d;
+            path.push_stress_oct_alpha(sigma_m, sigma_d, alpha, strain_driven);
+        }
+        Ok(path)
+    }
+
+    pub fn new_from_extension_to_compression(config: &Config, young: f64, poisson: f64) -> Result<Self, StrError> {
+        let mut path = StressStrainPath::new(config, young, poisson)?;
+        let strain_driven = true;
+        // let mut sigma = Tensor2::new(config.mandel);
+        let sigma_d = 9.0;
+        let sigma_m = 1.0;
+        let distance = sigma_m * SQRT_3;
+        let radius = sigma_d * SQRT_2_BY_3;
+        let sigma = Tensor2::new_from_octahedral_alpha(0.0, 1.01 * radius, -PI / 2.0, config.two_dim).unwrap();
+        // sigma.vector_mut()[0] = -5.0;
+        // sigma.vector_mut()[1] = 2.5;
+        // sigma.vector_mut()[2] = 2.5;
+        path.push_stress(&sigma, strain_driven);
+        let sigma = Tensor2::new_from_octahedral_alpha(distance, 1.01 * radius, PI / 2.0, config.two_dim).unwrap();
+        // sigma.vector_mut()[0] = 5.0;
+        // sigma.vector_mut()[1] = -2.5;
+        // sigma.vector_mut()[2] = -2.5;
+        path.push_stress(&sigma, strain_driven);
+        Ok(path)
+    }
+
     /// Pushes a new stress and strain with stresses computed from the octahedral invariants
     ///
     /// # Input
@@ -138,6 +196,26 @@ impl StressStrainPath {
         let distance = sigma_m * SQRT_3;
         let radius = sigma_d * SQRT_2_BY_3;
         let sigma = Tensor2::new_from_octahedral(distance, radius, lode, self.two_dim).unwrap();
+        self.push_stress(&sigma, strain_driven);
+    }
+
+    /// Pushes a new stress and strain with stresses computed from the octahedral invariants (using alpha angle)
+    ///
+    /// # Input
+    ///
+    /// * `sigma_m` -- mean pressure invariant `σm = ⅓ trace(σ) = d / √3`
+    /// * `sigma_d` -- deviatoric stress (von Mises) invariant `σd = ‖s‖ √3/√2 = r √3/√2 = √3 √J2`
+    /// * `alpha` -- alpha angle in `-π ≤ alpha ≤ π`
+    /// * `strain_driven` -- indicates that the strain path should "drive" simulations
+    ///
+    /// # Panics
+    ///
+    /// A panic will occur if the lode invariant is not in `[-π, π]`
+    pub fn push_stress_oct_alpha(&mut self, sigma_m: f64, sigma_d: f64, alpha: f64, strain_driven: bool) {
+        assert!(alpha >= -PI && alpha <= PI);
+        let distance = sigma_m * SQRT_3;
+        let radius = sigma_d * SQRT_2_BY_3;
+        let sigma = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, self.two_dim).unwrap();
         self.push_stress(&sigma, strain_driven);
     }
 

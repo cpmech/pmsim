@@ -38,9 +38,6 @@ struct Arguments {
     /// Rate of internal variables dz/dt
     dz_dt: Vector,
 
-    /// (pseudo) Time at intersection
-    t_intersection: Option<f64>,
-
     /// Initial pseudo time for plotting
     t0: f64,
 
@@ -79,7 +76,6 @@ impl Arguments {
             delta_epsilon: Tensor2::new(config.mandel),
             dsigma_dt: Tensor2::new(config.mandel),
             dz_dt: Vector::new(n_internal_values),
-            t_intersection: None,
             t0: 0.0,
             epsilon0: if with_history {
                 Some(Tensor2::new(config.mandel))
@@ -320,9 +316,8 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             return self.arguments.plasticity.model.update_stress(state, delta_epsilon);
         }
 
-        // set Δε in arguments struct and reset t_intersection
+        // set Δε in arguments struct
         self.arguments.delta_epsilon.set_tensor(1.0, delta_epsilon);
-        self.arguments.t_intersection = None;
 
         // yield function value: f(σ, z)
         let plasticity = &mut self.arguments.plasticity;
@@ -377,7 +372,6 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             // if *f_last > 0.0 && self.arguments.t_max_neg < T_MAX_NEG_NO_INTERSECTION {
             if has_intersection {
                 let t_int = *roots.last().unwrap();
-                self.arguments.t_intersection = Some(t_int);
 
                 // handle case when f = 1e-15 and t_int = 0
                 if t_int == 0.0 {
@@ -399,7 +393,6 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             } else {
                 // no intersection (pure elastic regime)
                 // potential cases: B, C, B*, C*
-                self.arguments.t_intersection = None;
                 state.sigma.vector_mut().set_vector(y.as_data());
 
                 // all done (no need for elastoplastic update)
@@ -528,6 +521,91 @@ mod tests {
         for i in 0..n_state {
             vec_approx_eq(std_states[i].eps().vector(), gen_states[i].eps().vector(), 1e-17);
             vec_approx_eq(std_states[i].sigma.vector(), gen_states[i].sigma.vector(), 1e-14);
+            vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, 1e-14);
+        }
+    }
+
+    #[test]
+    fn vonmises_aa_to_aa_star_1() {
+        // Test path: A to A*
+
+        // configuration
+        let config = new_empty_config_3d();
+
+        // parameters
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+
+        // standard model
+        let mut standard = VonMises::new(&config, young, poisson, z0, hh);
+
+        // general model
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::VonMises { young, poisson, z0, hh },
+            nonlin_elast: None,
+            stress_update: Some(StressUpdate {
+                general_plasticity: true,
+                continuum_modulus: true,
+                ode_method: Method::DoPri5,
+                interp_degree: DEFAULT_INTERP_DEGREE,
+                save_history: true,
+            }),
+        };
+        let mut general = Elastoplastic::new(&config, &param).unwrap();
+
+        // generate path: update exactly to the yield surface and increment more
+        let sigma_m_0 = 0.0;
+        let sigma_d_0 = 0.0;
+        let dsigma_m = 1.0;
+        let dsigma_d = 18.0;
+        let n_inc = 1;
+        let path = StressStrainPath::new_linear_oct(
+            &config, young, poisson, n_inc, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
+        )
+        .unwrap();
+
+        // update with standard model
+        let mut std_states = path.follow_strain(&mut standard);
+        let mut t = 0.0;
+        for state in &mut std_states {
+            *state.yf_value_mut() = standard.yield_function(state).unwrap();
+            *state.time_mut() = t;
+            t += 1.0;
+        }
+
+        // update with general model
+        let mut gen_states = path.follow_strain(&mut general);
+        let gen_history_e = general.arguments.history_elastic.as_ref().unwrap();
+        let gen_history_ep = general.arguments.history_elastoplastic.as_ref().unwrap();
+        let mut t = 0.0;
+        for state in &mut gen_states {
+            *state.yf_value_mut() = general.arguments.plasticity.model.yield_function(state).unwrap();
+            *state.time_mut() = t;
+            t += 1.0;
+        }
+
+        // plot
+        if SAVE_FIGURE {
+            let graph = GraphElastoplastic::new();
+            graph.standard_vs_general(
+                "test_vonmises_yield_surf_intersect",
+                StressStrainModelName::VonMises,
+                &std_states,
+                &gen_states,
+                Some(&gen_history_e),
+                Some(&gen_history_ep),
+            );
+        }
+
+        // check strains, stresses and internal variables
+        assert_eq!(std_states.len(), gen_states.len());
+        let n_state = std_states.len();
+        for i in 0..n_state {
+            vec_approx_eq(std_states[i].eps().vector(), gen_states[i].eps().vector(), 1e-17);
+            vec_approx_eq(std_states[i].sigma.vector(), gen_states[i].sigma.vector(), 1e-13);
             vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, 1e-14);
         }
     }

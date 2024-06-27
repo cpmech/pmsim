@@ -80,6 +80,9 @@ pub struct Config {
     /// Output strains during the output of secondary values
     pub out_strains: bool,
 
+    /// Allow initial yield surface drift in material models
+    pub model_allow_initial_drift: bool,
+
     /// Indicates 2D instead of 3D
     pub(crate) two_dim: bool,
 
@@ -112,6 +115,7 @@ impl Config {
             lin_sol_params: LinSolParams::new(),
             out_secondary_values: false,
             out_strains: false,
+            model_allow_initial_drift: false,
             two_dim: mesh.ndim == 2,
             mandel: if mesh.ndim == 2 {
                 Mandel::Symmetric2D
