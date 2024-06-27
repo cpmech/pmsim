@@ -435,26 +435,24 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::base::new_empty_config_3d;
     use crate::base::ParamStressStrain;
+    use crate::base::{new_empty_config_2d, new_empty_config_3d};
     use crate::material::{GraphElastoplastic, PlasticityTrait, StressStrainModelName, StressStrainPath, VonMises};
     use russell_lab::vec_approx_eq;
 
     const SAVE_FIGURE: bool = true;
 
-    #[test]
-    fn vonmises_standard_vs_general() {
-        // configuration
-        let config = new_empty_config_3d();
-
-        // parameters
-        let young = 1500.0;
-        let poisson = 0.25;
-        let z0 = 9.0;
-        let hh = 800.0;
-
+    fn run_vonmises_test(
+        filename_key: &str,
+        config: &Config,
+        young: f64,
+        poisson: f64,
+        z0: f64,
+        hh: f64,
+        path: &StressStrainPath,
+    ) {
         // standard model
-        let mut standard = VonMises::new(&config, young, poisson, z0, hh);
+        let mut standard = VonMises::new(config, young, poisson, z0, hh);
 
         // general model
         let param = ParamSolid {
@@ -470,17 +468,6 @@ mod tests {
             }),
         };
         let mut general = Elastoplastic::new(&config, &param).unwrap();
-
-        // generate path: update exactly to the yield surface and increment more
-        let sigma_m_0 = 0.0;
-        let sigma_d_0 = 0.0;
-        let dsigma_m = 1.0;
-        let dsigma_d = z0;
-        let n_inc = 2;
-        let path = StressStrainPath::new_linear_oct(
-            &config, young, poisson, n_inc, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
-        )
-        .unwrap();
 
         // update with standard model
         let mut std_states = path.follow_strain(&mut standard);
@@ -506,92 +493,7 @@ mod tests {
         if SAVE_FIGURE {
             let graph = GraphElastoplastic::new();
             graph.standard_vs_general(
-                "test_vonmises_standard_vs_general",
-                StressStrainModelName::VonMises,
-                &std_states,
-                &gen_states,
-                Some(&gen_history_e),
-                Some(&gen_history_ep),
-            );
-        }
-
-        // check strains, stresses and internal variables
-        assert_eq!(std_states.len(), gen_states.len());
-        let n_state = std_states.len();
-        for i in 0..n_state {
-            vec_approx_eq(std_states[i].eps().vector(), gen_states[i].eps().vector(), 1e-17);
-            vec_approx_eq(std_states[i].sigma.vector(), gen_states[i].sigma.vector(), 1e-14);
-            vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, 1e-14);
-        }
-    }
-
-    #[test]
-    fn vonmises_aa_to_aa_star_1() {
-        // Test path: A to A*
-
-        // configuration
-        let config = new_empty_config_3d();
-
-        // parameters
-        let young = 1500.0;
-        let poisson = 0.25;
-        let z0 = 9.0;
-        let hh = 800.0;
-
-        // standard model
-        let mut standard = VonMises::new(&config, young, poisson, z0, hh);
-
-        // general model
-        let param = ParamSolid {
-            density: 1.0,
-            stress_strain: ParamStressStrain::VonMises { young, poisson, z0, hh },
-            nonlin_elast: None,
-            stress_update: Some(StressUpdate {
-                general_plasticity: true,
-                continuum_modulus: true,
-                ode_method: Method::DoPri5,
-                interp_degree: DEFAULT_INTERP_DEGREE,
-                save_history: true,
-            }),
-        };
-        let mut general = Elastoplastic::new(&config, &param).unwrap();
-
-        // generate path: update exactly to the yield surface and increment more
-        let sigma_m_0 = 0.0;
-        let sigma_d_0 = 0.0;
-        let dsigma_m = 1.0;
-        let dsigma_d = 18.0;
-        let n_inc = 1;
-        let path = StressStrainPath::new_linear_oct(
-            &config, young, poisson, n_inc, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
-        )
-        .unwrap();
-
-        // update with standard model
-        let mut std_states = path.follow_strain(&mut standard);
-        let mut t = 0.0;
-        for state in &mut std_states {
-            *state.yf_value_mut() = standard.yield_function(state).unwrap();
-            *state.time_mut() = t;
-            t += 1.0;
-        }
-
-        // update with general model
-        let mut gen_states = path.follow_strain(&mut general);
-        let gen_history_e = general.arguments.history_elastic.as_ref().unwrap();
-        let gen_history_ep = general.arguments.history_elastoplastic.as_ref().unwrap();
-        let mut t = 0.0;
-        for state in &mut gen_states {
-            *state.yf_value_mut() = general.arguments.plasticity.model.yield_function(state).unwrap();
-            *state.time_mut() = t;
-            t += 1.0;
-        }
-
-        // plot
-        if SAVE_FIGURE {
-            let graph = GraphElastoplastic::new();
-            graph.standard_vs_general(
-                "test_vonmises_yield_surf_intersect",
+                filename_key,
                 StressStrainModelName::VonMises,
                 &std_states,
                 &gen_states,
@@ -608,6 +510,65 @@ mod tests {
             vec_approx_eq(std_states[i].sigma.vector(), gen_states[i].sigma.vector(), 1e-13);
             vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, 1e-14);
         }
+    }
+
+    #[test]
+    fn vonmises_standard_vs_general() {
+        // parameters
+        let config = new_empty_config_2d();
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+
+        // generate path: update exactly to the yield surface and increment more
+        let sigma_m_0 = 0.0;
+        let sigma_d_0 = 0.0;
+        let dsigma_m = 1.0;
+        let dsigma_d = z0;
+        let n_inc = 2;
+        let lode = 1.0;
+        let path = StressStrainPath::new_linear_oct(
+            &config, young, poisson, n_inc, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, lode,
+        )
+        .unwrap();
+
+        // run test
+        run_vonmises_test(
+            "test_vonmises_standard_vs_general",
+            &config,
+            young,
+            poisson,
+            z0,
+            hh,
+            &path,
+        );
+    }
+
+    // Case: A to A* ------------------------------------------------------------------------------------
+
+    #[test]
+    fn vonmises_a_to_a_star_1() {
+        // parameters
+        let config = new_empty_config_3d();
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+
+        // generate path: update exactly to the yield surface and increment more
+        let sigma_m_0 = 0.0;
+        let sigma_d_0 = 0.0;
+        let dsigma_m = 1.0;
+        let dsigma_d = 18.0;
+        let n_inc = 1;
+        let path = StressStrainPath::new_linear_oct(
+            &config, young, poisson, n_inc, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, 1.0,
+        )
+        .unwrap();
+
+        // run test
+        run_vonmises_test("test_vonmises_a_to_a_star_1", &config, young, poisson, z0, hh, &path);
     }
 
     /*
