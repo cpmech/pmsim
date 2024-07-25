@@ -43,52 +43,49 @@ impl GraphElastoplastic {
         model_name: StressStrainModelName,
         std_states: &Vec<StressStrainState>,
         gen_states: &Vec<StressStrainState>,
-        gen_history_e: Option<&Vec<StressStrainState>>,
-        gen_history_ep: Option<&Vec<StressStrainState>>,
+        gen_history_e: Option<&Vec<Vec<StressStrainState>>>,
+        gen_history_ep: Option<&Vec<Vec<StressStrainState>>>,
     ) {
         let mut ssp = StressStrainPlot::new();
         ssp.no_grid = true;
         // general: history elastic
-        if let Some(history_e) = gen_history_e {
-            if history_e.len() > 0 {
-                // trim part after intersection
-                let mut l = history_e.len() - 1;
-                if let Some(history_ep) = gen_history_ep {
-                    if history_ep.len() > 0 {
-                        let first = history_ep.first().unwrap();
-                        let t = first.time();
-                        let index = history_e.into_iter().position(|state| state.time() >= t);
-                        if let Some(i) = index {
-                            l = i;
+        if let Some(histories_e) = gen_history_e {
+            let mut with_label = true;
+            for history_e in histories_e {
+                if history_e.len() > 0 {
+                    let mark_every = history_e.len() / self.n_markers;
+                    ssp.draw_2x2_mosaic_struct(history_e, |curve, _, _| {
+                        curve
+                            .set_line_color(&self.color_gen_history_e)
+                            .set_marker_style(&self.marker_style_history_e)
+                            .set_line_style("-")
+                            .set_marker_every(mark_every);
+                        if with_label {
+                            curve.set_label("history(e)");
                         }
-                    }
-                };
-                let slice = &history_e[..=l];
-                // plot
-                let mark_every = slice.len() / self.n_markers;
-                ssp.draw_2x2_mosaic_struct(slice, |curve, _, _| {
-                    curve
-                        .set_line_color(&self.color_gen_history_e)
-                        .set_marker_style(&self.marker_style_history_e)
-                        .set_line_style("-")
-                        .set_label("history(e)")
-                        .set_marker_every(mark_every);
-                });
+                    });
+                    with_label = false;
+                }
             }
         }
         // general: history elastoplastic
-        if let Some(history_ep) = gen_history_ep {
-            let n_state = history_ep.len();
-            if n_state > 0 {
-                let mark_every = n_state / self.n_markers;
-                ssp.draw_2x2_mosaic_struct(history_ep, |curve, _, _| {
-                    curve
-                        .set_line_color(&self.color_gen_history_ep)
-                        .set_marker_style(&self.marker_style_history_ep)
-                        .set_line_style("-")
-                        .set_label("history(ep)")
-                        .set_marker_every(mark_every);
-                });
+        if let Some(histories_ep) = gen_history_ep {
+            let mut with_label = true;
+            for history_ep in histories_ep {
+                if history_ep.len() > 0 {
+                    let mark_every = history_ep.len() / self.n_markers;
+                    ssp.draw_2x2_mosaic_struct(history_ep, |curve, _, _| {
+                        curve
+                            .set_line_color(&self.color_gen_history_ep)
+                            .set_marker_style(&self.marker_style_history_ep)
+                            .set_line_style("-")
+                            .set_marker_every(mark_every);
+                        if with_label {
+                            curve.set_label("history(ep)");
+                        }
+                    });
+                    with_label = false;
+                }
             }
         }
         // standard

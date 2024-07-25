@@ -15,6 +15,19 @@ const T_BOUNDARY_TOL: f64 = 1e-7;
 
 const DEFAULT_INTERP_DEGREE: usize = 30;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PlastCase {
+    A,  // Inside the yield surface
+    B,  // Still inside the yield surface
+    C,  // Exactly on the yield surface
+    I,  // Intersecting the yield surface
+    As, // Slightly inside, on the yield surface, or slightly outside
+    Bs, // Inside the yield surface (coming from the outside)
+    Cs, // On the yield surface (coming from the outside)
+    Ds, // Outside the yield surface (coming from the outside)
+    Is, // Intersecting the yield surface (coming from the outside)
+}
+
 /// Holds arguments for the ODE solver
 struct Arguments {
     /// Plasticity formulation
@@ -49,11 +62,15 @@ struct Arguments {
     /// History of results (for plotting)
     ///
     /// Allocated only if with_history == true
+    ///
+    /// **Note:** This array will be reset at every stress-update
     history_elastic: Option<Vec<StressStrainState>>,
 
     /// History of results (for plotting)
     ///
     /// Allocated only if with_history == true
+    ///
+    /// **Note:** This array will be reset at every stress-update
     history_elastoplastic: Option<Vec<StressStrainState>>,
 }
 
@@ -116,6 +133,23 @@ pub struct Elastoplastic<'a> {
 
     /// Holds the Mandel components of the stress tensor and the internal variables
     sigma_and_z: Vector,
+
+    /// History of results (for plotting)
+    history_cases: Option<Vec<PlastCase>>,
+
+    /// History of results (for plotting)
+    ///
+    /// Allocated only if with_history == true
+    ///
+    /// **Note:** This array will hold all stress-strain state since the beginning of the simulation.
+    history_elastic: Option<Vec<Vec<StressStrainState>>>,
+
+    /// History of results (for plotting)
+    ///
+    /// Allocated only if with_history == true
+    ///
+    /// **Note:** This array will hold all stress-strain state since the beginning of the simulation.
+    history_elastoplastic: Option<Vec<Vec<StressStrainState>>>,
 }
 
 impl<'a> Elastoplastic<'a> {
@@ -266,6 +300,13 @@ impl<'a> Elastoplastic<'a> {
                 });
         }
 
+        // history arrays
+        let (history_cases, history_elastic, history_elastoplastic) = if stress_update_config.save_history {
+            (Some(Vec::new()), Some(Vec::new()), Some(Vec::new()))
+        } else {
+            (None, None, None)
+        };
+
         // allocate updater
         Ok(Elastoplastic {
             stress_update_config,
@@ -277,7 +318,15 @@ impl<'a> Elastoplastic<'a> {
             arguments,
             sigma_vec: Vector::new(ndim_e),
             sigma_and_z: Vector::new(ndim_ep),
+            history_cases,
+            history_elastic,
+            history_elastoplastic,
         })
+    }
+
+    /// Evaluates the yield function
+    pub fn yield_function(&self, state: &StressStrainState) -> Result<f64, StrError> {
+        self.arguments.plasticity.model.yield_function(state)
     }
 }
 
@@ -316,35 +365,36 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             return self.arguments.plasticity.model.update_stress(state, delta_epsilon);
         }
 
+        // clear history data (for a single step)
+        if self.stress_update_config.save_history {
+            self.arguments.history_elastic.as_mut().unwrap().clear();
+            self.arguments.history_elastoplastic.as_mut().unwrap().clear();
+        }
+
         // set Δε in arguments struct
         self.arguments.delta_epsilon.set_tensor(1.0, delta_epsilon);
 
         // yield function value: f(σ, z)
         let plasticity = &mut self.arguments.plasticity;
-        let f = plasticity.model.yield_function(state)?;
+        let yf_initial = plasticity.model.yield_function(state)?;
+
+        // initial case concerning the stress point and the yield surface
+        let inside = yf_initial < -YF_TOL;
 
         // check if the elastic path must be calculated first
-        let run_elastic = if f < -YF_TOL {
-            // starting from point A (inside of the yield surface)
-            // possible future cases: B, C, I, A*
-            println!("A: possible future cases: B, C, I, A*");
+        let need_intersection_finding = if inside {
             true
         } else {
-            // starting from point A* (slightly inside, on the yield surface, or slightly outside)
-            let indicator = plasticity.loading_unloading_indicator(state, delta_epsilon)?;
-            if indicator < 0.0 {
-                // possible future cases: B*, C*, I*, A**
-                println!("A*: possible future cases: B*, C*, I*, A**");
-                true
-            } else {
-                // possible future cases: E*
-                println!("A*: possible future cases: E*");
-                false
-            }
+            plasticity.loading_unloading_indicator(state, delta_epsilon)? < 0.0
         };
 
-        // run elastic path first
-        let (need_elastoplastic_run, t0) = if run_elastic {
+        // update history data
+        if let Some(history_cases) = self.history_cases.as_mut() {
+            history_cases.push(if inside { PlastCase::A } else { PlastCase::As });
+        }
+
+        // run elastic path to search for eventual intersections
+        let (need_elastoplastic_run, t0) = if need_intersection_finding {
             // copy z into arguments (z is frozen)
             self.arguments
                 .state
@@ -355,7 +405,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             let y = &mut self.sigma_vec;
             y.set_vector(state.sigma.vector().as_data());
 
-            // solve the elastic problem with intersection data
+            // solve the elastic problem with intersection finding data
             self.solver_elastic_intersect
                 .solve(y, 0.0, 1.0, None, &mut self.arguments)?;
 
@@ -393,18 +443,39 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 // set stress at intersection (points I and I*)
                 state.sigma.vector_mut().set_vector(y.as_data());
 
+                // update history data
+                if let Some(history_cases) = self.history_cases.as_mut() {
+                    history_cases.push(if inside { PlastCase::I } else { PlastCase::Is });
+                }
+
+                // trim history (up to the intersection)
+                // if let Some(history_e) = self.arguments.history_elastic.as_mut() {
+                //     if let Some(i) = history_e.into_iter().position(|state| state.time() >= t_int) {
+                //         history_e.truncate(i + 1);
+                //     }
+                // }
+
                 // need elastoplastic update starting from t_int
                 (true, t_int)
             } else {
                 // no intersection (pure elastic regime)
-                // potential cases: B, C, B*, C*
                 state.sigma.vector_mut().set_vector(y.as_data());
+
+                // update history data
+                if let Some(history_cases) = self.history_cases.as_mut() {
+                    let inside_final = yf_final < -YF_TOL;
+                    if inside_final {
+                        history_cases.push(if inside { PlastCase::B } else { PlastCase::Bs });
+                    } else {
+                        history_cases.push(if inside { PlastCase::C } else { PlastCase::Cs });
+                    }
+                }
 
                 // all done (no need for elastoplastic update)
                 (false, 1.0)
             }
         } else {
-            // run elastoplastic path directly starting from 0.0
+            // need elastoplastic run starting from 0.0
             (true, 0.0)
         };
 
@@ -422,6 +493,19 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 state.sigma.vector_mut().as_mut_data(),
                 state.internal_values.as_mut_data(),
             );
+
+            // update history data
+            if let Some(history_cases) = self.history_cases.as_mut() {
+                history_cases.push(if inside { PlastCase::As } else { PlastCase::Ds });
+            }
+        }
+
+        // update history variables (for debugging/plotting)
+        if let Some(history_e) = self.history_elastic.as_mut() {
+            history_e.push(self.arguments.history_elastic.as_ref().unwrap().clone());
+        }
+        if let Some(history_ep) = self.history_elastoplastic.as_mut() {
+            history_ep.push(self.arguments.history_elastoplastic.as_ref().unwrap().clone());
         }
 
         // update initial pseudo time and initial strain (for plotting)
@@ -488,13 +572,19 @@ mod tests {
 
         // update with general model
         let mut gen_states = path.follow_strain(&mut general);
-        let gen_history_e = general.arguments.history_elastic.as_ref().unwrap();
-        let gen_history_ep = general.arguments.history_elastoplastic.as_ref().unwrap();
+        let gen_history_c = general.history_cases.as_ref().unwrap();
+        let gen_history_e = general.history_elastic.as_ref().unwrap();
+        let gen_history_ep = general.history_elastoplastic.as_ref().unwrap();
         let mut t = 0.0;
         for state in &mut gen_states {
-            *state.yf_value_mut() = general.arguments.plasticity.model.yield_function(state).unwrap();
+            *state.yf_value_mut() = general.yield_function(state).unwrap();
             *state.time_mut() = t;
             t += 1.0;
+        }
+
+        // print cases
+        for case in gen_history_c {
+            println!("> {:?}", case);
         }
 
         // plot
@@ -523,7 +613,7 @@ mod tests {
     // Case: A to A* (1: using two increments) ----------------------------------------------------------
 
     #[test]
-    fn vonmises_a_to_a_star_1() {
+    fn vonmises_a_to_as_1() {
         // parameters
         let config = new_empty_config_2d();
         let young = 1500.0;
@@ -545,7 +635,7 @@ mod tests {
 
         // run test
         run_vonmises_test(
-            "test_vonmises_a_to_a_star_1",
+            "test_vonmises_a_to_as_1",
             &config,
             young,
             poisson,
@@ -560,7 +650,7 @@ mod tests {
     // Case: A to A* (2: using one increment) -----------------------------------------------------------
 
     #[test]
-    fn vonmises_a_to_a_star_2() {
+    fn vonmises_a_to_as_2() {
         // parameters
         let config = new_empty_config_3d();
         let young = 1500.0;
@@ -581,7 +671,7 @@ mod tests {
 
         // run test
         run_vonmises_test(
-            "test_vonmises_a_to_a_star_2",
+            "test_vonmises_a_to_as_2",
             &config,
             young,
             poisson,
@@ -596,7 +686,7 @@ mod tests {
     // Case: A* to C* (1: no drift) -------------------------------------------------------------------
 
     #[test]
-    fn vonmises_a_star_to_c_star_1() {
+    fn vonmises_as_to_cs_1() {
         // parameters
         let mut config = new_empty_config_3d();
         config.model_allow_initial_drift = true;
@@ -619,7 +709,7 @@ mod tests {
 
         // run test
         run_vonmises_test(
-            "test_vonmises_a_star_to_c_star_1",
+            "test_vonmises_as_to_cs_1",
             &config,
             young,
             poisson,
@@ -634,7 +724,7 @@ mod tests {
     // Case: A* to A** (1: alpha = 60) --------------------------------------------------------------------
 
     #[test]
-    fn vonmises_a_star_to_a_2star_1() {
+    fn vonmises_as_to_ass_1() {
         // parameters
         let mut config = new_empty_config_3d();
         config.model_allow_initial_drift = true;
@@ -657,7 +747,7 @@ mod tests {
 
         // run test
         run_vonmises_test(
-            "test_vonmises_a_star_to_a_2star_1",
+            "test_vonmises_as_to_ass_1",
             &config,
             young,
             poisson,
