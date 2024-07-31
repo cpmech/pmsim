@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
-use crate::material::{StressStrainModel, StressStrainStates};
+use crate::material::{ArrLocalState, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -35,7 +35,7 @@ pub struct ElementSolid<'a> {
     pub model: StressStrainModel,
 
     /// Stresses and internal values at all integration points
-    pub states: StressStrainStates,
+    pub states: ArrLocalState,
 
     /// (temporary) Strain increment at integration point
     ///
@@ -65,7 +65,7 @@ impl<'a> ElementSolid<'a> {
         let model = StressStrainModel::new(config, param)?;
         let n_int_values = model.actual.n_internal_values();
         let with_optional = false;
-        let states = StressStrainStates::new(config.mandel, n_int_values, with_optional, n_integ_point);
+        let states = ArrLocalState::new(config.mandel, n_int_values, with_optional, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -280,7 +280,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         if second_values.stresses_and_strains.is_none() {
             let n_internal_values = self.model.actual.n_internal_values();
             let with_optional = self.config.out_strains;
-            second_values.stresses_and_strains = Some(StressStrainStates::new(
+            second_values.stresses_and_strains = Some(ArrLocalState::new(
                 self.config.mandel,
                 n_internal_values,
                 with_optional,

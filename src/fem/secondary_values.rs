@@ -1,10 +1,10 @@
-use crate::material::StressStrainStates;
+use crate::material::ArrLocalState;
 use serde::{Deserialize, Serialize};
 
 /// Holds the secondary values such as stress and strains for post-processing
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SecondaryValues {
-    pub stresses_and_strains: Option<StressStrainStates>,
+    pub stresses_and_strains: Option<ArrLocalState>,
 }
 
 impl SecondaryValues {

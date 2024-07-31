@@ -32,7 +32,7 @@ pub struct LocalState {
 
 /// Implements an array of LocalState
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StressStrainStates {
+pub struct ArrLocalState {
     pub all: Vec<LocalState>,
     backup: Vec<LocalState>,
 }
@@ -153,13 +153,13 @@ impl LocalState {
     }
 }
 
-impl StressStrainStates {
+impl ArrLocalState {
     /// Allocates a new instance
     pub fn new(mandel: Mandel, n_internal_values: usize, with_optional: bool, n_integ_point: usize) -> Self {
         let zero_state = LocalState::new(mandel, n_internal_values, with_optional);
         let all = vec![zero_state; n_integ_point];
         let backup = all.clone();
-        StressStrainStates { all, backup }
+        ArrLocalState { all, backup }
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
