@@ -6,12 +6,24 @@ use std::fmt;
 /// Holds the stress state at a single integration point
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StressStrainState {
+    /// Indicates elastoplastic loading (vs elastic)
     pub loading: bool,
+
+    /// Holds the apex return flag for implicit methods
     pub apex_return: bool,
-    pub algo_lambda: f64, // algorithmic Λ
+
+    /// Holds the algorithmic lagrange multiplier (Λ) for implicit methods
+    pub algo_lambda: f64,
+
+    /// Holds the internal values Z
     pub internal_values: Vector,
+
+    /// Holds the stress tensor σ
     pub stress: Tensor2,
-    strain_optional: Option<Tensor2>,
+
+    /// Holds the strain tensor ε
+    strain: Option<Tensor2>,
+
     pseudo_time: Option<f64>,
     yield_function_value: Option<f64>,
 }
@@ -47,7 +59,7 @@ impl StressStrainState {
             algo_lambda: 0.0,
             internal_values: Vector::new(n_internal_values),
             stress: Tensor2::new(mandel),
-            strain_optional: epsilon,
+            strain: epsilon,
             pseudo_time,
             yield_function_value,
         }
@@ -72,7 +84,7 @@ impl StressStrainState {
     ///
     /// A panic will occur if epsilon is not available.
     pub fn strain(&self) -> &Tensor2 {
-        self.strain_optional.as_ref().unwrap()
+        self.strain.as_ref().unwrap()
     }
 
     /// Returns a mutable access to the strain tensor or panics
@@ -81,7 +93,7 @@ impl StressStrainState {
     ///
     /// A panic will occur if epsilon is not available.
     pub fn strain_mut(&mut self) -> &mut Tensor2 {
-        self.strain_optional.as_mut().unwrap()
+        self.strain.as_mut().unwrap()
     }
 
     /// Returns an access to the pseudo time or panics
@@ -132,7 +144,7 @@ impl StressStrainState {
     /// 2. A panic will occur if epsilon is not available.
     pub fn update_strain(&mut self, alpha: f64, delta_epsilon: &Tensor2) {
         assert_eq!(delta_epsilon.mandel(), self.stress.mandel());
-        let epsilon = self.strain_optional.as_mut().unwrap().vector_mut();
+        let epsilon = self.strain.as_mut().unwrap().vector_mut();
         for i in 0..epsilon.dim() {
             epsilon[i] += alpha * delta_epsilon.vector()[i];
         }
@@ -181,7 +193,7 @@ impl fmt::Display for StressStrainState {
             Some(v) => write!(f, "{:.1$}", mat, v).unwrap(),
             None => write!(f, "{}", mat).unwrap(),
         }
-        if let Some(e) = self.strain_optional.as_ref() {
+        if let Some(e) = self.strain.as_ref() {
             let mat = e.as_matrix();
             write!(f, "\nε =\n").unwrap();
             match f.precision() {
@@ -245,7 +257,7 @@ mod tests {
         state.stress.vector_mut()[2] = -3.0;
         state.internal_values[0] = 0.1;
         state.internal_values[1] = 0.2;
-        let epsilon = state.strain_optional.as_mut().unwrap();
+        let epsilon = state.strain.as_mut().unwrap();
         epsilon.vector_mut()[0] = 0.001;
         epsilon.vector_mut()[1] = 0.002;
         epsilon.vector_mut()[2] = -0.003;

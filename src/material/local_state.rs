@@ -1,5 +1,4 @@
-use core::f64;
-
+use super::StressStrainState;
 use russell_lab::Vector;
 use russell_tensor::{Mandel, Tensor2};
 
@@ -24,6 +23,12 @@ pub struct LocalState {
 
     /// Holds the algorithmic lagrange multiplier (Λ) for implicit methods
     pub algo_lagrange: f64,
+}
+
+/// Implements an array of LocalState
+pub struct ArrLocalState {
+    pub all: Vec<LocalState>,
+    backup: Vec<LocalState>,
 }
 
 /// Holds local state data for FEM simulations of porous materials
@@ -64,6 +69,11 @@ pub struct LocalStatePath {
     pub strain: Tensor2,
 }
 
+/// Implements an array of LocalStatePath
+pub struct ArrLocalStatePath {
+    pub all: Vec<LocalStatePath>,
+}
+
 /// Holds all state data (e.g., for plotting results)
 pub struct LocalStateAll {
     /// Holds the internal values Z
@@ -78,9 +88,6 @@ pub struct LocalStateAll {
     /// Holds the yield function evaluation f(σ, Z)
     pub f: f64,
 
-    /// Holds the (pseudo) time
-    pub t: f64,
-
     /// Holds the liquid saturation
     pub liquid_saturation: f64,
 
@@ -91,6 +98,11 @@ pub struct LocalStateAll {
     pub elastic: bool,
 }
 
+/// Implements an array of LocalStateAll
+pub struct ArrLocalStateAll {
+    pub all: Vec<LocalStateAll>,
+}
+
 impl LocalState {
     pub fn new(mandel: Mandel, n_internal_values: usize) -> Self {
         LocalState {
@@ -99,6 +111,15 @@ impl LocalState {
             elastic: true,
             apex_return: false,
             algo_lagrange: 0.0,
+        }
+    }
+}
+
+impl ArrLocalState {
+    pub fn new() -> Self {
+        ArrLocalState {
+            all: Vec::new(),
+            backup: Vec::new(),
         }
     }
 }
@@ -130,13 +151,12 @@ impl LocalStatePath {
 }
 
 impl LocalStateAll {
-    pub fn from_fem(state: &LocalState) -> Self {
+    pub fn from(state: &StressStrainState) -> Self {
         LocalStateAll {
             internal_values: state.internal_values.clone(),
             stress: state.stress.clone(),
             strain: Tensor2::new(state.stress.mandel()),
             f: UNINITIALIZED,
-            t: UNINITIALIZED,
             liquid_saturation: UNINITIALIZED,
             porosity: UNINITIALIZED,
             elastic: true,
@@ -149,7 +169,6 @@ impl LocalStateAll {
             stress: state.stress.clone(),
             strain: state.strain.clone(),
             f: UNINITIALIZED,
-            t: UNINITIALIZED,
             liquid_saturation: UNINITIALIZED,
             porosity: UNINITIALIZED,
             elastic: true,
