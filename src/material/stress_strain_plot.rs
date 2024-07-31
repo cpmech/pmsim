@@ -93,6 +93,7 @@ impl Axis {
     }
 }
 
+/// Implements the octahedral plot
 struct OctPlot {
     curve: Curve,
     text: Text,
@@ -106,7 +107,10 @@ pub struct StressStrainPlot {
     /// Do not draw the grid lines
     pub no_grid: bool,
 
+    /// Holds all curves
     curves: HashMap<(Axis, Axis), Vec<Curve>>,
+
+    /// Holds the octahedral plot
     oct: Vec<OctPlot>,
 }
 
