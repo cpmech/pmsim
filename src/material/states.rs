@@ -9,7 +9,7 @@ pub(crate) const UNINITIALIZED: f64 = f64::INFINITY;
 /// Holds local state data for FEM simulations of solid materials
 ///
 /// This data is associated with a Gauss (integration) point
-pub struct StateFEM {
+pub struct LocalState {
     /// Holds the internal values Z
     pub internal_values: Vector,
 
@@ -29,7 +29,7 @@ pub struct StateFEM {
 /// Holds local state data for FEM simulations of porous materials
 ///
 /// This data is associated with a Gauss (integration) point
-pub struct StateFEMporous {
+pub struct LocalStatePorous {
     /// Holds the internal values Z
     pub internal_values: Vector,
 
@@ -56,7 +56,7 @@ pub struct StateFEMporous {
 }
 
 /// Holds state data for generating stress-strain paths
-pub struct StatePath {
+pub struct LocalStatePath {
     /// Holds the stress tensor σ
     pub stress: Tensor2,
 
@@ -65,7 +65,7 @@ pub struct StatePath {
 }
 
 /// Holds all state data (e.g., for plotting results)
-pub struct StateAll {
+pub struct LocalStateAll {
     /// Holds the internal values Z
     pub internal_values: Vector,
 
@@ -91,9 +91,9 @@ pub struct StateAll {
     pub elastic: bool,
 }
 
-impl StateFEM {
+impl LocalState {
     pub fn new(mandel: Mandel, n_internal_values: usize) -> Self {
-        StateFEM {
+        LocalState {
             internal_values: Vector::new(n_internal_values),
             stress: Tensor2::new(mandel),
             elastic: true,
@@ -103,9 +103,9 @@ impl StateFEM {
     }
 }
 
-impl StatePath {
+impl LocalStatePath {
     pub fn new(mandel: Mandel) -> Self {
-        StatePath {
+        LocalStatePath {
             stress: Tensor2::new(mandel),
             strain: Tensor2::new(mandel),
         }
@@ -129,9 +129,9 @@ impl StatePath {
     }
 }
 
-impl StateAll {
-    pub fn from_fem(state: &StateFEM) -> Self {
-        StateAll {
+impl LocalStateAll {
+    pub fn from_fem(state: &LocalState) -> Self {
+        LocalStateAll {
             internal_values: state.internal_values.clone(),
             stress: state.stress.clone(),
             strain: Tensor2::new(state.stress.mandel()),
@@ -143,8 +143,8 @@ impl StateAll {
         }
     }
 
-    pub fn from_path(state: &StatePath) -> Self {
-        StateAll {
+    pub fn from_path(state: &LocalStatePath) -> Self {
+        LocalStateAll {
             internal_values: Vector::new(0),
             stress: state.stress.clone(),
             strain: state.strain.clone(),
