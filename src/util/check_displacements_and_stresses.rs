@@ -106,7 +106,7 @@ pub fn check_displacements_and_stresses(
                 // extract state at integration point
                 let state = fem_state.extract_stresses_and_strains(e, ip).unwrap();
 
-                // check stress
+                // check stresses
                 for i in 0..ncp {
                     let a = state.stress.vector()[i];
                     let b = if i > 3 {
@@ -137,9 +137,9 @@ pub fn check_displacements_and_stresses(
                 // extract state at integration point
                 let state = fem_state.extract_stresses_and_strains(e, ip).unwrap();
 
-                // check epsilon
+                // check strains
                 for i in 0..ncp {
-                    let a = state.eps().vector()[i];
+                    let a = state.strain().vector()[i];
                     let b = if i > 3 {
                         compare.strains[e][ip][i] * SQRT_2 // convert to Mandel
                     } else {
@@ -165,10 +165,10 @@ pub fn check_displacements_and_stresses(
                     for i in 0..ncp {
                         if i > 3 {
                             state_ref.stress.vector_mut()[i] = compare.stresses[e][ip][i] * SQRT_2;
-                            state_ref.eps_mut().vector_mut()[i] = compare.strains[e][ip][i] * SQRT_2;
+                            state_ref.strain_mut().vector_mut()[i] = compare.strains[e][ip][i] * SQRT_2;
                         } else {
                             state_ref.stress.vector_mut()[i] = compare.stresses[e][ip][i];
-                            state_ref.eps_mut().vector_mut()[i] = compare.strains[e][ip][i];
+                            state_ref.strain_mut().vector_mut()[i] = compare.strains[e][ip][i];
                         }
                     }
                     states.push(state.clone());

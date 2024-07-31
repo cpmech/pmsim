@@ -244,8 +244,8 @@ mod tests {
         for i in 1..states.len() {
             let sigma_m = states[i].stress.invariant_sigma_m();
             let sigma_d = states[i].stress.invariant_sigma_d();
-            let deps_v = states[i].eps().invariant_eps_v() - states[i - 1].eps().invariant_eps_v();
-            let deps_d = states[i].eps().invariant_eps_d() - states[i - 1].eps().invariant_eps_d();
+            let deps_v = states[i].strain().invariant_eps_v() - states[i - 1].strain().invariant_eps_v();
+            let deps_d = states[i].strain().invariant_eps_d() - states[i - 1].strain().invariant_eps_d();
             if i == 1 {
                 // elastic update
                 correct_sigma_m += kk * deps_v;

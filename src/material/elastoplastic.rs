@@ -253,7 +253,7 @@ impl<'a> Elastoplastic<'a> {
                 if let Some(history) = args.history_elastic.as_mut() {
                     // ε(t) = ε₀ + t Δε
                     let epsilon0 = args.epsilon0.as_mut().unwrap();
-                    let epsilon = args.state.eps_mut();
+                    let epsilon = args.state.strain_mut();
                     t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon);
 
                     // update history
@@ -288,7 +288,7 @@ impl<'a> Elastoplastic<'a> {
 
                         // ε(t) = ε₀ + t Δε
                         let epsilon0 = args.epsilon0.as_mut().unwrap();
-                        let epsilon = args.state.eps_mut();
+                        let epsilon = args.state.strain_mut();
                         t2_add(epsilon, 1.0, epsilon0, t, &args.delta_epsilon);
 
                         // update history
@@ -512,7 +512,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         if self.arguments.history_elastic.is_some() {
             self.arguments.t0 += 1.0;
             let epsilon0 = self.arguments.epsilon0.as_mut().unwrap();
-            let epsilon = self.arguments.state.eps();
+            let epsilon = self.arguments.state.strain();
             epsilon0.set_tensor(1.0, epsilon);
         }
         Ok(())
@@ -604,7 +604,7 @@ mod tests {
         assert_eq!(std_states.len(), gen_states.len());
         let n_state = std_states.len();
         for i in 0..n_state {
-            vec_approx_eq(std_states[i].eps().vector(), gen_states[i].eps().vector(), 1e-17);
+            vec_approx_eq(std_states[i].strain().vector(), gen_states[i].strain().vector(), 1e-17);
             vec_approx_eq(std_states[i].stress.vector(), gen_states[i].stress.vector(), tol_sigma);
             vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, tol_z);
         }

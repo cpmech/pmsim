@@ -236,11 +236,11 @@ impl StressStrainPath {
         state.stress.set_tensor(1.0, &sigma);
         if self.states.len() > 0 {
             let sigma_prev = &self.states.last().unwrap().stress;
-            let epsilon_prev = &self.states.last().unwrap().eps();
+            let epsilon_prev = &self.states.last().unwrap().strain();
             t2_add(&mut self.delta_sigma, 1.0, &sigma, -1.0, &sigma_prev); // Δσ = σ - σ_prev
             t4_ddot_t2(&mut self.delta_epsilon, 1.0, &self.cc, &self.delta_sigma); // Δε = C : Δσ
             t2_add(&mut self.epsilon, 1.0, &epsilon_prev, 1.0, &self.delta_epsilon); // ε = ε_prev + Δε
-            state.eps_mut().set_tensor(1.0, &self.epsilon);
+            state.strain_mut().set_tensor(1.0, &self.epsilon);
             self.deltas_sigma.push(self.delta_sigma.clone());
             self.deltas_epsilon.push(self.delta_epsilon.clone());
         }
@@ -262,10 +262,10 @@ impl StressStrainPath {
         assert_eq!(epsilon.mandel(), self.mandel);
         let with_optional = true;
         let mut state = StressStrainState::new(self.mandel, 0, with_optional); // 0 => no internal variables
-        state.eps_mut().set_tensor(1.0, &epsilon);
+        state.strain_mut().set_tensor(1.0, &epsilon);
         if self.states.len() > 0 {
             let sigma_prev = &self.states.last().unwrap().stress;
-            let epsilon_prev = &self.states.last().unwrap().eps();
+            let epsilon_prev = &self.states.last().unwrap().strain();
             t2_add(&mut self.delta_epsilon, 1.0, &epsilon, -1.0, &epsilon_prev); // Δε = ε - ε_prev
             t4_ddot_t2(&mut self.delta_sigma, 1.0, &self.dd, &self.delta_epsilon); // Δσ = D : Δε
             t2_add(&mut self.sigma, 1.0, &sigma_prev, 1.0, &self.delta_sigma); // σ = σ_prev + Δσ
@@ -353,7 +353,11 @@ mod tests {
                 path_b.states[i].stress.vector(),
                 1e-14,
             );
-            vec_approx_eq(path_a.states[i].eps().vector(), path_b.states[i].eps().vector(), 1e-14);
+            vec_approx_eq(
+                path_a.states[i].strain().vector(),
+                path_b.states[i].strain().vector(),
+                1e-14,
+            );
         }
         for i in 0..3 {
             vec_approx_eq(path_a.deltas_sigma[i].vector(), path_b.deltas_sigma[i].vector(), 1e-14);
@@ -422,14 +426,14 @@ mod tests {
         let de2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
         let de3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
 
-        vec_approx_eq(path.states[0].eps().vector(), &[0.0, 0.0, 0.0, 0.0], 1e-15);
+        vec_approx_eq(path.states[0].strain().vector(), &[0.0, 0.0, 0.0, 0.0], 1e-15);
         vec_approx_eq(
-            path.states[1].eps().vector(),
+            path.states[1].strain().vector(),
             &[0.0 + de1, 0.0 + de2, 0.0 + de3, 0.0],
             1e-15,
         );
         vec_approx_eq(
-            &path.states[2].eps().vector(),
+            &path.states[2].strain().vector(),
             &[0.0 + 2.0 * de1, 0.0 + 2.0 * de2, 0.0 + 2.0 * de3, 0.0],
             1e-15,
         );

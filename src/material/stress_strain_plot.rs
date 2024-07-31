@@ -39,11 +39,11 @@ impl Axis {
             Self::EpsV(percent, negative) => {
                 let n = if *negative { -1.0 } else { 1.0 };
                 let p = if *percent { 100.0 * n } else { 1.0 * n };
-                states.iter().map(|s| p * s.eps().invariant_eps_v()).collect()
+                states.iter().map(|s| p * s.strain().invariant_eps_v()).collect()
             }
             Self::EpsD(percent) => {
                 let p = if *percent { 100.0 } else { 1.0 };
-                states.iter().map(|s| p * s.eps().invariant_eps_d()).collect()
+                states.iter().map(|s| p * s.strain().invariant_eps_d()).collect()
             }
             Self::SigM(negative) => {
                 let n = if *negative { -1.0 } else { 1.0 };

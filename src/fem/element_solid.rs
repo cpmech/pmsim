@@ -293,7 +293,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         }
         if self.config.out_strains {
             for p in 0..self.ips.len() {
-                self.calc_strains(local_states[p].eps_mut(), &state.uu, p)?;
+                self.calc_strains(local_states[p].strain_mut(), &state.uu, p)?;
             }
         }
         Ok(())
