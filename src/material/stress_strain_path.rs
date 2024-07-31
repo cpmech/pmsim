@@ -1,4 +1,4 @@
-use super::{StressStrainState, StressStrainTrait};
+use super::{LocalState, StressStrainTrait};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::math::PI;
@@ -33,7 +33,7 @@ pub struct StressStrainPath {
     ///
     /// The stresses are possibly calculated from strain using the elastic model if strain is given
     /// The strains are possibly calculated from stress using the elastic model if stress is given
-    pub states: Vec<StressStrainState>,
+    pub states: Vec<LocalState>,
 
     /// Indicates to use strains in simulations
     pub strain_driven: Vec<bool>,
@@ -232,7 +232,7 @@ impl StressStrainPath {
     pub fn push_stress(&mut self, sigma: &Tensor2, strain_driven: bool) {
         assert_eq!(sigma.mandel(), self.mandel);
         let with_optional = true;
-        let mut state = StressStrainState::new(self.mandel, 0, with_optional); // 0 => no internal variables
+        let mut state = LocalState::new(self.mandel, 0, with_optional); // 0 => no internal variables
         state.stress.set_tensor(1.0, &sigma);
         if self.states.len() > 0 {
             let sigma_prev = &self.states.last().unwrap().stress;
@@ -261,7 +261,7 @@ impl StressStrainPath {
     pub fn push_strain(&mut self, epsilon: &Tensor2, strain_driven: bool) {
         assert_eq!(epsilon.mandel(), self.mandel);
         let with_optional = true;
-        let mut state = StressStrainState::new(self.mandel, 0, with_optional); // 0 => no internal variables
+        let mut state = LocalState::new(self.mandel, 0, with_optional); // 0 => no internal variables
         state.strain_mut().set_tensor(1.0, &epsilon);
         if self.states.len() > 0 {
             let sigma_prev = &self.states.last().unwrap().stress;
@@ -284,13 +284,13 @@ impl StressStrainPath {
     /// # Panics
     ///
     /// A panic will occur if the path contains no points
-    pub fn follow_strain(&self, model: &mut dyn StressStrainTrait) -> Vec<StressStrainState> {
+    pub fn follow_strain(&self, model: &mut dyn StressStrainTrait) -> Vec<LocalState> {
         assert!(self.states.len() > 0);
 
         // initial model state
         let n_internal_values = model.n_internal_values();
         let with_optional = true;
-        let mut state = StressStrainState::new(self.mandel, n_internal_values, with_optional);
+        let mut state = LocalState::new(self.mandel, n_internal_values, with_optional);
         state.stress.set_tensor(1.0, &self.states[0].stress);
         model.initialize_internal_values(&mut state).unwrap();
 

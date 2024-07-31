@@ -1,4 +1,4 @@
-use super::{StressStrainState, StressStrainTrait, VonMises};
+use super::{LocalState, StressStrainTrait, VonMises};
 use crate::base::{Config, NonlinElast, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_lab::{vec_inner, Vector};
@@ -12,28 +12,28 @@ pub trait PlasticityTrait: StressStrainTrait {
     fn associated(&self) -> bool;
 
     /// Calculates the yield function f
-    fn yield_function(&self, state: &StressStrainState) -> Result<f64, StrError>;
+    fn yield_function(&self, state: &LocalState) -> Result<f64, StrError>;
 
     /// Calculates the plastic potential function g
-    fn plastic_potential(&self, state: &StressStrainState) -> Result<(), StrError>;
+    fn plastic_potential(&self, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
-    fn hardening(&self, hh: &mut Vector, state: &StressStrainState) -> Result<(), StrError>;
+    fn hardening(&self, hh: &mut Vector, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the yield function w.r.t stress
-    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressStrainState) -> Result<(), StrError>;
+    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the plastic potential w.r.t stress
-    fn dg_dsigma(&self, dg_dsigma: &mut Tensor2, state: &StressStrainState) -> Result<(), StrError>;
+    fn dg_dsigma(&self, dg_dsigma: &mut Tensor2, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the derivative of the yield function w.r.t internal variables
-    fn df_dz(&self, df_dz: &mut Vector, state: &StressStrainState) -> Result<(), StrError>;
+    fn df_dz(&self, df_dz: &mut Vector, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the elastic compliance modulus
-    fn elastic_compliance(&self, cce: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError>;
+    fn elastic_compliance(&self, cce: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the elastic rigidity modulus
-    fn elastic_rigidity(&self, dde: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError>;
+    fn elastic_rigidity(&self, dde: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
 }
 
 pub struct Plasticity {
@@ -117,7 +117,7 @@ impl Plasticity {
         })
     }
 
-    fn set_nonlin_elast_params(&mut self, state: &StressStrainState) {
+    fn set_nonlin_elast_params(&mut self, state: &LocalState) {
         let le = self.lin_elast.as_mut().unwrap();
         let nle = self.params_nonlin_elast.as_mut().unwrap();
         let sig = if nle.isotropic {
@@ -130,7 +130,7 @@ impl Plasticity {
         le.set_young_poisson(young, self.poisson);
     }
 
-    pub fn elastic_compliance(&mut self, state: &StressStrainState) -> Result<(), StrError> {
+    pub fn elastic_compliance(&mut self, state: &LocalState) -> Result<(), StrError> {
         match self.params_nonlin_elast.as_ref() {
             Some(_) => {
                 self.set_nonlin_elast_params(state);
@@ -140,7 +140,7 @@ impl Plasticity {
         }
     }
 
-    pub fn elastic_rigidity(&mut self, state: &StressStrainState) -> Result<(), StrError> {
+    pub fn elastic_rigidity(&mut self, state: &LocalState) -> Result<(), StrError> {
         match self.params_nonlin_elast.as_ref() {
             Some(_) => {
                 self.set_nonlin_elast_params(state);
@@ -151,7 +151,7 @@ impl Plasticity {
         }
     }
 
-    pub fn elastoplastic_compliance(&mut self, cc: &mut Tensor4, state: &StressStrainState) -> Result<(), StrError> {
+    pub fn elastoplastic_compliance(&mut self, cc: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
         // derivatives
         self.model.df_dsigma(&mut self.df_dsigma, state)?;
         self.model.df_dz(&mut self.df_dz, state)?;
@@ -182,7 +182,7 @@ impl Plasticity {
     /// Returns `indicator = (df/dσ) : Dₑ : Δε`
     pub fn loading_unloading_indicator(
         &mut self,
-        state: &StressStrainState,
+        state: &LocalState,
         delta_epsilon: &Tensor2,
     ) -> Result<f64, StrError> {
         // gradients of the yield function
@@ -210,7 +210,7 @@ impl Plasticity {
         &mut self,
         dsigma_dt: &mut Tensor2,
         dz_dt: &mut Vector,
-        state: &StressStrainState,
+        state: &LocalState,
         delta_epsilon: &Tensor2,
     ) -> Result<(), StrError> {
         // gradients of the yield function
@@ -284,7 +284,7 @@ mod tests {
         let mut plasticity = Plasticity::new(&config, &param).unwrap();
 
         // initialize state on yield surface
-        let mut state = StressStrainState::new(config.mandel, 1, false);
+        let mut state = LocalState::new(config.mandel, 1, false);
         state.stress.set_mandel_vector(1.0, &[7.0, -2.0, -2.0, 0.0, 0.0, 0.0]);
         state.internal_values[0] = z0;
         state.loading = true;

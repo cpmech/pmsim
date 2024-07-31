@@ -1,4 +1,4 @@
-use super::{StressStrainModelName, StressStrainPlot, StressStrainState};
+use super::{StressStrainModelName, StressStrainPlot, LocalState};
 use plotpy::{Canvas, Curve, Legend, RayEndpoint};
 use russell_lab::math::SQRT_2_BY_3;
 
@@ -41,10 +41,10 @@ impl GraphElastoplastic {
         &self,
         filename_key: &str,
         model_name: StressStrainModelName,
-        std_states: &Vec<StressStrainState>,
-        gen_states: &Vec<StressStrainState>,
-        gen_history_e: Option<&Vec<Vec<StressStrainState>>>,
-        gen_history_ep: Option<&Vec<Vec<StressStrainState>>>,
+        std_states: &Vec<LocalState>,
+        gen_states: &Vec<LocalState>,
+        gen_history_e: Option<&Vec<Vec<LocalState>>>,
+        gen_history_ep: Option<&Vec<Vec<LocalState>>>,
     ) {
         let mut ssp = StressStrainPlot::new();
         ssp.no_grid = true;

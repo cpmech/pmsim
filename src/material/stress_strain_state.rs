@@ -3,9 +3,11 @@ use russell_tensor::{Mandel, Tensor2};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Holds the stress state at a single integration point
+/// Holds local state data for FEM simulations of solid materials
+///
+/// This data is associated with a Gauss (integration) point
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StressStrainState {
+pub struct LocalState {
     /// Indicates elastoplastic loading (vs elastic)
     pub loading: bool,
 
@@ -28,14 +30,14 @@ pub struct StressStrainState {
     yield_function_value: Option<f64>,
 }
 
-/// Holds a set of stress state at all integration points of an element
+/// Implements an array of LocalState
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StressStrainStates {
-    pub all: Vec<StressStrainState>,
-    backup: Vec<StressStrainState>,
+    pub all: Vec<LocalState>,
+    backup: Vec<LocalState>,
 }
 
-impl StressStrainState {
+impl LocalState {
     /// Allocates a new instance
     ///
     /// # Input
@@ -53,7 +55,7 @@ impl StressStrainState {
         } else {
             (None, None, None)
         };
-        StressStrainState {
+        LocalState {
             loading: false,
             apex_return: false,
             algo_lambda: 0.0,
@@ -70,7 +72,7 @@ impl StressStrainState {
     /// ```text
     /// non_optional(self) := non_optional(other)
     /// ```
-    pub fn copy_non_optional(&mut self, other: &StressStrainState) {
+    pub fn copy_non_optional(&mut self, other: &LocalState) {
         self.loading = other.loading;
         self.apex_return = other.apex_return;
         self.algo_lambda = other.algo_lambda;
@@ -154,7 +156,7 @@ impl StressStrainState {
 impl StressStrainStates {
     /// Allocates a new instance
     pub fn new(mandel: Mandel, n_internal_values: usize, with_optional: bool, n_integ_point: usize) -> Self {
-        let zero_state = StressStrainState::new(mandel, n_internal_values, with_optional);
+        let zero_state = LocalState::new(mandel, n_internal_values, with_optional);
         let all = vec![zero_state; n_integ_point];
         let backup = all.clone();
         StressStrainStates { all, backup }
@@ -184,7 +186,7 @@ impl StressStrainStates {
     }
 }
 
-impl fmt::Display for StressStrainState {
+impl fmt::Display for LocalState {
     /// Returns a nicely formatted string representing the stress state
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mat = self.stress.as_matrix();
@@ -219,14 +221,14 @@ impl fmt::Display for StressStrainState {
 
 #[cfg(test)]
 mod tests {
-    use super::StressStrainState;
+    use super::LocalState;
     use russell_tensor::Mandel;
 
     #[test]
     fn display_trait_works() {
         let mandel = Mandel::Symmetric2D;
         let with_optional = false;
-        let mut state = StressStrainState::new(mandel, 2, with_optional);
+        let mut state = LocalState::new(mandel, 2, with_optional);
         state.stress.vector_mut()[0] = 1.0;
         state.stress.vector_mut()[1] = 2.0;
         state.stress.vector_mut()[2] = -3.0;
@@ -251,7 +253,7 @@ mod tests {
     fn display_trait_with_optional_works() {
         let mandel = Mandel::Symmetric2D;
         let with_optional = true;
-        let mut state = StressStrainState::new(mandel, 2, with_optional);
+        let mut state = LocalState::new(mandel, 2, with_optional);
         state.stress.vector_mut()[0] = 1.0;
         state.stress.vector_mut()[1] = 2.0;
         state.stress.vector_mut()[2] = -3.0;
