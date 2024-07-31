@@ -10,7 +10,7 @@ pub struct StressStrainState {
     pub apex_return: bool,
     pub algo_lambda: f64, // algorithmic Λ
     pub internal_values: Vector,
-    pub sigma: Tensor2,
+    pub stress: Tensor2,
     epsilon: Option<Tensor2>,
     pseudo_time: Option<f64>,
     yield_function_value: Option<f64>,
@@ -46,7 +46,7 @@ impl StressStrainState {
             apex_return: false,
             algo_lambda: 0.0,
             internal_values: Vector::new(n_internal_values),
-            sigma: Tensor2::new(mandel),
+            stress: Tensor2::new(mandel),
             epsilon,
             pseudo_time,
             yield_function_value,
@@ -63,7 +63,7 @@ impl StressStrainState {
         self.apex_return = other.apex_return;
         self.algo_lambda = other.algo_lambda;
         vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
-        self.sigma.set_tensor(1.0, &other.sigma);
+        self.stress.set_tensor(1.0, &other.stress);
     }
 
     /// Returns an access to the strain tensor or panics
@@ -131,7 +131,7 @@ impl StressStrainState {
     /// 1. A panic will occur if the tensors have different [Mandel].
     /// 2. A panic will occur if epsilon is not available.
     pub fn update_strain(&mut self, alpha: f64, delta_epsilon: &Tensor2) {
-        assert_eq!(delta_epsilon.mandel(), self.sigma.mandel());
+        assert_eq!(delta_epsilon.mandel(), self.stress.mandel());
         let epsilon = self.epsilon.as_mut().unwrap().vector_mut();
         for i in 0..epsilon.dim() {
             epsilon[i] += alpha * delta_epsilon.vector()[i];
@@ -175,7 +175,7 @@ impl StressStrainStates {
 impl fmt::Display for StressStrainState {
     /// Returns a nicely formatted string representing the stress state
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mat = self.sigma.as_matrix();
+        let mat = self.stress.as_matrix();
         write!(f, "σ =\n").unwrap();
         match f.precision() {
             Some(v) => write!(f, "{:.1$}", mat, v).unwrap(),
@@ -215,9 +215,9 @@ mod tests {
         let mandel = Mandel::Symmetric2D;
         let with_optional = false;
         let mut state = StressStrainState::new(mandel, 2, with_optional);
-        state.sigma.vector_mut()[0] = 1.0;
-        state.sigma.vector_mut()[1] = 2.0;
-        state.sigma.vector_mut()[2] = -3.0;
+        state.stress.vector_mut()[0] = 1.0;
+        state.stress.vector_mut()[1] = 2.0;
+        state.stress.vector_mut()[2] = -3.0;
         state.internal_values[0] = 0.1;
         state.internal_values[1] = 0.2;
         assert_eq!(
@@ -240,9 +240,9 @@ mod tests {
         let mandel = Mandel::Symmetric2D;
         let with_optional = true;
         let mut state = StressStrainState::new(mandel, 2, with_optional);
-        state.sigma.vector_mut()[0] = 1.0;
-        state.sigma.vector_mut()[1] = 2.0;
-        state.sigma.vector_mut()[2] = -3.0;
+        state.stress.vector_mut()[0] = 1.0;
+        state.stress.vector_mut()[1] = 2.0;
+        state.stress.vector_mut()[2] = -3.0;
         state.internal_values[0] = 0.1;
         state.internal_values[1] = 0.2;
         let epsilon = state.epsilon.as_mut().unwrap();

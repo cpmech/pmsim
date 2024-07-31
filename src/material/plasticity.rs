@@ -121,9 +121,9 @@ impl Plasticity {
         let le = self.lin_elast.as_mut().unwrap();
         let nle = self.params_nonlin_elast.as_mut().unwrap();
         let sig = if nle.isotropic {
-            state.sigma.invariant_sigma_m()
+            state.stress.invariant_sigma_m()
         } else {
-            state.sigma.invariant_sigma_d()
+            state.stress.invariant_sigma_d()
         };
         let val = f64::exp(nle.beta * sig);
         let young = 4.0 * self.young0 * val / f64::powi(val + 1.0, 2);
@@ -285,7 +285,7 @@ mod tests {
 
         // initialize state on yield surface
         let mut state = StressStrainState::new(config.mandel, 1, false);
-        state.sigma.set_mandel_vector(1.0, &[7.0, -2.0, -2.0, 0.0, 0.0, 0.0]);
+        state.stress.set_mandel_vector(1.0, &[7.0, -2.0, -2.0, 0.0, 0.0, 0.0]);
         state.internal_values[0] = z0;
         state.loading = true;
         let f = von_mises.yield_function(&state).unwrap();

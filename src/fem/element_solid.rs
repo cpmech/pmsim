@@ -35,7 +35,7 @@ pub struct ElementSolid<'a> {
     pub model: StressStrainModel,
 
     /// Stresses and internal values at all integration points
-    pub stresses: StressStrainStates,
+    pub states: StressStrainStates,
 
     /// (temporary) Strain increment at integration point
     ///
@@ -65,7 +65,7 @@ impl<'a> ElementSolid<'a> {
         let model = StressStrainModel::new(config, param)?;
         let n_int_values = model.actual.n_internal_values();
         let with_optional = false;
-        let stresses = StressStrainStates::new(config.mandel, n_int_values, with_optional, n_integ_point);
+        let states = StressStrainStates::new(config.mandel, n_int_values, with_optional, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -77,7 +77,7 @@ impl<'a> ElementSolid<'a> {
             pad,
             ips,
             model,
-            stresses,
+            states,
             delta_epsilon: Tensor2::new_sym_ndim(ndim),
         })
     }
@@ -178,7 +178,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 
     /// Initializes the internal values
     fn initialize_internal_values(&mut self) -> Result<(), StrError> {
-        self.stresses
+        self.states
             .all
             .iter_mut()
             .map(|state| self.model.actual.initialize_internal_values(state))
@@ -200,7 +200,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         //     \____________/
         //     we compute this
         integ::vec_04_tb(residual, &mut args, |sig, p, _, _| {
-            sig.set_tensor(1.0, &self.stresses.all[p].sigma);
+            sig.set_tensor(1.0, &self.states.all[p].stress);
             Ok(())
         })?;
 
@@ -237,23 +237,23 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
         integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
-            self.model.actual.stiffness(dd, &self.stresses.all[p])
+            self.model.actual.stiffness(dd, &self.states.all[p])
         })
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&mut self) {
-        self.stresses.reset_algorithmic_variables();
+        self.states.reset_algorithmic_variables();
     }
 
     /// Creates a copy of the secondary values (e.g., stresses and internal values)
     fn backup_secondary_values(&mut self) {
-        self.stresses.backup()
+        self.states.backup()
     }
 
     /// Restores the secondary values from the backup (e.g., stresses and internal values)
     fn restore_secondary_values(&mut self) {
-        self.stresses.restore()
+        self.states.restore()
     }
 
     /// Updates secondary values such as stresses and internal values
@@ -266,7 +266,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             // perform stress-update
             self.model
                 .actual
-                .update_stress(&mut self.stresses.all[p], &self.delta_epsilon)?;
+                .update_stress(&mut self.states.all[p], &self.delta_epsilon)?;
         }
         Ok(())
     }
@@ -289,7 +289,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         }
         let local_states = &mut second_values.stresses_and_strains.as_mut().unwrap().all;
         for p in 0..self.ips.len() {
-            local_states[p].copy_non_optional(&self.stresses.all[p]);
+            local_states[p].copy_non_optional(&self.states.all[p]);
         }
         if self.config.out_strains {
             for p in 0..self.ips.len() {
@@ -345,10 +345,10 @@ mod tests {
 
         // set stress state
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
-        for stress in &mut elem.stresses.all {
-            stress.sigma.sym_set(0, 0, s00);
-            stress.sigma.sym_set(1, 1, s11);
-            stress.sigma.sym_set(0, 1, s01);
+        for state in &mut elem.states.all {
+            state.stress.sym_set(0, 0, s00);
+            state.stress.sym_set(1, 1, s11);
+            state.stress.sym_set(0, 1, s01);
         }
 
         // analytical solver
@@ -569,7 +569,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_h, 1e-13);
+                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -579,7 +579,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_v, 1e-13);
+                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -589,7 +589,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_s, 1e-13);
+                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_s, 1e-13);
             }
         }
     }
@@ -644,7 +644,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_h, 1e-13);
+                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -654,7 +654,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_v, 1e-13);
+                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -664,7 +664,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.stresses.all[p].sigma.vector(), &solution_s, 1e-13);
+                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_s, 1e-13);
             }
         }
     }

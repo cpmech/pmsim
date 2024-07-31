@@ -193,7 +193,7 @@ impl<'a> Elastoplastic<'a> {
         // with: {y} = {σ}
         let system_e = System::new(ndim_e, |dydt, _t, y, args: &mut Arguments| {
             // copy {y}(t) into σ
-            args.state.sigma.vector_mut().set_vector(y.as_data());
+            args.state.stress.vector_mut().set_vector(y.as_data());
 
             // calculate: Dₑ(t)
             args.plasticity.elastic_rigidity(&args.state)?;
@@ -209,7 +209,7 @@ impl<'a> Elastoplastic<'a> {
         let system_ep = System::new(ndim_ep, |dydt, _t, y, args: &mut Arguments| {
             // split {y}(t) into σ and z
             y.split2(
-                args.state.sigma.vector_mut().as_mut_data(),
+                args.state.stress.vector_mut().as_mut_data(),
                 args.state.internal_values.as_mut_data(),
             );
 
@@ -242,7 +242,7 @@ impl<'a> Elastoplastic<'a> {
                 }
 
                 // copy {y}(t) into σ
-                args.state.sigma.vector_mut().set_vector(y.as_data());
+                args.state.stress.vector_mut().set_vector(y.as_data());
 
                 // yield function value: f(σ, z)
                 let f = args.plasticity.model.yield_function(&args.state)?;
@@ -279,7 +279,7 @@ impl<'a> Elastoplastic<'a> {
                     if let Some(history) = args.history_elastoplastic.as_mut() {
                         // split {y}(t) into σ and z
                         y.split2(
-                            args.state.sigma.vector_mut().as_mut_data(),
+                            args.state.stress.vector_mut().as_mut_data(),
                             args.state.internal_values.as_mut_data(),
                         );
 
@@ -403,7 +403,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
             // copy σ into {y}
             let y = &mut self.sigma_vec;
-            y.set_vector(state.sigma.vector().as_data());
+            y.set_vector(state.stress.vector().as_data());
 
             // solve the elastic problem with intersection finding data
             self.solver_elastic_intersect
@@ -435,13 +435,13 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 assert!(t_int > 0.0, "intersection pseudo time must be greater than zero");
 
                 // copy σ into {y} again (to start from scratch)
-                y.set_vector(state.sigma.vector().as_data());
+                y.set_vector(state.stress.vector().as_data());
 
                 // solve the elastic problem again to update σ to the intersection point
                 self.solver_elastic.solve(y, 0.0, t_int, None, &mut self.arguments)?;
 
                 // set stress at intersection (points I and I*)
-                state.sigma.vector_mut().set_vector(y.as_data());
+                state.stress.vector_mut().set_vector(y.as_data());
 
                 // update history data
                 if let Some(history_cases) = self.history_cases.as_mut() {
@@ -459,7 +459,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 (true, t_int)
             } else {
                 // no intersection (pure elastic regime)
-                state.sigma.vector_mut().set_vector(y.as_data());
+                state.stress.vector_mut().set_vector(y.as_data());
 
                 // update history data
                 if let Some(history_cases) = self.history_cases.as_mut() {
@@ -483,14 +483,14 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         if need_elastoplastic_run {
             // join σ and z into {y}
             let y = &mut self.sigma_and_z;
-            y.join2(state.sigma.vector().as_data(), state.internal_values.as_data());
+            y.join2(state.stress.vector().as_data(), state.internal_values.as_data());
 
             // solve elastoplastic problem
             self.solver_elastoplastic.solve(y, t0, 1.0, None, &mut self.arguments)?;
 
             // split {y} into σ and z
             y.split2(
-                state.sigma.vector_mut().as_mut_data(),
+                state.stress.vector_mut().as_mut_data(),
                 state.internal_values.as_mut_data(),
             );
 
@@ -605,7 +605,7 @@ mod tests {
         let n_state = std_states.len();
         for i in 0..n_state {
             vec_approx_eq(std_states[i].eps().vector(), gen_states[i].eps().vector(), 1e-17);
-            vec_approx_eq(std_states[i].sigma.vector(), gen_states[i].sigma.vector(), tol_sigma);
+            vec_approx_eq(std_states[i].stress.vector(), gen_states[i].stress.vector(), tol_sigma);
             vec_approx_eq(&std_states[i].internal_values, &gen_states[i].internal_values, tol_z);
         }
     }

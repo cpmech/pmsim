@@ -120,8 +120,8 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     println!("stress = {:?}", stress);
     elem.update_secondary_values(&state)?;
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.stresses.all[p].sigma.vector().as_data());
-        vec_approx_eq(&elem.stresses.all[p].sigma.vector(), &stress, 1e-15);
+        println!("σ = {:?}", elem.states.all[p].stress.vector().as_data());
+        vec_approx_eq(&elem.states.all[p].stress.vector(), &stress, 1e-15);
     }
 
     // compute external forces
@@ -208,7 +208,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     println!("stress = {:?}", stress);
     elem.update_secondary_values(&state)?;
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.stresses.all[p].sigma.vector().as_data());
+        println!("σ = {:?}", elem.states.all[p].stress.vector().as_data());
     }
 
     // compute residual (actually, internal forces)
@@ -279,8 +279,8 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     elem.update_secondary_values(&state)?;
     // σ = [0.0, -2.0000000000000004, -0.5, 4.4408920985006264e-17]
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.stresses.all[p].sigma.vector().as_data());
-        vec_approx_eq(&elem.stresses.all[p].sigma.vector(), &stress, 1e-15);
+        println!("σ = {:?}", elem.states.all[p].stress.vector().as_data());
+        vec_approx_eq(&elem.states.all[p].stress.vector(), &stress, 1e-15);
     }
     Ok(())
 }

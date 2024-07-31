@@ -96,7 +96,7 @@ impl StressStrainTrait for VonMises {
         }
 
         // extract current state variables
-        let sigma = &state.sigma;
+        let sigma = &state.stress;
         let lambda = state.algo_lambda;
         sigma.deviator(&mut self.s); // s = dev(σ)
 
@@ -131,7 +131,7 @@ impl StressStrainTrait for VonMises {
 
         // trial stress: σ ← σ_trial
         let dd = self.lin_elasticity.get_modulus();
-        t4_ddot_t2_update(&mut state.sigma, 1.0, dd, delta_epsilon, 1.0); // σ += D : Δε
+        t4_ddot_t2_update(&mut state.stress, 1.0, dd, delta_epsilon, 1.0); // σ += D : Δε
 
         // elastic update
         let f_trial = self.yield_function(state).unwrap();
@@ -141,17 +141,17 @@ impl StressStrainTrait for VonMises {
 
         // coefficients
         let (gg, hh) = (self.gg, self.hh);
-        let sigma_m_trial = state.sigma.invariant_sigma_m();
-        let sigma_d_trial = state.sigma.invariant_sigma_d();
+        let sigma_m_trial = state.stress.invariant_sigma_m();
+        let sigma_d_trial = state.stress.invariant_sigma_d();
         let lambda = f_trial / (3.0 * gg + hh);
         let m = 1.0 - lambda * 3.0 * gg / sigma_d_trial;
 
         // s_trial = dev(σ_trial)
-        state.sigma.deviator(&mut self.s); // s ← s_trial
+        state.stress.deviator(&mut self.s); // s ← s_trial
 
         // access Mandel representation
-        let nd = state.sigma.dim();
-        let vec = state.sigma.vector_mut();
+        let nd = state.stress.dim();
+        let vec = state.stress.vector_mut();
         let s_trial = self.s.vector();
 
         // σ_new = m s_trial + σm_trial I
@@ -162,7 +162,7 @@ impl StressStrainTrait for VonMises {
         // elastoplastic update
         state.loading = true;
         state.algo_lambda = lambda;
-        state.internal_values[Z0] = state.sigma.invariant_sigma_d();
+        state.internal_values[Z0] = state.stress.invariant_sigma_d();
         Ok(())
     }
 }
@@ -175,7 +175,7 @@ impl PlasticityTrait for VonMises {
 
     /// Calculates the yield function f
     fn yield_function(&self, state: &StressStrainState) -> Result<f64, StrError> {
-        let sigma_d = state.sigma.invariant_sigma_d();
+        let sigma_d = state.stress.invariant_sigma_d();
         let z = state.internal_values[Z0];
         Ok(sigma_d - z)
     }
@@ -194,7 +194,7 @@ impl PlasticityTrait for VonMises {
     /// Calculates the derivative of the yield function w.r.t stress
     fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &StressStrainState) -> Result<(), StrError> {
         // df/dσ = dσd/dσ
-        match deriv1_invariant_sigma_d(df_dsigma, &state.sigma) {
+        match deriv1_invariant_sigma_d(df_dsigma, &state.stress) {
             Some(_) => Ok(()),
             None => Err("cannot compute df/dσ due to singularity"),
         }
@@ -242,8 +242,8 @@ mod tests {
         let mut correct_sigma_m = 0.0;
         let mut correct_sigma_d = 0.0;
         for i in 1..states.len() {
-            let sigma_m = states[i].sigma.invariant_sigma_m();
-            let sigma_d = states[i].sigma.invariant_sigma_d();
+            let sigma_m = states[i].stress.invariant_sigma_m();
+            let sigma_d = states[i].stress.invariant_sigma_d();
             let deps_v = states[i].eps().invariant_eps_v() - states[i - 1].eps().invariant_eps_v();
             let deps_d = states[i].eps().invariant_eps_d() - states[i - 1].eps().invariant_eps_d();
             if i == 1 {
@@ -416,7 +416,7 @@ mod tests {
         let n_internal_values = model.n_internal_values();
         let with_optional = true;
         let mut state = StressStrainState::new(config.mandel, n_internal_values, with_optional);
-        state.sigma.set_tensor(1.0, &path.states[0].sigma);
+        state.stress.set_tensor(1.0, &path.states[0].stress);
         model.initialize_internal_values(&mut state).unwrap();
 
         // states array

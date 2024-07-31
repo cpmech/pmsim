@@ -47,16 +47,16 @@ impl Axis {
             }
             Self::SigM(negative) => {
                 let n = if *negative { -1.0 } else { 1.0 };
-                states.iter().map(|s| n * s.sigma.invariant_sigma_m()).collect()
+                states.iter().map(|s| n * s.stress.invariant_sigma_m()).collect()
             }
             Self::SigD(normalized) => {
                 if *normalized {
                     states
                         .iter()
-                        .map(|s| s.sigma.invariant_sigma_d() / f64::abs(s.sigma.invariant_sigma_m()))
+                        .map(|s| s.stress.invariant_sigma_d() / f64::abs(s.stress.invariant_sigma_m()))
                         .collect()
                 } else {
-                    states.iter().map(|s| s.sigma.invariant_sigma_d()).collect()
+                    states.iter().map(|s| s.stress.invariant_sigma_d()).collect()
                 }
             }
             Self::Time => states.iter().map(|s| s.time()).collect(),
@@ -277,13 +277,13 @@ impl StressStrainPlot {
         if n < 1 {
             return Err("there are not enough stresses to plot");
         }
-        let two_dim = states[0].sigma.mandel().two_dim();
+        let two_dim = states[0].stress.mandel().two_dim();
         let mut spectral = Spectral2::new(two_dim);
         let mut xx = vec![0.0; n];
         let mut yy = vec![0.0; n];
         let mut r = 0.0;
         for i in 0..n {
-            spectral.decompose(&states[i].sigma)?;
+            spectral.decompose(&states[i].stress)?;
             let (y, _, x) = spectral.octahedral_basis();
             xx[i] = x;
             yy[i] = y;
