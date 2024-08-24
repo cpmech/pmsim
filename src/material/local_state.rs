@@ -1,4 +1,3 @@
-use super::LocalState;
 use russell_lab::Vector;
 use russell_tensor::{Mandel, Tensor2};
 
@@ -104,18 +103,6 @@ impl LocalStatePath {
 }
 
 impl LocalStateAll {
-    pub fn from(state: &LocalState) -> Self {
-        LocalStateAll {
-            internal_values: state.internal_values.clone(),
-            stress: state.stress.clone(),
-            strain: Tensor2::new(state.stress.mandel()),
-            f: UNINITIALIZED,
-            liquid_saturation: UNINITIALIZED,
-            porosity: UNINITIALIZED,
-            elastic: true,
-        }
-    }
-
     pub fn from_path(state: &LocalStatePath) -> Self {
         LocalStateAll {
             internal_values: Vector::new(0),
