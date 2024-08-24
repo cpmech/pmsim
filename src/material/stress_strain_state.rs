@@ -7,7 +7,7 @@ use std::fmt;
 ///
 /// This data is associated with a Gauss (integration) point
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LocalState {
+pub struct LocalStateOld {
     /// Indicates elastoplastic loading (vs elastic)
     pub loading: bool,
 
@@ -33,11 +33,11 @@ pub struct LocalState {
 /// Implements an array of LocalState
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ArrLocalState {
-    pub all: Vec<LocalState>,
-    backup: Vec<LocalState>,
+    pub all: Vec<LocalStateOld>,
+    backup: Vec<LocalStateOld>,
 }
 
-impl LocalState {
+impl LocalStateOld {
     /// Allocates a new instance
     ///
     /// # Input
@@ -55,7 +55,7 @@ impl LocalState {
         } else {
             (None, None, None)
         };
-        LocalState {
+        LocalStateOld {
             loading: false,
             apex_return: false,
             algo_lambda: 0.0,
@@ -72,7 +72,7 @@ impl LocalState {
     /// ```text
     /// non_optional(self) := non_optional(other)
     /// ```
-    pub fn copy_non_optional(&mut self, other: &LocalState) {
+    pub fn copy_non_optional(&mut self, other: &LocalStateOld) {
         self.loading = other.loading;
         self.apex_return = other.apex_return;
         self.algo_lambda = other.algo_lambda;
@@ -156,7 +156,7 @@ impl LocalState {
 impl ArrLocalState {
     /// Allocates a new instance
     pub fn new(mandel: Mandel, n_internal_values: usize, with_optional: bool, n_integ_point: usize) -> Self {
-        let zero_state = LocalState::new(mandel, n_internal_values, with_optional);
+        let zero_state = LocalStateOld::new(mandel, n_internal_values, with_optional);
         let all = vec![zero_state; n_integ_point];
         let backup = all.clone();
         ArrLocalState { all, backup }
@@ -186,7 +186,7 @@ impl ArrLocalState {
     }
 }
 
-impl fmt::Display for LocalState {
+impl fmt::Display for LocalStateOld {
     /// Returns a nicely formatted string representing the stress state
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mat = self.stress.as_matrix();
@@ -221,14 +221,14 @@ impl fmt::Display for LocalState {
 
 #[cfg(test)]
 mod tests {
-    use super::LocalState;
+    use super::LocalStateOld;
     use russell_tensor::Mandel;
 
     #[test]
     fn display_trait_works() {
         let mandel = Mandel::Symmetric2D;
         let with_optional = false;
-        let mut state = LocalState::new(mandel, 2, with_optional);
+        let mut state = LocalStateOld::new(mandel, 2, with_optional);
         state.stress.vector_mut()[0] = 1.0;
         state.stress.vector_mut()[1] = 2.0;
         state.stress.vector_mut()[2] = -3.0;
@@ -253,7 +253,7 @@ mod tests {
     fn display_trait_with_optional_works() {
         let mandel = Mandel::Symmetric2D;
         let with_optional = true;
-        let mut state = LocalState::new(mandel, 2, with_optional);
+        let mut state = LocalStateOld::new(mandel, 2, with_optional);
         state.stress.vector_mut()[0] = 1.0;
         state.stress.vector_mut()[1] = 2.0;
         state.stress.vector_mut()[2] = -3.0;

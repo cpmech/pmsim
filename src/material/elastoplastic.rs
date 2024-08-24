@@ -1,4 +1,4 @@
-use super::{LocalState, Plasticity, StressStrainTrait};
+use super::{LocalStateOld, Plasticity, StressStrainTrait};
 use crate::base::{Config, ParamSolid, StressUpdate};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, InterpChebyshev, RootFinder, Vector};
@@ -40,7 +40,7 @@ struct Arguments {
     yf_count: usize,
 
     /// Current state
-    state: LocalState,
+    state: LocalStateOld,
 
     /// Strain increment Δε
     delta_epsilon: Tensor2,
@@ -64,14 +64,14 @@ struct Arguments {
     /// Allocated only if with_history == true
     ///
     /// **Note:** This array will be reset at every stress-update
-    history_elastic: Option<Vec<LocalState>>,
+    history_elastic: Option<Vec<LocalStateOld>>,
 
     /// History of results (for plotting)
     ///
     /// Allocated only if with_history == true
     ///
     /// **Note:** This array will be reset at every stress-update
-    history_elastoplastic: Option<Vec<LocalState>>,
+    history_elastoplastic: Option<Vec<LocalStateOld>>,
 }
 
 impl Arguments {
@@ -89,7 +89,7 @@ impl Arguments {
             plasticity,
             yf_values: Vector::new(interp_npoint),
             yf_count: 0,
-            state: LocalState::new(config.mandel, n_internal_values, with_optional),
+            state: LocalStateOld::new(config.mandel, n_internal_values, with_optional),
             delta_epsilon: Tensor2::new(config.mandel),
             dsigma_dt: Tensor2::new(config.mandel),
             dz_dt: Vector::new(n_internal_values),
@@ -142,14 +142,14 @@ pub struct Elastoplastic<'a> {
     /// Allocated only if with_history == true
     ///
     /// **Note:** This array will hold all stress-strain state since the beginning of the simulation.
-    history_elastic: Option<Vec<Vec<LocalState>>>,
+    history_elastic: Option<Vec<Vec<LocalStateOld>>>,
 
     /// History of results (for plotting)
     ///
     /// Allocated only if with_history == true
     ///
     /// **Note:** This array will hold all stress-strain state since the beginning of the simulation.
-    history_elastoplastic: Option<Vec<Vec<LocalState>>>,
+    history_elastoplastic: Option<Vec<Vec<LocalStateOld>>>,
 }
 
 impl<'a> Elastoplastic<'a> {
@@ -325,7 +325,7 @@ impl<'a> Elastoplastic<'a> {
     }
 
     /// Evaluates the yield function
-    pub fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
+    pub fn yield_function(&self, state: &LocalStateOld) -> Result<f64, StrError> {
         self.arguments.plasticity.model.yield_function(state)
     }
 }
@@ -342,12 +342,12 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     }
 
     /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
+    fn initialize_internal_values(&self, state: &mut LocalStateOld) -> Result<(), StrError> {
         self.arguments.plasticity.model.initialize_internal_values(state)
     }
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
+    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalStateOld) -> Result<(), StrError> {
         if self.stress_update_config.continuum_modulus {
             // TODO
             // self.arguments.plasticity.elastoplastic_rigidity(state)?;
@@ -359,7 +359,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_epsilon: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut LocalStateOld, delta_epsilon: &Tensor2) -> Result<(), StrError> {
         // use implicit (consistent) method
         if !self.stress_update_config.continuum_modulus {
             return self.arguments.plasticity.model.update_stress(state, delta_epsilon);

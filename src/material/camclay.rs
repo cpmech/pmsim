@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use super::{LocalState, StressStrainTrait};
+use super::{LocalStateOld, StressStrainTrait};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
@@ -18,7 +18,7 @@ impl CamClay {
     }
 
     /// Evaluates the yield function value at a stress/internal-values state
-    pub fn yield_function(&self, state: &LocalState) -> f64 {
+    pub fn yield_function(&self, state: &LocalStateOld) -> f64 {
         let z = state.internal_values[0];
         0.0
     }
@@ -36,17 +36,17 @@ impl StressStrainTrait for CamClay {
     }
 
     /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
+    fn initialize_internal_values(&self, state: &mut LocalStateOld) -> Result<(), StrError> {
         Err("TODO")
     }
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+    fn stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalStateOld) -> Result<(), StrError> {
         Err("TODO")
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, _state: &mut LocalState, _deps: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(&mut self, _state: &mut LocalStateOld, _deps: &Tensor2) -> Result<(), StrError> {
         Err("TODO")
     }
 }

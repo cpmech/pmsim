@@ -1,4 +1,4 @@
-use super::LocalState;
+use super::LocalStateOld;
 use crate::StrError;
 use plotpy::{Canvas, Curve, Plot, Text};
 use russell_lab::math::PI;
@@ -34,7 +34,7 @@ pub enum Axis {
 
 impl Axis {
     /// Calculate the invariants and labels
-    fn calc(&self, states: &[LocalState]) -> Vec<f64> {
+    fn calc(&self, states: &[LocalStateOld]) -> Vec<f64> {
         match self {
             Self::EpsV(percent, negative) => {
                 let n = if *negative { -1.0 } else { 1.0 };
@@ -137,7 +137,7 @@ impl StressStrainPlot {
     ///
     /// A panic may occur if strains are not available in `states` and
     /// the requested graph require strains.
-    pub fn draw<F>(&mut self, x_axis: Axis, y_axis: Axis, states: &[LocalState], mut config: F)
+    pub fn draw<F>(&mut self, x_axis: Axis, y_axis: Axis, states: &[LocalStateOld], mut config: F)
     where
         F: FnMut(&mut Curve),
     {
@@ -273,7 +273,7 @@ impl StressStrainPlot {
     ///
     /// * `states` -- the states with the stress points
     /// * `extra` -- is a function `|curve| {}` to configure the curve
-    pub fn draw_oct_projection<F>(&mut self, states: &[LocalState], mut extra: F) -> Result<(), StrError>
+    pub fn draw_oct_projection<F>(&mut self, states: &[LocalStateOld], mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve),
     {
@@ -384,7 +384,7 @@ impl StressStrainPlot {
     ///
     /// * `states` -- the stress and strain points
     /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_3x2_mosaic_struct<F>(&mut self, states: &[LocalState], mut extra: F)
+    pub fn draw_3x2_mosaic_struct<F>(&mut self, states: &[LocalStateOld], mut extra: F)
     where
         F: FnMut(&mut Curve, usize, usize),
     {
@@ -500,7 +500,7 @@ impl StressStrainPlot {
     ///
     /// * `states` -- the stress and strain points
     /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_2x2_mosaic_struct<F>(&mut self, states: &[LocalState], mut extra: F)
+    pub fn draw_2x2_mosaic_struct<F>(&mut self, states: &[LocalStateOld], mut extra: F)
     where
         F: FnMut(&mut Curve, usize, usize),
     {

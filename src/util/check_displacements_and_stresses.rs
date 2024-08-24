@@ -1,6 +1,6 @@
 use crate::base::DEFAULT_OUT_DIR;
 use crate::fem::{FemOutput, FemOutputSummary, FemState};
-use crate::material::LocalState;
+use crate::material::LocalStateOld;
 use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -28,7 +28,7 @@ pub fn check_displacements_and_stresses(
     extract: (usize, usize),
     tol_displacement: f64,
     tol_stress: f64,
-) -> Result<(Vec<LocalState>, Vec<LocalState>), StrError> {
+) -> Result<(Vec<LocalStateOld>, Vec<LocalStateOld>), StrError> {
     // constants
     let ndim = mesh.ndim;
     let ncp = 2 * ndim;
@@ -161,7 +161,7 @@ pub fn check_displacements_and_stresses(
             for ip in 0..n_integ_point {
                 if e == extract.0 && ip == extract.1 {
                     let state = fem_state.extract_stresses_and_strains(e, ip).unwrap();
-                    let mut state_ref = LocalState::new(mandel, 0, with_optional);
+                    let mut state_ref = LocalStateOld::new(mandel, 0, with_optional);
                     for i in 0..ncp {
                         if i > 3 {
                             state_ref.stress.vector_mut()[i] = compare.stresses[e][ip][i] * SQRT_2;

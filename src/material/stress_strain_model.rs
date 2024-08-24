@@ -1,4 +1,4 @@
-use super::{CamClay, Elastoplastic, LinearElastic, LocalState, VonMises};
+use super::{CamClay, Elastoplastic, LinearElastic, LocalStateOld, VonMises};
 use crate::base::{Config, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -19,13 +19,13 @@ pub trait StressStrainTrait: Send {
     fn n_internal_values(&self) -> usize;
 
     /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError>;
+    fn initialize_internal_values(&self, state: &mut LocalStateOld) -> Result<(), StrError>;
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
+    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalStateOld) -> Result<(), StrError>;
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_epsilon: &Tensor2) -> Result<(), StrError>;
+    fn update_stress(&mut self, state: &mut LocalStateOld, delta_epsilon: &Tensor2) -> Result<(), StrError>;
 }
 
 /// Holds the actual stress-strain model implementation
