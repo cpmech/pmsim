@@ -1,10 +1,9 @@
 use super::{FemInput, SecondaryValues};
 use crate::base::{Config, Element};
-use crate::material::StressState;
+use crate::material::LocalState;
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::Vector;
-use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs::{self, File};
@@ -180,19 +179,15 @@ impl FemState {
         &self,
         cell_id: CellId,
         integ_point: usize,
-    ) -> Result<(&StressState, &Tensor2), StrError> {
+    ) -> Result<&LocalState, StrError> {
         match &self.secondary_values {
             Some(all_values) => {
                 let values = &all_values[cell_id];
-                let stress_state = match &values.stresses {
-                    Some(stress_states) => &stress_states.all[integ_point],
+                let state = match &values.stresses_and_strains {
+                    Some(states) => &states.all[integ_point],
                     None => return Err("element does not have stresses at the selected integration point"),
                 };
-                let epsilon = match &values.strains {
-                    Some(strain_states) => &strain_states.all[integ_point],
-                    None => return Err("element does not have strains at the selected integration point"),
-                };
-                Ok((stress_state, epsilon))
+                Ok(state)
             }
             None => {
                 Err("secondary values are not available for this problem (need config.out_secondary_values = true)")
@@ -206,20 +201,16 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{Config, Element, SampleParams};
+    use crate::base::{new_empty_mesh_2d, Config, Element, SampleParams};
     use crate::fem::FemInput;
-    use gemlab::mesh::{Mesh, Samples};
+    use gemlab::mesh::Samples;
 
     #[test]
     fn new_handles_errors() {
-        let empty_mesh = Mesh {
-            ndim: 2,
-            points: Vec::new(),
-            cells: Vec::new(),
-        };
+        let empty_mesh = new_empty_mesh_2d();
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&empty_mesh);
         assert_eq!(
             FemState::new(&input, &config).err(),
             Some("there are no cells in the mesh")
@@ -238,7 +229,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         assert_eq!(
             FemState::new(&input, &config).err(),
             Some("cannot combine Diffusion elements with other elements")
@@ -254,7 +245,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         assert_eq!(
             FemState::new(&input, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
@@ -270,7 +261,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         assert_eq!(
             FemState::new(&input, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
@@ -292,7 +283,7 @@ mod tests {
             ],
         )
         .unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.dt, 1.0);
@@ -305,7 +296,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.transient = true;
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -323,7 +314,7 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_rod();
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), input.equations.n_equation);
@@ -340,7 +331,7 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_liq();
         let input = FemInput::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), input.equations.n_equation);
@@ -352,7 +343,7 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_liq_gas();
         let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), input.equations.n_equation);
@@ -364,7 +355,7 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = SampleParams::param_porous_sld_liq_gas();
         let input = FemInput::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), input.equations.n_equation);
@@ -377,7 +368,7 @@ mod tests {
         let p1 = SampleParams::param_rod();
         let p2 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1)), (2, Element::Solid(p2))]).unwrap();
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.dynamics = true;
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -395,7 +386,7 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = SampleParams::param_rod();
         let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state_ori = FemState::new(&input, &config).unwrap();
         let state = state_ori.clone();
         let str_ori = format!("{:?}", state).to_string();

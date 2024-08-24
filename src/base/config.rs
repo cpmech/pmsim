@@ -1,8 +1,9 @@
 use super::{Control, FnTime, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{Cell, CellAttribute};
+use gemlab::mesh::{Cell, CellAttribute, Mesh};
 use russell_sparse::{Genie, LinSolParams};
+use russell_tensor::Mandel;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -76,13 +77,25 @@ pub struct Config {
     /// Output secondary values such as a stresses, strains, and internal values
     pub out_secondary_values: bool,
 
-    /// Do not output strains when outputting stresses
-    pub out_no_strains: bool,
+    /// Output strains during the output of secondary values
+    pub out_strains: bool,
+
+    /// Allow initial yield surface drift in material models
+    pub model_allow_initial_drift: bool,
+
+    /// Indicates 2D instead of 3D
+    pub(crate) two_dim: bool,
+
+    /// Holds the Mandel representation type (for symmetric tensors)
+    ///
+    /// **Note:** This constant will be Symmetric or Symmetric2D. Thus, models
+    /// requiring the General representation will have to use Mandel::General directly
+    pub(crate) mandel: Mandel,
 }
 
 impl Config {
     /// Allocates a new instance
-    pub fn new() -> Self {
+    pub fn new(mesh: &Mesh) -> Self {
         Config {
             linear_problem: false,
             transient: false,
@@ -101,7 +114,14 @@ impl Config {
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
             out_secondary_values: false,
-            out_no_strains: false,
+            out_strains: false,
+            model_allow_initial_drift: false,
+            two_dim: mesh.ndim == 2,
+            mandel: if mesh.ndim == 2 {
+                Mandel::Symmetric2D
+            } else {
+                Mandel::Symmetric
+            },
         }
     }
 
@@ -213,13 +233,15 @@ impl fmt::Display for Config {
 #[cfg(test)]
 mod tests {
     use super::Config;
-    use crate::base::{Init, ParamFluids, ParamRealDensity};
+    use crate::base::{Init, ParamFluids, ParamRealDensity, SampleMeshes};
     use gemlab::mesh::Samples;
     use std::collections::HashMap;
 
     #[test]
     fn new_works() {
-        let config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+
+        let config = Config::new(&mesh);
         assert_eq!(config.linear_problem, false);
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
@@ -229,7 +251,7 @@ mod tests {
         assert_eq!(config.total_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
 
         config.param_fluids = Some(ParamFluids {
             density_liquid: ParamRealDensity {
@@ -275,7 +297,8 @@ mod tests {
 
     #[test]
     fn validate_works() {
-        let mut config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
 
         config.control.t_ini = -1.0;
         assert_eq!(
@@ -334,14 +357,16 @@ mod tests {
 
     #[test]
     fn validate_or_panic_works() {
-        let config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let config = Config::new(&mesh);
         config.validate_or_panic(2, false);
     }
 
     #[test]
     #[should_panic(expected = "config.validate() failed")]
     fn validate_or_panic_panics() {
-        let mut config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
         config.control.t_ini = -1.0;
         config.validate_or_panic(3, false);
     }
@@ -349,7 +374,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "config.validate() failed")]
     fn validate_or_panic_panics_verbose() {
-        let mut config = Config::new();
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
         config.control.t_ini = -1.0;
         config.validate_or_panic(3, true);
     }

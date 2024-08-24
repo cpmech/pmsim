@@ -71,6 +71,8 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             z0: Z0,
             hh: 800.0,
         },
+        nonlin_elast: None,
+        stress_update: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
 
@@ -89,9 +91,10 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let natural = Natural::new();
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.n_integ_point.insert(1, 1);
     config.out_secondary_values = true;
+    config.out_strains = true;
     config.control.dt = |_| 1.0;
     config.control.dt_out = |_| 1.0;
     config.control.t_fin = N_STEPS as f64;

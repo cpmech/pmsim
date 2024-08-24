@@ -206,7 +206,7 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut state = FemState::new(&input, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation

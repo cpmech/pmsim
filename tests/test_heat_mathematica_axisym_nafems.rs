@@ -95,7 +95,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     natural.on(&edges_flux, Nbc::Qt(|_| 5e5));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.axisymmetric = true;
 
     // FEM state

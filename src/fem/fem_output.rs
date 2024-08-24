@@ -76,7 +76,7 @@ impl<'a> FemOutput<'a> {
     /// * `filename_steam` -- the last part of the filename without extension, e.g., "my_simulation".
     ///   None means that no files will be written.
     /// * `output_directory` -- the directory to save the output files.
-    ///   None means that the default directory will be used; see [DEFAULT_OUTPUT_DIR]
+    ///   None means that the default directory will be used; see [DEFAULT_OUT_DIR]
     /// * `callback` -- is a function to be called at each time-output.
     ///   Example use `Some(|state, count| { ... })` to perform some processing on state at time `state.t`.
     ///   `count` is the corresponding `output_count` used to generate the output file.
@@ -249,7 +249,7 @@ mod tests {
         let feat = Features::new(&mesh, false);
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut state = FemState::new(&input, &config).unwrap();
         state.uu[0] = 1.0;
         state.uu[1] = 2.0;

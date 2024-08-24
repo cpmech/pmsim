@@ -62,7 +62,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     natural.at(&[1], Pbc::Fy(|_| -150000.0));
 
     // configuration
-    let config = Config::new();
+    let config = Config::new(&mesh);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

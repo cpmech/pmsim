@@ -74,7 +74,7 @@ impl<'a> LinearSystem<'a> {
 
         // estimate the number of non-zero values
         let mut nnz_sup = prescribed_values.equations.len();
-        let sym = config.lin_sol_genie.symmetry(symmetric);
+        let sym = config.lin_sol_genie.get_sym(symmetric);
 
         // elements always have a Jacobian matrix (all must be symmetric to use symmetry)
         nnz_sup += elements.all.iter().fold(0, |acc, e| {
@@ -118,22 +118,18 @@ impl<'a> LinearSystem<'a> {
 #[cfg(test)]
 mod tests {
     use super::LinearSystem;
-    use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, SampleParams};
+    use crate::base::{new_empty_mesh_2d, Config, Ebc, Element, Essential, Natural, Nbc, SampleParams};
     use crate::fem::{Boundaries, Elements, FemInput, PrescribedValues};
-    use gemlab::mesh::{Feature, Mesh, Samples};
+    use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
     use russell_sparse::{Genie, Sym};
 
     #[test]
     fn new_handles_errors() {
-        let empty_mesh = Mesh {
-            ndim: 2,
-            points: Vec::new(),
-            cells: Vec::new(),
-        };
+        let empty_mesh = new_empty_mesh_2d();
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&empty_mesh);
         let essential = Essential::new();
         let natural = Natural::new();
         let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
@@ -188,7 +184,7 @@ mod tests {
             + n_equation_convection * n_equation_convection;
 
         // allowing symmetry, but with full matrix (UMFPACK)
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.lin_sol_genie = Genie::Umfpack;
         let elements = Elements::new(&input, &config).unwrap();
         let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
@@ -205,7 +201,7 @@ mod tests {
         );
 
         // using symmetry (MUMPS)
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.lin_sol_genie = Genie::Mumps;
         let elements = Elements::new(&input, &config).unwrap();
         let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
@@ -222,7 +218,7 @@ mod tests {
         );
 
         // ignoring symmetry (MUMPS)
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.lin_sol_genie = Genie::Mumps;
         config.ignore_jacobian_symmetry = true;
         let elements = Elements::new(&input, &config).unwrap();

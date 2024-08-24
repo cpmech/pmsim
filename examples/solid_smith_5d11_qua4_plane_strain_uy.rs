@@ -56,6 +56,8 @@ fn main() -> Result<(), StrError> {
             young: 1e6,
             poisson: 0.3,
         },
+        nonlin_elast: None,
+        stress_update: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
 
@@ -72,7 +74,7 @@ fn main() -> Result<(), StrError> {
     let natural = Natural::new();
 
     // configuration
-    let config = Config::new();
+    let config = Config::new(&mesh);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

@@ -150,6 +150,8 @@ fn main() -> Result<(), StrError> {
                 young: YOUNG,
                 poisson: POISSON,
             },
+            nonlin_elast: None,
+            stress_update: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
 
@@ -215,7 +217,7 @@ fn main() -> Result<(), StrError> {
             .on(&outer_circle, Nbc::Qn(|_| -P2));
 
         // configuration
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.linear_problem = true;
         config.control.verbose_timesteps = false;
         config.control.save_vismatrix_file = false;

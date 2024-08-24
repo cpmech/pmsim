@@ -272,7 +272,7 @@ mod tests {
 
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let minus_ten = |_| -10.0;
         assert_eq!(minus_ten(0.0), -10.0);
 
@@ -308,7 +308,7 @@ mod tests {
 
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
 
         let mut natural = Natural::new();
         natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
@@ -331,7 +331,7 @@ mod tests {
 
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 25.0;
@@ -405,7 +405,7 @@ mod tests {
         let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
 
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
         let mut bry = Boundary::new(&input, &config, &top, Nbc::Qz(fq)).unwrap();
@@ -422,7 +422,7 @@ mod tests {
 
         let p1 = SampleParams::param_porous_liq_gas();
         let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = -10.0;
@@ -449,7 +449,7 @@ mod tests {
 
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 10.0;
@@ -493,7 +493,7 @@ mod tests {
 
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 5e6;
@@ -530,7 +530,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
-        let config = Config::new();
+        let config = Config::new(&mesh);
         let mut natural = Natural::new();
         let edge = Feature {
             kind: GeoKind::Lin2,

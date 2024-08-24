@@ -50,6 +50,8 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
             young: 10_000.0,
             poisson: 0.2,
         },
+        nonlin_elast: None,
+        stress_update: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
 
@@ -63,7 +65,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -20.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.plane_stress = true;
     config.thickness = 0.25;
     config.validate_or_panic(mesh.ndim, true);

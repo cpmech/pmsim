@@ -72,7 +72,7 @@ fn main() -> Result<(), StrError> {
         .on(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
 
     // configuration
-    let config = Config::new();
+    let config = Config::new(&mesh);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

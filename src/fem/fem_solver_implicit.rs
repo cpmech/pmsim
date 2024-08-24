@@ -243,9 +243,9 @@ impl<'a> FemSolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemSolverImplicit;
-    use crate::base::{Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
+    use crate::base::{new_empty_mesh_2d, Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
     use crate::fem::{FemInput, FemOutput, FemState};
-    use gemlab::mesh::{Feature, Mesh, Samples};
+    use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
@@ -257,13 +257,13 @@ mod tests {
         let natural = Natural::new();
 
         // error due to config.validate
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.control.dt_min = -1.0;
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
-        let config = Config::new();
+        let config = Config::new(&mesh);
 
         // error due to prescribed_values
         let f = |_| 123.0;
@@ -286,13 +286,13 @@ mod tests {
         let natural = Natural::new();
 
         // error due to elements
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.n_integ_point.insert(1, 100); // wrong
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("desired number of integration points is not available for Hex class")
         );
-        let config = Config::new();
+        let config = Config::new(&mesh);
 
         // error due to boundaries
         let mut natural = Natural::new();
@@ -308,11 +308,8 @@ mod tests {
         let natural = Natural::new();
 
         // error due to linear_system
-        let empty_mesh = Mesh {
-            ndim: 2,
-            points: Vec::new(),
-            cells: Vec::new(),
-        };
+        let empty_mesh = new_empty_mesh_2d();
+        let config = Config::new(&empty_mesh);
         let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
@@ -325,7 +322,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let mut config = Config::new();
+        let mut config = Config::new(&mesh);
         config.control.dt = |_| -1.0; // wrong
         let essential = Essential::new();
         let natural = Natural::new();

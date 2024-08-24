@@ -52,6 +52,8 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
             young: 100.0,
             poisson: 0.3,
         },
+        nonlin_elast: None,
+        stress_update: None,
     };
     let p2 = ParamSolid {
         density: 1.0,
@@ -59,6 +61,8 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
             young: 50.0,
             poisson: 0.3,
         },
+        nonlin_elast: None,
+        stress_update: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1)), (2, Element::Solid(p2))])?;
 
@@ -77,7 +81,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -1.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.n_integ_point.insert(1, 8);
     config.n_integ_point.insert(2, 8);
 

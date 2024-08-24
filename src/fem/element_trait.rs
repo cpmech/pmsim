@@ -3,7 +3,7 @@ use crate::StrError;
 use russell_lab::{Matrix, Vector};
 
 /// Defines the trait for local (element) equations
-pub trait ElementTrait: Send + Sync {
+pub trait ElementTrait: Send {
     /// Returns whether the local Jacobian matrix is symmetric or not
     fn symmetric_jacobian(&self) -> bool;
 

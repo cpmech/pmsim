@@ -61,6 +61,8 @@ fn main() -> Result<(), StrError> {
             young: 1e6,
             poisson: 0.3,
         },
+        nonlin_elast: None,
+        stress_update: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
 
@@ -73,7 +75,7 @@ fn main() -> Result<(), StrError> {
     natural.on(&top, Nbc::Qn(|_| -1.0));
 
     // configuration
-    let mut config = Config::new();
+    let mut config = Config::new(&mesh);
     config.lin_sol_genie = Genie::Mumps;
     config.lin_sol_params.verbose = false;
 
