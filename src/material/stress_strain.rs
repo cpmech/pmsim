@@ -22,12 +22,12 @@ pub trait StressStrainTrait: Send {
 }
 
 /// Holds the actual stress-strain model implementation
-pub struct ModelStressStrain {
+pub struct StressStrain {
     /// Holds the actual model implementation
     pub actual: Box<dyn StressStrainTrait>,
 }
 
-impl ModelStressStrain {
+impl StressStrain {
     /// Allocates a new instance
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
         let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
@@ -48,7 +48,7 @@ impl ModelStressStrain {
                 Box::new(VonMises::new(config, young, poisson, z0, hh))
             }
         };
-        Ok(ModelStressStrain { actual })
+        Ok(StressStrain { actual })
     }
 }
 
@@ -56,25 +56,25 @@ impl ModelStressStrain {
 
 #[cfg(test)]
 mod tests {
-    use super::ModelStressStrain;
+    use super::StressStrain;
     use crate::base::{new_empty_config_2d, SampleParams};
 
     #[test]
     fn allocate_stress_strain_model_works() {
         let mut config = new_empty_config_2d();
         let param = SampleParams::param_solid();
-        ModelStressStrain::new(&config, &param).unwrap();
+        StressStrain::new(&config, &param).unwrap();
 
         config.plane_stress = true;
         let param = SampleParams::param_solid_von_mises();
         assert_eq!(
-            ModelStressStrain::new(&config, &param,).err(),
+            StressStrain::new(&config, &param,).err(),
             Some("von Mises model does not work in plane-stress")
         );
 
         config.plane_stress = false;
         let param = SampleParams::param_solid_von_mises();
-        ModelStressStrain::new(&config, &param).unwrap();
+        StressStrain::new(&config, &param).unwrap();
     }
 
     #[test]
@@ -82,6 +82,6 @@ mod tests {
     fn allocate_stress_strain_fails() {
         let config = new_empty_config_2d();
         let param = SampleParams::param_solid_drucker_prager();
-        ModelStressStrain::new(&config, &param).unwrap();
+        StressStrain::new(&config, &param).unwrap();
     }
 }
