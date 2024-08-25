@@ -3,13 +3,6 @@ use crate::base::{Config, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
-pub enum StressStrainModelName {
-    LinearElastic,
-    VonMises,
-    DruckerPrager,
-    CamClay,
-}
-
 /// Specifies the essential functions for stress-strain models
 pub trait StressStrainTrait: Send {
     /// Indicates that the stiffness matrix is symmetric
