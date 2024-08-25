@@ -1,11 +1,8 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
-use plotpy::Canvas;
-use pmsim::material::StressStrainPlot;
 use pmsim::prelude::*;
 use pmsim::util::check_displacements_and_stresses;
 use russell_lab::*;
-use russell_tensor::SQRT_2_BY_3;
 
 // von Mises plasticity with a single-element
 //
@@ -41,7 +38,6 @@ use russell_tensor::SQRT_2_BY_3;
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 
 const NAME: &str = "test_von_mises_single_element_2d";
-const SAVE_FIGURE: bool = false;
 
 #[test]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
@@ -111,7 +107,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     solver.solve(&mut state, &mut output)?;
 
     // check results
-    let (stresses, ref_stresses) = check_displacements_and_stresses(
+    let _ = check_displacements_and_stresses(
         &mesh,
         NAME,
         "spo_von_mises_single_element_2d.json",
@@ -119,37 +115,5 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         1e-13,
         1e-10,
     )?;
-
-    // plotting
-    if SAVE_FIGURE {
-        let mut ssp = StressStrainPlot::new();
-        ssp.draw_oct_projection(&stresses, |curve| {
-            curve
-                .set_label("PMSIM")
-                .set_line_color("blue")
-                .set_marker_style(".")
-                .set_marker_size(8.0);
-        })?;
-        ssp.draw_oct_projection(&ref_stresses, |curve| {
-            curve
-                .set_label("HYPLAS")
-                .set_line_color("red")
-                .set_marker_style("o")
-                .set_marker_size(10.0)
-                .set_marker_void(true);
-        })?;
-        let path_svg = format!("{}/{}.svg", DEFAULT_OUT_DIR, NAME);
-        ssp.save_oct_projection(&path_svg, |plot, before| {
-            if before {
-                let mut circle = Canvas::new();
-                circle.set_edge_color("gray").set_face_color("None");
-                circle.draw_circle(0.0, 0.0, Z0 * SQRT_2_BY_3);
-                plot.add(&circle);
-            } else {
-                plot.legend().set_figure_size_points(800.0, 800.0);
-            }
-        })
-        .unwrap();
-    }
     Ok(())
 }

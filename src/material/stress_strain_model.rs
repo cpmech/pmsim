@@ -1,4 +1,4 @@
-use super::{CamClay, Elastoplastic, LinearElastic, LocalStateOld, VonMises};
+use super::{CamClay, LinearElastic, LocalState, VonMises};
 use crate::base::{Config, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -19,13 +19,13 @@ pub trait StressStrainTrait: Send {
     fn n_internal_values(&self) -> usize;
 
     /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalStateOld) -> Result<(), StrError>;
+    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError>;
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalStateOld) -> Result<(), StrError>;
+    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalStateOld, delta_epsilon: &Tensor2) -> Result<(), StrError>;
+    fn update_stress(&mut self, state: &mut LocalState, delta_epsilon: &Tensor2) -> Result<(), StrError>;
 }
 
 /// Holds the actual stress-strain model implementation
@@ -37,10 +37,6 @@ pub struct StressStrainModel {
 impl StressStrainModel {
     /// Allocates a new instance
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
-        let general = match param.stress_update {
-            Some(p) => p.general_plasticity,
-            None => false,
-        };
         let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
             // Linear elastic model
             ParamStressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(config, young, poisson)),
@@ -56,11 +52,7 @@ impl StressStrainModel {
                 if config.plane_stress {
                     return Err("von Mises model does not work in plane-stress");
                 }
-                if general {
-                    Box::new(Elastoplastic::new(config, param)?)
-                } else {
-                    Box::new(VonMises::new(config, young, poisson, z0, hh))
-                }
+                Box::new(VonMises::new(config, young, poisson, z0, hh))
             }
         };
         Ok(StressStrainModel { actual })

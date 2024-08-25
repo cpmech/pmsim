@@ -64,8 +64,7 @@ impl<'a> ElementSolid<'a> {
         // model and stresses
         let model = StressStrainModel::new(config, param)?;
         let n_int_values = model.actual.n_internal_values();
-        let with_optional = false;
-        let states = ArrLocalState::new(config.mandel, n_int_values, with_optional, n_integ_point);
+        let states = ArrLocalState::new(config.mandel, n_int_values, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -279,23 +278,18 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         let n_integ_point = self.ips.len();
         if second_values.stresses_and_strains.is_none() {
             let n_internal_values = self.model.actual.n_internal_values();
-            let with_optional = self.config.out_strains;
-            second_values.stresses_and_strains = Some(ArrLocalState::new(
-                self.config.mandel,
-                n_internal_values,
-                with_optional,
-                n_integ_point,
-            ));
+            second_values.stresses_and_strains =
+                Some(ArrLocalState::new(self.config.mandel, n_internal_values, n_integ_point));
         }
         let local_states = &mut second_values.stresses_and_strains.as_mut().unwrap().all;
         for p in 0..self.ips.len() {
-            local_states[p].copy_non_optional(&self.states.all[p]);
+            local_states[p].mirror(&self.states.all[p]);
         }
-        if self.config.out_strains {
-            for p in 0..self.ips.len() {
-                self.calc_strains(local_states[p].strain_mut(), &state.uu, p)?;
-            }
-        }
+        // if self.config.out_strains {
+        // for p in 0..self.ips.len() {
+        // self.calc_strains(local_states[p].strain_mut(), &state.uu, p)?;
+        // }
+        // }
         Ok(())
     }
 }

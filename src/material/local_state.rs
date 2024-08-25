@@ -1,4 +1,4 @@
-use russell_lab::Vector;
+use russell_lab::{vec_copy, Vector};
 use russell_tensor::{Mandel, Tensor2};
 use serde::{Deserialize, Serialize};
 
@@ -66,6 +66,13 @@ pub struct LocalStatePath {
     pub strain: Tensor2,
 }
 
+/// Implements an array of LocalState
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ArrLocalState {
+    pub all: Vec<LocalState>,
+    backup: Vec<LocalState>,
+}
+
 /// Implements an array of LocalStatePath
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ArrLocalStatePath {
@@ -113,6 +120,19 @@ impl LocalState {
             algo_lagrange: 0.0,
         }
     }
+
+    /// Copy data from another state into this state
+    ///
+    /// ```text
+    /// non_optional(self) := non_optional(other)
+    /// ```
+    pub fn mirror(&mut self, other: &LocalState) {
+        self.elastic = other.elastic;
+        self.apex_return = other.apex_return;
+        self.algo_lagrange = other.algo_lagrange;
+        vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
+        self.stress.set_tensor(1.0, &other.stress);
+    }
 }
 
 impl LocalStatePath {
@@ -152,5 +172,38 @@ impl LocalStateAll {
             porosity: UNINITIALIZED,
             elastic: true,
         }
+    }
+}
+
+impl ArrLocalState {
+    /// Allocates a new instance
+    pub fn new(mandel: Mandel, n_internal_values: usize, n_integ_point: usize) -> Self {
+        let zero_state = LocalState::new(mandel, n_internal_values);
+        let all = vec![zero_state; n_integ_point];
+        let backup = all.clone();
+        ArrLocalState { all, backup }
+    }
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    pub fn reset_algorithmic_variables(&mut self) {
+        self.all.iter_mut().for_each(|state| state.algo_lagrange = 0.0);
+    }
+
+    /// Creates a copy
+    pub fn backup(&mut self) {
+        self.backup
+            .iter_mut()
+            .enumerate()
+            .map(|(i, backup)| backup.mirror(&self.all[i]))
+            .collect()
+    }
+
+    /// Restores data from the backup
+    pub fn restore(&mut self) {
+        self.all
+            .iter_mut()
+            .enumerate()
+            .map(|(i, state)| state.mirror(&self.backup[i]))
+            .collect()
     }
 }

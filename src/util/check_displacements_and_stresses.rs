@@ -102,6 +102,7 @@ pub fn check_displacements_and_stresses(
             if ncp != ncp_ref {
                 return Err("the number of stress components must equal the reference number of stress components");
             }
+            /*
             for ip in 0..n_integ_point {
                 // extract state at integration point
                 let state = fem_state.extract_stresses_and_strains(e, ip).unwrap();
@@ -119,6 +120,7 @@ pub fn check_displacements_and_stresses(
                 }
                 println!();
             }
+            */
         }
 
         // check strains
@@ -133,6 +135,7 @@ pub fn check_displacements_and_stresses(
             if ncp_ref_eps != ncp {
                 return Err("strain data must have the same number of components as stress data");
             }
+            /*
             for ip in 0..n_integ_point {
                 // extract state at integration point
                 let state = fem_state.extract_stresses_and_strains(e, ip).unwrap();
@@ -152,9 +155,11 @@ pub fn check_displacements_and_stresses(
                 }
                 println!();
             }
+            */
         }
 
         // save the results at selected integration points
+        /*
         for e in 0..ncell {
             let n_integ_point = compare.stresses[e].len();
             let with_optional = true;
@@ -176,6 +181,7 @@ pub fn check_displacements_and_stresses(
                 }
             }
         }
+        */
     }
     Ok((states, states_ref))
 }

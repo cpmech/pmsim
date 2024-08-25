@@ -30,13 +30,6 @@ pub struct LocalStateOld {
     yield_function_value: Option<f64>,
 }
 
-/// Implements an array of LocalState
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ArrLocalState {
-    pub all: Vec<LocalStateOld>,
-    backup: Vec<LocalStateOld>,
-}
-
 impl LocalStateOld {
     /// Allocates a new instance
     ///
@@ -150,39 +143,6 @@ impl LocalStateOld {
         for i in 0..epsilon.dim() {
             epsilon[i] += alpha * delta_epsilon.vector()[i];
         }
-    }
-}
-
-impl ArrLocalState {
-    /// Allocates a new instance
-    pub fn new(mandel: Mandel, n_internal_values: usize, with_optional: bool, n_integ_point: usize) -> Self {
-        let zero_state = LocalStateOld::new(mandel, n_internal_values, with_optional);
-        let all = vec![zero_state; n_integ_point];
-        let backup = all.clone();
-        ArrLocalState { all, backup }
-    }
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    pub fn reset_algorithmic_variables(&mut self) {
-        self.all.iter_mut().for_each(|state| state.algo_lambda = 0.0);
-    }
-
-    /// Creates a copy of the non-optional data
-    pub fn backup(&mut self) {
-        self.backup
-            .iter_mut()
-            .enumerate()
-            .map(|(i, backup)| backup.copy_non_optional(&self.all[i]))
-            .collect()
-    }
-
-    /// Restores the non-optional data from the backup
-    pub fn restore(&mut self) {
-        self.all
-            .iter_mut()
-            .enumerate()
-            .map(|(i, state)| state.copy_non_optional(&self.backup[i]))
-            .collect()
     }
 }
 
