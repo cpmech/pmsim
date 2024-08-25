@@ -1,4 +1,4 @@
-use super::{CamClay, LinearElastic, LocalState, VonMises};
+use super::{LinearElastic, LocalState, VonMises};
 use crate::base::{Config, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -42,7 +42,7 @@ impl StressStrainModel {
             ParamStressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(config, young, poisson)),
 
             // Modified Cambridge (Cam) clay model
-            ParamStressStrain::CamClay { mm, lambda, kappa } => Box::new(CamClay::new(mm, lambda, kappa)),
+            ParamStressStrain::CamClay { .. } => panic!("TODO: CamClay"),
 
             // Drucker-Prager plasticity model
             ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
