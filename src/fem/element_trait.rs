@@ -32,9 +32,4 @@ pub trait ElementTrait: Send {
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     fn update_secondary_values(&mut self, state: &FemState) -> Result<(), StrError>;
-
-    /// Performs the output of internal values
-    ///
-    /// Will save the results into [FemState::secondary_values]
-    fn output_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError>;
 }

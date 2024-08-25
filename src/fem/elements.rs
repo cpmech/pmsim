@@ -1,4 +1,4 @@
-use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, FemState, SecondaryValues};
+use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, FemState};
 use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::Cell;
@@ -231,22 +231,6 @@ impl<'a> Elements<'a> {
             .par_iter_mut()
             .map(|e| e.actual.update_secondary_values(state))
             .collect()
-    }
-
-    /// Outputs secondary values for post-processing
-    pub fn output_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        if self.config.out_secondary_values {
-            let n_cells = self.all.len();
-            if state.secondary_values.is_none() {
-                state.secondary_values = Some(vec![SecondaryValues::new_empty(); n_cells]);
-            }
-            self.all
-                .iter_mut()
-                .map(|e| e.actual.output_internal_values(state))
-                .collect()
-        } else {
-            Ok(())
-        }
     }
 }
 

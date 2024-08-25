@@ -70,7 +70,7 @@ impl<'a> FemSolverImplicit<'a> {
             .collect();
 
         // first output
-        output.write(state, &mut self.elements)?;
+        output.write(state)?;
         let mut t_out = state.t + (control.dt_out)(state.t);
 
         // message
@@ -223,7 +223,7 @@ impl<'a> FemSolverImplicit<'a> {
             // perform output
             let last_timestep = timestep == control.n_max_time_steps - 1;
             if state.t >= t_out || last_timestep {
-                output.write(state, &mut self.elements)?;
+                output.write(state)?;
                 t_out += (control.dt_out)(state.t);
             }
 

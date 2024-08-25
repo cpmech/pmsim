@@ -269,29 +269,6 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         }
         Ok(())
     }
-
-    /// Performs the output of internal values
-    ///
-    /// Will save the results into [FemState::secondary_values]
-    fn output_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        let second_values = &mut state.secondary_values.as_mut().unwrap()[self.cell.id];
-        let n_integ_point = self.ips.len();
-        if second_values.stresses_and_strains.is_none() {
-            let n_internal_values = self.model.actual.n_internal_values();
-            second_values.stresses_and_strains =
-                Some(ArrLocalState::new(self.config.mandel, n_internal_values, n_integ_point));
-        }
-        let local_states = &mut second_values.stresses_and_strains.as_mut().unwrap().all;
-        for p in 0..self.ips.len() {
-            local_states[p].mirror(&self.states.all[p]);
-        }
-        // if self.config.out_strains {
-        // for p in 0..self.ips.len() {
-        // self.calc_strains(local_states[p].strain_mut(), &state.uu, p)?;
-        // }
-        // }
-        Ok(())
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

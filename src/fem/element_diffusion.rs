@@ -219,13 +219,6 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     fn update_secondary_values(&mut self, _state: &FemState) -> Result<(), StrError> {
         Ok(())
     }
-
-    /// Performs the output of internal values
-    ///
-    /// Will save the results into [FemState::secondary_values]
-    fn output_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
-        Ok(())
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

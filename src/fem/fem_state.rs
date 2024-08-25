@@ -1,4 +1,4 @@
-use super::{FemInput, SecondaryValues};
+use super::FemInput;
 use crate::base::{Config, Element};
 use crate::StrError;
 use russell_lab::Vector;
@@ -8,7 +8,7 @@ use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
 
-/// Holds state of a simulation, including primary and secondary variables
+/// Holds the state of a simulation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemState {
     /// Time
@@ -49,11 +49,6 @@ pub struct FemState {
     ///
     /// (n_equation)
     pub aa_star: Vector,
-
-    /// Secondary values at all elements and all integration points (output only)
-    ///
-    /// (n_cells)
-    pub secondary_values: Option<Vec<SecondaryValues>>,
 }
 
 impl FemState {
@@ -126,7 +121,6 @@ impl FemState {
             uu_star,
             vv_star,
             aa_star,
-            secondary_values: None,
         });
     }
 
