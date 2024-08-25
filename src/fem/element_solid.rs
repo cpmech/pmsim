@@ -124,7 +124,7 @@ impl<'a> ElementSolid<'a> {
 
     /// Calculates strains or strain increments from the global {U} or {ΔU} vectors
     #[rustfmt::skip]
-    fn calc_strains(&mut self, eps: &mut Tensor2, uu: &Vector, integ_point_index: usize) -> Result<(), StrError> {
+    fn _calc_strains(&mut self, eps: &mut Tensor2, uu: &Vector, integ_point_index: usize) -> Result<(), StrError> {
         self.pad.calc_gradient(&self.ips[integ_point_index])?;
         let nnode = self.cell.points.len();
         let l2g = &self.local_to_global;

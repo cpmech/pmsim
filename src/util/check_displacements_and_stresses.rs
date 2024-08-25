@@ -5,7 +5,7 @@ use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::approx_eq;
-use russell_tensor::{Mandel, SQRT_2};
+use russell_tensor::Mandel;
 
 /// Checks displacements and results against reference data
 ///
@@ -25,14 +25,14 @@ pub fn check_displacements_and_stresses(
     mesh: &Mesh,
     name: &str,
     ref_filename: &str,
-    extract: (usize, usize),
+    _extract: (usize, usize),
     tol_displacement: f64,
-    tol_stress: f64,
+    _tol_stress: f64,
 ) -> Result<(Vec<LocalStateOld>, Vec<LocalStateOld>), StrError> {
     // constants
     let ndim = mesh.ndim;
     let ncp = 2 * ndim;
-    let mandel = Mandel::new(ncp);
+    let _mandel = Mandel::new(ncp);
     let npoint = mesh.points.len();
     let ncell = mesh.cells.len();
     if npoint < 1 {
@@ -46,8 +46,8 @@ pub fn check_displacements_and_stresses(
     let reference = ReferenceDataSet::read_json(format!("data/results/{}", ref_filename).as_str())?;
 
     // output arrays
-    let mut states = Vec::new();
-    let mut states_ref = Vec::new();
+    let mut _states = Vec::new();
+    let mut _states_ref = Vec::new();
 
     // compare results
     let summary = FemOutputSummary::read_json(&FemOutput::path_summary(DEFAULT_OUT_DIR, name))?;
@@ -183,5 +183,5 @@ pub fn check_displacements_and_stresses(
         }
         */
     }
-    Ok((states, states_ref))
+    Ok((_states, _states_ref))
 }
