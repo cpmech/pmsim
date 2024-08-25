@@ -29,12 +29,12 @@ pub trait StressStrainTrait: Send {
 }
 
 /// Holds the actual stress-strain model implementation
-pub struct StressStrainModel {
+pub struct ModelStressStrain {
     /// Holds the actual model implementation
     pub actual: Box<dyn StressStrainTrait>,
 }
 
-impl StressStrainModel {
+impl ModelStressStrain {
     /// Allocates a new instance
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
         let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
@@ -55,7 +55,7 @@ impl StressStrainModel {
                 Box::new(VonMises::new(config, young, poisson, z0, hh))
             }
         };
-        Ok(StressStrainModel { actual })
+        Ok(ModelStressStrain { actual })
     }
 }
 
@@ -63,25 +63,25 @@ impl StressStrainModel {
 
 #[cfg(test)]
 mod tests {
-    use super::StressStrainModel;
+    use super::ModelStressStrain;
     use crate::base::{new_empty_config_2d, SampleParams};
 
     #[test]
     fn allocate_stress_strain_model_works() {
         let mut config = new_empty_config_2d();
         let param = SampleParams::param_solid();
-        StressStrainModel::new(&config, &param).unwrap();
+        ModelStressStrain::new(&config, &param).unwrap();
 
         config.plane_stress = true;
         let param = SampleParams::param_solid_von_mises();
         assert_eq!(
-            StressStrainModel::new(&config, &param,).err(),
+            ModelStressStrain::new(&config, &param,).err(),
             Some("von Mises model does not work in plane-stress")
         );
 
         config.plane_stress = false;
         let param = SampleParams::param_solid_von_mises();
-        StressStrainModel::new(&config, &param).unwrap();
+        ModelStressStrain::new(&config, &param).unwrap();
     }
 
     #[test]
@@ -89,6 +89,6 @@ mod tests {
     fn allocate_stress_strain_fails() {
         let config = new_empty_config_2d();
         let param = SampleParams::param_solid_drucker_prager();
-        StressStrainModel::new(&config, &param).unwrap();
+        ModelStressStrain::new(&config, &param).unwrap();
     }
 }

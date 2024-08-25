@@ -3,7 +3,7 @@ use crate::StrError;
 use russell_tensor::Tensor2;
 
 /// Implements conductivity models
-pub struct ConductivityModel<'a> {
+pub struct ModelConductivity<'a> {
     /// Material parameters
     param: &'a ParamConductivity,
 
@@ -14,7 +14,7 @@ pub struct ConductivityModel<'a> {
     variable_k: bool,
 }
 
-impl<'a> ConductivityModel<'a> {
+impl<'a> ModelConductivity<'a> {
     /// Allocates a new instance
     pub fn new(param: &'a ParamConductivity, two_dim: bool) -> Self {
         let variable_k = match param {
@@ -22,7 +22,7 @@ impl<'a> ConductivityModel<'a> {
             ParamConductivity::IsotropicLinear { .. } => true,
             ParamConductivity::PedrosoZhangEhlers { .. } => true,
         };
-        ConductivityModel {
+        ModelConductivity {
             param,
             two_dim,
             variable_k,
@@ -88,7 +88,7 @@ impl<'a> ConductivityModel<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::ConductivityModel;
+    use super::ModelConductivity;
     use crate::base::ParamConductivity;
     use russell_lab::{approx_eq, deriv1_central5};
     use russell_tensor::{Mandel, Tensor2};
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn derivative_works() {
         let param = ParamConductivity::IsotropicLinear { kr: 20.0, beta: 0.5 };
-        let model = ConductivityModel::new(&param, true);
+        let model = ModelConductivity::new(&param, true);
 
         let phi_ini = 100.0;
         let mut dk_dphi_ana = Tensor2::new(Mandel::Symmetric2D);
