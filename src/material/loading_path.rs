@@ -19,6 +19,12 @@ pub struct LoadingPath {
     /// Indicates to use strains in simulations
     pub strain_driven: Vec<bool>,
 
+    /// Holds all Δε
+    pub deltas_strain: Vec<Tensor2>,
+
+    /// Holds all Δσ
+    pub deltas_stress: Vec<Tensor2>,
+
     /// Indicates 2D (plane-strain, axisymmetric) instead of 3D
     two_dim: bool,
 
@@ -41,23 +47,11 @@ pub struct LoadingPath {
     /// ```
     cc: Tensor4,
 
-    /// Holds all Δε
-    deltas_strain: Vec<Tensor2>,
-
-    /// Holds all Δσ
-    deltas_stress: Vec<Tensor2>,
-
     /// Auxiliary Δε
     delta_strain: Tensor2,
 
     /// Auxiliary Δσ
     delta_stress: Tensor2,
-
-    /// Auxiliary ε
-    strain: Tensor2,
-
-    /// Auxiliary σ
-    stress: Tensor2,
 }
 
 impl LoadingPath {
@@ -76,16 +70,14 @@ impl LoadingPath {
             stresses: Vec::new(),
             strains: Vec::new(),
             strain_driven: Vec::new(),
+            deltas_strain: Vec::new(),
+            deltas_stress: Vec::new(),
             two_dim: config.two_dim,
             mandel: config.mandel,
             dd: ela.get_modulus().clone(),
             cc,
-            deltas_strain: Vec::new(),
-            deltas_stress: Vec::new(),
             delta_strain: Tensor2::new(config.mandel),
             delta_stress: Tensor2::new(config.mandel),
-            strain: Tensor2::new(config.mandel),
-            stress: Tensor2::new(config.mandel),
         })
     }
 
@@ -235,18 +227,18 @@ impl LoadingPath {
     /// A panic will occur if the Mandel representation is incompatible
     pub fn push_stress(&mut self, stress: &Tensor2, strain_driven: bool) {
         assert_eq!(stress.mandel(), self.mandel);
-        self.strain.clear();
+        let mut strain = Tensor2::new(self.mandel);
         if self.stresses.len() > 0 {
             let stress_prev = self.stresses.last().unwrap();
             let strain_prev = self.strains.last().unwrap();
             t2_add(&mut self.delta_stress, 1.0, &stress, -1.0, &stress_prev); // Δσ = σ - σ_prev
             t4_ddot_t2(&mut self.delta_strain, 1.0, &self.cc, &self.delta_stress); // Δε = C : Δσ
-            t2_add(&mut self.strain, 1.0, &strain_prev, 1.0, &self.delta_strain); // ε = ε_prev + Δε
+            t2_add(&mut strain, 1.0, &strain_prev, 1.0, &self.delta_strain); // ε = ε_prev + Δε
             self.deltas_stress.push(self.delta_stress.clone());
             self.deltas_strain.push(self.delta_strain.clone());
         }
         self.stresses.push(stress.clone());
-        self.strains.push(self.strain.clone());
+        self.strains.push(strain);
         self.strain_driven.push(strain_driven);
     }
 
@@ -262,17 +254,17 @@ impl LoadingPath {
     /// A panic will occur if the Mandel representation is incompatible
     pub fn push_strain(&mut self, strain: &Tensor2, strain_driven: bool) {
         assert_eq!(strain.mandel(), self.mandel);
-        self.stress.clear();
+        let mut stress = Tensor2::new(self.mandel);
         if self.stresses.len() > 0 {
             let stress_prev = self.stresses.last().unwrap();
             let strain_prev = self.strains.last().unwrap();
             t2_add(&mut self.delta_strain, 1.0, &strain, -1.0, &strain_prev); // Δε = ε - ε_prev
             t4_ddot_t2(&mut self.delta_stress, 1.0, &self.dd, &self.delta_strain); // Δσ = D : Δε
-            t2_add(&mut self.stress, 1.0, &stress_prev, 1.0, &self.delta_stress); // σ = σ_prev + Δσ
+            t2_add(&mut stress, 1.0, &stress_prev, 1.0, &self.delta_stress); // σ = σ_prev + Δσ
             self.deltas_stress.push(self.delta_stress.clone());
             self.deltas_strain.push(self.delta_strain.clone());
         }
-        self.stresses.push(self.stress.clone());
+        self.stresses.push(stress);
         self.strains.push(strain.clone());
         self.strain_driven.push(strain_driven);
     }
@@ -284,11 +276,11 @@ impl LoadingPath {
 mod tests {
     use super::LoadingPath;
     use crate::base::new_empty_config_2d;
-    use russell_lab::vec_approx_eq;
+    use russell_lab::{math::PI, vec_approx_eq};
     use russell_tensor::{SQRT_2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2, SQRT_6};
 
     #[test]
-    fn strain_stress_path_works() {
+    fn push_stress_works() {
         let config = new_empty_config_2d();
 
         let young = 1500.0;
@@ -349,16 +341,44 @@ mod tests {
         let dsigma_m = 1.0;
         let dsigma_d = 9.0;
         let lode = 1.0;
+        let alpha = PI / 2.0;
+        let n_increments = 2;
 
-        let path = LoadingPath::new_linear_oct(
-            &config, young, poisson, 2, sigma_m_0, sigma_d_0, dsigma_m, dsigma_d, lode,
+        let path_a = LoadingPath::new_linear_oct(
+            &config,
+            young,
+            poisson,
+            n_increments,
+            sigma_m_0,
+            sigma_d_0,
+            dsigma_m,
+            dsigma_d,
+            lode,
         )
         .unwrap();
 
-        assert_eq!(path.stresses.len(), 3);
-        assert_eq!(path.strains.len(), 3);
-        assert_eq!(path.deltas_stress.len(), 2);
-        assert_eq!(path.deltas_strain.len(), 2);
+        let path_b = LoadingPath::new_linear_oct_alpha(
+            &config,
+            young,
+            poisson,
+            n_increments,
+            sigma_m_0,
+            sigma_d_0,
+            dsigma_m,
+            dsigma_d,
+            alpha,
+        )
+        .unwrap();
+
+        assert_eq!(path_a.stresses.len(), 3);
+        assert_eq!(path_a.strains.len(), 3);
+        assert_eq!(path_a.deltas_stress.len(), 2);
+        assert_eq!(path_a.deltas_strain.len(), 2);
+
+        assert_eq!(path_b.stresses.len(), 3);
+        assert_eq!(path_b.strains.len(), 3);
+        assert_eq!(path_b.deltas_stress.len(), 2);
+        assert_eq!(path_b.deltas_strain.len(), 2);
 
         let star1 = sigma_d_0 * SQRT_2_BY_3;
         let star2 = sigma_m_0 * SQRT_3;
@@ -373,10 +393,10 @@ mod tests {
         let ds2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
         let ds3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
 
-        vec_approx_eq(path.stresses[0].vector(), &[s1, s2, s3, 0.0], 1e-15);
-        vec_approx_eq(path.stresses[1].vector(), &[s1 + ds1, s2 + ds2, s3 + ds3, 0.0], 1e-14);
+        vec_approx_eq(path_a.stresses[0].vector(), &[s1, s2, s3, 0.0], 1e-15);
+        vec_approx_eq(path_a.stresses[1].vector(), &[s1 + ds1, s2 + ds2, s3 + ds3, 0.0], 1e-14);
         vec_approx_eq(
-            path.stresses[2].vector(),
+            path_a.stresses[2].vector(),
             &[s1 + 2.0 * ds1, s2 + 2.0 * ds2, s3 + 2.0 * ds3, 0.0],
             1e-14,
         );
@@ -392,12 +412,22 @@ mod tests {
         let de2 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 - d_star3 / SQRT_2;
         let de3 = -d_star1 / SQRT_6 + d_star2 / SQRT_3 + d_star3 / SQRT_2;
 
-        vec_approx_eq(path.strains[0].vector(), &[0.0, 0.0, 0.0, 0.0], 1e-15);
-        vec_approx_eq(path.strains[1].vector(), &[0.0 + de1, 0.0 + de2, 0.0 + de3, 0.0], 1e-15);
+        vec_approx_eq(path_a.strains[0].vector(), &[0.0, 0.0, 0.0, 0.0], 1e-15);
         vec_approx_eq(
-            &path.strains[2].vector(),
+            path_a.strains[1].vector(),
+            &[0.0 + de1, 0.0 + de2, 0.0 + de3, 0.0],
+            1e-15,
+        );
+        vec_approx_eq(
+            &path_a.strains[2].vector(),
             &[0.0 + 2.0 * de1, 0.0 + 2.0 * de2, 0.0 + 2.0 * de3, 0.0],
             1e-15,
         );
+
+        for i in 0..path_a.stresses.len() {
+            vec_approx_eq(path_a.stresses[i].vector(), path_b.stresses[i].vector(), 1e-15);
+            vec_approx_eq(path_a.strains[i].vector(), path_b.strains[i].vector(), 1e-15);
+            assert_eq!(path_a.strain_driven[i], path_b.strain_driven[i]);
+        }
     }
 }
