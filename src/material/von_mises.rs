@@ -172,3 +172,55 @@ impl StressStrainTrait for VonMises {
         Ok(())
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::VonMises;
+    use crate::base::new_empty_config_2d;
+    use crate::material::{LoadingPath, LocalState, StressStrainTrait};
+    use russell_lab::approx_eq;
+
+    #[test]
+    fn update_stress_works() {
+        // parameters and model
+        let config = new_empty_config_2d();
+        let young = 1500.0;
+        let poisson = 0.25;
+        let z0 = 9.0;
+        let hh = 800.0;
+        let mut model = VonMises::new(&config, young, poisson, z0, hh);
+
+        // initial state
+        let n_internal_values = 1;
+        let mut state = LocalState::new(config.mandel, n_internal_values);
+        model.initialize_internal_values(&mut state).unwrap();
+
+        // elastic update: from zero stress state to the yield surface
+        let n_increments = 1;
+        let sigma_m_0 = 0.0;
+        let sigma_d_0 = 0.0;
+        let dsigma_m = 1.0;
+        let dsigma_d = z0;
+        let lode = 1.0;
+        let path_a = LoadingPath::new_linear_oct(
+            &config,
+            young,
+            poisson,
+            n_increments,
+            sigma_m_0,
+            sigma_d_0,
+            dsigma_m,
+            dsigma_d,
+            lode,
+        )
+        .unwrap();
+        model.update_stress(&mut state, &path_a.deltas_strain[0]).unwrap();
+
+        let sigma_m = state.stress.invariant_sigma_m();
+        let sigma_d = state.stress.invariant_sigma_d();
+        approx_eq(sigma_m, sigma_m_0 + dsigma_m, 1e-14);
+        approx_eq(sigma_d, sigma_d_0 + dsigma_d, 1e-14);
+    }
+}
