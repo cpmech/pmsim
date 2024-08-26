@@ -16,6 +16,9 @@ pub struct LoadingPath {
     /// The strains are possibly calculated from stress using the elastic model if stress is given
     pub strains: Vec<Tensor2>,
 
+    /// Indicates to use strains in simulations
+    pub strain_driven: Vec<bool>,
+
     /// Indicates 2D (plane-strain, axisymmetric) instead of 3D
     two_dim: bool,
 
@@ -37,9 +40,6 @@ pub struct LoadingPath {
     /// ε = C : σ = D⁻¹ : σ
     /// ```
     cc: Tensor4,
-
-    /// Indicates to use strains in simulations
-    strain_driven: Vec<bool>,
 
     /// Holds all Δε
     deltas_strain: Vec<Tensor2>,
@@ -75,11 +75,11 @@ impl LoadingPath {
         Ok(LoadingPath {
             stresses: Vec::new(),
             strains: Vec::new(),
+            strain_driven: Vec::new(),
             two_dim: config.two_dim,
             mandel: config.mandel,
             dd: ela.get_modulus().clone(),
             cc,
-            strain_driven: Vec::new(),
             deltas_strain: Vec::new(),
             deltas_stress: Vec::new(),
             delta_strain: Tensor2::new(config.mandel),
