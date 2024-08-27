@@ -189,7 +189,7 @@ mod tests {
         let (kk, gg) = model.lin_elasticity.get_bulk_shear();
 
         // initial state
-        let n_internal_values = 1;
+        let n_internal_values = model.n_internal_values();
         let mut state = LocalState::new(config.mandel, n_internal_values);
         model.initialize_internal_values(&mut state).unwrap();
 
