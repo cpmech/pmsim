@@ -181,7 +181,7 @@ mod tests {
     use crate::base::{new_empty_config_2d, new_empty_config_3d, Config};
     use crate::material::{LocalState, StressStrainTrait};
     use russell_lab::approx_eq;
-    use russell_tensor::{Tensor2, SQRT_3, SQRT_3_BY_2};
+    use russell_tensor::{Tensor2, Tensor4, SQRT_3, SQRT_3_BY_2};
 
     // Generates a state reaching the yield surface
     fn update_to_yield_surface(config: &Config, model: &mut VonMises, lode: f64) -> LocalState {
@@ -279,5 +279,75 @@ mod tests {
         assert_eq!(state.elastic, false);
         assert_eq!(state.apex_return, false);
         assert!(state.algo_lagrange > 0.0);
+    }
+
+    fn compare_spo_results(dd: &Tensor4, dd_spo: &[[f64; 3]; 3], tol: f64) {
+        let map = &[0, 1, 3];
+        for i in 0..3 {
+            for j in 0..3 {
+                let m = if i == 2 && j == 2 { 2.0 } else { 1.0 };
+                approx_eq(dd.matrix().get(map[i], map[j]), m * dd_spo[i][j], tol);
+            }
+        }
+    }
+
+    #[test]
+    fn stiffness_works_elastoplastic_2d() {
+        // model
+        let config = new_empty_config_2d();
+        let mut model = VonMises::new(&config, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+
+        // initial state
+        let n_internal_values = model.n_internal_values();
+        let mut state = LocalState::new(config.mandel, n_internal_values);
+        model.initialize_internal_values(&mut state).unwrap();
+
+        // plane-strain strain increments reaching yield surface
+        let ee = TEST_YOUNG;
+        let nu = TEST_POISSON;
+        let nu2 = TEST_POISSON * TEST_POISSON;
+        let z0 = TEST_Z0;
+        let dy = z0 * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
+        let eps_x = dy * nu / (1.0 - nu);
+        let eps_y = -dy;
+
+        // first update: reach (within tol) the yield surface
+        let mut delta_epsilon = Tensor2::new(config.mandel);
+        delta_epsilon.vector_mut()[0] = 0.9999 * eps_x;
+        delta_epsilon.vector_mut()[1] = 0.9999 * eps_y;
+        model.update_stress(&mut state, &delta_epsilon).unwrap();
+
+        // first modulus: elastic stiffness
+        let mut dd = Tensor4::new(config.mandel);
+        model.stiffness(&mut dd, &state).unwrap();
+        let dd_spo = &[
+            [1.800000000000000E+03, 6.000000000000000E+02, 0.000000000000000E+00],
+            [6.000000000000000E+02, 1.800000000000000E+03, 0.000000000000000E+00],
+            [0.000000000000000E+00, 0.000000000000000E+00, 6.000000000000000E+02],
+        ];
+        compare_spo_results(&dd, &dd_spo, 1e-16);
+        assert_eq!(state.internal_values.as_data(), &[z0]);
+        assert_eq!(state.elastic, true);
+        assert_eq!(state.apex_return, false);
+        assert_eq!(state.algo_lagrange, 0.0);
+
+        // second update: elastoplastic behavior
+        delta_epsilon.vector_mut()[0] = (2.0 - 0.9999) * eps_x;
+        delta_epsilon.vector_mut()[1] = (2.0 - 0.9999) * eps_y;
+        model.update_stress(&mut state, &delta_epsilon).unwrap();
+
+        // second modulus: elastoplastic stiffness
+        model.stiffness(&mut dd, &state).unwrap();
+        let dd_spo = &[
+            [1.389940828402367E+03, 9.248520710059172E+02, -2.081794007857600E-15],
+            [9.248520710059172E+02, 1.262130177514793E+03, 2.914511611000640E-15],
+            [-2.081794007857600E-15, 2.914511611000640E-15, 3.923076923076923E+02],
+        ];
+        compare_spo_results(&dd, &dd_spo, 1e-12);
+        let sigma_d = state.stress.invariant_sigma_d();
+        assert_eq!(state.internal_values.as_data(), &[sigma_d]);
+        assert_eq!(state.elastic, false);
+        assert_eq!(state.apex_return, false);
+        approx_eq(state.algo_lagrange, 3.461538461538463E-03, 1e-15);
     }
 }
