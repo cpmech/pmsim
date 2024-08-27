@@ -73,9 +73,10 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0)).on(
-        &top,
-        Ebc::Uy(|t| {
+    essential.
+        on(&left,   Ebc::Ux(|_| 0.0)). // left
+        on(&bottom, Ebc::Uy(|_| 0.0)). // bottom
+        on(&top,    Ebc::Uy(|t| {      // top
             let delta_y = Z0 * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
             // println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
             -delta_y * t
