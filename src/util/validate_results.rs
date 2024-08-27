@@ -5,21 +5,20 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::approx_eq;
 
-/// Checks displacements and results against reference data
+/// Validates the FEM results (displacement, stress, strain) against reference data
 ///
 /// # Input
 ///
 /// * `mesh` -- The mesh
 /// * `name` -- The FemOutput file name
 /// * `ref_filename` -- The reference results filename (in `data/results`)
-/// * `extract` -- A pair of (CellId, IntegrationPointId)
 /// * `tol_displacement` -- A tolerance to compare displacements
 /// * `tol_stress` -- A tolerance to compare stresses
 ///
 /// # Output
 ///
 /// * `(states, states_ref)` -- The state points at selected `(CellId, IntegrationPointId)`
-pub fn validate_displacements(
+pub fn validate_results(
     mesh: &Mesh,
     name: &str,
     ref_filename: &str,
