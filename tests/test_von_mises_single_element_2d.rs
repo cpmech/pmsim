@@ -109,5 +109,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // check displacements
     validate_displacements(&mesh, NAME, "spo_von_mises_single_element_2d.json", 1e-13, true)?;
+
+    // check stresses
     Ok(())
 }
