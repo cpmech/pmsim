@@ -178,49 +178,63 @@ impl StressStrainTrait for VonMises {
 #[cfg(test)]
 mod tests {
     use super::VonMises;
-    use crate::base::new_empty_config_2d;
-    use crate::material::{LoadingPath, LocalState, StressStrainTrait};
+    use crate::base::{new_empty_config_2d, new_empty_config_3d, Config};
+    use crate::material::{LocalState, StressStrainTrait};
     use russell_lab::approx_eq;
+    use russell_tensor::{Tensor2, SQRT_3, SQRT_3_BY_2};
 
-    #[test]
-    fn update_stress_works() {
-        // parameters and model
-        let config = new_empty_config_2d();
-        let young = 1500.0;
-        let poisson = 0.25;
-        let z0 = 9.0;
-        let hh = 800.0;
-        let mut model = VonMises::new(&config, young, poisson, z0, hh);
+    // Generates a state reaching the yield surface
+    fn update_to_yield_surface(config: &Config, model: &mut VonMises, lode: f64) -> LocalState {
+        // elastic parameters
+        let (kk, gg) = model.lin_elasticity.get_bulk_shear();
 
         // initial state
         let n_internal_values = 1;
         let mut state = LocalState::new(config.mandel, n_internal_values);
         model.initialize_internal_values(&mut state).unwrap();
 
-        // elastic update: from zero stress state to the yield surface
-        let n_increments = 1;
-        let sigma_m_0 = 0.0;
-        let sigma_d_0 = 0.0;
+        // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
-        let dsigma_d = z0;
-        let lode = 1.0;
-        let path_a = LoadingPath::new_linear_oct(
-            &config,
-            young,
-            poisson,
-            n_increments,
-            sigma_m_0,
-            sigma_d_0,
-            dsigma_m,
-            dsigma_d,
-            lode,
-        )
-        .unwrap();
-        model.update_stress(&mut state, &path_a.deltas_strain[0]).unwrap();
+        let dsigma_d = model.z0; // <<< will reach the yield surface (exactly)
+        let depsilon_v = dsigma_m / kk;
+        let depsilon_d = dsigma_d / (3.0 * gg);
+        let d_distance = depsilon_v / SQRT_3;
+        let d_radius = depsilon_d * SQRT_3_BY_2;
 
-        let sigma_m = state.stress.invariant_sigma_m();
-        let sigma_d = state.stress.invariant_sigma_d();
-        approx_eq(sigma_m, sigma_m_0 + dsigma_m, 1e-14);
-        approx_eq(sigma_d, sigma_d_0 + dsigma_d, 1e-14);
+        // update
+        let delta_epsilon = Tensor2::new_from_octahedral(d_distance, d_radius, lode, config.two_dim).unwrap();
+        model.update_stress(&mut state, &delta_epsilon).unwrap();
+        state
+    }
+
+    const TEST_YOUNG: f64 = 1500.0;
+    const TEST_POISSON: f64 = 0.25;
+    const TEST_Z0: f64 = 9.0;
+    const TEST_HH: f64 = 800.0;
+
+    #[test]
+    fn update_stress_works_elastic_2d() {
+        let config = new_empty_config_2d();
+        let mut model = VonMises::new(&config, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        for lode in [-1.0, 0.0, 1.0] {
+            let state = update_to_yield_surface(&config, &mut model, lode);
+            let sigma_m = state.stress.invariant_sigma_m();
+            let sigma_d = state.stress.invariant_sigma_d();
+            approx_eq(sigma_m, 1.0, 1e-14);
+            approx_eq(sigma_d, TEST_Z0, 1e-14);
+        }
+    }
+
+    #[test]
+    fn update_stress_works_elastic_3d() {
+        let config = new_empty_config_3d();
+        let mut model = VonMises::new(&config, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        for lode in [-1.0, 0.0, 1.0] {
+            let state = update_to_yield_surface(&config, &mut model, lode);
+            let sigma_m = state.stress.invariant_sigma_m();
+            let sigma_d = state.stress.invariant_sigma_d();
+            approx_eq(sigma_m, 1.0, 1e-14);
+            approx_eq(sigma_d, TEST_Z0, 1e-14);
+        }
     }
 }
