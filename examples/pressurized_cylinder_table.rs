@@ -1,4 +1,4 @@
-use pmsim::prelude::*;
+use pmsim::util::ConvergenceResults;
 use russell_lab::*;
 use std::collections::HashMap;
 use std::fmt::Write;

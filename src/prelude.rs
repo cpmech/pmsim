@@ -9,4 +9,3 @@ pub use crate::base::{
     ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, ParamStressStrain,
 };
 pub use crate::fem::{FemInput, FemOutput, FemSolverImplicit, FemState};
-pub use crate::util::ConvergenceResults;

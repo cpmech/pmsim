@@ -1,5 +1,5 @@
 use plotpy::{Curve, Plot, SlopeIcon, StrError};
-use pmsim::prelude::*;
+use pmsim::util::ConvergenceResults;
 use russell_sparse::Genie;
 use std::env;
 use std::path::Path;

@@ -2,6 +2,7 @@ use gemlab::prelude::*;
 use plotpy::Curve;
 use plotpy::Surface;
 use pmsim::prelude::*;
+use pmsim::util::ConvergenceResults;
 use russell_lab::*;
 use russell_sparse::Genie;
 use std::env;
