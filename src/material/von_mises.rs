@@ -222,6 +222,10 @@ mod tests {
             let sigma_d = state.stress.invariant_sigma_d();
             approx_eq(sigma_m, 1.0, 1e-14);
             approx_eq(sigma_d, TEST_Z0, 1e-14);
+            assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
+            assert_eq!(state.elastic, true);
+            assert_eq!(state.apex_return, false);
+            assert_eq!(state.algo_lagrange, 0.0);
         }
     }
 
@@ -235,6 +239,45 @@ mod tests {
             let sigma_d = state.stress.invariant_sigma_d();
             approx_eq(sigma_m, 1.0, 1e-14);
             approx_eq(sigma_d, TEST_Z0, 1e-14);
+            assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
+            assert_eq!(state.elastic, true);
+            assert_eq!(state.apex_return, false);
+            assert_eq!(state.algo_lagrange, 0.0);
         }
+    }
+
+    #[test]
+    fn update_stress_works_elastoplastic_2d() {
+        // update to yield surface (exactly)
+        let config = new_empty_config_2d();
+        let mut model = VonMises::new(&config, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let lode = 1.0;
+        let mut state = update_to_yield_surface(&config, &mut model, lode);
+        let sigma_m_1 = state.stress.invariant_sigma_m();
+        let sigma_d_1 = state.stress.invariant_sigma_d();
+        // println!("before: sigma_m = {}, sigma_d = {}", sigma_m_1, sigma_d_1);
+
+        // elastoplastic update
+        let deps_v = 0.001;
+        let deps_d = 0.005;
+        let d_distance = deps_v / SQRT_3;
+        let d_radius = deps_d * SQRT_3_BY_2;
+        let delta_epsilon = Tensor2::new_from_octahedral(d_distance, d_radius, lode, config.two_dim).unwrap();
+        model.update_stress(&mut state, &delta_epsilon).unwrap();
+        let sigma_m_2 = state.stress.invariant_sigma_m();
+        let sigma_d_2 = state.stress.invariant_sigma_d();
+        // println!("after: sigma_m = {}, sigma_d = {}", sigma_m_2, sigma_d_2);
+
+        // check
+        let (kk, gg) = model.lin_elasticity.get_bulk_shear();
+        let hh = TEST_HH;
+        let correct_sigma_m = sigma_m_1 + kk * deps_v;
+        let correct_sigma_d = sigma_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+        approx_eq(sigma_m_2, correct_sigma_m, 1e-15);
+        approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
+        approx_eq(state.internal_values[0], correct_sigma_d, 1e-14);
+        assert_eq!(state.elastic, false);
+        assert_eq!(state.apex_return, false);
+        assert!(state.algo_lagrange > 0.0);
     }
 }
