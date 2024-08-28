@@ -12,7 +12,7 @@ use russell_tensor::Tensor2;
 /// * `uu` -- The global (delta) displacement vector
 /// * `config` -- Configuration data
 /// * `l2g` -- The local to global map
-/// * `ksi` -- The coordinate of the integration point
+/// * `ksi` -- The coordinate of the integration point (ξᵖ)
 /// * `pad` -- Scratchpad to calculate interpolation functions
 #[rustfmt::skip]
 pub(crate) fn calculate_strain(
@@ -37,7 +37,7 @@ pub(crate) fn calculate_strain(
             // calculate radius
             (pad.fn_interp)(&mut pad.interp, ksi);
             let nn = &pad.interp;
-            let mut r = 0.0; // radius @ x(ιᵖ)
+            let mut r = 0.0; // radius @ x(ξᵖ)
             for m in 0..nnode {
                 r += nn[m] * pad.xxt.get(0, m);
             }
