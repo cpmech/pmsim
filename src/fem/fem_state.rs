@@ -1,4 +1,4 @@
-use super::FemInput;
+use super::{FemInput, SecondaryValues};
 use crate::base::{Config, Element};
 use crate::StrError;
 use russell_lab::Vector;
@@ -49,13 +49,19 @@ pub struct FemState {
     ///
     /// (n_equation)
     pub aa_star: Vector,
+
+    /// Holds the secondary values (such as stress) at all integration (Gauss) points of all elements
+    ///
+    /// (n_cell)
+    pub gauss: Vec<SecondaryValues>,
 }
 
 impl FemState {
     /// Allocates a new instance
     pub fn new(input: &FemInput, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
-        if input.mesh.cells.len() == 0 {
+        let ncell = input.mesh.cells.len();
+        if ncell == 0 {
             return Err("there are no cells in the mesh");
         }
 
@@ -111,6 +117,7 @@ impl FemState {
         };
 
         // allocate new instance
+        let empty = SecondaryValues::new_empty(config);
         return Ok(FemState {
             t,
             dt,
@@ -121,6 +128,7 @@ impl FemState {
             uu_star,
             vv_star,
             aa_star,
+            gauss: vec![empty; ncell],
         });
     }
 
