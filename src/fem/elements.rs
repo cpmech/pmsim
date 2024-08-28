@@ -2,7 +2,6 @@ use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, 
 use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellId};
-use rayon::prelude::*;
 use russell_lab::{deriv1_central5, Matrix, Vector};
 use russell_sparse::CooMatrix;
 
@@ -137,16 +136,6 @@ impl<'a> Elements<'a> {
     /// Computes the Jacobian matrices
     pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
-    }
-
-    /// Computes the residual vectors in parallel
-    pub fn calc_residuals_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
-    }
-
-    /// Computes the Jacobian matrices in parallel
-    pub fn calc_jacobians_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.par_iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
     /// Assembles residual vectors

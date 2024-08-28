@@ -143,9 +143,9 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         state.uu[*eq] = 110.0;
     }
 
-    // compute residuals in parallel
-    elements.calc_residuals_parallel(&state)?;
-    boundaries.calc_residuals_parallel(&state)?;
+    // compute residuals
+    elements.calc_residuals(&state)?;
+    boundaries.calc_residuals(&state)?;
 
     // assemble residuals
     let rr = &mut lin_sys.residual;
@@ -171,9 +171,9 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let norm_rr = vec_norm(rr, Norm::Max);
     println!("norm_rr = {:?}", norm_rr);
 
-    // compute jacobians in parallel
-    elements.calc_jacobians_parallel(&state)?;
-    boundaries.calc_jacobians_parallel(&state)?;
+    // compute jacobians
+    elements.calc_jacobians(&state)?;
+    boundaries.calc_jacobians(&state)?;
 
     // assemble jacobians matrices
     let kk = lin_sys.jacobian.get_coo_mut()?;

@@ -200,16 +200,6 @@ impl<'a> Boundaries<'a> {
         self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
-    /// Computes the residual vectors in parallel
-    pub fn calc_residuals_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
-    }
-
-    /// Computes the Jacobian matrices in parallel
-    pub fn calc_jacobians_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.par_iter_mut().map(|e| e.calc_jacobian(&state)).collect()
-    }
-
     /// Assembles residual vectors
     ///
     /// **Notes:**
@@ -252,7 +242,6 @@ mod tests {
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Feature, Features, Samples};
     use gemlab::shapes::GeoKind;
-    use rayon::prelude::*;
     use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix};
 
     #[test]
@@ -289,28 +278,6 @@ mod tests {
             Boundaries::new(&input, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
-    }
-
-    #[test]
-    fn new_vec_and_par_iter_work() {
-        let mesh = Samples::one_hex8();
-        let faces = &[&Feature {
-            kind: GeoKind::Tri3,
-            points: vec![3, 4, 5],
-        }];
-
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
-        let config = Config::new(&mesh);
-
-        let mut natural = Natural::new();
-        natural.on(faces, Nbc::Qn(|t| -20.0 * (1.0 * t)));
-        let mut b_elements = Boundaries::new(&input, &config, &natural).unwrap();
-        let state = FemState::new(&input, &config).unwrap();
-        b_elements.all.par_iter_mut().for_each(|d| {
-            d.calc_residual(&state).unwrap();
-            d.calc_jacobian(&state).unwrap();
-        });
     }
 
     #[test]
@@ -538,7 +505,5 @@ mod tests {
         let state = FemState::new(&input, &config).unwrap();
         elements.calc_residuals(&state).unwrap();
         elements.calc_jacobians(&state).unwrap();
-        elements.calc_residuals_parallel(&state).unwrap();
-        elements.calc_jacobians_parallel(&state).unwrap();
     }
 }

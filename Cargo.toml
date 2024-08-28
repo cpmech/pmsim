@@ -24,7 +24,6 @@ russell_sparse = { path = "../russell/russell_sparse", features = [
 russell_tensor = { path = "../russell/russell_tensor", features = [
   "intel_mkl",
 ] }
-rayon = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 structopt = "0.3"

@@ -72,9 +72,9 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // FEM state
     let state = FemState::new(&input, &config)?;
 
-    // compute jacobians in parallel
-    elements.calc_jacobians_parallel(&state)?;
-    boundaries.calc_jacobians_parallel(&state)?;
+    // compute jacobians
+    elements.calc_jacobians(&state)?;
+    boundaries.calc_jacobians(&state)?;
 
     // linear system
     let mut lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;

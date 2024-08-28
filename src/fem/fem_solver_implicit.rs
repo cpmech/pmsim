@@ -106,7 +106,7 @@ impl<'a> FemSolverImplicit<'a> {
 
             // reset algorithmic variables
             if !config.linear_problem {
-                state.reset_algorithmic_variables_parallel();
+                state.reset_algorithmic_variables();
             }
 
             // message
@@ -121,9 +121,9 @@ impl<'a> FemSolverImplicit<'a> {
             // (except the prescribed values) and secondary variables are still on the old time.
             // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..control.n_max_iterations {
-                // compute residuals in parallel (for the new time)
-                self.elements.calc_residuals_parallel(&state)?;
-                self.boundaries.calc_residuals_parallel(&state)?;
+                // compute residuals (for the new time)
+                self.elements.calc_residuals(&state)?;
+                self.boundaries.calc_residuals(&state)?;
 
                 // assemble residuals
                 self.elements.assemble_residuals(rr, prescribed);
@@ -152,9 +152,9 @@ impl<'a> FemSolverImplicit<'a> {
 
                 // compute Jacobian matrix
                 if iteration == 0 || !config.constant_tangent {
-                    // compute local Jacobian matrices in parallel
-                    self.elements.calc_jacobians_parallel(&state)?;
-                    self.boundaries.calc_jacobians_parallel(&state)?;
+                    // compute local Jacobian matrices
+                    self.elements.calc_jacobians(&state)?;
+                    self.boundaries.calc_jacobians(&state)?;
 
                     // assemble local Jacobian matrices into the global Jacobian matrix
                     self.elements.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
@@ -200,9 +200,9 @@ impl<'a> FemSolverImplicit<'a> {
                 // backup/restore secondary variables
                 if !config.linear_problem {
                     if iteration == 0 {
-                        state.backup_secondary_values_parallel();
+                        state.backup_secondary_values();
                     } else {
-                        state.restore_secondary_values_parallel();
+                        state.restore_secondary_values();
                     }
                 }
 
