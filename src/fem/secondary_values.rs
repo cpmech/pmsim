@@ -1,4 +1,6 @@
+use crate::base::Config;
 use crate::material::{LocalState, LocalStatePorousSldLiq};
+use russell_tensor::Mandel;
 use serde::{Deserialize, Serialize};
 
 /// Holds the secondary values (e.g., stress) at all integration points
@@ -43,11 +45,14 @@ pub struct SecondaryValues {
 
     /// (backup) Holds the local states at all integration points of a porous-sld-liq-gas element
     bkp_porous_sld_liq_gas: Vec<LocalStatePorousSldLiq>,
+
+    /// Holds the Mandel representation
+    mandel: Mandel,
 }
 
 impl SecondaryValues {
     /// Allocates a new instance with empty arrays
-    pub(crate) fn new_empty() -> Self {
+    pub(crate) fn new_empty(config: &Config) -> Self {
         SecondaryValues {
             solid: Vec::new(),
             porous_liq: Vec::new(),
@@ -59,7 +64,48 @@ impl SecondaryValues {
             bkp_porous_liq_gas: Vec::new(),
             bkp_porous_sld_liq: Vec::new(),
             bkp_porous_sld_liq_gas: Vec::new(),
+            mandel: config.mandel,
         }
+    }
+
+    /// Allocates secondary values for Solid elements
+    pub(crate) fn allocate_solid(&mut self, n_integration_point: usize, n_internal_values: usize) {
+        let zero = LocalState::new(self.mandel, n_internal_values);
+        let bkp = zero.clone();
+        self.solid = vec![zero; n_integration_point];
+        self.bkp_solid = vec![bkp; n_integration_point];
+    }
+
+    /// Allocates secondary values for PorousLiq elements
+    pub(crate) fn allocate_porous_liq(&mut self, n_integration_point: usize, n_internal_values: usize) {
+        let zero = LocalStatePorousSldLiq::new(self.mandel, n_internal_values);
+        let bkp = zero.clone();
+        self.porous_liq = vec![zero; n_integration_point];
+        self.bkp_porous_liq = vec![bkp; n_integration_point];
+    }
+
+    /// Allocates secondary values for PorousLiqGas elements
+    pub(crate) fn allocate_porous_liq_gas(&mut self, n_integration_point: usize, n_internal_values: usize) {
+        let zero = LocalStatePorousSldLiq::new(self.mandel, n_internal_values);
+        let bkp = zero.clone();
+        self.porous_liq_gas = vec![zero; n_integration_point];
+        self.bkp_porous_liq_gas = vec![bkp; n_integration_point];
+    }
+
+    /// Allocates secondary values for PorousSldLiq elements
+    pub(crate) fn allocate_porous_sld_liq(&mut self, n_integration_point: usize, n_internal_values: usize) {
+        let zero = LocalStatePorousSldLiq::new(self.mandel, n_internal_values);
+        let bkp = zero.clone();
+        self.porous_sld_liq = vec![zero; n_integration_point];
+        self.bkp_porous_sld_liq = vec![bkp; n_integration_point];
+    }
+
+    /// Allocates secondary values for PorousSldLiqGas elements
+    pub(crate) fn allocate_porous_sld_liq_gas(&mut self, n_integration_point: usize, n_internal_values: usize) {
+        let zero = LocalStatePorousSldLiq::new(self.mandel, n_internal_values);
+        let bkp = zero.clone();
+        self.porous_sld_liq_gas = vec![zero; n_integration_point];
+        self.bkp_porous_sld_liq_gas = vec![bkp; n_integration_point];
     }
 
     /// Creates a copy of the secondary values (e.g., stresses and internal values)
