@@ -95,9 +95,11 @@ impl FemState {
                 }
                 Element::PorousLiq(..) => {
                     has_porous_fluid = true;
+                    gauss[cell.id].allocate_porous_liq(n_integration_point);
                 }
                 Element::PorousLiqGas(..) => {
                     has_porous_fluid = true;
+                    gauss[cell.id].allocate_porous_liq_gas(n_integration_point);
                 }
                 Element::PorousSldLiq(param) => {
                     has_porous_solid = true;
