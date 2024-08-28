@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamSolid};
-use crate::material::{ArrLocalState, StressStrain};
+use crate::material::StressStrain;
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -34,9 +34,6 @@ pub struct ElementSolid<'a> {
     /// Stress-strain model
     pub model: StressStrain,
 
-    /// Stresses and internal values at all integration points
-    pub states: ArrLocalState,
-
     /// (temporary) Strain increment at integration point
     ///
     ///  Δε @ ip
@@ -59,12 +56,9 @@ impl<'a> ElementSolid<'a> {
 
         // integration points
         let ips = config.integ_point_data(cell)?;
-        let n_integ_point = ips.len();
 
-        // model and stresses
+        // material model
         let model = StressStrain::new(config, param)?;
-        let n_int_values = model.actual.n_internal_values();
-        let states = ArrLocalState::new(config.mandel, n_int_values, n_integ_point);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -76,7 +70,6 @@ impl<'a> ElementSolid<'a> {
             pad,
             ips,
             model,
-            states,
             delta_epsilon: Tensor2::new_sym_ndim(ndim),
         })
     }
@@ -176,9 +169,9 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Initializes the internal values
-    fn initialize_internal_values(&mut self) -> Result<(), StrError> {
-        self.states
-            .all
+    fn initialize_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        state.gauss[self.cell.id]
+            .solid
             .iter_mut()
             .map(|state| self.model.actual.initialize_internal_values(state))
             .collect()
@@ -199,7 +192,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         //     \____________/
         //     we compute this
         integ::vec_04_tb(residual, &mut args, |sig, p, _, _| {
-            sig.set_tensor(1.0, &self.states.all[p].stress);
+            sig.set_tensor(1.0, &state.gauss[self.cell.id].solid[p].stress);
             Ok(())
         })?;
 
@@ -231,41 +224,26 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &FemState) -> Result<(), StrError> {
+    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
         args.alpha = self.config.thickness;
         args.axisymmetric = self.config.axisymmetric;
         integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
-            self.model.actual.stiffness(dd, &self.states.all[p])
+            self.model.actual.stiffness(dd, &state.gauss[self.cell.id].solid[p])
         })
-    }
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&mut self) {
-        self.states.reset_algorithmic_variables();
-    }
-
-    /// Creates a copy of the secondary values (e.g., stresses and internal values)
-    fn backup_secondary_values(&mut self) {
-        self.states.backup()
-    }
-
-    /// Restores the secondary values from the backup (e.g., stresses and internal values)
-    fn restore_secondary_values(&mut self) {
-        self.states.restore()
     }
 
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, state: &FemState) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         for p in 0..self.ips.len() {
             // interpolate increment of strains Δε at integration point
             self.calc_delta_eps(&state.duu, p)?;
             // perform stress-update
             self.model
                 .actual
-                .update_stress(&mut self.states.all[p], &self.delta_epsilon)?;
+                .update_stress(&mut state.gauss[self.cell.id].solid[p], &self.delta_epsilon)?;
         }
         Ok(())
     }
@@ -313,10 +291,11 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
 
         // set stress state
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
-        for state in &mut elem.states.all {
+        for state in &mut state.gauss[elem.cell.id].solid {
             state.stress.sym_set(0, 0, s00);
             state.stress.sym_set(1, 1, s11);
             state.stress.sym_set(0, 1, s01);
@@ -326,7 +305,6 @@ mod tests {
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
         // check residual vector
-        let state = FemState::new(&input, &config).unwrap();
         let neq = 3 * 2;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
@@ -538,9 +516,10 @@ mod tests {
             let mut state = FemState::new(&input, &config).unwrap();
             vec_copy(&mut state.duu, &duu_h).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
-            element.update_secondary_values(&state).unwrap();
+            element.initialize_internal_values(&mut state).unwrap();
+            element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_h, 1e-13);
+                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -548,9 +527,10 @@ mod tests {
             let mut state = FemState::new(&input, &config).unwrap();
             vec_copy(&mut state.duu, &duu_v).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
-            element.update_secondary_values(&state).unwrap();
+            element.initialize_internal_values(&mut state).unwrap();
+            element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_v, 1e-13);
+                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -558,9 +538,10 @@ mod tests {
             let mut state = FemState::new(&input, &config).unwrap();
             vec_copy(&mut state.duu, &duu_s).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
-            element.update_secondary_values(&state).unwrap();
+            element.initialize_internal_values(&mut state).unwrap();
+            element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_s, 1e-13);
+                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_s, 1e-13);
             }
         }
     }
@@ -613,9 +594,10 @@ mod tests {
             let mut state = FemState::new(&input, &config).unwrap();
             vec_copy(&mut state.duu, &duu_h).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
+            element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_h, 1e-13);
+                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_h, 1e-13);
             }
 
             // check stress update (vertical displacement field)
@@ -623,9 +605,10 @@ mod tests {
             let mut state = FemState::new(&input, &config).unwrap();
             vec_copy(&mut state.duu, &duu_v).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
+            element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_v, 1e-13);
+                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_v, 1e-13);
             }
 
             // check stress update (shear displacement field)
@@ -633,9 +616,10 @@ mod tests {
             let mut state = FemState::new(&input, &config).unwrap();
             vec_copy(&mut state.duu, &duu_s).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
+            element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&element.states.all[p].stress.vector(), &solution_s, 1e-13);
+                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_s, 1e-13);
             }
         }
     }
@@ -684,9 +668,10 @@ mod tests {
 
         // check residual vector (1 integ point)
         // NOTE: since the stress is zero, the residual is due to the body force only
-        let state = FemState::new(&input, &config).unwrap();
+        let mut state = FemState::new(&input, &config).unwrap();
         let neq = 4 * 2;
         let mut residual = Vector::new(neq);
+        elem.initialize_internal_values(&mut state).unwrap();
         elem.calc_residual(&mut residual, &state).unwrap();
         // println!("{}", residual);
         let felippa_neg_rr_1ip = &[0.0, 12.0, 0.0, 12.0, 0.0, 12.0, 0.0, 12.0];
@@ -694,8 +679,10 @@ mod tests {
 
         // check residual vector (4 integ point)
         config.n_integ_point.insert(1, 4);
+        let mut state = FemState::new(&input, &config).unwrap();
         let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
+        elem.initialize_internal_values(&mut state).unwrap();
         elem.calc_residual(&mut residual, &state).unwrap();
         // println!("{}", residual);
         vec_approx_eq(&residual, felippa_neg_rr_4ip, 1e-14);

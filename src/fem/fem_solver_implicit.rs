@@ -79,7 +79,7 @@ impl<'a> FemSolverImplicit<'a> {
         }
 
         // initialize internal values
-        self.elements.initialize_internal_values_parallel()?;
+        self.elements.initialize_internal_values(state)?;
 
         // time loop
         for timestep in 0..control.n_max_time_steps {
@@ -106,7 +106,7 @@ impl<'a> FemSolverImplicit<'a> {
 
             // reset algorithmic variables
             if !config.linear_problem {
-                self.elements.reset_algorithmic_variables_parallel();
+                state.reset_algorithmic_variables_parallel();
             }
 
             // message
@@ -200,14 +200,14 @@ impl<'a> FemSolverImplicit<'a> {
                 // backup/restore secondary variables
                 if !config.linear_problem {
                     if iteration == 0 {
-                        self.elements.backup_secondary_values_parallel();
+                        state.backup_secondary_values_parallel();
                     } else {
-                        self.elements.restore_secondary_values_parallel();
+                        state.restore_secondary_values_parallel();
                     }
                 }
 
                 // update secondary variables
-                self.elements.update_secondary_values_parallel(state)?;
+                self.elements.update_secondary_values(state)?;
 
                 // exit if linear problem
                 if config.linear_problem {

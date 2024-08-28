@@ -82,7 +82,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Initializes the internal values
-    fn initialize_internal_values(&mut self) -> Result<(), StrError> {
+    fn initialize_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
 
@@ -204,19 +204,10 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         Ok(())
     }
 
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&mut self) {}
-
-    /// Creates a copy of the secondary values (e.g., stresses and internal values)
-    fn backup_secondary_values(&mut self) {}
-
-    /// Restores the secondary values from the backup (e.g., stresses and internal values)
-    fn restore_secondary_values(&mut self) {}
-
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, _state: &FemState) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
 }
