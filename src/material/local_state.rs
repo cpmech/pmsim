@@ -43,16 +43,17 @@ impl LocalState {
     }
 
     /// Copy data from another state into this state
-    ///
-    /// ```text
-    /// non_optional(self) := non_optional(other)
-    /// ```
     pub fn mirror(&mut self, other: &LocalState) {
+        vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
+        self.stress.set_tensor(1.0, &other.stress);
         self.elastic = other.elastic;
         self.apex_return = other.apex_return;
         self.algo_lagrange = other.algo_lagrange;
-        vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
-        self.stress.set_tensor(1.0, &other.stress);
+    }
+
+    /// Resets the algorithmic variables such as the Lagrange multiplier
+    pub fn reset_algorithmic_variables(&mut self) {
+        self.algo_lagrange = 0.0;
     }
 }
 
