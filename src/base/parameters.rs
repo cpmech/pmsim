@@ -384,6 +384,39 @@ pub struct ParamPorousSldLiqGas {
     pub conductivity_gas: ParamConductivity,
 }
 
+impl ParamStressStrain {
+    /// Returns the number of internal values used by the model
+    pub fn n_internal_values(&self) -> usize {
+        match self {
+            Self::LinearElastic { .. } => 0,
+            Self::VonMises { .. } => 1,
+            Self::DruckerPrager { .. } => 1,
+            Self::CamClay { .. } => 1,
+        }
+    }
+}
+
+impl ParamSolid {
+    /// Returns the number of internal values used by the stress-strain model
+    pub fn n_internal_values(&self) -> usize {
+        self.stress_strain.n_internal_values()
+    }
+}
+
+impl ParamPorousSldLiq {
+    /// Returns the number of internal values used by the stress-strain model
+    pub fn n_internal_values(&self) -> usize {
+        self.stress_strain.n_internal_values()
+    }
+}
+
+impl ParamPorousSldLiqGas {
+    /// Returns the number of internal values used by the stress-strain model
+    pub fn n_internal_values(&self) -> usize {
+        self.stress_strain.n_internal_values()
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]

@@ -50,7 +50,7 @@ pub struct FemState {
     /// (n_equation)
     pub aa_star: Vector,
 
-    /// Holds the secondary values (such as stress) at all integration (Gauss) points of all elements
+    /// Holds the secondary values (e.g. stress) at all integration (Gauss) points of all elements
     ///
     /// (n_cell)
     pub gauss: Vec<SecondaryValues>,
@@ -65,6 +65,10 @@ impl FemState {
             return Err("there are no cells in the mesh");
         }
 
+        // secondary values (e.g. stress) at all integration (Gauss) points of all elements
+        let empty = SecondaryValues::new_empty(config);
+        let mut gauss = vec![empty; ncell];
+
         // gather information about element types
         let mut has_diffusion = false;
         let mut has_rod_or_beam = false;
@@ -73,15 +77,38 @@ impl FemState {
         let mut has_porous_solid = false;
         for cell in &input.mesh.cells {
             let element = input.attributes.get(cell).unwrap(); // already checked by Data
+            let n_integration_point = config.integ_point_data(cell)?.len();
             match element {
-                Element::Diffusion(..) => has_diffusion = true,
-                Element::Rod(..) => has_rod_or_beam = true,
-                Element::Beam(..) => has_rod_or_beam = true,
-                Element::Solid(..) => has_solid = true,
-                Element::PorousLiq(..) => has_porous_fluid = true,
-                Element::PorousLiqGas(..) => has_porous_fluid = true,
-                Element::PorousSldLiq(..) => has_porous_solid = true,
-                Element::PorousSldLiqGas(..) => has_porous_solid = true,
+                Element::Diffusion(..) => {
+                    has_diffusion = true;
+                }
+                Element::Rod(..) => {
+                    has_rod_or_beam = true;
+                }
+                Element::Beam(..) => {
+                    has_rod_or_beam = true;
+                }
+                Element::Solid(param) => {
+                    has_solid = true;
+                    let n_internal_values = param.n_internal_values();
+                    gauss[cell.id].allocate_solid(n_integration_point, n_internal_values);
+                }
+                Element::PorousLiq(..) => {
+                    has_porous_fluid = true;
+                }
+                Element::PorousLiqGas(..) => {
+                    has_porous_fluid = true;
+                }
+                Element::PorousSldLiq(param) => {
+                    has_porous_solid = true;
+                    let n_internal_values = param.n_internal_values();
+                    gauss[cell.id].allocate_porous_sld_liq(n_integration_point, n_internal_values);
+                }
+                Element::PorousSldLiqGas(param) => {
+                    has_porous_solid = true;
+                    let n_internal_values = param.n_internal_values();
+                    gauss[cell.id].allocate_porous_sld_liq_gas(n_integration_point, n_internal_values);
+                }
             };
         }
 
@@ -117,7 +144,6 @@ impl FemState {
         };
 
         // allocate new instance
-        let empty = SecondaryValues::new_empty(config);
         return Ok(FemState {
             t,
             dt,
@@ -128,7 +154,7 @@ impl FemState {
             uu_star,
             vv_star,
             aa_star,
-            gauss: vec![empty; ncell],
+            gauss,
         });
     }
 
