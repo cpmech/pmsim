@@ -1,6 +1,7 @@
 use super::{FemInput, SecondaryValues};
 use crate::base::{Config, Element};
 use crate::StrError;
+use rayon::prelude::*;
 use russell_lab::Vector;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -192,6 +193,21 @@ impl FemState {
         let mut file = File::create(&path).map_err(|_| "cannot create file")?;
         serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
         Ok(())
+    }
+
+    /// Creates a copy of the secondary values (e.g., stresses)
+    pub(crate) fn backup_secondary_values_parallel(&mut self) {
+        self.gauss.par_iter_mut().for_each(|s| s.backup());
+    }
+
+    /// Restores the secondary values (e.g., stresses) from the backup
+    pub(crate) fn restore_secondary_values_parallel(&mut self) {
+        self.gauss.par_iter_mut().for_each(|s| s.restore());
+    }
+
+    /// Resets algorithmic variables (e.g., Lagrange multiplier) at the beginning of implicit iterations
+    pub(crate) fn reset_algorithmic_variables_parallel(&mut self) {
+        self.gauss.par_iter_mut().for_each(|s| s.reset_algorithmic_variables());
     }
 }
 
