@@ -152,7 +152,6 @@ impl Control {
     }
 
     /// Prints the header of the table with timestep and iteration data
-    #[inline]
     pub fn print_header(&self) {
         if self.verbose_timesteps || self.verbose_iterations {
             println!("Legend:");
@@ -171,7 +170,6 @@ impl Control {
     }
 
     /// Prints timestep data
-    #[inline]
     pub fn print_timestep(&self, timestep: usize, t: f64, dt: f64) {
         if !self.verbose_timesteps {
             return;
@@ -181,7 +179,6 @@ impl Control {
     }
 
     /// Prints iteration data
-    #[inline]
     pub fn print_iteration(&self, it: usize, max_rr_prev: f64, max_rr: f64) {
         if !self.verbose_iterations {
             return; // skip if not verbose

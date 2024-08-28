@@ -171,7 +171,6 @@ impl Config {
     }
 
     /// Validate data or panics
-    #[inline]
     pub fn validate_or_panic(&self, ndim: usize, verbose: bool) {
         if let Some(err) = self.validate(ndim) {
             if verbose {
@@ -182,7 +181,6 @@ impl Config {
     }
 
     /// Returns the initial overburden stress (negative means compression)
-    #[inline]
     pub fn initial_overburden_stress(&self) -> f64 {
         match self.initialization {
             Init::Geostatic(overburden) => overburden,

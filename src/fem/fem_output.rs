@@ -123,19 +123,16 @@ impl<'a> FemOutput<'a> {
     }
 
     /// Generates the filename path for the mesh file
-    #[inline]
     pub fn path_mesh(out_dir: &str, fn_stem: &str) -> String {
         format!("{}/{}-mesh.json", out_dir, fn_stem)
     }
 
     /// Generates the filename path for the summary file
-    #[inline]
     pub fn path_summary(out_dir: &str, fn_stem: &str) -> String {
         format!("{}/{}-summary.json", out_dir, fn_stem)
     }
 
     /// Generates the filename path for the state files
-    #[inline]
     pub fn path_state(out_dir: &str, fn_stem: &str, index: usize) -> String {
         format!("{}/{}-{:0>20}.json", out_dir, fn_stem, index)
     }

@@ -63,13 +63,11 @@ impl<'a> GenericElement<'a> {
     }
 
     /// Calculates the residual vector
-    #[inline]
     pub fn calc_residual(&mut self, state: &FemState) -> Result<(), StrError> {
         self.actual.calc_residual(&mut self.residual, state)
     }
 
     /// Calculates the Jacobian matrix
-    #[inline]
     pub fn calc_jacobian(&mut self, state: &FemState) -> Result<(), StrError> {
         self.actual.calc_jacobian(&mut self.jacobian, state)
     }

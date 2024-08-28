@@ -4,7 +4,6 @@ use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Feature;
 use gemlab::shapes::Scratchpad;
-use rayon::prelude::*;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::CooMatrix;
 
@@ -192,25 +191,21 @@ impl<'a> Boundaries<'a> {
     }
 
     /// Computes the residual vectors
-    #[inline]
     pub fn calc_residuals(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices
-    #[inline]
     pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
     /// Computes the residual vectors in parallel
-    #[inline]
     pub fn calc_residuals_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices in parallel
-    #[inline]
     pub fn calc_jacobians_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.par_iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
@@ -223,7 +218,6 @@ impl<'a> Boundaries<'a> {
     /// 2. The global vector R will **not** be cleared
     ///
     /// **Important:** You must call the Boundaries assemble_residuals after Elements
-    #[inline]
     pub fn assemble_residuals(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         self.all
             .iter()
@@ -238,7 +232,6 @@ impl<'a> Boundaries<'a> {
     /// 2. The CooMatrix position in the global matrix K will **not** be reset
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
-    #[inline]
     pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         // do not call reset here because it is called by elements
         for e in &self.all {

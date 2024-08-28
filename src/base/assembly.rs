@@ -36,7 +36,6 @@ pub fn compute_local_to_global(info: &ElementDofsMap, eqs: &Equations, cell: &Ce
 /// # Panics
 ///
 /// This function will panic if the indices are out-of-bounds
-#[inline]
 pub fn assemble_vector(rr_global: &mut Vector, r_local: &Vector, local_to_global: &[usize], prescribed: &[bool]) {
     let n_equation_local = r_local.dim();
     for l in 0..n_equation_local {
