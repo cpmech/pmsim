@@ -51,21 +51,39 @@ impl<'a> ElementDiffusion<'a> {
         cell: &'a Cell,
         param: &'a ParamDiffusion,
     ) -> Result<Self, StrError> {
+        // local-to-global mapping
+        let local_to_global = compute_local_to_global(&input.information, &input.equations, cell)?;
+
+        // pad for numerical integration
         let ndim = input.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
         input.mesh.set_pad(&mut pad, &points);
+
+        // integration points
+        let ips = config.integ_point_data(cell)?;
+
+        // material model
+        let model = Conductivity::new(&param.conductivity, ndim == 2);
+
+        // auxiliary conductivity tensor
+        let conductivity = Tensor2::new_sym_ndim(ndim);
+
+        // auxiliary gradient tensor
+        let grad_tt = Vector::new(ndim);
+
+        // allocate new instance
         Ok(ElementDiffusion {
             ndim,
             config,
             cell,
             param,
-            local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
+            local_to_global,
             pad,
-            ips: config.integ_point_data(cell)?,
-            model: Conductivity::new(&param.conductivity, ndim == 2),
-            conductivity: Tensor2::new_sym_ndim(ndim),
-            grad_tt: Vector::new(ndim),
+            ips,
+            model,
+            conductivity,
+            grad_tt,
         })
     }
 }

@@ -48,6 +48,9 @@ impl<'a> ElementSolid<'a> {
         cell: &'a Cell,
         param: &'a ParamSolid,
     ) -> Result<Self, StrError> {
+        // local-to-global mapping
+        let local_to_global = compute_local_to_global(&input.information, &input.equations, cell)?;
+
         // pad for numerical integration
         let ndim = input.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
@@ -60,10 +63,7 @@ impl<'a> ElementSolid<'a> {
         // material model
         let model = StressStrain::new(config, param)?;
 
-        // local-to-global mapping
-        let local_to_global = compute_local_to_global(&input.information, &input.equations, cell)?;
-
-        // auxiliary tensor
+        // auxiliary strain increment tensor
         let delta_epsilon = Tensor2::new_sym_ndim(ndim);
 
         // allocate new instance
