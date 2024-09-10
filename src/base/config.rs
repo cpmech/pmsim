@@ -1,10 +1,10 @@
 use super::{Control, FnTime, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{Cell, CellAttribute, Mesh};
+use gemlab::mesh::{Cell, CellAttribute, CellId, Mesh};
 use russell_sparse::{Genie, LinSolParams};
 use russell_tensor::Mandel;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 /// Holds configuration parameters
@@ -78,6 +78,9 @@ pub struct Config {
 
     /// Holds the number of integration points for groups of cells
     n_integ_point: HashMap<CellAttribute, usize>,
+
+    /// Holds the selected cells for outputting the secondary data (e.g., stress, strain)
+    out_cell_data: HashSet<CellId>,
 }
 
 impl Config {
@@ -107,6 +110,7 @@ impl Config {
                 Mandel::Symmetric
             },
             n_integ_point: HashMap::new(),
+            out_cell_data: HashSet::new(),
         }
     }
 
