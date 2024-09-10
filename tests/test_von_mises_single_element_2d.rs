@@ -89,7 +89,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.n_integ_point.insert(1, 1);
+    config.set_n_integ_point(1, 1);
     config.control.dt = |_| 1.0;
     config.control.dt_out = |_| 1.0;
     config.control.t_fin = N_STEPS as f64;

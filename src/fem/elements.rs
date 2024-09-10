@@ -202,7 +202,7 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let mut config = Config::new(&mesh);
-        config.n_integ_point.insert(1, 100); // wrong
+        config.set_n_integ_point(1, 100); // wrong
 
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();

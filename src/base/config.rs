@@ -55,16 +55,6 @@ pub struct Config {
     /// Parameters for fluids
     pub param_fluids: Option<ParamFluids>,
 
-    /// Number of integration points
-    ///
-    /// To set the number of integration points, use the map [Config::n_integ_point] directly, e.g.:
-    ///
-    /// ```text
-    /// let cell_attribute = 1;
-    /// config.n_integ_point.insert(cell_attribute, 4);
-    /// ```
-    pub n_integ_point: HashMap<CellAttribute, usize>,
-
     /// Ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
     pub ignore_jacobian_symmetry: bool,
 
@@ -85,6 +75,9 @@ pub struct Config {
     /// **Note:** This constant will be Symmetric or Symmetric2D. Thus, models
     /// requiring the General representation will have to use Mandel::General directly
     pub(crate) mandel: Mandel,
+
+    /// Holds the number of integration points for groups of cells
+    n_integ_point: HashMap<CellAttribute, usize>,
 }
 
 impl Config {
@@ -103,7 +96,6 @@ impl Config {
             total_stress: false,
             initialization: Init::Zero,
             param_fluids: None,
-            n_integ_point: HashMap::new(),
             ignore_jacobian_symmetry: false,
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
@@ -114,6 +106,7 @@ impl Config {
             } else {
                 Mandel::Symmetric
             },
+            n_integ_point: HashMap::new(),
         }
     }
 
@@ -178,6 +171,12 @@ impl Config {
             Init::Geostatic(overburden) => overburden,
             _ => 0.0,
         }
+    }
+
+    /// Sets the number of integration points of a group of cells
+    pub fn set_n_integ_point(&mut self, cell_attribute: CellAttribute, n_integ_point: usize) -> &mut Self {
+        self.n_integ_point.insert(cell_attribute, n_integ_point);
+        self
     }
 
     /// Returns the integration (Gauss) points data

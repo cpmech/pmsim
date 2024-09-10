@@ -203,7 +203,7 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.n_integ_point.insert(1, 100); // wrong
+        config.set_n_integ_point(1, 100); // wrong
         assert_eq!(
             ElementSolid::new(&input, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
@@ -492,7 +492,7 @@ mod tests {
         // configuration
         let mut config = Config::new(&mesh);
         config.axisymmetric = true;
-        config.n_integ_point.insert(1, 1);
+        config.set_n_integ_point(1, 1);
 
         // vertical acceleration (must be positive)
         config.gravity = Some(|_| 0.5); // 1/2 because rho = 2
@@ -512,7 +512,7 @@ mod tests {
         vec_approx_eq(&residual, felippa_neg_rr_1ip, 1e-15);
 
         // check residual vector (4 integ point)
-        config.n_integ_point.insert(1, 4);
+        config.set_n_integ_point(1, 4);
         let mut state = FemState::new(&input, &config).unwrap();
         let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];

@@ -74,7 +74,7 @@ fn main() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config.axisymmetric = true;
-    config.n_integ_point.insert(1, 4); // reduced integration => better results
+    config.set_n_integ_point(1, 4); // reduced integration => better results
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

@@ -91,8 +91,7 @@ fn main() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config.axisymmetric = true;
-    config.n_integ_point.insert(1, 9);
-    config.n_integ_point.insert(2, 9);
+    config.set_n_integ_point(1, 9).set_n_integ_point(2, 9);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

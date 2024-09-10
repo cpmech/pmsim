@@ -77,8 +77,7 @@ fn main() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.n_integ_point.insert(1, 8);
-    config.n_integ_point.insert(2, 8);
+    config.set_n_integ_point(1, 8).set_n_integ_point(2, 8);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
