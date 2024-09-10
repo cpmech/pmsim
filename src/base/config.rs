@@ -74,12 +74,6 @@ pub struct Config {
     /// Parameters for the sparse solver
     pub lin_sol_params: LinSolParams,
 
-    /// Output secondary values such as a stresses, strains, and internal values
-    pub out_secondary_values: bool,
-
-    /// Output strains during the output of secondary values
-    pub out_strains: bool,
-
     /// Allow initial yield surface drift in material models
     pub model_allow_initial_drift: bool,
 
@@ -113,8 +107,6 @@ impl Config {
             ignore_jacobian_symmetry: false,
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
-            out_secondary_values: false,
-            out_strains: false,
             model_allow_initial_drift: false,
             two_dim: mesh.ndim == 2,
             mandel: if mesh.ndim == 2 {
