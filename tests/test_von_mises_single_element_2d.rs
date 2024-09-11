@@ -109,7 +109,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // verify the results
     let tol_displacement = 1e-13;
-    let tol_stress = 1e-15;
+    let tol_stress = 1e-10;
     let tol_strain = 1e-15;
     verify_results(
         &mesh,

@@ -4,6 +4,7 @@ use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::approx_eq;
+use russell_tensor::{Mandel, SQRT_2};
 
 /// Compares the FEM results (displacement, stress, strain) against reference data
 ///
@@ -27,9 +28,15 @@ pub fn verify_results(
 ) -> Result<(), StrError> {
     // constants
     let ndim = mesh.ndim;
+    let tensor_vec_dim = 2 * ndim;
+    let mandel = Mandel::new(tensor_vec_dim);
     let npoint = mesh.points.len();
+    let ncell = mesh.cells.len();
     if npoint < 1 {
         return Err("there must be at least one point in the mesh");
+    }
+    if ncell < 1 {
+        return Err("there must be at least one cell");
     }
 
     // load reference results
@@ -44,6 +51,11 @@ pub fn verify_results(
         let compare = &reference.all[*step];
         if npoint != compare.displacement.len() {
             return Err("the number of points in the mesh must equal the corresponding number in the reference data");
+        }
+        if ncell != compare.stresses.len() {
+            return Err(
+                "the number of elements in the mesh must be equal to the reference number of elements (stresses)",
+            );
         }
 
         // load state
@@ -75,6 +87,32 @@ pub fn verify_results(
         }
 
         // check stresses
+        println!("ERROR ON STRESSES");
+        for e in 0..ncell {
+            let n_integ_point = compare.stresses[e].len();
+            if n_integ_point < 1 {
+                return Err("there must be at least on integration point in reference data (stress)");
+            }
+            let ref_tensor_vec_dim = compare.stresses[e][0].len();
+            if tensor_vec_dim != ref_tensor_vec_dim {
+                return Err("the number of stress components must equal the reference number of stress components");
+            }
+            let secondary_values = &fem_state.gauss[e];
+            for ip in 0..n_integ_point {
+                let local_state = &secondary_values.solid[ip];
+                for i in 0..tensor_vec_dim {
+                    let a = local_state.stress.vector()[i];
+                    let b = if i > 3 {
+                        compare.stresses[e][ip][i] * SQRT_2 // convert to Mandel
+                    } else {
+                        compare.stresses[e][ip][i]
+                    };
+                    print!("{:13.6e} ", f64::abs(a - b));
+                    approx_eq(a, b, tol_stress);
+                }
+                println!();
+            }
+        }
     }
     Ok(())
 }
