@@ -78,8 +78,8 @@ pub struct Config<'a> {
     /// Holds the number of integration points for a group of cells
     pub(crate) n_integ_point: HashMap<CellAttribute, usize>,
 
-    /// Holds the selected cells for outputting the secondary data (e.g., stress, strain)
-    pub(crate) out_cell_data: HashSet<CellId>,
+    /// Holds the ids of Cells for which the recording of local history (e.g. stress, strain, internal values) is requested
+    pub(crate) output_local_history: HashSet<CellId>,
 
     // control ------------------------------------------------------------------
     //
@@ -168,7 +168,7 @@ impl<'a> Config<'a> {
             lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
             n_integ_point: HashMap::new(),
-            out_cell_data: HashSet::new(),
+            output_local_history: HashSet::new(),
             // control
             t_ini: 0.0,
             t_fin: 1.0,
@@ -497,9 +497,9 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Selects some cells for outputting the secondary data (e.g., stress, strain)
-    pub fn set_out_cell_data(&mut self, cell_id: CellId) -> &mut Self {
-        self.out_cell_data.insert(cell_id);
+    /// Enables the recording of local history (e.g. stress, strain, internal values) at the element level (Gauss points)
+    pub fn set_output_local_history(&mut self, cell_id: CellId) -> &mut Self {
+        self.output_local_history.insert(cell_id);
         self
     }
 

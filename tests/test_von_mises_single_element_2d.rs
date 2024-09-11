@@ -94,7 +94,8 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)
-        .set_n_max_iterations(20);
+        .set_n_max_iterations(20)
+        .set_output_local_history(0);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
@@ -106,7 +107,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
-    // check displacements
+    // verify the results
     validate_results(&mesh, NAME, "spo_von_mises_single_element_2d.json", 1e-13, true)?;
 
     // check stresses

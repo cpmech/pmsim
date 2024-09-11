@@ -55,6 +55,11 @@ impl LocalState {
         }
     }
 
+    /// Enables the recording of stress-strain history and associated data
+    pub fn enable_history(&mut self) {
+        self.history = Some(Vec::new());
+    }
+
     /// Copy data from another state into this state
     pub fn mirror(&mut self, other: &LocalState) {
         vec_copy(&mut self.internal_values, &other.internal_values).unwrap();

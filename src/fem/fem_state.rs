@@ -145,6 +145,15 @@ impl FemState {
             (Vector::new(0), Vector::new(0))
         };
 
+        // activates the output of local history
+        for cell_id in &config.output_local_history {
+            if *cell_id < gauss.len() {
+                for local_state in &mut gauss[*cell_id].solid {
+                    local_state.enable_history();
+                }
+            }
+        }
+
         // allocate new instance
         return Ok(FemState {
             t,
