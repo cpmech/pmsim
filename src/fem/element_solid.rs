@@ -37,7 +37,7 @@ pub struct ElementSolid<'a> {
     /// (temporary) Strain increment at integration point
     ///
     ///  Δε @ ip
-    delta_epsilon: Tensor2,
+    delta_strain: Tensor2,
 }
 
 impl<'a> ElementSolid<'a> {
@@ -64,7 +64,7 @@ impl<'a> ElementSolid<'a> {
         let model = StressStrain::new(config, param)?;
 
         // auxiliary strain increment tensor
-        let delta_epsilon = Tensor2::new_sym_ndim(ndim);
+        let delta_strain = Tensor2::new_sym_ndim(ndim);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -76,7 +76,7 @@ impl<'a> ElementSolid<'a> {
             pad,
             ips,
             model,
-            delta_epsilon,
+            delta_strain,
         })
     }
 }
@@ -164,7 +164,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         for p in 0..self.ips.len() {
             // calculate increment of strains Δε at integration point (from global increment of displacements)
             calculate_strain(
-                &mut self.delta_epsilon,
+                &mut self.delta_strain,
                 &state.duu,
                 &self.config,
                 &self.local_to_global,
@@ -174,7 +174,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             // perform stress-update
             self.model
                 .actual
-                .update_stress(&mut state.gauss[self.cell.id].solid[p], &self.delta_epsilon)?;
+                .update_stress(&mut state.gauss[self.cell.id].solid[p], &self.delta_strain)?;
         }
         Ok(())
     }
