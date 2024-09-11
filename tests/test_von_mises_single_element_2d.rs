@@ -108,7 +108,18 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     solver.solve(&mut state, &mut output)?;
 
     // verify the results
-    verify_results(&mesh, NAME, "spo_von_mises_single_element_2d.json", 1e-13, true)?;
+    let tol_displacement = 1e-13;
+    let tol_stress = 1e-15;
+    let tol_strain = 1e-15;
+    verify_results(
+        &mesh,
+        NAME,
+        "spo_von_mises_single_element_2d.json",
+        tol_displacement,
+        tol_stress,
+        tol_strain,
+        true,
+    )?;
 
     // check stresses
     Ok(())
