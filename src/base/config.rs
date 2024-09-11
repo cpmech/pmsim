@@ -201,14 +201,14 @@ impl<'a> Config<'a> {
     /// Validates all data
     ///
     /// Returns a message with the inconsistent data, or returns None if everything is all right.
-    pub fn validate(&self, ndim: usize) -> Option<String> {
+    pub(crate) fn validate(&self) -> Option<String> {
         if self.thickness <= 0.0 {
             return Some(format!(
                 "thickness = {:?} is incorrect; it must be > 0.0",
                 self.thickness
             ));
         }
-        if self.plane_stress && ndim == 3 {
+        if self.plane_stress && !self.two_dim {
             return Some("plane-stress does not work in 3D".to_string());
         }
         if !self.plane_stress && self.thickness != 1.0 {
@@ -280,16 +280,6 @@ impl<'a> Config<'a> {
             ));
         }
         None // all good
-    }
-
-    /// Validate data or panics
-    pub fn validate_or_panic(&self, ndim: usize, verbose: bool) {
-        if let Some(err) = self.validate(ndim) {
-            if verbose {
-                println!("{}", err);
-            }
-            panic!("config.validate() failed");
-        }
     }
 
     // auxiliary ---------------------------------------------------------------------------------
@@ -708,31 +698,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_or_panic_works() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let config = Config::new(&mesh);
-        config.validate_or_panic(2, false);
-    }
-
-    #[test]
-    #[should_panic(expected = "config.validate() failed")]
-    fn validate_or_panic_panics() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-        config.set_t_ini(-1.0);
-        config.validate_or_panic(3, false);
-    }
-
-    #[test]
-    #[should_panic(expected = "config.validate() failed")]
-    fn validate_or_panic_panics_verbose() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-        config.set_t_ini(-1.0);
-        config.validate_or_panic(3, true);
-    }
-
-    #[test]
     fn alphas_transient_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
@@ -760,121 +725,123 @@ mod tests {
 
         config.thickness = 0.0;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("thickness = 0.0 is incorrect; it must be > 0.0".to_string())
         );
         config.thickness = 1.0;
 
         config.plane_stress = true;
-        assert_eq!(config.validate(3), Some("plane-stress does not work in 3D".to_string()));
+        config.two_dim = false;
+        assert_eq!(config.validate(), Some("plane-stress does not work in 3D".to_string()));
+        config.two_dim = true;
 
         config.plane_stress = false;
         config.thickness = 0.5;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("thickness = 0.5 is incorrect; it must be = 1.0 for plane-strain or 3D".to_string())
         );
         config.thickness = 1.0;
 
         config.initialization = Init::Geostatic(123.0);
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("overburden stress = 123.0 is incorrect; it must be ≤ 0.0 (compressive)".to_string())
         );
 
         config.plane_stress = true;
         config.initialization = Init::Geostatic(-123.0);
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("Init::Geostatic does not work with plane-stress".to_string())
         );
 
         config.plane_stress = false;
-        assert_eq!(config.validate(2), None);
+        assert_eq!(config.validate(), None);
 
         config.plane_stress = true;
         config.initialization = Init::Isotropic(-123.0);
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("Init::Isotropic does not work with plane-stress".to_string())
         );
         config.plane_stress = false;
 
         config.t_ini = -0.1;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("t_ini = -0.1 is incorrect; it must be ≥ 0.0".to_string())
         );
         config.t_ini = 0.1;
 
         config.t_fin = -0.1;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("t_fin = -0.1 is incorrect; it must be ≥ 0.0".to_string())
         );
 
         config.t_fin = 0.05;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("t_fin = 0.05 is incorrect; it must be > t_ini = 0.1".to_string())
         );
         config.t_fin = 1.0;
 
         config.dt_min = 0.0;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("dt_min = 0.0 is incorrect; it must be ≥ 1e-10".to_string())
         );
         config.dt_min = 1e-3;
 
         config.tol_rr = 0.0;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("tol_rel_residual = 0.0 is incorrect; it must be ≥ 1e-15".to_string())
         );
         config.tol_rr = 1e-8;
 
         config.theta = 0.0;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("theta = 0.0 is incorrect; it must be 0.0001 ≤ θ ≤ 1.0".to_string())
         );
         config.theta = 1.1;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("theta = 1.1 is incorrect; it must be 0.0001 ≤ θ ≤ 1.0".to_string())
         );
         config.theta = 0.5;
 
         config.theta1 = 0.0;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("theta1 = 0.0 is incorrect; it must be 0.0001 ≤ θ₁ ≤ 1.0".to_string())
         );
         config.theta1 = 1.1;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("theta1 = 1.1 is incorrect; it must be 0.0001 ≤ θ₁ ≤ 1.0".to_string())
         );
         config.theta1 = 0.5;
 
         config.theta2 = 0.0;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("theta2 = 0.0 is incorrect; it must be 0.0001 ≤ θ₂ ≤ 1.0".to_string())
         );
         config.theta2 = 1.1;
         assert_eq!(
-            config.validate(2),
+            config.validate(),
             Some("theta2 = 1.1 is incorrect; it must be 0.0001 ≤ θ₂ ≤ 1.0".to_string())
         );
         config.theta2 = 0.5;
 
         config.plane_stress = false;
-        assert_eq!(config.validate(2), None);
+        assert_eq!(config.validate(), None);
 
         config.initialization = Init::Zero;
-        assert_eq!(config.validate(2), None);
+        assert_eq!(config.validate(), None);
     }
 
     #[test]

@@ -32,7 +32,8 @@ impl<'a> FemSolverImplicit<'a> {
         essential: &'a Essential,
         natural: &'a Natural,
     ) -> Result<Self, StrError> {
-        if let Some(_) = config.validate(input.mesh.ndim) {
+        if let Some(msg) = config.validate() {
+            println!("ERROR: {}", msg);
             return Err("cannot allocate simulation because config.validate() failed");
         }
         let prescribed_values = PrescribedValues::new(input, essential)?;
