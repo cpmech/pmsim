@@ -126,8 +126,8 @@ impl FemState {
         let n_equation = input.equations.n_equation;
 
         // primary variables
-        let t = config.control.t_ini;
-        let dt = (config.control.dt)(t);
+        let t = config.t_ini;
+        let dt = (config.dt)(t);
         let duu = Vector::new(n_equation);
         let uu = Vector::new(n_equation);
         let (uu_star, vv, vv_star) = if config.transient || config.dynamics {

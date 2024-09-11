@@ -60,8 +60,10 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.lin_sol_genie = Genie::Umfpack;
-    config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = true;
+    config
+        .set_lin_sol_genie(Genie::Umfpack)
+        .access_lin_sol_params()
+        .umfpack_enforce_unsymmetric_strategy = true;
 
     // elements
     let mut elements = Elements::new(&input, &config)?;

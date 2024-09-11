@@ -73,8 +73,7 @@ fn main() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.lin_sol_genie = Genie::Mumps;
-    config.lin_sol_params.verbose = false;
+    config.set_lin_sol_genie(Genie::Mumps).access_lin_sol_params().verbose = false;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

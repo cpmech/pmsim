@@ -89,11 +89,12 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_n_integ_point(1, 1);
-    config.control.dt = |_| 1.0;
-    config.control.dt_out = |_| 1.0;
-    config.control.t_fin = N_STEPS as f64;
-    config.control.n_max_iterations = 20;
+    config
+        .set_n_integ_point(1, 1)
+        .set_dt(|_| 1.0)
+        .set_dt_out(|_| 1.0)
+        .set_t_fin(N_STEPS as f64)
+        .set_n_max_iterations(20);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

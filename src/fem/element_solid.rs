@@ -14,7 +14,7 @@ pub struct ElementSolid<'a> {
     pub ndim: usize,
 
     /// Global configuration
-    pub config: &'a Config,
+    pub config: &'a Config<'a>,
 
     /// The cell corresponding to this element
     pub cell: &'a Cell,
@@ -124,7 +124,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         args.clear = false; // << important from now on
 
         // handle body forces
-        if let Some(gravity) = self.config.gravity {
+        if let Some(gravity) = self.config.gravity.as_ref() {
             let rho = self.param.density;
             integ::vec_02_nv(residual, &mut args, |b, _, _| {
                 // Note: due to the definition of the residual vector, the body force needs
@@ -495,7 +495,7 @@ mod tests {
         config.set_n_integ_point(1, 1);
 
         // vertical acceleration (must be positive)
-        config.gravity = Some(|_| 0.5); // 1/2 because rho = 2
+        config.set_gravity(|_| 0.5); // 1/2 because rho = 2
 
         // element
         let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();

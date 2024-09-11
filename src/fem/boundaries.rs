@@ -12,7 +12,7 @@ use russell_sparse::CooMatrix;
 /// This data structure corresponds to a single Natural (Neumann) boundary condition
 pub struct Boundary<'a> {
     /// Global configuration
-    pub config: &'a Config,
+    pub config: &'a Config<'a>,
 
     /// Natural boundary condition
     pub nbc: Nbc,

@@ -1,72 +1,144 @@
-use super::{Control, FnTime, Init, ParamFluids};
+use super::{Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{Cell, CellAttribute, CellId, Mesh};
+use russell_sparse::SparseMatrix;
 use russell_sparse::{Genie, LinSolParams};
 use russell_tensor::Mandel;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
+/// Defines the smallest allowed dt_min (Control)
+pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
+
+/// Defines the smallest allowed tolerance (Control)
+pub const CONTROL_MIN_TOL: f64 = 1e-15;
+
+/// Defines the smallest allowed theta{1,2} (Control)
+pub const CONTROL_MIN_THETA: f64 = 0.0001;
+
 /// Holds configuration parameters
-pub struct Config {
-    /// Linear problem
-    pub linear_problem: bool,
+pub struct Config<'a> {
+    /// Holds a flag indicating Linear problem
+    pub(crate) linear_problem: bool,
 
-    /// Transient analysis (with first time derivative of primary variables)
-    pub transient: bool,
+    /// Holds a flag indicating Transient analysis (with first time derivative of primary variables)
+    pub(crate) transient: bool,
 
-    /// Dynamics analysis (with second time derivative of primary variables)
-    pub dynamics: bool,
+    /// Holds a flag indicating Dynamics analysis (with second time derivative of primary variables)
+    pub(crate) dynamics: bool,
 
-    /// Pseudo-Newton method with constant-tangent operator
-    pub constant_tangent: bool,
+    /// Holds a flag indicating Pseudo-Newton method with constant-tangent operator
+    pub(crate) constant_tangent: bool,
 
-    /// Holds control variables for the (pseudo) time integration over the simulation period
-    pub control: Control,
-
-    /// Gravity acceleration (positive variable)
+    /// Holds the gravity acceleration (a positive value)
     ///
-    /// Note: The corresponding acceleration vector will be directed against y in 2D or z in 3D;
-    /// e.g., `a_gravity = {0, -GRAVITY}ᵀ` in 2D or `a_gravity = {0, 0, -GRAVITY}ᵀ` in 3D.
+    /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
+    ///
+    /// ```text
+    /// a_gravity = {0, -GRAVITY}ᵀ    // 2D
+    /// a_gravity = {0, 0, -GRAVITY}ᵀ // 3D
+    /// ```
     ///
     /// Example:
     ///
     /// ```text
     /// const GRAVITY: f64 = 10.0;
-    /// config.gravity = Some(|_| GRAVITY);
+    /// config.set_gravity(GRAVITY);
     /// ```
-    pub gravity: Option<FnTime>,
+    pub(crate) gravity: Option<Box<dyn Fn(f64) -> f64 + 'a>>,
 
-    /// Axisymmetric problem represented in 2D (instead of plane-strain)
-    pub axisymmetric: bool,
+    /// Holds a flag indicating axisymmetric problem represented in 2D (instead of plane-strain)
+    pub(crate) axisymmetric: bool,
 
-    /// Plane-stress problem instead of plane-strain iff 2D
-    pub plane_stress: bool,
+    /// Holds a flag indicating plane-stress problem instead of plane-strain iff 2D
+    pub(crate) plane_stress: bool,
 
-    /// Thickness for plane-stress or 1.0 otherwise
-    pub thickness: f64,
+    /// Holds the thickness for plane-stress or 1.0 otherwise
+    pub(crate) thickness: f64,
 
-    /// Total stress analysis (instead of effective stresses)
-    pub total_stress: bool,
+    /// Holds option to initialize all stress states
+    pub(crate) initialization: Init,
 
-    /// Option to initialize stress state
-    pub initialization: Init,
+    /// Holds the parameters for fluids
+    pub(crate) param_fluids: Option<ParamFluids>,
 
-    /// Parameters for fluids
-    pub param_fluids: Option<ParamFluids>,
+    /// Holds a flag to ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
+    pub(crate) ignore_jacobian_symmetry: bool,
 
-    /// Ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
-    pub ignore_jacobian_symmetry: bool,
+    /// Holds the linear solver type
+    pub(crate) lin_sol_genie: Genie,
 
-    /// Linear solver type
-    pub lin_sol_genie: Genie,
+    /// Holds the parameters for the linear (sparse) solver
+    pub(crate) lin_sol_params: LinSolParams,
 
-    /// Parameters for the sparse solver
-    pub lin_sol_params: LinSolParams,
+    /// Holds a flag allowing an initial yield surface drift in (stress-strain) material models
+    pub(crate) model_allow_initial_drift: bool,
 
-    /// Allow initial yield surface drift in material models
-    pub model_allow_initial_drift: bool,
+    /// Holds the number of integration points for a group of cells
+    pub(crate) n_integ_point: HashMap<CellAttribute, usize>,
 
+    /// Holds the selected cells for outputting the secondary data (e.g., stress, strain)
+    pub(crate) out_cell_data: HashSet<CellId>,
+
+    // control ------------------------------------------------------------------
+    //
+    /// Holds the initial time
+    pub(crate) t_ini: f64,
+
+    /// Holds the final time
+    pub(crate) t_fin: f64,
+
+    /// Holds the time increments
+    pub(crate) dt: Box<dyn Fn(f64) -> f64 + 'a>,
+
+    /// Holds the time increment for the output of results
+    pub(crate) dt_out: Box<dyn Fn(f64) -> f64 + 'a>,
+
+    /// Holds the minimum allowed time increment min(Δt)
+    pub(crate) dt_min: f64,
+
+    /// Holds the maximum number of time steps
+    pub(crate) n_max_time_steps: usize,
+
+    /// Holds the divergence control flag
+    pub(crate) divergence_control: bool,
+
+    /// Holds the maximum number of steps diverging allowed
+    pub(crate) div_ctrl_max_steps: usize,
+
+    /// Holds the maximum number of iterations
+    pub(crate) n_max_iterations: usize,
+
+    /// Holds the tolerance for the scaled residual vector
+    pub(crate) tol_rr: f64,
+
+    /// Holds the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
+    pub(crate) theta: f64,
+
+    /// Holds the coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
+    pub(crate) theta1: f64,
+
+    /// Holds the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
+    pub(crate) theta2: f64,
+
+    /// Holds the verbose flag for timesteps
+    pub(crate) verbose_timesteps: bool,
+
+    /// Holds the verbose flag for iterations
+    pub(crate) verbose_iterations: bool,
+
+    /// Holds the verbose flag for linear system solution
+    pub(crate) verbose_lin_sys_solve: bool,
+
+    /// Holds a flag to activate saving a MatrixMarket file (for debugging)
+    pub(crate) save_matrix_market_file: bool,
+
+    /// Holds a flag to activate saving a vismatrix file (for debugging)
+    pub(crate) save_vismatrix_file: bool,
+
+    // derived -------------------------------------------------------------------
+    //
     /// Indicates 2D instead of 3D
     pub(crate) two_dim: bool,
 
@@ -75,15 +147,9 @@ pub struct Config {
     /// **Note:** This constant will be Symmetric or Symmetric2D. Thus, models
     /// requiring the General representation will have to use Mandel::General directly
     pub(crate) mandel: Mandel,
-
-    /// Holds the number of integration points for groups of cells
-    n_integ_point: HashMap<CellAttribute, usize>,
-
-    /// Holds the selected cells for outputting the secondary data (e.g., stress, strain)
-    out_cell_data: HashSet<CellId>,
 }
 
-impl Config {
+impl<'a> Config<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh) -> Self {
         Config {
@@ -91,26 +157,44 @@ impl Config {
             transient: false,
             dynamics: false,
             constant_tangent: false,
-            control: Control::new(),
             gravity: None,
-            thickness: 1.0,
             axisymmetric: false,
             plane_stress: false,
-            total_stress: false,
+            thickness: 1.0,
             initialization: Init::Zero,
             param_fluids: None,
             ignore_jacobian_symmetry: false,
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
+            n_integ_point: HashMap::new(),
+            out_cell_data: HashSet::new(),
+            // control
+            t_ini: 0.0,
+            t_fin: 1.0,
+            dt: Box::new(|_| 1.0),
+            dt_out: Box::new(|_| 1.0),
+            dt_min: CONTROL_MIN_DT_MIN,
+            n_max_time_steps: 1_000,
+            divergence_control: false,
+            div_ctrl_max_steps: 10,
+            n_max_iterations: 10,
+            tol_rr: 1e-10,
+            theta: 0.5,
+            theta1: 0.5,
+            theta2: 0.5,
+            verbose_timesteps: true,
+            verbose_iterations: true,
+            verbose_lin_sys_solve: false,
+            save_matrix_market_file: false,
+            save_vismatrix_file: false,
+            // derived
             two_dim: mesh.ndim == 2,
             mandel: if mesh.ndim == 2 {
                 Mandel::Symmetric2D
             } else {
                 Mandel::Symmetric
             },
-            n_integ_point: HashMap::new(),
-            out_cell_data: HashSet::new(),
         }
     }
 
@@ -118,10 +202,6 @@ impl Config {
     ///
     /// Returns a message with the inconsistent data, or returns None if everything is all right.
     pub fn validate(&self, ndim: usize) -> Option<String> {
-        match self.control.validate() {
-            Some(err) => return Some(err),
-            None => (),
-        }
         if self.thickness <= 0.0 {
             return Some(format!(
                 "thickness = {:?} is incorrect; it must be > 0.0",
@@ -156,6 +236,49 @@ impl Config {
             }
             _ => (),
         }
+        // control
+        if self.t_ini < 0.0 {
+            return Some(format!("t_ini = {:?} is incorrect; it must be ≥ 0.0", self.t_ini));
+        }
+        if self.t_fin < 0.0 {
+            return Some(format!("t_fin = {:?} is incorrect; it must be ≥ 0.0", self.t_fin));
+        }
+        if self.t_fin < self.t_ini {
+            return Some(format!(
+                "t_fin = {:?} is incorrect; it must be > t_ini = {:?}",
+                self.t_fin, self.t_ini
+            ));
+        }
+        if self.dt_min < CONTROL_MIN_DT_MIN {
+            return Some(format!(
+                "dt_min = {:?} is incorrect; it must be ≥ {:e}",
+                self.dt_min, CONTROL_MIN_DT_MIN
+            ));
+        }
+        if self.tol_rr < CONTROL_MIN_TOL {
+            return Some(format!(
+                "tol_rel_residual = {:?} is incorrect; it must be ≥ {:e}",
+                self.tol_rr, CONTROL_MIN_TOL
+            ));
+        }
+        if self.theta < CONTROL_MIN_THETA || self.theta > 1.0 {
+            return Some(format!(
+                "theta = {:?} is incorrect; it must be {:?} ≤ θ ≤ 1.0",
+                self.theta, CONTROL_MIN_THETA
+            ));
+        }
+        if self.theta1 < CONTROL_MIN_THETA || self.theta1 > 1.0 {
+            return Some(format!(
+                "theta1 = {:?} is incorrect; it must be {:?} ≤ θ₁ ≤ 1.0",
+                self.theta1, CONTROL_MIN_THETA
+            ));
+        }
+        if self.theta2 < CONTROL_MIN_THETA || self.theta2 > 1.0 {
+            return Some(format!(
+                "theta2 = {:?} is incorrect; it must be {:?} ≤ θ₂ ≤ 1.0",
+                self.theta2, CONTROL_MIN_THETA
+            ));
+        }
         None // all good
     }
 
@@ -169,18 +292,93 @@ impl Config {
         }
     }
 
+    // auxiliary ---------------------------------------------------------------------------------
+
+    /// Calculates beta coefficients for transient method
+    pub(crate) fn betas_transient(&self, dt: f64) -> Result<(f64, f64), StrError> {
+        if dt < self.dt_min {
+            return Err("Δt is smaller than the allowed minimum");
+        }
+        let beta_1 = 1.0 / (self.theta * dt);
+        let beta_2 = (1.0 - self.theta) / self.theta;
+        Ok((beta_1, beta_2))
+    }
+
+    /// Prints the header of the table with timestep and iteration data
+    pub(crate) fn print_header(&self) {
+        if self.verbose_timesteps || self.verbose_iterations {
+            println!("Legend:");
+            println!("✅ : converged");
+            println!("👍 : converging");
+            println!("🥵 : diverging");
+            println!("😱 : found NaN or Inf");
+            println!("❋  : non-scaled max(R)");
+            println!("?  : no info abut convergence");
+            println!("{:>8} {:>13} {:>13} {:>5} {:>9}  ", "", "", "", "", "    _ ");
+            println!(
+                "{:>8} {:>13} {:>13} {:>5} {:>9}  ",
+                "timestep", "t", "Δt", "iter", "max(R)"
+            );
+        }
+    }
+
+    /// Prints timestep data
+    pub(crate) fn print_timestep(&self, timestep: usize, t: f64, dt: f64) {
+        if !self.verbose_timesteps {
+            return;
+        }
+        let n = timestep + 1;
+        println!("{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}  ", n, t, dt, ".", ".");
+    }
+
+    /// Prints iteration data
+    pub(crate) fn print_iteration(&self, it: usize, max_rr_prev: f64, max_rr: f64) {
+        if !self.verbose_iterations {
+            return; // skip if not verbose
+        }
+        let l = if !max_rr.is_finite() {
+            "😱" // found NaN or Inf
+        } else if it == 0 {
+            "❋ " // non-scaled max residual
+        } else if max_rr < self.tol_rr {
+            "✅" // converged
+        } else if it == 1 {
+            "? " // no info about convergence (cannot compare max_rr with max_rr_prev yet)
+        } else if max_rr > max_rr_prev {
+            "🥵" // diverging
+        } else {
+            "👍" // converging
+        };
+        let n = it + 1;
+        println!("{:>8} {:>13} {:>13} {:>5} {:>9.2e}{}", ".", ".", ".", n, max_rr, l);
+    }
+
+    /// Saves the global K matrix for debugging
+    pub(crate) fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix) -> Result<(), StrError> {
+        if self.save_matrix_market_file || self.save_vismatrix_file {
+            let csc = kk.get_csc()?;
+            if self.save_matrix_market_file {
+                let name = format!("/tmp/pmsim/K-matrix.mtx");
+                csc.write_matrix_market(&name, false).unwrap();
+            }
+            if self.save_vismatrix_file {
+                let name = format!("/tmp/pmsim/K-matrix.smat");
+                csc.write_matrix_market(&name, true).unwrap();
+            }
+            Err("K matrix written; will stop now")
+        } else {
+            Ok(())
+        }
+    }
+
+    // getters -----------------------------------------------------------------------------------
+
     /// Returns the initial overburden stress (negative means compression)
     pub fn initial_overburden_stress(&self) -> f64 {
         match self.initialization {
             Init::Geostatic(overburden) => overburden,
             _ => 0.0,
         }
-    }
-
-    /// Sets the number of integration points of a group of cells
-    pub fn set_n_integ_point(&mut self, cell_attribute: CellAttribute, n_integ_point: usize) -> &mut Self {
-        self.n_integ_point.insert(cell_attribute, n_integ_point);
-        self
     }
 
     /// Returns the integration (Gauss) points data
@@ -197,15 +395,239 @@ impl Config {
             None => Ok(integ::default_points(cell.kind)),
         }
     }
+
+    // setters -----------------------------------------------------------------------------------
+
+    /// Returns and access to the linear solver parameters
+    pub fn access_lin_sol_params(&mut self) -> &mut LinSolParams {
+        &mut self.lin_sol_params
+    }
+
+    /// Sets a flag indicating Linear problem
+    pub fn set_linear_problem(&mut self, enable: bool) -> &mut Self {
+        self.linear_problem = enable;
+        self
+    }
+
+    /// Sets a flag indicating Transient analysis (with first time derivative of primary variables)
+    pub fn set_transient(&mut self, enable: bool) -> &mut Self {
+        self.transient = enable;
+        self
+    }
+
+    /// Sets a flag indicating Dynamics analysis (with second time derivative of primary variables)
+    pub fn set_dynamics(&mut self, enable: bool) -> &mut Self {
+        self.dynamics = enable;
+        self
+    }
+
+    /// Sets a flag indicating Pseudo-Newton method with constant-tangent operator
+    pub fn set_constant_tangent(&mut self, enable: bool) -> &mut Self {
+        self.constant_tangent = enable;
+        self
+    }
+
+    /// Sets the gravity acceleration (a positive value)
+    ///
+    /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
+    ///
+    /// ```text
+    /// a_gravity = {0, -GRAVITY}ᵀ    // 2D
+    /// a_gravity = {0, 0, -GRAVITY}ᵀ // 3D
+    /// ```
+    ///
+    /// Example:
+    ///
+    /// ```text
+    /// const GRAVITY: f64 = 10.0;
+    /// config.set_gravity(GRAVITY);
+    /// ```
+    pub fn set_gravity(&mut self, gravity_function: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        self.gravity = Some(Box::new(gravity_function));
+        self
+    }
+
+    /// Sets a flag indicating axisymmetric problem represented in 2D (instead of plane-strain)
+    pub fn set_axisymmetric(&mut self, enable: bool) -> &mut Self {
+        self.axisymmetric = enable;
+        self
+    }
+
+    /// Sets a flag indicating plane-stress problem instead of plane-strain iff 2D
+    ///
+    /// This function also sets the thickness for the plane-stress analysis.
+    pub fn set_plane_stress(&mut self, enable: bool, thickness: f64) -> &mut Self {
+        self.plane_stress = enable;
+        self.thickness = thickness;
+        self
+    }
+
+    /// Sets options to initialize all stress states
+    pub fn set_initialization(&mut self, initialization: Init) -> &mut Self {
+        self.initialization = initialization;
+        self
+    }
+
+    /// Sets the parameters for fluids
+    pub fn set_param_fluids(&mut self, params: ParamFluids) -> &mut Self {
+        self.param_fluids = Some(params);
+        self
+    }
+
+    /// Sets a flag to ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
+    pub fn set_ignore_jacobian_symmetry(&mut self, ignore_symmetry: bool) -> &mut Self {
+        self.ignore_jacobian_symmetry = ignore_symmetry;
+        self
+    }
+
+    /// Sets the linear solver type
+    pub fn set_lin_sol_genie(&mut self, genie: Genie) -> &mut Self {
+        self.lin_sol_genie = genie;
+        self
+    }
+
+    /// Sets the parameters for the linear (sparse) solver
+    pub fn set_lin_sol_params(&mut self, params: LinSolParams) -> &mut Self {
+        self.lin_sol_params = params;
+        self
+    }
+
+    /// Sets a flag allowing an initial yield surface drift in (stress-strain) material models
+    pub fn set_model_allow_initial_drift(&mut self, model_allow_initial_drift: bool) -> &mut Self {
+        self.model_allow_initial_drift = model_allow_initial_drift;
+        self
+    }
+
+    /// Sets the number of integration points for a group of cells
+    ///
+    /// Note: This function is optional because a default number
+    /// of integration points is selected for all cell types.
+    pub fn set_n_integ_point(&mut self, cell_attribute: CellAttribute, n_integ_point: usize) -> &mut Self {
+        self.n_integ_point.insert(cell_attribute, n_integ_point);
+        self
+    }
+
+    /// Selects some cells for outputting the secondary data (e.g., stress, strain)
+    pub fn set_out_cell_data(&mut self, cell_id: CellId) -> &mut Self {
+        self.out_cell_data.insert(cell_id);
+        self
+    }
+
+    /// Sets the initial time
+    pub fn set_t_ini(&mut self, t_ini: f64) -> &mut Self {
+        self.t_ini = t_ini;
+        self
+    }
+
+    /// Sets the final time
+    pub fn set_t_fin(&mut self, t_fin: f64) -> &mut Self {
+        self.t_fin = t_fin;
+        self
+    }
+
+    /// Sets the time increments
+    pub fn set_dt(&mut self, dt: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        self.dt = Box::new(dt);
+        self
+    }
+
+    /// Sets the time increment for the output of results
+    pub fn set_dt_out(&mut self, dt_out: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        self.dt_out = Box::new(dt_out);
+        self
+    }
+
+    /// Sets the minimum allowed time increment min(Δt)
+    pub fn set_dt_min(&mut self, dt_min: f64) -> &mut Self {
+        self.dt_min = dt_min;
+        self
+    }
+
+    /// Sets the maximum number of time steps
+    pub fn set_n_max_time_steps(&mut self, n_max_time_steps: usize) -> &mut Self {
+        self.n_max_time_steps = n_max_time_steps;
+        self
+    }
+
+    /// Sets the divergence control flag
+    pub fn set_divergence_control(&mut self, enable: bool) -> &mut Self {
+        self.divergence_control = enable;
+        self
+    }
+
+    /// Sets the maximum number of steps diverging allowed
+    pub fn set_div_ctrl_max_steps(&mut self, div_ctrl_max_steps: usize) -> &mut Self {
+        self.div_ctrl_max_steps = div_ctrl_max_steps;
+        self
+    }
+
+    /// Sets the maximum number of iterations
+    pub fn set_n_max_iterations(&mut self, n_max_iterations: usize) -> &mut Self {
+        self.n_max_iterations = n_max_iterations;
+        self
+    }
+
+    /// Sets the tolerance for the scaled residual vector
+    pub fn set_tol_rr(&mut self, tol_rr: f64) -> &mut Self {
+        self.tol_rr = tol_rr;
+        self
+    }
+
+    /// Sets the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
+    pub fn set_theta(&mut self, theta: f64) -> &mut Self {
+        self.theta = theta;
+        self
+    }
+
+    /// Sets the coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
+    pub fn set_theta1(&mut self, theta1: f64) -> &mut Self {
+        self.theta1 = theta1;
+        self
+    }
+
+    /// Sets the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
+    pub fn set_theta2(&mut self, theta2: f64) -> &mut Self {
+        self.theta2 = theta2;
+        self
+    }
+
+    /// Sets the verbose flag for timesteps
+    pub fn set_verbose_timesteps(&mut self, enable: bool) -> &mut Self {
+        self.verbose_timesteps = enable;
+        self
+    }
+
+    /// Sets the verbose flag for iterations
+    pub fn set_verbose_iterations(&mut self, enable: bool) -> &mut Self {
+        self.verbose_iterations = enable;
+        self
+    }
+
+    /// Sets the verbose flag for linear system solution
+    pub fn set_verbose_lin_sys_solve(&mut self, enable: bool) -> &mut Self {
+        self.verbose_lin_sys_solve = enable;
+        self
+    }
+
+    /// Sets a flag to activate saving a MatrixMarket file (for debugging)
+    pub fn set_save_matrix_market_file(&mut self, enable: bool) -> &mut Self {
+        self.save_matrix_market_file = enable;
+        self
+    }
+
+    /// Sets a flag to activate saving a vismatrix file (for debugging)
+    pub fn set_save_vismatrix_file(&mut self, enable: bool) -> &mut Self {
+        self.save_vismatrix_file = enable;
+        self
+    }
 }
 
-impl fmt::Display for Config {
+impl<'a> fmt::Display for Config<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Configuration data\n").unwrap();
         write!(f, "==================\n").unwrap();
         write!(f, "thickness = {:?}\n", self.thickness).unwrap();
         write!(f, "plane_stress = {:?}\n", self.plane_stress).unwrap();
-        write!(f, "total_stress = {:?}\n", self.total_stress).unwrap();
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
         write!(f, "\nSpecified number of integration points\n").unwrap();
         write!(f, "======================================\n").unwrap();
@@ -241,7 +663,6 @@ mod tests {
         assert_eq!(config.constant_tangent, false);
         assert_eq!(config.thickness, 1.0);
         assert_eq!(config.plane_stress, false);
-        assert_eq!(config.total_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
         let mut config = Config::new(&mesh);
@@ -258,7 +679,6 @@ mod tests {
 
         config.thickness = 1.0;
         config.plane_stress = true;
-        config.total_stress = true;
         config.initialization = Init::Geostatic(-123.0);
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
@@ -274,7 +694,6 @@ mod tests {
              ==================\n\
              thickness = 1.0\n\
              plane_stress = true\n\
-             total_stress = true\n\
              initialization = Geostatic(-123.0)\n\
              \n\
              Specified number of integration points\n\
@@ -289,16 +708,55 @@ mod tests {
     }
 
     #[test]
-    fn validate_works() {
+    fn validate_or_panic_works() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let config = Config::new(&mesh);
+        config.validate_or_panic(2, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "config.validate() failed")]
+    fn validate_or_panic_panics() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
+        config.set_t_ini(-1.0);
+        config.validate_or_panic(3, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "config.validate() failed")]
+    fn validate_or_panic_panics_verbose() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
+        config.set_t_ini(-1.0);
+        config.validate_or_panic(3, true);
+    }
+
+    #[test]
+    fn alphas_transient_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
 
-        config.control.t_ini = -1.0;
+        config.theta = 1.0;
+        let (beta_1, beta_2) = config.betas_transient(1.0).unwrap();
+        assert_eq!(beta_1, 1.0);
+        assert_eq!(beta_2, 0.0);
+
+        config.theta = 0.5;
+        let (beta_1, beta_2) = config.betas_transient(1.0).unwrap();
+        assert_eq!(beta_1, 2.0);
+        assert_eq!(beta_2, 1.0);
+
         assert_eq!(
-            config.validate(2),
-            Some("t_ini = -1.0 is incorrect; it must be ≥ 0.0".to_string())
+            config.betas_transient(0.0).err(),
+            Some("Δt is smaller than the allowed minimum")
         );
-        config.control.t_ini = 0.0;
+    }
+
+    #[test]
+    fn validate_works() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
 
         config.thickness = 0.0;
         assert_eq!(
@@ -340,6 +798,77 @@ mod tests {
             config.validate(2),
             Some("Init::Isotropic does not work with plane-stress".to_string())
         );
+        config.plane_stress = false;
+
+        config.t_ini = -0.1;
+        assert_eq!(
+            config.validate(2),
+            Some("t_ini = -0.1 is incorrect; it must be ≥ 0.0".to_string())
+        );
+        config.t_ini = 0.1;
+
+        config.t_fin = -0.1;
+        assert_eq!(
+            config.validate(2),
+            Some("t_fin = -0.1 is incorrect; it must be ≥ 0.0".to_string())
+        );
+
+        config.t_fin = 0.05;
+        assert_eq!(
+            config.validate(2),
+            Some("t_fin = 0.05 is incorrect; it must be > t_ini = 0.1".to_string())
+        );
+        config.t_fin = 1.0;
+
+        config.dt_min = 0.0;
+        assert_eq!(
+            config.validate(2),
+            Some("dt_min = 0.0 is incorrect; it must be ≥ 1e-10".to_string())
+        );
+        config.dt_min = 1e-3;
+
+        config.tol_rr = 0.0;
+        assert_eq!(
+            config.validate(2),
+            Some("tol_rel_residual = 0.0 is incorrect; it must be ≥ 1e-15".to_string())
+        );
+        config.tol_rr = 1e-8;
+
+        config.theta = 0.0;
+        assert_eq!(
+            config.validate(2),
+            Some("theta = 0.0 is incorrect; it must be 0.0001 ≤ θ ≤ 1.0".to_string())
+        );
+        config.theta = 1.1;
+        assert_eq!(
+            config.validate(2),
+            Some("theta = 1.1 is incorrect; it must be 0.0001 ≤ θ ≤ 1.0".to_string())
+        );
+        config.theta = 0.5;
+
+        config.theta1 = 0.0;
+        assert_eq!(
+            config.validate(2),
+            Some("theta1 = 0.0 is incorrect; it must be 0.0001 ≤ θ₁ ≤ 1.0".to_string())
+        );
+        config.theta1 = 1.1;
+        assert_eq!(
+            config.validate(2),
+            Some("theta1 = 1.1 is incorrect; it must be 0.0001 ≤ θ₁ ≤ 1.0".to_string())
+        );
+        config.theta1 = 0.5;
+
+        config.theta2 = 0.0;
+        assert_eq!(
+            config.validate(2),
+            Some("theta2 = 0.0 is incorrect; it must be 0.0001 ≤ θ₂ ≤ 1.0".to_string())
+        );
+        config.theta2 = 1.1;
+        assert_eq!(
+            config.validate(2),
+            Some("theta2 = 1.1 is incorrect; it must be 0.0001 ≤ θ₂ ≤ 1.0".to_string())
+        );
+        config.theta2 = 0.5;
 
         config.plane_stress = false;
         assert_eq!(config.validate(2), None);
@@ -349,27 +878,63 @@ mod tests {
     }
 
     #[test]
-    fn validate_or_panic_works() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let config = Config::new(&mesh);
-        config.validate_or_panic(2, false);
-    }
+    fn print_methods_work() {
+        // NOTE:
+        // We need to run this test manually to check the output (with our eyes)
 
-    #[test]
-    #[should_panic(expected = "config.validate() failed")]
-    fn validate_or_panic_panics() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
-        config.control.t_ini = -1.0;
-        config.validate_or_panic(3, false);
-    }
 
-    #[test]
-    #[should_panic(expected = "config.validate() failed")]
-    fn validate_or_panic_panics_verbose() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-        config.control.t_ini = -1.0;
-        config.validate_or_panic(3, true);
+        println!("\n\nOUTPUT FROM HERE (SHOWS HEADER) ####################################");
+        config.verbose_timesteps = true;
+        config.verbose_iterations = true;
+        config.print_header();
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
+        config.verbose_timesteps = false;
+        config.verbose_iterations = false;
+        config.print_header();
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP) ##################################");
+        config.verbose_timesteps = true;
+        config.print_timestep(123, 0.1, 0.01);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
+        config.verbose_timesteps = false;
+        config.print_timestep(123, 0.1, 0.01);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NaN) #############################");
+        config.verbose_iterations = true;
+        config.print_iteration(3, 123.0, f64::NAN);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NON-SCALED) ######################");
+        config.print_iteration(0, 123.0, 123.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: CONVERGED) #######################");
+        config.print_iteration(1, 123.0, 0.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NO INFO) #########################");
+        config.print_iteration(1, 123.0, 1.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: DIVERGING) #######################");
+        config.print_iteration(3, 123.0, 246.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: CONVERGING) ######################");
+        config.print_iteration(3, 123.0, 100.0);
+        println!("############################################################ TO HERE");
+
+        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
+        config.verbose_iterations = false;
+        config.print_iteration(3, 123.0, 100.0);
+        println!("############################################################ TO HERE");
     }
 }

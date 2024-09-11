@@ -24,14 +24,14 @@ pub(crate) fn new_empty_mesh_3d() -> Mesh {
 
 /// Returns a new empty configuration for 2D simulations
 #[allow(dead_code)]
-pub(crate) fn new_empty_config_2d() -> Config {
+pub(crate) fn new_empty_config_2d<'a>() -> Config<'a> {
     let mesh = new_empty_mesh_2d();
     Config::new(&mesh)
 }
 
 /// Returns a new empty configuration for 3D simulations
 #[allow(dead_code)]
-pub(crate) fn new_empty_config_3d() -> Config {
+pub(crate) fn new_empty_config_3d<'a>() -> Config<'a> {
     let mesh = new_empty_mesh_3d();
     Config::new(&mesh)
 }

@@ -14,7 +14,7 @@ pub struct ElementDiffusion<'a> {
     pub ndim: usize,
 
     /// Global configuration
-    pub config: &'a Config,
+    pub config: &'a Config<'a>,
 
     /// The cell corresponding to this element
     pub cell: &'a Cell,
@@ -140,7 +140,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         if self.config.transient {
             // calculate beta coefficient
-            let (beta_1, _) = self.config.control.betas_transient(state.dt)?;
+            let (beta_1, _) = self.config.betas_transient(state.dt)?;
             let s = match self.param.source {
                 Some(val) => val,
                 None => 0.0,
@@ -216,7 +216,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // diffusion (mass) matrix
         if self.config.transient {
-            let (beta_1, _) = self.config.control.betas_transient(state.dt)?;
+            let (beta_1, _) = self.config.betas_transient(state.dt)?;
             integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(beta_1 * self.param.rho)).unwrap();
         }
         Ok(())

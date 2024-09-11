@@ -23,7 +23,7 @@ pub struct GenericElement<'a> {
 /// Holds a collection of (generic) finite elements
 pub struct Elements<'a> {
     /// Holds configuration parameters
-    pub config: &'a Config,
+    pub config: &'a Config<'a>,
 
     /// All elements
     pub all: Vec<GenericElement<'a>>,
@@ -272,7 +272,7 @@ mod tests {
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
-        let (beta_1, beta_2) = config.control.betas_transient(state.dt).unwrap();
+        let (beta_1, beta_2) = config.betas_transient(state.dt).unwrap();
         state.uu_star[0] = beta_1 * state.uu[0] + beta_2 * state.uu[0];
         state.uu_star[1] = beta_1 * state.uu[1] + beta_2 * state.uu[1];
         state.uu_star[2] = beta_1 * state.uu[2] + beta_2 * state.uu[2];

@@ -219,12 +219,14 @@ fn main() -> Result<(), StrError> {
 
         // configuration
         let mut config = Config::new(&mesh);
-        config.linear_problem = true;
-        config.control.verbose_timesteps = false;
-        config.control.save_vismatrix_file = false;
-        config.control.save_matrix_market_file = false;
-        config.lin_sol_genie = genie;
-        config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
+        config
+            .set_linear_problem(true)
+            .set_verbose_timesteps(false)
+            .set_save_vismatrix_file(false)
+            .set_save_matrix_market_file(false)
+            .set_lin_sol_genie(genie)
+            .access_lin_sol_params()
+            .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // FEM state
         let mut state = FemState::new(&input, &config)?;

@@ -14,7 +14,7 @@ pub struct ElementRod<'a> {
     pub ndim: usize,
 
     /// Global configuration
-    pub config: &'a Config,
+    pub config: &'a Config<'a>,
 
     /// The cell corresponding to this element
     pub cell: &'a Cell,

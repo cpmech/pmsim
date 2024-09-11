@@ -6,7 +6,7 @@ use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 /// Performs a finite element simulation
 pub struct FemSolverImplicit<'a> {
     /// Holds configuration parameters
-    pub config: &'a Config,
+    pub config: &'a Config<'a>,
 
     /// Holds a collection of prescribed (primary) values
     pub prescribed_values: PrescribedValues<'a>,
@@ -54,7 +54,6 @@ impl<'a> FemSolverImplicit<'a> {
     pub fn solve(&mut self, state: &mut FemState, output: &mut FemOutput) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
-        let control = &self.config.control;
         let prescribed = &self.prescribed_values.flags;
         let rr = &mut self.linear_system.residual;
         let kk = &mut self.linear_system.jacobian;
@@ -71,27 +70,27 @@ impl<'a> FemSolverImplicit<'a> {
 
         // first output
         output.write(state)?;
-        let mut t_out = state.t + (control.dt_out)(state.t);
+        let mut t_out = state.t + (config.dt_out)(state.t);
 
         // message
         if !config.linear_problem {
-            control.print_header();
+            config.print_header();
         }
 
         // initialize internal values
         self.elements.initialize_internal_values(state)?;
 
         // time loop
-        for timestep in 0..control.n_max_time_steps {
+        for timestep in 0..config.n_max_time_steps {
             // update time
-            state.dt = (control.dt)(state.t);
-            if state.t + state.dt > control.t_fin {
+            state.dt = (config.dt)(state.t);
+            if state.t + state.dt > config.t_fin {
                 break;
             }
             state.t += state.dt;
 
             // old state variables
-            let (beta_1, beta_2) = control.betas_transient(state.dt)?;
+            let (beta_1, beta_2) = config.betas_transient(state.dt)?;
             if config.transient {
                 vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
@@ -110,7 +109,7 @@ impl<'a> FemSolverImplicit<'a> {
             }
 
             // message
-            control.print_timestep(timestep, state.t, state.dt);
+            config.print_timestep(timestep, state.t, state.dt);
 
             // previous and current max (scaled) R values
             let mut max_rr_prev: f64;
@@ -120,7 +119,7 @@ impl<'a> FemSolverImplicit<'a> {
             // conditions will yield update residuals. On the other hand, the primary variables
             // (except the prescribed values) and secondary variables are still on the old time.
             // These values (primary and secondary) at the old time are hence the trial values.
-            for iteration in 0..control.n_max_iterations {
+            for iteration in 0..config.n_max_iterations {
                 // compute residuals (for the new time)
                 self.elements.calc_residuals(&state)?;
                 self.boundaries.calc_residuals(&state)?;
@@ -137,15 +136,15 @@ impl<'a> FemSolverImplicit<'a> {
                 if iteration == 0 {
                     max_rr = vec_norm(rr, Norm::Max); // << non-scaled
                     if !config.linear_problem {
-                        control.print_iteration(iteration, max_rr_prev, max_rr);
+                        config.print_iteration(iteration, max_rr_prev, max_rr);
                     }
                     vec_copy(&mut rr0, rr)?;
                 } else {
                     max_rr = vec_max_scaled(rr, &rr0); // << scaled
                     if !config.linear_problem {
-                        control.print_iteration(iteration, max_rr_prev, max_rr);
+                        config.print_iteration(iteration, max_rr_prev, max_rr);
                     }
-                    if max_rr < control.tol_rr {
+                    if max_rr < config.tol_rr {
                         break;
                     }
                 }
@@ -172,14 +171,14 @@ impl<'a> FemSolverImplicit<'a> {
                         .factorize(kk, Some(config.lin_sol_params))?;
 
                     // Debug K matrix
-                    control.debug_save_kk_matrix(kk)?;
+                    config.debug_save_kk_matrix(kk)?;
                 }
 
                 // solve linear system
                 self.linear_system
                     .solver
                     .actual
-                    .solve(mdu, &kk, &rr, config.control.verbose_lin_sys_solve)?;
+                    .solve(mdu, &kk, &rr, config.verbose_lin_sys_solve)?;
 
                 // updates
                 if config.transient {
@@ -215,20 +214,20 @@ impl<'a> FemSolverImplicit<'a> {
                 }
 
                 // check convergence
-                if iteration == control.n_max_iterations - 1 {
+                if iteration == config.n_max_iterations - 1 {
                     return Err("Newton-Raphson did not converge");
                 }
             }
 
             // perform output
-            let last_timestep = timestep == control.n_max_time_steps - 1;
+            let last_timestep = timestep == config.n_max_time_steps - 1;
             if state.t >= t_out || last_timestep {
                 output.write(state)?;
-                t_out += (control.dt_out)(state.t);
+                t_out += (config.dt_out)(state.t);
             }
 
             // final time step
-            if state.t >= control.t_fin {
+            if state.t >= config.t_fin {
                 break;
             }
         }
@@ -258,7 +257,7 @@ mod tests {
 
         // error due to config.validate
         let mut config = Config::new(&mesh);
-        config.control.dt_min = -1.0;
+        config.set_dt_min(-1.0);
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
@@ -323,7 +322,7 @@ mod tests {
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.control.dt = |_| -1.0; // wrong
+        config.set_dt(|_| -1.0); // wrong
         let essential = Essential::new();
         let natural = Natural::new();
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural).unwrap();
