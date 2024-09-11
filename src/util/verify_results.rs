@@ -18,7 +18,7 @@ use russell_lab::approx_eq;
 /// # Output
 ///
 /// * `(states, states_ref)` -- The state points at selected `(CellId, IntegrationPointId)`
-pub fn validate_results(
+pub fn verify_results(
     mesh: &Mesh,
     name: &str,
     ref_filename: &str,

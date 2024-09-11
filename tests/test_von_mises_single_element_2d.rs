@@ -1,7 +1,7 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
 use pmsim::prelude::*;
-use pmsim::util::validate_results;
+use pmsim::util::verify_results;
 use russell_lab::*;
 
 // von Mises plasticity with a single-element
@@ -108,7 +108,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     solver.solve(&mut state, &mut output)?;
 
     // verify the results
-    validate_results(&mesh, NAME, "spo_von_mises_single_element_2d.json", 1e-13, true)?;
+    verify_results(&mesh, NAME, "spo_von_mises_single_element_2d.json", 1e-13, true)?;
 
     // check stresses
     Ok(())
