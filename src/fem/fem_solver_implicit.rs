@@ -69,10 +69,6 @@ impl<'a> FemSolverImplicit<'a> {
             .filter_map(|eq| if prescribed[eq] { None } else { Some(eq) })
             .collect();
 
-        // first output
-        output.write(state)?;
-        let mut t_out = state.t + (config.dt_out)(state.t);
-
         // message
         if !config.linear_problem {
             config.print_header();
@@ -80,6 +76,10 @@ impl<'a> FemSolverImplicit<'a> {
 
         // initialize internal values
         self.elements.initialize_internal_values(state)?;
+
+        // first output (must occur initialize_internal_values)
+        output.write(state)?;
+        let mut t_out = state.t + (config.dt_out)(state.t);
 
         // time loop
         for timestep in 0..config.n_max_time_steps {
