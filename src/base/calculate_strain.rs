@@ -66,15 +66,24 @@ mod tests {
     use super::calculate_strain;
     use crate::base::{compute_local_to_global, Attributes, Config, Element, ElementDofsMap, Equations, SampleParams};
     use crate::base::{
-        generate_horizontal_displacement_field, generate_shear_displacement_field, generate_vertical_displacement_field,
+        elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
+        elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
+        generate_shear_displacement_field, generate_vertical_displacement_field,
     };
     use gemlab::mesh::Samples;
     use gemlab::shapes::Scratchpad;
     use russell_lab::vec_approx_eq;
-    use russell_tensor::{Tensor2, SQRT_2};
+    use russell_tensor::Tensor2;
 
     #[test]
     fn calc_delta_eps_works() {
+        // irrelevant parameters here
+        let young = 10_000.0; // kPa
+        let poisson = 0.2; // [-]
+
+        // strain magnitude (either ε_xx, ε_yy, or ε_xy)
+        const STRAIN: f64 = 4.56;
+
         // loop over meshes
         for mesh in &[
             Samples::one_qua4(),
@@ -84,28 +93,15 @@ mod tests {
         ] {
             // incremental displacement field
             // (equal total displacements because initial displacements are zero)
-            let strain = 4.56;
-            let duu_h = generate_horizontal_displacement_field(&mesh, strain);
-            let duu_v = generate_vertical_displacement_field(&mesh, strain);
-            let duu_s = generate_shear_displacement_field(&mesh, strain);
+            let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
+            let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
+            let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
 
-            // correct increments of strain
+            // solution
             let ndim = mesh.ndim;
-            let solution_h = if ndim == 2 {
-                vec![strain, 0.0, 0.0, 0.0]
-            } else {
-                vec![strain, 0.0, 0.0, 0.0, 0.0, 0.0]
-            };
-            let solution_v = if ndim == 2 {
-                vec![0.0, strain, 0.0, 0.0]
-            } else {
-                vec![0.0, strain, 0.0, 0.0, 0.0, 0.0]
-            };
-            let solution_s = if ndim == 2 {
-                vec![0.0, 0.0, 0.0, strain * SQRT_2 / 2.0]
-            } else {
-                vec![0.0, 0.0, 0.0, strain * SQRT_2 / 2.0, 0.0, 0.0]
-            };
+            let (strain_h, _) = elastic_solution_horizontal_displacement_field(young, poisson, ndim, STRAIN);
+            let (strain_v, _) = elastic_solution_vertical_displacement_field(young, poisson, ndim, STRAIN);
+            let (strain_s, _) = elastic_solution_shear_displacement_field(young, poisson, ndim, STRAIN);
 
             // check the first cell/element only
             let cell = &mesh.cells[0];
@@ -136,13 +132,13 @@ mod tests {
                 let ksi = &ips[p];
                 // horizontal strain
                 calculate_strain(&mut de, &duu_h, &config, &l2g, ksi, &mut pad).unwrap();
-                vec_approx_eq(&de.vector(), &solution_h, 1e-13);
+                vec_approx_eq(de.vector(), strain_h.vector(), 1e-13);
                 // vertical strain
                 calculate_strain(&mut de, &duu_v, &config, &l2g, ksi, &mut pad).unwrap();
-                vec_approx_eq(&de.vector(), &solution_v, 1e-14);
+                vec_approx_eq(de.vector(), strain_v.vector(), 1e-14);
                 // shear strain
                 calculate_strain(&mut de, &duu_s, &config, &l2g, ksi, &mut pad).unwrap();
-                vec_approx_eq(&de.vector(), &solution_s, 1e-14);
+                vec_approx_eq(de.vector(), strain_s.vector(), 1e-14);
             }
         }
     }

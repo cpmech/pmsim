@@ -2,15 +2,6 @@ use russell_lab::{vec_copy, Vector};
 use russell_tensor::{Mandel, Tensor2};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OutLocalState {
-    internal_values: Vector,
-    stress: Tensor2,
-    strain: Tensor2,
-    yield_value: f64,
-    elastic: bool,
-}
-
 /// Holds local state data for FEM simulations of porous materials
 ///
 /// This data is associated with a Gauss (integration) point
@@ -31,8 +22,8 @@ pub struct LocalState {
     /// Holds the algorithmic lagrange multiplier (Λ) for implicit methods
     pub algo_lagrange: f64,
 
-    /// (optional) Holds the stress-strain history
-    pub history: Option<Vec<OutLocalState>>,
+    /// (optional) Holds the strain tensor ε
+    pub strain: Option<Tensor2>,
 }
 
 /// Implements an array of LocalState
@@ -51,13 +42,13 @@ impl LocalState {
             elastic: true,
             apex_return: false,
             algo_lagrange: 0.0,
-            history: None,
+            strain: None,
         }
     }
 
-    /// Enables the recording of stress-strain history and associated data
-    pub fn enable_history(&mut self) {
-        self.history = Some(Vec::new());
+    /// Enables the recording of strains
+    pub fn enable_strains(&mut self) {
+        self.strain = Some(Tensor2::new(self.stress.mandel()));
     }
 
     /// Copy data from another state into this state

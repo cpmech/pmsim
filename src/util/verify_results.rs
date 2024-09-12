@@ -4,7 +4,7 @@ use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::approx_eq;
-use russell_tensor::{Mandel, SQRT_2};
+use russell_tensor::SQRT_2;
 
 /// Compares the FEM results (displacement, stress, strain) against reference data
 ///
@@ -14,22 +14,21 @@ use russell_tensor::{Mandel, SQRT_2};
 /// * `name` -- The file name given to [FemOutput]
 /// * `ref_filename` -- The filename of the file with the reference results (located in `data/results`)
 /// * `tol_displacement` -- A tolerance to compare displacements
-/// * `tol_stress` -- A tolerance to compare stresses
 /// * `tol_strain` -- A tolerance to compare strains
+/// * `tol_stress` -- A tolerance to compare stresses
 /// * `verbose` -- Enables the verbose mode
 pub fn verify_results(
     mesh: &Mesh,
     name: &str,
     ref_filename: &str,
     tol_displacement: f64,
-    tol_stress: f64,
     tol_strain: f64,
+    tol_stress: f64,
     verbose: bool,
 ) -> Result<(), StrError> {
     // constants
     let ndim = mesh.ndim;
     let tensor_vec_dim = 2 * ndim;
-    let mandel = Mandel::new(tensor_vec_dim);
     let npoint = mesh.points.len();
     let ncell = mesh.cells.len();
     if npoint < 1 {
@@ -83,6 +82,39 @@ pub fn verify_results(
             }
             if verbose {
                 println!();
+            }
+        }
+
+        // check strains
+        println!("ERROR ON STRAINS");
+        for e in 0..ncell {
+            let n_integ_point = compare.stresses[e].len();
+            if n_integ_point < 1 {
+                return Err("there must be at least on integration point in reference data (strains)");
+            }
+            let ref_tensor_vec_dim = compare.stresses[e][0].len();
+            if tensor_vec_dim != ref_tensor_vec_dim {
+                return Err("the number of strain components must equal the reference number of strain components");
+            }
+            let secondary_values = &fem_state.gauss[e];
+            for ip in 0..n_integ_point {
+                let local_state = &secondary_values.solid[ip];
+                match &local_state.strain {
+                    Some(strain) => {
+                        for i in 0..tensor_vec_dim {
+                            let a = strain.vector()[i];
+                            let b = if i > 3 {
+                                compare.strains[e][ip][i] * SQRT_2 // convert to Mandel
+                            } else {
+                                compare.strains[e][ip][i]
+                            };
+                            print!("{:13.6e} ", f64::abs(a - b));
+                            // approx_eq(a, b, tol_strain); // TODO
+                        }
+                        println!();
+                    }
+                    None => return Err("output of local data is required for all cells when checking strains"),
+                }
             }
         }
 

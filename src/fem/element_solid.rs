@@ -176,6 +176,20 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 .actual
                 .update_stress(&mut state.gauss[self.cell.id].solid[p], &self.delta_strain)?;
         }
+        if self.config.output_strains.contains(&self.cell.id) {
+            for p in 0..self.ips.len() {
+                // calculate the strains ε at integration point (from global displacements)
+                let strain = state.gauss[self.cell.id].solid[p].strain.as_mut().unwrap();
+                calculate_strain(
+                    strain,
+                    &state.uu,
+                    &self.config,
+                    &self.local_to_global,
+                    &self.ips[p],
+                    &mut self.pad,
+                )?;
+            }
+        }
         Ok(())
     }
 }
@@ -186,7 +200,9 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 mod tests {
     use super::ElementSolid;
     use crate::base::{
-        generate_horizontal_displacement_field, generate_shear_displacement_field, generate_vertical_displacement_field,
+        elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
+        elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
+        generate_shear_displacement_field, generate_vertical_displacement_field,
     };
     use crate::base::{Config, Element, ParamSolid, ParamStressStrain, SampleParams};
     use crate::fem::{ElementTrait, FemInput, FemState};
@@ -264,13 +280,15 @@ mod tests {
         // parameters
         let young = 1.0;
         let poisson = 0.25;
-        let c = young / ((1.0 + poisson) * (1.0 - 2.0 * poisson));
         let p1 = ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
             nonlin_elast: None,
             stress_update: None,
         };
+
+        // strain magnitude (either ε_xx, ε_yy, or ε_xy)
+        const STRAIN: f64 = 4.56;
 
         // loop over meshes
         let meshes = &[
@@ -282,60 +300,15 @@ mod tests {
         for mesh in meshes {
             // incremental displacement field
             // (equal total displacements because initial displacements are zero)
-            let strain = 4.56;
-            let duu_h = generate_horizontal_displacement_field(&mesh, strain);
-            let duu_v = generate_vertical_displacement_field(&mesh, strain);
-            let duu_s = generate_shear_displacement_field(&mesh, strain);
+            let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
+            let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
+            let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
 
-            // correct stress
+            // solution
             let ndim = mesh.ndim;
-            let solution_h = if ndim == 2 {
-                vec![
-                    c * strain * (1.0 - poisson),
-                    c * strain * poisson,
-                    c * strain * poisson,
-                    0.0,
-                ]
-            } else {
-                vec![
-                    c * strain * (1.0 - poisson),
-                    c * strain * poisson,
-                    c * strain * poisson,
-                    0.0,
-                    0.0,
-                    0.0,
-                ]
-            };
-            let solution_v = if ndim == 2 {
-                vec![
-                    c * strain * poisson,
-                    c * strain * (1.0 - poisson),
-                    c * strain * poisson,
-                    0.0,
-                ]
-            } else {
-                vec![
-                    c * strain * poisson,
-                    c * strain * (1.0 - poisson),
-                    c * strain * poisson,
-                    0.0,
-                    0.0,
-                    0.0,
-                ]
-            };
-            let solution_s = if ndim == 2 {
-                // ε = 𝛾/2 = strain/2
-                vec![0.0, 0.0, 0.0, c * (1.0 - 2.0 * poisson) * (strain / 2.0) * SQRT_2]
-            } else {
-                vec![
-                    0.0,
-                    0.0,
-                    0.0,
-                    c * (1.0 - 2.0 * poisson) * (strain / 2.0) * SQRT_2,
-                    0.0,
-                    0.0,
-                ]
-            };
+            let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(young, poisson, ndim, STRAIN);
+            let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(young, poisson, ndim, STRAIN);
+            let (strain_s, stress_s) = elastic_solution_shear_displacement_field(young, poisson, ndim, STRAIN);
 
             // check the first cell/element only
             let id = 0;
@@ -343,7 +316,8 @@ mod tests {
             let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 
             // configuration
-            let config = Config::new(&mesh);
+            let mut config = Config::new(&mesh);
+            config.set_output_strains(id);
 
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
@@ -353,7 +327,12 @@ mod tests {
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_h, 1e-13);
+                vec_approx_eq(state.gauss[id].solid[p].stress.vector(), stress_h.vector(), 1e-13);
+                vec_approx_eq(
+                    state.gauss[id].solid[p].strain.as_mut().unwrap().vector(),
+                    strain_h.vector(),
+                    1e-13,
+                );
             }
 
             // check stress update (vertical displacement field)
@@ -364,7 +343,12 @@ mod tests {
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_v, 1e-13);
+                vec_approx_eq(state.gauss[id].solid[p].stress.vector(), stress_v.vector(), 1e-13);
+                vec_approx_eq(
+                    state.gauss[id].solid[p].strain.as_mut().unwrap().vector(),
+                    strain_v.vector(),
+                    1e-13,
+                );
             }
 
             // check stress update (shear displacement field)
@@ -375,7 +359,12 @@ mod tests {
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.ips.len() {
-                vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_s, 1e-13);
+                vec_approx_eq(state.gauss[id].solid[p].stress.vector(), stress_s.vector(), 1e-13);
+                vec_approx_eq(
+                    state.gauss[id].solid[p].strain.as_mut().unwrap().vector(),
+                    strain_s.vector(),
+                    1e-13,
+                );
             }
         }
     }
@@ -393,6 +382,9 @@ mod tests {
             stress_update: None,
         };
 
+        // strain magnitude (either ε_xx, ε_yy, or ε_xy)
+        const STRAIN: f64 = 4.56;
+
         // loop over meshes
         let meshes = &[
             Samples::one_qua4(),
@@ -404,15 +396,14 @@ mod tests {
 
             // incremental displacement field
             // (equal total displacements because initial displacements are zero)
-            let strain = 4.56;
-            let duu_h = generate_horizontal_displacement_field(&mesh, strain);
-            let duu_v = generate_vertical_displacement_field(&mesh, strain);
-            let duu_s = generate_shear_displacement_field(&mesh, strain);
+            let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
+            let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
+            let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
 
             // correct stress
-            let solution_h = vec![c * strain, c * strain * poisson, 0.0, 0.0];
-            let solution_v = vec![c * strain * poisson, c * strain, 0.0, 0.0];
-            let solution_s = vec![0.0, 0.0, 0.0, c * (strain / 2.0) * (1.0 - poisson) * SQRT_2];
+            let solution_h = vec![c * STRAIN, c * STRAIN * poisson, 0.0, 0.0];
+            let solution_v = vec![c * STRAIN * poisson, c * STRAIN, 0.0, 0.0];
+            let solution_s = vec![0.0, 0.0, 0.0, c * STRAIN * (1.0 - poisson) * SQRT_2];
 
             // check the first cell/element only
             let id = 0;

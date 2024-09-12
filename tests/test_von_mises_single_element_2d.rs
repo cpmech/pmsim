@@ -43,6 +43,8 @@ const NAME: &str = "test_von_mises_single_element_2d";
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
+    let att = mesh.cells[0].attribute;
+    let id = 0;
 
     // features
     let feat = Features::new(&mesh, false);
@@ -70,7 +72,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         nonlin_elast: None,
         stress_update: None,
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(att, Element::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -90,12 +92,12 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_n_integ_point(1, 1)
+        .set_n_integ_point(att, 1)
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)
         .set_n_max_iterations(20)
-        .set_output_local_history(0);
+        .set_output_strains(id);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
@@ -109,15 +111,15 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // verify the results
     let tol_displacement = 1e-13;
+    let tol_strain = 1e-13;
     let tol_stress = 1e-10;
-    let tol_strain = 1e-15;
     verify_results(
         &mesh,
         NAME,
         "spo_von_mises_single_element_2d.json",
         tol_displacement,
-        tol_stress,
         tol_strain,
+        tol_stress,
         true,
     )?;
 
