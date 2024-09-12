@@ -22,7 +22,6 @@ pub fn verify_results(
     name: &str,
     ref_filename: &str,
     tol_displacement: f64,
-    tol_strain: f64,
     tol_stress: f64,
     verbose: bool,
 ) -> Result<(), StrError> {
@@ -85,39 +84,6 @@ pub fn verify_results(
             }
         }
 
-        // check strains
-        println!("ERROR ON STRAINS");
-        for e in 0..ncell {
-            let n_integ_point = compare.stresses[e].len();
-            if n_integ_point < 1 {
-                return Err("there must be at least on integration point in reference data (strains)");
-            }
-            let ref_tensor_vec_dim = compare.stresses[e][0].len();
-            if tensor_vec_dim != ref_tensor_vec_dim {
-                return Err("the number of strain components must equal the reference number of strain components");
-            }
-            let secondary_values = &fem_state.gauss[e];
-            for ip in 0..n_integ_point {
-                let local_state = &secondary_values.solid[ip];
-                match &local_state.strain {
-                    Some(strain) => {
-                        for i in 0..tensor_vec_dim {
-                            let a = strain.vector()[i];
-                            let b = if i > 3 {
-                                compare.strains[e][ip][i] * SQRT_2 // convert to Mandel
-                            } else {
-                                compare.strains[e][ip][i]
-                            };
-                            print!("{:13.6e} ", f64::abs(a - b));
-                            // approx_eq(a, b, tol_strain); // TODO
-                        }
-                        println!();
-                    }
-                    None => return Err("output of local data is required for all cells when checking strains"),
-                }
-            }
-        }
-
         // check stresses
         println!("ERROR ON STRESSES");
         for e in 0..ncell {
@@ -139,7 +105,9 @@ pub fn verify_results(
                     } else {
                         compare.stresses[e][ip][i]
                     };
-                    print!("{:13.6e} ", f64::abs(a - b));
+                    if verbose {
+                        print!("{:13.6e} ", f64::abs(a - b));
+                    }
                     approx_eq(a, b, tol_stress);
                 }
                 println!();
