@@ -14,7 +14,6 @@ use russell_tensor::SQRT_2;
 /// * `name` -- The file name given to [FemOutput]
 /// * `ref_filename` -- The filename of the file with the reference results (located in `data/results`)
 /// * `tol_displacement` -- A tolerance to compare displacements
-/// * `tol_strain` -- A tolerance to compare strains
 /// * `tol_stress` -- A tolerance to compare stresses
 /// * `verbose` -- Enables the verbose mode
 pub fn verify_results(
