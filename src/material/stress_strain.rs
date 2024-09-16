@@ -1,14 +1,7 @@
-use super::{CamClay, Elastoplastic, LinearElastic, LocalState, VonMises};
+use super::{LinearElastic, LocalState, VonMises};
 use crate::base::{Config, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
-
-pub enum StressStrainModelName {
-    LinearElastic,
-    VonMises,
-    DruckerPrager,
-    CamClay,
-}
 
 /// Specifies the essential functions for stress-strain models
 pub trait StressStrainTrait: Send {
@@ -25,28 +18,24 @@ pub trait StressStrainTrait: Send {
     fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_epsilon: &Tensor2) -> Result<(), StrError>;
+    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError>;
 }
 
 /// Holds the actual stress-strain model implementation
-pub struct StressStrainModel {
+pub struct StressStrain {
     /// Holds the actual model implementation
     pub actual: Box<dyn StressStrainTrait>,
 }
 
-impl StressStrainModel {
+impl StressStrain {
     /// Allocates a new instance
     pub fn new(config: &Config, param: &ParamSolid) -> Result<Self, StrError> {
-        let general = match param.stress_update {
-            Some(p) => p.general_plasticity,
-            None => false,
-        };
         let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
             // Linear elastic model
             ParamStressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(config, young, poisson)),
 
             // Modified Cambridge (Cam) clay model
-            ParamStressStrain::CamClay { mm, lambda, kappa } => Box::new(CamClay::new(mm, lambda, kappa)),
+            ParamStressStrain::CamClay { .. } => panic!("TODO: CamClay"),
 
             // Drucker-Prager plasticity model
             ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
@@ -56,14 +45,10 @@ impl StressStrainModel {
                 if config.plane_stress {
                     return Err("von Mises model does not work in plane-stress");
                 }
-                if general {
-                    Box::new(Elastoplastic::new(config, param)?)
-                } else {
-                    Box::new(VonMises::new(config, young, poisson, z0, hh))
-                }
+                Box::new(VonMises::new(config, young, poisson, z0, hh))
             }
         };
-        Ok(StressStrainModel { actual })
+        Ok(StressStrain { actual })
     }
 }
 
@@ -71,25 +56,25 @@ impl StressStrainModel {
 
 #[cfg(test)]
 mod tests {
-    use super::StressStrainModel;
+    use super::StressStrain;
     use crate::base::{new_empty_config_2d, SampleParams};
 
     #[test]
     fn allocate_stress_strain_model_works() {
         let mut config = new_empty_config_2d();
         let param = SampleParams::param_solid();
-        StressStrainModel::new(&config, &param).unwrap();
+        StressStrain::new(&config, &param).unwrap();
 
         config.plane_stress = true;
         let param = SampleParams::param_solid_von_mises();
         assert_eq!(
-            StressStrainModel::new(&config, &param,).err(),
+            StressStrain::new(&config, &param,).err(),
             Some("von Mises model does not work in plane-stress")
         );
 
         config.plane_stress = false;
         let param = SampleParams::param_solid_von_mises();
-        StressStrainModel::new(&config, &param).unwrap();
+        StressStrain::new(&config, &param).unwrap();
     }
 
     #[test]
@@ -97,6 +82,6 @@ mod tests {
     fn allocate_stress_strain_fails() {
         let config = new_empty_config_2d();
         let param = SampleParams::param_solid_drucker_prager();
-        StressStrainModel::new(&config, &param).unwrap();
+        StressStrain::new(&config, &param).unwrap();
     }
 }

@@ -1,8 +1,6 @@
 use super::{FemInput, SecondaryValues};
 use crate::base::{Config, Element};
-use crate::material::LocalState;
 use crate::StrError;
-use gemlab::mesh::CellId;
 use russell_lab::Vector;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -10,7 +8,7 @@ use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
 
-/// Holds state of a simulation, including primary and secondary variables
+/// Holds the state of a simulation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemState {
     /// Time
@@ -52,19 +50,24 @@ pub struct FemState {
     /// (n_equation)
     pub aa_star: Vector,
 
-    /// Secondary values at all elements and all integration points (output only)
+    /// Holds the secondary values (e.g. stress) at all integration (Gauss) points of all elements
     ///
-    /// (n_cells)
-    pub secondary_values: Option<Vec<SecondaryValues>>,
+    /// (n_cell)
+    pub gauss: Vec<SecondaryValues>,
 }
 
 impl FemState {
     /// Allocates a new instance
     pub fn new(input: &FemInput, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
-        if input.mesh.cells.len() == 0 {
+        let ncell = input.mesh.cells.len();
+        if ncell == 0 {
             return Err("there are no cells in the mesh");
         }
+
+        // secondary values (e.g. stress) at all integration (Gauss) points of all elements
+        let empty = SecondaryValues::new_empty(config);
+        let mut gauss = vec![empty; ncell];
 
         // gather information about element types
         let mut has_diffusion = false;
@@ -74,15 +77,40 @@ impl FemState {
         let mut has_porous_solid = false;
         for cell in &input.mesh.cells {
             let element = input.attributes.get(cell).unwrap(); // already checked by Data
+            let n_integration_point = config.integ_point_data(cell)?.len();
             match element {
-                Element::Diffusion(..) => has_diffusion = true,
-                Element::Rod(..) => has_rod_or_beam = true,
-                Element::Beam(..) => has_rod_or_beam = true,
-                Element::Solid(..) => has_solid = true,
-                Element::PorousLiq(..) => has_porous_fluid = true,
-                Element::PorousLiqGas(..) => has_porous_fluid = true,
-                Element::PorousSldLiq(..) => has_porous_solid = true,
-                Element::PorousSldLiqGas(..) => has_porous_solid = true,
+                Element::Diffusion(..) => {
+                    has_diffusion = true;
+                }
+                Element::Rod(..) => {
+                    has_rod_or_beam = true;
+                }
+                Element::Beam(..) => {
+                    has_rod_or_beam = true;
+                }
+                Element::Solid(param) => {
+                    has_solid = true;
+                    let n_internal_values = param.n_internal_values();
+                    gauss[cell.id].allocate_solid(n_integration_point, n_internal_values);
+                }
+                Element::PorousLiq(..) => {
+                    has_porous_fluid = true;
+                    gauss[cell.id].allocate_porous_liq(n_integration_point);
+                }
+                Element::PorousLiqGas(..) => {
+                    has_porous_fluid = true;
+                    gauss[cell.id].allocate_porous_liq_gas(n_integration_point);
+                }
+                Element::PorousSldLiq(param) => {
+                    has_porous_solid = true;
+                    let n_internal_values = param.n_internal_values();
+                    gauss[cell.id].allocate_porous_sld_liq(n_integration_point, n_internal_values);
+                }
+                Element::PorousSldLiqGas(param) => {
+                    has_porous_solid = true;
+                    let n_internal_values = param.n_internal_values();
+                    gauss[cell.id].allocate_porous_sld_liq_gas(n_integration_point, n_internal_values);
+                }
             };
         }
 
@@ -98,8 +126,8 @@ impl FemState {
         let n_equation = input.equations.n_equation;
 
         // primary variables
-        let t = config.control.t_ini;
-        let dt = (config.control.dt)(t);
+        let t = config.t_ini;
+        let dt = (config.dt)(t);
         let duu = Vector::new(n_equation);
         let uu = Vector::new(n_equation);
         let (uu_star, vv, vv_star) = if config.transient || config.dynamics {
@@ -117,6 +145,15 @@ impl FemState {
             (Vector::new(0), Vector::new(0))
         };
 
+        // activates the output of strains at integration points
+        for cell_id in &config.output_strains {
+            if *cell_id < gauss.len() {
+                for local_state in &mut gauss[*cell_id].solid {
+                    local_state.enable_strains();
+                }
+            }
+        }
+
         // allocate new instance
         return Ok(FemState {
             t,
@@ -128,7 +165,7 @@ impl FemState {
             uu_star,
             vv_star,
             aa_star,
-            secondary_values: None,
+            gauss,
         });
     }
 
@@ -166,33 +203,19 @@ impl FemState {
         Ok(())
     }
 
-    /// Extracts stresses, strains, and internal values
-    ///
-    /// Returns `(stress_state, epsilon)`
-    ///
-    /// The results are only available if [crate::fem::FemOutput] was provided a `filename_stem`
-    /// and [Config::out_secondary_values] was set true.
-    ///
-    /// **Note:** This function will return an error if stresses/strains are not available (e.g. in a Diffusion simulation)
-    /// or not present in the integration (Gauss) point of the selected cell/element.
-    pub fn extract_stresses_and_strains(
-        &self,
-        cell_id: CellId,
-        integ_point: usize,
-    ) -> Result<&LocalState, StrError> {
-        match &self.secondary_values {
-            Some(all_values) => {
-                let values = &all_values[cell_id];
-                let state = match &values.stresses_and_strains {
-                    Some(states) => &states.all[integ_point],
-                    None => return Err("element does not have stresses at the selected integration point"),
-                };
-                Ok(state)
-            }
-            None => {
-                Err("secondary values are not available for this problem (need config.out_secondary_values = true)")
-            }
-        }
+    /// Creates a copy of the secondary values (e.g., stresses)
+    pub(crate) fn backup_secondary_values(&mut self) {
+        self.gauss.iter_mut().for_each(|s| s.backup());
+    }
+
+    /// Restores the secondary values (e.g., stresses) from the backup
+    pub(crate) fn restore_secondary_values(&mut self) {
+        self.gauss.iter_mut().for_each(|s| s.restore());
+    }
+
+    /// Resets algorithmic variables (e.g., Lagrange multiplier) at the beginning of implicit iterations
+    pub(crate) fn reset_algorithmic_variables(&mut self) {
+        self.gauss.iter_mut().for_each(|s| s.reset_algorithmic_variables());
     }
 }
 

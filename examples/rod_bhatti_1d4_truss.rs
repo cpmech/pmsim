@@ -62,7 +62,7 @@ fn main() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.control.n_max_time_steps = 2;
+    config.set_n_max_time_steps(2);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

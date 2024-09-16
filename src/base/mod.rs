@@ -2,9 +2,9 @@
 
 mod assembly;
 mod attributes;
+mod calculate_strain;
 mod config;
 mod constants;
-mod control;
 mod element_dofs;
 mod enums;
 mod equations;
@@ -16,9 +16,9 @@ mod sample_params;
 mod testing;
 pub use crate::base::assembly::*;
 pub use crate::base::attributes::*;
+pub(crate) use crate::base::calculate_strain::*;
 pub use crate::base::config::*;
 pub use crate::base::constants::*;
-pub use crate::base::control::*;
 pub use crate::base::element_dofs::*;
 pub use crate::base::enums::*;
 pub use crate::base::equations::*;

@@ -31,11 +31,6 @@ pub struct ReferenceData {
     /// Size: `[nele][n_integ_point][n_components]`
     pub stresses: Vec<Vec<Vec<f64>>>,
 
-    /// Holds the total strains (standard components)
-    ///
-    /// Size: `[nele][n_integ_point][n_components]`
-    pub strains: Vec<Vec<Vec<f64>>>,
-
     /// Holds the elastic strains (standard components)
     ///
     /// Size: `[nele][n_integ_point][n_components]`

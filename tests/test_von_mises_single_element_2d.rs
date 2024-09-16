@@ -1,11 +1,8 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
-use plotpy::Canvas;
-use pmsim::material::StressStrainPlot;
 use pmsim::prelude::*;
-use pmsim::util::check_displacements_and_stresses;
+use pmsim::util::verify_results;
 use russell_lab::*;
-use russell_tensor::SQRT_2_BY_3;
 
 // von Mises plasticity with a single-element
 //
@@ -41,12 +38,13 @@ use russell_tensor::SQRT_2_BY_3;
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 
 const NAME: &str = "test_von_mises_single_element_2d";
-const SAVE_FIGURE: bool = false;
 
 #[test]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
+    let att = mesh.cells[0].attribute;
+    let id = 0;
 
     // features
     let feat = Features::new(&mesh, false);
@@ -74,13 +72,14 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         nonlin_elast: None,
         stress_update: None,
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(att, Element::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0)).on(
-        &top,
-        Ebc::Uy(|t| {
+    essential.
+        on(&left,   Ebc::Ux(|_| 0.0)). // left
+        on(&bottom, Ebc::Uy(|_| 0.0)). // bottom
+        on(&top,    Ebc::Uy(|t| {      // top
             let delta_y = Z0 * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
             // println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
             -delta_y * t
@@ -92,13 +91,13 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.n_integ_point.insert(1, 1);
-    config.out_secondary_values = true;
-    config.out_strains = true;
-    config.control.dt = |_| 1.0;
-    config.control.dt_out = |_| 1.0;
-    config.control.t_fin = N_STEPS as f64;
-    config.control.n_max_iterations = 20;
+    config
+        .set_n_integ_point(att, 1)
+        .set_dt(|_| 1.0)
+        .set_dt_out(|_| 1.0)
+        .set_t_fin(N_STEPS as f64)
+        .set_n_max_iterations(20)
+        .set_output_strains(id);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
@@ -110,46 +109,18 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
-    // check results
-    let (stresses, ref_stresses) = check_displacements_and_stresses(
+    // verify the results
+    let tol_displacement = 1e-13;
+    let tol_stress = 1e-10;
+    verify_results(
         &mesh,
         NAME,
         "spo_von_mises_single_element_2d.json",
-        (0, 0),
-        1e-13,
-        1e-10,
+        tol_displacement,
+        tol_stress,
+        true,
     )?;
 
-    // plotting
-    if SAVE_FIGURE {
-        let mut ssp = StressStrainPlot::new();
-        ssp.draw_oct_projection(&stresses, |curve| {
-            curve
-                .set_label("PMSIM")
-                .set_line_color("blue")
-                .set_marker_style(".")
-                .set_marker_size(8.0);
-        })?;
-        ssp.draw_oct_projection(&ref_stresses, |curve| {
-            curve
-                .set_label("HYPLAS")
-                .set_line_color("red")
-                .set_marker_style("o")
-                .set_marker_size(10.0)
-                .set_marker_void(true);
-        })?;
-        let path_svg = format!("{}/{}.svg", DEFAULT_OUT_DIR, NAME);
-        ssp.save_oct_projection(&path_svg, |plot, before| {
-            if before {
-                let mut circle = Canvas::new();
-                circle.set_edge_color("gray").set_face_color("None");
-                circle.draw_circle(0.0, 0.0, Z0 * SQRT_2_BY_3);
-                plot.add(&circle);
-            } else {
-                plot.legend().set_figure_size_points(800.0, 800.0);
-            }
-        })
-        .unwrap();
-    }
+    // check stresses
     Ok(())
 }

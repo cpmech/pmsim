@@ -55,7 +55,6 @@ impl ConcentratedLoads {
     }
 
     /// Adds all concentrated load values at given time to the global residual
-    #[inline]
     pub fn add_to_residual(&self, residual: &mut Vector, time: f64) {
         self.all.iter().for_each(|e| e.add_to_residual(residual, time));
     }

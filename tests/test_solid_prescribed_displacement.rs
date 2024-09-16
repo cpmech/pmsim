@@ -118,10 +118,10 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     // update stresses
     println!("\nstrain = {:?}", strain);
     println!("stress = {:?}", stress);
-    elem.update_secondary_values(&state)?;
+    elem.update_secondary_values(&mut state)?;
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.states.all[p].stress.vector().as_data());
-        vec_approx_eq(&elem.states.all[p].stress.vector(), &stress, 1e-15);
+        println!("σ = {:?}", state.gauss[0].solid[p].stress.vector().as_data());
+        vec_approx_eq(&state.gauss[0].solid[p].stress.vector(), &stress, 1e-15);
     }
 
     // compute external forces
@@ -206,9 +206,9 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // update secondary variables (corresponds to E1 = -K12·U2)
     println!("\nstrain = {:?}", strain);
     println!("stress = {:?}", stress);
-    elem.update_secondary_values(&state)?;
+    elem.update_secondary_values(&mut state)?;
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.states.all[p].stress.vector().as_data());
+        println!("σ = {:?}", state.gauss[0].solid[p].stress.vector().as_data());
     }
 
     // compute residual (actually, internal forces)
@@ -276,11 +276,11 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // update secondary variables
     println!("\nstrain = {:?}", strain);
     println!("stress = {:?}", stress);
-    elem.update_secondary_values(&state)?;
+    elem.update_secondary_values(&mut state)?;
     // σ = [0.0, -2.0000000000000004, -0.5, 4.4408920985006264e-17]
     for p in 0..elem.ips.len() {
-        println!("σ = {:?}", elem.states.all[p].stress.vector().as_data());
-        vec_approx_eq(&elem.states.all[p].stress.vector(), &stress, 1e-15);
+        println!("σ = {:?}", state.gauss[0].solid[p].stress.vector().as_data());
+        vec_approx_eq(&state.gauss[0].solid[p].stress.vector(), &stress, 1e-15);
     }
     Ok(())
 }

@@ -1,5 +1,5 @@
 use crate::base::{Dof, Equations, DEFAULT_OUT_DIR};
-use crate::fem::{Elements, FemInput, FemState};
+use crate::fem::{FemInput, FemState};
 use crate::StrError;
 use gemlab::mesh::{At, Features, PointId};
 use serde::{Deserialize, Serialize};
@@ -123,19 +123,16 @@ impl<'a> FemOutput<'a> {
     }
 
     /// Generates the filename path for the mesh file
-    #[inline]
     pub fn path_mesh(out_dir: &str, fn_stem: &str) -> String {
         format!("{}/{}-mesh.json", out_dir, fn_stem)
     }
 
     /// Generates the filename path for the summary file
-    #[inline]
     pub fn path_summary(out_dir: &str, fn_stem: &str) -> String {
         format!("{}/{}-summary.json", out_dir, fn_stem)
     }
 
     /// Generates the filename path for the state files
-    #[inline]
     pub fn path_state(out_dir: &str, fn_stem: &str, index: usize) -> String {
         format!("{}/{}-{:0>20}.json", out_dir, fn_stem, index)
     }
@@ -143,7 +140,7 @@ impl<'a> FemOutput<'a> {
     /// Writes the current FEM state to a binary file
     ///
     /// **Note:** No output is generated if `filename_stem` is None.
-    pub(crate) fn write(&mut self, state: &mut FemState, elements: &mut Elements) -> Result<(), StrError> {
+    pub(crate) fn write(&mut self, state: &mut FemState) -> Result<(), StrError> {
         if let Some(fn_stem) = &self.filename_stem {
             // save the mesh
             if self.output_count == 0 {
@@ -151,8 +148,7 @@ impl<'a> FemOutput<'a> {
                 self.input.mesh.write_json(&path)?;
             }
 
-            // save internal values
-            elements.output_internal_values(state)?;
+            // save the state
             let path = FemOutput::path_state(&self.output_directory, fn_stem, self.output_count);
             state.write_json(&path)?;
 

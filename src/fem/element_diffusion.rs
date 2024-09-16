@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamDiffusion};
-use crate::material::ConductivityModel;
+use crate::material::Conductivity;
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -14,7 +14,7 @@ pub struct ElementDiffusion<'a> {
     pub ndim: usize,
 
     /// Global configuration
-    pub config: &'a Config,
+    pub config: &'a Config<'a>,
 
     /// The cell corresponding to this element
     pub cell: &'a Cell,
@@ -32,7 +32,7 @@ pub struct ElementDiffusion<'a> {
     pub ips: integ::IntegPointData,
 
     /// Conductivity model
-    pub model: ConductivityModel<'a>,
+    pub model: Conductivity<'a>,
 
     /// (temporary) Conductivity tensor at a single integration point
     pub conductivity: Tensor2,
@@ -51,21 +51,39 @@ impl<'a> ElementDiffusion<'a> {
         cell: &'a Cell,
         param: &'a ParamDiffusion,
     ) -> Result<Self, StrError> {
+        // local-to-global mapping
+        let local_to_global = compute_local_to_global(&input.information, &input.equations, cell)?;
+
+        // pad for numerical integration
         let ndim = input.mesh.ndim;
         let (kind, points) = (cell.kind, &cell.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
         input.mesh.set_pad(&mut pad, &points);
+
+        // integration points
+        let ips = config.integ_point_data(cell)?;
+
+        // material model
+        let model = Conductivity::new(&param.conductivity, ndim == 2);
+
+        // auxiliary conductivity tensor
+        let conductivity = Tensor2::new_sym_ndim(ndim);
+
+        // auxiliary gradient tensor
+        let grad_tt = Vector::new(ndim);
+
+        // allocate new instance
         Ok(ElementDiffusion {
             ndim,
             config,
             cell,
             param,
-            local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
+            local_to_global,
             pad,
-            ips: config.integ_point_data(cell)?,
-            model: ConductivityModel::new(&param.conductivity, ndim == 2),
-            conductivity: Tensor2::new_sym_ndim(ndim),
-            grad_tt: Vector::new(ndim),
+            ips,
+            model,
+            conductivity,
+            grad_tt,
         })
     }
 }
@@ -82,7 +100,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Initializes the internal values
-    fn initialize_internal_values(&mut self) -> Result<(), StrError> {
+    fn initialize_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
 
@@ -122,7 +140,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         if self.config.transient {
             // calculate beta coefficient
-            let (beta_1, _) = self.config.control.betas_transient(state.dt)?;
+            let (beta_1, _) = self.config.betas_transient(state.dt)?;
             let s = match self.param.source {
                 Some(val) => val,
                 None => 0.0,
@@ -198,32 +216,16 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // diffusion (mass) matrix
         if self.config.transient {
-            let (beta_1, _) = self.config.control.betas_transient(state.dt)?;
+            let (beta_1, _) = self.config.betas_transient(state.dt)?;
             integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(beta_1 * self.param.rho)).unwrap();
         }
         Ok(())
     }
 
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&mut self) {}
-
-    /// Creates a copy of the secondary values (e.g., stresses and internal values)
-    fn backup_secondary_values(&mut self) {}
-
-    /// Restores the secondary values from the backup (e.g., stresses and internal values)
-    fn restore_secondary_values(&mut self) {}
-
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    fn update_secondary_values(&mut self, _state: &FemState) -> Result<(), StrError> {
-        Ok(())
-    }
-
-    /// Performs the output of internal values
-    ///
-    /// Will save the results into [FemState::secondary_values]
-    fn output_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
 }
@@ -316,12 +318,12 @@ mod tests {
         let p1 = SampleParams::param_diffusion();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.n_integ_point.insert(1, 100); // wrong
+        config.set_n_integ_point(1, 100); // wrong
         assert_eq!(
             ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).err(),
             Some("desired number of integration points is not available for Tri class")
         );
-        config.n_integ_point.insert(1, 3);
+        config.set_n_integ_point(1, 3);
         let wrong_cell = Cell {
             id: 0,
             attribute: 2, // wrong

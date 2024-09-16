@@ -67,9 +67,7 @@ fn main() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     let t_fin = 1.0;
-    config.transient = true;
-    config.control.dt = |_| 0.1;
-    config.control.t_fin = t_fin;
+    config.set_transient(true).set_dt(|_| 0.1).set_t_fin(t_fin);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

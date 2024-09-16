@@ -86,7 +86,7 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.n_integ_point.insert(1, 12);
+    config.set_n_integ_point(1, 12);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

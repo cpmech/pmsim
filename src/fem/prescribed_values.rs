@@ -79,7 +79,6 @@ impl<'a> PrescribedValues<'a> {
     }
 
     /// Sets all prescribed values in the solution vector
-    #[inline]
     pub fn apply(&self, duu: &mut Vector, uu: &mut Vector, time: f64) {
         self.all.iter().for_each(|e| e.set_value(duu, uu, time));
     }

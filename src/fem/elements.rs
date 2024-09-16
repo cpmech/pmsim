@@ -1,8 +1,7 @@
-use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, FemState, SecondaryValues};
+use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, FemState};
 use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
-use gemlab::mesh::Cell;
-use rayon::prelude::*;
+use gemlab::mesh::{Cell, CellId};
 use russell_lab::{deriv1_central5, Matrix, Vector};
 use russell_sparse::CooMatrix;
 
@@ -16,12 +15,15 @@ pub struct GenericElement<'a> {
 
     /// Implements the Jacobian matrix
     pub jacobian: Matrix,
+
+    /// Holds the Cell ID (position in the FemState.gauss vector)
+    cell_id: CellId,
 }
 
 /// Holds a collection of (generic) finite elements
 pub struct Elements<'a> {
     /// Holds configuration parameters
-    pub config: &'a Config,
+    pub config: &'a Config<'a>,
 
     /// All elements
     pub all: Vec<GenericElement<'a>>,
@@ -55,25 +57,23 @@ impl<'a> GenericElement<'a> {
             actual,
             residual: Vector::new(neq),
             jacobian: Matrix::new(neq, neq),
+            cell_id: cell.id,
         })
     }
 
     /// Calculates the residual vector
-    #[inline]
     pub fn calc_residual(&mut self, state: &FemState) -> Result<(), StrError> {
         self.actual.calc_residual(&mut self.residual, state)
     }
 
     /// Calculates the Jacobian matrix
-    #[inline]
     pub fn calc_jacobian(&mut self, state: &FemState) -> Result<(), StrError> {
         self.actual.calc_jacobian(&mut self.jacobian, state)
     }
 
     /// Calculates the Jacobian matrix using finite differences
     ///
-    /// **Note:** The element's internal state may be changed temporarily,
-    /// but it is restored at the end of the function
+    /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
     pub fn numerical_jacobian(&mut self, state: &mut FemState) -> Result<(), StrError> {
         let neq = self.residual.dim();
         let mut args = ArgsForNumericalJacobian {
@@ -88,10 +88,10 @@ impl<'a> GenericElement<'a> {
                     let original_duu = a.state.duu[j];
                     a.state.uu[j] = u;
                     a.state.duu[j] = u - original_uu;
-                    self.actual.backup_secondary_values();
-                    self.actual.update_secondary_values(&a.state).unwrap();
+                    a.state.gauss[self.cell_id].backup();
+                    self.actual.update_secondary_values(&mut a.state).unwrap();
                     self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
-                    self.actual.restore_secondary_values();
+                    a.state.gauss[self.cell_id].restore();
                     a.state.uu[j] = original_uu;
                     a.state.duu[j] = original_duu;
                     Ok(a.residual[i])
@@ -119,7 +119,6 @@ impl<'a> Elements<'a> {
     }
 
     /// Returns whether all local Jacobian matrices are symmetric or not
-    #[inline]
     pub fn all_symmetric_jacobians(&self) -> bool {
         for e in &self.all {
             if !e.actual.symmetric_jacobian() {
@@ -130,27 +129,13 @@ impl<'a> Elements<'a> {
     }
 
     /// Computes the residual vectors
-    #[inline]
     pub fn calc_residuals(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
     }
 
     /// Computes the Jacobian matrices
-    #[inline]
     pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
-    }
-
-    /// Computes the residual vectors in parallel
-    #[inline]
-    pub fn calc_residuals_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.par_iter_mut().map(|e| e.calc_residual(&state)).collect()
-    }
-
-    /// Computes the Jacobian matrices in parallel
-    #[inline]
-    pub fn calc_jacobians_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.par_iter_mut().map(|e| e.calc_jacobian(&state)).collect()
     }
 
     /// Assembles residual vectors
@@ -161,7 +146,6 @@ impl<'a> Elements<'a> {
     /// 2. The global vector R will be cleared (with zeros) at the beginning
     ///
     /// **Important:** You must call the Boundaries assemble_residuals after Elements
-    #[inline]
     pub fn assemble_residuals(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         rr.fill(0.0); // << important
         self.all
@@ -177,7 +161,6 @@ impl<'a> Elements<'a> {
     /// 2. The CooMatrix position in the global matrix K will be reset at the beginning
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
-    #[inline]
     pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         kk.reset(); // << important
         for e in &self.all {
@@ -187,66 +170,21 @@ impl<'a> Elements<'a> {
     }
 
     /// Initializes all secondary values
-    #[inline]
-    pub fn initialize_internal_values_parallel(&mut self) -> Result<(), StrError> {
+    pub fn initialize_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         self.all
-            .par_iter_mut()
-            .map(|e| e.actual.initialize_internal_values())
-            .collect()
-    }
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    #[inline]
-    pub fn reset_algorithmic_variables_parallel(&mut self) {
-        self.all
-            .par_iter_mut()
-            .map(|e| e.actual.reset_algorithmic_variables())
-            .collect()
-    }
-
-    /// Creates a copy of the secondary values (e.g., stresses and internal values)
-    #[inline]
-    pub fn backup_secondary_values_parallel(&mut self) {
-        self.all
-            .par_iter_mut()
-            .map(|e| e.actual.backup_secondary_values())
-            .collect()
-    }
-
-    /// Restores the secondary values from the backup (e.g., stresses and internal values)
-    #[inline]
-    pub fn restore_secondary_values_parallel(&mut self) {
-        self.all
-            .par_iter_mut()
-            .map(|e| e.actual.restore_secondary_values())
+            .iter_mut()
+            .map(|e| e.actual.initialize_internal_values(state))
             .collect()
     }
 
     /// Updates secondary values such as stresses and internal values
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
-    #[inline]
-    pub fn update_secondary_values_parallel(&mut self, state: &FemState) -> Result<(), StrError> {
+    pub fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         self.all
-            .par_iter_mut()
+            .iter_mut()
             .map(|e| e.actual.update_secondary_values(state))
             .collect()
-    }
-
-    /// Outputs secondary values for post-processing
-    pub fn output_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        if self.config.out_secondary_values {
-            let n_cells = self.all.len();
-            if state.secondary_values.is_none() {
-                state.secondary_values = Some(vec![SecondaryValues::new_empty(); n_cells]);
-            }
-            self.all
-                .iter_mut()
-                .map(|e| e.actual.output_internal_values(state))
-                .collect()
-        } else {
-            Ok(())
-        }
     }
 }
 
@@ -264,7 +202,7 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let mut config = Config::new(&mesh);
-        config.n_integ_point.insert(1, 100); // wrong
+        config.set_n_integ_point(1, 100); // wrong
 
         let p1 = SampleParams::param_solid();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
@@ -334,7 +272,7 @@ mod tests {
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
-        let (beta_1, beta_2) = config.control.betas_transient(state.dt).unwrap();
+        let (beta_1, beta_2) = config.betas_transient(state.dt).unwrap();
         state.uu_star[0] = beta_1 * state.uu[0] + beta_2 * state.uu[0];
         state.uu_star[1] = beta_1 * state.uu[1] + beta_2 * state.uu[1];
         state.uu_star[2] = beta_1 * state.uu[2] + beta_2 * state.uu[2];
@@ -381,7 +319,7 @@ mod tests {
         for i in 0..6 {
             state.uu[i] = state.duu[i];
         }
-        ele.actual.update_secondary_values(&state).unwrap();
+        ele.actual.update_secondary_values(&mut state).unwrap();
         println!("uu =\n{}", state.uu);
 
         ele.calc_jacobian(&state).unwrap();

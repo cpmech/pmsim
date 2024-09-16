@@ -60,8 +60,10 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.lin_sol_genie = Genie::Umfpack;
-    config.lin_sol_params.umfpack_enforce_unsymmetric_strategy = true;
+    config
+        .set_lin_sol_genie(Genie::Umfpack)
+        .access_lin_sol_params()
+        .umfpack_enforce_unsymmetric_strategy = true;
 
     // elements
     let mut elements = Elements::new(&input, &config)?;
@@ -72,9 +74,9 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // FEM state
     let state = FemState::new(&input, &config)?;
 
-    // compute jacobians in parallel
-    elements.calc_jacobians_parallel(&state)?;
-    boundaries.calc_jacobians_parallel(&state)?;
+    // compute jacobians
+    elements.calc_jacobians(&state)?;
+    boundaries.calc_jacobians(&state)?;
 
     // linear system
     let mut lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;

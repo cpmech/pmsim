@@ -1,7 +1,5 @@
-use super::{
-    ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod,
-    ParamSolid,
-};
+use super::{ParamBeam, ParamDiffusion, ParamRod};
+use super::{ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

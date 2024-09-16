@@ -65,9 +65,7 @@ fn main() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.plane_stress = true;
-    config.thickness = 0.25;
-    config.validate_or_panic(mesh.ndim, true);
+    config.set_plane_stress(true, 0.25);
 
     // elements
     let mut elements = Elements::new(&input, &config)?;
