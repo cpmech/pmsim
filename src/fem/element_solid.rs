@@ -10,9 +10,6 @@ use russell_tensor::Tensor2;
 
 /// Implements the local Solid Element equations
 pub struct ElementSolid<'a> {
-    /// Number of space dimensions
-    pub ndim: usize,
-
     /// Global configuration
     pub config: &'a Config<'a>,
 
@@ -68,7 +65,6 @@ impl<'a> ElementSolid<'a> {
 
         // allocate new instance
         Ok(ElementSolid {
-            ndim,
             config,
             cell,
             param,
@@ -125,6 +121,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 
         // handle body forces
         if let Some(gravity) = self.config.gravity.as_ref() {
+            let ndim = self.config.ndim;
             let rho = self.param.density;
             integ::vec_02_nv(residual, &mut args, |b, _, _| {
                 // Note: due to the definition of the residual vector, the body force needs
@@ -140,7 +137,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 //                 \_____________/
                 //                 we compute this
                 b.fill(0.0);
-                b[self.ndim - 1] = rho * gravity(state.t); // -ρ·(-g) = ρ·g
+                b[ndim - 1] = rho * gravity(state.t); // -ρ·(-g) = ρ·g
                 Ok(())
             })?;
         }

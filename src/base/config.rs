@@ -19,6 +19,20 @@ pub const CONTROL_MIN_THETA: f64 = 0.0001;
 
 /// Holds configuration parameters
 pub struct Config<'a> {
+    /// Holds the space dimension
+    pub(crate) ndim: usize,
+
+    /// Indicates 2D instead of 3D (i.e, ndim == 2)
+    pub(crate) two_dim: bool,
+
+    /// Holds the Mandel representation type (for symmetric tensors)
+    ///
+    /// **Note:** This constant will be Symmetric or Symmetric2D. Thus, models
+    /// requiring the General representation will have to use Mandel::General directly
+    pub(crate) mandel: Mandel,
+
+    // problem configuration ------------------------------------------------------
+    //
     /// Holds a flag indicating Linear problem
     pub(crate) linear_problem: bool,
 
@@ -136,23 +150,20 @@ pub struct Config<'a> {
 
     /// Holds a flag to activate saving a vismatrix file (for debugging)
     pub(crate) save_vismatrix_file: bool,
-
-    // derived -------------------------------------------------------------------
-    //
-    /// Indicates 2D instead of 3D
-    pub(crate) two_dim: bool,
-
-    /// Holds the Mandel representation type (for symmetric tensors)
-    ///
-    /// **Note:** This constant will be Symmetric or Symmetric2D. Thus, models
-    /// requiring the General representation will have to use Mandel::General directly
-    pub(crate) mandel: Mandel,
 }
 
 impl<'a> Config<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh) -> Self {
         Config {
+            ndim: mesh.ndim,
+            two_dim: mesh.ndim == 2,
+            mandel: if mesh.ndim == 2 {
+                Mandel::Symmetric2D
+            } else {
+                Mandel::Symmetric
+            },
+            // problem configuration
             linear_problem: false,
             transient: false,
             dynamics: false,
@@ -188,13 +199,6 @@ impl<'a> Config<'a> {
             verbose_lin_sys_solve: false,
             save_matrix_market_file: false,
             save_vismatrix_file: false,
-            // derived
-            two_dim: mesh.ndim == 2,
-            mandel: if mesh.ndim == 2 {
-                Mandel::Symmetric2D
-            } else {
-                Mandel::Symmetric
-            },
         }
     }
 

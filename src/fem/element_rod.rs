@@ -10,9 +10,6 @@ use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
 ///
 /// * Felippa C., Chapter 20: Implementation of One-Dimensional Elements (IFEM.Ch20.pdf)
 pub struct ElementRod<'a> {
-    /// Number of space dimensions
-    pub ndim: usize,
-
     /// Global configuration
     pub config: &'a Config<'a>,
 
@@ -72,7 +69,6 @@ impl<'a> ElementRod<'a> {
             ])
         };
         Ok(ElementRod {
-            ndim,
             config,
             cell,
             param,

@@ -10,9 +10,6 @@ use russell_tensor::{t2_dot_vec, Tensor2};
 
 /// Implements the local Diffusion Element equations
 pub struct ElementDiffusion<'a> {
-    /// Number of space dimensions
-    pub ndim: usize,
-
     /// Global configuration
     pub config: &'a Config<'a>,
 
@@ -74,7 +71,6 @@ impl<'a> ElementDiffusion<'a> {
 
         // allocate new instance
         Ok(ElementDiffusion {
-            ndim,
             config,
             cell,
             param,
@@ -106,7 +102,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
-        let ndim = self.ndim;
+        let ndim = self.config.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
@@ -168,7 +164,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
-        let ndim = self.ndim;
+        let ndim = self.config.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
