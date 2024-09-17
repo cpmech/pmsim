@@ -1,61 +1,53 @@
 use russell_tensor::Mandel;
 
 /// Defines the geometry idealization (axisymmetric, plane-strain, plane-stress, none)
+///
+/// # Default values
+///
+/// * The default thickness value is **1.0** for all cases
+/// * In 2D, the default choice is **plane-strain**
 #[derive(Clone, Copy, Debug)]
-pub enum Idealization {
+pub struct Idealization {
+    /// Indicates 2D instead of 3D
+    pub two_dim: bool,
+
     /// Indicates an axisymmetry idealization in 2D
-    Axisymmetry,
+    pub axisymmetric: bool,
 
-    /// Indicates a plane-strain idealization in 2D
-    PlaneStrain,
+    /// Indicates a plane-stress idealization in 2D
+    pub plane_stress: bool,
 
-    /// Indicates a plane-stress idealization in 3D (holds the out-of-plane thickness)
-    PlaneStress(f64),
-
-    /// Indicates a 3D geometry (no idealization)
-    ThreeDim,
+    /// Holds the out-of-plane thickness (default = 1.0)
+    pub thickness: f64,
 }
 
 impl Idealization {
-    /// Returns whether the space dimension is 2D or not
-    pub fn two_dim(&self) -> bool {
-        match self {
-            Self::ThreeDim => false,
-            _ => true,
-        }
-    }
-
-    /// Returns whether the idealization is axisymmetric or not
-    pub fn axisymmetric(&self) -> bool {
-        match self {
-            Self::Axisymmetry => true,
-            _ => false,
-        }
-    }
-
-    /// Returns whether the idealization is plane-stress or not
-    pub fn plane_stress(&self) -> bool {
-        match self {
-            Self::PlaneStress(..) => true,
-            _ => false,
-        }
-    }
-
-    /// Returns the out-of-plane thickness associated with the plane-stress idealization
+    /// Allocates a new instance
     ///
-    /// **Important**: this function returns `1.0` for the axisymmetry, plane-stress, and 3D cases.
-    pub fn thickness(&self) -> f64 {
-        match self {
-            Self::PlaneStress(thickness) => *thickness,
-            _ => 1.0,
+    /// # Default values
+    ///
+    /// * `2D`: plane-strain with thickness = 1.0
+    /// * `3D`: no idealization with thickness = 1.0
+    pub fn new(ndim: usize) -> Self {
+        Idealization {
+            two_dim: ndim == 2,
+            axisymmetric: false,
+            plane_stress: false,
+            thickness: 1.0,
         }
     }
 
     /// Returns the symmetric Mandel representation associated with the idealization
+    ///
+    /// # Results
+    ///
+    /// * `2D`: [Mandel::Symmetric2D]
+    /// * `3D`: [Mandel::Symmetric]
     pub fn mandel(&self) -> Mandel {
-        match self {
-            Self::ThreeDim => Mandel::Symmetric,
-            _ => Mandel::Symmetric2D,
+        if self.two_dim {
+            Mandel::Symmetric2D
+        } else {
+            Mandel::Symmetric
         }
     }
 }
@@ -69,40 +61,26 @@ mod tests {
 
     #[test]
     fn derive_works() {
-        let ideal = Idealization::Axisymmetry;
-        let clone = ideal.clone();
-        assert_eq!(format!("{:?}", ideal), "Axisymmetry");
-        assert_eq!(format!("{:?}", clone), "Axisymmetry");
+        let ideal = Idealization::new(2);
+        let mut clone = ideal.clone();
+        assert_eq!(
+            format!("{:?}", ideal),
+            "Idealization { two_dim: true, axisymmetric: false, plane_stress: false, thickness: 1.0 }"
+        );
+        clone.plane_stress = true;
+        clone.thickness = 0.5;
+        assert_eq!(
+            format!("{:?}", clone),
+            "Idealization { two_dim: true, axisymmetric: false, plane_stress: true, thickness: 0.5 }"
+        );
     }
 
     #[test]
-    fn methods_work() {
-        let axisym = Idealization::Axisymmetry;
-        assert_eq!(axisym.two_dim(), true);
-        assert_eq!(axisym.axisymmetric(), true);
-        assert_eq!(axisym.plane_stress(), false);
-        assert_eq!(axisym.thickness(), 1.0);
-        assert_eq!(axisym.mandel(), Mandel::Symmetric2D);
+    fn mandel_works() {
+        let ideal = Idealization::new(2);
+        assert_eq!(ideal.mandel(), Mandel::Symmetric2D);
 
-        let p_strain = Idealization::PlaneStrain;
-        assert_eq!(p_strain.two_dim(), true);
-        assert_eq!(p_strain.axisymmetric(), false);
-        assert_eq!(p_strain.plane_stress(), false);
-        assert_eq!(p_strain.thickness(), 1.0);
-        assert_eq!(p_strain.mandel(), Mandel::Symmetric2D);
-
-        let p_stress = Idealization::PlaneStress(0.5);
-        assert_eq!(p_stress.two_dim(), true);
-        assert_eq!(p_stress.axisymmetric(), false);
-        assert_eq!(p_stress.plane_stress(), true);
-        assert_eq!(p_stress.thickness(), 0.5);
-        assert_eq!(p_stress.mandel(), Mandel::Symmetric2D);
-
-        let three_d = Idealization::ThreeDim;
-        assert_eq!(three_d.two_dim(), false);
-        assert_eq!(three_d.axisymmetric(), false);
-        assert_eq!(three_d.plane_stress(), false);
-        assert_eq!(three_d.thickness(), 1.0);
-        assert_eq!(three_d.mandel(), Mandel::Symmetric);
+        let ideal = Idealization::new(3);
+        assert_eq!(ideal.mandel(), Mandel::Symmetric);
     }
 }
