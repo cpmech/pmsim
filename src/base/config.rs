@@ -208,8 +208,11 @@ impl<'a> Config<'a> {
                 self.thickness
             ));
         }
+        if self.axisymmetric && !self.two_dim {
+            return Some("axisymmetric idealization does not work in 3D".to_string());
+        }
         if self.plane_stress && !self.two_dim {
-            return Some("plane-stress does not work in 3D".to_string());
+            return Some("plane-stress idealization does not work in 3D".to_string());
         }
         if !self.plane_stress && self.thickness != 1.0 {
             return Some(format!(
@@ -730,9 +733,20 @@ mod tests {
         );
         config.thickness = 1.0;
 
+        config.axisymmetric = true;
+        config.two_dim = false;
+        assert_eq!(
+            config.validate(),
+            Some("axisymmetric idealization does not work in 3D".to_string())
+        );
+        config.axisymmetric = false;
+
         config.plane_stress = true;
         config.two_dim = false;
-        assert_eq!(config.validate(), Some("plane-stress does not work in 3D".to_string()));
+        assert_eq!(
+            config.validate(),
+            Some("plane-stress idealization does not work in 3D".to_string())
+        );
         config.two_dim = true;
 
         config.plane_stress = false;
