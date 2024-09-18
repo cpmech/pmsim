@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Holds local state data for FEM simulations of porous materials
 ///
-/// This data is associated with a Gauss (integration) point
+/// This data structure is associated with a Gauss (integration) point
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LocalState {
     /// Holds the internal values Z
@@ -21,6 +21,9 @@ pub struct LocalState {
 
     /// Holds the algorithmic lagrange multiplier (Λ) for implicit methods
     pub algo_lagrange: f64,
+
+    /// Holds the result of an yield function evaluation (plasticity models only)
+    pub yield_value: f64,
 
     /// (optional) Holds the strain tensor ε
     pub strain: Option<Tensor2>,
@@ -42,6 +45,7 @@ impl LocalState {
             elastic: true,
             apex_return: false,
             algo_lagrange: 0.0,
+            yield_value: 0.0,
             strain: None,
         }
     }
