@@ -84,12 +84,13 @@ impl StressStrainTrait for VonMises {
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
         state.internal_values[Z0] = self.z0;
+        let f = self.yield_function(state)?;
         if !self.allow_initial_drift {
-            let f = self.yield_function(state).unwrap();
             if f > 0.0 {
                 return Err("stress is outside the yield surface");
             }
         }
+        state.yield_value = f;
         Ok(())
     }
 
@@ -211,6 +212,16 @@ mod tests {
     const TEST_POISSON: f64 = 0.25;
     const TEST_Z0: f64 = 9.0;
     const TEST_HH: f64 = 800.0;
+
+    #[test]
+    fn initialize_internal_values_works() {
+        let ideal = Idealization::new(2);
+        let model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let mut state = LocalState::new(ideal.mandel(), model.n_internal_values());
+        model.initialize_internal_values(&mut state).unwrap();
+        assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
+        assert_eq!(state.yield_value, -TEST_Z0);
+    }
 
     #[test]
     fn update_stress_works_elastic_2d() {
