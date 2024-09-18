@@ -56,6 +56,8 @@ impl LocalState {
     }
 
     /// Copy data from another state into this state
+    ///
+    /// **Warning:** `strain` and `yield_value` are not mirrored.
     pub fn mirror(&mut self, other: &LocalState) {
         vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
         self.stress.set_tensor(1.0, &other.stress);
