@@ -288,6 +288,9 @@ pub struct StressUpdate {
 
     /// Save stress-strain history
     pub save_history: bool,
+
+    /// Allows an initial yield surface drift (e.g., for debugging)
+    pub allow_initial_drift: bool,
 }
 
 /// Holds parameters for solid media mechanics simulations

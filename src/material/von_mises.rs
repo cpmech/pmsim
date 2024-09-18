@@ -41,13 +41,13 @@ pub struct VonMises {
     /// Deviatoric stress: s = dev(σ)
     s: Tensor2,
 
-    /// Allow initial yield surface drift (e.g., for debugging)
+    /// Allows an initial yield surface drift (e.g., for debugging)
     allow_initial_drift: bool,
 }
 
 impl VonMises {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, young: f64, poisson: f64, z0: f64, hh: f64) -> Self {
+    pub fn new(ideal: &Idealization, young: f64, poisson: f64, z0: f64, hh: f64, allow_initial_drift: bool) -> Self {
         assert!(!ideal.plane_stress);
         let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
         let (kk, gg) = lin_elasticity.get_bulk_shear();
@@ -58,7 +58,7 @@ impl VonMises {
             hh,
             z0,
             s: Tensor2::new(ideal.mandel()),
-            allow_initial_drift: false,
+            allow_initial_drift,
         }
     }
 
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn initialize_internal_values_works() {
         let ideal = Idealization::new(2);
-        let model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
         let mut state = LocalState::new(ideal.mandel(), model.n_internal_values());
         model.initialize_internal_values(&mut state).unwrap();
         assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn update_stress_works_elastic_2d() {
         let ideal = Idealization::new(2);
-        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
         for lode in [-1.0, 0.0, 1.0] {
             let state = update_to_yield_surface(&ideal, &mut model, lode);
             let sigma_m = state.stress.invariant_sigma_m();
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn update_stress_works_elastic_3d() {
         let ideal = Idealization::new(3);
-        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
         for lode in [-1.0, 0.0, 1.0] {
             let state = update_to_yield_surface(&ideal, &mut model, lode);
             let sigma_m = state.stress.invariant_sigma_m();
@@ -261,7 +261,7 @@ mod tests {
     fn update_stress_works_elastoplastic_2d() {
         // update to yield surface (exactly)
         let ideal = Idealization::new(2);
-        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
         let lode = 1.0;
         let mut state = update_to_yield_surface(&ideal, &mut model, lode);
         let sigma_m_1 = state.stress.invariant_sigma_m();
@@ -306,7 +306,7 @@ mod tests {
     fn stiffness_works_elastoplastic_2d() {
         // model
         let ideal = Idealization::new(2);
-        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
 
         // initial state
         let mandel = ideal.mandel();

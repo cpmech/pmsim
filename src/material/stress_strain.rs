@@ -30,6 +30,10 @@ pub struct StressStrain {
 impl StressStrain {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &ParamSolid) -> Result<Self, StrError> {
+        let allow_initial_drift = match param.stress_update {
+            Some(su) => su.allow_initial_drift,
+            None => false,
+        };
         let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
             // Linear elastic model
             ParamStressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(ideal, young, poisson)),
@@ -45,7 +49,7 @@ impl StressStrain {
                 if ideal.plane_stress {
                     return Err("von Mises model does not work in plane-stress");
                 }
-                Box::new(VonMises::new(ideal, young, poisson, z0, hh))
+                Box::new(VonMises::new(ideal, young, poisson, z0, hh, allow_initial_drift))
             }
         };
         Ok(StressStrain { actual })
