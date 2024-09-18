@@ -66,7 +66,7 @@ impl FemState {
         }
 
         // secondary values (e.g. stress) at all integration (Gauss) points of all elements
-        let empty = SecondaryValues::new_empty(config);
+        let empty = SecondaryValues::new_empty(&config.ideal);
         let mut gauss = vec![empty; ncell];
 
         // gather information about element types

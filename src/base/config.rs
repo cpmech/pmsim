@@ -1,10 +1,9 @@
-use super::{Init, ParamFluids};
+use super::{Idealization, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{Cell, CellAttribute, CellId, Mesh};
 use russell_sparse::SparseMatrix;
 use russell_sparse::{Genie, LinSolParams};
-use russell_tensor::Mandel;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
@@ -22,14 +21,8 @@ pub struct Config<'a> {
     /// Holds the space dimension
     pub(crate) ndim: usize,
 
-    /// Indicates 2D instead of 3D (i.e, ndim == 2)
-    pub(crate) two_dim: bool,
-
-    /// Holds the Mandel representation type (for symmetric tensors)
-    ///
-    /// **Note:** This constant will be Symmetric or Symmetric2D. Thus, models
-    /// requiring the General representation will have to use Mandel::General directly
-    pub(crate) mandel: Mandel,
+    /// Holds the geometry idealization
+    pub(crate) ideal: Idealization,
 
     // problem configuration ------------------------------------------------------
     //
@@ -61,15 +54,6 @@ pub struct Config<'a> {
     /// config.set_gravity(GRAVITY);
     /// ```
     pub(crate) gravity: Option<Box<dyn Fn(f64) -> f64 + 'a>>,
-
-    /// Holds a flag indicating axisymmetric problem represented in 2D (instead of plane-strain)
-    pub(crate) axisymmetric: bool,
-
-    /// Holds a flag indicating plane-stress problem instead of plane-strain iff 2D
-    pub(crate) plane_stress: bool,
-
-    /// Holds the thickness for plane-stress or 1.0 otherwise
-    pub(crate) thickness: f64,
 
     /// Holds option to initialize all stress states
     pub(crate) initialization: Init,
@@ -157,21 +141,13 @@ impl<'a> Config<'a> {
     pub fn new(mesh: &Mesh) -> Self {
         Config {
             ndim: mesh.ndim,
-            two_dim: mesh.ndim == 2,
-            mandel: if mesh.ndim == 2 {
-                Mandel::Symmetric2D
-            } else {
-                Mandel::Symmetric
-            },
+            ideal: Idealization::new(mesh.ndim),
             // problem configuration
             linear_problem: false,
             transient: false,
             dynamics: false,
             constant_tangent: false,
             gravity: None,
-            axisymmetric: false,
-            plane_stress: false,
-            thickness: 1.0,
             initialization: Init::Zero,
             param_fluids: None,
             ignore_jacobian_symmetry: false,
@@ -206,22 +182,22 @@ impl<'a> Config<'a> {
     ///
     /// Returns a message with the inconsistent data, or returns None if everything is all right.
     pub(crate) fn validate(&self) -> Option<String> {
-        if self.thickness <= 0.0 {
+        if self.ideal.thickness <= 0.0 {
             return Some(format!(
                 "thickness = {:?} is incorrect; it must be > 0.0",
-                self.thickness
+                self.ideal.thickness
             ));
         }
-        if self.axisymmetric && !self.two_dim {
+        if self.ideal.axisymmetric && !self.ideal.two_dim {
             return Some("axisymmetric idealization does not work in 3D".to_string());
         }
-        if self.plane_stress && !self.two_dim {
+        if self.ideal.plane_stress && !self.ideal.two_dim {
             return Some("plane-stress idealization does not work in 3D".to_string());
         }
-        if !self.plane_stress && self.thickness != 1.0 {
+        if !self.ideal.plane_stress && self.ideal.thickness != 1.0 {
             return Some(format!(
                 "thickness = {:?} is incorrect; it must be = 1.0 for plane-strain or 3D",
-                self.thickness
+                self.ideal.thickness
             ));
         }
         match self.initialization {
@@ -232,12 +208,12 @@ impl<'a> Config<'a> {
                         overburden
                     ));
                 }
-                if self.plane_stress {
+                if self.ideal.plane_stress {
                     return Some("Init::Geostatic does not work with plane-stress".to_string());
                 }
             }
             Init::Isotropic(..) => {
-                if self.plane_stress {
+                if self.ideal.plane_stress {
                     return Some("Init::Isotropic does not work with plane-stress".to_string());
                 }
             }
@@ -444,18 +420,18 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets a flag indicating axisymmetric problem represented in 2D (instead of plane-strain)
-    pub fn set_axisymmetric(&mut self, enable: bool) -> &mut Self {
-        self.axisymmetric = enable;
+    /// Enables axisymmetric idealization in 2D (instead of plane-strain)
+    pub fn set_axisymmetric(&mut self) -> &mut Self {
+        self.ideal.axisymmetric = true;
         self
     }
 
-    /// Sets a flag indicating plane-stress problem instead of plane-strain iff 2D
+    /// Enables plane-stress idealization in 2D (instead of plane-strain)
     ///
     /// This function also sets the thickness for the plane-stress analysis.
-    pub fn set_plane_stress(&mut self, enable: bool, thickness: f64) -> &mut Self {
-        self.plane_stress = enable;
-        self.thickness = thickness;
+    pub fn set_plane_stress(&mut self, thickness: f64) -> &mut Self {
+        self.ideal.plane_stress = true;
+        self.ideal.thickness = thickness;
         self
     }
 
@@ -623,8 +599,8 @@ impl<'a> fmt::Display for Config<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Configuration data\n").unwrap();
         write!(f, "==================\n").unwrap();
-        write!(f, "thickness = {:?}\n", self.thickness).unwrap();
-        write!(f, "plane_stress = {:?}\n", self.plane_stress).unwrap();
+        write!(f, "thickness = {:?}\n", self.ideal.thickness).unwrap();
+        write!(f, "plane_stress = {:?}\n", self.ideal.plane_stress).unwrap();
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
         write!(f, "\nSpecified number of integration points\n").unwrap();
         write!(f, "======================================\n").unwrap();
@@ -658,8 +634,8 @@ mod tests {
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
         assert_eq!(config.constant_tangent, false);
-        assert_eq!(config.thickness, 1.0);
-        assert_eq!(config.plane_stress, false);
+        assert_eq!(config.ideal.thickness, 1.0);
+        assert_eq!(config.ideal.plane_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
         let mut config = Config::new(&mesh);
@@ -674,8 +650,8 @@ mod tests {
             density_gas: None,
         });
 
-        config.thickness = 1.0;
-        config.plane_stress = true;
+        config.ideal.thickness = 1.0;
+        config.ideal.plane_stress = true;
         config.initialization = Init::Geostatic(-123.0);
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
@@ -730,36 +706,36 @@ mod tests {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
 
-        config.thickness = 0.0;
+        config.ideal.thickness = 0.0;
         assert_eq!(
             config.validate(),
             Some("thickness = 0.0 is incorrect; it must be > 0.0".to_string())
         );
-        config.thickness = 1.0;
+        config.ideal.thickness = 1.0;
 
-        config.axisymmetric = true;
-        config.two_dim = false;
+        config.ideal.axisymmetric = true;
+        config.ideal.two_dim = false;
         assert_eq!(
             config.validate(),
             Some("axisymmetric idealization does not work in 3D".to_string())
         );
-        config.axisymmetric = false;
+        config.ideal.axisymmetric = false;
 
-        config.plane_stress = true;
-        config.two_dim = false;
+        config.ideal.plane_stress = true;
+        config.ideal.two_dim = false;
         assert_eq!(
             config.validate(),
             Some("plane-stress idealization does not work in 3D".to_string())
         );
-        config.two_dim = true;
+        config.ideal.two_dim = true;
 
-        config.plane_stress = false;
-        config.thickness = 0.5;
+        config.ideal.plane_stress = false;
+        config.ideal.thickness = 0.5;
         assert_eq!(
             config.validate(),
             Some("thickness = 0.5 is incorrect; it must be = 1.0 for plane-strain or 3D".to_string())
         );
-        config.thickness = 1.0;
+        config.ideal.thickness = 1.0;
 
         config.initialization = Init::Geostatic(123.0);
         assert_eq!(
@@ -767,23 +743,23 @@ mod tests {
             Some("overburden stress = 123.0 is incorrect; it must be ≤ 0.0 (compressive)".to_string())
         );
 
-        config.plane_stress = true;
+        config.ideal.plane_stress = true;
         config.initialization = Init::Geostatic(-123.0);
         assert_eq!(
             config.validate(),
             Some("Init::Geostatic does not work with plane-stress".to_string())
         );
 
-        config.plane_stress = false;
+        config.ideal.plane_stress = false;
         assert_eq!(config.validate(), None);
 
-        config.plane_stress = true;
+        config.ideal.plane_stress = true;
         config.initialization = Init::Isotropic(-123.0);
         assert_eq!(
             config.validate(),
             Some("Init::Isotropic does not work with plane-stress".to_string())
         );
-        config.plane_stress = false;
+        config.ideal.plane_stress = false;
 
         config.t_ini = -0.1;
         assert_eq!(
@@ -855,7 +831,7 @@ mod tests {
         );
         config.theta2 = 0.5;
 
-        config.plane_stress = false;
+        config.ideal.plane_stress = false;
         assert_eq!(config.validate(), None);
 
         config.initialization = Init::Zero;

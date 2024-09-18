@@ -1,4 +1,4 @@
-use crate::base::Config;
+use crate::base::Idealization;
 use crate::material::{LocalState, LocalStatePorousLiq, LocalStatePorousSldLiq};
 use russell_tensor::Mandel;
 use serde::{Deserialize, Serialize};
@@ -52,7 +52,7 @@ pub struct SecondaryValues {
 
 impl SecondaryValues {
     /// Allocates a new instance with empty arrays
-    pub(crate) fn new_empty(config: &Config) -> Self {
+    pub(crate) fn new_empty(ideal: &Idealization) -> Self {
         SecondaryValues {
             solid: Vec::new(),
             porous_liq: Vec::new(),
@@ -64,7 +64,7 @@ impl SecondaryValues {
             bkp_porous_liq_gas: Vec::new(),
             bkp_porous_sld_liq: Vec::new(),
             bkp_porous_sld_liq_gas: Vec::new(),
-            mandel: config.mandel,
+            mandel: ideal.mandel(),
         }
     }
 

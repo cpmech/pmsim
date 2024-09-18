@@ -93,7 +93,7 @@ fn main() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric(true);
+    config.set_axisymmetric();
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

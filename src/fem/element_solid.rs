@@ -35,6 +35,11 @@ pub struct ElementSolid<'a> {
     ///
     ///  Δε @ ip
     delta_strain: Tensor2,
+
+    /// With the calculation of strains (not just the increment of strains)
+    ///
+    /// This is required only if `output_strains` is requested for this element.
+    with_strains: bool,
 }
 
 impl<'a> ElementSolid<'a> {
@@ -58,10 +63,13 @@ impl<'a> ElementSolid<'a> {
         let ips = config.integ_point_data(cell)?;
 
         // material model
-        let model = StressStrain::new(config, param)?;
+        let model = StressStrain::new(&config.ideal, param)?;
 
         // auxiliary strain increment tensor
         let delta_strain = Tensor2::new_sym_ndim(ndim);
+
+        // with the calculation of strains (not just the increment of strains)
+        let with_strains = config.output_strains.contains(&cell.id);
 
         // allocate new instance
         Ok(ElementSolid {
@@ -73,6 +81,7 @@ impl<'a> ElementSolid<'a> {
             ips,
             model,
             delta_strain,
+            with_strains,
         })
     }
 }
@@ -100,8 +109,8 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
-        args.alpha = self.config.thickness;
-        args.axisymmetric = self.config.axisymmetric;
+        args.alpha = self.config.ideal.thickness;
+        args.axisymmetric = self.config.ideal.axisymmetric;
 
         // compute the internal forces contribution to the residual vector
         //
@@ -147,8 +156,8 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
-        args.alpha = self.config.thickness;
-        args.axisymmetric = self.config.axisymmetric;
+        args.alpha = self.config.ideal.thickness;
+        args.axisymmetric = self.config.ideal.axisymmetric;
         integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
             self.model.actual.stiffness(dd, &state.gauss[self.cell.id].solid[p])
         })
@@ -163,7 +172,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             calculate_strain(
                 &mut self.delta_strain,
                 &state.duu,
-                &self.config,
+                &self.config.ideal,
                 &self.local_to_global,
                 &self.ips[p],
                 &mut self.pad,
@@ -173,14 +182,14 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 .actual
                 .update_stress(&mut state.gauss[self.cell.id].solid[p], &self.delta_strain)?;
         }
-        if self.config.output_strains.contains(&self.cell.id) {
+        if self.with_strains {
             for p in 0..self.ips.len() {
                 // calculate the strains ε at integration point (from global displacements)
                 let strain = state.gauss[self.cell.id].solid[p].strain.as_mut().unwrap();
                 calculate_strain(
                     strain,
                     &state.uu,
-                    &self.config,
+                    &self.config.ideal,
                     &self.local_to_global,
                     &self.ips[p],
                     &mut self.pad,
@@ -267,7 +276,7 @@ mod tests {
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let correct = ana
-            .mat_10_bdb(young, poisson, config.plane_stress, config.thickness)
+            .mat_10_bdb(young, poisson, config.ideal.plane_stress, config.ideal.thickness)
             .unwrap();
         mat_approx_eq(&jacobian, &correct, 1e-12);
     }
@@ -409,7 +418,7 @@ mod tests {
 
             // configuration
             let mut config = Config::new(&mesh);
-            config.plane_stress = true;
+            config.ideal.plane_stress = true;
 
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
@@ -479,7 +488,7 @@ mod tests {
 
         // configuration
         let mut config = Config::new(&mesh);
-        config.axisymmetric = true;
+        config.ideal.axisymmetric = true;
         config.set_n_integ_point(1, 1);
 
         // vertical acceleration (must be positive)

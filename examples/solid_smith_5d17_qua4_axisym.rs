@@ -91,7 +91,7 @@ fn main() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_axisymmetric(true)
+        .set_axisymmetric()
         .set_n_integ_point(1, 9)
         .set_n_integ_point(2, 9);
 

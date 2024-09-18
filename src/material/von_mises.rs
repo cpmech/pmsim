@@ -1,5 +1,5 @@
 use super::{LocalState, StressStrainTrait};
-use crate::base::Config;
+use crate::base::Idealization;
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
@@ -47,9 +47,9 @@ pub struct VonMises {
 
 impl VonMises {
     /// Allocates a new instance
-    pub fn new(config: &Config, young: f64, poisson: f64, z0: f64, hh: f64) -> Self {
-        assert!(!config.plane_stress);
-        let lin_elasticity = LinElasticity::new(young, poisson, config.two_dim, false);
+    pub fn new(ideal: &Idealization, young: f64, poisson: f64, z0: f64, hh: f64) -> Self {
+        assert!(!ideal.plane_stress);
+        let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
         let (kk, gg) = lin_elasticity.get_bulk_shear();
         VonMises {
             lin_elasticity,
@@ -57,8 +57,8 @@ impl VonMises {
             gg,
             hh,
             z0,
-            s: Tensor2::new(config.mandel),
-            allow_initial_drift: config.model_allow_initial_drift,
+            s: Tensor2::new(ideal.mandel()),
+            allow_initial_drift: false,
         }
     }
 
@@ -178,19 +178,19 @@ impl StressStrainTrait for VonMises {
 #[cfg(test)]
 mod tests {
     use super::VonMises;
-    use crate::base::{new_empty_config_2d, new_empty_config_3d, Config};
+    use crate::base::Idealization;
     use crate::material::{LocalState, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, Tensor4, SQRT_3, SQRT_3_BY_2};
 
     // Generates a state reaching the yield surface
-    fn update_to_yield_surface(config: &Config, model: &mut VonMises, lode: f64) -> LocalState {
+    fn update_to_yield_surface(ideal: &Idealization, model: &mut VonMises, lode: f64) -> LocalState {
         // elastic parameters
         let (kk, gg) = model.lin_elasticity.get_bulk_shear();
 
         // initial state
         let n_internal_values = model.n_internal_values();
-        let mut state = LocalState::new(config.mandel, n_internal_values);
+        let mut state = LocalState::new(ideal.mandel(), n_internal_values);
         model.initialize_internal_values(&mut state).unwrap();
 
         // elastic update: from zero stress state to the yield surface (exactly)
@@ -202,7 +202,7 @@ mod tests {
         let d_radius = depsilon_d * SQRT_3_BY_2;
 
         // update
-        let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, config.two_dim).unwrap();
+        let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
         model.update_stress(&mut state, &delta_strain).unwrap();
         state
     }
@@ -214,10 +214,10 @@ mod tests {
 
     #[test]
     fn update_stress_works_elastic_2d() {
-        let config = new_empty_config_2d();
-        let mut model = VonMises::new(&config, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let ideal = Idealization::new(2);
+        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
         for lode in [-1.0, 0.0, 1.0] {
-            let state = update_to_yield_surface(&config, &mut model, lode);
+            let state = update_to_yield_surface(&ideal, &mut model, lode);
             let sigma_m = state.stress.invariant_sigma_m();
             let sigma_d = state.stress.invariant_sigma_d();
             approx_eq(sigma_m, 1.0, 1e-14);
@@ -231,10 +231,10 @@ mod tests {
 
     #[test]
     fn update_stress_works_elastic_3d() {
-        let config = new_empty_config_3d();
-        let mut model = VonMises::new(&config, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let ideal = Idealization::new(3);
+        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
         for lode in [-1.0, 0.0, 1.0] {
-            let state = update_to_yield_surface(&config, &mut model, lode);
+            let state = update_to_yield_surface(&ideal, &mut model, lode);
             let sigma_m = state.stress.invariant_sigma_m();
             let sigma_d = state.stress.invariant_sigma_d();
             approx_eq(sigma_m, 1.0, 1e-14);
@@ -249,10 +249,10 @@ mod tests {
     #[test]
     fn update_stress_works_elastoplastic_2d() {
         // update to yield surface (exactly)
-        let config = new_empty_config_2d();
-        let mut model = VonMises::new(&config, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let ideal = Idealization::new(2);
+        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
         let lode = 1.0;
-        let mut state = update_to_yield_surface(&config, &mut model, lode);
+        let mut state = update_to_yield_surface(&ideal, &mut model, lode);
         let sigma_m_1 = state.stress.invariant_sigma_m();
         let sigma_d_1 = state.stress.invariant_sigma_d();
         // println!("before: sigma_m = {}, sigma_d = {}", sigma_m_1, sigma_d_1);
@@ -262,7 +262,7 @@ mod tests {
         let deps_d = 0.005;
         let d_distance = deps_v / SQRT_3;
         let d_radius = deps_d * SQRT_3_BY_2;
-        let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, config.two_dim).unwrap();
+        let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
         model.update_stress(&mut state, &delta_strain).unwrap();
         let sigma_m_2 = state.stress.invariant_sigma_m();
         let sigma_d_2 = state.stress.invariant_sigma_d();
@@ -294,12 +294,13 @@ mod tests {
     #[test]
     fn stiffness_works_elastoplastic_2d() {
         // model
-        let config = new_empty_config_2d();
-        let mut model = VonMises::new(&config, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
+        let ideal = Idealization::new(2);
+        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH);
 
         // initial state
+        let mandel = ideal.mandel();
         let n_internal_values = model.n_internal_values();
-        let mut state = LocalState::new(config.mandel, n_internal_values);
+        let mut state = LocalState::new(mandel, n_internal_values);
         model.initialize_internal_values(&mut state).unwrap();
 
         // plane-strain strain increments reaching yield surface
@@ -312,13 +313,13 @@ mod tests {
         let eps_y = -dy;
 
         // first update: reach (within tol) the yield surface
-        let mut delta_strain = Tensor2::new(config.mandel);
+        let mut delta_strain = Tensor2::new(mandel);
         delta_strain.vector_mut()[0] = 0.9999 * eps_x;
         delta_strain.vector_mut()[1] = 0.9999 * eps_y;
         model.update_stress(&mut state, &delta_strain).unwrap();
 
         // first modulus: elastic stiffness
-        let mut dd = Tensor4::new(config.mandel);
+        let mut dd = Tensor4::new(mandel);
         model.stiffness(&mut dd, &state).unwrap();
         let dd_spo = &[
             [1.800000000000000E+03, 6.000000000000000E+02, 0.000000000000000E+00],

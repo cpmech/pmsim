@@ -65,7 +65,7 @@ fn main() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_plane_stress(true, 0.25);
+    config.set_plane_stress(0.25);
 
     // elements
     let mut elements = Elements::new(&input, &config)?;

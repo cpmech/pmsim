@@ -106,8 +106,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
-        args.alpha = self.config.thickness;
-        args.axisymmetric = self.config.axisymmetric;
+        args.alpha = self.config.ideal.thickness;
+        args.axisymmetric = self.config.ideal.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
         integ::vec_03_vb(residual, &mut args, |w, _, nn, bb| {
@@ -168,8 +168,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
-        args.alpha = self.config.thickness;
-        args.axisymmetric = self.config.axisymmetric;
+        args.alpha = self.config.ideal.thickness;
+        args.axisymmetric = self.config.ideal.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
         integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {

@@ -98,8 +98,8 @@ impl<'a> Boundary<'a> {
         let (ndim, nnode) = self.pad.xxt.dims();
         let res = &mut self.residual;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
-        args.alpha = self.config.thickness;
-        args.axisymmetric = self.config.axisymmetric;
+        args.alpha = self.config.ideal.thickness;
+        args.axisymmetric = self.config.ideal.axisymmetric;
         match self.nbc {
             Nbc::Qn(f) => integ::vec_02_nv_bry(res, &mut args, |v, _, un, _| {
                 // note the negative sign
@@ -159,8 +159,8 @@ impl<'a> Boundary<'a> {
             Nbc::Cv(cc, _) => {
                 let kk = self.jacobian.as_mut().unwrap();
                 let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
-                args.alpha = self.config.thickness;
-                args.axisymmetric = self.config.axisymmetric;
+                args.alpha = self.config.ideal.thickness;
+                args.axisymmetric = self.config.ideal.axisymmetric;
                 integ::mat_01_nsn_bry(kk, &mut args, |_, _, _| Ok(cc))
             }
             _ => Ok(()),
