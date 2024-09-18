@@ -141,8 +141,9 @@ impl StressStrainTrait for VonMises {
         t4_ddot_t2_update(&mut state.stress, 1.0, dd, delta_strain, 1.0); // σ += D : Δε
 
         // elastic update
-        let f_trial = self.yield_function(state).unwrap();
+        let f_trial = self.yield_function(state)?;
         if f_trial <= 0.0 {
+            state.yield_value = f_trial;
             return Ok(());
         }
 
@@ -170,6 +171,7 @@ impl StressStrainTrait for VonMises {
         state.elastic = false;
         state.algo_lagrange = lambda;
         state.internal_values[Z0] = state.stress.invariant_sigma_d();
+        state.yield_value = self.yield_function(state)?;
         Ok(())
     }
 }
@@ -184,6 +186,11 @@ mod tests {
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, Tensor4, SQRT_3, SQRT_3_BY_2};
 
+    const TEST_YOUNG: f64 = 1500.0;
+    const TEST_POISSON: f64 = 0.25;
+    const TEST_Z0: f64 = 9.0;
+    const TEST_HH: f64 = 800.0;
+
     // Generates a state reaching the yield surface
     fn update_to_yield_surface(ideal: &Idealization, model: &mut VonMises, lode: f64) -> LocalState {
         // elastic parameters
@@ -193,6 +200,7 @@ mod tests {
         let n_internal_values = model.n_internal_values();
         let mut state = LocalState::new(ideal.mandel(), n_internal_values);
         model.initialize_internal_values(&mut state).unwrap();
+        assert_eq!(state.yield_value, -TEST_Z0);
 
         // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
@@ -207,11 +215,6 @@ mod tests {
         model.update_stress(&mut state, &delta_strain).unwrap();
         state
     }
-
-    const TEST_YOUNG: f64 = 1500.0;
-    const TEST_POISSON: f64 = 0.25;
-    const TEST_Z0: f64 = 9.0;
-    const TEST_HH: f64 = 800.0;
 
     #[test]
     fn initialize_internal_values_works() {
@@ -237,6 +240,7 @@ mod tests {
             assert_eq!(state.elastic, true);
             assert_eq!(state.apex_return, false);
             assert_eq!(state.algo_lagrange, 0.0);
+            approx_eq(state.yield_value, 0.0, 1e-14);
         }
     }
 
@@ -254,6 +258,7 @@ mod tests {
             assert_eq!(state.elastic, true);
             assert_eq!(state.apex_return, false);
             assert_eq!(state.algo_lagrange, 0.0);
+            approx_eq(state.yield_value, 0.0, 1e-14);
         }
     }
 
@@ -290,6 +295,7 @@ mod tests {
         assert_eq!(state.elastic, false);
         assert_eq!(state.apex_return, false);
         assert!(state.algo_lagrange > 0.0);
+        approx_eq(state.yield_value, 0.0, 1e-14);
     }
 
     fn compare_spo_results(dd: &Tensor4, dd_spo: &[[f64; 3]; 3], tol: f64) {
