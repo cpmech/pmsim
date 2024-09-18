@@ -133,7 +133,7 @@ impl StressStrainTrait for VonMises {
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
         // reset flags
-        state.elastic = true; // not elastoplastic by default
+        state.elastic = true;
         state.algo_lagrange = 0.0;
 
         // trial stress: σ ← σ_trial
