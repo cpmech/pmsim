@@ -1,4 +1,4 @@
-use super::{Axis, LocalState};
+use super::{calc_oct_coords, Axis, LocalState};
 use crate::StrError;
 use plotpy::{Canvas, Curve, Legend, Plot, SuperTitleParams, Text};
 use russell_lab::math::PI;
@@ -51,6 +51,9 @@ pub struct Plotter<'a> {
     /// Holds functions to draw additional features in each subplot
     extra: HashMap<(Axis, Axis), Box<dyn Fn(&mut Plot) + 'a>>,
 
+    /// Holds the maximum radius of data lines in the octahedral plane
+    oct_r_max: f64,
+
     /// Holds the octahedral plot
     oct: Vec<OctPlot>,
 }
@@ -71,6 +74,7 @@ impl<'a> Plotter<'a> {
             order: Vec::new(),
             legends: HashMap::new(),
             extra: HashMap::new(),
+            oct_r_max: 0.0,
             oct: Vec::new(),
         }
     }
@@ -145,8 +149,13 @@ impl<'a> Plotter<'a> {
     where
         F: FnMut(&mut Curve),
     {
-        let xx = x.calc(states);
-        let yy = y.calc(states);
+        let (xx, yy) = if x == Axis::OctX && y == Axis::OctY {
+            let (xx, yy, r_max) = calc_oct_coords(states)?;
+            self.oct_r_max = f64::max(self.oct_r_max, r_max);
+            (xx, yy)
+        } else {
+            (x.calc(states), y.calc(states))
+        };
         let mut curve = Curve::new();
         config(&mut curve);
         curve.draw(&xx, &yy);
@@ -191,6 +200,9 @@ impl<'a> Plotter<'a> {
             let col = index % self.ncol;
             if with_subplot {
                 plot.set_subplot_grid("h", &format!("{}", row), &format!("{}", col));
+            }
+            if key.0 == Axis::OctX && key.1 == Axis::OctY {
+                self.draw_rosetta(&mut plot);
             }
             if let Some(curves) = self.curves.get(key) {
                 for curve in curves {
@@ -585,6 +597,52 @@ impl<'a> Plotter<'a> {
         );
         Ok(())
     }
+
+    fn draw_rosetta(&self, plot: &mut Plot) {
+        let r = OCT_PLOT_ROSETTA_M * self.oct_r_max;
+        let tm = OCT_PLOT_ROSETTA_TM;
+
+        // text and axes
+        let mut text = Text::new();
+        let mut pos_axes = Canvas::new();
+        let mut neg_axes = Canvas::new();
+        text.set_color("#7d7d7d")
+            .set_align_horizontal("center")
+            .set_align_vertical("center");
+        pos_axes.set_edge_color("#7d7d7d");
+        pos_axes.set_arrow_scale(20.0).set_arrow_style("->");
+        neg_axes.set_edge_color("#cccccc");
+
+        // sigma 1
+        pos_axes.draw_arrow(0.0, 0.0, 0.0, r);
+        neg_axes.draw_polyline(&[[0.0, 0.0], [0.0, -r]], false);
+        text.draw(0.0, tm * r, "$\\hat{\\sigma}_1$");
+
+        // sigma 2
+        let (xf, yf) = (r * f64::cos(210.0 * PI / 180.0), r * f64::sin(210.0 * PI / 180.0));
+        pos_axes.draw_arrow(0.0, 0.0, xf, yf);
+        neg_axes.draw_polyline(&[[0.0, 0.0], [xf, -yf]], false);
+        text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_2$");
+
+        // sigma 3
+        let (xf, yf) = (r * f64::cos(-30.0 * PI / 180.0), r * f64::sin(-30.0 * PI / 180.0));
+        pos_axes.draw_arrow(0.0, 0.0, xf, yf);
+        neg_axes.draw_arrow(0.0, 0.0, xf, -yf);
+        text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_3$");
+
+        // add features to plot
+        plot.add(&text);
+        plot.add(&pos_axes);
+        plot.add(&neg_axes);
+
+        // configure plot
+        plot.set_hide_axes(true).set_equal_axes(true).set_range(
+            -OCT_PLOT_RANGE_M * self.oct_r_max,
+            OCT_PLOT_RANGE_M * self.oct_r_max,
+            -OCT_PLOT_RANGE_M * self.oct_r_max,
+            OCT_PLOT_RANGE_M * self.oct_r_max,
+        );
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -593,8 +651,10 @@ impl<'a> Plotter<'a> {
 mod tests {
     use super::{Axis, Plotter};
     use crate::material::testing::generate_stress_strain_array;
+    use crate::material::LocalState;
     use plotpy::{Curve, Legend, SlopeIcon};
     use russell_lab::approx_eq;
+    use russell_tensor::{Mandel, Tensor2};
 
     const SAVE_FIGURE: bool = true;
 
@@ -743,6 +803,30 @@ mod tests {
                 .set_legend(eps_v, sig_d, |_| {})
                 .save("/tmp/pmsim/test_save_grid_1.svg")
                 .unwrap();
+        }
+    }
+
+    #[test]
+    pub fn draw_oct_plot_works_1() {
+        // generate states
+        let lode = 0.0;
+        let distance = 1.0;
+        let radius = 2.0;
+        let two_dim = true;
+        let mandel = Mandel::Symmetric2D;
+        let mut state_a = LocalState::new(mandel, 0);
+        let mut state_b = LocalState::new(mandel, 0);
+        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
+        state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, two_dim).unwrap();
+        let data = [state_a, state_b];
+
+        // add to plot
+        let mut plotter = Plotter::new();
+        plotter.add(Axis::OctX, Axis::OctY, &data, |_| {}).unwrap();
+
+        // save figure
+        if SAVE_FIGURE {
+            plotter.save("/tmp/pmsim/test_draw_oct_plot_works_1.svg").unwrap();
         }
     }
 
