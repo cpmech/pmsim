@@ -151,9 +151,7 @@ impl Plotter {
         };
     }
 
-    /// Saves the stress/strain curve
-    ///
-    /// **Note:** Call this function after [StressStrainPlot::draw()].
+    /// Saves the plot
     ///
     /// # Input
     ///
@@ -171,6 +169,9 @@ impl Plotter {
         F: FnMut(&mut Plot, bool),
     {
         let size = self.order.len();
+        if size == 0 {
+            return Err("there are no curves to be drawn");
+        }
         let nrow = size / self.ncol + size % self.ncol;
         let mut plot = Plot::new();
         extra(&mut plot, true);
@@ -590,6 +591,15 @@ mod tests {
     use plotpy::{Curve, Legend, SlopeIcon};
 
     const SAVE_FIGURE: bool = true;
+
+    #[test]
+    pub fn save_handles_errors() {
+        let plotter = Plotter::new();
+        assert_eq!(
+            plotter.save("/tmp/pmsim/test.svg", |_, _| {}).err(),
+            Some("there are no curves to be drawn")
+        );
+    }
 
     #[test]
     pub fn draw_and_save_work_1() {
