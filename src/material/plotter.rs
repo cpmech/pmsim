@@ -21,11 +21,25 @@ struct OctPlot {
 
 /// Plots stress versus strain invariants
 pub struct Plotter {
-    /// Do not draw the grid lines
-    pub no_grid: bool,
+    /// Do not draw the (background) grid lines
+    pub no_background_lines: bool,
+
+    /// Maximum number of columns (default is 2)
+    pub ncol_max: usize,
+
+    /// Holds parameters for the gridspec (aka subplot) configuration
+    ///
+    /// Default = "wspace=0.35,hspace=0.35"
+    pub gridspec_params: String,
+
+    /// Holds the (width, height) in points for the figure
+    pub figure_size_points: Option<(f64, f64)>,
 
     /// Holds all curves
     curves: HashMap<(Axis, Axis), Vec<Curve>>,
+
+    /// Holds the order in which axes are drawn (because the map is unsorted)
+    order: Vec<(Axis, Axis)>,
 
     /// Holds the octahedral plot
     oct: Vec<OctPlot>,
@@ -35,8 +49,12 @@ impl Plotter {
     /// Allocates a new instance
     pub fn new() -> Self {
         Plotter {
-            no_grid: false,
+            no_background_lines: false,
+            ncol_max: 2,
+            gridspec_params: "wspace=0.35,hspace=0.35".to_string(),
+            figure_size_points: None,
             curves: HashMap::new(),
+            order: Vec::new(),
             oct: Vec::new(),
         }
     }
@@ -63,10 +81,12 @@ impl Plotter {
         let mut curve = Curve::new();
         config(&mut curve);
         curve.draw(&x, &y);
-        match self.curves.get_mut(&(x_axis, y_axis)) {
+        let key = (x_axis, y_axis);
+        match self.curves.get_mut(&key) {
             Some(curves) => curves.push(curve),
             None => {
-                self.curves.insert((x_axis, y_axis), vec![curve]);
+                self.curves.insert(key, vec![curve]);
+                self.order.push(key);
             }
         };
     }
@@ -77,35 +97,51 @@ impl Plotter {
     ///
     /// # Input
     ///
-    /// * `x_axis` -- the key of the x-axis already drawn with `draw`
-    /// * `y_axis` -- the key of the y-axis already drawn with `draw`
     /// * `filepath` -- may be a String, &str, or Path
-    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
+    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-processing on the plot area.
     ///   The two arguments of this function are:
     ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
     ///     * `before: bool` -- **true** indicates that the function is being called before all other
     ///       drawing functions. Otherwise, **false* indicates that the function is being called after
     ///       all other drawing functions, and just before the `plot.save` call.
     ///   For example, use `|_, _| {}` to do nothing.
-    pub fn save<P, F>(&self, x_axis: Axis, y_axis: Axis, filepath: &P, mut extra: F) -> Result<(), StrError>
+    pub fn save<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
     where
         P: AsRef<OsStr> + ?Sized,
         F: FnMut(&mut Plot, bool),
     {
-        match self.curves.get(&(x_axis, y_axis)) {
-            Some(all) => {
-                let mut plot = Plot::new();
-                extra(&mut plot, true);
-                for curve in all {
+        let size = self.order.len();
+        let nrow = size / self.ncol_max + size % self.ncol_max;
+        let mut plot = Plot::new();
+        extra(&mut plot, true);
+        let with_subplot = size >= self.ncol_max;
+        if with_subplot {
+            plot.set_gridspec("h", nrow, self.ncol_max, &self.gridspec_params);
+        }
+        let mut index = 0;
+        for key in &self.order {
+            let row = index / self.ncol_max;
+            let col = index % self.ncol_max;
+            if with_subplot {
+                plot.set_subplot_grid("h", format!("{}", row).as_str(), format!("{}", col).as_str());
+            }
+            if let Some(curves) = self.curves.get(key) {
+                for curve in curves {
                     plot.add(curve);
                 }
-                extra(&mut plot, false);
-                let x = x_axis.label();
-                let y = y_axis.label();
-                plot.grid_and_labels(&x, &y).save(filepath)
             }
-            None => Err("(x_axis, y_axis) curve is not available"),
+            if self.no_background_lines {
+                plot.set_labels(&key.0.label(), &key.1.label());
+            } else {
+                plot.grid_and_labels(&key.0.label(), &key.1.label());
+            }
+            index += 1;
         }
+        extra(&mut plot, false);
+        if let Some(pair) = self.figure_size_points {
+            plot.set_figure_size_points(pair.0, pair.1);
+        }
+        plot.save(filepath)
     }
 
     /// Saves a grid of stress/strain curves
@@ -396,7 +432,7 @@ impl Plotter {
                         }
                         let x = x_axis.label();
                         let y = y_axis.label();
-                        if !self.no_grid {
+                        if !self.no_background_lines {
                             plot.grid_and_labels("", "");
                         }
                         if col == 0 {
@@ -501,7 +537,7 @@ impl Plotter {
                         }
                         let x = x_axis.label();
                         let y = y_axis.label();
-                        if !self.no_grid {
+                        if !self.no_background_lines {
                             plot.grid_and_labels("", "");
                         }
                         plot.set_label_x(&x);
@@ -558,96 +594,89 @@ impl Plotter {
 mod tests {
     use super::{Axis, Plotter};
     use crate::material::testing::generate_stress_strain_array;
-    use plotpy::{Legend, SlopeIcon, SuperTitleParams};
+    use plotpy::{Curve, Legend, SlopeIcon, SuperTitleParams};
 
     const SAVE_FIGURE: bool = true;
 
     #[test]
-    pub fn draw_and_save_capture_errors() {
-        let plot = Plotter::new();
-        assert_eq!(
-            plot.save(
-                Axis::EpsD(false),
-                Axis::SigD(false),
-                "/tmp/pmsim/test_save_error.svg",
-                |_, _| {}
-            )
-            .err(),
-            Some("(x_axis, y_axis) curve is not available")
-        );
+    pub fn draw_and_save_work_1() {
+        let (bulk, shear) = (1000.0, 600.0);
+        let data_a = generate_stress_strain_array(true, bulk, shear, 1.0);
+        let data_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let mut plotter = Plotter::new();
+        // pair: eps_v, sig_m
+        let eps_v = Axis::EpsV(true, false);
+        let sig_m = Axis::SigM(false);
+        // configure curves
+        let set_curve_a = |curve: &mut Curve| {
+            curve.set_label("A").set_line_color("#1a9128").set_marker_style("o");
+        };
+        let set_curve_b = |curve: &mut Curve| {
+            curve.set_label("B").set_line_color("#de3163").set_marker_style("*");
+        };
+        // draw: eps_v, sig_m
+        plotter.draw(eps_v, sig_m, &data_a, set_curve_a);
+        plotter.draw(eps_v, sig_m, &data_b, set_curve_b);
+        if SAVE_FIGURE {
+            plotter.figure_size_points = Some((400.0, 250.0));
+            plotter
+                .save("/tmp/pmsim/test_plotter_draw_and_save_work_1.svg", |_, _| {})
+                .unwrap();
+        }
     }
 
     #[test]
-    pub fn draw_epsv_sigm_works() {
+    pub fn draw_and_save_work_2() {
         let (bulk, shear) = (1000.0, 600.0);
-        let data = generate_stress_strain_array(true, bulk, shear, 1.0);
+        let data_a = generate_stress_strain_array(true, bulk, shear, 1.0);
+        let data_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
         let mut plotter = Plotter::new();
-        let x = Axis::EpsV(false, false);
-        let y = Axis::SigM(false);
-        plotter.draw(x, y, &data, |curve| {
-            curve.set_line_color("#1a9128").set_marker_style("^");
-        });
+        // pair: eps_v, sig_m
+        let eps_v = Axis::EpsV(false, false);
+        let sig_m = Axis::SigM(false);
+        // pair: eps_v_alt, sig_m_alt
+        let eps_v_alt = Axis::EpsV(true, true);
+        let sig_m_alt = Axis::SigM(true);
+        // pair: eps_d, sig_d
+        let eps_d = Axis::EpsD(false);
+        let sig_d = Axis::SigD(false);
+        // pair: eps_d_alt, sig_d_alt
+        let eps_d_alt = Axis::EpsD(true);
+        let sig_d_alt = Axis::SigD(true);
+        // configure curves
+        let set_curve_a = |curve: &mut Curve| {
+            curve.set_label("A").set_line_color("#1a9128").set_marker_style("o");
+        };
+        let set_curve_b = |curve: &mut Curve| {
+            curve.set_label("B").set_line_color("#de3163").set_marker_style("*");
+        };
+        // draw: eps_v, sig_m
+        plotter.draw(eps_v, sig_m, &data_a, set_curve_a);
+        plotter.draw(eps_v, sig_m, &data_b, set_curve_b);
+        // draw: eps_v_alt, sig_m_alt
+        plotter.draw(eps_v_alt, sig_m_alt, &data_a, set_curve_a);
+        plotter.draw(eps_v_alt, sig_m_alt, &data_b, set_curve_b);
+        // draw: eps_d, sig_d
+        plotter.draw(eps_d, sig_d, &data_a, set_curve_a);
+        plotter.draw(eps_d, sig_d, &data_b, set_curve_b);
+        // draw: eps_d_alt, sig_d_alt
+        plotter.draw(eps_d_alt, sig_d_alt, &data_a, set_curve_a);
+        plotter.draw(eps_d_alt, sig_d_alt, &data_b, set_curve_b);
         if SAVE_FIGURE {
             plotter
-                .save(x, y, "/tmp/pmsim/test_epsv_sigm_1.svg", |plot, before| {
+                .save("/tmp/pmsim/test_plotter_draw_and_save_work_2.svg", |plot, before| {
                     if !before {
                         let mut icon = SlopeIcon::new();
                         icon.set_length(0.25);
-                        let l = data.len() - 1;
-                        let x_mid = (data[0].strain.as_ref().unwrap().invariant_eps_v()
-                            + data[l].strain.as_ref().unwrap().invariant_eps_v())
+                        let l = data_a.len() - 1;
+                        let x_mid = (data_a[0].strain.as_ref().unwrap().invariant_eps_v()
+                            + data_a[l].strain.as_ref().unwrap().invariant_eps_v())
                             / 2.0;
-                        let y_mid = (data[0].stress.invariant_sigma_m() + data[l].stress.invariant_sigma_m()) / 2.0;
+                        let y_mid = (data_a[0].stress.invariant_sigma_m() + data_a[l].stress.invariant_sigma_m()) / 2.0;
                         icon.draw(bulk, x_mid, y_mid);
                         plot.set_figure_size_points(550.0, 350.0).add(&icon);
                     }
                 })
-                .unwrap();
-        }
-        let x = Axis::EpsV(true, true);
-        let y = Axis::SigM(true);
-        plotter.draw(x, y, &data, |curve| {
-            curve.set_line_color("#1a9128").set_marker_style("d");
-        });
-        if SAVE_FIGURE {
-            plotter
-                .save(x, y, "/tmp/pmsim/test_epsv_sigm_2.svg", |plot, before| {
-                    if !before {
-                        plot.set_figure_size_points(550.0, 350.0);
-                    }
-                })
-                .unwrap();
-        }
-    }
-
-    #[test]
-    pub fn draw_epsv_sigd_works() {
-        let data = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-        let mut plotter = Plotter::new();
-        let x = Axis::EpsV(false, false);
-        let y = Axis::SigD(false);
-        plotter.draw(x, y, &data, |curve| {
-            curve.set_line_color("blue").set_marker_style("o").set_marker_void(true);
-        });
-        if SAVE_FIGURE {
-            plotter
-                .save(x, y, "/tmp/pmsim/test_epsv_sigd_1.svg", |_, _| {})
-                .unwrap();
-        }
-    }
-
-    #[test]
-    pub fn draw_epsd_sigm_works() {
-        let data = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-        let mut plotter = Plotter::new();
-        let x = Axis::EpsD(false);
-        let y = Axis::SigM(false);
-        plotter.draw(x, y, &data, |curve| {
-            curve.set_line_color("#911a52").set_marker_style("s");
-        });
-        if SAVE_FIGURE {
-            plotter
-                .save(x, y, "/tmp/pmsim/test_epsd_sigm_1.svg", |_, _| {})
                 .unwrap();
         }
     }
@@ -662,9 +691,7 @@ mod tests {
             curve.set_line_color("magenta").set_marker_style("o");
         });
         if SAVE_FIGURE {
-            plotter
-                .save(x, y, "/tmp/pmsim/test_epsd_sigd_1.svg", |_, _| {})
-                .unwrap();
+            plotter.save("/tmp/pmsim/test_epsd_sigd_1.svg", |_, _| {}).unwrap();
         }
         let x = Axis::EpsD(true);
         let y = Axis::SigD(false);
@@ -672,9 +699,7 @@ mod tests {
             curve.set_line_color("magenta").set_marker_style(".");
         });
         if SAVE_FIGURE {
-            plotter
-                .save(x, y, "/tmp/pmsim/test_epsd_sigd_2.svg", |_, _| {})
-                .unwrap();
+            plotter.save("/tmp/pmsim/test_epsd_sigd_2.svg", |_, _| {}).unwrap();
         }
         let x = Axis::EpsD(true);
         let y = Axis::SigD(true);
@@ -682,9 +707,7 @@ mod tests {
             curve.set_line_color("magenta").set_marker_style("+");
         });
         if SAVE_FIGURE {
-            plotter
-                .save(x, y, "/tmp/pmsim/test_epsd_sigd_3.svg", |_, _| {})
-                .unwrap();
+            plotter.save("/tmp/pmsim/test_epsd_sigd_3.svg", |_, _| {}).unwrap();
         }
     }
 
@@ -791,9 +814,7 @@ mod tests {
             let x_axis = Axis::SigM(false);
             let y_axis = Axis::SigD(false);
             plotter.draw(x_axis, y_axis, &data, |_| {});
-            plotter
-                .save(x_axis, y_axis, "/tmp/pmsim/test_stress_path_1.svg", |_, _| {})
-                .unwrap();
+            plotter.save("/tmp/pmsim/test_stress_path_1.svg", |_, _| {}).unwrap();
         }
     }
 
