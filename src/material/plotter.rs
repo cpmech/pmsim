@@ -120,29 +120,28 @@ impl Plotter {
         self
     }
 
-    /// Draws the stress/strain curve
+    /// Adds a curve
     ///
     /// # Input
     ///
-    /// * `x_axis` -- the key of the x-axis already drawn with `draw`
-    /// * `y_axis` -- the key of the y-axis already drawn with `draw`
+    /// * `x` -- the key of the x-axis
+    /// * `y` -- the key of the y-axis
     /// * `states` -- the stress and strain points
     /// * `config` -- a function `|curve| {}` to configure the curve
     ///
     /// # Panics
     ///
-    /// A panic may occur if strains are not available in `states` and
-    /// the requested graph require strains.
-    pub fn draw<F>(&mut self, x_axis: Axis, y_axis: Axis, states: &[LocalState], mut config: F)
+    /// A panic may occur if strains are not available in `states` and the requested requires it.
+    pub fn add<F>(&mut self, x: Axis, y: Axis, states: &[LocalState], mut config: F)
     where
         F: FnMut(&mut Curve),
     {
-        let x = x_axis.calc(states);
-        let y = y_axis.calc(states);
+        let xx = x.calc(states);
+        let yy = y.calc(states);
         let mut curve = Curve::new();
         config(&mut curve);
-        curve.draw(&x, &y);
-        let key = (x_axis, y_axis);
+        curve.draw(&xx, &yy);
+        let key = (x, y);
         match self.curves.get_mut(&key) {
             Some(curves) => curves.push(curve),
             None => {
@@ -372,7 +371,7 @@ impl Plotter {
         for row in 0..3 {
             for col in 0..2 {
                 match axes[row][col] {
-                    Some((x_axis, y_axis)) => self.draw(x_axis, y_axis, states, |curve| extra(curve, row, col)),
+                    Some((x_axis, y_axis)) => self.add(x_axis, y_axis, states, |curve| extra(curve, row, col)),
                     None => self
                         .draw_oct_projection(states, |curve| extra(curve, row, col))
                         .unwrap(),
@@ -481,7 +480,7 @@ impl Plotter {
         for row in 0..2 {
             for col in 0..2 {
                 match axes[row][col] {
-                    Some((x_axis, y_axis)) => self.draw(x_axis, y_axis, states, |curve| extra(curve, row, col)),
+                    Some((x_axis, y_axis)) => self.add(x_axis, y_axis, states, |curve| extra(curve, row, col)),
                     None => self
                         .draw_oct_projection(states, |curve| extra(curve, row, col))
                         .unwrap(),
@@ -609,8 +608,8 @@ mod tests {
             curve.set_label("B").set_line_color("#de3163").set_marker_style("*");
         };
         // draw: eps_v, sig_m
-        plotter.draw(eps_v, sig_m, &data_a, set_curve_a);
-        plotter.draw(eps_v, sig_m, &data_b, set_curve_b);
+        plotter.add(eps_v, sig_m, &data_a, set_curve_a);
+        plotter.add(eps_v, sig_m, &data_b, set_curve_b);
         if SAVE_FIGURE {
             plotter.set_figure_size(400.0, 250.0);
             plotter
@@ -645,17 +644,17 @@ mod tests {
             curve.set_label("B").set_line_color("#de3163").set_marker_style("*");
         };
         // draw: eps_v, sig_m
-        plotter.draw(eps_v, sig_m, &data_a, set_curve_a);
-        plotter.draw(eps_v, sig_m, &data_b, set_curve_b);
+        plotter.add(eps_v, sig_m, &data_a, set_curve_a);
+        plotter.add(eps_v, sig_m, &data_b, set_curve_b);
         // draw: eps_v_alt, sig_m_alt
-        plotter.draw(eps_v_alt, sig_m_alt, &data_a, set_curve_a);
-        plotter.draw(eps_v_alt, sig_m_alt, &data_b, set_curve_b);
+        plotter.add(eps_v_alt, sig_m_alt, &data_a, set_curve_a);
+        plotter.add(eps_v_alt, sig_m_alt, &data_b, set_curve_b);
         // draw: eps_d, sig_d
-        plotter.draw(eps_d, sig_d, &data_a, set_curve_a);
-        plotter.draw(eps_d, sig_d, &data_b, set_curve_b);
+        plotter.add(eps_d, sig_d, &data_a, set_curve_a);
+        plotter.add(eps_d, sig_d, &data_b, set_curve_b);
         // draw: eps_d_alt, sig_d_alt
-        plotter.draw(eps_d_alt, sig_d_alt, &data_a, set_curve_a);
-        plotter.draw(eps_d_alt, sig_d_alt, &data_b, set_curve_b);
+        plotter.add(eps_d_alt, sig_d_alt, &data_a, set_curve_a);
+        plotter.add(eps_d_alt, sig_d_alt, &data_b, set_curve_b);
         if SAVE_FIGURE {
             plotter
                 .save("/tmp/pmsim/test_plotter_draw_and_save_work_2.svg", |plot, before| {
@@ -681,7 +680,7 @@ mod tests {
         let mut plotter = Plotter::new();
         let x = Axis::EpsD(false);
         let y = Axis::SigD(false);
-        plotter.draw(x, y, &data, |curve| {
+        plotter.add(x, y, &data, |curve| {
             curve.set_line_color("magenta").set_marker_style("o");
         });
         if SAVE_FIGURE {
@@ -689,7 +688,7 @@ mod tests {
         }
         let x = Axis::EpsD(true);
         let y = Axis::SigD(false);
-        plotter.draw(x, y, &data, |curve| {
+        plotter.add(x, y, &data, |curve| {
             curve.set_line_color("magenta").set_marker_style(".");
         });
         if SAVE_FIGURE {
@@ -697,7 +696,7 @@ mod tests {
         }
         let x = Axis::EpsD(true);
         let y = Axis::SigD(true);
-        plotter.draw(x, y, &data, |curve| {
+        plotter.add(x, y, &data, |curve| {
             curve.set_line_color("magenta").set_marker_style("+");
         });
         if SAVE_FIGURE {
@@ -722,10 +721,10 @@ mod tests {
             let mut plotter = Plotter::new();
             for row in &axes {
                 for (x_axis, y_axis) in row {
-                    plotter.draw(*x_axis, *y_axis, &data_a, |curve| {
+                    plotter.add(*x_axis, *y_axis, &data_a, |curve| {
                         curve.set_label("stiff");
                     });
-                    plotter.draw(*x_axis, *y_axis, &data_b, |curve| {
+                    plotter.add(*x_axis, *y_axis, &data_b, |curve| {
                         curve.set_marker_style("o").set_label("soft");
                     });
                 }
@@ -783,7 +782,7 @@ mod tests {
             let mut plotter = Plotter::new();
             let x_axis = Axis::SigM(false);
             let y_axis = Axis::SigD(false);
-            plotter.draw(x_axis, y_axis, &data, |_| {});
+            plotter.add(x_axis, y_axis, &data, |_| {});
             plotter.save("/tmp/pmsim/test_stress_path_1.svg", |_, _| {}).unwrap();
         }
     }
