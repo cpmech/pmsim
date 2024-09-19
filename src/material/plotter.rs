@@ -1,4 +1,4 @@
-use super::LocalState;
+use super::{Axis, LocalState};
 use crate::StrError;
 use plotpy::{Canvas, Curve, Plot, Text};
 use russell_lab::math::PI;
@@ -9,95 +9,6 @@ use std::ffi::OsStr;
 const OCT_PLOT_ROSETTA_M: f64 = 1.25;
 const OCT_PLOT_ROSETTA_TM: f64 = 1.1;
 const OCT_PLOT_RANGE_M: f64 = 1.15;
-
-/// Defines the stress or strain invariant to be plot along the x or y axis
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum Axis {
-    /// Volumetric strain (percent, negative)
-    EpsV(/*percent*/ bool, /*negative*/ bool),
-
-    /// Deviatoric strain (percent)
-    EpsD(/*percent*/ bool),
-
-    /// Mean pressure (negative)
-    SigM(/*negative*/ bool),
-
-    /// Deviatoric stress (normalized)
-    SigD(/*normalized*/ bool),
-
-    /// Index (simulating a pseudo time)
-    Index,
-
-    /// Yield function value
-    Yield,
-}
-
-impl Axis {
-    /// Calculates the values for the axis
-    fn calc(&self, states: &[LocalState]) -> Vec<f64> {
-        match self {
-            Self::EpsV(percent, negative) => {
-                let n = if *negative { -1.0 } else { 1.0 };
-                let p = if *percent { 100.0 * n } else { 1.0 * n };
-                states
-                    .iter()
-                    .map(|s| p * s.strain.as_ref().unwrap().invariant_eps_v())
-                    .collect()
-            }
-            Self::EpsD(percent) => {
-                let p = if *percent { 100.0 } else { 1.0 };
-                states
-                    .iter()
-                    .map(|s| p * s.strain.as_ref().unwrap().invariant_eps_d())
-                    .collect()
-            }
-            Self::SigM(negative) => {
-                let n = if *negative { -1.0 } else { 1.0 };
-                states.iter().map(|s| n * s.stress.invariant_sigma_m()).collect()
-            }
-            Self::SigD(normalized) => {
-                if *normalized {
-                    states
-                        .iter()
-                        .map(|s| s.stress.invariant_sigma_d() / f64::abs(s.stress.invariant_sigma_m()))
-                        .collect()
-                } else {
-                    states.iter().map(|s| s.stress.invariant_sigma_d()).collect()
-                }
-            }
-            Self::Index => states.iter().enumerate().map(|(i, _)| i as f64).collect(),
-            Self::Yield => states.iter().map(|s| s.yield_value).collect(),
-        }
-    }
-
-    /// Generates labels for the axis
-    fn label(&self) -> String {
-        match self {
-            Self::EpsV(percent, negative) => {
-                let n = if *negative { "-" } else { "" };
-                let p = if *percent { "\\;[\\%]" } else { "" };
-                format!("${}\\varepsilon_v{}$", n, p)
-            }
-            Self::EpsD(percent) => {
-                let p = if *percent { "\\;[\\%]" } else { "" };
-                format!("$\\varepsilon_d{}$", p)
-            }
-            Self::SigM(negative) => {
-                let n = if *negative { "-" } else { "" };
-                format!("${}\\sigma_m$", n)
-            }
-            Self::SigD(normalized) => {
-                if *normalized {
-                    "$\\sigma_d\\,/\\,|\\sigma_m|$".to_string()
-                } else {
-                    "$\\sigma_d$".to_string()
-                }
-            }
-            Self::Index => "index".to_string(),
-            Self::Yield => "yield function".to_string(),
-        }
-    }
-}
 
 /// Implements the octahedral plot
 struct OctPlot {
@@ -646,120 +557,10 @@ impl Plotter {
 #[cfg(test)]
 mod tests {
     use super::{Axis, Plotter};
-    use crate::material::{LoadingPath, LocalState};
+    use crate::material::testing::generate_stress_strain_array;
     use plotpy::{Legend, SlopeIcon, SuperTitleParams};
-    use russell_lab::{array_approx_eq, assert_alike, Vector};
-    use std::collections::HashSet;
 
     const SAVE_FIGURE: bool = true;
-
-    fn generate_data(two_dim: bool, bulk: f64, shear: f64, lode: f64) -> Vec<LocalState> {
-        let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
-        let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
-        let z0 = 9.0; // von Mises yield function
-        let n_increments = 2;
-        let sigma_m_0 = 0.0;
-        let sigma_d_0 = 0.0;
-        let dsigma_m = 1.0;
-        let dsigma_d = z0;
-        let path = LoadingPath::new_linear_oct(
-            two_dim,
-            young,
-            poisson,
-            n_increments,
-            sigma_m_0,
-            sigma_d_0,
-            dsigma_m,
-            dsigma_d,
-            lode,
-        )
-        .unwrap();
-        let array: Vec<_> = path
-            .stresses
-            .iter()
-            .zip(path.strains.iter())
-            .map(|(sig, eps)| LocalState {
-                internal_values: Vector::from(&[z0]),
-                stress: sig.clone(),
-                elastic: true,
-                apex_return: false,
-                algo_lagrange: 0.0,
-                yield_value: sig.invariant_sigma_d() - z0, // von Mises
-                strain: Some(eps.clone()),
-            })
-            .collect();
-        array
-    }
-
-    #[test]
-    fn derive_works() {
-        let axis = Axis::EpsD(false).clone();
-        let axes = HashSet::from([Axis::EpsD(false), Axis::EpsV(false, true)]);
-        assert_eq!(axis, Axis::EpsD(false));
-        assert_eq!(format!("{:?}", axis), "EpsD(false)");
-        assert_eq!(axes.contains(&Axis::EpsD(false)), true);
-        assert_eq!(axes.contains(&Axis::EpsV(false, false)), false);
-        assert_eq!(axes.contains(&Axis::EpsV(false, true)), true);
-    }
-
-    #[test]
-    fn calc_and_label_work() {
-        let data = generate_data(true, 1000.0, 600.0, 1.0);
-
-        let axis = Axis::EpsV(false, false);
-        let epsv = axis.calc(&data);
-        array_approx_eq(&epsv, &[0.0, 0.001, 0.002], 1e-15);
-        assert_eq!(axis.label(), "$\\varepsilon_v$");
-
-        let axis = Axis::EpsV(true, false);
-        let epsv = axis.calc(&data);
-        array_approx_eq(&epsv, &[0.0, 0.1, 0.2], 1e-15);
-        assert_eq!(axis.label(), "$\\varepsilon_v\\;[\\%]$");
-
-        let axis = Axis::EpsV(true, true);
-        let epsv = axis.calc(&data);
-        array_approx_eq(&epsv, &[0.0, -0.1, -0.2], 1e-15);
-        assert_eq!(axis.label(), "$-\\varepsilon_v\\;[\\%]$");
-
-        let axis = Axis::EpsD(false);
-        let epsd = axis.calc(&data);
-        array_approx_eq(&epsd, &[0.0, 0.005, 0.01], 1e-15);
-        assert_eq!(axis.label(), "$\\varepsilon_d$");
-
-        let axis = Axis::EpsD(true);
-        let epsd = axis.calc(&data);
-        array_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
-        assert_eq!(axis.label(), "$\\varepsilon_d\\;[\\%]$");
-
-        let axis = Axis::SigM(false);
-        let sigm = axis.calc(&data);
-        array_approx_eq(&sigm, &[0.0, 1.0, 2.0], 1e-14);
-        assert_eq!(axis.label(), "$\\sigma_m$");
-
-        let axis = Axis::SigM(true);
-        let sigm = axis.calc(&data);
-        array_approx_eq(&sigm, &[0.0, -1.0, -2.0], 1e-14);
-        assert_eq!(axis.label(), "$-\\sigma_m$");
-
-        let axis = Axis::SigD(false);
-        let sigd = axis.calc(&data);
-        array_approx_eq(&sigd, &[0.0, 9.0, 18.0], 1e-14);
-        assert_eq!(axis.label(), "$\\sigma_d$");
-
-        let axis = Axis::SigD(true);
-        let sigd = axis.calc(&data);
-        assert_alike(sigd[0], f64::NAN); // <<<<<<<<< note NAN
-        array_approx_eq(&sigd[1..], &[9.0, 9.0], 1e-14); // <<<<<<<<< note without NAN
-        assert_eq!(axis.label(), "$\\sigma_d\\,/\\,|\\sigma_m|$");
-
-        let axis = Axis::Index;
-        let indices = axis.calc(&data);
-        assert_eq!(indices, &[0.0, 1.0, 2.0]);
-
-        let axis = Axis::Yield;
-        let yield_values = axis.calc(&data);
-        assert_eq!(yield_values, &[-9.0, 0.0, 9.0]);
-    }
 
     #[test]
     pub fn draw_and_save_capture_errors() {
@@ -779,7 +580,7 @@ mod tests {
     #[test]
     pub fn draw_epsv_sigm_works() {
         let (bulk, shear) = (1000.0, 600.0);
-        let data = generate_data(true, bulk, shear, 1.0);
+        let data = generate_stress_strain_array(true, bulk, shear, 1.0);
         let mut plotter = Plotter::new();
         let x = Axis::EpsV(false, false);
         let y = Axis::SigM(false);
@@ -821,7 +622,7 @@ mod tests {
 
     #[test]
     pub fn draw_epsv_sigd_works() {
-        let data = generate_data(true, 1000.0, 600.0, 1.0);
+        let data = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
         let mut plotter = Plotter::new();
         let x = Axis::EpsV(false, false);
         let y = Axis::SigD(false);
@@ -837,7 +638,7 @@ mod tests {
 
     #[test]
     pub fn draw_epsd_sigm_works() {
-        let data = generate_data(true, 1000.0, 600.0, 1.0);
+        let data = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
         let mut plotter = Plotter::new();
         let x = Axis::EpsD(false);
         let y = Axis::SigM(false);
@@ -853,7 +654,7 @@ mod tests {
 
     #[test]
     pub fn draw_epsd_sigd_works() {
-        let data = generate_data(true, 1000.0, 600.0, 1.0);
+        let data = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
         let mut plotter = Plotter::new();
         let x = Axis::EpsD(false);
         let y = Axis::SigD(false);
@@ -890,8 +691,8 @@ mod tests {
     #[test]
     pub fn save_grid_works() {
         if SAVE_FIGURE {
-            let data_a = generate_data(true, 1000.0, 600.0, 1.0);
-            let data_b = generate_data(true, 500.0, 200.0, 0.0);
+            let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
+            let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
             let axes = vec![
                 vec![
                     (Axis::EpsD(true), Axis::SigD(false)),
@@ -948,9 +749,9 @@ mod tests {
 
     #[test]
     pub fn oct_projections_works() {
-        let data_a = generate_data(true, 1000.0, 600.0, 1.0);
-        let data_b = generate_data(true, 500.0, 200.0, 0.0);
-        let data_c = generate_data(true, 500.0, 600.0, -1.0);
+        let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
+        let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+        let data_c = generate_stress_strain_array(true, 500.0, 600.0, -1.0);
         let mut plotter = Plotter::new();
         plotter.draw_oct_circle(1.0, |_| {}).unwrap();
         plotter
@@ -985,7 +786,7 @@ mod tests {
     #[test]
     pub fn stress_path_works() {
         if SAVE_FIGURE {
-            let data = generate_data(true, 1000.0, 600.0, 1.0);
+            let data = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
             let mut plotter = Plotter::new();
             let x_axis = Axis::SigM(false);
             let y_axis = Axis::SigD(false);
@@ -998,8 +799,8 @@ mod tests {
 
     #[test]
     pub fn draw_3x2_mosaic_struct_works() {
-        let data_a = generate_data(true, 1000.0, 600.0, 1.0);
-        let data_b = generate_data(true, 500.0, 200.0, 0.0);
+        let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
+        let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
         let mut plotter = Plotter::new();
         plotter.draw_3x2_mosaic_struct(&data_a, |curve, _, _| {
             curve.set_label("stiff");
@@ -1023,8 +824,8 @@ mod tests {
 
     #[test]
     pub fn draw_2x2_mosaic_struct_works() {
-        let data_a = generate_data(true, 1000.0, 600.0, 1.0);
-        let data_b = generate_data(true, 500.0, 200.0, 0.0);
+        let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
+        let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
         let mut plotter = Plotter::new();
         plotter.draw_2x2_mosaic_struct(&data_a, |curve, _, _| {
             curve
