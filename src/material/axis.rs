@@ -1,4 +1,6 @@
 use super::LocalState;
+use crate::StrError;
+use russell_tensor::Spectral2;
 
 /// Defines the stress or strain invariant to be plot along the x or y axis
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -20,10 +22,18 @@ pub enum Axis {
 
     /// Yield function value
     Yield,
+
+    /// Projected x coordinates on the octahedral plane
+    OctX,
+
+    /// Projected y coordinates on the octahedral plane
+    OctY,
 }
 
 impl Axis {
     /// Calculates the values for the axis
+    ///
+    /// **Important:** The projected octahedral coordinates must be calculated via [calc_oct_projection()]
     pub(crate) fn calc(&self, states: &[LocalState]) -> Vec<f64> {
         match self {
             Self::EpsV(percent, negative) => {
@@ -57,6 +67,8 @@ impl Axis {
             }
             Self::Index => states.iter().enumerate().map(|(i, _)| i as f64).collect(),
             Self::Yield => states.iter().map(|s| s.yield_value).collect(),
+            Self::OctX => Vec::new(),
+            Self::OctY => Vec::new(),
         }
     }
 
@@ -85,8 +97,36 @@ impl Axis {
             }
             Self::Index => "index".to_string(),
             Self::Yield => "yield function".to_string(),
+            Self::OctX => "".to_string(),
+            Self::OctY => "".to_string(),
         }
     }
+}
+
+/// Calculates octahedral projection coordinates
+///
+/// Returns `(x, y, r_max)`
+pub(crate) fn calc_oct_projection(states: &[LocalState]) -> Result<(Vec<f64>, Vec<f64>, f64), StrError> {
+    let n = states.len();
+    if n < 1 {
+        return Err("the array of states must have at least one entry");
+    }
+    let two_dim = states[0].stress.mandel().two_dim();
+    let mut spectral = Spectral2::new(two_dim);
+    let mut xx = vec![0.0; n];
+    let mut yy = vec![0.0; n];
+    let mut r_max = 0.0;
+    for i in 0..n {
+        spectral.decompose(&states[i].stress)?;
+        let (y, _, x) = spectral.octahedral_basis();
+        xx[i] = x;
+        yy[i] = y;
+        let r = f64::sqrt(x * x + y * y);
+        if r > r_max {
+            r_max = r;
+        }
+    }
+    Ok((xx, yy, r_max))
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -94,8 +134,9 @@ impl Axis {
 #[cfg(test)]
 mod tests {
     use super::Axis;
-    use crate::material::testing::generate_stress_strain_array;
-    use russell_lab::{array_approx_eq, assert_alike};
+    use crate::material::{calc_oct_projection, testing::generate_stress_strain_array, LocalState};
+    use russell_lab::{approx_eq, array_approx_eq, assert_alike, math::PI};
+    use russell_tensor::{Mandel, Tensor2};
     use std::collections::HashSet;
 
     #[test]
@@ -166,5 +207,33 @@ mod tests {
         let axis = Axis::Yield;
         let yield_values = axis.calc(&data);
         assert_eq!(yield_values, &[-9.0, 0.0, 9.0]);
+    }
+
+    #[test]
+    fn calc_oct_projection_works() {
+        // generate states
+        let lode = 0.0;
+        let theta = f64::acos(lode) / 3.0;
+        let alpha = PI / 2.0 - theta;
+        let distance = 1.0;
+        let radius = 2.0;
+        let two_dim = true;
+        let mandel = Mandel::Symmetric;
+        let mut state_a = LocalState::new(mandel, 0);
+        let mut state_b = LocalState::new(mandel, 0);
+        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
+        state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, two_dim).unwrap();
+
+        // calculate projection
+        let data = [state_a, state_b];
+        let (xx, yy, r_max) = calc_oct_projection(&data).unwrap();
+        approx_eq(r_max, 2.0 * radius, 1e-15);
+        for i in 0..data.len() {
+            let r = f64::sqrt(xx[i] * xx[i] + yy[i] * yy[i]);
+            let m = (i + 1) as f64;
+            approx_eq(r, m * radius, 1e-15);
+            approx_eq(xx[i], m * radius * f64::cos(alpha), 1e-15);
+            approx_eq(yy[i], m * radius * f64::sin(alpha), 1e-14);
+        }
     }
 }
