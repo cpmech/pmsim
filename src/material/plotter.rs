@@ -1,6 +1,6 @@
 use super::{Axis, LocalState};
 use crate::StrError;
-use plotpy::{Canvas, Curve, Plot, Text};
+use plotpy::{Canvas, Curve, Legend, Plot, SuperTitleParams, Text};
 use russell_lab::math::PI;
 use russell_tensor::Spectral2;
 use std::collections::HashMap;
@@ -35,11 +35,20 @@ pub struct Plotter {
     /// Holds the (width, height) in points for the figure
     pub figure_size_points: Option<(f64, f64)>,
 
+    /// Holds the super-title when subplots are drawn
+    pub super_title: String,
+
+    /// Holds the parameters for the super-title
+    pub super_title_params: SuperTitleParams,
+
     /// Holds all curves
     curves: HashMap<(Axis, Axis), Vec<Curve>>,
 
     /// Holds the order in which axes are drawn (because the map is unsorted)
     order: Vec<(Axis, Axis)>,
+
+    /// Holds legends for each subplot
+    legends: HashMap<(Axis, Axis), Legend>,
 
     /// Holds the octahedral plot
     oct: Vec<OctPlot>,
@@ -48,13 +57,18 @@ pub struct Plotter {
 impl Plotter {
     /// Allocates a new instance
     pub fn new() -> Self {
+        let mut super_title_params = SuperTitleParams::new();
+        super_title_params.set_y(0.92);
         Plotter {
             no_background_lines: false,
             ncol_max: 2,
             gridspec_params: "wspace=0.35,hspace=0.35".to_string(),
             figure_size_points: None,
+            super_title: String::new(),
+            super_title_params,
             curves: HashMap::new(),
             order: Vec::new(),
+            legends: HashMap::new(),
             oct: Vec::new(),
         }
     }
@@ -89,6 +103,17 @@ impl Plotter {
                 self.order.push(key);
             }
         };
+    }
+
+    pub fn set_legend<F>(&mut self, x_axis: Axis, y_axis: Axis, mut config: F)
+    where
+        F: FnMut(&mut Legend),
+    {
+        let mut legend = Legend::new();
+        config(&mut legend);
+        legend.draw();
+        let key = (x_axis, y_axis);
+        self.legends.insert(key, legend);
     }
 
     /// Saves the stress/strain curve
@@ -135,88 +160,18 @@ impl Plotter {
             } else {
                 plot.grid_and_labels(&key.0.label(), &key.1.label());
             }
+            if let Some(legend) = self.legends.get(key) {
+                plot.add(legend);
+            }
             index += 1;
         }
         extra(&mut plot, false);
+        if self.super_title != "" {
+            plot.set_super_title(&self.super_title, Some(&self.super_title_params));
+        }
         if let Some(pair) = self.figure_size_points {
             plot.set_figure_size_points(pair.0, pair.1);
         }
-        plot.save(filepath)
-    }
-
-    /// Saves a grid of stress/strain curves
-    ///
-    /// **Note:** Call this function after [StressStrainPlot::draw()].
-    ///
-    /// # Input
-    ///
-    /// * `axes` -- the keys of the (x-axis,y-axis) already drawn with `draw`
-    /// * `filepath` -- may be a String, &str, or Path
-    /// * `config` -- is a function `|plot, before| {}` to configure the plot before or after adding the curves
-    ///   The two arguments for this function are:
-    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra configurations (e.g., title).
-    ///     * `before: bool` -- **true** indicates that the function is being called before adding the curves.
-    ///       **false** indicates that the function is being called just before `save`.
-    /// * `extra` -- is a function `|plot, row, col, before| {}` to perform some {pre,post}-drawing on each sub-plot area.
-    ///   The four arguments of this function are:
-    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
-    ///     * `row: usize` -- the zero-based index of the row in the grid matching the `axes` array
-    ///     * `col: usize` -- the zero-based index of the column in the grid matching the `axes` array
-    ///     * `before: bool` -- **true** indicates that the function is being called before all other
-    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
-    ///       all other drawing functions, and just before the `plot.save` call.
-    ///   For example, use `|_, _, _, _| {}` to do nothing.
-    pub fn save_grid<P, F, G>(
-        &self,
-        axes: &Vec<Vec<(Axis, Axis)>>,
-        filepath: &P,
-        mut config: F,
-        mut extra: G,
-        gridspec_params: Option<&str>,
-    ) -> Result<(), StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-        F: FnMut(&mut Plot, bool),
-        G: FnMut(&mut Plot, usize, usize, bool),
-    {
-        let nrow = axes.len();
-        if nrow < 1 {
-            return Err("there are no rows in the axes array");
-        }
-        let ncol = axes[0].len();
-        if ncol < 1 {
-            return Err("there are no columns in the axes array");
-        }
-        let handle = "grid";
-        let mut plot = Plot::new();
-        config(&mut plot, true);
-        match gridspec_params {
-            Some(v) => plot.set_gridspec(handle, nrow, ncol, v),
-            None => plot.set_gridspec(handle, nrow, ncol, "wspace=0.38,hspace=0.35"),
-        };
-        for row in 0..nrow {
-            if axes[row].len() != ncol {
-                return Err("the number of columns is inconsistent");
-            }
-            for col in 0..ncol {
-                let (x_axis, y_axis) = axes[row][col];
-                plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
-                match self.curves.get(&(x_axis, y_axis)) {
-                    Some(all) => {
-                        extra(&mut plot, row, col, true);
-                        for curve in all {
-                            plot.add(curve);
-                        }
-                        extra(&mut plot, row, col, false);
-                        let x = x_axis.label();
-                        let y = y_axis.label();
-                        plot.grid_and_labels(&x, &y);
-                    }
-                    None => return Err("(x_axis, y_axis) curve is not available"),
-                }
-            }
-        }
-        config(&mut plot, false);
         plot.save(filepath)
     }
 
@@ -594,7 +549,7 @@ impl Plotter {
 mod tests {
     use super::{Axis, Plotter};
     use crate::material::testing::generate_stress_strain_array;
-    use plotpy::{Curve, Legend, SlopeIcon, SuperTitleParams};
+    use plotpy::{Curve, Legend, SlopeIcon};
 
     const SAVE_FIGURE: bool = true;
 
@@ -716,15 +671,14 @@ mod tests {
         if SAVE_FIGURE {
             let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
             let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+            let eps_d = Axis::EpsD(true);
+            let sig_d = Axis::SigD(false);
+            let eps_v = Axis::EpsV(true, false);
+            let eps_v_alt = Axis::EpsV(true, true);
+            let sig_m = Axis::SigM(true);
             let axes = vec![
-                vec![
-                    (Axis::EpsD(true), Axis::SigD(false)),
-                    (Axis::EpsV(true, false), Axis::SigD(false)),
-                ],
-                vec![
-                    (Axis::EpsD(true), Axis::EpsV(true, true)),
-                    (Axis::SigM(true), Axis::EpsV(true, true)),
-                ],
+                vec![(eps_d, sig_d), (eps_v, sig_d)],
+                vec![(eps_d, eps_v_alt), (sig_m, eps_v_alt)],
             ];
             let mut plotter = Plotter::new();
             for row in &axes {
@@ -737,36 +691,11 @@ mod tests {
                     });
                 }
             }
-            plotter
-                .save_grid(
-                    &axes,
-                    "/tmp/pmsim/test_save_grid_1.svg",
-                    |_, _| {},
-                    |_, _, _, _| {},
-                    None,
-                )
-                .unwrap();
-            plotter
-                .save_grid(
-                    &axes,
-                    "/tmp/pmsim/test_save_grid_2.svg",
-                    |plot, before| {
-                        if before {
-                            let mut params = SuperTitleParams::new();
-                            params.set_y(0.92);
-                            plot.set_super_title("TEST SAVE MOSAIC 1", Some(params));
-                        } else {
-                            plot.set_figure_size_points(600.0, 600.0);
-                        }
-                    },
-                    |plot, row, col, before| {
-                        if !before && row == 0 && col == 1 {
-                            plot.legend();
-                        }
-                    },
-                    Some("wspace=0.33"),
-                )
-                .unwrap();
+            plotter.super_title = "TEST SAVE MOSAIC 1".to_string();
+            plotter.figure_size_points = Some((600.0, 600.0));
+            plotter.gridspec_params = "wspace=0.33".to_string();
+            plotter.set_legend(eps_v, sig_d, |_| {});
+            plotter.save("/tmp/pmsim/test_save_grid_1.svg", |_, _| {}).unwrap();
         }
     }
 
