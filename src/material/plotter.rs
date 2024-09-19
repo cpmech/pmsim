@@ -51,8 +51,35 @@ pub struct Plotter<'a> {
     /// Holds functions to draw additional features in each subplot
     extra: HashMap<(Axis, Axis), Box<dyn Fn(&mut Plot) + 'a>>,
 
+    /// Holds a multiplier for drawing octahedral axes
+    oct_multiplier_axis: f64,
+
+    /// Holds a multiplier for drawing octahedral texts
+    oct_multiplier_text: f64,
+
+    /// Holds an upper multiplier for drawing octahedral texts
+    oct_multiplier_text_up: f64,
+
     /// Holds the maximum radius of data lines in the octahedral plane
-    oct_r_max: f64,
+    oct_radius_max: f64,
+
+    /// Holds circles to be drawn on the octahedral plane
+    oct_circles: Vec<Canvas>,
+
+    /// Holds the default line style for octahedral circles
+    line_style_oct_circle: String,
+
+    /// Holds the default color for octahedral circles
+    color_oct_circle: String,
+
+    /// Holds the color for octahedral text
+    color_oct_text: String,
+
+    /// Holds the color for octahedral positive lines
+    color_oct_lines_positive: String,
+
+    /// Holds the color for octahedral negative lines
+    color_oct_lines_negative: String,
 
     /// Holds the octahedral plot
     oct: Vec<OctPlot>,
@@ -74,7 +101,16 @@ impl<'a> Plotter<'a> {
             order: Vec::new(),
             legends: HashMap::new(),
             extra: HashMap::new(),
-            oct_r_max: 0.0,
+            oct_multiplier_axis: 1.15,
+            oct_multiplier_text: 1.25,
+            oct_multiplier_text_up: 1.30,
+            oct_radius_max: 0.0,
+            oct_circles: Vec::new(),
+            line_style_oct_circle: "--".to_string(),
+            color_oct_circle: "#7d7d7d".to_string(),
+            color_oct_text: "#7d7d7d".to_string(),
+            color_oct_lines_positive: "#7d7d7d".to_string(),
+            color_oct_lines_negative: "#cccccc".to_string(),
             oct: Vec::new(),
         }
     }
@@ -133,6 +169,26 @@ impl<'a> Plotter<'a> {
         self
     }
 
+    /// Adds a circle to the octahedral plane
+    ///
+    /// # Input
+    ///
+    /// * `config` -- a function `|canvas| {}` to configure the circle
+    pub fn add_oct_circle<F>(&mut self, radius: f64, mut config: F) -> &mut Self
+    where
+        F: FnMut(&mut Canvas),
+    {
+        let mut canvas = Canvas::new();
+        canvas
+            .set_face_color("None")
+            .set_edge_color(&self.color_oct_circle)
+            .set_line_style(&self.line_style_oct_circle);
+        config(&mut canvas);
+        canvas.draw_circle(0.0, 0.0, radius);
+        self.oct_circles.push(canvas);
+        self
+    }
+
     /// Adds a curve
     ///
     /// # Input
@@ -149,9 +205,10 @@ impl<'a> Plotter<'a> {
     where
         F: FnMut(&mut Curve),
     {
-        let (xx, yy) = if x == Axis::OctX && y == Axis::OctY {
+        let octahedral = x == Axis::OctX && y == Axis::OctY;
+        let (xx, yy) = if octahedral {
             let (xx, yy, r_max) = calc_oct_coords(states)?;
-            self.oct_r_max = f64::max(self.oct_r_max, r_max);
+            self.oct_radius_max = f64::max(self.oct_radius_max, r_max);
             (xx, yy)
         } else {
             (x.calc(states), y.calc(states))
@@ -196,13 +253,17 @@ impl<'a> Plotter<'a> {
         }
         let mut index = 0;
         for key in &self.order {
+            let octahedral = key.0 == Axis::OctX && key.1 == Axis::OctY;
             let row = index / self.ncol;
             let col = index % self.ncol;
             if with_subplot {
                 plot.set_subplot_grid("h", &format!("{}", row), &format!("{}", col));
             }
-            if key.0 == Axis::OctX && key.1 == Axis::OctY {
+            if octahedral {
                 self.draw_rosetta(&mut plot);
+                for canvas in &self.oct_circles {
+                    plot.add(canvas);
+                }
             }
             if let Some(curves) = self.curves.get(key) {
                 for curve in curves {
@@ -234,6 +295,56 @@ impl<'a> Plotter<'a> {
         }
         plot.save(filepath)
     }
+
+    // internal -----------------------------------------------------------------------------------
+
+    fn draw_rosetta(&self, plot: &mut Plot) {
+        // constants
+        let r = self.oct_radius_max;
+        let ma = self.oct_multiplier_axis;
+        let mt = self.oct_multiplier_text;
+
+        // text and axes
+        let mut text = Text::new();
+        let mut pos_axes = Canvas::new();
+        let mut neg_axes = Canvas::new();
+        text.set_color(&self.color_oct_text)
+            .set_align_horizontal("center")
+            .set_align_vertical("center");
+        pos_axes.set_edge_color(&self.color_oct_lines_positive);
+        pos_axes.set_arrow_scale(20.0).set_arrow_style("->");
+        neg_axes.set_edge_color(&self.color_oct_lines_negative);
+
+        // sigma 1
+        pos_axes.draw_arrow(0.0, 0.0, 0.0, ma * r);
+        neg_axes.draw_polyline(&[[0.0, 0.0], [0.0, -ma * r]], false);
+        text.draw(0.0, mt * r, "$\\hat{\\sigma}_1$");
+
+        // sigma 2
+        let (xf, yf) = (r * f64::cos(210.0 * PI / 180.0), r * f64::sin(210.0 * PI / 180.0));
+        pos_axes.draw_arrow(0.0, 0.0, ma * xf, ma * yf);
+        neg_axes.draw_polyline(&[[0.0, 0.0], [ma * xf, -ma * yf]], false);
+        text.draw(mt * xf, mt * yf, "$\\hat{\\sigma}_2$");
+
+        // sigma 3
+        let (xf, yf) = (r * f64::cos(-30.0 * PI / 180.0), r * f64::sin(-30.0 * PI / 180.0));
+        pos_axes.draw_arrow(0.0, 0.0, ma * xf, ma * yf);
+        neg_axes.draw_arrow(0.0, 0.0, ma * xf, -ma * yf);
+        text.draw(mt * xf, mt * yf, "$\\hat{\\sigma}_3$");
+
+        // add features to plot
+        plot.add(&text);
+        plot.add(&pos_axes);
+        plot.add(&neg_axes);
+
+        // configure plot
+        let rr = self.oct_multiplier_text_up * r;
+        plot.set_hide_axes(true)
+            .set_equal_axes(true)
+            .set_range(-rr, rr, -rr, rr);
+    }
+
+    // grid layouts -------------------------------------------------------------------------------
 
     /// Draws the projection of the stress path on the octahedral plane
     ///
@@ -308,22 +419,6 @@ impl<'a> Plotter<'a> {
             neg_axes,
             radius: r,
         });
-        Ok(())
-    }
-
-    /// Draws a circle on the octahedral plane
-    ///
-    /// # Input
-    ///
-    /// * `radius` -- the radius of the circle
-    /// * `extra` -- is a function `|canvas| {}` to configure the circle
-    pub fn draw_oct_circle<F>(&mut self, radius: f64, mut extra: F) -> Result<(), StrError>
-    where
-        F: FnMut(&mut Canvas),
-    {
-        let mut canvas = Canvas::new();
-        extra(&mut canvas);
-        canvas.draw_circle(0.0, 0.0, radius);
         Ok(())
     }
 
@@ -597,52 +692,6 @@ impl<'a> Plotter<'a> {
         );
         Ok(())
     }
-
-    fn draw_rosetta(&self, plot: &mut Plot) {
-        let r = OCT_PLOT_ROSETTA_M * self.oct_r_max;
-        let tm = OCT_PLOT_ROSETTA_TM;
-
-        // text and axes
-        let mut text = Text::new();
-        let mut pos_axes = Canvas::new();
-        let mut neg_axes = Canvas::new();
-        text.set_color("#7d7d7d")
-            .set_align_horizontal("center")
-            .set_align_vertical("center");
-        pos_axes.set_edge_color("#7d7d7d");
-        pos_axes.set_arrow_scale(20.0).set_arrow_style("->");
-        neg_axes.set_edge_color("#cccccc");
-
-        // sigma 1
-        pos_axes.draw_arrow(0.0, 0.0, 0.0, r);
-        neg_axes.draw_polyline(&[[0.0, 0.0], [0.0, -r]], false);
-        text.draw(0.0, tm * r, "$\\hat{\\sigma}_1$");
-
-        // sigma 2
-        let (xf, yf) = (r * f64::cos(210.0 * PI / 180.0), r * f64::sin(210.0 * PI / 180.0));
-        pos_axes.draw_arrow(0.0, 0.0, xf, yf);
-        neg_axes.draw_polyline(&[[0.0, 0.0], [xf, -yf]], false);
-        text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_2$");
-
-        // sigma 3
-        let (xf, yf) = (r * f64::cos(-30.0 * PI / 180.0), r * f64::sin(-30.0 * PI / 180.0));
-        pos_axes.draw_arrow(0.0, 0.0, xf, yf);
-        neg_axes.draw_arrow(0.0, 0.0, xf, -yf);
-        text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_3$");
-
-        // add features to plot
-        plot.add(&text);
-        plot.add(&pos_axes);
-        plot.add(&neg_axes);
-
-        // configure plot
-        plot.set_hide_axes(true).set_equal_axes(true).set_range(
-            -OCT_PLOT_RANGE_M * self.oct_r_max,
-            OCT_PLOT_RANGE_M * self.oct_r_max,
-            -OCT_PLOT_RANGE_M * self.oct_r_max,
-            OCT_PLOT_RANGE_M * self.oct_r_max,
-        );
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -808,62 +857,45 @@ mod tests {
 
     #[test]
     pub fn draw_oct_plot_works_1() {
-        // generate states
-        let lode = 0.0;
+        // constants
         let distance = 1.0;
         let radius = 2.0;
         let two_dim = true;
         let mandel = Mandel::Symmetric2D;
         let mut state_a = LocalState::new(mandel, 0);
         let mut state_b = LocalState::new(mandel, 0);
-        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
-        state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, two_dim).unwrap();
-        let data = [state_a, state_b];
 
-        // add to plot
+        // plotter
         let mut plotter = Plotter::new();
-        plotter.add(Axis::OctX, Axis::OctY, &data, |_| {}).unwrap();
+        plotter.set_legend(Axis::OctX, Axis::OctY, |legend| {
+            legend.set_outside(true).set_num_col(3);
+        });
+
+        // add circle to plotter
+        plotter.add_oct_circle(radius, |_| {});
+        plotter.add_oct_circle(2.0 * radius, |canvas| {
+            canvas.set_line_style("-");
+        });
+
+        // add curves to plotter
+        let mut markers = ["*", "o", "^"].iter();
+        for lode in &[-1.0, 0.0, 1.0] {
+            state_a.stress = Tensor2::new_from_octahedral(distance, radius, *lode, two_dim).unwrap();
+            state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, *lode, two_dim).unwrap();
+            let data = [state_a.clone(), state_b.clone()];
+            plotter
+                .add(Axis::OctX, Axis::OctY, &data, |curve| {
+                    curve
+                        .set_label(&format!(" $\\ell = {:.1}$", lode))
+                        .set_marker_style(markers.next().as_ref().unwrap());
+                })
+                .unwrap();
+        }
 
         // save figure
         if SAVE_FIGURE {
             plotter.save("/tmp/pmsim/test_draw_oct_plot_works_1.svg").unwrap();
         }
-    }
-
-    #[test]
-    pub fn oct_projections_works() {
-        let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-        let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
-        let data_c = generate_stress_strain_array(true, 500.0, 600.0, -1.0);
-        let mut plotter = Plotter::new();
-        plotter.draw_oct_circle(1.0, |_| {}).unwrap();
-        plotter
-            .draw_oct_projection(&data_a, |curve| {
-                curve.set_marker_style("o").set_label("$\\ell=1$");
-            })
-            .unwrap();
-        plotter
-            .draw_oct_projection(&data_b, |curve| {
-                curve.set_marker_style("d").set_label("$\\ell=0$");
-            })
-            .unwrap();
-        plotter
-            .draw_oct_projection(&data_c, |curve| {
-                curve.set_marker_style("*").set_label("$\\ell=-1$");
-            })
-            .unwrap();
-        if SAVE_FIGURE {
-            plotter
-                .save_oct_projection("/tmp/pmsim/test_oct_projections_1.svg", |plot, before| {
-                    if !before {
-                        let mut leg = Legend::new();
-                        leg.set_num_col(3).set_outside(true);
-                        leg.draw();
-                        plot.add(&leg);
-                    }
-                })
-                .unwrap()
-        };
     }
 
     #[test]
