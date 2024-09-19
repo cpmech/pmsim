@@ -141,7 +141,7 @@ impl<'a> Plotter<'a> {
     /// # Panics
     ///
     /// A panic may occur if strains are not available in `states` and the requested requires it.
-    pub fn add<F>(&mut self, x: Axis, y: Axis, states: &[LocalState], mut config: F)
+    pub fn add<F>(&mut self, x: Axis, y: Axis, states: &[LocalState], mut config: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve),
     {
@@ -158,6 +158,7 @@ impl<'a> Plotter<'a> {
                 self.order.push(key);
             }
         };
+        Ok(())
     }
 
     /// Saves the plot
@@ -355,7 +356,7 @@ impl<'a> Plotter<'a> {
     ///
     /// * `states` -- the stress and strain points
     /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_3x2_mosaic_struct<F>(&mut self, states: &[LocalState], mut extra: F)
+    pub fn draw_3x2_mosaic_struct<F>(&mut self, states: &[LocalState], mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve, usize, usize),
     {
@@ -374,13 +375,14 @@ impl<'a> Plotter<'a> {
         for row in 0..3 {
             for col in 0..2 {
                 match axes[row][col] {
-                    Some((x_axis, y_axis)) => self.add(x_axis, y_axis, states, |curve| extra(curve, row, col)),
+                    Some((x_axis, y_axis)) => self.add(x_axis, y_axis, states, |curve| extra(curve, row, col))?,
                     None => self
                         .draw_oct_projection(states, |curve| extra(curve, row, col))
                         .unwrap(),
                 }
             }
         }
+        Ok(())
     }
 
     /// Saves the 3x2 mosaic for structural mechanics
@@ -468,7 +470,7 @@ impl<'a> Plotter<'a> {
     ///
     /// * `states` -- the stress and strain points
     /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_2x2_mosaic_struct<F>(&mut self, states: &[LocalState], mut extra: F)
+    pub fn draw_2x2_mosaic_struct<F>(&mut self, states: &[LocalState], mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve, usize, usize),
     {
@@ -483,13 +485,14 @@ impl<'a> Plotter<'a> {
         for row in 0..2 {
             for col in 0..2 {
                 match axes[row][col] {
-                    Some((x_axis, y_axis)) => self.add(x_axis, y_axis, states, |curve| extra(curve, row, col)),
+                    Some((x_axis, y_axis)) => self.add(x_axis, y_axis, states, |curve| extra(curve, row, col))?,
                     None => self
                         .draw_oct_projection(states, |curve| extra(curve, row, col))
                         .unwrap(),
                 }
             }
         }
+        Ok(())
     }
 
     /// Saves the 3x2 mosaic for structural mechanics
@@ -621,8 +624,8 @@ mod tests {
             curve.set_label("B").set_line_color("#de3163").set_marker_style("*");
         };
         // draw: eps_v, sig_m
-        plotter.add(eps_v, sig_m, &data_a, set_curve_a);
-        plotter.add(eps_v, sig_m, &data_b, set_curve_b);
+        plotter.add(eps_v, sig_m, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_v, sig_m, &data_b, set_curve_b).unwrap();
         if SAVE_FIGURE {
             plotter.set_figure_size(400.0, 250.0);
             plotter
@@ -657,17 +660,17 @@ mod tests {
             curve.set_label("B").set_line_color("#de3163").set_marker_style("*");
         };
         // draw: eps_v, sig_m
-        plotter.add(eps_v, sig_m, &data_a, set_curve_a);
-        plotter.add(eps_v, sig_m, &data_b, set_curve_b);
+        plotter.add(eps_v, sig_m, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_v, sig_m, &data_b, set_curve_b).unwrap();
         // draw: eps_v_alt, sig_m_alt
-        plotter.add(eps_v_alt, sig_m_alt, &data_a, set_curve_a);
-        plotter.add(eps_v_alt, sig_m_alt, &data_b, set_curve_b);
+        plotter.add(eps_v_alt, sig_m_alt, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_v_alt, sig_m_alt, &data_b, set_curve_b).unwrap();
         // draw: eps_d, sig_d
-        plotter.add(eps_d, sig_d, &data_a, set_curve_a);
-        plotter.add(eps_d, sig_d, &data_b, set_curve_b);
+        plotter.add(eps_d, sig_d, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_d, sig_d, &data_b, set_curve_b).unwrap();
         // draw: eps_d_alt, sig_d_alt
-        plotter.add(eps_d_alt, sig_d_alt, &data_a, set_curve_a);
-        plotter.add(eps_d_alt, sig_d_alt, &data_b, set_curve_b);
+        plotter.add(eps_d_alt, sig_d_alt, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_d_alt, sig_d_alt, &data_b, set_curve_b).unwrap();
         // extra features
         plotter.set_extra(eps_v, sig_m, |plot| {
             let mut icon = SlopeIcon::new();
@@ -721,12 +724,16 @@ mod tests {
             let mut plotter = Plotter::new();
             for row in &axes {
                 for (x_axis, y_axis) in row {
-                    plotter.add(*x_axis, *y_axis, &data_a, |curve| {
-                        curve.set_label("stiff");
-                    });
-                    plotter.add(*x_axis, *y_axis, &data_b, |curve| {
-                        curve.set_marker_style("o").set_label("soft");
-                    });
+                    plotter
+                        .add(*x_axis, *y_axis, &data_a, |curve| {
+                            curve.set_label("stiff");
+                        })
+                        .unwrap();
+                    plotter
+                        .add(*x_axis, *y_axis, &data_b, |curve| {
+                            curve.set_marker_style("o").set_label("soft");
+                        })
+                        .unwrap();
                 }
             }
             plotter
@@ -782,7 +789,7 @@ mod tests {
             let mut plotter = Plotter::new();
             let x_axis = Axis::SigM(false);
             let y_axis = Axis::SigD(false);
-            plotter.add(x_axis, y_axis, &data, |_| {});
+            plotter.add(x_axis, y_axis, &data, |_| {}).unwrap();
             plotter.save("/tmp/pmsim/test_stress_path_1.svg").unwrap();
         }
     }
@@ -792,12 +799,16 @@ mod tests {
         let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
         let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
         let mut plotter = Plotter::new();
-        plotter.draw_3x2_mosaic_struct(&data_a, |curve, _, _| {
-            curve.set_label("stiff");
-        });
-        plotter.draw_3x2_mosaic_struct(&data_b, |curve, _, _| {
-            curve.set_marker_style("o").set_label("soft");
-        });
+        plotter
+            .draw_3x2_mosaic_struct(&data_a, |curve, _, _| {
+                curve.set_label("stiff");
+            })
+            .unwrap();
+        plotter
+            .draw_3x2_mosaic_struct(&data_b, |curve, _, _| {
+                curve.set_marker_style("o").set_label("soft");
+            })
+            .unwrap();
         if SAVE_FIGURE {
             let mut legend = Legend::new();
             legend.set_outside(true).set_num_col(2);
@@ -817,17 +828,21 @@ mod tests {
         let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
         let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
         let mut plotter = Plotter::new();
-        plotter.draw_2x2_mosaic_struct(&data_a, |curve, _, _| {
-            curve
-                .set_label("stiff")
-                .set_line_color("orange")
-                .set_marker_color("orange")
-                .set_marker_style("o")
-                .set_marker_void(true);
-        });
-        plotter.draw_2x2_mosaic_struct(&data_b, |curve, _, _| {
-            curve.set_label("soft").set_marker_style(".");
-        });
+        plotter
+            .draw_2x2_mosaic_struct(&data_a, |curve, _, _| {
+                curve
+                    .set_label("stiff")
+                    .set_line_color("orange")
+                    .set_marker_color("orange")
+                    .set_marker_style("o")
+                    .set_marker_void(true);
+            })
+            .unwrap();
+        plotter
+            .draw_2x2_mosaic_struct(&data_b, |curve, _, _| {
+                curve.set_label("soft").set_marker_style(".");
+            })
+            .unwrap();
         if SAVE_FIGURE {
             let mut legend = Legend::new();
             legend.set_outside(true).set_num_col(2);
