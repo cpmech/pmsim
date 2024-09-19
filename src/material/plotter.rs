@@ -3,7 +3,7 @@ use crate::StrError;
 use plotpy::{Canvas, Curve, Legend, Plot, SuperTitleParams, Text};
 use russell_lab::math::PI;
 use russell_tensor::Spectral2;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 
 const OCT_PLOT_ROSETTA_M: f64 = 1.25;
@@ -21,25 +21,23 @@ struct OctPlot {
 
 /// Plots stress versus strain invariants
 pub struct Plotter {
-    /// Do not draw the (background) grid lines
-    pub no_background_lines: bool,
-
     /// Maximum number of columns (default is 2)
-    pub ncol_max: usize,
+    ncol: usize,
 
-    /// Holds parameters for the gridspec (aka subplot) configuration
-    ///
-    /// Default = "wspace=0.35,hspace=0.35"
-    pub gridspec_params: String,
+    /// Holds the (wspace, hspace) values for the gridspec (aka subplot) configuration
+    gridspec: (f64, f64),
 
     /// Holds the (width, height) in points for the figure
-    pub figure_size_points: Option<(f64, f64)>,
+    figure_size: Option<(f64, f64)>,
 
     /// Holds the super-title when subplots are drawn
-    pub super_title: String,
+    super_title: String,
 
     /// Holds the parameters for the super-title
-    pub super_title_params: SuperTitleParams,
+    super_title_params: SuperTitleParams,
+
+    /// Do not draw the grid lines at some subplots
+    no_grid: HashSet<(Axis, Axis)>,
 
     /// Holds all curves
     curves: HashMap<(Axis, Axis), Vec<Curve>>,
@@ -60,17 +58,66 @@ impl Plotter {
         let mut super_title_params = SuperTitleParams::new();
         super_title_params.set_y(0.92);
         Plotter {
-            no_background_lines: false,
-            ncol_max: 2,
-            gridspec_params: "wspace=0.35,hspace=0.35".to_string(),
-            figure_size_points: None,
+            ncol: 2,
+            gridspec: (0.35, 0.35),
+            figure_size: None,
             super_title: String::new(),
             super_title_params,
+            no_grid: HashSet::new(),
             curves: HashMap::new(),
             order: Vec::new(),
             legends: HashMap::new(),
             oct: Vec::new(),
         }
+    }
+
+    /// Sets the maximum number of columns
+    ///
+    /// This is only used when there are more than one subplot
+    pub fn set_num_col(&mut self, ncol: usize) -> &mut Self {
+        self.ncol = ncol;
+        self
+    }
+
+    /// Sets the gridspec parameters
+    ///
+    /// Example: wspace=0.35, hspace=0.35
+    pub fn set_gridspec_params(&mut self, wspace: f64, hspace: f64) -> &mut Self {
+        self.gridspec = (wspace, hspace);
+        self
+    }
+
+    /// Sets the figure size in points
+    pub fn set_figure_size(&mut self, width: f64, height: f64) -> &mut Self {
+        self.figure_size = Some((width, height));
+        self
+    }
+
+    /// Sets the title of the plot
+    pub fn set_title(&mut self, title: &str) -> &mut Self {
+        self.super_title = title.to_string();
+        self
+    }
+
+    pub fn set_super_title_params() {}
+
+    /// Disables grid (background) lines in the specified x-y pair
+    pub fn set_no_grid(&mut self, x_axis: Axis, y_axis: Axis) -> &mut Self {
+        self.no_grid.insert((x_axis, y_axis));
+        self
+    }
+
+    /// Enables a legend for the specified x-y pair
+    pub fn set_legend<F>(&mut self, x_axis: Axis, y_axis: Axis, mut config: F) -> &mut Self
+    where
+        F: FnMut(&mut Legend),
+    {
+        let mut legend = Legend::new();
+        config(&mut legend);
+        legend.draw();
+        let key = (x_axis, y_axis);
+        self.legends.insert(key, legend);
+        self
     }
 
     /// Draws the stress/strain curve
@@ -105,17 +152,6 @@ impl Plotter {
         };
     }
 
-    pub fn set_legend<F>(&mut self, x_axis: Axis, y_axis: Axis, mut config: F)
-    where
-        F: FnMut(&mut Legend),
-    {
-        let mut legend = Legend::new();
-        config(&mut legend);
-        legend.draw();
-        let key = (x_axis, y_axis);
-        self.legends.insert(key, legend);
-    }
-
     /// Saves the stress/strain curve
     ///
     /// **Note:** Call this function after [StressStrainPlot::draw()].
@@ -136,26 +172,31 @@ impl Plotter {
         F: FnMut(&mut Plot, bool),
     {
         let size = self.order.len();
-        let nrow = size / self.ncol_max + size % self.ncol_max;
+        let nrow = size / self.ncol + size % self.ncol;
         let mut plot = Plot::new();
         extra(&mut plot, true);
-        let with_subplot = size >= self.ncol_max;
+        let with_subplot = size >= self.ncol;
         if with_subplot {
-            plot.set_gridspec("h", nrow, self.ncol_max, &self.gridspec_params);
+            plot.set_gridspec(
+                "h",
+                nrow,
+                self.ncol,
+                &format!("wspace={},hspace={}", self.gridspec.0, self.gridspec.1),
+            );
         }
         let mut index = 0;
         for key in &self.order {
-            let row = index / self.ncol_max;
-            let col = index % self.ncol_max;
+            let row = index / self.ncol;
+            let col = index % self.ncol;
             if with_subplot {
-                plot.set_subplot_grid("h", format!("{}", row).as_str(), format!("{}", col).as_str());
+                plot.set_subplot_grid("h", &format!("{}", row), &format!("{}", col));
             }
             if let Some(curves) = self.curves.get(key) {
                 for curve in curves {
                     plot.add(curve);
                 }
             }
-            if self.no_background_lines {
+            if self.no_grid.contains(key) {
                 plot.set_labels(&key.0.label(), &key.1.label());
             } else {
                 plot.grid_and_labels(&key.0.label(), &key.1.label());
@@ -167,9 +208,13 @@ impl Plotter {
         }
         extra(&mut plot, false);
         if self.super_title != "" {
-            plot.set_super_title(&self.super_title, Some(&self.super_title_params));
+            if with_subplot {
+                plot.set_super_title(&self.super_title, Some(&self.super_title_params));
+            } else {
+                plot.set_title(&self.super_title);
+            }
         }
-        if let Some(pair) = self.figure_size_points {
+        if let Some(pair) = self.figure_size {
             plot.set_figure_size_points(pair.0, pair.1);
         }
         plot.save(filepath)
@@ -387,9 +432,6 @@ impl Plotter {
                         }
                         let x = x_axis.label();
                         let y = y_axis.label();
-                        if !self.no_background_lines {
-                            plot.grid_and_labels("", "");
-                        }
                         if col == 0 {
                             plot.set_label_y(&y);
                         } else {
@@ -492,9 +534,6 @@ impl Plotter {
                         }
                         let x = x_axis.label();
                         let y = y_axis.label();
-                        if !self.no_background_lines {
-                            plot.grid_and_labels("", "");
-                        }
                         plot.set_label_x(&x);
                         plot.set_label_y(&y);
                     }
@@ -573,7 +612,7 @@ mod tests {
         plotter.draw(eps_v, sig_m, &data_a, set_curve_a);
         plotter.draw(eps_v, sig_m, &data_b, set_curve_b);
         if SAVE_FIGURE {
-            plotter.figure_size_points = Some((400.0, 250.0));
+            plotter.set_figure_size(400.0, 250.0);
             plotter
                 .save("/tmp/pmsim/test_plotter_draw_and_save_work_1.svg", |_, _| {})
                 .unwrap();
@@ -691,11 +730,13 @@ mod tests {
                     });
                 }
             }
-            plotter.super_title = "TEST SAVE MOSAIC 1".to_string();
-            plotter.figure_size_points = Some((600.0, 600.0));
-            plotter.gridspec_params = "wspace=0.33".to_string();
-            plotter.set_legend(eps_v, sig_d, |_| {});
-            plotter.save("/tmp/pmsim/test_save_grid_1.svg", |_, _| {}).unwrap();
+            plotter
+                .set_title("TEST SAVE MOSAIC 1")
+                .set_figure_size(600.0, 600.0)
+                .set_gridspec_params(0.33, 0.20)
+                .set_legend(eps_v, sig_d, |_| {})
+                .save("/tmp/pmsim/test_save_grid_1.svg", |_, _| {})
+                .unwrap();
         }
     }
 
