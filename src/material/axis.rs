@@ -33,7 +33,7 @@ pub enum Axis {
 impl Axis {
     /// Calculates the values for the axis
     ///
-    /// **Important:** The projected octahedral coordinates must be calculated via [calc_oct_projection()]
+    /// **Important:** The octahedral coordinates must be calculated via [calc_oct_coords()]
     pub(crate) fn calc(&self, states: &[LocalState]) -> Vec<f64> {
         match self {
             Self::EpsV(percent, negative) => {
@@ -103,10 +103,10 @@ impl Axis {
     }
 }
 
-/// Calculates octahedral projection coordinates
+/// Calculates octahedral coordinates
 ///
 /// Returns `(x, y, r_max)`
-pub(crate) fn calc_oct_projection(states: &[LocalState]) -> Result<(Vec<f64>, Vec<f64>, f64), StrError> {
+pub(crate) fn calc_oct_coords(states: &[LocalState]) -> Result<(Vec<f64>, Vec<f64>, f64), StrError> {
     let n = states.len();
     if n < 1 {
         return Err("the array of states must have at least one entry");
@@ -134,7 +134,7 @@ pub(crate) fn calc_oct_projection(states: &[LocalState]) -> Result<(Vec<f64>, Ve
 #[cfg(test)]
 mod tests {
     use super::Axis;
-    use crate::material::{calc_oct_projection, testing::generate_stress_strain_array, LocalState};
+    use crate::material::{calc_oct_coords, testing::generate_stress_strain_array, LocalState};
     use russell_lab::{approx_eq, array_approx_eq, assert_alike, math::PI};
     use russell_tensor::{Mandel, Tensor2};
     use std::collections::HashSet;
@@ -210,7 +210,7 @@ mod tests {
     }
 
     #[test]
-    fn calc_oct_projection_works() {
+    fn calc_oct_coords_works() {
         // generate states
         let lode = 0.0;
         let theta = f64::acos(lode) / 3.0;
@@ -226,7 +226,7 @@ mod tests {
 
         // calculate projection
         let data = [state_a, state_b];
-        let (xx, yy, r_max) = calc_oct_projection(&data).unwrap();
+        let (xx, yy, r_max) = calc_oct_coords(&data).unwrap();
         approx_eq(r_max, 2.0 * radius, 1e-15);
         for i in 0..data.len() {
             let r = f64::sqrt(xx[i] * xx[i] + yy[i] * yy[i]);
