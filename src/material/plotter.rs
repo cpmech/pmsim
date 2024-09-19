@@ -349,6 +349,22 @@ impl Plotter {
         Ok(())
     }
 
+    /// Draws a circle on the octahedral plane
+    ///
+    /// # Input
+    ///
+    /// * `radius` -- the radius of the circle
+    /// * `extra` -- is a function `|canvas| {}` to configure the circle
+    pub fn draw_oct_circle<F>(&mut self, radius: f64, mut extra: F) -> Result<(), StrError>
+    where
+        F: FnMut(&mut Canvas),
+    {
+        let mut canvas = Canvas::new();
+        extra(&mut canvas);
+        canvas.draw_circle(0.0, 0.0, radius);
+        Ok(())
+    }
+
     /// Saves the octahedral projection
     ///
     /// **Note:** Call this function after [StressStrainPlot::draw_oct_projection()].
@@ -934,18 +950,32 @@ mod tests {
     pub fn oct_projections_works() {
         let data_a = generate_data(true, 1000.0, 600.0, 1.0);
         let data_b = generate_data(true, 500.0, 200.0, 0.0);
+        let data_c = generate_data(true, 500.0, 600.0, -1.0);
         let mut plotter = Plotter::new();
-        let _ = plotter.draw_oct_projection(&data_a, |curve| {
-            curve.set_marker_style("o").set_label("$\\ell=1$");
-        });
-        let _ = plotter.draw_oct_projection(&data_b, |curve| {
-            curve.set_marker_style("d").set_label("$\\ell=0$");
-        });
+        plotter.draw_oct_circle(1.0, |_| {}).unwrap();
+        plotter
+            .draw_oct_projection(&data_a, |curve| {
+                curve.set_marker_style("o").set_label("$\\ell=1$");
+            })
+            .unwrap();
+        plotter
+            .draw_oct_projection(&data_b, |curve| {
+                curve.set_marker_style("d").set_label("$\\ell=0$");
+            })
+            .unwrap();
+        plotter
+            .draw_oct_projection(&data_c, |curve| {
+                curve.set_marker_style("*").set_label("$\\ell=-1$");
+            })
+            .unwrap();
         if SAVE_FIGURE {
             plotter
                 .save_oct_projection("/tmp/pmsim/test_oct_projections_1.svg", |plot, before| {
                     if !before {
-                        plot.legend();
+                        let mut leg = Legend::new();
+                        leg.set_num_col(3).set_outside(true);
+                        leg.draw();
+                        plot.add(&leg);
                     }
                 })
                 .unwrap()
