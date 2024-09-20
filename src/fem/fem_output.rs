@@ -23,11 +23,22 @@ pub struct FemOutputSummary {
 
 /// Assists in the post-processing of results
 pub struct FemOutput<'a> {
+    /// Holds the input data
     input: &'a FemInput<'a>,
+
+    /// Defines the filename stem
     filename_stem: Option<String>,
+
+    /// Defines the output directory
     output_directory: String,
+
+    /// Holds the count of files written
     output_count: usize,
+
+    /// Defines an auxiliary callback function
     callback: Option<fn(&FemState, usize)>,
+
+    /// Holds the summary
     summary: FemOutputSummary,
 }
 
