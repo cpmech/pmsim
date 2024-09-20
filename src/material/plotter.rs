@@ -81,6 +81,12 @@ pub struct Plotter<'a> {
     /// Holds the color for octahedral negative lines
     color_oct_lines_negative: String,
 
+    has_3x2_struct: bool,
+
+    fig_size_3x2_struct_w: f64,
+
+    fig_size_3x2_struct_h: f64,
+
     /// Holds the octahedral plot
     oct: Vec<OctPlot>,
 }
@@ -111,6 +117,9 @@ impl<'a> Plotter<'a> {
             color_oct_text: "#7d7d7d".to_string(),
             color_oct_lines_positive: "#7d7d7d".to_string(),
             color_oct_lines_negative: "#cccccc".to_string(),
+            has_3x2_struct: false,
+            fig_size_3x2_struct_w: 600.0,
+            fig_size_3x2_struct_h: 800.0,
             oct: Vec::new(),
         }
     }
@@ -292,6 +301,8 @@ impl<'a> Plotter<'a> {
         }
         if let Some(pair) = self.figure_size {
             plot.set_figure_size_points(pair.0, pair.1);
+        } else if self.has_3x2_struct {
+            plot.set_figure_size_points(self.fig_size_3x2_struct_w, self.fig_size_3x2_struct_h);
         }
         plot.save(filepath)
     }
@@ -451,7 +462,7 @@ impl<'a> Plotter<'a> {
 
     // --------------------------------------------------------------------------------------------------------------
 
-    /// Draws a 3x2 mosaic for structural mechanics
+    /// Adds a curve in a 3x2 grid for structural mechanics' analyses
     ///
     /// | row\col |     0      |     1      |
     /// |:-------:|:----------:|:----------:|
@@ -462,33 +473,31 @@ impl<'a> Plotter<'a> {
     /// # Input
     ///
     /// * `states` -- the stress and strain points
-    /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_3x2_mosaic_struct<F>(&mut self, states: &[LocalState], mut extra: F) -> Result<(), StrError>
+    /// * `extra` -- is a function `|curve, x, y| {}` to configure the curve,
+    ///    where x and y corresponds to the Axis associated with the subplot.
+    pub fn add_3x2_struct<F>(&mut self, states: &[LocalState], mut extra: F) -> Result<(), StrError>
     where
-        F: FnMut(&mut Curve, usize, usize),
+        F: FnMut(&mut Curve, Axis, Axis),
     {
         let percent = true;
         let axes = vec![
-            vec![Some((Axis::SigM(false), Axis::SigD(false))), None],
+            vec![(Axis::SigM(false), Axis::SigD(false)), (Axis::OctX, Axis::OctY)],
             vec![
-                Some((Axis::EpsD(percent), Axis::SigD(false))),
-                Some((Axis::EpsV(percent, false), Axis::SigD(false))),
+                (Axis::EpsD(percent), Axis::SigD(false)),
+                (Axis::EpsV(percent, false), Axis::SigD(false)),
             ],
             vec![
-                Some((Axis::EpsD(percent), Axis::SigM(false))),
-                Some((Axis::EpsV(percent, false), Axis::SigM(false))),
+                (Axis::EpsD(percent), Axis::SigM(false)),
+                (Axis::EpsV(percent, false), Axis::SigM(false)),
             ],
         ];
         for row in 0..3 {
             for col in 0..2 {
-                match axes[row][col] {
-                    Some((x_axis, y_axis)) => self.add(x_axis, y_axis, states, |curve| extra(curve, row, col))?,
-                    None => self
-                        .draw_oct_projection(states, |curve| extra(curve, row, col))
-                        .unwrap(),
-                }
+                let (x, y) = axes[row][col];
+                self.add(x, y, states, |curve| extra(curve, x, y))?;
             }
         }
+        self.has_3x2_struct = true;
         Ok(())
     }
 
@@ -916,26 +925,18 @@ mod tests {
         let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
         let mut plotter = Plotter::new();
         plotter
-            .draw_3x2_mosaic_struct(&data_a, |curve, _, _| {
+            .add_3x2_struct(&data_a, |curve, _, _| {
                 curve.set_label("stiff");
             })
             .unwrap();
         plotter
-            .draw_3x2_mosaic_struct(&data_b, |curve, _, _| {
+            .add_3x2_struct(&data_b, |curve, _, _| {
                 curve.set_marker_style("o").set_label("soft");
             })
             .unwrap();
         if SAVE_FIGURE {
-            let mut legend = Legend::new();
-            legend.set_outside(true).set_num_col(2);
-            plotter
-                .save_3x2_mosaic_struct("/tmp/pmsim/test_3x2_mosaic_3x2_struct.svg", |plot, row, col, before| {
-                    if !before && row == 1 && col == 1 {
-                        legend.draw();
-                        plot.add(&legend);
-                    }
-                })
-                .unwrap();
+            // plotter.set_figure_size(500.0, 700.0);
+            plotter.save("/tmp/pmsim/test_3x2_mosaic_3x2_struct.svg").unwrap();
         }
     }
 
