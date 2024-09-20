@@ -97,7 +97,8 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)
         .set_n_max_iterations(20)
-        .set_output_strains(id);
+        .set_output_strains(id)
+        .set_output_local_history(id);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

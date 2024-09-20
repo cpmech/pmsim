@@ -36,10 +36,15 @@ pub struct ElementSolid<'a> {
     ///  Δε @ ip
     delta_strain: Tensor2,
 
-    /// With the calculation of strains (not just the increment of strains)
+    /// Indicates the calculation of strains is performed (not just the increment of strains)
     ///
     /// This is required only if `output_strains` is requested for this element.
     with_strains: bool,
+
+    /// Indicates that the recording of local history is enabled (for the first integration point)
+    ///
+    /// This is required only if `output_local_history` is requested for this element.
+    with_local_history: bool,
 }
 
 impl<'a> ElementSolid<'a> {
@@ -71,6 +76,9 @@ impl<'a> ElementSolid<'a> {
         // with the calculation of strains (not just the increment of strains)
         let with_strains = config.output_strains.contains(&cell.id);
 
+        // with the recording of local history (at first integration point)
+        let with_local_history = config.output_local_history.contains(&cell.id);
+
         // allocate new instance
         Ok(ElementSolid {
             config,
@@ -82,6 +90,7 @@ impl<'a> ElementSolid<'a> {
             model,
             delta_strain,
             with_strains,
+            with_local_history,
         })
     }
 }
@@ -177,10 +186,18 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 &self.ips[p],
                 &mut self.pad,
             )?;
+            // access the array of local history (only for the first IP)
+            let local_history = if p == 0 && self.with_local_history {
+                state.local_history.get(&self.cell.id)
+            } else {
+                None
+            };
             // perform stress-update
-            self.model
-                .actual
-                .update_stress(&mut state.gauss[self.cell.id].solid[p], &self.delta_strain)?;
+            self.model.actual.update_stress(
+                &mut state.gauss[self.cell.id].solid[p],
+                &self.delta_strain,
+                local_history,
+            )?;
         }
         if self.with_strains {
             for p in 0..self.ips.len() {
