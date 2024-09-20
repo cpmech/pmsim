@@ -10,8 +10,8 @@ pub struct Plotter<'a> {
     /// Maximum number of columns (default is 2)
     ncol: usize,
 
-    /// Holds the (wspace, hspace) values for the gridspec (aka subplot) configuration
-    gridspec: (f64, f64),
+    /// Holds the (wspace, hspace) values for the subplot (gridspec) setup
+    subplot_spacing: (f64, f64),
 
     /// Holds the (width, height) in points for the figure
     figure_size: Option<(f64, f64)>,
@@ -22,8 +22,8 @@ pub struct Plotter<'a> {
     /// Holds the parameters for the super-title
     super_title_params: SuperTitleParams,
 
-    /// Do not draw the background (grid) lines for some subplots
-    no_background_lines: HashSet<(Axis, Axis)>,
+    /// Do not draw the background grid lines for some subplots
+    no_grid_lines: HashSet<(Axis, Axis)>,
 
     /// Holds all curves
     curves: HashMap<(Axis, Axis), Vec<Curve>>,
@@ -67,26 +67,26 @@ pub struct Plotter<'a> {
     /// Holds the color for octahedral negative lines
     color_oct_lines_negative: String,
 
-    /// Has a 2x2 grid
-    has_2x2_grid: bool,
+    /// Has a 2x2 tabular layout
+    tab_2x2_enabled: bool,
 
-    /// Has a 3x2 grid
-    has_3x2_grid: bool,
+    /// Has a 3x2 tabular layout
+    tab_3x2_enabled: bool,
 
-    /// Holds the figure size for the 2x2 grid
-    fig_size_2x2_grid: (f64, f64),
+    /// Holds the figure size for the 2x2 tabular layout
+    tab_2x2_fig_size: (f64, f64),
 
-    /// Holds the figure size for the 3x2 grid
-    fig_size_3x2_grid: (f64, f64),
+    /// Holds the figure size for the 3x2 tabular layout
+    tab_3x2_fig_size: (f64, f64),
 
-    /// Subplot index where the legend should go in the 2x2 or 3x2 grid
-    leg_index_grid: usize,
+    /// Subplot index where the legend should go in the tabular layouts (zero-based)
+    tab_leg_index: usize,
 
-    /// Number of columns of the legend in the 2x2 or 3x2 grid
-    leg_ncol_grid: usize,
+    /// Maximum number of columns of the legend in the tabular layouts
+    tab_leg_ncol: usize,
 
-    /// Selected pair for the fourth subplot in the 2x2 or 3x2 grid
-    sel_axes_grid: (Axis, Axis),
+    /// Selected pair for the fourth subplot in the tabular layouts
+    tab_selected_axes: (Axis, Axis),
 }
 
 impl<'a> Plotter<'a> {
@@ -96,11 +96,11 @@ impl<'a> Plotter<'a> {
         super_title_params.set_y(0.92);
         Plotter {
             ncol: 2,
-            gridspec: (0.31, 0.31),
+            subplot_spacing: (0.31, 0.31),
             figure_size: None,
             super_title: String::new(),
             super_title_params,
-            no_background_lines: HashSet::new(),
+            no_grid_lines: HashSet::new(),
             curves: HashMap::new(),
             order: Vec::new(),
             legends: HashMap::new(),
@@ -115,13 +115,13 @@ impl<'a> Plotter<'a> {
             color_oct_text: "#7d7d7d".to_string(),
             color_oct_lines_positive: "#7d7d7d".to_string(),
             color_oct_lines_negative: "#cccccc".to_string(),
-            has_2x2_grid: false,
-            has_3x2_grid: false,
-            fig_size_2x2_grid: (550.0, 450.0),
-            fig_size_3x2_grid: (550.0, 700.0),
-            leg_index_grid: 4,
-            leg_ncol_grid: 4,
-            sel_axes_grid: (Axis::Index, Axis::Yield),
+            tab_2x2_enabled: false,
+            tab_3x2_enabled: false,
+            tab_2x2_fig_size: (550.0, 450.0),
+            tab_3x2_fig_size: (550.0, 700.0),
+            tab_leg_index: 3,
+            tab_leg_ncol: 4,
+            tab_selected_axes: (Axis::Index, Axis::Yield),
         }
     }
 
@@ -133,11 +133,11 @@ impl<'a> Plotter<'a> {
         self
     }
 
-    /// Sets the gridspec parameters
+    /// Sets the subplot (gridspec) spacing parameters
     ///
     /// Example: wspace=0.35, hspace=0.35
     pub fn set_gridspec_params(&mut self, wspace: f64, hspace: f64) -> &mut Self {
-        self.gridspec = (wspace, hspace);
+        self.subplot_spacing = (wspace, hspace);
         self
     }
 
@@ -153,11 +153,15 @@ impl<'a> Plotter<'a> {
         self
     }
 
-    pub fn set_super_title_params() {}
+    /// Disables background grid lines in the specified x-y subplot
+    pub fn set_no_grid_lines(&mut self, x: Axis, y: Axis) -> &mut Self {
+        self.no_grid_lines.insert((x, y));
+        self
+    }
 
-    /// Disables background lines (grid) in the specified x-y subplot
-    pub fn set_no_background_lines(&mut self, x: Axis, y: Axis) -> &mut Self {
-        self.no_background_lines.insert((x, y));
+    /// Sets the axes for the selected (fourth) subplot in the grid layout
+    pub fn set_layout_selected(&mut self, x: Axis, y: Axis) -> &mut Self {
+        self.tab_selected_axes = (x, y);
         self
     }
 
@@ -261,14 +265,14 @@ impl<'a> Plotter<'a> {
         let eps_d = Axis::EpsD(percent);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
-            vec![(eps_d, sig_d), self.sel_axes_grid],
+            vec![(eps_d, sig_d), self.tab_selected_axes],
         ];
         for row in &axes {
             for (x, y) in row {
                 self.add(*x, *y, states, |curve| extra(curve, *x, *y))?;
             }
         }
-        self.has_2x2_grid = true;
+        self.tab_2x2_enabled = true;
         Ok(())
     }
 
@@ -298,7 +302,7 @@ impl<'a> Plotter<'a> {
         let sig_d = Axis::SigD(normalized);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
-            vec![(eps_d, sig_d), self.sel_axes_grid],
+            vec![(eps_d, sig_d), self.tab_selected_axes],
             vec![(eps_d, eps_v), (sig_m, eps_v)],
         ];
         for row in &axes {
@@ -306,7 +310,7 @@ impl<'a> Plotter<'a> {
                 self.add(*x, *y, states, |curve| extra(curve, *x, *y))?;
             }
         }
-        self.has_3x2_grid = true;
+        self.tab_3x2_enabled = true;
         Ok(())
     }
 
@@ -331,12 +335,13 @@ impl<'a> Plotter<'a> {
         // configure subplots using gridspec
         let nrow = size / self.ncol + size % self.ncol;
         let with_subplot = size >= self.ncol;
+        let tabular_enabled = self.tab_2x2_enabled || self.tab_3x2_enabled;
         if with_subplot {
             plot.set_gridspec(
                 "h",
                 nrow,
                 self.ncol,
-                &format!("wspace={},hspace={}", self.gridspec.0, self.gridspec.1),
+                &format!("wspace={},hspace={}", self.subplot_spacing.0, self.subplot_spacing.1),
             );
         }
 
@@ -367,7 +372,7 @@ impl<'a> Plotter<'a> {
             }
 
             // draw background grid lines and labels
-            if self.no_background_lines.contains(key) {
+            if self.no_grid_lines.contains(key) {
                 plot.set_labels(&key.0.label(), &key.1.label());
             } else {
                 plot.grid_and_labels(&key.0.label(), &key.1.label());
@@ -376,9 +381,9 @@ impl<'a> Plotter<'a> {
             // draw a legend
             if let Some(legend) = self.legends.get(key) {
                 plot.add(legend);
-            } else if (self.has_2x2_grid || self.has_3x2_grid) && index == self.leg_index_grid {
+            } else if tabular_enabled && index == self.tab_leg_index {
                 let n = self.curves.len();
-                let ncol = if n > self.leg_ncol_grid { self.leg_ncol_grid } else { n };
+                let ncol = if n > self.tab_leg_ncol { self.tab_leg_ncol } else { n };
                 let mut legend = Legend::new();
                 legend.set_num_col(ncol).set_outside(true).draw();
                 plot.add(&legend);
@@ -403,10 +408,10 @@ impl<'a> Plotter<'a> {
         // set the figure size
         if let Some(pair) = self.figure_size {
             plot.set_figure_size_points(pair.0, pair.1);
-        } else if self.has_2x2_grid {
-            plot.set_figure_size_points(self.fig_size_2x2_grid.0, self.fig_size_2x2_grid.1);
-        } else if self.has_3x2_grid {
-            plot.set_figure_size_points(self.fig_size_3x2_grid.0, self.fig_size_3x2_grid.1);
+        } else if self.tab_2x2_enabled {
+            plot.set_figure_size_points(self.tab_2x2_fig_size.0, self.tab_2x2_fig_size.1);
+        } else if self.tab_3x2_enabled {
+            plot.set_figure_size_points(self.tab_3x2_fig_size.0, self.tab_3x2_fig_size.1);
         }
 
         // save the figure
