@@ -2,22 +2,8 @@ use super::{calc_oct_coords, Axis, LocalState};
 use crate::StrError;
 use plotpy::{Canvas, Curve, Legend, Plot, SuperTitleParams, Text};
 use russell_lab::math::PI;
-use russell_tensor::Spectral2;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
-
-const OCT_PLOT_ROSETTA_M: f64 = 1.25;
-const OCT_PLOT_ROSETTA_TM: f64 = 1.1;
-const OCT_PLOT_RANGE_M: f64 = 1.15;
-
-/// Implements the octahedral plot
-struct OctPlot {
-    curve: Curve,
-    text: Text,
-    pos_axes: Canvas,
-    neg_axes: Canvas,
-    radius: f64,
-}
 
 /// Plots stress versus strain invariants
 pub struct Plotter<'a> {
@@ -81,14 +67,17 @@ pub struct Plotter<'a> {
     /// Holds the color for octahedral negative lines
     color_oct_lines_negative: String,
 
-    has_3x2_struct: bool,
+    /// Has a 2x2 grid
+    has_2x2_grid: bool,
 
-    fig_size_3x2_struct_w: f64,
+    /// Has a 3x2 grid
+    has_3x2_grid: bool,
 
-    fig_size_3x2_struct_h: f64,
+    /// Holds the figure size for the 2x2 grid
+    fig_size_2x2_grid: (f64, f64),
 
-    /// Holds the octahedral plot
-    oct: Vec<OctPlot>,
+    /// Holds the figure size for the 3x2 grid
+    fig_size_3x2_grid: (f64, f64),
 }
 
 impl<'a> Plotter<'a> {
@@ -98,7 +87,7 @@ impl<'a> Plotter<'a> {
         super_title_params.set_y(0.92);
         Plotter {
             ncol: 2,
-            gridspec: (0.35, 0.35),
+            gridspec: (0.31, 0.31),
             figure_size: None,
             super_title: String::new(),
             super_title_params,
@@ -117,10 +106,10 @@ impl<'a> Plotter<'a> {
             color_oct_text: "#7d7d7d".to_string(),
             color_oct_lines_positive: "#7d7d7d".to_string(),
             color_oct_lines_negative: "#cccccc".to_string(),
-            has_3x2_struct: false,
-            fig_size_3x2_struct_w: 600.0,
-            fig_size_3x2_struct_h: 800.0,
-            oct: Vec::new(),
+            has_2x2_grid: false,
+            has_3x2_grid: false,
+            fig_size_2x2_grid: (550.0, 450.0),
+            fig_size_3x2_grid: (550.0, 700.0),
         }
     }
 
@@ -183,7 +172,7 @@ impl<'a> Plotter<'a> {
     /// # Input
     ///
     /// * `config` -- a function `|canvas| {}` to configure the circle
-    pub fn add_oct_circle<F>(&mut self, radius: f64, mut config: F) -> &mut Self
+    pub fn set_oct_circle<F>(&mut self, radius: f64, mut config: F) -> &mut Self
     where
         F: FnMut(&mut Canvas),
     {
@@ -233,6 +222,79 @@ impl<'a> Plotter<'a> {
                 self.order.push(key);
             }
         };
+        Ok(())
+    }
+
+    /// Adds a curve to a 2x2 grid
+    ///
+    /// | row\col |     0      |     1      |
+    /// |:-------:|:----------:|:----------:|
+    /// |    0    | σm-σd path | octahedral |
+    /// |    1    |  (εd, σd)  | yield-func |
+    ///  
+    /// # Input
+    ///
+    /// * `states` -- the stress and strain points
+    /// * `porous_media` -- configures the invariants to better analyze porous media
+    /// * `extra` -- is a function `|curve, x, y| {}` to configure the curve,
+    ///    where x and y corresponds to the Axis associated with the subplot.
+    pub fn add_2x2<F>(&mut self, states: &[LocalState], porous_media: bool, mut extra: F) -> Result<(), StrError>
+    where
+        F: FnMut(&mut Curve, Axis, Axis),
+    {
+        let percent = true;
+        let (negative, normalized) = if porous_media { (true, true) } else { (false, false) };
+        let sig_m = Axis::SigM(negative);
+        let sig_d = Axis::SigD(normalized);
+        let eps_d = Axis::EpsD(percent);
+        let axes = vec![
+            vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
+            vec![(eps_d, sig_d), (Axis::Index, Axis::Yield)],
+        ];
+        for row in &axes {
+            for (x, y) in row {
+                self.add(*x, *y, states, |curve| extra(curve, *x, *y))?;
+            }
+        }
+        self.has_2x2_grid = true;
+        Ok(())
+    }
+
+    /// Adds a curve to a 3x2 grid
+    ///
+    /// | row\col |     0      |     1      |
+    /// |:-------:|:----------:|:----------:|
+    /// |    0    | σm-σd path | octahedral |
+    /// |    1    |  (εd, σd)  | yield-func |
+    /// |    2    |  (εd, εv)  |  (σm, εv)  |
+    ///  
+    /// # Input
+    ///
+    /// * `states` -- the stress and strain points
+    /// * `porous_media` -- configures the invariants to better analyze porous media
+    /// * `extra` -- is a function `|curve, x, y| {}` to configure the curve,
+    ///    where x and y corresponds to the Axis associated with the subplot.
+    pub fn add_3x2<F>(&mut self, states: &[LocalState], porous_media: bool, mut extra: F) -> Result<(), StrError>
+    where
+        F: FnMut(&mut Curve, Axis, Axis),
+    {
+        let percent = true;
+        let (negative, normalized) = if porous_media { (true, true) } else { (false, false) };
+        let eps_v = Axis::EpsV(percent, negative);
+        let eps_d = Axis::EpsD(percent);
+        let sig_m = Axis::SigM(negative);
+        let sig_d = Axis::SigD(normalized);
+        let axes = vec![
+            vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
+            vec![(eps_d, sig_d), (Axis::Index, Axis::Yield)],
+            vec![(eps_d, eps_v), (sig_m, eps_v)],
+        ];
+        for row in &axes {
+            for (x, y) in row {
+                self.add(*x, *y, states, |curve| extra(curve, *x, *y))?;
+            }
+        }
+        self.has_3x2_grid = true;
         Ok(())
     }
 
@@ -301,14 +363,15 @@ impl<'a> Plotter<'a> {
         }
         if let Some(pair) = self.figure_size {
             plot.set_figure_size_points(pair.0, pair.1);
-        } else if self.has_3x2_struct {
-            plot.set_figure_size_points(self.fig_size_3x2_struct_w, self.fig_size_3x2_struct_h);
+        } else if self.has_2x2_grid {
+            plot.set_figure_size_points(self.fig_size_2x2_grid.0, self.fig_size_2x2_grid.1);
+        } else if self.has_3x2_grid {
+            plot.set_figure_size_points(self.fig_size_3x2_grid.0, self.fig_size_3x2_grid.1);
         }
         plot.save(filepath)
     }
 
-    // internal -----------------------------------------------------------------------------------
-
+    /// Draws a rosetta on the octahedral plane
     fn draw_rosetta(&self, plot: &mut Plot) {
         // constants
         let r = self.oct_radius_max;
@@ -354,353 +417,6 @@ impl<'a> Plotter<'a> {
             .set_equal_axes(true)
             .set_range(-rr, rr, -rr, rr);
     }
-
-    // grid layouts -------------------------------------------------------------------------------
-
-    /// Draws the projection of the stress path on the octahedral plane
-    ///
-    /// # Input
-    ///
-    /// * `states` -- the states with the stress points
-    /// * `extra` -- is a function `|curve| {}` to configure the curve
-    pub fn draw_oct_projection<F>(&mut self, states: &[LocalState], mut extra: F) -> Result<(), StrError>
-    where
-        F: FnMut(&mut Curve),
-    {
-        let n = states.len();
-        if n < 1 {
-            return Err("there are not enough stresses to plot");
-        }
-        let two_dim = states[0].stress.mandel().two_dim();
-        let mut spectral = Spectral2::new(two_dim);
-        let mut xx = vec![0.0; n];
-        let mut yy = vec![0.0; n];
-        let mut r = 0.0;
-        for i in 0..n {
-            spectral.decompose(&states[i].stress)?;
-            let (y, _, x) = spectral.octahedral_basis();
-            xx[i] = x;
-            yy[i] = y;
-            if f64::abs(x) > r {
-                r = f64::abs(x);
-            }
-            if f64::abs(y) > r {
-                r = f64::abs(y);
-            }
-        }
-
-        r *= OCT_PLOT_ROSETTA_M;
-        let tm = OCT_PLOT_ROSETTA_TM;
-
-        let mut text = Text::new();
-        let mut pos_axes = Canvas::new();
-        let mut neg_axes = Canvas::new();
-        text.set_color("#7d7d7d")
-            .set_align_horizontal("center")
-            .set_align_vertical("center");
-        pos_axes.set_edge_color("#7d7d7d");
-        pos_axes.set_arrow_scale(20.0).set_arrow_style("->");
-        neg_axes.set_edge_color("#cccccc");
-
-        // sigma 1
-        pos_axes.draw_arrow(0.0, 0.0, 0.0, r);
-        neg_axes.draw_polyline(&[[0.0, 0.0], [0.0, -r]], false);
-        text.draw(0.0, tm * r, "$\\hat{\\sigma}_1$");
-
-        // sigma 2
-        let (xf, yf) = (r * f64::cos(210.0 * PI / 180.0), r * f64::sin(210.0 * PI / 180.0));
-        pos_axes.draw_arrow(0.0, 0.0, xf, yf);
-        neg_axes.draw_polyline(&[[0.0, 0.0], [xf, -yf]], false);
-        text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_2$");
-
-        // sigma 3
-        let (xf, yf) = (r * f64::cos(-30.0 * PI / 180.0), r * f64::sin(-30.0 * PI / 180.0));
-        pos_axes.draw_arrow(0.0, 0.0, xf, yf);
-        neg_axes.draw_arrow(0.0, 0.0, xf, -yf);
-        text.draw(tm * xf, tm * yf, "$\\hat{\\sigma}_3$");
-
-        let mut curve = Curve::new();
-        extra(&mut curve);
-        curve.draw(&xx, &yy);
-
-        self.oct.push(OctPlot {
-            curve,
-            text,
-            pos_axes,
-            neg_axes,
-            radius: r,
-        });
-        Ok(())
-    }
-
-    /// Saves the octahedral projection
-    ///
-    /// **Note:** Call this function after [StressStrainPlot::draw_oct_projection()].
-    ///
-    /// # Input
-    ///
-    /// * `filepath` -- may be a String, &str, or Path
-    /// * `extra` -- is a function `|plot, before| {}` to perform some {pre,post}-drawing on the plot area.
-    ///   The two arguments of this function are:
-    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
-    ///     * `before: bool` -- **true** indicates that the function is being called before all other
-    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
-    ///       all other drawing functions, and just before the `plot.save` call.
-    ///   For example, use `|_, _| {}` to do nothing.
-    pub fn save_oct_projection<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-        F: FnMut(&mut Plot, bool),
-    {
-        let mut plot = Plot::new();
-        extra(&mut plot, true);
-        self.add_oct_projections_to_plot(&mut plot)?;
-        extra(&mut plot, false);
-        plot.save(filepath)?;
-        Ok(())
-    }
-
-    // --------------------------------------------------------------------------------------------------------------
-
-    /// Adds a curve in a 3x2 grid for structural mechanics' analyses
-    ///
-    /// | row\col |     0      |     1      |
-    /// |:-------:|:----------:|:----------:|
-    /// |    0    | σd-σm path | octahedral |
-    /// |    1    |  (εd, σd)  |  (εv, σd)  |
-    /// |    2    |  (εd, σm)  |  (εv, σm)  |
-    ///  
-    /// # Input
-    ///
-    /// * `states` -- the stress and strain points
-    /// * `extra` -- is a function `|curve, x, y| {}` to configure the curve,
-    ///    where x and y corresponds to the Axis associated with the subplot.
-    pub fn add_3x2_struct<F>(&mut self, states: &[LocalState], mut extra: F) -> Result<(), StrError>
-    where
-        F: FnMut(&mut Curve, Axis, Axis),
-    {
-        let percent = true;
-        let axes = vec![
-            vec![(Axis::SigM(false), Axis::SigD(false)), (Axis::OctX, Axis::OctY)],
-            vec![
-                (Axis::EpsD(percent), Axis::SigD(false)),
-                (Axis::EpsV(percent, false), Axis::SigD(false)),
-            ],
-            vec![
-                (Axis::EpsD(percent), Axis::SigM(false)),
-                (Axis::EpsV(percent, false), Axis::SigM(false)),
-            ],
-        ];
-        for row in 0..3 {
-            for col in 0..2 {
-                let (x, y) = axes[row][col];
-                self.add(x, y, states, |curve| extra(curve, x, y))?;
-            }
-        }
-        self.has_3x2_struct = true;
-        Ok(())
-    }
-
-    /// Saves the 3x2 mosaic for structural mechanics
-    ///
-    /// **Note:** Call this function after [StressStrainPlot::draw_3x2_mosaic_struct()].
-    ///
-    /// # Input
-    ///
-    /// * `filepath` -- may be a String, &str, or Path
-    /// * `extra` -- is a function `|plot, row, col, before| {}` to perform some {pre,post}-drawing on the plot area.
-    ///   The four arguments of this function are:
-    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
-    ///     * `row: usize` -- the row index in the grid
-    ///     * `col: usize` -- the column index in the grid
-    ///     * `before: bool` -- **true** indicates that the function is being called before all other
-    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
-    ///       all other drawing functions, and just before the `plot.save` call.
-    ///   For example, use `|_, _, _, _| {}` to do nothing.
-    pub fn save_3x2_mosaic_struct<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-        F: FnMut(&mut Plot, usize, usize, bool),
-    {
-        let percent = true;
-        let axes = vec![
-            vec![Some((Axis::SigM(false), Axis::SigD(false))), None],
-            vec![
-                Some((Axis::EpsD(percent), Axis::SigD(false))),
-                Some((Axis::EpsV(percent, false), Axis::SigD(false))),
-            ],
-            vec![
-                Some((Axis::EpsD(percent), Axis::SigM(false))),
-                Some((Axis::EpsV(percent, false), Axis::SigM(false))),
-            ],
-        ];
-        let handle = "grid";
-        let mut plot = Plot::new();
-        let (nrow, ncol) = (3, 2);
-        plot.set_gridspec(handle, nrow, ncol, "wspace=0,hspace=0.35");
-        for row in 0..nrow {
-            if row == 1 {
-                plot.set_gridspec(handle, nrow, ncol, "wspace=0,hspace=0");
-            }
-            for col in 0..ncol {
-                plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
-                extra(&mut plot, row, col, true);
-                match axes[row][col] {
-                    Some((x_axis, y_axis)) => {
-                        for curve in self.curves.get(&(x_axis, y_axis)).unwrap() {
-                            plot.add(curve);
-                        }
-                        let x = x_axis.label();
-                        let y = y_axis.label();
-                        if col == 0 {
-                            plot.set_label_y(&y);
-                        } else {
-                            plot.extra("plt.gca().get_yaxis().set_ticklabels([])\n");
-                        }
-                        if row == 0 || row == 2 {
-                            plot.set_label_x(&x);
-                        } else {
-                            plot.extra("plt.gca().get_xaxis().set_ticklabels([])\n");
-                        }
-                    }
-                    None => {
-                        self.add_oct_projections_to_plot(&mut plot)?;
-                    }
-                }
-                extra(&mut plot, row, col, false);
-            }
-        }
-        plot.set_figure_size_points(600.0, 800.0).save(filepath)
-    }
-
-    // --------------------------------------------------------------------------------------------------------------
-
-    /// Draws a 2x2 mosaic for structural mechanics
-    ///
-    /// | row\col |     0      |     1      |
-    /// |:-------:|:----------:|:----------:|
-    /// |    0    | σd-σm path | octahedral |
-    /// |    1    |  (εd, σd)  | yield-func |
-    ///  
-    /// # Input
-    ///
-    /// * `states` -- the stress and strain points
-    /// * `extra` -- is a function `|curve, row, col| {}` to configure the curve
-    pub fn draw_2x2_mosaic_struct<F>(&mut self, states: &[LocalState], mut extra: F) -> Result<(), StrError>
-    where
-        F: FnMut(&mut Curve, usize, usize),
-    {
-        let percent = true;
-        let axes = vec![
-            vec![Some((Axis::SigM(false), Axis::SigD(false))), None],
-            vec![
-                Some((Axis::EpsD(percent), Axis::SigD(false))),
-                Some((Axis::Index, Axis::Yield)),
-            ],
-        ];
-        for row in 0..2 {
-            for col in 0..2 {
-                match axes[row][col] {
-                    Some((x_axis, y_axis)) => self.add(x_axis, y_axis, states, |curve| extra(curve, row, col))?,
-                    None => self
-                        .draw_oct_projection(states, |curve| extra(curve, row, col))
-                        .unwrap(),
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Saves the 3x2 mosaic for structural mechanics
-    ///
-    /// **Note:** Call this function after [StressStrainPlot::draw_2x2_mosaic_struct()].
-    ///
-    /// # Input
-    ///
-    /// * `filepath` -- may be a String, &str, or Path
-    /// * `extra` -- is a function `|plot, row, col, before| {}` to perform some {pre,post}-drawing on the plot area.
-    ///   The four arguments of this function are:
-    ///     * `plot: &mut Plot` -- the `plot` reference that can be used perform some extra drawings.
-    ///     * `row: usize` -- the row index in the grid
-    ///     * `col: usize` -- the column index in the grid
-    ///     * `before: bool` -- **true** indicates that the function is being called before all other
-    ///       drawing functions. Otherwise, **false* indicates that the function is being called after
-    ///       all other drawing functions, and just before the `plot.save` call.
-    ///   For example, use `|_, _, _, _| {}` to do nothing.
-    pub fn save_2x2_mosaic_struct<P, F>(&self, filepath: &P, mut extra: F) -> Result<(), StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-        F: FnMut(&mut Plot, usize, usize, bool),
-    {
-        let percent = true;
-        let axes = vec![
-            vec![Some((Axis::SigM(false), Axis::SigD(false))), None],
-            vec![
-                Some((Axis::EpsD(percent), Axis::SigD(false))),
-                Some((Axis::Index, Axis::Yield)),
-            ],
-        ];
-        let handle = "grid";
-        let mut plot = Plot::new();
-        let (nrow, ncol) = (2, 2);
-        plot.set_gridspec(handle, nrow, ncol, "wspace=0.25");
-        for row in 0..nrow {
-            for col in 0..ncol {
-                plot.set_subplot_grid(handle, format!("{}", row).as_str(), format!("{}", col).as_str());
-                extra(&mut plot, row, col, true);
-                match axes[row][col] {
-                    Some((x_axis, y_axis)) => {
-                        for curve in self.curves.get(&(x_axis, y_axis)).unwrap() {
-                            plot.add(curve);
-                        }
-                        let x = x_axis.label();
-                        let y = y_axis.label();
-                        plot.set_label_x(&x);
-                        plot.set_label_y(&y);
-                    }
-                    None => {
-                        self.add_oct_projections_to_plot(&mut plot)?;
-                    }
-                }
-                extra(&mut plot, row, col, false);
-            }
-        }
-        plot.set_figure_size_points(600.0, 600.0).save(filepath)
-    }
-
-    // --------------------------------------------------------------------------------------------------------------
-
-    /// Adds oct projections to plot
-    fn add_oct_projections_to_plot(&self, plot: &mut Plot) -> Result<(), StrError> {
-        let n = self.oct.len();
-        if n < 1 {
-            return Err("there are not enough plots to save");
-        }
-        let mut max_radius = self.oct[0].radius;
-        let mut index_max_radius = 0;
-        for i in 1..n {
-            if self.oct[i].radius > max_radius {
-                max_radius = self.oct[i].radius;
-                index_max_radius = i;
-            }
-        }
-        max_radius = f64::max(1.0, max_radius);
-        let d = &self.oct[index_max_radius];
-        plot.add(&d.text);
-        plot.add(&d.pos_axes);
-        plot.add(&d.neg_axes);
-        for i in 0..n {
-            let d = &self.oct[i];
-            plot.add(&d.curve);
-        }
-        plot.set_hide_axes(true).set_equal_axes(true).set_range(
-            -OCT_PLOT_RANGE_M * max_radius,
-            OCT_PLOT_RANGE_M * max_radius,
-            -OCT_PLOT_RANGE_M * max_radius,
-            OCT_PLOT_RANGE_M * max_radius,
-        );
-        Ok(())
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -710,7 +426,7 @@ mod tests {
     use super::{Axis, Plotter};
     use crate::material::testing::generate_stress_strain_array;
     use crate::material::LocalState;
-    use plotpy::{Curve, Legend, SlopeIcon};
+    use plotpy::{Curve, SlopeIcon};
     use russell_lab::approx_eq;
     use russell_tensor::{Mandel, Tensor2};
 
@@ -726,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    pub fn draw_and_save_work_1() {
+    pub fn add_and_save_work_1() {
         let (bulk, shear) = (1000.0, 600.0);
         let data_a = generate_stress_strain_array(true, bulk, shear, 1.0);
         let data_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
@@ -746,14 +462,12 @@ mod tests {
         plotter.add(eps_v, sig_m, &data_b, set_curve_b).unwrap();
         if SAVE_FIGURE {
             plotter.set_figure_size(400.0, 250.0);
-            plotter
-                .save("/tmp/pmsim/test_plotter_draw_and_save_work_1.svg")
-                .unwrap();
+            plotter.save("/tmp/pmsim/test_plotter_add_and_save_work_1.svg").unwrap();
         }
     }
 
     #[test]
-    pub fn draw_and_save_work_2() {
+    pub fn add_and_save_work_2() {
         let (bulk, shear) = (1000.0, 600.0);
         let data_a = generate_stress_strain_array(true, bulk, shear, 1.0);
         let data_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
@@ -819,53 +533,12 @@ mod tests {
             plot.set_figure_size_points(550.0, 350.0).add(&icon);
         });
         if SAVE_FIGURE {
-            plotter
-                .save("/tmp/pmsim/test_plotter_draw_and_save_work_2.svg")
-                .unwrap();
+            plotter.save("/tmp/pmsim/test_plotter_add_and_save_work_2.svg").unwrap();
         }
     }
 
     #[test]
-    pub fn save_grid_works() {
-        if SAVE_FIGURE {
-            let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-            let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
-            let eps_d = Axis::EpsD(true);
-            let sig_d = Axis::SigD(false);
-            let eps_v = Axis::EpsV(true, false);
-            let eps_v_alt = Axis::EpsV(true, true);
-            let sig_m = Axis::SigM(true);
-            let axes = vec![
-                vec![(eps_d, sig_d), (eps_v, sig_d)],
-                vec![(eps_d, eps_v_alt), (sig_m, eps_v_alt)],
-            ];
-            let mut plotter = Plotter::new();
-            for row in &axes {
-                for (x_axis, y_axis) in row {
-                    plotter
-                        .add(*x_axis, *y_axis, &data_a, |curve| {
-                            curve.set_label("stiff");
-                        })
-                        .unwrap();
-                    plotter
-                        .add(*x_axis, *y_axis, &data_b, |curve| {
-                            curve.set_marker_style("o").set_label("soft");
-                        })
-                        .unwrap();
-                }
-            }
-            plotter
-                .set_title("TEST SAVE MOSAIC 1")
-                .set_figure_size(600.0, 600.0)
-                .set_gridspec_params(0.33, 0.20)
-                .set_legend(eps_v, sig_d, |_| {})
-                .save("/tmp/pmsim/test_save_grid_1.svg")
-                .unwrap();
-        }
-    }
-
-    #[test]
-    pub fn draw_oct_plot_works_1() {
+    pub fn oct_plot_works_1() {
         // constants
         let distance = 1.0;
         let radius = 2.0;
@@ -881,8 +554,8 @@ mod tests {
         });
 
         // add circle to plotter
-        plotter.add_oct_circle(radius, |_| {});
-        plotter.add_oct_circle(2.0 * radius, |canvas| {
+        plotter.set_oct_circle(radius, |_| {});
+        plotter.set_oct_circle(2.0 * radius, |canvas| {
             canvas.set_line_style("-");
         });
 
@@ -903,50 +576,18 @@ mod tests {
 
         // save figure
         if SAVE_FIGURE {
-            plotter.save("/tmp/pmsim/test_draw_oct_plot_works_1.svg").unwrap();
+            plotter.save("/tmp/pmsim/test_plotter_oct_plot_works_1.svg").unwrap();
         }
     }
 
     #[test]
-    pub fn stress_path_works() {
-        if SAVE_FIGURE {
-            let data = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-            let mut plotter = Plotter::new();
-            let x_axis = Axis::SigM(false);
-            let y_axis = Axis::SigD(false);
-            plotter.add(x_axis, y_axis, &data, |_| {}).unwrap();
-            plotter.save("/tmp/pmsim/test_stress_path_1.svg").unwrap();
-        }
-    }
-
-    #[test]
-    pub fn draw_3x2_mosaic_struct_works() {
+    pub fn add_2x2_works_1() {
         let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
         let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
         let mut plotter = Plotter::new();
+        let porous_media = false;
         plotter
-            .add_3x2_struct(&data_a, |curve, _, _| {
-                curve.set_label("stiff");
-            })
-            .unwrap();
-        plotter
-            .add_3x2_struct(&data_b, |curve, _, _| {
-                curve.set_marker_style("o").set_label("soft");
-            })
-            .unwrap();
-        if SAVE_FIGURE {
-            // plotter.set_figure_size(500.0, 700.0);
-            plotter.save("/tmp/pmsim/test_3x2_mosaic_3x2_struct.svg").unwrap();
-        }
-    }
-
-    #[test]
-    pub fn draw_2x2_mosaic_struct_works() {
-        let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-        let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
-        let mut plotter = Plotter::new();
-        plotter
-            .draw_2x2_mosaic_struct(&data_a, |curve, _, _| {
+            .add_2x2(&data_a, porous_media, |curve, _, _| {
                 curve
                     .set_label("stiff")
                     .set_line_color("orange")
@@ -956,21 +597,33 @@ mod tests {
             })
             .unwrap();
         plotter
-            .draw_2x2_mosaic_struct(&data_b, |curve, _, _| {
+            .add_2x2(&data_b, porous_media, |curve, _, _| {
                 curve.set_label("soft").set_marker_style(".");
             })
             .unwrap();
         if SAVE_FIGURE {
-            let mut legend = Legend::new();
-            legend.set_outside(true).set_num_col(2);
-            plotter
-                .save_2x2_mosaic_struct("/tmp/pmsim/test_2x2_mosaic_2x2_struct.svg", |plot, row, col, before| {
-                    if !before && row == 1 && col == 1 {
-                        legend.draw();
-                        plot.add(&legend);
-                    }
-                })
-                .unwrap();
+            plotter.save("/tmp/pmsim/test_plotter_add_2x2_works_1.svg").unwrap();
+        }
+    }
+
+    #[test]
+    pub fn add_3x2_works_1() {
+        let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
+        let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+        let mut plotter = Plotter::new();
+        let porous_media = false;
+        plotter
+            .add_3x2(&data_a, porous_media, |curve, _, _| {
+                curve.set_label("stiff");
+            })
+            .unwrap();
+        plotter
+            .add_3x2(&data_b, porous_media, |curve, _, _| {
+                curve.set_marker_style("o").set_label("soft");
+            })
+            .unwrap();
+        if SAVE_FIGURE {
+            plotter.save("/tmp/pmsim/test_plotter_add_3x2_works_1.svg").unwrap();
         }
     }
 }
