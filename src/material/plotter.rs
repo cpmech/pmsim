@@ -78,6 +78,12 @@ pub struct Plotter<'a> {
 
     /// Holds the figure size for the 3x2 grid
     fig_size_3x2_grid: (f64, f64),
+
+    /// Subplot index where the legend should go in the 2x2 or 3x2 grid
+    leg_index: usize,
+
+    /// Number of columns of the legend in the 2x2 or 3x2 grid
+    leg_ncol: usize,
 }
 
 impl<'a> Plotter<'a> {
@@ -110,6 +116,8 @@ impl<'a> Plotter<'a> {
             has_3x2_grid: false,
             fig_size_2x2_grid: (550.0, 450.0),
             fig_size_3x2_grid: (550.0, 700.0),
+            leg_index: 4,
+            leg_ncol: 4,
         }
     }
 
@@ -307,12 +315,17 @@ impl<'a> Plotter<'a> {
     where
         P: AsRef<OsStr> + ?Sized,
     {
+        // check
         let size = self.order.len();
         if size == 0 {
             return Err("there are no curves to be drawn");
         }
-        let nrow = size / self.ncol + size % self.ncol;
+
+        // allocate the Plot
         let mut plot = Plot::new();
+
+        // configure subplots using gridspec
+        let nrow = size / self.ncol + size % self.ncol;
         let with_subplot = size >= self.ncol;
         if with_subplot {
             plot.set_gridspec(
@@ -322,38 +335,59 @@ impl<'a> Plotter<'a> {
                 &format!("wspace={},hspace={}", self.gridspec.0, self.gridspec.1),
             );
         }
+
+        // loop over subplots
         let mut index = 0;
         for key in &self.order {
-            let octahedral = key.0 == Axis::OctX && key.1 == Axis::OctY;
+            // configure grid spacing
             let row = index / self.ncol;
             let col = index % self.ncol;
             if with_subplot {
                 plot.set_subplot_grid("h", &format!("{}", row), &format!("{}", col));
             }
+
+            // draw octahedral background features
+            let octahedral = key.0 == Axis::OctX && key.1 == Axis::OctY;
             if octahedral {
                 self.draw_rosetta(&mut plot);
                 for canvas in &self.oct_circles {
                     plot.add(canvas);
                 }
             }
+
+            // draw curves
             if let Some(curves) = self.curves.get(key) {
                 for curve in curves {
                     plot.add(curve);
                 }
             }
+
+            // draw background grid lines and labels
             if self.no_grid.contains(key) {
                 plot.set_labels(&key.0.label(), &key.1.label());
             } else {
                 plot.grid_and_labels(&key.0.label(), &key.1.label());
             }
+
+            // draw a legend
             if let Some(legend) = self.legends.get(key) {
                 plot.add(legend);
+            } else if (self.has_2x2_grid || self.has_3x2_grid) && index == self.leg_index {
+                let n = self.curves.len();
+                let ncol = if n > self.leg_ncol { self.leg_ncol } else { n };
+                let mut legend = Legend::new();
+                legend.set_num_col(ncol).set_outside(true).draw();
+                plot.add(&legend);
             }
+
+            // perform extra configurations
             if let Some(f) = self.extra.get(key) {
                 f(&mut plot);
             }
             index += 1;
         }
+
+        // draw the title
         if self.super_title != "" {
             if with_subplot {
                 plot.set_super_title(&self.super_title, Some(&self.super_title_params));
@@ -361,6 +395,8 @@ impl<'a> Plotter<'a> {
                 plot.set_title(&self.super_title);
             }
         }
+
+        // set the figure size
         if let Some(pair) = self.figure_size {
             plot.set_figure_size_points(pair.0, pair.1);
         } else if self.has_2x2_grid {
@@ -368,6 +404,8 @@ impl<'a> Plotter<'a> {
         } else if self.has_3x2_grid {
             plot.set_figure_size_points(self.fig_size_3x2_grid.0, self.fig_size_3x2_grid.1);
         }
+
+        // save the figure
         plot.save(filepath)
     }
 
