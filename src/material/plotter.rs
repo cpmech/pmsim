@@ -22,8 +22,8 @@ pub struct Plotter<'a> {
     /// Holds the parameters for the super-title
     super_title_params: SuperTitleParams,
 
-    /// Do not draw the grid lines at some subplots
-    no_grid: HashSet<(Axis, Axis)>,
+    /// Do not draw the background (grid) lines for some subplots
+    no_background_lines: HashSet<(Axis, Axis)>,
 
     /// Holds all curves
     curves: HashMap<(Axis, Axis), Vec<Curve>>,
@@ -80,10 +80,13 @@ pub struct Plotter<'a> {
     fig_size_3x2_grid: (f64, f64),
 
     /// Subplot index where the legend should go in the 2x2 or 3x2 grid
-    leg_index: usize,
+    leg_index_grid: usize,
 
     /// Number of columns of the legend in the 2x2 or 3x2 grid
-    leg_ncol: usize,
+    leg_ncol_grid: usize,
+
+    /// Selected pair for the fourth subplot in the 2x2 or 3x2 grid
+    sel_axes_grid: (Axis, Axis),
 }
 
 impl<'a> Plotter<'a> {
@@ -97,7 +100,7 @@ impl<'a> Plotter<'a> {
             figure_size: None,
             super_title: String::new(),
             super_title_params,
-            no_grid: HashSet::new(),
+            no_background_lines: HashSet::new(),
             curves: HashMap::new(),
             order: Vec::new(),
             legends: HashMap::new(),
@@ -116,8 +119,9 @@ impl<'a> Plotter<'a> {
             has_3x2_grid: false,
             fig_size_2x2_grid: (550.0, 450.0),
             fig_size_3x2_grid: (550.0, 700.0),
-            leg_index: 4,
-            leg_ncol: 4,
+            leg_index_grid: 4,
+            leg_ncol_grid: 4,
+            sel_axes_grid: (Axis::Index, Axis::Yield),
         }
     }
 
@@ -151,9 +155,9 @@ impl<'a> Plotter<'a> {
 
     pub fn set_super_title_params() {}
 
-    /// Disables grid (background) lines in the specified x-y subplot
-    pub fn set_no_grid(&mut self, x: Axis, y: Axis) -> &mut Self {
-        self.no_grid.insert((x, y));
+    /// Disables background lines (grid) in the specified x-y subplot
+    pub fn set_no_background_lines(&mut self, x: Axis, y: Axis) -> &mut Self {
+        self.no_background_lines.insert((x, y));
         self
     }
 
@@ -257,7 +261,7 @@ impl<'a> Plotter<'a> {
         let eps_d = Axis::EpsD(percent);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
-            vec![(eps_d, sig_d), (Axis::Index, Axis::Yield)],
+            vec![(eps_d, sig_d), self.sel_axes_grid],
         ];
         for row in &axes {
             for (x, y) in row {
@@ -294,7 +298,7 @@ impl<'a> Plotter<'a> {
         let sig_d = Axis::SigD(normalized);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
-            vec![(eps_d, sig_d), (Axis::Index, Axis::Yield)],
+            vec![(eps_d, sig_d), self.sel_axes_grid],
             vec![(eps_d, eps_v), (sig_m, eps_v)],
         ];
         for row in &axes {
@@ -363,7 +367,7 @@ impl<'a> Plotter<'a> {
             }
 
             // draw background grid lines and labels
-            if self.no_grid.contains(key) {
+            if self.no_background_lines.contains(key) {
                 plot.set_labels(&key.0.label(), &key.1.label());
             } else {
                 plot.grid_and_labels(&key.0.label(), &key.1.label());
@@ -372,9 +376,9 @@ impl<'a> Plotter<'a> {
             // draw a legend
             if let Some(legend) = self.legends.get(key) {
                 plot.add(legend);
-            } else if (self.has_2x2_grid || self.has_3x2_grid) && index == self.leg_index {
+            } else if (self.has_2x2_grid || self.has_3x2_grid) && index == self.leg_index_grid {
                 let n = self.curves.len();
-                let ncol = if n > self.leg_ncol { self.leg_ncol } else { n };
+                let ncol = if n > self.leg_ncol_grid { self.leg_ncol_grid } else { n };
                 let mut legend = Legend::new();
                 legend.set_num_col(ncol).set_outside(true).draw();
                 plot.add(&legend);
