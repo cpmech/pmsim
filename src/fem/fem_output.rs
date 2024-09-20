@@ -148,7 +148,7 @@ impl<'a> FemOutput<'a> {
         format!("{}/{}-{:0>20}.json", out_dir, fn_stem, index)
     }
 
-    /// Writes the current FEM state to a binary file
+    /// Writes the current FEM state to a file
     ///
     /// **Note:** No output is generated if `filename_stem` is None.
     pub(crate) fn write(&mut self, state: &mut FemState) -> Result<(), StrError> {
