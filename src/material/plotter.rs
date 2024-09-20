@@ -96,8 +96,8 @@ impl<'a> Plotter<'a> {
             order: Vec::new(),
             legends: HashMap::new(),
             extra: HashMap::new(),
-            oct_multiplier_axis: 1.15,
-            oct_multiplier_text: 1.25,
+            oct_multiplier_axis: 1.22,
+            oct_multiplier_text: 1.31,
             oct_multiplier_text_up: 1.30,
             oct_radius_max: 0.0,
             oct_circles: Vec::new(),
@@ -412,7 +412,7 @@ impl<'a> Plotter<'a> {
         plot.add(&neg_axes);
 
         // configure plot
-        let rr = self.oct_multiplier_text_up * r;
+        let rr = 1.05 * self.oct_multiplier_text_up * r;
         plot.set_hide_axes(true)
             .set_equal_axes(true)
             .set_range(-rr, rr, -rr, rr);
@@ -598,7 +598,7 @@ mod tests {
             .unwrap();
         plotter
             .add_2x2(&data_b, porous_media, |curve, _, _| {
-                curve.set_label("soft").set_marker_style(".");
+                curve.set_label("soft").set_marker_style("o");
             })
             .unwrap();
         if SAVE_FIGURE {
@@ -614,12 +614,17 @@ mod tests {
         let porous_media = false;
         plotter
             .add_3x2(&data_a, porous_media, |curve, _, _| {
-                curve.set_label("stiff");
+                curve
+                    .set_label("stiff")
+                    .set_line_color("orange")
+                    .set_marker_color("orange")
+                    .set_marker_style("o")
+                    .set_marker_void(true);
             })
             .unwrap();
         plotter
             .add_3x2(&data_b, porous_media, |curve, _, _| {
-                curve.set_marker_style("o").set_label("soft");
+                curve.set_label("soft").set_marker_style("o");
             })
             .unwrap();
         if SAVE_FIGURE {
