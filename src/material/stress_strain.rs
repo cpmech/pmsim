@@ -1,4 +1,4 @@
-use super::{LinearElastic, LocalHistory, LocalState, VonMises};
+use super::{Elastoplastic, LinearElastic, LocalHistory, LocalState, VonMises};
 use crate::base::{Idealization, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -35,10 +35,14 @@ pub struct StressStrain {
 impl StressStrain {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &ParamSolid) -> Result<Self, StrError> {
-        let allow_initial_drift = match param.stress_update {
-            Some(su) => su.allow_initial_drift,
-            None => false,
+        let (allow_initial_drift, general_plasticity) = match param.stress_update {
+            Some(su) => (su.allow_initial_drift, su.general_plasticity),
+            None => (false, false),
         };
+        if general_plasticity {
+            let actual = Box::new(Elastoplastic::new(ideal, param)?);
+            return Ok(StressStrain { actual });
+        }
         let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
             // Linear elastic model
             ParamStressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(ideal, young, poisson)),
