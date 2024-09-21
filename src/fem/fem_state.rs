@@ -1,6 +1,6 @@
 use super::{FemInput, SecondaryValues};
 use crate::base::{Config, Element};
-use crate::material::LocalState;
+use crate::material::LocalHistory;
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::Vector;
@@ -62,7 +62,7 @@ pub struct FemState {
     ///
     /// Note: The local history holds the values calculated during the stress-update
     /// and correspond to the first integration/Gauss point.
-    pub local_history: HashMap<CellId, Vec<LocalState>>,
+    pub local_history: HashMap<CellId, LocalHistory>,
 }
 
 impl FemState {
@@ -167,7 +167,7 @@ impl FemState {
         let mut local_history = HashMap::new();
         for cell_id in &config.output_local_history {
             if *cell_id < ncell {
-                local_history.insert(*cell_id, Vec::new());
+                local_history.insert(*cell_id, LocalHistory::new());
             }
         }
 

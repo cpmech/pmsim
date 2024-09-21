@@ -1,4 +1,4 @@
-use super::{LinearElastic, LocalState, VonMises};
+use super::{LinearElastic, LocalHistory, LocalState, VonMises};
 use crate::base::{Idealization, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -22,7 +22,7 @@ pub trait StressStrainTrait: Send {
         &mut self,
         state: &mut LocalState,
         delta_strain: &Tensor2,
-        local_history: Option<&Vec<LocalState>>,
+        local_history: Option<&LocalHistory>,
     ) -> Result<(), StrError>;
 }
 
