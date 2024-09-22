@@ -306,7 +306,8 @@ impl Element {
 #[cfg(test)]
 mod tests {
     use super::{Dof, Ebc, Element, Init, Nbc, Pbc};
-    use crate::base::SampleParams;
+    use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
+    use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use std::{cmp::Ordering, collections::HashSet};
 
     #[test]
@@ -350,46 +351,46 @@ mod tests {
 
     #[test]
     fn element_derive_works() {
-        let p = SampleParams::param_diffusion();
+        let p = ParamDiffusion::sample();
         let e = Element::Diffusion(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Diffusion");
 
-        let p = SampleParams::param_rod();
+        let p = ParamRod::sample();
         let e = Element::Rod(p);
         let e_clone = e.clone();
         assert_eq!(
             format!("{:?}", e),
-            "Rod(ParamRod { density: 2.0, young: 1000.0, area: 1.0 })"
+            "Rod(ParamRod { density: 1.0, young: 1000.0, area: 1.0 })"
         );
         assert_eq!(format!("{}", e_clone.name()), "Rod");
 
-        let p = SampleParams::param_beam();
+        let p = ParamBeam::sample();
         let e = Element::Beam(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Beam");
 
-        let p = SampleParams::param_solid();
+        let p = ParamSolid::sample_linear_elastic();
         let e = Element::Solid(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Solid");
 
-        let p = SampleParams::param_porous_liq();
+        let p = ParamPorousLiq::sample_brooks_corey_constant();
         let e = Element::PorousLiq(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousLiq");
 
-        let p = SampleParams::param_porous_liq_gas();
+        let p = ParamPorousLiqGas::sample_brooks_corey_constant();
         let e = Element::PorousLiqGas(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousLiqGas");
 
-        let p = SampleParams::param_porous_sld_liq();
+        let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let e = Element::PorousSldLiq(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousSldLiq");
 
-        let p = SampleParams::param_porous_sld_liq_gas();
+        let p = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let e = Element::PorousSldLiqGas(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousSldLiqGas");

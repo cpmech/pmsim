@@ -255,32 +255,33 @@ impl fmt::Display for ElementDofsMap {
 #[cfg(test)]
 mod tests {
     use super::{ElementDofs, ElementDofsMap};
-    use crate::base::{Attributes, Dof, Element, SampleParams};
+    use crate::base::{Attributes, Dof, Element, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
+    use crate::base::{ParamBeam, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use gemlab::{mesh::Samples, shapes::GeoKind};
 
     #[test]
     fn new_handles_errors() {
-        let p = SampleParams::param_rod();
+        let p = ParamRod::sample();
         assert_eq!(
             ElementDofs::new(2, Element::Rod(p), GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
-        let p = SampleParams::param_beam();
+        let p = ParamBeam::sample();
         assert_eq!(
             ElementDofs::new(2, Element::Beam(p), GeoKind::Tri3).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
-        let p = SampleParams::param_solid();
+        let p = ParamSolid::sample_linear_elastic();
         assert_eq!(
             ElementDofs::new(2, Element::Solid(p), GeoKind::Lin2).err(),
             Some("GeoClass::Lin is reserved for Rod or Beam")
         );
-        let p = SampleParams::param_porous_sld_liq();
+        let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         assert_eq!(
             ElementDofs::new(2, Element::PorousSldLiq(p), GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiq with given GeoKind")
         );
-        let p = SampleParams::param_porous_sld_liq_gas();
+        let p = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         assert_eq!(
             ElementDofs::new(2, Element::PorousSldLiqGas(p), GeoKind::Tri3).err(),
             Some("cannot set PorousSldLiqGas with given GeoKind")
@@ -289,14 +290,14 @@ mod tests {
 
     #[test]
     fn new_works_2d() {
-        let pa = SampleParams::param_diffusion();
-        let pb = SampleParams::param_rod();
-        let pc = SampleParams::param_beam();
-        let pd = SampleParams::param_solid();
-        let pe = SampleParams::param_porous_liq();
-        let pf = SampleParams::param_porous_liq_gas();
-        let pg = SampleParams::param_porous_sld_liq();
-        let ph = SampleParams::param_porous_sld_liq_gas();
+        let pa = ParamDiffusion::sample();
+        let pb = ParamRod::sample();
+        let pc = ParamBeam::sample();
+        let pd = ParamSolid::sample_linear_elastic();
+        let pe = ParamPorousLiq::sample_brooks_corey_constant();
+        let pf = ParamPorousLiqGas::sample_brooks_corey_constant();
+        let pg = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
+        let ph = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let a = ElementDofs::new(2, Element::Diffusion(pa), GeoKind::Tri3).unwrap();
         let b = ElementDofs::new(2, Element::Rod(pb), GeoKind::Lin2).unwrap();
         let c = ElementDofs::new(2, Element::Beam(pc), GeoKind::Lin2).unwrap();
@@ -360,14 +361,14 @@ mod tests {
 
     #[test]
     fn new_works_3d() {
-        let pa = SampleParams::param_diffusion();
-        let pb = SampleParams::param_rod();
-        let pc = SampleParams::param_beam();
-        let pd = SampleParams::param_solid();
-        let pe = SampleParams::param_porous_liq();
-        let pf = SampleParams::param_porous_liq_gas();
-        let pg = SampleParams::param_porous_sld_liq();
-        let ph = SampleParams::param_porous_sld_liq_gas();
+        let pa = ParamDiffusion::sample();
+        let pb = ParamRod::sample();
+        let pc = ParamBeam::sample();
+        let pd = ParamSolid::sample_linear_elastic();
+        let pe = ParamPorousLiq::sample_brooks_corey_constant();
+        let pf = ParamPorousLiqGas::sample_brooks_corey_constant();
+        let pg = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
+        let ph = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let a = ElementDofs::new(3, Element::Diffusion(pa), GeoKind::Tri3).unwrap();
         let b = ElementDofs::new(3, Element::Rod(pb), GeoKind::Lin2).unwrap();
         let c = ElementDofs::new(3, Element::Beam(pc), GeoKind::Lin2).unwrap();
@@ -448,7 +449,7 @@ mod tests {
 
     #[test]
     fn display_works() {
-        let p = SampleParams::param_porous_sld_liq();
+        let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let ed = ElementDofs::new(1, Element::PorousSldLiq(p), GeoKind::Tri6).unwrap();
         assert_eq!(
             format!("{}", ed),
@@ -465,13 +466,13 @@ mod tests {
     #[test]
     fn new_map_handles_errors() {
         let mesh = Samples::one_tri6();
-        let p2 = SampleParams::param_solid();
+        let p2 = ParamSolid::sample_linear_elastic();
         let att = Attributes::from([(2, Element::Solid(p2))]);
         assert_eq!(
             ElementDofsMap::new(&mesh, &att).err(),
             Some("cannot find CellAttribute in Attributes map")
         );
-        let p1 = SampleParams::param_rod();
+        let p1 = ParamRod::sample();
         let att = Attributes::from([(1, Element::Rod(p1))]);
         assert_eq!(
             ElementDofsMap::new(&mesh, &att).err(),
@@ -483,7 +484,7 @@ mod tests {
     fn new_map_and_get_work() {
         let mesh = Samples::three_tri3();
         let mut mesh_wrong = mesh.clone();
-        let p1 = SampleParams::param_solid();
+        let p1 = ParamSolid::sample_linear_elastic();
         let att = Attributes::from([(1, Element::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(emap.get(&mesh.cells[0]).unwrap().n_equation, 6);
@@ -507,7 +508,7 @@ mod tests {
         //                   1 {2}
         //                     {3}
         let mesh = Samples::three_tri3();
-        let p1 = SampleParams::param_solid();
+        let p1 = ParamSolid::sample_linear_elastic();
         let att = Attributes::from([(1, Element::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
@@ -531,7 +532,7 @@ mod tests {
         // | (1)      `.|            |
         // 0------------1------------4
         let mesh = Samples::two_tri3_one_qua4();
-        let p = SampleParams::param_porous_liq();
+        let p = ParamPorousLiq::sample_brooks_corey_constant();
         let att = Attributes::from([(1, Element::PorousLiq(p)), (2, Element::PorousLiq(p))]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         assert_eq!(
@@ -561,9 +562,9 @@ mod tests {
         // |       [2](3)|   _.3'
         // 0------1------2.-'
         let mesh = Samples::qua8_tri6_lin2();
-        let p1 = SampleParams::param_porous_sld_liq();
-        let p2 = SampleParams::param_solid();
-        let p3 = SampleParams::param_beam();
+        let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
+        let p2 = ParamSolid::sample_linear_elastic();
+        let p3 = ParamBeam::sample();
         let att = Attributes::from([
             (1, Element::PorousSldLiq(p1)),
             (2, Element::Solid(p2)),

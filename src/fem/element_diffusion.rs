@@ -231,7 +231,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
+    use crate::base::{Config, Element, ParamConductivity, ParamDiffusion};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
@@ -257,7 +257,7 @@ mod tests {
                 source: None,
             }
         } else {
-            SampleParams::param_diffusion()
+            ParamDiffusion::sample()
         };
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_diffusion();
+        let p1 = ParamDiffusion::sample();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_n_integ_point(1, 100); // wrong
@@ -336,7 +336,14 @@ mod tests {
     fn element_diffusion_works_2d() {
         // mesh and parameters
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_diffusion();
+        const KX: f64 = 0.1;
+        const KY: f64 = 0.2;
+        const KZ: f64 = 0.3;
+        let p1 = ParamDiffusion {
+            rho: 1.0,
+            conductivity: ParamConductivity::Constant { kx: KX, ky: KY, kz: KZ },
+            source: None,
+        };
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
@@ -356,8 +363,7 @@ mod tests {
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
         let dtt_dx = 5.0;
-        let (kx, ky) = (0.1, 0.2);
-        let w0 = -kx * dtt_dx;
+        let w0 = -KX * dtt_dx;
         let w1 = 0.0;
         let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1));
         vec_approx_eq(&residual, &correct_r, 1e-15);
@@ -365,7 +371,7 @@ mod tests {
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
-        let correct_kk = ana.mat_03_btb(kx, ky, false);
+        let correct_kk = ana.mat_03_btb(KX, KY, false);
         mat_approx_eq(&jacobian, &correct_kk, 1e-15);
 
         // with source term -------------------------------------------------
@@ -405,7 +411,14 @@ mod tests {
     fn element_diffusion_works_3d() {
         // mesh and parameters
         let mesh = Samples::one_tet4();
-        let p1 = SampleParams::param_diffusion();
+        const KX: f64 = 0.1;
+        const KY: f64 = 0.2;
+        const KZ: f64 = 0.3;
+        let p1 = ParamDiffusion {
+            rho: 1.0,
+            conductivity: ParamConductivity::Constant { kx: KX, ky: KY, kz: KZ },
+            source: None,
+        };
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
@@ -426,10 +439,9 @@ mod tests {
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
         let (dtt_dx, dtt_dz) = (7.0, 3.0);
-        let (kx, ky, kz) = (0.1, 0.2, 0.3);
-        let w0 = -kx * dtt_dx;
+        let w0 = -KX * dtt_dx;
         let w1 = 0.0;
-        let w2 = -kz * dtt_dz;
+        let w2 = -KZ * dtt_dz;
         let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
         vec_approx_eq(&residual, &correct_r, 1e-15);
 
@@ -437,7 +449,7 @@ mod tests {
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let conductivity =
-            Tensor2::from_matrix(&[[kx, 0.0, 0.0], [0.0, ky, 0.0], [0.0, 0.0, kz]], Mandel::Symmetric).unwrap();
+            Tensor2::from_matrix(&[[KX, 0.0, 0.0], [0.0, KY, 0.0], [0.0, 0.0, KZ]], Mandel::Symmetric).unwrap();
         let correct_kk = ana.mat_03_btb(&conductivity);
         mat_approx_eq(&jacobian, &correct_kk, 1e-15);
 

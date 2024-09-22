@@ -227,7 +227,7 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Element, ParamSolid, ParamStressStrain, SampleParams};
+    use crate::base::{Config, Element, ParamSolid, ParamStressStrain};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
+        let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_n_integ_point(1, 100); // wrong

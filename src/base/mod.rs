@@ -13,7 +13,6 @@ mod idealization;
 mod natural;
 mod parameters;
 mod sample_meshes;
-mod sample_params;
 mod testing;
 pub use crate::base::assembly::*;
 pub use crate::base::attributes::*;
@@ -28,7 +27,6 @@ pub use crate::base::idealization::*;
 pub use crate::base::natural::*;
 pub use crate::base::parameters::*;
 pub use crate::base::sample_meshes::*;
-pub use crate::base::sample_params::*;
 
 #[allow(unused_imports)]
 pub(crate) use crate::base::testing::*;

@@ -70,23 +70,22 @@ impl StressStrain {
 #[cfg(test)]
 mod tests {
     use super::StressStrain;
-    use crate::base::{Idealization, SampleParams};
+    use crate::base::{Idealization, ParamSolid, ParamStressStrain};
 
     #[test]
     fn allocate_stress_strain_model_works() {
         let mut ideal = Idealization::new(2);
-        let param = SampleParams::param_solid();
+        let param = ParamSolid::sample_linear_elastic();
         StressStrain::new(&ideal, &param).unwrap();
 
         ideal.plane_stress = true;
-        let param = SampleParams::param_solid_von_mises();
+        let param = ParamSolid::sample_von_mises();
         assert_eq!(
             StressStrain::new(&ideal, &param,).err(),
             Some("von Mises model does not work in plane-stress")
         );
 
         ideal.plane_stress = false;
-        let param = SampleParams::param_solid_von_mises();
         StressStrain::new(&ideal, &param).unwrap();
     }
 
@@ -94,7 +93,18 @@ mod tests {
     #[should_panic(expected = "TODO: DruckerPrager")]
     fn allocate_stress_strain_fails() {
         let ideal = Idealization::new(2);
-        let param = SampleParams::param_solid_drucker_prager();
+        let param = ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::DruckerPrager {
+                young: 1500.0,
+                poisson: 0.25,
+                c: 0.0,
+                phi: 12.0,
+                hh: 800.0,
+            },
+            nonlin_elast: None,
+            stress_update: None,
+        };
         StressStrain::new(&ideal, &param).unwrap();
     }
 }

@@ -243,7 +243,7 @@ impl<'a> FemSolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemSolverImplicit;
-    use crate::base::{new_empty_mesh_2d, Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
+    use crate::base::{new_empty_mesh_2d, Config, Ebc, Element, Essential, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemInput, FemOutput, FemState};
     use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn new_captures_errors() {
         let mesh = Samples::one_hex8();
-        let p1 = SampleParams::param_solid();
+        let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn run_captures_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
+        let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_dt(|_| -1.0); // wrong

@@ -43,14 +43,14 @@ impl<'a> FemInput<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemInput;
-    use crate::base::{Element, SampleParams};
+    use crate::base::{Element, ParamDiffusion, ParamSolid};
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let p2 = SampleParams::param_solid();
+        let p2 = ParamSolid::sample_linear_elastic();
         assert_eq!(
             FemInput::new(&mesh, [(2, Element::Solid(p2))]).err(),
             Some("cannot find CellAttribute in Attributes map")
@@ -60,7 +60,7 @@ mod tests {
     #[test]
     fn new_works() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
+        let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         assert_eq!(input.equations.n_equation, 6);
     }
@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn n_local_eq_works() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_diffusion();
+        let p1 = ParamDiffusion::sample();
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
         assert_eq!(input.n_local_eq(&mesh.cells[0]).unwrap(), 3);
 

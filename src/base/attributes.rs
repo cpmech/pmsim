@@ -37,14 +37,14 @@ impl Attributes {
 #[cfg(test)]
 mod tests {
     use super::Attributes;
-    use crate::base::{Element, SampleParams};
+    use crate::base::{Element, ParamBeam, ParamPorousSldLiq, ParamSolid};
     use gemlab::mesh::Samples;
 
     #[test]
     fn from_works() {
-        let p1 = SampleParams::param_porous_sld_liq();
-        let p2 = SampleParams::param_solid();
-        let p3 = SampleParams::param_beam();
+        let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
+        let p2 = ParamSolid::sample_linear_elastic();
+        let p3 = ParamBeam::sample();
         let att = Attributes::from([
             (1, Element::PorousSldLiq(p1)),
             (2, Element::Solid(p2)),
@@ -56,7 +56,7 @@ mod tests {
     #[test]
     fn get_and_name_work() {
         let mut mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
+        let p1 = ParamSolid::sample_linear_elastic();
         let att = Attributes::from([(1, Element::Solid(p1))]);
         assert_eq!(att.get(&mesh.cells[0]).unwrap().name(), "Solid");
         mesh.cells[0].attribute = 2;
