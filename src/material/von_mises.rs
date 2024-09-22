@@ -12,9 +12,6 @@ const I: &[f64; 9] = &IDENTITY2;
 /// Defines an alias to P_SYMDEV
 const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 
-/// Holds the index of z internal variable (size of yield surface)
-const Z0: usize = 0;
-
 /// Implements the von Mises plasticity model
 ///
 /// **Note:** This model works in 2D (plane-strain only) or 3D.
@@ -78,7 +75,7 @@ impl StressStrainTrait for VonMises {
 
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
-        state.internal_values[Z0] = self.z0;
+        state.internal_values[0] = self.z0;
         let f = self.yield_function(state)?;
         if !self.allow_initial_drift {
             if f > 0.0 {
@@ -170,7 +167,7 @@ impl StressStrainTrait for VonMises {
         // elastoplastic update
         state.elastic = false;
         state.algo_lagrange = lambda;
-        state.internal_values[Z0] = state.stress.invariant_sigma_d();
+        state.internal_values[0] = state.stress.invariant_sigma_d();
         state.yield_value = self.yield_function(state)?;
         Ok(())
     }
@@ -185,7 +182,7 @@ impl PlasticityTrait for VonMises {
     /// Calculates the yield function f
     fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
         let sigma_d = state.stress.invariant_sigma_d();
-        let z = state.internal_values[Z0];
+        let z = state.internal_values[0];
         Ok(sigma_d - z)
     }
 
@@ -196,7 +193,7 @@ impl PlasticityTrait for VonMises {
 
     /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
     fn hardening(&self, hh: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        hh[Z0] = self.hh;
+        hh[0] = self.hh;
         Ok(())
     }
 
@@ -216,7 +213,7 @@ impl PlasticityTrait for VonMises {
 
     /// Calculates the derivative of the yield function w.r.t internal variables
     fn df_dz(&self, df_dz: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        df_dz[Z0] = -1.0;
+        df_dz[0] = -1.0;
         Ok(())
     }
 
@@ -242,10 +239,10 @@ mod tests {
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, Tensor4, SQRT_3, SQRT_3_BY_2};
 
-    const TEST_YOUNG: f64 = 1500.0;
-    const TEST_POISSON: f64 = 0.25;
-    const TEST_HH: f64 = 800.0;
-    const TEST_Z0: f64 = 9.0;
+    const YOUNG: f64 = 1500.0;
+    const POISSON: f64 = 0.25;
+    const HH: f64 = 800.0;
+    const Z0: f64 = 9.0;
 
     // Generates a state reaching the yield surface
     fn update_to_yield_surface(ideal: &Idealization, model: &mut VonMises, lode: f64) -> LocalState {
@@ -256,7 +253,7 @@ mod tests {
         let n_internal_values = model.n_internal_values();
         let mut state = LocalState::new(ideal.mandel(), n_internal_values);
         model.initialize_internal_values(&mut state).unwrap();
-        assert_eq!(state.yield_value, -TEST_Z0);
+        assert_eq!(state.yield_value, -Z0);
 
         // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
@@ -275,25 +272,25 @@ mod tests {
     #[test]
     fn initialize_internal_values_works() {
         let ideal = Idealization::new(2);
-        let model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
+        let model = VonMises::new(&ideal, YOUNG, POISSON, Z0, HH, false);
         let mut state = LocalState::new(ideal.mandel(), model.n_internal_values());
         model.initialize_internal_values(&mut state).unwrap();
-        assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
-        assert_eq!(state.yield_value, -TEST_Z0);
+        assert_eq!(state.internal_values.as_data(), &[Z0]);
+        assert_eq!(state.yield_value, -Z0);
     }
 
     #[test]
     fn update_stress_works_elastic() {
         for ndim in [2, 3] {
             let ideal = Idealization::new(ndim);
-            let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
+            let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z0, HH, false);
             for lode in [-1.0, 0.0, 1.0] {
                 let state = update_to_yield_surface(&ideal, &mut model, lode);
                 let sigma_m = state.stress.invariant_sigma_m();
                 let sigma_d = state.stress.invariant_sigma_d();
                 approx_eq(sigma_m, 1.0, 1e-14);
-                approx_eq(sigma_d, TEST_Z0, 1e-14);
-                assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
+                approx_eq(sigma_d, Z0, 1e-14);
+                assert_eq!(state.internal_values.as_data(), &[Z0]);
                 assert_eq!(state.elastic, true);
                 assert_eq!(state.apex_return, false);
                 assert_eq!(state.algo_lagrange, 0.0);
@@ -315,7 +312,7 @@ mod tests {
         for ndim in [2, 3] {
             // update to yield surface (exactly)
             let ideal = Idealization::new(ndim);
-            let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
+            let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z0, HH, false);
             let mut state = update_to_yield_surface(&ideal, &mut model, lode);
             let sigma_m_1 = state.stress.invariant_sigma_m();
             let sigma_d_1 = state.stress.invariant_sigma_d();
@@ -328,7 +325,7 @@ mod tests {
 
             // check
             let (kk, gg) = model.lin_elasticity.get_bulk_shear();
-            let hh = TEST_HH;
+            let hh = HH;
             let correct_sigma_m = sigma_m_1 + kk * deps_v;
             let correct_sigma_d = sigma_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
             approx_eq(sigma_m_2, correct_sigma_m, 1e-15);
@@ -355,7 +352,7 @@ mod tests {
     fn stiffness_works_elastoplastic_2d() {
         // model
         let ideal = Idealization::new(2);
-        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
+        let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z0, HH, false);
 
         // initial state
         let mandel = ideal.mandel();
@@ -364,10 +361,10 @@ mod tests {
         model.initialize_internal_values(&mut state).unwrap();
 
         // plane-strain strain increments reaching yield surface
-        let ee = TEST_YOUNG;
-        let nu = TEST_POISSON;
-        let nu2 = TEST_POISSON * TEST_POISSON;
-        let z0 = TEST_Z0;
+        let ee = YOUNG;
+        let nu = POISSON;
+        let nu2 = POISSON * POISSON;
+        let z0 = Z0;
         let dy = z0 * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
         let eps_x = dy * nu / (1.0 - nu);
         let eps_y = -dy;
