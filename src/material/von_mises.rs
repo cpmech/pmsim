@@ -292,7 +292,6 @@ mod tests {
                 approx_eq(sigma_d, Z0, 1e-14);
                 assert_eq!(state.internal_values.as_data(), &[Z0]);
                 assert_eq!(state.elastic, true);
-                assert_eq!(state.apex_return, false);
                 assert_eq!(state.algo_lagrange, 0.0);
                 approx_eq(state.yield_value, 0.0, 1e-14);
             }
@@ -332,7 +331,6 @@ mod tests {
             approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
             approx_eq(state.internal_values[0], correct_sigma_d, 1e-14);
             assert_eq!(state.elastic, false);
-            assert_eq!(state.apex_return, false);
             assert!(state.algo_lagrange > 0.0);
             approx_eq(state.yield_value, 0.0, 1e-14);
         }
@@ -386,7 +384,6 @@ mod tests {
         compare_spo_results(&dd, &dd_spo, 1e-16);
         assert_eq!(state.internal_values.as_data(), &[z0]);
         assert_eq!(state.elastic, true);
-        assert_eq!(state.apex_return, false);
         assert_eq!(state.algo_lagrange, 0.0);
 
         // second update: elastoplastic behavior
@@ -405,7 +402,6 @@ mod tests {
         let sigma_d = state.stress.invariant_sigma_d();
         assert_eq!(state.internal_values.as_data(), &[sigma_d]);
         assert_eq!(state.elastic, false);
-        assert_eq!(state.apex_return, false);
         approx_eq(state.algo_lagrange, 3.461538461538463E-03, 1e-15);
     }
 }

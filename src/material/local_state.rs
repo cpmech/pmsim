@@ -17,7 +17,7 @@ pub struct LocalState {
     pub elastic: bool,
 
     /// Holds the apex return flag for implicit methods
-    pub apex_return: bool,
+    pub algo_apex_return: bool,
 
     /// Holds the algorithmic lagrange multiplier (Λ) for implicit methods
     pub algo_lagrange: f64,
@@ -43,7 +43,7 @@ impl LocalState {
             internal_values: Vector::new(n_internal_values),
             stress: Tensor2::new(mandel),
             elastic: true,
-            apex_return: false,
+            algo_apex_return: false,
             algo_lagrange: 0.0,
             yield_value: 0.0,
             strain: None,
@@ -62,7 +62,7 @@ impl LocalState {
         vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
         self.stress.set_tensor(1.0, &other.stress);
         self.elastic = other.elastic;
-        self.apex_return = other.apex_return;
+        self.algo_apex_return = other.algo_apex_return;
         self.algo_lagrange = other.algo_lagrange;
     }
 

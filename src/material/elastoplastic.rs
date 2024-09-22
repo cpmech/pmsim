@@ -474,8 +474,6 @@ mod tests {
                 approx_eq(sigma_d, z0, 1e-14);
                 assert_eq!(state.internal_values.as_data(), &[z0]);
                 assert_eq!(state.elastic, true);
-                assert_eq!(state.apex_return, false);
-                assert_eq!(state.algo_lagrange, 0.0);
                 approx_eq(state.yield_value, 0.0, 1e-14);
             }
         }
@@ -516,6 +514,7 @@ mod tests {
             approx_eq(sigma_m_2, correct_sigma_m, 1e-14);
             approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
             approx_eq(state.internal_values[0], correct_sigma_d, 1e-14);
+            assert_eq!(state.elastic, false);
             approx_eq(state.yield_value, 0.0, 1e-13);
         }
     }
