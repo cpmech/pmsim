@@ -243,8 +243,8 @@ mod tests {
 
     const TEST_YOUNG: f64 = 1500.0;
     const TEST_POISSON: f64 = 0.25;
-    const TEST_Z0: f64 = 9.0;
     const TEST_HH: f64 = 800.0;
+    const TEST_Z0: f64 = 9.0;
 
     // Generates a state reaching the yield surface
     fn update_to_yield_surface(ideal: &Idealization, model: &mut VonMises, lode: f64) -> LocalState {
