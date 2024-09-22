@@ -400,6 +400,9 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 println!("🔸 {}", if inside { "A★" } else { "D★" });
             }
         }
+
+        // final yield function value
+        state.yield_value = self.args.model.yield_function(state)?;
         Ok(())
     }
 }
@@ -414,6 +417,8 @@ mod tests {
     use crate::material::{LocalState, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, SQRT_3, SQRT_3_BY_2};
+
+    const VERBOSE: bool = true;
 
     // Generates a state reaching the von Mises yield surface
     fn update_to_von_mises_yield_surface(
@@ -451,8 +456,11 @@ mod tests {
         let param = ParamSolid::sample_von_mises();
         let (_, _, z0) = extract_von_mises_kk_gg_z0(&param);
         let mut model = Elastoplastic::new(&ideal, &param).unwrap();
-        model.verbose = true;
+        model.verbose = VERBOSE;
         for lode in [-1.0, 0.0, 1.0] {
+            if VERBOSE {
+                println!("\nLode = {}", lode);
+            }
             let state = update_to_von_mises_yield_surface(&ideal, &param, &mut model, lode);
             let sigma_m = state.stress.invariant_sigma_m();
             let sigma_d = state.stress.invariant_sigma_d();
@@ -462,7 +470,7 @@ mod tests {
             assert_eq!(state.elastic, true);
             assert_eq!(state.apex_return, false);
             assert_eq!(state.algo_lagrange, 0.0);
-            // approx_eq(state.yield_value, 0.0, 1e-14);
+            approx_eq(state.yield_value, 0.0, 1e-14);
         }
     }
 }
