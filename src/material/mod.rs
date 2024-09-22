@@ -2,6 +2,7 @@
 
 mod axis;
 mod conductivity;
+mod elastoplastic;
 mod linear_elastic;
 mod loading_path;
 mod local_history;
@@ -15,6 +16,7 @@ mod testing;
 mod von_mises;
 pub use crate::material::axis::*;
 pub use crate::material::conductivity::*;
+pub use crate::material::elastoplastic::*;
 pub use crate::material::linear_elastic::*;
 pub use crate::material::loading_path::*;
 pub use crate::material::local_history::*;
