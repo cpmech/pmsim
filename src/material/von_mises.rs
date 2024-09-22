@@ -1,8 +1,7 @@
-use super::{LocalHistory, LocalState, PlasticityTrait, StressStrainTrait};
+use super::{LocalHistory, LocalState, StressStrainTrait};
 use crate::base::Idealization;
 use crate::StrError;
-use russell_lab::Vector;
-use russell_tensor::{deriv1_invariant_sigma_d, t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
+use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
 
 /// Defines an alias to IDENTITY2
@@ -61,6 +60,13 @@ impl VonMises {
             s: Tensor2::new(ideal.mandel()),
             allow_initial_drift,
         }
+    }
+
+    /// Calculates the yield function f
+    fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
+        let sigma_d = state.stress.invariant_sigma_d();
+        let z = state.internal_values[Z0];
+        Ok(sigma_d - z)
     }
 }
 
@@ -171,62 +177,6 @@ impl StressStrainTrait for VonMises {
         state.algo_lagrange = lambda;
         state.internal_values[Z0] = state.stress.invariant_sigma_d();
         state.yield_value = self.yield_function(state)?;
-        Ok(())
-    }
-}
-
-impl PlasticityTrait for VonMises {
-    /// Returns whether this model is associated or not
-    fn associated(&self) -> bool {
-        true
-    }
-
-    /// Calculates the yield function f
-    fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
-        let sigma_d = state.stress.invariant_sigma_d();
-        let z = state.internal_values[Z0];
-        Ok(sigma_d - z)
-    }
-
-    /// Calculates the plastic potential function g
-    fn plastic_potential(&self, _state: &LocalState) -> Result<(), StrError> {
-        Err("plastic potential is not available")
-    }
-
-    /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
-    fn hardening(&self, hh: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        hh[Z0] = self.hh;
-        Ok(())
-    }
-
-    /// Calculates the derivative of the yield function w.r.t stress
-    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &LocalState) -> Result<(), StrError> {
-        // df/dσ = dσd/dσ
-        match deriv1_invariant_sigma_d(df_dsigma, &state.stress) {
-            Some(_) => Ok(()),
-            None => Err("cannot compute df/dσ due to singularity"),
-        }
-    }
-
-    /// Calculates the derivative of the plastic potential w.r.t stress
-    fn dg_dsigma(&self, _dg_dsigma: &mut Tensor2, _state: &LocalState) -> Result<(), StrError> {
-        Err("dg/dσ is not available")
-    }
-
-    /// Calculates the derivative of the yield function w.r.t internal variables
-    fn df_dz(&self, df_dz: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        df_dz[Z0] = -1.0;
-        Ok(())
-    }
-
-    /// Calculates the elastic compliance modulus
-    fn elastic_compliance(&self, cce: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
-        self.lin_elasticity.calc_compliance(cce)
-    }
-
-    /// Calculates the elastic rigidity modulus
-    fn elastic_rigidity(&self, dde: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
-        dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
         Ok(())
     }
 }
