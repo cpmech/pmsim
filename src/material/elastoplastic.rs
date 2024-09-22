@@ -451,26 +451,28 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_works_elastic_2d() {
-        let ideal = Idealization::new(2);
-        let param = ParamSolid::sample_von_mises();
-        let (_, _, z0) = extract_von_mises_kk_gg_z0(&param);
-        let mut model = Elastoplastic::new(&ideal, &param).unwrap();
-        model.verbose = VERBOSE;
-        for lode in [-1.0, 0.0, 1.0] {
-            if VERBOSE {
-                println!("\nLode = {}", lode);
+    fn update_stress_von_mises_works_elastic() {
+        for ndim in [2, 3] {
+            let ideal = Idealization::new(ndim);
+            let param = ParamSolid::sample_von_mises();
+            let (_, _, z0) = extract_von_mises_kk_gg_z0(&param);
+            let mut model = Elastoplastic::new(&ideal, &param).unwrap();
+            model.verbose = VERBOSE;
+            for lode in [-1.0, 0.0, 1.0] {
+                if VERBOSE {
+                    println!("\nndim = {}, lode = {}", ndim, lode);
+                }
+                let state = update_to_von_mises_yield_surface(&ideal, &param, &mut model, lode);
+                let sigma_m = state.stress.invariant_sigma_m();
+                let sigma_d = state.stress.invariant_sigma_d();
+                approx_eq(sigma_m, 1.0, 1e-14);
+                approx_eq(sigma_d, z0, 1e-14);
+                assert_eq!(state.internal_values.as_data(), &[z0]);
+                assert_eq!(state.elastic, true);
+                assert_eq!(state.apex_return, false);
+                assert_eq!(state.algo_lagrange, 0.0);
+                approx_eq(state.yield_value, 0.0, 1e-14);
             }
-            let state = update_to_von_mises_yield_surface(&ideal, &param, &mut model, lode);
-            let sigma_m = state.stress.invariant_sigma_m();
-            let sigma_d = state.stress.invariant_sigma_d();
-            approx_eq(sigma_m, 1.0, 1e-14);
-            approx_eq(sigma_d, z0, 1e-14);
-            assert_eq!(state.internal_values.as_data(), &[z0]);
-            assert_eq!(state.elastic, true);
-            assert_eq!(state.apex_return, false);
-            assert_eq!(state.algo_lagrange, 0.0);
-            approx_eq(state.yield_value, 0.0, 1e-14);
         }
     }
 }

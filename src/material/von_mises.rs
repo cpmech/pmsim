@@ -283,38 +283,22 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_works_elastic_2d() {
-        let ideal = Idealization::new(2);
-        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
-        for lode in [-1.0, 0.0, 1.0] {
-            let state = update_to_yield_surface(&ideal, &mut model, lode);
-            let sigma_m = state.stress.invariant_sigma_m();
-            let sigma_d = state.stress.invariant_sigma_d();
-            approx_eq(sigma_m, 1.0, 1e-14);
-            approx_eq(sigma_d, TEST_Z0, 1e-14);
-            assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
-            assert_eq!(state.elastic, true);
-            assert_eq!(state.apex_return, false);
-            assert_eq!(state.algo_lagrange, 0.0);
-            approx_eq(state.yield_value, 0.0, 1e-14);
-        }
-    }
-
-    #[test]
-    fn update_stress_works_elastic_3d() {
-        let ideal = Idealization::new(3);
-        let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
-        for lode in [-1.0, 0.0, 1.0] {
-            let state = update_to_yield_surface(&ideal, &mut model, lode);
-            let sigma_m = state.stress.invariant_sigma_m();
-            let sigma_d = state.stress.invariant_sigma_d();
-            approx_eq(sigma_m, 1.0, 1e-14);
-            approx_eq(sigma_d, TEST_Z0, 1e-14);
-            assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
-            assert_eq!(state.elastic, true);
-            assert_eq!(state.apex_return, false);
-            assert_eq!(state.algo_lagrange, 0.0);
-            approx_eq(state.yield_value, 0.0, 1e-14);
+    fn update_stress_works_elastic() {
+        for ndim in [2, 3] {
+            let ideal = Idealization::new(ndim);
+            let mut model = VonMises::new(&ideal, TEST_YOUNG, TEST_POISSON, TEST_Z0, TEST_HH, false);
+            for lode in [-1.0, 0.0, 1.0] {
+                let state = update_to_yield_surface(&ideal, &mut model, lode);
+                let sigma_m = state.stress.invariant_sigma_m();
+                let sigma_d = state.stress.invariant_sigma_d();
+                approx_eq(sigma_m, 1.0, 1e-14);
+                approx_eq(sigma_d, TEST_Z0, 1e-14);
+                assert_eq!(state.internal_values.as_data(), &[TEST_Z0]);
+                assert_eq!(state.elastic, true);
+                assert_eq!(state.apex_return, false);
+                assert_eq!(state.algo_lagrange, 0.0);
+                approx_eq(state.yield_value, 0.0, 1e-14);
+            }
         }
     }
 
