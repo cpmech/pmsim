@@ -1,5 +1,8 @@
 use russell_ode::Method;
 
+/// Holds the default interpolant degree for the general stress update algorithm
+const DEFAULT_INTERPOLANT_DEGREE: usize = 30;
+
 /// Holds parameters for stress-strain relations (total or effective stress)
 #[derive(Clone, Copy, Debug)]
 pub enum ParamStressStrain {
@@ -262,9 +265,8 @@ pub struct ParamBeam {
 ///
 /// **Note:** These options only work with the general Plasticity formulation
 #[derive(Clone, Copy, Debug)]
-pub struct NonlinElast {
+pub struct ParamNonlinElast {
     /// Coefficient for nonlinear elasticity (zero renders linear elasticity)
-    ///
     pub beta: f64,
 
     /// Make the Young modulus vary with σm instead of σd
@@ -273,18 +275,15 @@ pub struct NonlinElast {
 
 /// Holds data to control the stress update algorithms
 #[derive(Clone, Copy, Debug)]
-pub struct StressUpdate {
+pub struct ParamStressUpdate {
     /// Use the general formulation instead of the specialized formulation
     pub general_plasticity: bool,
 
-    /// Use the continuum modulus instead of the consistent tangent stiffness
-    pub continuum_modulus: bool,
-
-    /// ODE method
+    /// ODE method (for general plasticity)
     pub ode_method: Method,
 
-    /// Degree of the interpolant for the yield function intersection
-    pub interp_degree: usize,
+    /// Degree of the interpolant for the yield function intersection (for general plasticity)
+    pub interpolant_degree: usize,
 
     /// Save stress-strain history
     pub save_history: bool,
@@ -303,10 +302,10 @@ pub struct ParamSolid {
     pub stress_strain: ParamStressStrain,
 
     /// Options for nonlinear elasticity
-    pub nonlin_elast: Option<NonlinElast>,
+    pub nonlin_elast: Option<ParamNonlinElast>,
 
     /// Options for the stress update algorithms
-    pub stress_update: Option<StressUpdate>,
+    pub stress_update: Option<ParamStressUpdate>,
 }
 
 /// Holds parameters for seepage simulations with liquid only
@@ -399,10 +398,51 @@ impl ParamStressStrain {
     }
 }
 
+impl ParamStressUpdate {
+    /// Allocates a new instance with default values
+    pub fn new() -> Self {
+        ParamStressUpdate {
+            general_plasticity: false,
+            ode_method: Method::DoPri8,
+            interpolant_degree: DEFAULT_INTERPOLANT_DEGREE,
+            save_history: false,
+            allow_initial_drift: false,
+        }
+    }
+}
+
 impl ParamSolid {
     /// Returns the number of internal values used by the stress-strain model
     pub fn n_internal_values(&self) -> usize {
         self.stress_strain.n_internal_values()
+    }
+
+    /// Returns a sample of parameters for the linear elastic model
+    pub fn sample_linear_elastic() -> Self {
+        ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::LinearElastic {
+                young: 1500.0,
+                poisson: 0.25,
+            },
+            nonlin_elast: None,
+            stress_update: None,
+        }
+    }
+
+    /// Returns a sample of parameters for the von Mises model
+    pub fn sample_von_mises() -> Self {
+        ParamSolid {
+            density: 1.0,
+            stress_strain: ParamStressStrain::VonMises {
+                young: 1500.0,
+                poisson: 0.25,
+                hh: 800.0,
+                z0: 9.0,
+            },
+            nonlin_elast: None,
+            stress_update: None,
+        }
     }
 }
 

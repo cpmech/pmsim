@@ -1,5 +1,5 @@
 use super::{LocalState, StressStrainTrait, VonMises};
-use crate::base::{Idealization, NonlinElast, ParamSolid, ParamStressStrain};
+use crate::base::{Idealization, ParamNonlinElast, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_lab::{vec_inner, Vector};
 use russell_tensor::{t2_ddot_t4_ddot_t2, t2_dyad_t2_update, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4};
@@ -45,7 +45,7 @@ pub struct Plasticity {
     lin_elast: Option<LinElasticity>,
 
     /// Parameters for the nonlinear elastic model
-    params_nonlin_elast: Option<NonlinElast>,
+    params_nonlin_elast: Option<ParamNonlinElast>,
 
     /// Initial (or constant) Young's modulus
     young0: f64,

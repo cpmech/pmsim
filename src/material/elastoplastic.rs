@@ -1,15 +1,12 @@
 use super::{ElastoplasticArgs, LocalHistory, LocalState, StressStrainTrait};
-use crate::base::{Idealization, ParamSolid, StressUpdate};
+use crate::base::{Idealization, ParamSolid, ParamStressUpdate};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, InterpChebyshev, RootFinder, Vector};
-use russell_ode::{Method, OdeSolver, Params, Stats, System};
+use russell_ode::{OdeSolver, Params, Stats, System};
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Indicates that the simulation should not stop
 const KEEP_RUNNING: bool = false;
-
-/// Holds the default interpolant degree
-const DEFAULT_INTERP_DEGREE: usize = 30;
 
 /// Holds the yield function tolerance allowing small negative values to be regarded as zero
 const F_TOL: f64 = 1e-8;
@@ -151,9 +148,6 @@ fn hist_elastoplastic(
 
 /// Implements a general elastoplastic model
 pub struct Elastoplastic<'a> {
-    /// Configuration regarding the stress update algorithm
-    stress_update_config: StressUpdate,
-
     /// Interpolant for yield function values as function of pseudo-time
     interp: InterpChebyshev,
 
@@ -186,20 +180,14 @@ impl<'a> Elastoplastic<'a> {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &ParamSolid) -> Result<Self, StrError> {
         // stress update configuration
-        let stress_update_config = match param.stress_update {
+        let mut stress_update_config = match param.stress_update {
             Some(p) => p,
-            None => StressUpdate {
-                general_plasticity: true,
-                continuum_modulus: true,
-                ode_method: Method::DoPri8,
-                interp_degree: DEFAULT_INTERP_DEGREE,
-                save_history: false,
-                allow_initial_drift: false,
-            },
+            None => ParamStressUpdate::new(),
         };
+        stress_update_config.general_plasticity = true;
 
         // interpolant
-        let degree = stress_update_config.interp_degree;
+        let degree = stress_update_config.interpolant_degree;
         let interp = InterpChebyshev::new(degree, 0.0, 1.0).unwrap();
 
         // interior stations for dense output
@@ -259,7 +247,6 @@ impl<'a> Elastoplastic<'a> {
 
         // done
         Ok(Elastoplastic {
-            stress_update_config,
             interp,
             root_finder: RootFinder::new(),
             solver_intersection,
@@ -305,14 +292,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
-        if self.stress_update_config.continuum_modulus {
-            // TODO
-            // self.arguments.plasticity.elastoplastic_rigidity(state)?;
-            // dd.set_tensor(1.0, &self.arguments.plasticity.ddep);
-            Ok(())
-        } else {
-            self.arguments.plasticity.model.stiffness(dd, state)
-        }
+        self.arguments.plasticity.model.stiffness(dd, state)
     }
 
     /// Updates the stress tensor given the strain increment tensor
@@ -320,17 +300,8 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         &mut self,
         state: &mut LocalState,
         delta_epsilon: &Tensor2,
-        local_history: Option<&LocalHistory>,
+        _local_history: Option<&LocalHistory>,
     ) -> Result<(), StrError> {
-        // use implicit (consistent) method
-        if !self.stress_update_config.continuum_modulus {
-            return self
-                .arguments
-                .plasticity
-                .model
-                .update_stress(state, delta_epsilon, local_history);
-        }
-
         // initialize history data
         // self.arguments.init_hist_epsilon0(state); // TODO
 
@@ -453,5 +424,67 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             }
         }
         Ok(())
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::Elastoplastic;
+    use crate::base::{Idealization, ParamSolid};
+    use crate::material::testing::extract_von_mises_kk_gg_z0;
+    use crate::material::{LocalState, StressStrainTrait};
+    use russell_lab::approx_eq;
+    use russell_tensor::{Tensor2, SQRT_3, SQRT_3_BY_2};
+
+    // Generates a state reaching the von Mises yield surface
+    fn update_to_von_mises_yield_surface(
+        ideal: &Idealization,
+        param: &ParamSolid,
+        model: &mut Elastoplastic,
+        lode: f64,
+    ) -> LocalState {
+        // parameters
+        let (kk, gg, z0) = extract_von_mises_kk_gg_z0(param);
+
+        // initial state
+        let n_internal_values = 1;
+        let mut state = LocalState::new(ideal.mandel(), n_internal_values);
+        model.initialize_internal_values(&mut state).unwrap();
+        assert_eq!(state.yield_value, -z0);
+
+        // elastic update: from zero stress state to the yield surface (exactly)
+        let dsigma_m = 1.0;
+        let dsigma_d = z0; // <<< will reach the yield surface (exactly)
+        let depsilon_v = dsigma_m / kk;
+        let depsilon_d = dsigma_d / (3.0 * gg);
+        let d_distance = depsilon_v / SQRT_3;
+        let d_radius = depsilon_d * SQRT_3_BY_2;
+
+        // update
+        let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
+        model.update_stress(&mut state, &delta_strain, None).unwrap();
+        state
+    }
+
+    #[test]
+    fn update_stress_von_mises_works_elastic_2d() {
+        let ideal = Idealization::new(2);
+        let param = ParamSolid::sample_von_mises();
+        let (_, _, z0) = extract_von_mises_kk_gg_z0(&param);
+        let mut model = Elastoplastic::new(&ideal, &param).unwrap();
+        for lode in [-1.0, 0.0, 1.0] {
+            let state = update_to_von_mises_yield_surface(&ideal, &param, &mut model, lode);
+            let sigma_m = state.stress.invariant_sigma_m();
+            let sigma_d = state.stress.invariant_sigma_d();
+            approx_eq(sigma_m, 1.0, 1e-14);
+            approx_eq(sigma_d, z0, 1e-14);
+            assert_eq!(state.internal_values.as_data(), &[z0]);
+            assert_eq!(state.elastic, true);
+            assert_eq!(state.apex_return, false);
+            assert_eq!(state.algo_lagrange, 0.0);
+            // approx_eq(state.yield_value, 0.0, 1e-14);
+        }
     }
 }

@@ -1,4 +1,5 @@
 use super::{LoadingPath, LocalState};
+use crate::base::{ParamSolid, ParamStressStrain};
 use russell_lab::Vector;
 
 /// Generates an array of stress-strain pairs according to a linear elastic model
@@ -39,4 +40,39 @@ pub(crate) fn generate_stress_strain_array(two_dim: bool, bulk: f64, shear: f64,
         })
         .collect();
     array
+}
+
+/// Returns (K, G, z0) for the von Mises model
+#[allow(dead_code)]
+pub(crate) fn extract_von_mises_kk_gg_z0(param: &ParamSolid) -> (f64, f64, f64) {
+    match param.stress_strain {
+        ParamStressStrain::VonMises { young, poisson, z0, .. } => (
+            young / (3.0 * (1.0 - 2.0 * poisson)), // K
+            young / (2.0 * (1.0 + poisson)),       // G
+            z0,                                    // z0
+        ),
+        _ => panic!("ParamSolid must contain von Mises parameters"),
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::extract_von_mises_kk_gg_z0;
+    use crate::base::ParamSolid;
+
+    #[test]
+    #[should_panic(expected = "ParamSolid must contain von Mises parameters")]
+    fn extract_von_mises_kk_gg_z0_handles_errors() {
+        extract_von_mises_kk_gg_z0(&ParamSolid::sample_linear_elastic());
+    }
+
+    #[test]
+    fn extract_von_mises_kk_gg_z0_works() {
+        let (kk, gg, z0) = extract_von_mises_kk_gg_z0(&ParamSolid::sample_von_mises());
+        assert!(kk > 0.0);
+        assert!(gg > 0.0);
+        assert!(z0 > 0.0);
+    }
 }
