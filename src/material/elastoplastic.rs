@@ -494,6 +494,9 @@ mod tests {
 
         // test
         for ndim in [2, 3] {
+            if VERBOSE {
+                println!("\nndim = {}, lode = {}", ndim, lode);
+            }
             // update to yield surface (exactly)
             let ideal = Idealization::new(ndim);
             let mut model = Elastoplastic::new(&ideal, &param).unwrap();
