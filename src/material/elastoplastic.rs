@@ -399,6 +399,11 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             if self.verbose {
                 println!("🔸 {}", if inside { "A★" } else { "D★" });
             }
+
+            // set elastic flag
+            state.elastic = false;
+        } else {
+            state.elastic = true;
         }
 
         // final yield function value
@@ -413,7 +418,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 mod tests {
     use super::Elastoplastic;
     use crate::base::{Idealization, ParamSolid};
-    use crate::material::testing::extract_von_mises_kk_gg_z0;
+    use crate::material::testing::extract_von_mises_kk_gg_hh_z0;
     use crate::material::{LocalState, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, SQRT_3, SQRT_3_BY_2};
@@ -428,7 +433,7 @@ mod tests {
         lode: f64,
     ) -> LocalState {
         // parameters
-        let (kk, gg, z0) = extract_von_mises_kk_gg_z0(param);
+        let (kk, gg, _, z0) = extract_von_mises_kk_gg_hh_z0(param);
 
         // initial state
         let n_internal_values = 1;
@@ -452,10 +457,10 @@ mod tests {
 
     #[test]
     fn update_stress_von_mises_works_elastic() {
+        let param = ParamSolid::sample_von_mises();
+        let (_, _, _, z0) = extract_von_mises_kk_gg_hh_z0(&param);
         for ndim in [2, 3] {
             let ideal = Idealization::new(ndim);
-            let param = ParamSolid::sample_von_mises();
-            let (_, _, z0) = extract_von_mises_kk_gg_z0(&param);
             let mut model = Elastoplastic::new(&ideal, &param).unwrap();
             model.verbose = VERBOSE;
             for lode in [-1.0, 0.0, 1.0] {
@@ -473,6 +478,45 @@ mod tests {
                 assert_eq!(state.algo_lagrange, 0.0);
                 approx_eq(state.yield_value, 0.0, 1e-14);
             }
+        }
+    }
+
+    #[test]
+    fn update_stress_von_mises_works_elastoplastic() {
+        // constants
+        let deps_v = 0.001;
+        let deps_d = 0.005;
+        let d_distance = deps_v / SQRT_3;
+        let d_radius = deps_d * SQRT_3_BY_2;
+        let lode = 1.0;
+
+        // parameters
+        let param = ParamSolid::sample_von_mises();
+        let (kk, gg, hh, _) = extract_von_mises_kk_gg_hh_z0(&param);
+
+        // test
+        for ndim in [2, 3] {
+            // update to yield surface (exactly)
+            let ideal = Idealization::new(ndim);
+            let mut model = Elastoplastic::new(&ideal, &param).unwrap();
+            model.verbose = VERBOSE;
+            let mut state = update_to_von_mises_yield_surface(&ideal, &param, &mut model, lode);
+            let sigma_m_1 = state.stress.invariant_sigma_m();
+            let sigma_d_1 = state.stress.invariant_sigma_d();
+
+            // elastoplastic update
+            let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
+            model.update_stress(&mut state, &delta_strain, None).unwrap();
+            let sigma_m_2 = state.stress.invariant_sigma_m();
+            let sigma_d_2 = state.stress.invariant_sigma_d();
+
+            // check
+            let correct_sigma_m = sigma_m_1 + kk * deps_v;
+            let correct_sigma_d = sigma_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+            approx_eq(sigma_m_2, correct_sigma_m, 1e-14);
+            approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
+            approx_eq(state.internal_values[0], correct_sigma_d, 1e-14);
+            approx_eq(state.yield_value, 0.0, 1e-13);
         }
     }
 }
