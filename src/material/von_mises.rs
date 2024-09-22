@@ -221,11 +221,11 @@ impl PlasticityTrait for VonMises {
     }
 
     /// Calculates the elastic rigidity modulus
-    fn elastic_rigidity(
+    fn calc_dde(
         &self,
         dde: &mut Tensor4,
         _state: &LocalState,
-        _param_non_lin_elast: Option<ParamNonlinElast>,
+        _param_nle: Option<ParamNonlinElast>,
     ) -> Result<(), StrError> {
         dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
         Ok(())

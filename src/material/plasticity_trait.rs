@@ -27,10 +27,10 @@ pub trait PlasticityTrait: StressStrainTrait {
     fn df_dz(&self, df_dz: &mut Vector, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the elastic rigidity modulus
-    fn elastic_rigidity(
+    fn calc_dde(
         &self,
         dde: &mut Tensor4,
         state: &LocalState,
-        param_non_lin_elast: Option<ParamNonlinElast>,
+        param_nle: Option<ParamNonlinElast>,
     ) -> Result<(), StrError>;
 }
