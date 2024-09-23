@@ -477,7 +477,7 @@ mod tests {
     use russell_lab::approx_eq;
     use russell_tensor::{Mandel, Tensor2};
 
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     #[test]
     pub fn save_handles_errors() {
