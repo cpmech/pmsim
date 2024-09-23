@@ -422,6 +422,7 @@ mod tests {
     use crate::material::{LocalState, Plotter, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
+    use std::collections::HashMap;
 
     const VERBOSE: bool = true;
 
@@ -514,69 +515,75 @@ mod tests {
         let (sig_m_0, sig_d_0, yf_error) = (0.0, 0.0, None);
         let (dsig_m_el_0, dsig_d_el_0) = (1.0, z0); // will reach the yield surface exactly
         let (dsig_m_el_1, dsig_d_el_1) = (1.0, 4.0); // to calc the next elastic trial increment
-        let lode = 1.0;
 
         // states (for plotting)
-        let mut states = Vec::new();
+        let mut states = HashMap::new();
 
         // test
         for ndim in [2, 3] {
-            if VERBOSE {
-                println!("\nndim = {}, lode = {}", ndim, lode);
+            for lode_int in [-1, 0, 1] {
+                let lode = lode_int as f64;
+                if VERBOSE {
+                    println!("\nndim = {}, lode = {}", ndim, lode);
+                }
+                // model
+                let ideal = Idealization::new(ndim);
+                let mut model = Elastoplastic::new(&ideal, &param).unwrap();
+                model.verbose = VERBOSE;
+
+                // initial state
+                let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+                approx_eq(state.yield_value, -z0, 1e-14);
+                states.insert((ndim, lode_int), vec![state.clone()]);
+
+                // elastic update (to yield surface exactly)
+                let (deps_v, deps_d) =
+                    update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el_0, dsig_d_el_0);
+                let sig_m_1 = state.stress.invariant_sigma_m();
+                let sig_d_1 = state.stress.invariant_sigma_d();
+                states.get_mut(&(ndim, lode_int)).unwrap().push(state.clone());
+
+                // check
+                let correct_sig_m = sig_m_0 + kk * deps_v;
+                let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
+                approx_eq(sig_m_1, correct_sig_m, 1e-14);
+                approx_eq(sig_d_1, correct_sig_d, 1e-14);
+                approx_eq(state.internal_values[0], z0, 1e-15);
+                assert_eq!(state.elastic, true);
+                approx_eq(state.yield_value, 0.0, 1e-14);
+
+                // elastoplastic update
+                let (deps_v, deps_d) =
+                    update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el_1, dsig_d_el_1);
+                let sig_m_2 = state.stress.invariant_sigma_m();
+                let sig_d_2 = state.stress.invariant_sigma_d();
+                states.get_mut(&(ndim, lode_int)).unwrap().push(state.clone());
+
+                // check
+                let correct_sig_m = sig_m_1 + kk * deps_v;
+                let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+                approx_eq(sig_m_2, correct_sig_m, 1e-14);
+                approx_eq(sig_d_2, correct_sig_d, 1e-14);
+                approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
+                assert_eq!(state.elastic, false);
+                approx_eq(state.yield_value, 0.0, 1e-13);
             }
-            // model
-            let ideal = Idealization::new(ndim);
-            let mut model = Elastoplastic::new(&ideal, &param).unwrap();
-            model.verbose = VERBOSE;
-
-            // initial state
-            let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
-            approx_eq(state.yield_value, -z0, 1e-14);
-            if ndim == 2 {
-                states.push(state.clone());
-            }
-
-            // elastic update (to yield surface exactly)
-            let (deps_v, deps_d) =
-                update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el_0, dsig_d_el_0);
-            let sig_m_1 = state.stress.invariant_sigma_m();
-            let sig_d_1 = state.stress.invariant_sigma_d();
-            if ndim == 2 {
-                states.push(state.clone());
-            }
-
-            // check
-            let correct_sig_m = sig_m_0 + kk * deps_v;
-            let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
-            approx_eq(sig_m_1, correct_sig_m, 1e-14);
-            approx_eq(sig_d_1, correct_sig_d, 1e-14);
-            approx_eq(state.internal_values[0], z0, 1e-15);
-            assert_eq!(state.elastic, true);
-            approx_eq(state.yield_value, 0.0, 1e-14);
-
-            // elastoplastic update
-            let (deps_v, deps_d) =
-                update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el_1, dsig_d_el_1);
-            let sig_m_2 = state.stress.invariant_sigma_m();
-            let sig_d_2 = state.stress.invariant_sigma_d();
-            if ndim == 2 {
-                states.push(state.clone());
-            }
-
-            // check
-            let correct_sig_m = sig_m_1 + kk * deps_v;
-            let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
-            approx_eq(sig_m_2, correct_sig_m, 1e-14);
-            approx_eq(sig_d_2, correct_sig_d, 1e-14);
-            approx_eq(state.internal_values[0], correct_sig_d, 1e-14);
-            assert_eq!(state.elastic, false);
-            approx_eq(state.yield_value, 0.0, 1e-13);
         }
 
         // plot
         if SAVE_FIGURE {
             let mut plotter = Plotter::new();
-            plotter.add_2x2(&states, false, |_, _, _| {}).unwrap();
+            let states_a = states.get(&(2, -1)).unwrap();
+            plotter
+                .add_2x2(states_a, false, |curve, _, _| {
+                    curve.set_marker_style(".").set_label(" $\\ell = -1$");
+                })
+                .unwrap();
+            let p = states_a.len() - 1;
+            let radius_0 = states_a[0].internal_values[0] * SQRT_2_BY_3;
+            let radius_1 = states_a[p].internal_values[0] * SQRT_2_BY_3;
+            plotter.set_oct_circle(radius_0, |_| {});
+            plotter.set_oct_circle(radius_1, |_| {});
             plotter
                 .save("/tmp/pmsim/material/test_update_stress_von_mises_elastoplastic.svg")
                 .unwrap();
