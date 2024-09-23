@@ -1,11 +1,8 @@
 use super::{FemInput, SecondaryValues};
 use crate::base::{Config, Element};
-use crate::material::LocalHistory;
 use crate::StrError;
-use gemlab::mesh::CellId;
 use russell_lab::Vector;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::BufReader;
@@ -57,12 +54,6 @@ pub struct FemState {
     ///
     /// (n_cell)
     pub gauss: Vec<SecondaryValues>,
-
-    /// Holds the local history for some cells
-    ///
-    /// Note: The local history holds the values calculated during the stress-update
-    /// and correspond to the first integration/Gauss point.
-    pub local_history: HashMap<CellId, LocalHistory>,
 }
 
 impl FemState {
@@ -154,23 +145,6 @@ impl FemState {
             (Vector::new(0), Vector::new(0))
         };
 
-        // activates the output of strains at integration points
-        for cell_id in &config.output_strains {
-            if *cell_id < ncell {
-                for local_state in &mut gauss[*cell_id].solid {
-                    local_state.enable_strains();
-                }
-            }
-        }
-
-        // activates the recording of local history
-        let mut local_history = HashMap::new();
-        for cell_id in &config.output_local_history {
-            if *cell_id < ncell {
-                local_history.insert(*cell_id, LocalHistory::new());
-            }
-        }
-
         // allocate new instance
         return Ok(FemState {
             t,
@@ -183,7 +157,6 @@ impl FemState {
             vv_star,
             aa_star,
             gauss,
-            local_history,
         });
     }
 

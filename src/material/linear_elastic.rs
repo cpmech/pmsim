@@ -1,4 +1,4 @@
-use super::{LocalHistory, LocalState, StressStrainTrait};
+use super::{LocalState, StressStrainTrait};
 use crate::base::Idealization;
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
@@ -40,12 +40,7 @@ impl StressStrainTrait for LinearElastic {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(
-        &mut self,
-        state: &mut LocalState,
-        delta_strain: &Tensor2,
-        _local_history: Option<&LocalHistory>,
-    ) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
         let dd = self.model.get_modulus();
         t4_ddot_t2_update(&mut state.stress, 1.0, dd, delta_strain, 1.0); // σ += D : Δε
         Ok(())

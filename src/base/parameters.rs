@@ -285,11 +285,16 @@ pub struct ParamStressUpdate {
     /// Degree of the interpolant for the yield function intersection (for general plasticity)
     pub interpolant_degree: usize,
 
-    /// Save stress-strain history
-    pub save_history: bool,
-
     /// Allows an initial yield surface drift (e.g., for debugging)
     pub allow_initial_drift: bool,
+
+    /// Enables the recording of the strain tensor
+    pub(crate) save_strain: bool,
+
+    /// Enables the recording of the stress-strain history
+    ///
+    /// Note: this flag will also enable strain recording.
+    pub(crate) save_history: bool,
 }
 
 /// Holds parameters for solid media mechanics simulations
@@ -566,8 +571,9 @@ impl ParamStressUpdate {
             general_plasticity: false,
             ode_method: Method::DoPri8,
             interpolant_degree: DEFAULT_INTERPOLANT_DEGREE,
-            save_history: false,
             allow_initial_drift: false,
+            save_strain: false,
+            save_history: false,
         }
     }
 }
@@ -576,6 +582,31 @@ impl ParamSolid {
     /// Returns the number of internal values used by the stress-strain model
     pub fn n_internal_values(&self) -> usize {
         self.stress_strain.n_internal_values()
+    }
+
+    /// Enables the recording of strain
+    pub fn enable_save_strain(&mut self) -> &mut Self {
+        match self.stress_update.as_mut() {
+            Some(su) => su.save_strain = true,
+            None => {
+                self.stress_update = Some(ParamStressUpdate::new());
+                self.stress_update.as_mut().unwrap().save_strain = true;
+            }
+        }
+        self
+    }
+
+    /// Enables the recording of stress-update history
+    pub fn enable_save_history(&mut self) -> &mut Self {
+        match self.stress_update.as_mut() {
+            Some(su) => su.save_history = true,
+            None => {
+                self.stress_update = Some(ParamStressUpdate::new());
+                self.stress_update.as_mut().unwrap().save_strain = true;
+                self.stress_update.as_mut().unwrap().save_history = true;
+            }
+        }
+        self
     }
 
     /// Returns a sample of parameters for the linear elastic model
@@ -775,7 +806,7 @@ mod tests {
     fn param_stress_update_works() {
         let p = ParamStressUpdate::new();
         let q = p.clone();
-        let correct = "ParamStressUpdate { general_plasticity: false, ode_method: DoPri8, interpolant_degree: 30, save_history: false, allow_initial_drift: false }";
+        let correct = "ParamStressUpdate { general_plasticity: false, ode_method: DoPri8, interpolant_degree: 30, allow_initial_drift: false, save_strain: false, save_history: false }";
         assert_eq!(format!("{:?}", q), correct);
     }
 

@@ -1,4 +1,4 @@
-use super::{LinearElastic, LocalHistory, LocalState, VonMises};
+use super::{LinearElastic, LocalState, VonMises};
 use crate::base::{Idealization, ParamSolid, ParamStressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -18,12 +18,7 @@ pub trait StressStrainTrait: Send {
     fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(
-        &mut self,
-        state: &mut LocalState,
-        delta_strain: &Tensor2,
-        local_history: Option<&LocalHistory>,
-    ) -> Result<(), StrError>;
+    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError>;
 }
 
 /// Holds the actual stress-strain model implementation

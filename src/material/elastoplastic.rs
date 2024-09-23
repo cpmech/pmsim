@@ -1,4 +1,4 @@
-use super::{LocalHistory, LocalState, PlasticityTrait, StressStrainTrait, VonMises};
+use super::{LocalState, PlasticityTrait, StressStrainTrait, VonMises};
 use crate::base::{Idealization, ParamNonlinElast, ParamSolid, ParamStressStrain, ParamStressUpdate};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
@@ -286,12 +286,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(
-        &mut self,
-        state: &mut LocalState,
-        delta_strain: &Tensor2,
-        _local_history: Option<&LocalHistory>,
-    ) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
         // current yield function value: f(σ, z)
         let yf_initial = self.args.model.yield_function(state)?;
 
@@ -474,7 +469,7 @@ mod tests {
         state.stress = Tensor2::new_from_octahedral(distance, radius, lode, ideal.two_dim).unwrap();
         state.internal_values[0] = z0;
         state.yield_value = model.args.model.yield_function(&state).unwrap();
-        state.enable_strains(); // for plotting
+        state.enable_strain(); // for plotting
         state
     }
 
@@ -496,7 +491,7 @@ mod tests {
         let d_radius = deps_d * SQRT_3_BY_2;
         let two_dim = state.stress.mandel().two_dim();
         let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, two_dim).unwrap();
-        model.update_stress(state, &delta_strain, None).unwrap(); // update stress
+        model.update_stress(state, &delta_strain).unwrap(); // update stress
         state.strain.as_mut().unwrap().update(1.0, &delta_strain); // update strain (for plotting)
         (deps_v, deps_d)
     }

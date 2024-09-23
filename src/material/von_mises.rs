@@ -1,4 +1,4 @@
-use super::{LocalHistory, LocalState, PlasticityTrait, StressStrainTrait};
+use super::{LocalState, PlasticityTrait, StressStrainTrait};
 use crate::base::{Idealization, ParamNonlinElast};
 use crate::StrError;
 use russell_lab::Vector;
@@ -123,12 +123,7 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(
-        &mut self,
-        state: &mut LocalState,
-        delta_strain: &Tensor2,
-        _local_history: Option<&LocalHistory>,
-    ) -> Result<(), StrError> {
+    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
         // reset flags
         state.elastic = true;
         state.algo_lagrange = 0.0;
@@ -265,7 +260,7 @@ mod tests {
 
         // update
         let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
-        model.update_stress(&mut state, &delta_strain, None).unwrap();
+        model.update_stress(&mut state, &delta_strain).unwrap();
         state
     }
 
@@ -318,7 +313,7 @@ mod tests {
 
             // elastoplastic update
             let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
-            model.update_stress(&mut state, &delta_strain, None).unwrap();
+            model.update_stress(&mut state, &delta_strain).unwrap();
             let sigma_m_2 = state.stress.invariant_sigma_m();
             let sigma_d_2 = state.stress.invariant_sigma_d();
 
@@ -371,7 +366,7 @@ mod tests {
         let mut delta_strain = Tensor2::new(mandel);
         delta_strain.vector_mut()[0] = 0.9999 * eps_x;
         delta_strain.vector_mut()[1] = 0.9999 * eps_y;
-        model.update_stress(&mut state, &delta_strain, None).unwrap();
+        model.update_stress(&mut state, &delta_strain).unwrap();
 
         // first modulus: elastic stiffness
         let mut dd = Tensor4::new(mandel);
@@ -389,7 +384,7 @@ mod tests {
         // second update: elastoplastic behavior
         delta_strain.vector_mut()[0] = (2.0 - 0.9999) * eps_x;
         delta_strain.vector_mut()[1] = (2.0 - 0.9999) * eps_y;
-        model.update_stress(&mut state, &delta_strain, None).unwrap();
+        model.update_stress(&mut state, &delta_strain).unwrap();
 
         // second modulus: elastoplastic stiffness
         model.stiffness(&mut dd, &state).unwrap();

@@ -37,6 +37,7 @@ pub(crate) fn generate_stress_strain_array(two_dim: bool, bulk: f64, shear: f64,
             algo_lagrange: 0.0,
             yield_value: sig.invariant_sigma_d() - z0, // von Mises
             strain: Some(eps.clone()),
+            history: None,
         })
         .collect();
     array

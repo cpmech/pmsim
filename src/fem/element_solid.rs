@@ -37,14 +37,12 @@ pub struct ElementSolid<'a> {
     delta_strain: Tensor2,
 
     /// Indicates the calculation of strains is performed (not just the increment of strains)
-    ///
-    /// This is required only if `output_strains` is requested for this element.
-    with_strains: bool,
+    save_strain: bool,
 
-    /// Indicates that the recording of local history is enabled (for the first integration point)
+    /// Indicates that the recording of local history is enabled
     ///
-    /// This is required only if `output_local_history` is requested for this element.
-    with_local_history: bool,
+    /// Note: this flag also enables the recording of strains.
+    save_history: bool,
 }
 
 impl<'a> ElementSolid<'a> {
@@ -73,11 +71,11 @@ impl<'a> ElementSolid<'a> {
         // auxiliary strain increment tensor
         let delta_strain = Tensor2::new_sym_ndim(ndim);
 
-        // with the calculation of strains (not just the increment of strains)
-        let with_strains = config.output_strains.contains(&cell.id);
-
-        // with the recording of local history (at first integration point)
-        let with_local_history = config.output_local_history.contains(&cell.id);
+        // calculation of strains (not just the increment of strains) and history recording
+        let (save_strain, save_history) = match param.stress_update {
+            Some(p) => (p.save_strain || p.save_history, p.save_history),
+            None => (false, false),
+        };
 
         // allocate new instance
         Ok(ElementSolid {
@@ -89,8 +87,8 @@ impl<'a> ElementSolid<'a> {
             ips,
             model,
             delta_strain,
-            with_strains,
-            with_local_history,
+            save_strain,
+            save_history,
         })
     }
 }
@@ -111,7 +109,16 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         state.gauss[self.cell.id]
             .solid
             .iter_mut()
-            .map(|state| self.model.actual.initialize_internal_values(state))
+            .map(|state| {
+                if self.save_strain {
+                    state.enable_strain();
+                }
+                if self.save_history {
+                    state.enable_history();
+                }
+                let result = self.model.actual.initialize_internal_values(state);
+                result
+            })
             .collect()
     }
 
@@ -186,20 +193,12 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 &self.ips[p],
                 &mut self.pad,
             )?;
-            // access the array of local history (only for the first IP)
-            let local_history = if p == 0 && self.with_local_history {
-                state.local_history.get(&self.cell.id)
-            } else {
-                None
-            };
             // perform stress-update
-            self.model.actual.update_stress(
-                &mut state.gauss[self.cell.id].solid[p],
-                &self.delta_strain,
-                local_history,
-            )?;
+            self.model
+                .actual
+                .update_stress(&mut state.gauss[self.cell.id].solid[p], &self.delta_strain)?;
         }
-        if self.with_strains {
+        if self.save_strain {
             for p in 0..self.ips.len() {
                 // calculate the strains ε at integration point (from global displacements)
                 let strain = state.gauss[self.cell.id].solid[p].strain.as_mut().unwrap();
@@ -303,12 +302,13 @@ mod tests {
         // parameters
         let young = 1.0;
         let poisson = 0.25;
-        let p1 = ParamSolid {
+        let mut p1 = ParamSolid {
             density: 1.0,
             stress_strain: ParamStressStrain::LinearElastic { young, poisson },
             nonlin_elast: None,
             stress_update: None,
         };
+        p1.enable_save_strain();
 
         // strain magnitude (either ε_xx, ε_yy, or ε_xy)
         const STRAIN: f64 = 4.56;
@@ -339,8 +339,7 @@ mod tests {
             let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 
             // configuration
-            let mut config = Config::new(&mesh);
-            config.set_output_strains(id);
+            let config = Config::new(&mesh);
 
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();

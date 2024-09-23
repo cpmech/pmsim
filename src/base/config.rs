@@ -1,10 +1,10 @@
 use super::{Idealization, Init, ParamFluids};
 use crate::StrError;
 use gemlab::integ;
-use gemlab::mesh::{Cell, CellAttribute, CellId, Mesh};
+use gemlab::mesh::{Cell, CellAttribute, Mesh};
 use russell_sparse::SparseMatrix;
 use russell_sparse::{Genie, LinSolParams};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 
 /// Defines the smallest allowed dt_min (Control)
@@ -75,14 +75,6 @@ pub struct Config<'a> {
 
     /// Holds the number of integration points for a group of cells
     pub(crate) n_integ_point: HashMap<CellAttribute, usize>,
-
-    /// Holds the ids of cells for which the recording of strains (at integration/Gauss points) is requested
-    pub(crate) output_strains: HashSet<CellId>,
-
-    /// Holds the ids of cells for which the local history is requested (at the first integration/Gauss point)
-    ///
-    /// Note: The local history holds the values calculated during the stress-update.
-    pub(crate) output_local_history: HashSet<CellId>,
 
     // control ------------------------------------------------------------------
     //
@@ -160,8 +152,6 @@ impl<'a> Config<'a> {
             lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
             n_integ_point: HashMap::new(),
-            output_strains: HashSet::new(),
-            output_local_history: HashSet::new(),
             // control
             t_ini: 0.0,
             t_fin: 1.0,
@@ -483,26 +473,6 @@ impl<'a> Config<'a> {
     /// of integration points is selected for all cell types.
     pub fn set_n_integ_point(&mut self, cell_attribute: CellAttribute, n_integ_point: usize) -> &mut Self {
         self.n_integ_point.insert(cell_attribute, n_integ_point);
-        self
-    }
-
-    /// Enables the recording of strains at the element level (at integration/Gauss points)
-    ///
-    /// Note: This function enables the recording of strains only if they are available for the problem being analyzed.
-    pub fn set_output_strains(&mut self, cell_id: CellId) -> &mut Self {
-        self.output_strains.insert(cell_id);
-        self
-    }
-
-    /// Enables the recording of the local history at the first integration/Gauss point of the element
-    ///
-    /// # Notes
-    ///
-    /// 1. The local history holds the values calculated during the stress-update.
-    /// 2. This function also enables the recording of strains, if they are available for the problem being analyzed.
-    pub fn set_output_local_history(&mut self, cell_id: CellId) -> &mut Self {
-        self.output_strains.insert(cell_id);
-        self.output_local_history.insert(cell_id);
         self
     }
 

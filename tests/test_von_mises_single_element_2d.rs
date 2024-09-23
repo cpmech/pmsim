@@ -44,7 +44,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
     let att = mesh.cells[0].attribute;
-    let id = 0;
 
     // features
     let feat = Features::new(&mesh, false);
@@ -61,7 +60,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     const N_STEPS: usize = 5;
 
     // input data
-    let p1 = ParamSolid {
+    let mut p1 = ParamSolid {
         density: 1.0,
         stress_strain: ParamStressStrain::VonMises {
             young: YOUNG,
@@ -72,6 +71,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         nonlin_elast: None,
         stress_update: None,
     };
+    p1.enable_save_strain();
     let input = FemInput::new(&mesh, [(att, Element::Solid(p1))])?;
 
     // essential boundary conditions
@@ -96,9 +96,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)
-        .set_n_max_iterations(20)
-        .set_output_strains(id)
-        .set_output_local_history(id);
+        .set_n_max_iterations(20);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

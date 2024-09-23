@@ -27,6 +27,9 @@ pub struct LocalState {
 
     /// (optional) Holds the strain tensor ε
     pub strain: Option<Tensor2>,
+
+    /// (optional) Holds (stress, strain, yield_value, elastic) computed by the stress-update algorithm
+    pub history: Option<Vec<(Tensor2, Tensor2, f64, bool)>>,
 }
 
 /// Implements an array of LocalState
@@ -47,12 +50,18 @@ impl LocalState {
             algo_lagrange: 0.0,
             yield_value: 0.0,
             strain: None,
+            history: None,
         }
     }
 
-    /// Enables the recording of strains
-    pub fn enable_strains(&mut self) {
+    /// Enables the recording of strain
+    pub fn enable_strain(&mut self) {
         self.strain = Some(Tensor2::new(self.stress.mandel()));
+    }
+
+    /// Enables the recording of stress-update history
+    pub fn enable_history(&mut self) {
+        self.history = Some(Vec::new());
     }
 
     /// Copy data from another state into this state
