@@ -18,43 +18,65 @@ const CHEBYSHEV_TOL: f64 = 1e-8;
 /// Holds the pseudo-time tolerance to accept values at the boundary of the interval
 const T_BOUNDARY_TOL: f64 = 1e-7;
 
+/// Defines the arguments for the ODE solvers
 struct Args {
+    /// Holds parameters for the non-linear elastic model
     param_nle: Option<ParamNonlinElast>,
 
+    /// Holds the current stress-strain state
     state: LocalState,
 
+    /// Holds the plasticity model
     model: Box<dyn PlasticityTrait>,
 
+    /// Holds the increment of strain given to the stress-update algorithm
     depsilon: Tensor2,
 
+    /// Holds the rate of stress
     dsigma_dt: Tensor2,
 
+    /// Holds the rate of internal variables
     dz_dt: Vector,
 
+    /// Holds the gradient of the yield function
     df_dsigma: Tensor2,
 
+    /// Holds the gradient of the plastic potential function
     dg_dsigma: Tensor2,
 
+    /// Holds the derivative of the yield function w.r.t internal variables
     df_dz: Vector,
 
+    /// Holds the hardening coefficient
     hh: Vector,
 
+    /// Holds the elastic modulus
     dde: Tensor4,
 
+    /// Holds the elastoplastic modulus
     ddep: Tensor4,
 
+    /// Holds the number of calls to the dense call back function for the intersection finding
     yf_count: usize,
 
+    /// Holds the yield function evaluations at the dense call back function
+    ///
+    /// (yf_count)
     yf_values: Vector,
 }
 
+/// Implements general elastoplasticity models using ODE solvers for the stress-update
 pub struct Elastoplastic<'a> {
+    /// Holds the arguments for the ODE solvers
     args: Args,
 
+    /// Holds the solver for finding the yield surface intersection
     ode_intersection: OdeSolver<'a, Args>,
 
+    /// Holds the solver for the elastic update
     ode_elastic: OdeSolver<'a, Args>,
 
+    /// Holds the solver for the elastoplastic update
     ode_elastoplastic: OdeSolver<'a, Args>,
 
     /// Holds the ODE vector of unknowns for elastic case
@@ -63,11 +85,13 @@ pub struct Elastoplastic<'a> {
     /// Holds the ODE vector of unknowns for elastoplastic case
     ode_y_ep: Vector,
 
+    /// Holds the interpolant for finding the yield surface intersection
     interpolant: InterpChebyshev,
 
     /// Solver for the intersection finding algorithm
     root_finder: RootFinder,
 
+    /// Enables verbose mode
     verbose: bool,
 }
 
