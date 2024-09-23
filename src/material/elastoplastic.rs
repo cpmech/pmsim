@@ -421,29 +421,33 @@ mod tests {
     use crate::material::testing::extract_von_mises_kk_gg_hh_z0;
     use crate::material::{LocalState, StressStrainTrait};
     use russell_lab::approx_eq;
-    use russell_tensor::{Tensor2, SQRT_3, SQRT_3_BY_2};
+    use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
 
     const VERBOSE: bool = true;
 
-    // Generates a state reaching the von Mises yield surface
-    fn update_to_von_mises_yield_surface(
-        ideal: &Idealization,
-        param: &ParamSolid,
-        model: &mut Elastoplastic,
-        lode: f64,
+    // Generates and update a stress-state using the von Mises model
+    fn update_with_von_mises(
+        ideal: &Idealization,       // idealization
+        param: &ParamSolid,         // parameters
+        model: &mut Elastoplastic,  // model
+        lode: f64,                  // Lode invariant
+        m_z0: f64,                  // multiplier for the initial yield surface size
+        state0: Option<LocalState>, // initial state (zero otherwise)
     ) -> LocalState {
         // parameters
         let (kk, gg, _, z0) = extract_von_mises_kk_gg_hh_z0(param);
 
         // initial state
         let n_internal_values = 1;
-        let mut state = LocalState::new(ideal.mandel(), n_internal_values);
+        let mut state = match state0 {
+            Some(s) => s,
+            None => LocalState::new(ideal.mandel(), n_internal_values),
+        };
         model.initialize_internal_values(&mut state).unwrap();
-        assert_eq!(state.yield_value, -z0);
 
         // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
-        let dsigma_d = z0; // <<< will reach the yield surface (exactly)
+        let dsigma_d = m_z0 * z0; // <<< will reach the yield surface exactly if m_z0 == 1.0
         let depsilon_v = dsigma_m / kk;
         let depsilon_d = dsigma_d / (3.0 * gg);
         let d_distance = depsilon_v / SQRT_3;
@@ -456,7 +460,8 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_works_elastic() {
+    fn update_stress_von_mises_elastic() {
+        let m_z0 = 1.0; // will reach the yield surface exactly
         let param = ParamSolid::sample_von_mises();
         let (_, _, _, z0) = extract_von_mises_kk_gg_hh_z0(&param);
         for ndim in [2, 3] {
@@ -467,7 +472,7 @@ mod tests {
                 if VERBOSE {
                     println!("\nndim = {}, lode = {}", ndim, lode);
                 }
-                let state = update_to_von_mises_yield_surface(&ideal, &param, &mut model, lode);
+                let state = update_with_von_mises(&ideal, &param, &mut model, lode, m_z0, None);
                 let sigma_m = state.stress.invariant_sigma_m();
                 let sigma_d = state.stress.invariant_sigma_d();
                 approx_eq(sigma_m, 1.0, 1e-14);
@@ -480,13 +485,14 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_works_elastoplastic() {
+    fn update_stress_von_mises_elastoplastic() {
         // constants
         let deps_v = 0.001;
         let deps_d = 0.005;
         let d_distance = deps_v / SQRT_3;
         let d_radius = deps_d * SQRT_3_BY_2;
         let lode = 1.0;
+        let m_z0 = 1.0; // will reach the yield surface exactly
 
         // parameters
         let param = ParamSolid::sample_von_mises();
@@ -501,7 +507,7 @@ mod tests {
             let ideal = Idealization::new(ndim);
             let mut model = Elastoplastic::new(&ideal, &param).unwrap();
             model.verbose = VERBOSE;
-            let mut state = update_to_von_mises_yield_surface(&ideal, &param, &mut model, lode);
+            let mut state = update_with_von_mises(&ideal, &param, &mut model, lode, m_z0, None);
             let sigma_m_1 = state.stress.invariant_sigma_m();
             let sigma_d_1 = state.stress.invariant_sigma_d();
 
@@ -520,5 +526,35 @@ mod tests {
             assert_eq!(state.elastic, false);
             approx_eq(state.yield_value, 0.0, 1e-13);
         }
+    }
+
+    #[test]
+    fn update_stress_von_mises_initial_drift_going_inside() {
+        // initial state (halfway from zero to the yield surface)
+        let ideal = Idealization::new(2);
+        let param = ParamSolid::sample_von_mises();
+        let (_, _, _, z0) = extract_von_mises_kk_gg_hh_z0(&param);
+        let m_z0 = 0.5; // will reach the yield surface exactly
+        let ini_sig_m = 1.0;
+        let ini_sig_d = 0.5 * z0;
+        let distance = ini_sig_m * SQRT_3;
+        let radius = ini_sig_d * SQRT_2_BY_3;
+        let lode = 1.0;
+        let n_internal_values = 1;
+        let mut state0 = LocalState::new(ideal.mandel(), n_internal_values);
+        state0.stress = Tensor2::new_from_octahedral(distance, radius, lode, ideal.two_dim).unwrap();
+        state0.internal_values[0] = z0;
+
+        // update
+        let mut model = Elastoplastic::new(&ideal, &param).unwrap();
+        model.verbose = VERBOSE;
+        let m_z0 = 1.0 - m_z0; // will reach the yield surface exactly
+        let state = update_with_von_mises(&ideal, &param, &mut model, lode, m_z0, Some(state0));
+        let sigma_m = state.stress.invariant_sigma_m();
+        let sigma_d = state.stress.invariant_sigma_d();
+        approx_eq(sigma_m, ini_sig_m + 1.0, 1e-14);
+        approx_eq(sigma_d, z0, 1e-14);
+        assert_eq!(state.internal_values.as_data(), &[z0]);
+        assert_eq!(state.elastic, true);
     }
 }
