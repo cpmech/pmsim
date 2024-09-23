@@ -419,16 +419,19 @@ mod tests {
     use super::Elastoplastic;
     use crate::base::{Idealization, ParamSolid};
     use crate::material::testing::extract_von_mises_kk_gg_hh_z0;
-    use crate::material::{LocalState, StressStrainTrait};
+    use crate::material::{LocalState, Plotter, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
 
     const VERBOSE: bool = true;
 
+    const SAVE_FIGURE: bool = true;
+
     // Generates a initial state for the von Mises model
     fn gen_ini_state_von_mises(
         ideal: &Idealization,  // geometry idealization
         param: &ParamSolid,    // parameters
+        model: &Elastoplastic, // model
         lode: f64,             // Lode invariant
         sig_m_0: f64,          // initial mean invariant
         sig_d_0: f64,          // initial deviatoric invariant (only if yf_error is None)
@@ -441,10 +444,12 @@ mod tests {
         };
         let distance = sig_m_0 * SQRT_3;
         let radius = sig_d_0 * SQRT_2_BY_3;
-        let n_internal_values = 1;
+        let n_internal_values = model.n_internal_values();
         let mut state = LocalState::new(ideal.mandel(), n_internal_values);
         state.stress = Tensor2::new_from_octahedral(distance, radius, lode, ideal.two_dim).unwrap();
         state.internal_values[0] = z0;
+        state.yield_value = model.args.model.yield_function(&state).unwrap();
+        state.enable_strains(); // for plotting
         state
     }
 
@@ -466,7 +471,8 @@ mod tests {
         let d_radius = deps_d * SQRT_3_BY_2;
         let two_dim = state.stress.mandel().two_dim();
         let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, two_dim).unwrap();
-        model.update_stress(state, &delta_strain, None).unwrap();
+        model.update_stress(state, &delta_strain, None).unwrap(); // update stress
+        state.strain.as_mut().unwrap().update(1.0, &delta_strain); // update strain (for plotting)
         (deps_v, deps_d)
     }
 
@@ -484,7 +490,8 @@ mod tests {
                 if VERBOSE {
                     println!("\nndim = {}, lode = {}", ndim, lode);
                 }
-                let mut state = gen_ini_state_von_mises(&ideal, &param, lode, sig_m_0, sig_d_0, yf_error);
+                let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+                approx_eq(state.yield_value, -z0, 1e-14);
                 update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el, dsig_d_el);
                 let sigma_m = state.stress.invariant_sigma_m();
                 let sigma_d = state.stress.invariant_sigma_d();
@@ -506,8 +513,11 @@ mod tests {
         // constants
         let (sig_m_0, sig_d_0, yf_error) = (0.0, 0.0, None);
         let (dsig_m_el_0, dsig_d_el_0) = (1.0, z0); // will reach the yield surface exactly
-        let (dsig_m_el_1, dsig_d_el_1) = (0.5, 0.5); // to calc the next elastic trial increment
+        let (dsig_m_el_1, dsig_d_el_1) = (1.0, 4.0); // to calc the next elastic trial increment
         let lode = 1.0;
+
+        // states (for plotting)
+        let mut states = Vec::new();
 
         // test
         for ndim in [2, 3] {
@@ -520,13 +530,20 @@ mod tests {
             model.verbose = VERBOSE;
 
             // initial state
-            let mut state = gen_ini_state_von_mises(&ideal, &param, lode, sig_m_0, sig_d_0, yf_error);
+            let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+            approx_eq(state.yield_value, -z0, 1e-14);
+            if ndim == 2 {
+                states.push(state.clone());
+            }
 
             // elastic update (to yield surface exactly)
             let (deps_v, deps_d) =
                 update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el_0, dsig_d_el_0);
             let sig_m_1 = state.stress.invariant_sigma_m();
             let sig_d_1 = state.stress.invariant_sigma_d();
+            if ndim == 2 {
+                states.push(state.clone());
+            }
 
             // check
             let correct_sig_m = sig_m_0 + kk * deps_v;
@@ -542,6 +559,9 @@ mod tests {
                 update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el_1, dsig_d_el_1);
             let sig_m_2 = state.stress.invariant_sigma_m();
             let sig_d_2 = state.stress.invariant_sigma_d();
+            if ndim == 2 {
+                states.push(state.clone());
+            }
 
             // check
             let correct_sig_m = sig_m_1 + kk * deps_v;
@@ -551,6 +571,15 @@ mod tests {
             approx_eq(state.internal_values[0], correct_sig_d, 1e-14);
             assert_eq!(state.elastic, false);
             approx_eq(state.yield_value, 0.0, 1e-13);
+        }
+
+        // plot
+        if SAVE_FIGURE {
+            let mut plotter = Plotter::new();
+            plotter.add_2x2(&states, false, |_, _, _| {}).unwrap();
+            plotter
+                .save("/tmp/pmsim/material/test_update_stress_von_mises_elastoplastic.svg")
+                .unwrap();
         }
     }
 }
