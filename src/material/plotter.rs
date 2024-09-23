@@ -117,10 +117,10 @@ impl<'a> Plotter<'a> {
             color_oct_lines_negative: "#cccccc".to_string(),
             tab_2x2_enabled: false,
             tab_3x2_enabled: false,
-            tab_2x2_fig_size: (550.0, 450.0),
-            tab_3x2_fig_size: (550.0, 700.0),
+            tab_2x2_fig_size: (600.0, 500.0),
+            tab_3x2_fig_size: (600.0, 800.0),
             tab_leg_index: 3,
-            tab_leg_ncol: 4,
+            tab_leg_ncol: 3,
             tab_selected_axes: (Axis::Index, Axis::Yield),
         }
     }
@@ -477,7 +477,7 @@ mod tests {
     use russell_lab::approx_eq;
     use russell_tensor::{Mandel, Tensor2};
 
-    const SAVE_FIGURE: bool = false;
+    const SAVE_FIGURE: bool = true;
 
     #[test]
     pub fn save_handles_errors() {
@@ -509,7 +509,9 @@ mod tests {
         plotter.add(eps_v, sig_m, &data_b, set_curve_b).unwrap();
         if SAVE_FIGURE {
             plotter.set_figure_size(400.0, 250.0);
-            plotter.save("/tmp/pmsim/test_plotter_add_and_save_work_1.svg").unwrap();
+            plotter
+                .save("/tmp/pmsim/material/test_plotter_add_and_save_work_1.svg")
+                .unwrap();
         }
     }
 
@@ -580,7 +582,9 @@ mod tests {
             plot.set_figure_size_points(550.0, 350.0).add(&icon);
         });
         if SAVE_FIGURE {
-            plotter.save("/tmp/pmsim/test_plotter_add_and_save_work_2.svg").unwrap();
+            plotter
+                .save("/tmp/pmsim/material/test_plotter_add_and_save_work_2.svg")
+                .unwrap();
         }
     }
 
@@ -623,7 +627,9 @@ mod tests {
 
         // save figure
         if SAVE_FIGURE {
-            plotter.save("/tmp/pmsim/test_plotter_oct_plot_works_1.svg").unwrap();
+            plotter
+                .save("/tmp/pmsim/material/test_plotter_oct_plot_works_1.svg")
+                .unwrap();
         }
     }
 
@@ -649,7 +655,9 @@ mod tests {
             })
             .unwrap();
         if SAVE_FIGURE {
-            plotter.save("/tmp/pmsim/test_plotter_add_2x2_works_1.svg").unwrap();
+            plotter
+                .save("/tmp/pmsim/material/test_plotter_add_2x2_works_1.svg")
+                .unwrap();
         }
     }
 
@@ -675,7 +683,9 @@ mod tests {
             })
             .unwrap();
         if SAVE_FIGURE {
-            plotter.save("/tmp/pmsim/test_plotter_add_3x2_works_1.svg").unwrap();
+            plotter
+                .save("/tmp/pmsim/material/test_plotter_add_3x2_works_1.svg")
+                .unwrap();
         }
     }
 }
