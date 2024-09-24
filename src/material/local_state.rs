@@ -32,13 +32,6 @@ pub struct LocalState {
     pub history: Option<Vec<(Tensor2, Tensor2, f64, bool)>>,
 }
 
-/// Implements an array of LocalState
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ArrLocalState {
-    pub all: Vec<LocalState>,
-    backup: Vec<LocalState>,
-}
-
 impl LocalState {
     /// Allocates a new instance
     pub fn new(mandel: Mandel, n_internal_values: usize) -> Self {
@@ -64,52 +57,18 @@ impl LocalState {
         self.history = Some(Vec::new());
     }
 
-    /// Copy data from another state into this state
-    ///
-    /// **Warning:** `strain` and `yield_value` are not mirrored.
+    /// Copy data from another state into this state (except strain and history)
     pub fn mirror(&mut self, other: &LocalState) {
         vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
         self.stress.set_tensor(1.0, &other.stress);
         self.elastic = other.elastic;
         self.algo_apex_return = other.algo_apex_return;
         self.algo_lagrange = other.algo_lagrange;
+        self.yield_value = other.yield_value;
     }
 
     /// Resets the algorithmic variables such as the Lagrange multiplier
     pub fn reset_algorithmic_variables(&mut self) {
         self.algo_lagrange = 0.0;
-    }
-}
-
-impl ArrLocalState {
-    /// Allocates a new instance
-    pub fn new(mandel: Mandel, n_internal_values: usize, n_integ_point: usize) -> Self {
-        let zero_state = LocalState::new(mandel, n_internal_values);
-        let all = vec![zero_state; n_integ_point];
-        let backup = all.clone();
-        ArrLocalState { all, backup }
-    }
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    pub fn reset_algorithmic_variables(&mut self) {
-        self.all.iter_mut().for_each(|state| state.algo_lagrange = 0.0);
-    }
-
-    /// Creates a copy
-    pub fn backup(&mut self) {
-        self.backup
-            .iter_mut()
-            .enumerate()
-            .map(|(i, backup)| backup.mirror(&self.all[i]))
-            .collect()
-    }
-
-    /// Restores data from the backup
-    pub fn restore(&mut self) {
-        self.all
-            .iter_mut()
-            .enumerate()
-            .map(|(i, state)| state.mirror(&self.backup[i]))
-            .collect()
     }
 }
