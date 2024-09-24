@@ -805,7 +805,7 @@ mod tests {
     fn param_stress_update_works() {
         let p = ParamStressUpdate::new();
         let q = p.clone();
-        let correct = "ParamStressUpdate { general_plasticity: false, ode_method: DoPri8, interpolant_degree: 30, allow_initial_drift: false, save_strain: false, save_history: false }";
+        let correct = "ParamStressUpdate { general_plasticity: false, ode_method: DoPri8, interp_nn_max: 30, allow_initial_drift: false, save_strain: false, save_history: false }";
         assert_eq!(format!("{:?}", q), correct);
     }
 
