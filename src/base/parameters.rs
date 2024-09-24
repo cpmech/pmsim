@@ -1,8 +1,5 @@
 use russell_ode::Method;
 
-/// Holds the default interpolant degree for the general stress update algorithm
-const DEFAULT_INTERPOLANT_DEGREE: usize = 30;
-
 /// Holds parameters for stress-strain relations (total or effective stress)
 #[derive(Clone, Copy, Debug)]
 pub enum ParamStressStrain {
@@ -279,11 +276,13 @@ pub struct ParamStressUpdate {
     /// Use the general formulation instead of the specialized formulation
     pub general_plasticity: bool,
 
-    /// ODE method (for general plasticity)
+    /// ODE method (general plasticity only)
     pub ode_method: Method,
 
-    /// Degree of the interpolant for the yield function intersection (for general plasticity)
-    pub interpolant_degree: usize,
+    /// The maximum degree of the interpolant for the yield function intersection (general plasticity only)
+    ///
+    /// Note, the actual degree of the interpolant is calculated to fit the data.
+    pub interp_nn_max: usize,
 
     /// Allows an initial yield surface drift (e.g., for debugging)
     pub allow_initial_drift: bool,
@@ -570,7 +569,7 @@ impl ParamStressUpdate {
         ParamStressUpdate {
             general_plasticity: false,
             ode_method: Method::DoPri8,
-            interpolant_degree: DEFAULT_INTERPOLANT_DEGREE,
+            interp_nn_max: 30,
             allow_initial_drift: false,
             save_strain: false,
             save_history: false,

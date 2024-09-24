@@ -1,4 +1,4 @@
-use super::{LocalState, PlasticityTrait, StressStrainTrait, VonMises};
+use super::{HistoryEntry, LocalState, PlasticityTrait, StressStrainTrait, VonMises};
 use crate::base::{Idealization, ParamNonlinElast, ParamSolid, ParamStressStrain, ParamStressUpdate};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
@@ -85,11 +85,17 @@ pub struct Elastoplastic<'a> {
     /// Holds the ODE vector of unknowns for elastoplastic case
     ode_y_ep: Vector,
 
+    /// Holds the maximum interpolant degree for finding the yield surface intersection
+    interp_nn_max: usize,
+
     /// Holds the interpolant for finding the yield surface intersection
     interpolant: InterpChebyshev,
 
     /// Solver for the intersection finding algorithm
     root_finder: RootFinder,
+
+    /// Indicates if the history recording was enabled at least once
+    history_enabled: bool,
 
     /// Enables verbose mode
     verbose: bool,
@@ -102,6 +108,9 @@ impl<'a> Elastoplastic<'a> {
             Some(p) => p,
             None => ParamStressUpdate::new(),
         };
+        if su_param.interp_nn_max < 1 {
+            return Err("The maximum interpolant degree must be > 0");
+        }
 
         // plasticity model
         let ini_drift = su_param.allow_initial_drift;
@@ -191,11 +200,11 @@ impl<'a> Elastoplastic<'a> {
         let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
 
         // interpolant
-        let degree = su_param.interpolant_degree;
-        let interpolant = InterpChebyshev::new(degree, 0.0, 1.0).unwrap();
+        let interp_nn_max = su_param.interp_nn_max;
+        let interpolant = InterpChebyshev::new(interp_nn_max, 0.0, 1.0).unwrap();
 
         // interior stations for dense output (intersection finding)
-        let chebyshev_points = InterpChebyshev::points(degree);
+        let chebyshev_points = InterpChebyshev::points(interp_nn_max);
         let interp_npoint = chebyshev_points.dim();
         let mut interior_t_out = vec![0.0; interp_npoint - 2];
         let xx_interior = &chebyshev_points.as_data()[1..(interp_npoint - 1)];
@@ -257,10 +266,49 @@ impl<'a> Elastoplastic<'a> {
             ode_elastoplastic,
             ode_y_e,
             ode_y_ep,
+            interp_nn_max,
             interpolant,
             root_finder,
+            history_enabled: false,
             verbose: false,
         })
+    }
+
+    /// Configures the recording of state history (just once)
+    fn enable_history(&mut self) {
+        if self.history_enabled {
+            return;
+        }
+        let h_out = 1.0 / (self.interp_nn_max as f64);
+        self.ode_elastic
+            .enable_output()
+            .set_dense_h_out(h_out)
+            .unwrap()
+            .set_dense_callback(|_stats, _h, t, y, args| {
+                if args.state.history.is_some() {
+                    // copy {y}(t) into σ
+                    args.state.stress.vector_mut().set_vector(y.as_data());
+
+                    // yield function value: f(σ, z)
+                    let f = args.model.yield_function(&args.state)?;
+
+                    // history information
+                    let mut info = HistoryEntry {
+                        stress: args.state.stress.clone(),
+                        strain: args.state.strain.as_ref().unwrap().clone(),
+                        yield_value: f,
+                        elastic: true,
+                    };
+
+                    // ε(t) = ε₀ + t Δε
+                    info.strain.update(t, &args.depsilon);
+
+                    // update history array
+                    args.state.history.as_mut().unwrap().push(info);
+                }
+                Ok(KEEP_RUNNING)
+            });
+        self.history_enabled = true;
     }
 }
 
@@ -287,6 +335,11 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+        // configure the recording of state history
+        if state.history.is_some() && !self.history_enabled {
+            self.enable_history();
+        }
+
         // current yield function value: f(σ, z)
         let yf_initial = self.args.model.yield_function(state)?;
 
@@ -524,6 +577,7 @@ mod tests {
 
                 // initial state
                 let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+                state.enable_history();
                 approx_eq(state.yield_value, -z0, 1e-14);
                 if ndim == 2 {
                     data_2d.insert(lode_int, vec![state.clone()]);
