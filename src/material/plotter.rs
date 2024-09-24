@@ -219,6 +219,7 @@ impl<'a> Plotter<'a> {
     where
         F: FnMut(&mut Curve),
     {
+        // calculate x-y coordinates
         let octahedral = x == Axis::OctX && y == Axis::OctY;
         let (xx, yy) = if octahedral {
             let (xx, yy, r_max) = calc_oct_coords(states)?;
@@ -227,9 +228,13 @@ impl<'a> Plotter<'a> {
         } else {
             (x.calc(states), y.calc(states))
         };
+
+        // draw curve
         let mut curve = Curve::new();
         config(&mut curve);
         curve.draw(&xx, &yy);
+
+        // update curves array
         let key = (x, y);
         match self.curves.get_mut(&key) {
             Some(curves) => curves.push(curve),
