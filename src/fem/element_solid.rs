@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{calculate_strain, compute_local_to_global, Config, ParamSolid};
-use crate::material::StressStrain;
+use crate::material::{LocalState, StressStrain};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -43,6 +43,9 @@ pub struct ElementSolid<'a> {
     ///
     /// Note: this flag also enables the recording of strains.
     save_history: bool,
+
+    /// Holds a backup of the local state at all integration points
+    backup: Vec<LocalState>,
 }
 
 impl<'a> ElementSolid<'a> {
@@ -69,13 +72,21 @@ impl<'a> ElementSolid<'a> {
         let model = StressStrain::new(&config.ideal, param)?;
 
         // auxiliary strain increment tensor
-        let delta_strain = Tensor2::new_sym_ndim(ndim);
+        let mandel = config.ideal.mandel();
+        let delta_strain = Tensor2::new(mandel);
 
         // calculation of strains (not just the increment of strains) and history recording
         let (save_strain, save_history) = match param.stress_update {
             Some(p) => (p.save_strain || p.save_history, p.save_history),
             None => (false, false),
         };
+
+        // local state backup
+        let n_internal_values = param.n_internal_values();
+        let backup = (0..ips.len())
+            .into_iter()
+            .map(|_| LocalState::new(mandel, n_internal_values))
+            .collect();
 
         // allocate new instance
         Ok(ElementSolid {
@@ -89,6 +100,7 @@ impl<'a> ElementSolid<'a> {
             delta_strain,
             save_strain,
             save_history,
+            backup,
         })
     }
 }
@@ -213,6 +225,28 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Creates a copy of the secondary values (e.g., stress, internal_values)
+    fn backup_secondary_values(&mut self, state: &FemState) {
+        for p in 0..self.ips.len() {
+            self.backup[p].mirror(&state.gauss[self.cell.id].solid[p]);
+        }
+    }
+
+    /// Restores the secondary values (e.g., stress, internal_values) from the backup
+    fn restore_secondary_values(&self, state: &mut FemState) {
+        for p in 0..self.ips.len() {
+            state.gauss[self.cell.id].solid[p].mirror(&self.backup[p]);
+        }
+    }
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, state: &mut FemState) {
+        state.gauss[self.cell.id]
+            .solid
+            .iter_mut()
+            .for_each(|s| s.reset_algorithmic_variables());
     }
 }
 

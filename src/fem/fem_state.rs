@@ -66,10 +66,11 @@ impl FemState {
         }
 
         // secondary values (e.g. stress) at all integration (Gauss) points of all elements
-        let empty = SecondaryValues::new_empty(&config.ideal);
+        let empty = SecondaryValues::new_empty();
         let mut gauss = vec![empty; ncell];
 
         // gather information about element types
+        let mandel = config.ideal.mandel();
         let mut has_diffusion = false;
         let mut has_rod_or_beam = false;
         let mut has_solid = false;
@@ -91,7 +92,7 @@ impl FemState {
                 Element::Solid(param) => {
                     has_solid = true;
                     let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_solid(n_integration_point, n_internal_values);
+                    gauss[cell.id].allocate_solid(mandel, n_integration_point, n_internal_values);
                 }
                 Element::PorousLiq(..) => {
                     has_porous_fluid = true;
@@ -104,12 +105,12 @@ impl FemState {
                 Element::PorousSldLiq(param) => {
                     has_porous_solid = true;
                     let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_porous_sld_liq(n_integration_point, n_internal_values);
+                    gauss[cell.id].allocate_porous_sld_liq(mandel, n_integration_point, n_internal_values);
                 }
                 Element::PorousSldLiqGas(param) => {
                     has_porous_solid = true;
                     let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_porous_sld_liq_gas(n_integration_point, n_internal_values);
+                    gauss[cell.id].allocate_porous_sld_liq_gas(mandel, n_integration_point, n_internal_values);
                 }
             };
         }
@@ -192,21 +193,6 @@ impl FemState {
         let mut file = File::create(&path).map_err(|_| "cannot create file")?;
         serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
         Ok(())
-    }
-
-    /// Creates a copy of the secondary values (e.g., stresses)
-    pub(crate) fn backup_secondary_values(&mut self) {
-        self.gauss.iter_mut().for_each(|s| s.backup());
-    }
-
-    /// Restores the secondary values (e.g., stresses) from the backup
-    pub(crate) fn restore_secondary_values(&mut self) {
-        self.gauss.iter_mut().for_each(|s| s.restore());
-    }
-
-    /// Resets algorithmic variables (e.g., Lagrange multiplier) at the beginning of implicit iterations
-    pub(crate) fn reset_algorithmic_variables(&mut self) {
-        self.gauss.iter_mut().for_each(|s| s.reset_algorithmic_variables());
     }
 }
 

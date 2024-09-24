@@ -1,7 +1,7 @@
 use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemInput, FemState};
 use crate::base::{assemble_matrix, assemble_vector, Config, Element};
 use crate::StrError;
-use gemlab::mesh::{Cell, CellId};
+use gemlab::mesh::Cell;
 use russell_lab::{deriv1_central5, Matrix, Vector};
 use russell_sparse::CooMatrix;
 
@@ -15,9 +15,6 @@ pub struct GenericElement<'a> {
 
     /// Implements the Jacobian matrix
     pub jacobian: Matrix,
-
-    /// Holds the Cell ID (position in the FemState.gauss vector)
-    cell_id: CellId,
 }
 
 /// Holds a collection of (generic) finite elements
@@ -57,7 +54,6 @@ impl<'a> GenericElement<'a> {
             actual,
             residual: Vector::new(neq),
             jacobian: Matrix::new(neq, neq),
-            cell_id: cell.id,
         })
     }
 
@@ -88,10 +84,10 @@ impl<'a> GenericElement<'a> {
                     let original_duu = a.state.duu[j];
                     a.state.uu[j] = u;
                     a.state.duu[j] = u - original_uu;
-                    a.state.gauss[self.cell_id].backup();
+                    self.actual.backup_secondary_values(a.state);
                     self.actual.update_secondary_values(&mut a.state).unwrap();
                     self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
-                    a.state.gauss[self.cell_id].restore();
+                    self.actual.restore_secondary_values(&mut a.state);
                     a.state.uu[j] = original_uu;
                     a.state.duu[j] = original_duu;
                     Ok(a.residual[i])
@@ -169,7 +165,7 @@ impl<'a> Elements<'a> {
         Ok(())
     }
 
-    /// Initializes all secondary values
+    /// Initializes all internal values
     pub fn initialize_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         self.all
             .iter_mut()
@@ -184,6 +180,30 @@ impl<'a> Elements<'a> {
         self.all
             .iter_mut()
             .map(|e| e.actual.update_secondary_values(state))
+            .collect()
+    }
+
+    /// Creates a copy of the secondary values (e.g., stress, internal_values)
+    pub fn backup_secondary_values(&mut self, state: &FemState) {
+        self.all
+            .iter_mut()
+            .map(|e| e.actual.backup_secondary_values(state))
+            .collect()
+    }
+
+    /// Restores the secondary values (e.g., stress, internal_values) from the backup
+    pub fn restore_secondary_values(&self, state: &mut FemState) {
+        self.all
+            .iter()
+            .map(|e| e.actual.restore_secondary_values(state))
+            .collect()
+    }
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    pub fn reset_algorithmic_variables(&self, state: &mut FemState) {
+        self.all
+            .iter()
+            .map(|e| e.actual.reset_algorithmic_variables(state))
             .collect()
     }
 }

@@ -23,4 +23,13 @@ pub trait ElementTrait {
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError>;
+
+    /// Creates a copy of the secondary values (e.g., stress, internal_values)
+    fn backup_secondary_values(&mut self, state: &FemState);
+
+    /// Restores the secondary values (e.g., stress, internal_values) from the backup
+    fn restore_secondary_values(&self, state: &mut FemState);
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, state: &mut FemState);
 }

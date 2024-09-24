@@ -106,7 +106,7 @@ impl<'a> FemSolverImplicit<'a> {
 
             // reset algorithmic variables
             if !config.linear_problem {
-                state.reset_algorithmic_variables();
+                self.elements.reset_algorithmic_variables(state);
             }
 
             // message
@@ -200,9 +200,9 @@ impl<'a> FemSolverImplicit<'a> {
                 // backup/restore secondary variables
                 if !config.linear_problem {
                     if iteration == 0 {
-                        state.backup_secondary_values();
+                        self.elements.backup_secondary_values(state);
                     } else {
-                        state.restore_secondary_values();
+                        self.elements.restore_secondary_values(state);
                     }
                 }
 
