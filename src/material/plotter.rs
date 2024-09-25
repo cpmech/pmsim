@@ -214,22 +214,18 @@ impl<'a> Plotter<'a> {
     ///
     /// * `x` -- the key of the x-axis
     /// * `y` -- the key of the y-axis
-    /// * `states` -- the stress and strain points
+    /// * `data` -- the stress and strain points
     /// * `config` -- a function `|curve| {}` to configure the curve
-    ///
-    /// # Panics
-    ///
-    /// A panic may occur if strains are not available in `states` and the requested requires it.
-    pub fn add<F>(&mut self, x: Axis, y: Axis, states: &PlotterData, mut config: F) -> Result<(), StrError>
+    pub fn add<F>(&mut self, x: Axis, y: Axis, data: &PlotterData, mut config: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve),
     {
         // generate x-y arrays
-        let xx = x.array(states)?;
-        let yy = y.array(states)?;
+        let xx = data.array(x)?;
+        let yy = data.array(y)?;
 
         // update oct_radius_max
-        let r_max = states.calc_oct_radius_max();
+        let r_max = data.calc_oct_radius_max();
         self.oct_radius_max = f64::max(self.oct_radius_max, r_max);
 
         // draw curve
@@ -258,11 +254,11 @@ impl<'a> Plotter<'a> {
     ///  
     /// # Input
     ///
-    /// * `states` -- the stress and strain points
+    /// * `data` -- the stress and strain points
     /// * `porous_media` -- configures the invariants to better analyze porous media
     /// * `extra` -- is a function `|curve, x, y| {}` to configure the curve,
     ///    where x and y corresponds to the Axis associated with the subplot.
-    pub fn add_2x2<F>(&mut self, states: &PlotterData, porous_media: bool, mut extra: F) -> Result<(), StrError>
+    pub fn add_2x2<F>(&mut self, data: &PlotterData, porous_media: bool, mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve, Axis, Axis),
     {
@@ -277,7 +273,7 @@ impl<'a> Plotter<'a> {
         ];
         for row in &axes {
             for (x, y) in row {
-                self.add(*x, *y, states, |curve| extra(curve, *x, *y))?;
+                self.add(*x, *y, data, |curve| extra(curve, *x, *y))?;
             }
         }
         self.tab_2x2_enabled = true;
@@ -294,11 +290,11 @@ impl<'a> Plotter<'a> {
     ///  
     /// # Input
     ///
-    /// * `states` -- the stress and strain points
+    /// * `data` -- the stress and strain points
     /// * `porous_media` -- configures the invariants to better analyze porous media
     /// * `extra` -- is a function `|curve, x, y| {}` to configure the curve,
     ///    where x and y corresponds to the Axis associated with the subplot.
-    pub fn add_3x2<F>(&mut self, states: &PlotterData, porous_media: bool, mut extra: F) -> Result<(), StrError>
+    pub fn add_3x2<F>(&mut self, data: &PlotterData, porous_media: bool, mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve, Axis, Axis),
     {
@@ -315,7 +311,7 @@ impl<'a> Plotter<'a> {
         ];
         for row in &axes {
             for (x, y) in row {
-                self.add(*x, *y, states, |curve| extra(curve, *x, *y))?;
+                self.add(*x, *y, data, |curve| extra(curve, *x, *y))?;
             }
         }
         self.tab_3x2_enabled = true;
@@ -564,33 +560,22 @@ mod tests {
         // draw: eps_d_alt, sig_d_alt
         plotter.add(eps_d_alt, sig_d_alt, &data_a, set_curve_a).unwrap();
         plotter.add(eps_d_alt, sig_d_alt, &data_b, set_curve_b).unwrap();
+        // calculate slopes
+        let (slope_bulk, x_mid_bulk, y_mid_bulk) = data_a.slope(eps_v, sig_m).unwrap();
+        approx_eq(slope_bulk, bulk, 1e-11);
+        let (slope_shear, x_mid_shear, y_mid_shear) = data_a.slope(eps_d, sig_d).unwrap();
+        approx_eq(slope_shear, 3.0 * shear, 1e-12);
         // extra features
-        plotter.set_extra(eps_v, sig_m, |plot| {
+        plotter.set_extra(eps_v, sig_m, move |plot| {
             let mut icon = SlopeIcon::new();
             icon.set_length(0.2);
-            let l = data_a.all.len() - 1;
-            let xa = data_a.all[0].eps_v.unwrap();
-            let xb = data_a.all[l].eps_v.unwrap();
-            let ya = data_a.all[0].sig_m;
-            let yb = data_a.all[l].sig_m;
-            let x_mid = (xa + xb) / 2.0;
-            let y_mid = (ya + yb) / 2.0;
-            approx_eq((yb - ya) / (xb - xa), bulk, 1e-12);
-            icon.draw(bulk, x_mid, y_mid);
+            icon.draw(bulk, x_mid_bulk, y_mid_bulk);
             plot.set_figure_size_points(550.0, 350.0).add(&icon);
         });
-        plotter.set_extra(eps_d, sig_d, |plot| {
+        plotter.set_extra(eps_d, sig_d, move |plot| {
             let mut icon = SlopeIcon::new();
             icon.set_length(0.2).set_above(true);
-            let l = data_a.all.len() - 1;
-            let xa = data_a.all[0].eps_d.unwrap();
-            let xb = data_a.all[l].eps_d.unwrap();
-            let ya = data_a.all[0].sig_d;
-            let yb = data_a.all[l].sig_d;
-            let x_mid = (xa + xb) / 2.0;
-            let y_mid = (ya + yb) / 2.0;
-            approx_eq((yb - ya) / (xb - xa), 3.0 * shear, 1e-12);
-            icon.draw(3.0 * shear, x_mid, y_mid);
+            icon.draw(3.0 * shear, x_mid_shear, y_mid_shear + 0.5);
             plot.set_figure_size_points(550.0, 350.0).add(&icon);
         });
         if SAVE_FIGURE {
