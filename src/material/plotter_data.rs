@@ -1,7 +1,7 @@
 use super::{Axis, LocalState};
 use crate::StrError;
 use russell_lab::linear_fitting;
-use russell_tensor::Spectral2;
+use russell_tensor::{Spectral2, Tensor2};
 
 /// Holds a stress-strain entry for Plotter
 pub struct PlotterEntry {
@@ -40,7 +40,47 @@ pub struct PlotterData {
 
 impl PlotterData {
     /// Allocates a new instance
-    pub fn new(states: &[LocalState]) -> Self {
+    pub fn new() -> Self {
+        PlotterData { all: Vec::new() }
+    }
+
+    /// Appends a stress-state to the back of the collection
+    pub fn push(
+        &mut self,
+        stress: &Tensor2,
+        strain: Option<&Tensor2>,
+        yield_value: Option<f64>,
+        pseudo_time: Option<f64>,
+    ) -> &mut Self {
+        let mandel = stress.mandel();
+        let mut spectral = Spectral2::new(mandel.two_dim());
+        spectral.decompose(stress).unwrap();
+        let (oct_y, _, oct_x) = spectral.octahedral_basis();
+        self.all.push(PlotterEntry {
+            sig_m: stress.invariant_sigma_m(),
+            sig_d: stress.invariant_sigma_d(),
+            lode: match stress.invariant_lode() {
+                Some(l) => l,
+                None => f64::NAN,
+            },
+            oct_x,
+            oct_y,
+            eps_v: match strain.as_ref() {
+                Some(e) => Some(e.invariant_eps_v()),
+                None => None,
+            },
+            eps_d: match strain.as_ref() {
+                Some(e) => Some(e.invariant_eps_d()),
+                None => None,
+            },
+            yield_value,
+            pseudo_time,
+        });
+        self
+    }
+
+    /// Allocates a new instance given an array of LocalState
+    pub fn from_states(states: &[LocalState]) -> Self {
         if states.len() < 1 {
             return PlotterData { all: Vec::new() };
         }
@@ -168,13 +208,38 @@ mod tests {
     use crate::material::testing::generate_stress_strain_array;
     use crate::material::{Axis, LocalState};
     use russell_lab::{approx_eq, array_approx_eq, assert_alike, math::PI};
-    use russell_tensor::{Mandel, Tensor2};
+    use russell_tensor::{Mandel, Tensor2, SQRT_2_BY_3, SQRT_3};
 
     #[test]
-    fn array_works() {
+    fn push_works() {
+        let mut data = PlotterData::new();
+        let mandel = Mandel::Symmetric2D;
+        let stress = Tensor2::from_matrix(&[[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]], mandel).unwrap();
+        let strain = Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, -0.5, 0.0], [0.0, 0.0, 0.5]], mandel).unwrap();
+        data.push(&stress, Some(&strain), Some(-9.0), Some(0.5));
+        assert_eq!(data.all.len(), 1);
+        let sig_m = 2.0 / 3.0;
+        let sig_d = 1.0;
+        let r = sig_d * SQRT_2_BY_3;
+        let lode = -1.0;
+        let theta = f64::acos(lode) / 3.0;
+        let alpha = PI / 2.0 - theta;
+        approx_eq(data.all[0].sig_m, sig_m, 1e-15);
+        approx_eq(data.all[0].sig_d, sig_d, 1e-15);
+        approx_eq(data.all[0].lode, lode, 1e-15);
+        approx_eq(data.all[0].oct_x, r * f64::cos(alpha), 1e-15);
+        approx_eq(data.all[0].oct_y, r * f64::sin(alpha), 1e-15);
+        approx_eq(data.all[0].eps_v.unwrap(), 0.0, 1e-15);
+        approx_eq(data.all[0].eps_d.unwrap(), 1.0 / SQRT_3, 1e-15);
+        approx_eq(data.all[0].yield_value.unwrap(), -9.0, 1e-15);
+        approx_eq(data.all[0].pseudo_time.unwrap(), 0.5, 1e-15);
+    }
+
+    #[test]
+    fn from_states_and_array_work() {
         let lode = 1.0;
         let states = generate_stress_strain_array(true, 1000.0, 600.0, lode);
-        let data = PlotterData::new(&states);
+        let data = PlotterData::from_states(&states);
 
         // stress
 
@@ -247,7 +312,7 @@ mod tests {
         state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, two_dim).unwrap();
 
         // calculate projection
-        let data = PlotterData::new(&[state_a, state_b]);
+        let data = PlotterData::from_states(&[state_a, state_b]);
         let r_max = data.calc_oct_radius_max();
         approx_eq(r_max, 2.0 * radius, 1e-15);
         for i in 0..data.all.len() {

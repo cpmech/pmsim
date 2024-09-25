@@ -507,8 +507,8 @@ mod tests {
         let (bulk, shear) = (1000.0, 600.0);
         let states_a = generate_stress_strain_array(true, bulk, shear, 1.0);
         let states_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
-        let data_a = PlotterData::new(&states_a);
-        let data_b = PlotterData::new(&states_b);
+        let data_a = PlotterData::from_states(&states_a);
+        let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
         // pair: eps_v, sig_m
         let eps_v = Axis::EpsV(true, false);
@@ -536,8 +536,8 @@ mod tests {
         let (bulk, shear) = (1000.0, 600.0);
         let states_a = generate_stress_strain_array(true, bulk, shear, 1.0);
         let states_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
-        let data_a = PlotterData::new(&states_a);
-        let data_b = PlotterData::new(&states_b);
+        let data_a = PlotterData::from_states(&states_a);
+        let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
         // pair: eps_v, sig_m
         let eps_v = Axis::EpsV(false, false);
@@ -622,7 +622,7 @@ mod tests {
         for lode in &[-1.0, 0.0, 1.0] {
             state_a.stress = Tensor2::new_from_octahedral(distance, radius, *lode, two_dim).unwrap();
             state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, *lode, two_dim).unwrap();
-            let data = PlotterData::new(&[state_a.clone(), state_b.clone()]);
+            let data = PlotterData::from_states(&[state_a.clone(), state_b.clone()]);
             plotter
                 .add(Axis::OctX, Axis::OctY, &data, |curve| {
                     curve
@@ -655,7 +655,7 @@ mod tests {
 
         // add curve to plotter
         state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
-        let data = PlotterData::new(&[state_a.clone()]);
+        let data = PlotterData::from_states(&[state_a.clone()]);
         plotter
             .add(Axis::OctX, Axis::OctY, &data, |curve| {
                 curve.set_marker_style("o");
@@ -674,8 +674,8 @@ mod tests {
     pub fn add_2x2_works_1() {
         let states_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
         let states_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
-        let data_a = PlotterData::new(&states_a);
-        let data_b = PlotterData::new(&states_b);
+        let data_a = PlotterData::from_states(&states_a);
+        let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
         let porous_media = false;
         plotter
@@ -704,8 +704,8 @@ mod tests {
     pub fn add_3x2_works_1() {
         let states_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
         let states_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
-        let data_a = PlotterData::new(&states_a);
-        let data_b = PlotterData::new(&states_b);
+        let data_a = PlotterData::from_states(&states_a);
+        let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
         let porous_media = false;
         plotter

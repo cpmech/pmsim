@@ -618,7 +618,7 @@ mod tests {
             // plotter.set_layout_selected(Axis::Time, Axis::Yield);
             for (lode, marker) in [(-1, "."), (0, "*"), (1, "^")] {
                 let states = data_2d.get(&lode).unwrap();
-                let data = PlotterData::new(states);
+                let data = PlotterData::from_states(states);
                 plotter
                     .add_2x2(&data, false, |curve, _, _| {
                         curve
