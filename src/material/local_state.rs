@@ -2,22 +2,6 @@ use russell_lab::{vec_copy, Vector};
 use russell_tensor::{Mandel, Tensor2};
 use serde::{Deserialize, Serialize};
 
-/// Holds an entry to the history array
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HistoryEntry {
-    /// Holds the stress tensor σ
-    pub stress: Tensor2,
-
-    /// Holds the strain tensor ε
-    pub strain: Tensor2,
-
-    /// Holds the result of an yield function evaluation (plasticity models only)
-    pub yield_value: f64,
-
-    /// Holds the elastic (vs elastoplastic) flag
-    pub elastic: bool,
-}
-
 /// Holds local state data for FEM simulations of porous materials
 ///
 /// This data structure is associated with a Gauss (integration) point
@@ -43,9 +27,6 @@ pub struct LocalState {
 
     /// (optional) Holds the strain tensor ε
     pub strain: Option<Tensor2>,
-
-    /// (optional) Holds data computed by the stress-update algorithm
-    pub history: Option<Vec<HistoryEntry>>,
 }
 
 impl LocalState {
@@ -59,7 +40,6 @@ impl LocalState {
             algo_lagrange: 0.0,
             yield_value: 0.0,
             strain: None,
-            history: None,
         }
     }
 
@@ -68,12 +48,7 @@ impl LocalState {
         self.strain = Some(Tensor2::new(self.stress.mandel()));
     }
 
-    /// Enables the recording of stress-update history
-    pub fn enable_history(&mut self) {
-        self.history = Some(Vec::new());
-    }
-
-    /// Copy data from another state into this state (except strain and history)
+    /// Copy data from another state into this state (except strain)
     pub fn mirror(&mut self, other: &LocalState) {
         vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
         self.stress.set_tensor(1.0, &other.stress);

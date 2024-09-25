@@ -1,4 +1,4 @@
-use super::{HistoryEntry, LocalState, PlasticityTrait, StressStrainTrait, VonMises};
+use super::{LocalState, PlasticityTrait, StressStrainTrait, VonMises};
 use crate::base::{Idealization, ParamNonlinElast, ParamSolid, ParamStressStrain, ParamStressUpdate};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
@@ -285,6 +285,7 @@ impl<'a> Elastoplastic<'a> {
             .set_dense_h_out(h_out)
             .unwrap()
             .set_dense_callback(|_stats, _h, t, y, args| {
+                /*
                 if args.state.history.is_some() {
                     // copy {y}(t) into σ
                     args.state.stress.vector_mut().set_vector(y.as_data());
@@ -306,6 +307,7 @@ impl<'a> Elastoplastic<'a> {
                     // update history array
                     args.state.history.as_mut().unwrap().push(info);
                 }
+                */
                 Ok(KEEP_RUNNING)
             });
         self.history_enabled = true;
@@ -335,11 +337,6 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
-        // configure the recording of state history
-        if state.history.is_some() && !self.history_enabled {
-            self.enable_history();
-        }
-
         // current yield function value: f(σ, z)
         let yf_initial = self.args.model.yield_function(state)?;
 
@@ -577,7 +574,6 @@ mod tests {
 
                 // initial state
                 let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
-                state.enable_history();
                 approx_eq(state.yield_value, -z0, 1e-14);
                 if ndim == 2 {
                     data_2d.insert(lode_int, vec![state.clone()]);

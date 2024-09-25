@@ -39,11 +39,6 @@ pub struct ElementSolid<'a> {
     /// Indicates that the calculation of strains is performed (not just the increment of strains)
     save_strain: bool,
 
-    /// Indicates that the recording of local history is enabled
-    ///
-    /// Note: this flag also enables the recording of strains.
-    save_history: bool,
-
     /// Holds a backup of the local state at all integration points
     backup: Vec<LocalState>,
 }
@@ -75,10 +70,10 @@ impl<'a> ElementSolid<'a> {
         let mandel = config.ideal.mandel();
         let delta_strain = Tensor2::new(mandel);
 
-        // calculation of strains (not just the increment of strains) and history recording
-        let (save_strain, save_history) = match param.stress_update {
-            Some(p) => (p.save_strain || p.save_history, p.save_history),
-            None => (false, false),
+        // enable the calculation of strains (not just the increment of strains)
+        let save_strain = match param.stress_update {
+            Some(p) => p.save_strain || p.save_history,
+            None => false,
         };
 
         // local state backup
@@ -99,7 +94,6 @@ impl<'a> ElementSolid<'a> {
             model,
             delta_strain,
             save_strain,
-            save_history,
             backup,
         })
     }
@@ -125,11 +119,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 if self.save_strain {
                     state.enable_strain();
                 }
-                if self.save_history {
-                    state.enable_history();
-                }
-                let result = self.model.actual.initialize_internal_values(state);
-                result
+                self.model.actual.initialize_internal_values(state)
             })
             .collect()
     }
