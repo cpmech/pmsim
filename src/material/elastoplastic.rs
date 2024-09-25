@@ -556,7 +556,7 @@ mod tests {
         let (dsig_m_el_1, dsig_d_el_1) = (1.0, 4.0); // to calc the next elastic trial increment
 
         // data for plotting
-        let mut data_2d = HashMap::new();
+        let mut data_2d = HashMap::new(); // map: lode => states
 
         // test
         for ndim in [2, 3] {
@@ -614,15 +614,26 @@ mod tests {
 
         // plot
         if SAVE_FIGURE {
+            let ndim = 2;
+            let ideal = Idealization::new(ndim);
+            let model = Elastoplastic::new(&ideal, &param).unwrap();
             let mut plotter = Plotter::new();
-            // plotter.set_layout_selected(Axis::Time, Axis::Yield);
-            for (lode, marker) in [(-1, "."), (0, "*"), (1, "^")] {
+            plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
+            for (lode, marker, size, void) in [(-1, "s", 10.0, true), (0, "o", 8.0, true), (1, ".", 8.0, false)] {
                 let states = data_2d.get(&lode).unwrap();
-                let data = PlotterData::from_states(states);
+                let mut data = PlotterData::new();
+                for i in 0..states.len() {
+                    let s = &states[i];
+                    let f = model.args.model.yield_function(s).unwrap();
+                    let t = i as f64;
+                    data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+                }
                 plotter
                     .add_2x2(&data, false, |curve, _, _| {
                         curve
                             .set_marker_style(marker)
+                            .set_marker_size(size)
+                            .set_marker_void(void)
                             .set_label(&format!(" $\\ell = {}$", lode));
                     })
                     .unwrap();

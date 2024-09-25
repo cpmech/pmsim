@@ -51,7 +51,7 @@ impl PlotterData {
         strain: Option<&Tensor2>,
         yield_value: Option<f64>,
         pseudo_time: Option<f64>,
-    ) -> &mut Self {
+    ) {
         let mandel = stress.mandel();
         let mut spectral = Spectral2::new(mandel.two_dim());
         spectral.decompose(stress).unwrap();
@@ -76,7 +76,6 @@ impl PlotterData {
             yield_value,
             pseudo_time,
         });
-        self
     }
 
     /// Allocates a new instance given an array of LocalState
