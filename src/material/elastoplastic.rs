@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::{LocalState, PlasticityTrait, StressStrainTrait, VonMises};
 use crate::base::{Idealization, ParamNonlinElast, ParamSolid, ParamStressStrain, ParamStressUpdate};
 use crate::StrError;
@@ -474,9 +476,6 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         } else {
             state.elastic = true;
         }
-
-        // final yield function value
-        state.yield_value = self.args.model.yield_function(state)?;
         Ok(())
     }
 }
@@ -488,7 +487,7 @@ mod tests {
     use super::Elastoplastic;
     use crate::base::{Idealization, ParamSolid};
     use crate::material::testing::extract_von_mises_kk_gg_hh_z0;
-    use crate::material::{LocalState, Plotter, StressStrainTrait};
+    use crate::material::{Axis, LocalState, Plotter, PlotterData, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
     use std::collections::HashMap;
@@ -518,7 +517,6 @@ mod tests {
         let mut state = LocalState::new(ideal.mandel(), n_internal_values);
         state.stress = Tensor2::new_from_octahedral(distance, radius, lode, ideal.two_dim).unwrap();
         state.internal_values[0] = z0;
-        state.yield_value = model.args.model.yield_function(&state).unwrap();
         state.enable_strain(); // for plotting
         state
     }
@@ -574,7 +572,6 @@ mod tests {
 
                 // initial state
                 let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
-                approx_eq(state.yield_value, -z0, 1e-14);
                 if ndim == 2 {
                     data_2d.insert(lode_int, vec![state.clone()]);
                 }
@@ -595,7 +592,6 @@ mod tests {
                 approx_eq(sig_d_1, correct_sig_d, 1e-14);
                 approx_eq(state.internal_values[0], z0, 1e-15);
                 assert_eq!(state.elastic, true);
-                approx_eq(state.yield_value, 0.0, 1e-14);
 
                 // elastoplastic update
                 let (deps_v, deps_d) =
@@ -613,17 +609,18 @@ mod tests {
                 approx_eq(sig_d_2, correct_sig_d, 1e-14);
                 approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
                 assert_eq!(state.elastic, false);
-                approx_eq(state.yield_value, 0.0, 1e-13);
             }
         }
 
         // plot
         if SAVE_FIGURE {
             let mut plotter = Plotter::new();
+            // plotter.set_layout_selected(Axis::Time, Axis::Yield);
             for (lode, marker) in [(-1, "."), (0, "*"), (1, "^")] {
                 let states = data_2d.get(&lode).unwrap();
+                let data = PlotterData::new(states);
                 plotter
-                    .add_2x2(&states, false, |curve, _, _| {
+                    .add_2x2(&data, false, |curve, _, _| {
                         curve
                             .set_marker_style(marker)
                             .set_label(&format!(" $\\ell = {}$", lode));

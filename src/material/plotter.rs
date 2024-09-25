@@ -1,9 +1,14 @@
-use super::{calc_oct_coords, Axis, LocalState};
+use super::{Axis, PlotterData};
 use crate::StrError;
 use plotpy::{Canvas, Curve, Legend, Plot, SuperTitleParams, Text};
 use russell_lab::math::PI;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
+
+/// Minimum radius for the Rosetta in octahedral plane
+///
+/// This value is needed to prevent a zero-range case when the stress state is isotropic
+const OCT_MIN_RADIUS: f64 = 1e-7;
 
 /// Plots stress versus strain invariants
 pub struct Plotter<'a> {
@@ -121,7 +126,7 @@ impl<'a> Plotter<'a> {
             tab_3x2_fig_size: (600.0, 800.0),
             tab_leg_index: 3,
             tab_leg_ncol: 3,
-            tab_selected_axes: (Axis::Index, Axis::Yield),
+            tab_selected_axes: (Axis::EpsV(true, false), Axis::SigM(false)),
         }
     }
 
@@ -215,19 +220,17 @@ impl<'a> Plotter<'a> {
     /// # Panics
     ///
     /// A panic may occur if strains are not available in `states` and the requested requires it.
-    pub fn add<F>(&mut self, x: Axis, y: Axis, states: &[LocalState], mut config: F) -> Result<(), StrError>
+    pub fn add<F>(&mut self, x: Axis, y: Axis, states: &PlotterData, mut config: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve),
     {
-        // calculate x-y coordinates
-        let octahedral = x == Axis::OctX && y == Axis::OctY;
-        let (xx, yy) = if octahedral {
-            let (xx, yy, r_max) = calc_oct_coords(states)?;
-            self.oct_radius_max = f64::max(self.oct_radius_max, r_max);
-            (xx, yy)
-        } else {
-            (x.calc(states), y.calc(states))
-        };
+        // generate x-y arrays
+        let xx = x.array(states)?;
+        let yy = y.array(states)?;
+
+        // update oct_radius_max
+        let r_max = states.calc_oct_radius_max();
+        self.oct_radius_max = f64::max(self.oct_radius_max, r_max);
 
         // draw curve
         let mut curve = Curve::new();
@@ -251,7 +254,7 @@ impl<'a> Plotter<'a> {
     /// | row\col |     0      |     1      |
     /// |:-------:|:----------:|:----------:|
     /// |    0    | σm-σd path | octahedral |
-    /// |    1    |  (εd, σd)  | yield-func |
+    /// |    1    |  (εd, σd)  |  (εv, σm)  |
     ///  
     /// # Input
     ///
@@ -259,7 +262,7 @@ impl<'a> Plotter<'a> {
     /// * `porous_media` -- configures the invariants to better analyze porous media
     /// * `extra` -- is a function `|curve, x, y| {}` to configure the curve,
     ///    where x and y corresponds to the Axis associated with the subplot.
-    pub fn add_2x2<F>(&mut self, states: &[LocalState], porous_media: bool, mut extra: F) -> Result<(), StrError>
+    pub fn add_2x2<F>(&mut self, states: &PlotterData, porous_media: bool, mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve, Axis, Axis),
     {
@@ -295,7 +298,7 @@ impl<'a> Plotter<'a> {
     /// * `porous_media` -- configures the invariants to better analyze porous media
     /// * `extra` -- is a function `|curve, x, y| {}` to configure the curve,
     ///    where x and y corresponds to the Axis associated with the subplot.
-    pub fn add_3x2<F>(&mut self, states: &[LocalState], porous_media: bool, mut extra: F) -> Result<(), StrError>
+    pub fn add_3x2<F>(&mut self, states: &PlotterData, porous_media: bool, mut extra: F) -> Result<(), StrError>
     where
         F: FnMut(&mut Curve, Axis, Axis),
     {
@@ -426,7 +429,7 @@ impl<'a> Plotter<'a> {
     /// Draws a rosetta on the octahedral plane
     fn draw_rosetta(&self, plot: &mut Plot) {
         // constants
-        let r = self.oct_radius_max;
+        let r = f64::max(self.oct_radius_max, OCT_MIN_RADIUS);
         let ma = self.oct_multiplier_axis;
         let mt = self.oct_multiplier_text;
 
@@ -476,13 +479,13 @@ impl<'a> Plotter<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Axis, Plotter};
-    use crate::material::testing::generate_stress_strain_array;
     use crate::material::LocalState;
+    use crate::material::{testing::generate_stress_strain_array, PlotterData};
     use plotpy::{Curve, SlopeIcon};
     use russell_lab::approx_eq;
     use russell_tensor::{Mandel, Tensor2};
 
-    const SAVE_FIGURE: bool = false;
+    const SAVE_FIGURE: bool = true;
 
     #[test]
     pub fn save_handles_errors() {
@@ -496,8 +499,10 @@ mod tests {
     #[test]
     pub fn add_and_save_work_1() {
         let (bulk, shear) = (1000.0, 600.0);
-        let data_a = generate_stress_strain_array(true, bulk, shear, 1.0);
-        let data_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let states_a = generate_stress_strain_array(true, bulk, shear, 1.0);
+        let states_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let data_a = PlotterData::new(&states_a);
+        let data_b = PlotterData::new(&states_b);
         let mut plotter = Plotter::new();
         // pair: eps_v, sig_m
         let eps_v = Axis::EpsV(true, false);
@@ -523,8 +528,10 @@ mod tests {
     #[test]
     pub fn add_and_save_work_2() {
         let (bulk, shear) = (1000.0, 600.0);
-        let data_a = generate_stress_strain_array(true, bulk, shear, 1.0);
-        let data_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let states_a = generate_stress_strain_array(true, bulk, shear, 1.0);
+        let states_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let data_a = PlotterData::new(&states_a);
+        let data_b = PlotterData::new(&states_b);
         let mut plotter = Plotter::new();
         // pair: eps_v, sig_m
         let eps_v = Axis::EpsV(false, false);
@@ -561,11 +568,11 @@ mod tests {
         plotter.set_extra(eps_v, sig_m, |plot| {
             let mut icon = SlopeIcon::new();
             icon.set_length(0.2);
-            let l = data_a.len() - 1;
-            let xa = data_a[0].strain.as_ref().unwrap().invariant_eps_v();
-            let xb = data_a[l].strain.as_ref().unwrap().invariant_eps_v();
-            let ya = data_a[0].stress.invariant_sigma_m();
-            let yb = data_a[l].stress.invariant_sigma_m();
+            let l = data_a.all.len() - 1;
+            let xa = data_a.all[0].eps_v.unwrap();
+            let xb = data_a.all[l].eps_v.unwrap();
+            let ya = data_a.all[0].sig_m;
+            let yb = data_a.all[l].sig_m;
             let x_mid = (xa + xb) / 2.0;
             let y_mid = (ya + yb) / 2.0;
             approx_eq((yb - ya) / (xb - xa), bulk, 1e-12);
@@ -575,11 +582,11 @@ mod tests {
         plotter.set_extra(eps_d, sig_d, |plot| {
             let mut icon = SlopeIcon::new();
             icon.set_length(0.2).set_above(true);
-            let l = data_a.len() - 1;
-            let xa = data_a[0].strain.as_ref().unwrap().invariant_eps_d();
-            let xb = data_a[l].strain.as_ref().unwrap().invariant_eps_d();
-            let ya = data_a[0].stress.invariant_sigma_d();
-            let yb = data_a[l].stress.invariant_sigma_d();
+            let l = data_a.all.len() - 1;
+            let xa = data_a.all[0].eps_d.unwrap();
+            let xb = data_a.all[l].eps_d.unwrap();
+            let ya = data_a.all[0].sig_d;
+            let yb = data_a.all[l].sig_d;
             let x_mid = (xa + xb) / 2.0;
             let y_mid = (ya + yb) / 2.0;
             approx_eq((yb - ya) / (xb - xa), 3.0 * shear, 1e-12);
@@ -620,7 +627,7 @@ mod tests {
         for lode in &[-1.0, 0.0, 1.0] {
             state_a.stress = Tensor2::new_from_octahedral(distance, radius, *lode, two_dim).unwrap();
             state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, *lode, two_dim).unwrap();
-            let data = [state_a.clone(), state_b.clone()];
+            let data = PlotterData::new(&[state_a.clone(), state_b.clone()]);
             plotter
                 .add(Axis::OctX, Axis::OctY, &data, |curve| {
                     curve
@@ -639,9 +646,41 @@ mod tests {
     }
 
     #[test]
+    pub fn oct_plot_works_2() {
+        // constants
+        let distance = 1.0;
+        let radius = 0.0; // <<< isotropic state
+        let two_dim = true;
+        let mandel = Mandel::Symmetric2D;
+        let lode = 0.0;
+        let mut state_a = LocalState::new(mandel, 0);
+
+        // plotter
+        let mut plotter = Plotter::new();
+
+        // add curve to plotter
+        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
+        let data = PlotterData::new(&[state_a.clone()]);
+        plotter
+            .add(Axis::OctX, Axis::OctY, &data, |curve| {
+                curve.set_marker_style("o");
+            })
+            .unwrap();
+
+        // save figure
+        if SAVE_FIGURE {
+            plotter
+                .save("/tmp/pmsim/material/test_plotter_oct_plot_works_2.svg")
+                .unwrap();
+        }
+    }
+
+    #[test]
     pub fn add_2x2_works_1() {
-        let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-        let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+        let states_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
+        let states_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+        let data_a = PlotterData::new(&states_a);
+        let data_b = PlotterData::new(&states_b);
         let mut plotter = Plotter::new();
         let porous_media = false;
         plotter
@@ -668,8 +707,10 @@ mod tests {
 
     #[test]
     pub fn add_3x2_works_1() {
-        let data_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-        let data_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+        let states_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
+        let states_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+        let data_a = PlotterData::new(&states_a);
+        let data_b = PlotterData::new(&states_b);
         let mut plotter = Plotter::new();
         let porous_media = false;
         plotter

@@ -1,89 +1,98 @@
-use super::LocalState;
+use super::PlotterData;
 use crate::StrError;
-use russell_tensor::Spectral2;
 
-/// Defines the stress or strain invariant to be plot along the x or y axis
+/// Defines the data type along an axis of Plotter
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Axis {
-    /// Volumetric strain (percent, negative)
-    EpsV(/*percent*/ bool, /*negative*/ bool),
-
-    /// Deviatoric strain (percent)
-    EpsD(/*percent*/ bool),
-
     /// Mean pressure (negative)
     SigM(/*negative*/ bool),
 
     /// Deviatoric stress (normalized)
     SigD(/*normalized*/ bool),
 
-    /// Index (simulating a pseudo time)
-    Index,
-
-    /// Yield function value
-    Yield,
+    // Lode invariant associated with the stress tensor
+    Lode,
 
     /// Projected x coordinates on the octahedral plane
     OctX,
 
     /// Projected y coordinates on the octahedral plane
     OctY,
+
+    /// (optional) Volumetric strain (percent, negative)
+    EpsV(/*percent*/ bool, /*negative*/ bool),
+
+    /// (optional) Deviatoric strain (percent)
+    EpsD(/*percent*/ bool),
+
+    /// (optional) Yield function value
+    Yield,
+
+    /// (optional) Pseudo time
+    Time,
 }
 
 impl Axis {
-    /// Calculates the values for the axis
-    ///
-    /// **Important:** The octahedral coordinates must be calculated via [calc_oct_coords()]
-    pub(crate) fn calc(&self, states: &[LocalState]) -> Vec<f64> {
+    /// Generates an array with the selected data
+    pub(crate) fn array(&self, data: &PlotterData) -> Result<Vec<f64>, StrError> {
         match self {
+            Self::SigM(negative) => {
+                let n = if *negative { -1.0 } else { 1.0 };
+                data.all.iter().map(|s| Ok(n * s.sig_m)).collect()
+            }
+            Self::SigD(normalized) => {
+                if *normalized {
+                    data.all.iter().map(|s| Ok(s.sig_d / f64::abs(s.sig_m))).collect()
+                } else {
+                    data.all.iter().map(|s| Ok(s.sig_d)).collect()
+                }
+            }
+            Self::Lode => data.all.iter().map(|s| Ok(s.lode)).collect(),
+            Self::OctX => data.all.iter().map(|s| Ok(s.oct_x)).collect(),
+            Self::OctY => data.all.iter().map(|s| Ok(s.oct_y)).collect(),
             Self::EpsV(percent, negative) => {
                 let n = if *negative { -1.0 } else { 1.0 };
                 let p = if *percent { 100.0 * n } else { 1.0 * n };
-                states
+                data.all
                     .iter()
-                    .map(|s| p * s.strain.as_ref().unwrap().invariant_eps_v())
+                    .map(|s| match s.eps_v {
+                        Some(x) => Ok(p * x),
+                        None => Err("volumetric strain is not available"),
+                    })
                     .collect()
             }
             Self::EpsD(percent) => {
                 let p = if *percent { 100.0 } else { 1.0 };
-                states
+                data.all
                     .iter()
-                    .map(|s| p * s.strain.as_ref().unwrap().invariant_eps_d())
+                    .map(|s| match s.eps_d {
+                        Some(x) => Ok(p * x),
+                        None => Err("deviatoric strain is not available"),
+                    })
                     .collect()
             }
-            Self::SigM(negative) => {
-                let n = if *negative { -1.0 } else { 1.0 };
-                states.iter().map(|s| n * s.stress.invariant_sigma_m()).collect()
-            }
-            Self::SigD(normalized) => {
-                if *normalized {
-                    states
-                        .iter()
-                        .map(|s| s.stress.invariant_sigma_d() / f64::abs(s.stress.invariant_sigma_m()))
-                        .collect()
-                } else {
-                    states.iter().map(|s| s.stress.invariant_sigma_d()).collect()
-                }
-            }
-            Self::Index => states.iter().enumerate().map(|(i, _)| i as f64).collect(),
-            Self::Yield => states.iter().map(|s| s.yield_value).collect(),
-            Self::OctX => Vec::new(),
-            Self::OctY => Vec::new(),
+            Self::Yield => data
+                .all
+                .iter()
+                .map(|s| match s.yield_value {
+                    Some(x) => Ok(x),
+                    None => Err("yield function value is not available"),
+                })
+                .collect(),
+            Self::Time => data
+                .all
+                .iter()
+                .map(|s| match s.pseudo_time {
+                    Some(x) => Ok(x),
+                    None => Err("pseudo time is not available"),
+                })
+                .collect(),
         }
     }
 
     /// Generates labels for the axis
     pub(crate) fn label(&self) -> String {
         match self {
-            Self::EpsV(percent, negative) => {
-                let n = if *negative { "-" } else { "" };
-                let p = if *percent { "\\;[\\%]" } else { "" };
-                format!("${}\\varepsilon_v{}$", n, p)
-            }
-            Self::EpsD(percent) => {
-                let p = if *percent { "\\;[\\%]" } else { "" };
-                format!("$\\varepsilon_d{}$", p)
-            }
             Self::SigM(negative) => {
                 let n = if *negative { "-" } else { "" };
                 format!("${}\\sigma_m$", n)
@@ -95,38 +104,22 @@ impl Axis {
                     "$\\sigma_d$".to_string()
                 }
             }
-            Self::Index => "index".to_string(),
-            Self::Yield => "yield function".to_string(),
+            Self::Lode => "$\\ell$".to_string(),
             Self::OctX => "".to_string(),
             Self::OctY => "".to_string(),
+            Self::EpsV(percent, negative) => {
+                let n = if *negative { "-" } else { "" };
+                let p = if *percent { "\\;[\\%]" } else { "" };
+                format!("${}\\varepsilon_v{}$", n, p)
+            }
+            Self::EpsD(percent) => {
+                let p = if *percent { "\\;[\\%]" } else { "" };
+                format!("$\\varepsilon_d{}$", p)
+            }
+            Self::Yield => "yield function".to_string(),
+            Self::Time => "pseudo time".to_string(),
         }
     }
-}
-
-/// Calculates octahedral coordinates
-///
-/// Returns `(x, y, r_max)`
-pub(crate) fn calc_oct_coords(states: &[LocalState]) -> Result<(Vec<f64>, Vec<f64>, f64), StrError> {
-    let n = states.len();
-    if n < 1 {
-        return Err("the array of states must have at least one entry");
-    }
-    let two_dim = states[0].stress.mandel().two_dim();
-    let mut spectral = Spectral2::new(two_dim);
-    let mut xx = vec![0.0; n];
-    let mut yy = vec![0.0; n];
-    let mut r_max = 0.0;
-    for i in 0..n {
-        spectral.decompose(&states[i].stress)?;
-        let (y, _, x) = spectral.octahedral_basis();
-        xx[i] = x;
-        yy[i] = y;
-        let r = f64::sqrt(x * x + y * y);
-        if r > r_max {
-            r_max = r;
-        }
-    }
-    Ok((xx, yy, r_max))
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -134,9 +127,9 @@ pub(crate) fn calc_oct_coords(states: &[LocalState]) -> Result<(Vec<f64>, Vec<f6
 #[cfg(test)]
 mod tests {
     use super::Axis;
-    use crate::material::{calc_oct_coords, testing::generate_stress_strain_array, LocalState};
-    use russell_lab::{approx_eq, array_approx_eq, assert_alike, math::PI};
-    use russell_tensor::{Mandel, Tensor2};
+    use crate::material::testing::generate_stress_strain_array;
+    use crate::material::PlotterData;
+    use russell_lab::{array_approx_eq, assert_alike};
     use std::collections::HashSet;
 
     #[test]
@@ -151,89 +144,75 @@ mod tests {
     }
 
     #[test]
-    fn calc_and_label_work() {
-        let data = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
+    fn array_and_label_work() {
+        let lode = 1.0;
+        let states = generate_stress_strain_array(true, 1000.0, 600.0, lode);
+        let data = PlotterData::new(&states);
 
-        let axis = Axis::EpsV(false, false);
-        let epsv = axis.calc(&data);
-        array_approx_eq(&epsv, &[0.0, 0.001, 0.002], 1e-15);
-        assert_eq!(axis.label(), "$\\varepsilon_v$");
-
-        let axis = Axis::EpsV(true, false);
-        let epsv = axis.calc(&data);
-        array_approx_eq(&epsv, &[0.0, 0.1, 0.2], 1e-15);
-        assert_eq!(axis.label(), "$\\varepsilon_v\\;[\\%]$");
-
-        let axis = Axis::EpsV(true, true);
-        let epsv = axis.calc(&data);
-        array_approx_eq(&epsv, &[0.0, -0.1, -0.2], 1e-15);
-        assert_eq!(axis.label(), "$-\\varepsilon_v\\;[\\%]$");
-
-        let axis = Axis::EpsD(false);
-        let epsd = axis.calc(&data);
-        array_approx_eq(&epsd, &[0.0, 0.005, 0.01], 1e-15);
-        assert_eq!(axis.label(), "$\\varepsilon_d$");
-
-        let axis = Axis::EpsD(true);
-        let epsd = axis.calc(&data);
-        array_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
-        assert_eq!(axis.label(), "$\\varepsilon_d\\;[\\%]$");
+        // stress
 
         let axis = Axis::SigM(false);
-        let sigm = axis.calc(&data);
+        let sigm = axis.array(&data).unwrap();
         array_approx_eq(&sigm, &[0.0, 1.0, 2.0], 1e-14);
         assert_eq!(axis.label(), "$\\sigma_m$");
 
         let axis = Axis::SigM(true);
-        let sigm = axis.calc(&data);
+        let sigm = axis.array(&data).unwrap();
         array_approx_eq(&sigm, &[0.0, -1.0, -2.0], 1e-14);
         assert_eq!(axis.label(), "$-\\sigma_m$");
 
         let axis = Axis::SigD(false);
-        let sigd = axis.calc(&data);
+        let sigd = axis.array(&data).unwrap();
         array_approx_eq(&sigd, &[0.0, 9.0, 18.0], 1e-14);
         assert_eq!(axis.label(), "$\\sigma_d$");
 
         let axis = Axis::SigD(true);
-        let sigd = axis.calc(&data);
+        let sigd = axis.array(&data).unwrap();
         assert_alike(sigd[0], f64::NAN); // <<<<<<<<< note NAN
         array_approx_eq(&sigd[1..], &[9.0, 9.0], 1e-14); // <<<<<<<<< note without NAN
         assert_eq!(axis.label(), "$\\sigma_d\\,/\\,|\\sigma_m|$");
 
-        let axis = Axis::Index;
-        let indices = axis.calc(&data);
-        assert_eq!(indices, &[0.0, 1.0, 2.0]);
+        let axis = Axis::Lode;
+        let ell = axis.array(&data).unwrap();
+        assert_alike(ell[0], f64::NAN); // <<<<<<<<< note NAN
+        array_approx_eq(&ell[1..], &[lode, lode], 1e-14); // <<<<<<<<< note without NAN
+        assert_eq!(axis.label(), "$\\ell$");
+
+        // strain
+
+        let axis = Axis::EpsV(false, false);
+        let epsv = axis.array(&data).unwrap();
+        array_approx_eq(&epsv, &[0.0, 0.001, 0.002], 1e-15);
+        assert_eq!(axis.label(), "$\\varepsilon_v$");
+
+        let axis = Axis::EpsV(true, false);
+        let epsv = axis.array(&data).unwrap();
+        array_approx_eq(&epsv, &[0.0, 0.1, 0.2], 1e-15);
+        assert_eq!(axis.label(), "$\\varepsilon_v\\;[\\%]$");
+
+        let axis = Axis::EpsV(true, true);
+        let epsv = axis.array(&data).unwrap();
+        array_approx_eq(&epsv, &[0.0, -0.1, -0.2], 1e-15);
+        assert_eq!(axis.label(), "$-\\varepsilon_v\\;[\\%]$");
+
+        let axis = Axis::EpsD(false);
+        let epsd = axis.array(&data).unwrap();
+        array_approx_eq(&epsd, &[0.0, 0.005, 0.01], 1e-15);
+        assert_eq!(axis.label(), "$\\varepsilon_d$");
+
+        let axis = Axis::EpsD(true);
+        let epsd = axis.array(&data).unwrap();
+        array_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
+        assert_eq!(axis.label(), "$\\varepsilon_d\\;[\\%]$");
+
+        // others
 
         let axis = Axis::Yield;
-        let yield_values = axis.calc(&data);
-        assert_eq!(yield_values, &[-9.0, 0.0, 9.0]);
-    }
+        assert_eq!(axis.label(), "yield function");
+        assert_eq!(axis.array(&data).err(), Some("yield function value is not available"));
 
-    #[test]
-    fn calc_oct_coords_works() {
-        // generate states
-        let lode = 0.0;
-        let theta = f64::acos(lode) / 3.0;
-        let alpha = PI / 2.0 - theta;
-        let distance = 1.0;
-        let radius = 2.0;
-        let two_dim = true;
-        let mandel = Mandel::Symmetric;
-        let mut state_a = LocalState::new(mandel, 0);
-        let mut state_b = LocalState::new(mandel, 0);
-        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
-        state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, two_dim).unwrap();
-
-        // calculate projection
-        let data = [state_a, state_b];
-        let (xx, yy, r_max) = calc_oct_coords(&data).unwrap();
-        approx_eq(r_max, 2.0 * radius, 1e-15);
-        for i in 0..data.len() {
-            let r = f64::sqrt(xx[i] * xx[i] + yy[i] * yy[i]);
-            let m = (i + 1) as f64;
-            approx_eq(r, m * radius, 1e-15);
-            approx_eq(xx[i], m * radius * f64::cos(alpha), 1e-15);
-            approx_eq(yy[i], m * radius * f64::sin(alpha), 1e-14);
-        }
+        let axis = Axis::Time;
+        assert_eq!(axis.label(), "pseudo time");
+        assert_eq!(axis.array(&data).err(), Some("pseudo time is not available"));
     }
 }

@@ -22,9 +22,6 @@ pub struct LocalState {
     /// Holds the algorithmic lagrange multiplier (Λ) for implicit methods
     pub algo_lagrange: f64,
 
-    /// Holds the result of an yield function evaluation (plasticity models only)
-    pub yield_value: f64,
-
     /// (optional) Holds the strain tensor ε
     pub strain: Option<Tensor2>,
 }
@@ -38,7 +35,6 @@ impl LocalState {
             elastic: true,
             algo_apex_return: false,
             algo_lagrange: 0.0,
-            yield_value: 0.0,
             strain: None,
         }
     }
@@ -55,7 +51,6 @@ impl LocalState {
         self.elastic = other.elastic;
         self.algo_apex_return = other.algo_apex_return;
         self.algo_lagrange = other.algo_lagrange;
-        self.yield_value = other.yield_value;
     }
 
     /// Resets the algorithmic variables such as the Lagrange multiplier

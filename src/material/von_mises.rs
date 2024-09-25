@@ -76,13 +76,12 @@ impl StressStrainTrait for VonMises {
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
         state.internal_values[0] = self.z0;
-        let f = self.yield_function(state)?;
         if !self.allow_initial_drift {
+            let f = self.yield_function(state)?;
             if f > 0.0 {
                 return Err("stress is outside the yield surface");
             }
         }
-        state.yield_value = f;
         Ok(())
     }
 
@@ -135,7 +134,6 @@ impl StressStrainTrait for VonMises {
         // elastic update
         let f_trial = self.yield_function(state)?;
         if f_trial <= 0.0 {
-            state.yield_value = f_trial;
             return Ok(());
         }
 
@@ -163,7 +161,6 @@ impl StressStrainTrait for VonMises {
         state.elastic = false;
         state.algo_lagrange = lambda;
         state.internal_values[0] = state.stress.invariant_sigma_d();
-        state.yield_value = self.yield_function(state)?;
         Ok(())
     }
 }
@@ -248,7 +245,6 @@ mod tests {
         let n_internal_values = model.n_internal_values();
         let mut state = LocalState::new(ideal.mandel(), n_internal_values);
         model.initialize_internal_values(&mut state).unwrap();
-        assert_eq!(state.yield_value, -Z0);
 
         // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
@@ -271,7 +267,6 @@ mod tests {
         let mut state = LocalState::new(ideal.mandel(), model.n_internal_values());
         model.initialize_internal_values(&mut state).unwrap();
         assert_eq!(state.internal_values.as_data(), &[Z0]);
-        assert_eq!(state.yield_value, -Z0);
     }
 
     #[test]
@@ -288,7 +283,6 @@ mod tests {
                 assert_eq!(state.internal_values.as_data(), &[Z0]);
                 assert_eq!(state.elastic, true);
                 assert_eq!(state.algo_lagrange, 0.0);
-                approx_eq(state.yield_value, 0.0, 1e-14);
             }
         }
     }
@@ -327,7 +321,6 @@ mod tests {
             approx_eq(state.internal_values[0], correct_sigma_d, 1e-14);
             assert_eq!(state.elastic, false);
             assert!(state.algo_lagrange > 0.0);
-            approx_eq(state.yield_value, 0.0, 1e-14);
         }
     }
 
