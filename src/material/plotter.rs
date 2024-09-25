@@ -90,8 +90,11 @@ pub struct Plotter<'a> {
     /// Maximum number of columns of the legend in the tabular layouts
     tab_leg_ncol: usize,
 
-    /// Selected pair for the fourth subplot in the tabular layouts
-    tab_selected_axes: (Axis, Axis),
+    /// Selected pair for the fourth subplot in the 2x2 tabular layout
+    tab_selected_2x2: (Axis, Axis),
+
+    /// Selected pair for the fourth subplot in the 3x2 tabular layout
+    tab_selected_3x2: (Axis, Axis),
 }
 
 impl<'a> Plotter<'a> {
@@ -126,7 +129,8 @@ impl<'a> Plotter<'a> {
             tab_3x2_fig_size: (600.0, 800.0),
             tab_leg_index: 3,
             tab_leg_ncol: 3,
-            tab_selected_axes: (Axis::EpsV(true, false), Axis::SigM(false)),
+            tab_selected_2x2: (Axis::EpsV(true, false), Axis::SigM(false)),
+            tab_selected_3x2: (Axis::EpsV(true, false), Axis::SigD(false)),
         }
     }
 
@@ -164,9 +168,15 @@ impl<'a> Plotter<'a> {
         self
     }
 
-    /// Sets the axes for the selected (fourth) subplot in the grid layout
-    pub fn set_layout_selected(&mut self, x: Axis, y: Axis) -> &mut Self {
-        self.tab_selected_axes = (x, y);
+    /// Sets the axes for the selected (fourth) subplot in the 2x2 tabular format
+    pub fn set_layout_selected_2x2(&mut self, x: Axis, y: Axis) -> &mut Self {
+        self.tab_selected_2x2 = (x, y);
+        self
+    }
+
+    /// Sets the axes for the selected (fourth) subplot in the 3x2 tabular format
+    pub fn set_layout_selected_3x2(&mut self, x: Axis, y: Axis) -> &mut Self {
+        self.tab_selected_3x2 = (x, y);
         self
     }
 
@@ -269,7 +279,7 @@ impl<'a> Plotter<'a> {
         let eps_d = Axis::EpsD(percent);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
-            vec![(eps_d, sig_d), self.tab_selected_axes],
+            vec![(eps_d, sig_d), self.tab_selected_2x2],
         ];
         for row in &axes {
             for (x, y) in row {
@@ -285,7 +295,7 @@ impl<'a> Plotter<'a> {
     /// | row\col |     0      |     1      |
     /// |:-------:|:----------:|:----------:|
     /// |    0    | σm-σd path | octahedral |
-    /// |    1    |  (εd, σd)  | yield-func |
+    /// |    1    |  (εd, σd)  |  (εv, σd)  |
     /// |    2    |  (εd, εv)  |  (σm, εv)  |
     ///  
     /// # Input
@@ -306,7 +316,7 @@ impl<'a> Plotter<'a> {
         let sig_d = Axis::SigD(normalized);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
-            vec![(eps_d, sig_d), self.tab_selected_axes],
+            vec![(eps_d, sig_d), self.tab_selected_3x2],
             vec![(eps_d, eps_v), (sig_m, eps_v)],
         ];
         for row in &axes {
