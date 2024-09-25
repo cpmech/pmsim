@@ -36,7 +36,7 @@ pub struct ElementSolid<'a> {
     ///  Δε @ ip
     delta_strain: Tensor2,
 
-    /// Indicates the calculation of strains is performed (not just the increment of strains)
+    /// Indicates that the calculation of strains is performed (not just the increment of strains)
     save_strain: bool,
 
     /// Indicates that the recording of local history is enabled
