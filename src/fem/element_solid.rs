@@ -342,7 +342,7 @@ mod tests {
             nonlin_elast: None,
             stress_update: None,
         };
-        p1.enable_save_strain();
+        p1.set_save_strain(true);
 
         // strain magnitude (either ε_xx, ε_yy, or ε_xy)
         const STRAIN: f64 = 4.56;

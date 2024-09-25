@@ -273,10 +273,10 @@ pub struct ParamNonlinElast {
 /// Holds data to control the stress update algorithms
 #[derive(Clone, Copy, Debug)]
 pub struct ParamStressUpdate {
-    /// Use the general formulation instead of the specialized formulation
+    /// Enables the general formulation instead of the specialized formulation
     pub general_plasticity: bool,
 
-    /// ODE method (general plasticity only)
+    /// Defines the ODE method for stress-update with general plasticity
     pub ode_method: Method,
 
     /// The maximum degree of the interpolant for the yield function intersection (general plasticity only)
@@ -288,12 +288,10 @@ pub struct ParamStressUpdate {
     pub allow_initial_drift: bool,
 
     /// Enables the recording of the strain tensor
-    pub(crate) save_strain: bool,
+    pub save_strain: bool,
 
-    /// Enables the recording of the stress-strain history
-    ///
-    /// Note: this flag will also enable strain recording.
-    pub(crate) save_history: bool,
+    /// Enables the recording of the stress-strain history (general plasticity only)
+    pub save_history: bool,
 }
 
 /// Holds parameters for solid media mechanics simulations
@@ -583,26 +581,73 @@ impl ParamSolid {
         self.stress_strain.n_internal_values()
     }
 
-    /// Enables the recording of strain
-    pub fn enable_save_strain(&mut self) -> &mut Self {
+    /// Enables general plasticity formulation
+    pub fn set_general_plasticity(&mut self, flag: bool) -> &mut Self {
         match self.stress_update.as_mut() {
-            Some(su) => su.save_strain = true,
+            Some(su) => su.general_plasticity = flag,
             None => {
                 self.stress_update = Some(ParamStressUpdate::new());
-                self.stress_update.as_mut().unwrap().save_strain = true;
+                self.stress_update.as_mut().unwrap().general_plasticity = flag;
             }
         }
         self
     }
 
-    /// Enables the recording of stress-update history
-    pub fn enable_save_history(&mut self) -> &mut Self {
+    /// Sets the ODE method for stress-update with general plasticity
+    pub fn set_ode_method(&mut self, method: Method) -> &mut Self {
         match self.stress_update.as_mut() {
-            Some(su) => su.save_history = true,
+            Some(su) => su.ode_method = method,
             None => {
                 self.stress_update = Some(ParamStressUpdate::new());
-                self.stress_update.as_mut().unwrap().save_strain = true;
-                self.stress_update.as_mut().unwrap().save_history = true;
+                self.stress_update.as_mut().unwrap().ode_method = method;
+            }
+        }
+        self
+    }
+
+    /// Sets the maximum degree of the interpolant for the yield function intersection (general plasticity only)
+    pub fn set_interp_nn_max(&mut self, nn_max: usize) -> &mut Self {
+        match self.stress_update.as_mut() {
+            Some(su) => su.interp_nn_max = nn_max,
+            None => {
+                self.stress_update = Some(ParamStressUpdate::new());
+                self.stress_update.as_mut().unwrap().interp_nn_max = nn_max;
+            }
+        }
+        self
+    }
+
+    /// Allows an initial yield surface drift (e.g., for debugging)
+    pub fn set_allow_initial_drift(&mut self, flag: bool) -> &mut Self {
+        match self.stress_update.as_mut() {
+            Some(su) => su.allow_initial_drift = flag,
+            None => {
+                self.stress_update = Some(ParamStressUpdate::new());
+                self.stress_update.as_mut().unwrap().allow_initial_drift = flag;
+            }
+        }
+        self
+    }
+
+    /// Enables the recording of the strain tensor
+    pub fn set_save_strain(&mut self, flag: bool) -> &mut Self {
+        match self.stress_update.as_mut() {
+            Some(su) => su.save_strain = flag,
+            None => {
+                self.stress_update = Some(ParamStressUpdate::new());
+                self.stress_update.as_mut().unwrap().save_strain = flag;
+            }
+        }
+        self
+    }
+
+    /// Enables the recording of the stress-strain history (general plasticity only)
+    pub fn set_save_history(&mut self, flag: bool) -> &mut Self {
+        match self.stress_update.as_mut() {
+            Some(su) => su.save_history = flag,
+            None => {
+                self.stress_update = Some(ParamStressUpdate::new());
+                self.stress_update.as_mut().unwrap().save_history = flag;
             }
         }
         self

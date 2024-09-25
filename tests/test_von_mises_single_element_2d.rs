@@ -71,7 +71,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         nonlin_elast: None,
         stress_update: None,
     };
-    p1.enable_save_strain();
+    p1.set_save_strain(true).set_save_history(true);
     let input = FemInput::new(&mesh, [(att, Element::Solid(p1))])?;
 
     // essential boundary conditions
