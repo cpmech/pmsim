@@ -1,4 +1,5 @@
 use gemlab::prelude::*;
+use plotpy::{Curve, Plot};
 use pmsim::prelude::*;
 use russell_lab::math::{erfc, PI};
 use russell_lab::*;
@@ -36,6 +37,8 @@ use russell_lab::*;
 
 const NAME: &str = "test_heat_lewis_transient_1d";
 
+const SAVE_FIGURE: bool = false;
+
 #[test]
 fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     // mesh
@@ -66,7 +69,8 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_transient(true).set_dt(|_| 0.1).set_t_fin(1.0);
+    let t_fin = 1.0;
+    config.set_transient(true).set_dt(|_| 0.1).set_t_fin(t_fin);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
@@ -96,6 +100,34 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
         assert!(diff < 3e-2);
     }
+
+    // plot
+    if SAVE_FIGURE {
+        // compute analytical solution
+        let xx_ana = Vector::linspace(0.0, 2.0, 11)?;
+        let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
+
+        // get temperature values along x
+        let post = FemOutput::new(&input, None, None, None)?;
+        let (_, xx_num, tt_num) = post.values_along_x(&feat, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
+
+        // plot
+        let mut curve_ana = Curve::new();
+        let mut curve_num = Curve::new();
+        curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
+        curve_num
+            .set_line_color("#cd0000")
+            .set_line_style("None")
+            .set_marker_style("+");
+        curve_num.draw(&xx_num, &tt_num);
+        let mut plot = Plot::new();
+        plot.add(&curve_ana).add(&curve_num);
+        plot.grid_and_labels("x", "T")
+            .set_yrange(0.0, 1.2)
+            .legend()
+            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+    }
+
     Ok(())
 }
 
@@ -111,7 +143,7 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
-        mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
+        mesh.draw(None, &format!("{}/{}_mesh.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
             .unwrap();
         mesh
     } else {
