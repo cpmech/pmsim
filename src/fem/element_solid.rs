@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{calculate_strain, compute_local_to_global, Config, ParamSolid};
-use crate::material::{LocalState, StressStrain};
+use crate::material::{LocalState, StressStrainModel};
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -29,7 +29,7 @@ pub struct ElementSolid<'a> {
     pub ips: integ::IntegPointData,
 
     /// Stress-strain model
-    pub model: StressStrain,
+    pub model: StressStrainModel,
 
     /// (temporary) Strain increment at integration point
     ///
@@ -64,7 +64,7 @@ impl<'a> ElementSolid<'a> {
         let ips = config.integ_point_data(cell)?;
 
         // material model
-        let model = StressStrain::new(&config.ideal, param)?;
+        let model = StressStrainModel::new(&config.ideal, param)?;
 
         // auxiliary strain increment tensor
         let mandel = config.ideal.mandel();

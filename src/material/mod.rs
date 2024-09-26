@@ -11,7 +11,7 @@ mod local_state_porous_sld_liq;
 mod plasticity_trait;
 mod plotter;
 mod plotter_data;
-mod stress_strain;
+mod stress_strain_model;
 mod testing;
 mod von_mises;
 
@@ -26,5 +26,5 @@ pub use local_state_porous_sld_liq::*;
 pub use plasticity_trait::*;
 pub use plotter::*;
 pub use plotter_data::*;
-pub use stress_strain::*;
+pub use stress_strain_model::*;
 pub use von_mises::*;
