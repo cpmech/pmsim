@@ -1,11 +1,11 @@
-use crate::base::ParamConductivity;
+use crate::base::Conductivity;
 use crate::StrError;
 use russell_tensor::Tensor2;
 
 /// Implements conductivity models
 pub struct ModelConductivity<'a> {
     /// Material parameters
-    param: &'a ParamConductivity,
+    param: &'a Conductivity,
 
     /// Indicates a 2D conductivity tensor
     two_dim: bool,
@@ -16,11 +16,11 @@ pub struct ModelConductivity<'a> {
 
 impl<'a> ModelConductivity<'a> {
     /// Allocates a new instance
-    pub fn new(param: &'a ParamConductivity, two_dim: bool) -> Self {
+    pub fn new(param: &'a Conductivity, two_dim: bool) -> Self {
         let variable_k = match param {
-            ParamConductivity::Constant { .. } => false,
-            ParamConductivity::IsotropicLinear { .. } => true,
-            ParamConductivity::PedrosoZhangEhlers { .. } => true,
+            Conductivity::Constant { .. } => false,
+            Conductivity::IsotropicLinear { .. } => true,
+            Conductivity::PedrosoZhangEhlers { .. } => true,
         };
         ModelConductivity {
             param,
@@ -43,14 +43,14 @@ impl<'a> ModelConductivity<'a> {
     pub fn calc_k(&self, k: &mut Tensor2, phi: f64) -> Result<(), StrError> {
         k.clear();
         match self.param {
-            ParamConductivity::Constant { kx, ky, kz } => {
+            Conductivity::Constant { kx, ky, kz } => {
                 k.sym_set(0, 0, *kx);
                 k.sym_set(1, 1, *ky);
                 if !self.two_dim {
                     k.sym_set(2, 2, *kz);
                 }
             }
-            ParamConductivity::IsotropicLinear { kr, beta } => {
+            Conductivity::IsotropicLinear { kr, beta } => {
                 // k = (1 + β T) kᵣ I   (I is the identity tensor)
                 let val = (1.0 + beta * phi) * kr;
                 k.sym_set(0, 0, val);
@@ -68,8 +68,8 @@ impl<'a> ModelConductivity<'a> {
     pub fn calc_dk_dphi(&self, dk_dphi: &mut Tensor2, _phi: f64) -> Result<(), StrError> {
         dk_dphi.clear();
         match self.param {
-            ParamConductivity::Constant { .. } => (),
-            ParamConductivity::IsotropicLinear { kr, beta } => {
+            Conductivity::Constant { .. } => (),
+            Conductivity::IsotropicLinear { kr, beta } => {
                 // k = (1 + β T) kᵣ I   →  ∂k/∂ϕ = ∂k/∂T = β kᵣ I
                 let val = beta * kr;
                 dk_dphi.sym_set(0, 0, val);
@@ -89,13 +89,13 @@ impl<'a> ModelConductivity<'a> {
 #[cfg(test)]
 mod tests {
     use super::ModelConductivity;
-    use crate::base::ParamConductivity;
+    use crate::base::Conductivity;
     use russell_lab::{approx_eq, deriv1_central5};
     use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn derivative_works() {
-        let param = ParamConductivity::IsotropicLinear { kr: 20.0, beta: 0.5 };
+        let param = Conductivity::IsotropicLinear { kr: 20.0, beta: 0.5 };
         let model = ModelConductivity::new(&param, true);
 
         let phi_ini = 100.0;

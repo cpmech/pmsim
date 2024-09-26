@@ -51,7 +51,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     // input data
     let p1 = ParamDiffusion {
         rho: 1.0,
-        conductivity: ParamConductivity::Constant {
+        conductivity: Conductivity::Constant {
             kx: 1.0,
             ky: 1.0,
             kz: 1.0,

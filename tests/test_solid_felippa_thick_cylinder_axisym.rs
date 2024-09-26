@@ -55,7 +55,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: YOUNG,
             poisson: POISSON,
         },

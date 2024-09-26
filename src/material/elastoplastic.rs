@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use super::{LocalState, PlasticityTrait, StressStrainTrait, VonMises};
-use crate::base::{Idealization, ParamNonlinElast, ParamSolid, ParamStressStrain, ParamStressUpdate};
+use crate::base::{Idealization, ParamNonlinElast, ParamSolid, ParamStressUpdate, StressStrain};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
 use russell_ode::{OdeSolver, Params, System};
@@ -123,7 +123,7 @@ impl<'a> Elastoplastic<'a> {
         // plasticity model
         let ini_drift = su_param.allow_initial_drift;
         let model: Box<dyn PlasticityTrait> = match param.stress_strain {
-            ParamStressStrain::VonMises {
+            StressStrain::VonMises {
                 young,
                 poisson,
                 z_ini,

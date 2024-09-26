@@ -3,7 +3,7 @@ use russell_ode::Method;
 
 /// Holds parameters for stress-strain relations (total or effective stress)
 #[derive(Clone, Copy, Debug)]
-pub enum ParamStressStrain {
+pub enum StressStrain {
     /// Linear elastic model
     LinearElastic {
         /// Young's modulus
@@ -67,7 +67,7 @@ pub enum ParamStressStrain {
 
 /// Holds parameters for liquid-retention models
 #[derive(Clone, Copy, Debug)]
-pub enum ParamLiquidRetention {
+pub enum LiquidRetention {
     BrooksCorey {
         /// Slope coefficient
         lambda: f64,
@@ -138,7 +138,7 @@ pub enum ParamLiquidRetention {
 
 /// Holds parameters for liquid or gas conductivity
 #[derive(Clone, Copy, Debug)]
-pub enum ParamConductivity {
+pub enum Conductivity {
     Constant {
         /// x-component of the conductivity tensor
         kx: f64,
@@ -215,7 +215,7 @@ pub struct ParamDiffusion {
     pub rho: f64,
 
     /// Conductivity parameters
-    pub conductivity: ParamConductivity,
+    pub conductivity: Conductivity,
 
     /// Source term
     pub source: Option<f64>,
@@ -302,7 +302,7 @@ pub struct ParamSolid {
     pub density: f64,
 
     /// Parameters for the stress-strain model
-    pub stress_strain: ParamStressStrain,
+    pub stress_strain: StressStrain,
 
     /// Options for nonlinear elasticity
     pub nonlin_elast: Option<ParamNonlinElast>,
@@ -318,10 +318,10 @@ pub struct ParamPorousLiq {
     pub porosity_initial: f64,
 
     /// Liquid retention model Cc = dsl/dpc
-    pub retention_liquid: ParamLiquidRetention,
+    pub retention_liquid: LiquidRetention,
 
     /// Liquid conductivity kl
-    pub conductivity_liquid: ParamConductivity,
+    pub conductivity_liquid: Conductivity,
 }
 
 /// Holds parameters for seepage simulations with liquid and gas
@@ -331,13 +331,13 @@ pub struct ParamPorousLiqGas {
     pub porosity_initial: f64,
 
     /// Liquid retention model Cc = dsl/dpc
-    pub retention_liquid: ParamLiquidRetention,
+    pub retention_liquid: LiquidRetention,
 
     /// Liquid conductivity kl
-    pub conductivity_liquid: ParamConductivity,
+    pub conductivity_liquid: Conductivity,
 
     /// Gas conductivity kg
-    pub conductivity_gas: ParamConductivity,
+    pub conductivity_gas: Conductivity,
 }
 
 /// Holds parameters for porous media mechanics simulations with solid and liquid
@@ -354,13 +354,13 @@ pub struct ParamPorousSldLiq {
     pub density_solid: f64,
 
     /// Effective stress model
-    pub stress_strain: ParamStressStrain,
+    pub stress_strain: StressStrain,
 
     /// Liquid retention model: `Cc = dsl/dpc`
-    pub retention_liquid: ParamLiquidRetention,
+    pub retention_liquid: LiquidRetention,
 
     /// Liquid conductivity: `kl`
-    pub conductivity_liquid: ParamConductivity,
+    pub conductivity_liquid: Conductivity,
 }
 
 /// Holds parameters for porous media mechanics simulations with solid, liquid, and gas
@@ -377,21 +377,21 @@ pub struct ParamPorousSldLiqGas {
     pub density_solid: f64,
 
     /// Effective stress model
-    pub stress_strain: ParamStressStrain,
+    pub stress_strain: StressStrain,
 
     /// Liquid retention model: `Cc = dsl/dpc`
-    pub retention_liquid: ParamLiquidRetention,
+    pub retention_liquid: LiquidRetention,
 
     /// Liquid conductivity: `kl`
-    pub conductivity_liquid: ParamConductivity,
+    pub conductivity_liquid: Conductivity,
 
     /// Gas conductivity `kg`
-    pub conductivity_gas: ParamConductivity,
+    pub conductivity_gas: Conductivity,
 }
 
 // implementations --------------------------------------------------------------------------------
 
-impl ParamStressStrain {
+impl StressStrain {
     /// Returns the number of internal values used by the model
     pub fn n_internal_values(&self) -> usize {
         match self {
@@ -421,7 +421,7 @@ impl ParamStressStrain {
     }
 }
 
-impl ParamLiquidRetention {
+impl LiquidRetention {
     /// Returns BrooksCorey sample parameters
     pub fn sample_brooks_corey() -> Self {
         Self::BrooksCorey {
@@ -450,7 +450,7 @@ impl ParamLiquidRetention {
     }
 }
 
-impl ParamConductivity {
+impl Conductivity {
     /// Returns Constant sample parameters
     pub fn sample_constant() -> Self {
         Self::Constant {
@@ -520,7 +520,7 @@ impl ParamDiffusion {
     pub fn sample() -> Self {
         ParamDiffusion {
             rho: 1.0,
-            conductivity: ParamConductivity::sample_constant(),
+            conductivity: Conductivity::sample_constant(),
             source: None,
         }
     }
@@ -658,7 +658,7 @@ impl ParamSolid {
     pub fn sample_linear_elastic() -> Self {
         ParamSolid {
             density: 1.0,
-            stress_strain: ParamStressStrain::sample_linear_elastic(),
+            stress_strain: StressStrain::sample_linear_elastic(),
             nonlin_elast: None,
             stress_update: None,
         }
@@ -668,7 +668,7 @@ impl ParamSolid {
     pub fn sample_von_mises() -> Self {
         ParamSolid {
             density: 1.0,
-            stress_strain: ParamStressStrain::sample_von_mises(),
+            stress_strain: StressStrain::sample_von_mises(),
             nonlin_elast: None,
             stress_update: None,
         }
@@ -680,8 +680,8 @@ impl ParamPorousLiq {
     pub fn sample_brooks_corey_constant() -> Self {
         ParamPorousLiq {
             porosity_initial: 0.4,
-            retention_liquid: ParamLiquidRetention::sample_brooks_corey(),
-            conductivity_liquid: ParamConductivity::sample_constant(),
+            retention_liquid: LiquidRetention::sample_brooks_corey(),
+            conductivity_liquid: Conductivity::sample_constant(),
         }
     }
 }
@@ -691,9 +691,9 @@ impl ParamPorousLiqGas {
     pub fn sample_brooks_corey_constant() -> Self {
         ParamPorousLiqGas {
             porosity_initial: 0.4,
-            retention_liquid: ParamLiquidRetention::sample_brooks_corey(),
-            conductivity_liquid: ParamConductivity::sample_constant(),
-            conductivity_gas: ParamConductivity::sample_constant(),
+            retention_liquid: LiquidRetention::sample_brooks_corey(),
+            conductivity_liquid: Conductivity::sample_constant(),
+            conductivity_gas: Conductivity::sample_constant(),
         }
     }
 }
@@ -712,9 +712,9 @@ impl ParamPorousSldLiq {
             earth_pres_coef_ini: kk0,
             porosity_initial: 0.4,
             density_solid: 2.7,
-            stress_strain: ParamStressStrain::sample_linear_elastic(),
-            retention_liquid: ParamLiquidRetention::sample_brooks_corey(),
-            conductivity_liquid: ParamConductivity::sample_constant(),
+            stress_strain: StressStrain::sample_linear_elastic(),
+            retention_liquid: LiquidRetention::sample_brooks_corey(),
+            conductivity_liquid: Conductivity::sample_constant(),
         }
     }
 }
@@ -733,10 +733,10 @@ impl ParamPorousSldLiqGas {
             earth_pres_coef_ini: kk0,
             porosity_initial: 0.4,
             density_solid: 2.7,
-            stress_strain: ParamStressStrain::sample_linear_elastic(),
-            retention_liquid: ParamLiquidRetention::sample_brooks_corey(),
-            conductivity_liquid: ParamConductivity::sample_constant(),
-            conductivity_gas: ParamConductivity::sample_constant(),
+            stress_strain: StressStrain::sample_linear_elastic(),
+            retention_liquid: LiquidRetention::sample_brooks_corey(),
+            conductivity_liquid: Conductivity::sample_constant(),
+            conductivity_gas: Conductivity::sample_constant(),
         }
     }
 }
@@ -749,36 +749,36 @@ mod tests {
 
     #[test]
     fn param_stress_strain_works() {
-        let p = ParamStressStrain::sample_linear_elastic();
+        let p = StressStrain::sample_linear_elastic();
         let q = p.clone();
         let correct = "LinearElastic { young: 1500.0, poisson: 0.25 }";
         assert_eq!(format!("{:?}", q), correct);
 
-        let p = ParamStressStrain::sample_von_mises();
+        let p = StressStrain::sample_von_mises();
         let correct = "VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z_ini: 9.0 }";
         assert_eq!(format!("{:?}", p), correct);
     }
 
     #[test]
     fn param_liquid_retention_works() {
-        let p = ParamLiquidRetention::sample_brooks_corey();
+        let p = LiquidRetention::sample_brooks_corey();
         let q = p.clone();
         let correct = "BrooksCorey { lambda: 0.1, pc_ae: 0.1, sl_min: 0.1, sl_max: 0.99 }";
         assert_eq!(format!("{:?}", q), correct);
 
-        let p = ParamLiquidRetention::sample_pedroso_williams();
+        let p = LiquidRetention::sample_pedroso_williams();
         let correct = "PedrosoWilliams { with_hysteresis: true, lambda_d: 3.0, lambda_w: 3.0, beta_d: 6.0, beta_w: 6.0, beta_1: 6.0, beta_2: 6.0, x_rd: 2.0, x_rw: 2.0, y_0: 1.0, y_r: 0.005 }";
         assert_eq!(format!("{:?}", p), correct);
     }
 
     #[test]
     fn param_conductivity_works() {
-        let p = ParamConductivity::sample_constant();
+        let p = Conductivity::sample_constant();
         let q = p.clone();
         let correct = "Constant { kx: 0.01, ky: 0.01, kz: 0.01 }";
         assert_eq!(format!("{:?}", q), correct);
 
-        let p = ParamConductivity::sample_pedroso_zhang_ehlers();
+        let p = Conductivity::sample_pedroso_zhang_ehlers();
         let correct = "PedrosoZhangEhlers { kx: 0.01, ky: 0.01, kz: 0.01, lambda_0: 0.001, lambda_1: 1.2, alpha: 0.01, beta: 10.0 }";
         assert_eq!(format!("{:?}", p), correct);
     }

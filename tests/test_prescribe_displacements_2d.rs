@@ -52,7 +52,7 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: YOUNG,
             poisson: POISSON,
         },

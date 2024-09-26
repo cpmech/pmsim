@@ -31,7 +31,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: YOUNG,
             poisson: POISSON,
         },
@@ -162,7 +162,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: YOUNG,
             poisson: POISSON,
         },

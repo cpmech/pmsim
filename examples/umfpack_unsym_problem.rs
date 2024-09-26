@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamSolid, ParamStressStrain};
+use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamSolid, StressStrain};
 use pmsim::fem::{Boundaries, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
 use russell_lab::*;
 use russell_sparse::prelude::*;
@@ -36,7 +36,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // material parameters
     let param1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: YOUNG,
             poisson: POISSON,
         },

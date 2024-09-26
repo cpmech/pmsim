@@ -1,5 +1,5 @@
 use super::{LoadingPath, LocalState};
-use crate::base::{ParamSolid, ParamStressStrain};
+use crate::base::{ParamSolid, StressStrain};
 use russell_lab::Vector;
 
 /// Generates an array of LocalState according to a linear elastic model for the VonMises model
@@ -43,7 +43,7 @@ pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
 #[allow(dead_code)]
 pub(crate) fn extract_von_mises_kk_gg_hh_z0(param: &ParamSolid) -> (f64, f64, f64, f64) {
     match param.stress_strain {
-        ParamStressStrain::VonMises {
+        StressStrain::VonMises {
             young,
             poisson,
             hh,

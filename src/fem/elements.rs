@@ -213,7 +213,7 @@ impl<'a> Elements<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Elements, GenericElement};
-    use crate::base::{Config, Element, ParamBeam, ParamConductivity, ParamPorousLiqGas};
+    use crate::base::{Config, Element, ParamBeam, Conductivity, ParamPorousLiqGas};
     use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::Samples;
@@ -305,7 +305,7 @@ mod tests {
         // variable conductivity
         let p1 = ParamDiffusion {
             rho: 1.0,
-            conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
+            conductivity: Conductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
             source: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();

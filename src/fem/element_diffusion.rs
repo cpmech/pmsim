@@ -240,7 +240,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Config, Element, ParamConductivity, ParamDiffusion};
+    use crate::base::{Conductivity, Config, Element, ParamDiffusion};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
@@ -262,7 +262,7 @@ mod tests {
         let p1 = if nonlinear {
             ParamDiffusion {
                 rho: 1.0,
-                conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
+                conductivity: Conductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
                 source: None,
             }
         } else {
@@ -350,7 +350,7 @@ mod tests {
         const KZ: f64 = 0.3;
         let p1 = ParamDiffusion {
             rho: 1.0,
-            conductivity: ParamConductivity::Constant { kx: KX, ky: KY, kz: KZ },
+            conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
             source: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
@@ -425,7 +425,7 @@ mod tests {
         const KZ: f64 = 0.3;
         let p1 = ParamDiffusion {
             rho: 1.0,
-            conductivity: ParamConductivity::Constant { kx: KX, ky: KY, kz: KZ },
+            conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
             source: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();

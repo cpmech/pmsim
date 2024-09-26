@@ -46,7 +46,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: 10_000.0,
             poisson: 0.2,
         },

@@ -61,7 +61,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // input data
     let p1 = ParamDiffusion {
         rho: 1.0,
-        conductivity: ParamConductivity::IsotropicLinear { kr: K_R, beta: BETA },
+        conductivity: Conductivity::IsotropicLinear { kr: K_R, beta: BETA },
         source: Some(SOURCE),
     };
     let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;

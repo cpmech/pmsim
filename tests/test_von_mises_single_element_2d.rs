@@ -62,7 +62,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // input data
     let mut p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::VonMises {
+        stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
             z_ini: Z_INI,

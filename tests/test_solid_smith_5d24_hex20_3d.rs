@@ -48,7 +48,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: 100.0,
             poisson: 0.3,
         },
@@ -57,7 +57,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     };
     let p2 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: 50.0,
             poisson: 0.3,
         },

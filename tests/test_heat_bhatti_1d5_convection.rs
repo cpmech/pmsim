@@ -51,7 +51,7 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     let (kx, ky) = (1.4, 1.4);
     let p1 = ParamDiffusion {
         rho: 1.0,
-        conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
+        conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
     let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;

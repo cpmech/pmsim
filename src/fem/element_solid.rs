@@ -250,7 +250,7 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Element, ParamSolid, ParamStressStrain};
+    use crate::base::{Config, Element, ParamSolid, StressStrain};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
@@ -280,7 +280,7 @@ mod tests {
         let poisson = 0.2; // [-]
         let p1 = ParamSolid {
             density: 2.7, // Mg/m²
-            stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+            stress_strain: StressStrain::LinearElastic { young, poisson },
             nonlin_elast: None,
             stress_update: None,
         };
@@ -328,7 +328,7 @@ mod tests {
         let poisson = 0.25;
         let mut p1 = ParamSolid {
             density: 1.0,
-            stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+            stress_strain: StressStrain::LinearElastic { young, poisson },
             nonlin_elast: None,
             stress_update: None,
         };
@@ -423,7 +423,7 @@ mod tests {
         let c = young / (1.0 - poisson * poisson);
         let p1 = ParamSolid {
             density: 1.0,
-            stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+            stress_strain: StressStrain::LinearElastic { young, poisson },
             nonlin_elast: None,
             stress_update: None,
         };
@@ -520,7 +520,7 @@ mod tests {
         let poisson = 0.25;
         let p1 = ParamSolid {
             density: 2.0,
-            stress_strain: ParamStressStrain::LinearElastic { young, poisson },
+            stress_strain: StressStrain::LinearElastic { young, poisson },
             nonlin_elast: None,
             stress_update: None,
         };

@@ -62,7 +62,7 @@ fn test_solid_smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: 1e6,
             poisson: 0.3,
         },

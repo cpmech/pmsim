@@ -1,5 +1,5 @@
 use super::{LinearElastic, LocalState, VonMises};
-use crate::base::{Idealization, ParamSolid, ParamStressStrain};
+use crate::base::{Idealization, ParamSolid, StressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
@@ -42,16 +42,16 @@ impl ModelStressStrain {
         };
         let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
             // Linear elastic model
-            ParamStressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(ideal, young, poisson)),
+            StressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(ideal, young, poisson)),
 
             // Modified Cambridge (Cam) clay model
-            ParamStressStrain::CamClay { .. } => panic!("TODO: CamClay"),
+            StressStrain::CamClay { .. } => panic!("TODO: CamClay"),
 
             // Drucker-Prager plasticity model
-            ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
+            StressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
 
             // von Mises plasticity model
-            ParamStressStrain::VonMises {
+            StressStrain::VonMises {
                 young,
                 poisson,
                 z_ini,
@@ -72,7 +72,7 @@ impl ModelStressStrain {
 #[cfg(test)]
 mod tests {
     use super::ModelStressStrain;
-    use crate::base::{Idealization, ParamSolid, ParamStressStrain};
+    use crate::base::{Idealization, ParamSolid, StressStrain};
 
     #[test]
     fn allocate_stress_strain_model_works() {
@@ -97,7 +97,7 @@ mod tests {
         let ideal = Idealization::new(2);
         let param = ParamSolid {
             density: 1.0,
-            stress_strain: ParamStressStrain::DruckerPrager {
+            stress_strain: StressStrain::DruckerPrager {
                 young: 1500.0,
                 poisson: 0.25,
                 c: 0.0,
