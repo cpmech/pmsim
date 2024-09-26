@@ -28,12 +28,12 @@ pub trait StressStrainTrait: Send {
 }
 
 /// Holds the actual stress-strain model implementation
-pub struct StressStrainModel {
+pub struct ModelStressStrain {
     /// Holds the actual model implementation
     pub actual: Box<dyn StressStrainTrait>,
 }
 
-impl StressStrainModel {
+impl ModelStressStrain {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &ParamSolid) -> Result<Self, StrError> {
         let allow_initial_drift = match param.stress_update {
@@ -63,7 +63,7 @@ impl StressStrainModel {
                 Box::new(VonMises::new(ideal, young, poisson, z_ini, hh, allow_initial_drift))
             }
         };
-        Ok(StressStrainModel { actual })
+        Ok(ModelStressStrain { actual })
     }
 }
 
@@ -71,24 +71,24 @@ impl StressStrainModel {
 
 #[cfg(test)]
 mod tests {
-    use super::StressStrainModel;
+    use super::ModelStressStrain;
     use crate::base::{Idealization, ParamSolid, ParamStressStrain};
 
     #[test]
     fn allocate_stress_strain_model_works() {
         let mut ideal = Idealization::new(2);
         let param = ParamSolid::sample_linear_elastic();
-        StressStrainModel::new(&ideal, &param).unwrap();
+        ModelStressStrain::new(&ideal, &param).unwrap();
 
         ideal.plane_stress = true;
         let param = ParamSolid::sample_von_mises();
         assert_eq!(
-            StressStrainModel::new(&ideal, &param,).err(),
+            ModelStressStrain::new(&ideal, &param,).err(),
             Some("von Mises model does not work in plane-stress")
         );
 
         ideal.plane_stress = false;
-        StressStrainModel::new(&ideal, &param).unwrap();
+        ModelStressStrain::new(&ideal, &param).unwrap();
     }
 
     #[test]
@@ -107,6 +107,6 @@ mod tests {
             nonlin_elast: None,
             stress_update: None,
         };
-        StressStrainModel::new(&ideal, &param).unwrap();
+        ModelStressStrain::new(&ideal, &param).unwrap();
     }
 }
