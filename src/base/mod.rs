@@ -14,19 +14,20 @@ mod natural;
 mod parameters;
 mod sample_meshes;
 mod testing;
-pub use crate::base::assembly::*;
-pub use crate::base::attributes::*;
-pub(crate) use crate::base::calculate_strain::*;
-pub use crate::base::config::*;
-pub use crate::base::constants::*;
-pub use crate::base::element_dofs::*;
-pub use crate::base::enums::*;
-pub use crate::base::equations::*;
-pub use crate::base::essential::*;
-pub use crate::base::idealization::*;
-pub use crate::base::natural::*;
-pub use crate::base::parameters::*;
-pub use crate::base::sample_meshes::*;
+
+pub use assembly::*;
+pub use attributes::*;
+pub(crate) use calculate_strain::*;
+pub use config::*;
+pub use constants::*;
+pub use element_dofs::*;
+pub use enums::*;
+pub use equations::*;
+pub use essential::*;
+pub use idealization::*;
+pub use natural::*;
+pub use parameters::*;
+pub use sample_meshes::*;
 
 #[allow(unused_imports)]
-pub(crate) use crate::base::testing::*;
+pub(crate) use testing::*;
