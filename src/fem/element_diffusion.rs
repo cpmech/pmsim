@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamDiffusion};
-use crate::material::Conductivity;
+use crate::material::ModelConductivity;
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -29,7 +29,7 @@ pub struct ElementDiffusion<'a> {
     pub ips: integ::IntegPointData,
 
     /// Conductivity model
-    pub model: Conductivity<'a>,
+    pub model: ModelConductivity<'a>,
 
     /// (temporary) Conductivity tensor at a single integration point
     pub conductivity: Tensor2,
@@ -61,7 +61,7 @@ impl<'a> ElementDiffusion<'a> {
         let ips = config.integ_point_data(cell)?;
 
         // material model
-        let model = Conductivity::new(&param.conductivity, ndim == 2);
+        let model = ModelConductivity::new(&param.conductivity, ndim == 2);
 
         // auxiliary conductivity tensor
         let conductivity = Tensor2::new_sym_ndim(ndim);
