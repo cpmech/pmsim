@@ -1,4 +1,4 @@
-use super::{LinearElastic, LocalState, VonMises};
+use super::{LinearElastic, LocalState, Settings, VonMises};
 use crate::base::{Idealization, ParamSolid, StressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
@@ -35,7 +35,7 @@ pub struct ModelStressStrain {
 
 impl ModelStressStrain {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, param: &ParamSolid) -> Result<Self, StrError> {
+    pub fn new(ideal: &Idealization, param: &ParamSolid, settings: Settings) -> Result<Self, StrError> {
         let allow_initial_drift = match param.stress_update {
             Some(su) => su.allow_initial_drift,
             None => false,
@@ -73,22 +73,24 @@ impl ModelStressStrain {
 mod tests {
     use super::ModelStressStrain;
     use crate::base::{Idealization, ParamSolid, StressStrain};
+    use crate::material::Settings;
 
     #[test]
     fn allocate_stress_strain_model_works() {
         let mut ideal = Idealization::new(2);
         let param = ParamSolid::sample_linear_elastic();
-        ModelStressStrain::new(&ideal, &param).unwrap();
+        let settings = Settings::new();
+        ModelStressStrain::new(&ideal, &param, settings).unwrap();
 
         ideal.plane_stress = true;
         let param = ParamSolid::sample_von_mises();
         assert_eq!(
-            ModelStressStrain::new(&ideal, &param,).err(),
+            ModelStressStrain::new(&ideal, &param, settings).err(),
             Some("von Mises model does not work in plane-stress")
         );
 
         ideal.plane_stress = false;
-        ModelStressStrain::new(&ideal, &param).unwrap();
+        ModelStressStrain::new(&ideal, &param, settings).unwrap();
     }
 
     #[test]
@@ -107,6 +109,7 @@ mod tests {
             nonlin_elast: None,
             stress_update: None,
         };
-        ModelStressStrain::new(&ideal, &param).unwrap();
+        let settings = Settings::new();
+        ModelStressStrain::new(&ideal, &param, settings).unwrap();
     }
 }

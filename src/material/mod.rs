@@ -12,6 +12,7 @@ mod model_stress_strain;
 mod plasticity_trait;
 mod plotter;
 mod plotter_data;
+mod settings;
 mod testing;
 mod von_mises;
 
@@ -27,4 +28,5 @@ pub use model_stress_strain::*;
 pub use plasticity_trait::*;
 pub use plotter::*;
 pub use plotter_data::*;
+pub use settings::*;
 pub use von_mises::*;

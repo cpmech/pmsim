@@ -64,7 +64,8 @@ impl<'a> ElementSolid<'a> {
         let ips = config.integ_point_data(cell)?;
 
         // material model
-        let model = ModelStressStrain::new(&config.ideal, param)?;
+        let settings = config.model_settings(cell.attribute);
+        let model = ModelStressStrain::new(&config.ideal, param, settings)?;
 
         // auxiliary strain increment tensor
         let mandel = config.ideal.mandel();

@@ -1,4 +1,5 @@
 use super::{Idealization, Init, ParamFluids};
+use crate::material::Settings;
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
@@ -76,6 +77,9 @@ pub struct Config<'a> {
     /// Holds the number of integration points for a group of cells
     pub(crate) n_integ_point: HashMap<CellAttribute, usize>,
 
+    /// Holds extra configuration parameters for the material models
+    pub(crate) model_settings: HashMap<CellAttribute, Settings>,
+
     // control ------------------------------------------------------------------
     //
     /// Holds the initial time
@@ -152,6 +156,7 @@ impl<'a> Config<'a> {
             lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
             n_integ_point: HashMap::new(),
+            model_settings: HashMap::new(),
             // control
             t_ini: 0.0,
             t_fin: 1.0,
@@ -351,17 +356,18 @@ impl<'a> Config<'a> {
     }
 
     /// Returns the integration (Gauss) points data
-    ///
-    /// To set the number of integration points, use the map [Config::n_integ_point] directly, e.g.:
-    ///
-    /// ```text
-    /// let cell_attribute = 1;
-    /// config.n_integ_point.insert(cell_attribute, 4);
-    /// ```
     pub fn integ_point_data(&self, cell: &Cell) -> Result<integ::IntegPointData, StrError> {
         match self.n_integ_point.get(&cell.attribute) {
             Some(n) => integ::points(cell.kind.class(), *n),
             None => Ok(integ::default_points(cell.kind)),
+        }
+    }
+
+    /// Returns the extra model settings
+    pub fn model_settings(&self, cell_attribute: CellAttribute) -> Settings {
+        match self.model_settings.get(&cell_attribute) {
+            Some(s) => s.clone(),
+            None => Settings::new(),
         }
     }
 
@@ -474,6 +480,11 @@ impl<'a> Config<'a> {
     pub fn set_n_integ_point(&mut self, cell_attribute: CellAttribute, n_integ_point: usize) -> &mut Self {
         self.n_integ_point.insert(cell_attribute, n_integ_point);
         self
+    }
+
+    /// Updates the default settings for the material model used by a group of cells
+    pub fn update_model_settings(&mut self, cell_attribute: CellAttribute) -> &mut Settings {
+        self.model_settings.entry(cell_attribute).or_insert(Settings::new())
     }
 
     /// Sets the initial time
@@ -887,5 +898,14 @@ mod tests {
         config.verbose_iterations = false;
         config.print_iteration(3, 123.0, 100.0);
         println!("############################################################ TO HERE");
+    }
+
+    #[test]
+    fn set_methods_work() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let att = mesh.cells[0].attribute;
+        let mut config = Config::new(&mesh);
+        config.update_model_settings(att).general_plasticity = true;
+        assert_eq!(config.model_settings(att).general_plasticity, true);
     }
 }
