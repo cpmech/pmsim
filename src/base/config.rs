@@ -905,7 +905,10 @@ mod tests {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let att = mesh.cells[0].attribute;
         let mut config = Config::new(&mesh);
-        config.update_model_settings(att).general_plasticity = true;
+        config
+            .update_model_settings(att)
+            .set_general_plasticity(true)
+            .set_gp_interp_nn_max(20);
         assert_eq!(config.model_settings(att).general_plasticity, true);
     }
 }
