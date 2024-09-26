@@ -204,7 +204,7 @@ impl PlotterData {
 #[cfg(test)]
 mod tests {
     use super::PlotterData;
-    use crate::material::testing::generate_stress_strain_array;
+    use crate::material::testing::generate_states_von_mises;
     use crate::material::{Axis, LocalState};
     use russell_lab::{approx_eq, array_approx_eq, assert_alike, math::PI};
     use russell_tensor::{Mandel, Tensor2, SQRT_2_BY_3, SQRT_3};
@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn from_states_and_array_work() {
         let lode = 1.0;
-        let states = generate_stress_strain_array(true, 1000.0, 600.0, lode);
+        let states = generate_states_von_mises(true, 1000.0, 600.0, lode);
         let data = PlotterData::from_states(&states);
 
         // stress

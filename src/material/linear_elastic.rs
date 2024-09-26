@@ -1,5 +1,5 @@
 use super::{LocalState, StressStrainTrait};
-use crate::base::Idealization;
+use crate::base::{Idealization, N_INT_VAL_LINEAR_ELASTIC};
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 
@@ -25,6 +25,11 @@ impl StressStrainTrait for LinearElastic {
 
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
+        N_INT_VAL_LINEAR_ELASTIC
+    }
+
+    /// Returns the number of internal values directly affecting the yield function
+    fn n_internal_values_yield_function(&self) -> usize {
         0
     }
 
@@ -32,6 +37,9 @@ impl StressStrainTrait for LinearElastic {
     fn initialize_internal_values(&self, _state: &mut LocalState) -> Result<(), StrError> {
         Ok(())
     }
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, _state: &mut LocalState) {}
 
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {

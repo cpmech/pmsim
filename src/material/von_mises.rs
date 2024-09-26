@@ -1,10 +1,16 @@
 use super::{LocalState, PlasticityTrait, StressStrainTrait};
-use crate::base::{Idealization, ParamNonlinElast};
+use crate::base::{Idealization, ParamNonlinElast, N_INT_VAL_VON_MISES};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::deriv1_invariant_sigma_d;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
+
+/// Holds the index of the z internal value (size of the yield surface)
+const I_Z: usize = 0;
+
+/// Holds the index of the lambda internal value (algorithmic Lagrange multiplier)
+const I_LAMBDA: usize = 1;
 
 /// Defines an alias to IDENTITY2
 const I: &[f64; 9] = &IDENTITY2;
@@ -35,7 +41,7 @@ pub struct VonMises {
     /// ```text
     /// f = σd - z
     /// ```
-    z0: f64,
+    z_ini: f64,
 
     /// Deviatoric stress: s = dev(σ)
     s: Tensor2,
@@ -46,7 +52,7 @@ pub struct VonMises {
 
 impl VonMises {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, young: f64, poisson: f64, z0: f64, hh: f64, allow_initial_drift: bool) -> Self {
+    pub fn new(ideal: &Idealization, young: f64, poisson: f64, z_ini: f64, hh: f64, allow_initial_drift: bool) -> Self {
         assert!(!ideal.plane_stress);
         let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
         let (kk, gg) = lin_elasticity.get_bulk_shear();
@@ -55,7 +61,7 @@ impl VonMises {
             kk,
             gg,
             hh,
-            z0,
+            z_ini,
             s: Tensor2::new(ideal.mandel()),
             allow_initial_drift,
         }
@@ -70,12 +76,17 @@ impl StressStrainTrait for VonMises {
 
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize {
-        1 // [z]
+        N_INT_VAL_VON_MISES // [z, lambda]
+    }
+
+    /// Returns the number of internal values directly affecting the yield function
+    fn n_internal_values_yield_function(&self) -> usize {
+        1 // z
     }
 
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
-        state.internal_values[0] = self.z0;
+        state.internal_values[I_Z] = self.z_ini;
         if !self.allow_initial_drift {
             let f = self.yield_function(state)?;
             if f > 0.0 {
@@ -83,6 +94,11 @@ impl StressStrainTrait for VonMises {
             }
         }
         Ok(())
+    }
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, state: &mut LocalState) {
+        state.internal_values[I_LAMBDA] = 0.0;
     }
 
     /// Computes the consistent tangent stiffness
@@ -95,7 +111,7 @@ impl StressStrainTrait for VonMises {
 
         // extract current state variables
         let sigma = &state.stress;
-        let lambda = state.algo_lagrange;
+        let lambda = state.internal_values[I_LAMBDA]; // algorithmic Lagrange multiplier
         sigma.deviator(&mut self.s); // s = dev(σ)
 
         // coefficients
@@ -124,8 +140,8 @@ impl StressStrainTrait for VonMises {
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
         // reset flags
-        state.elastic = true;
-        state.algo_lagrange = 0.0;
+        state.elastic = true; // aka, unloading
+        state.internal_values[I_LAMBDA] = 0.0; // algorithmic Lagrange multiplier
 
         // trial stress: σ ← σ_trial
         let dd = self.lin_elasticity.get_modulus();
@@ -159,8 +175,8 @@ impl StressStrainTrait for VonMises {
 
         // elastoplastic update
         state.elastic = false;
-        state.algo_lagrange = lambda;
-        state.internal_values[0] = state.stress.invariant_sigma_d();
+        state.internal_values[I_Z] = state.stress.invariant_sigma_d();
+        state.internal_values[I_LAMBDA] = lambda;
         Ok(())
     }
 }
@@ -174,7 +190,7 @@ impl PlasticityTrait for VonMises {
     /// Calculates the yield function f
     fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
         let sigma_d = state.stress.invariant_sigma_d();
-        let z = state.internal_values[0];
+        let z = state.internal_values[I_Z];
         Ok(sigma_d - z)
     }
 
@@ -185,7 +201,7 @@ impl PlasticityTrait for VonMises {
 
     /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
     fn hardening(&self, hh: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        hh[0] = self.hh;
+        hh[I_Z] = self.hh;
         Ok(())
     }
 
@@ -205,7 +221,7 @@ impl PlasticityTrait for VonMises {
 
     /// Calculates the derivative of the yield function w.r.t internal variables
     fn df_dz(&self, df_dz: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        df_dz[0] = -1.0;
+        df_dz[I_Z] = -1.0;
         Ok(())
     }
 
@@ -234,7 +250,7 @@ mod tests {
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
     const HH: f64 = 800.0;
-    const Z0: f64 = 9.0;
+    const Z_INI: f64 = 9.0;
 
     // Generates a state reaching the yield surface
     fn update_to_yield_surface(ideal: &Idealization, model: &mut VonMises, lode: f64) -> LocalState {
@@ -248,7 +264,7 @@ mod tests {
 
         // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
-        let dsigma_d = model.z0; // <<< will reach the yield surface (exactly)
+        let dsigma_d = model.z_ini; // <<< will reach the yield surface (exactly)
         let depsilon_v = dsigma_m / kk;
         let depsilon_d = dsigma_d / (3.0 * gg);
         let d_distance = depsilon_v / SQRT_3;
@@ -263,26 +279,25 @@ mod tests {
     #[test]
     fn initialize_internal_values_works() {
         let ideal = Idealization::new(2);
-        let model = VonMises::new(&ideal, YOUNG, POISSON, Z0, HH, false);
+        let model = VonMises::new(&ideal, YOUNG, POISSON, Z_INI, HH, false);
         let mut state = LocalState::new(ideal.mandel(), model.n_internal_values());
         model.initialize_internal_values(&mut state).unwrap();
-        assert_eq!(state.internal_values.as_data(), &[Z0]);
+        assert_eq!(state.internal_values.as_data(), &[Z_INI, 0.0]);
     }
 
     #[test]
     fn update_stress_works_elastic() {
         for ndim in [2, 3] {
             let ideal = Idealization::new(ndim);
-            let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z0, HH, false);
+            let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z_INI, HH, false);
             for lode in [-1.0, 0.0, 1.0] {
                 let state = update_to_yield_surface(&ideal, &mut model, lode);
                 let sigma_m = state.stress.invariant_sigma_m();
                 let sigma_d = state.stress.invariant_sigma_d();
                 approx_eq(sigma_m, 1.0, 1e-14);
-                approx_eq(sigma_d, Z0, 1e-14);
-                assert_eq!(state.internal_values.as_data(), &[Z0]);
+                approx_eq(sigma_d, Z_INI, 1e-14);
                 assert_eq!(state.elastic, true);
-                assert_eq!(state.algo_lagrange, 0.0);
+                assert_eq!(state.internal_values.as_data(), &[Z_INI, 0.0]);
             }
         }
     }
@@ -300,7 +315,7 @@ mod tests {
         for ndim in [2, 3] {
             // update to yield surface (exactly)
             let ideal = Idealization::new(ndim);
-            let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z0, HH, false);
+            let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z_INI, HH, false);
             let mut state = update_to_yield_surface(&ideal, &mut model, lode);
             let sigma_m_1 = state.stress.invariant_sigma_m();
             let sigma_d_1 = state.stress.invariant_sigma_d();
@@ -318,9 +333,9 @@ mod tests {
             let correct_sigma_d = sigma_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
             approx_eq(sigma_m_2, correct_sigma_m, 1e-15);
             approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
-            approx_eq(state.internal_values[0], correct_sigma_d, 1e-14);
             assert_eq!(state.elastic, false);
-            assert!(state.algo_lagrange > 0.0);
+            approx_eq(state.internal_values[0], correct_sigma_d, 1e-14);
+            assert!(state.internal_values[1] > 0.0);
         }
     }
 
@@ -338,7 +353,7 @@ mod tests {
     fn stiffness_works_elastoplastic_2d() {
         // model
         let ideal = Idealization::new(2);
-        let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z0, HH, false);
+        let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z_INI, HH, false);
 
         // initial state
         let mandel = ideal.mandel();
@@ -350,8 +365,8 @@ mod tests {
         let ee = YOUNG;
         let nu = POISSON;
         let nu2 = POISSON * POISSON;
-        let z0 = Z0;
-        let dy = z0 * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
+        let z = Z_INI;
+        let dy = z * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
         let eps_x = dy * nu / (1.0 - nu);
         let eps_y = -dy;
 
@@ -370,9 +385,8 @@ mod tests {
             [0.000000000000000E+00, 0.000000000000000E+00, 6.000000000000000E+02],
         ];
         compare_spo_results(&dd, &dd_spo, 1e-16);
-        assert_eq!(state.internal_values.as_data(), &[z0]);
         assert_eq!(state.elastic, true);
-        assert_eq!(state.algo_lagrange, 0.0);
+        assert_eq!(state.internal_values.as_data(), &[z, 0.0]);
 
         // second update: elastoplastic behavior
         delta_strain.vector_mut()[0] = (2.0 - 0.9999) * eps_x;
@@ -388,8 +402,8 @@ mod tests {
         ];
         compare_spo_results(&dd, &dd_spo, 1e-12);
         let sigma_d = state.stress.invariant_sigma_d();
-        assert_eq!(state.internal_values.as_data(), &[sigma_d]);
         assert_eq!(state.elastic, false);
-        approx_eq(state.algo_lagrange, 3.461538461538463E-03, 1e-15);
+        assert_eq!(state.internal_values[0], sigma_d);
+        approx_eq(state.internal_values[1], 3.461538461538463E-03, 1e-15);
     }
 }

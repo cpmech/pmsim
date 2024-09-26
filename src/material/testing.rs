@@ -2,17 +2,17 @@ use super::{LoadingPath, LocalState};
 use crate::base::{ParamSolid, ParamStressStrain};
 use russell_lab::Vector;
 
-/// Generates an array of stress-strain pairs according to a linear elastic model
+/// Generates an array of LocalState according to a linear elastic model for the VonMises model
 #[allow(dead_code)]
-pub(crate) fn generate_stress_strain_array(two_dim: bool, bulk: f64, shear: f64, lode: f64) -> Vec<LocalState> {
+pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lode: f64) -> Vec<LocalState> {
     let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
     let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
-    let z0 = 9.0; // von Mises yield function
+    let z = 9.0; // size of the von Mises yield surface
     let n_increments = 2;
     let sigma_m_0 = 0.0;
     let sigma_d_0 = 0.0;
     let dsigma_m = 1.0;
-    let dsigma_d = z0;
+    let dsigma_d = z;
     let path = LoadingPath::new_linear_oct(
         two_dim,
         young,
@@ -30,11 +30,9 @@ pub(crate) fn generate_stress_strain_array(two_dim: bool, bulk: f64, shear: f64,
         .iter()
         .zip(path.strains.iter())
         .map(|(sig, eps)| LocalState {
-            internal_values: Vector::from(&[z0]),
-            stress: sig.clone(),
             elastic: true,
-            algo_apex_return: false,
-            algo_lagrange: 0.0,
+            internal_values: Vector::from(&[z, 0.0]), // VonMises needs [z, lambda]
+            stress: sig.clone(),
             strain: Some(eps.clone()),
         })
         .collect();
@@ -45,11 +43,16 @@ pub(crate) fn generate_stress_strain_array(two_dim: bool, bulk: f64, shear: f64,
 #[allow(dead_code)]
 pub(crate) fn extract_von_mises_kk_gg_hh_z0(param: &ParamSolid) -> (f64, f64, f64, f64) {
     match param.stress_strain {
-        ParamStressStrain::VonMises { young, poisson, hh, z0 } => (
+        ParamStressStrain::VonMises {
+            young,
+            poisson,
+            hh,
+            z_ini,
+        } => (
             young / (3.0 * (1.0 - 2.0 * poisson)), // K
             young / (2.0 * (1.0 + poisson)),       // G
             hh,                                    // H
-            z0,                                    // z0
+            z_ini,                                 // z_ini
         ),
         _ => panic!("ParamSolid must contain von Mises parameters"),
     }

@@ -1,3 +1,4 @@
+use super::{N_INT_VAL_CAM_CLAY, N_INT_VAL_DRUCKER_PRAGER, N_INT_VAL_LINEAR_ELASTIC, N_INT_VAL_VON_MISES};
 use russell_ode::Method;
 
 /// Holds parameters for stress-strain relations (total or effective stress)
@@ -30,7 +31,7 @@ pub enum ParamStressStrain {
         /// ```text
         /// f = σd - z
         /// ```
-        z0: f64,
+        z_ini: f64,
     },
 
     /// Drucker-Prager plasticity model
@@ -394,10 +395,10 @@ impl ParamStressStrain {
     /// Returns the number of internal values used by the model
     pub fn n_internal_values(&self) -> usize {
         match self {
-            Self::LinearElastic { .. } => 0,
-            Self::VonMises { .. } => 1,
-            Self::DruckerPrager { .. } => 1,
-            Self::CamClay { .. } => 1,
+            Self::LinearElastic { .. } => N_INT_VAL_LINEAR_ELASTIC,
+            Self::VonMises { .. } => N_INT_VAL_VON_MISES,
+            Self::DruckerPrager { .. } => N_INT_VAL_DRUCKER_PRAGER,
+            Self::CamClay { .. } => N_INT_VAL_CAM_CLAY,
         }
     }
 
@@ -415,7 +416,7 @@ impl ParamStressStrain {
             young: 1500.0,
             poisson: 0.25,
             hh: 800.0,
-            z0: 9.0,
+            z_ini: 9.0,
         }
     }
 }
@@ -749,14 +750,12 @@ mod tests {
     #[test]
     fn param_stress_strain_works() {
         let p = ParamStressStrain::sample_linear_elastic();
-        assert_eq!(p.n_internal_values(), 0);
         let q = p.clone();
         let correct = "LinearElastic { young: 1500.0, poisson: 0.25 }";
         assert_eq!(format!("{:?}", q), correct);
 
         let p = ParamStressStrain::sample_von_mises();
-        assert_eq!(p.n_internal_values(), 1);
-        let correct = "VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z0: 9.0 }";
+        let correct = "VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z_ini: 9.0 }";
         assert_eq!(format!("{:?}", p), correct);
     }
 
@@ -857,14 +856,12 @@ mod tests {
     #[test]
     fn param_solid_works() {
         let p = ParamSolid::sample_linear_elastic();
-        assert_eq!(p.n_internal_values(), 0);
         let q = p.clone();
         let correct = "ParamSolid { density: 1.0, stress_strain: LinearElastic { young: 1500.0, poisson: 0.25 }, nonlin_elast: None, stress_update: None }";
         assert_eq!(format!("{:?}", q), correct);
 
         let p = ParamSolid::sample_von_mises();
-        assert_eq!(p.n_internal_values(), 1);
-        let correct = "ParamSolid { density: 1.0, stress_strain: VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z0: 9.0 }, nonlin_elast: None, stress_update: None }";
+        let correct = "ParamSolid { density: 1.0, stress_strain: VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z_ini: 9.0 }, nonlin_elast: None, stress_update: None }";
         assert_eq!(format!("{:?}", p), correct);
     }
 
@@ -887,7 +884,6 @@ mod tests {
     #[test]
     fn param_porous_sld_liq_works() {
         let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-        assert_eq!(p.n_internal_values(), 0);
         let q = p.clone();
         let correct = "ParamPorousSldLiq { earth_pres_coef_ini: 0.25, porosity_initial: 0.4, density_solid: 2.7, stress_strain: LinearElastic { young: 1500.0, poisson: 0.25 }, retention_liquid: BrooksCorey { lambda: 0.1, pc_ae: 0.1, sl_min: 0.1, sl_max: 0.99 }, conductivity_liquid: Constant { kx: 0.01, ky: 0.01, kz: 0.01 } }";
         assert_eq!(format!("{:?}", q), correct);

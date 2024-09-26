@@ -38,6 +38,8 @@ struct Args {
     dsigma_dt: Tensor2,
 
     /// Holds the rate of internal variables
+    ///
+    /// (n_int_val)
     dz_dt: Vector,
 
     /// Holds the gradient of the yield function
@@ -47,10 +49,14 @@ struct Args {
     dg_dsigma: Tensor2,
 
     /// Holds the derivative of the yield function w.r.t internal variables
+    ///
+    /// (n_int_val_yf) where yf means yield function
     df_dz: Vector,
 
-    /// Holds the hardening coefficient
-    hh: Vector,
+    /// Holds the hardening coefficients affecting the yield function directly
+    ///
+    /// (n_int_val_yf) where yf means yield function
+    hh_yf: Vector,
 
     /// Holds the elastic modulus
     dde: Tensor4,
@@ -117,20 +123,26 @@ impl<'a> Elastoplastic<'a> {
         // plasticity model
         let ini_drift = su_param.allow_initial_drift;
         let model: Box<dyn PlasticityTrait> = match param.stress_strain {
-            ParamStressStrain::VonMises { young, poisson, z0, hh } => {
+            ParamStressStrain::VonMises {
+                young,
+                poisson,
+                z_ini,
+                hh,
+            } => {
                 if ideal.plane_stress {
                     return Err("von Mises model does not work in plane-stress");
                 }
-                Box::new(VonMises::new(ideal, young, poisson, z0, hh, ini_drift))
+                Box::new(VonMises::new(ideal, young, poisson, z_ini, hh, ini_drift))
             }
             _ => return Err("model cannot be used with Elastoplastic"),
         };
 
         // constants
         let mandel = ideal.mandel();
-        let n_internal_values = model.n_internal_values();
+        let n_int_val = model.n_internal_values();
+        let n_int_val_yf = model.n_internal_values_yield_function();
         let ndim_e = mandel.dim();
-        let ndim_ep = ndim_e + n_internal_values;
+        let ndim_ep = ndim_e + n_int_val;
 
         // ODE system: dσ/dt = Dₑ : Δε
         let ode_system_e = System::new(ndim_e, |dydt, _t, y, args: &mut Args| {
@@ -163,9 +175,9 @@ impl<'a> Elastoplastic<'a> {
                 &args.dg_dsigma
             };
 
-            // Mₚ = - (df/dz) · H (TODO: fix this; it's not an inner product)
-            args.model.hardening(&mut args.hh, &args.state)?;
-            let mmp = -vec_inner(&args.df_dz, &args.hh);
+            // Mₚ = - (df/dz) · H_yf
+            args.model.hardening(&mut args.hh_yf, &args.state)?;
+            let mmp = -vec_inner(&args.df_dz, &args.hh_yf);
 
             // calculate: Dₑ(t)
             args.model.calc_dde(&mut args.dde, &args.state, args.param_nle)?;
@@ -238,15 +250,15 @@ impl<'a> Elastoplastic<'a> {
         // arguments for the ODE solvers
         let args = Args {
             param_nle: param.nonlin_elast,
-            state: LocalState::new(mandel, n_internal_values),
+            state: LocalState::new(mandel, n_int_val),
             model,
             depsilon: Tensor2::new(mandel),
             dsigma_dt: Tensor2::new(mandel),
-            dz_dt: Vector::new(n_internal_values),
+            dz_dt: Vector::new(n_int_val),
             df_dsigma: Tensor2::new(mandel),
             dg_dsigma: Tensor2::new(mandel),
-            df_dz: Vector::new(n_internal_values),
-            hh: Vector::new(n_internal_values),
+            df_dz: Vector::new(n_int_val_yf),
+            hh_yf: Vector::new(n_int_val_yf),
             dde: Tensor4::new(mandel),
             ddep: Tensor4::new(mandel),
             yf_count: 0,
@@ -327,9 +339,19 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         self.args.model.n_internal_values()
     }
 
+    /// Returns the number of internal values directly affecting the yield function
+    fn n_internal_values_yield_function(&self) -> usize {
+        self.args.model.n_internal_values_yield_function()
+    }
+
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
         self.args.model.initialize_internal_values(state)
+    }
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, state: &mut LocalState) {
+        self.args.model.reset_algorithmic_variables(state);
     }
 
     /// Computes the consistent tangent stiffness

@@ -54,7 +54,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // constants
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
-    const Z0: f64 = 9.0;
+    const Z_INI: f64 = 9.0;
     const NU: f64 = POISSON;
     const NU2: f64 = POISSON * POISSON;
     const N_STEPS: usize = 5;
@@ -65,7 +65,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         stress_strain: ParamStressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            z0: Z0,
+            z_ini: Z_INI,
             hh: 800.0,
         },
         nonlin_elast: None,
@@ -80,7 +80,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         on(&left,   Ebc::Ux(|_| 0.0)). // left
         on(&bottom, Ebc::Uy(|_| 0.0)). // bottom
         on(&top,    Ebc::Uy(|t| {      // top
-            let delta_y = Z0 * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+            let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
             // println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
             -delta_y * t
         }),

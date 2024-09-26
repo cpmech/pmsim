@@ -486,7 +486,7 @@ impl<'a> Plotter<'a> {
 mod tests {
     use super::{Axis, Plotter};
     use crate::material::LocalState;
-    use crate::material::{testing::generate_stress_strain_array, PlotterData};
+    use crate::material::{testing::generate_states_von_mises, PlotterData};
     use plotpy::{Curve, SlopeIcon};
     use russell_lab::approx_eq;
     use russell_tensor::{Mandel, Tensor2};
@@ -505,8 +505,8 @@ mod tests {
     #[test]
     pub fn add_and_save_work_1() {
         let (bulk, shear) = (1000.0, 600.0);
-        let states_a = generate_stress_strain_array(true, bulk, shear, 1.0);
-        let states_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let states_a = generate_states_von_mises(true, bulk, shear, 1.0);
+        let states_b = generate_states_von_mises(true, 1.2 * bulk, 0.8 * shear, -1.0);
         let data_a = PlotterData::from_states(&states_a);
         let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
@@ -534,8 +534,8 @@ mod tests {
     #[test]
     pub fn add_and_save_work_2() {
         let (bulk, shear) = (1000.0, 600.0);
-        let states_a = generate_stress_strain_array(true, bulk, shear, 1.0);
-        let states_b = generate_stress_strain_array(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let states_a = generate_states_von_mises(true, bulk, shear, 1.0);
+        let states_b = generate_states_von_mises(true, 1.2 * bulk, 0.8 * shear, -1.0);
         let data_a = PlotterData::from_states(&states_a);
         let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
@@ -672,8 +672,8 @@ mod tests {
 
     #[test]
     pub fn add_2x2_works_1() {
-        let states_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-        let states_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+        let states_a = generate_states_von_mises(true, 1000.0, 600.0, 1.0);
+        let states_b = generate_states_von_mises(true, 500.0, 200.0, 0.0);
         let data_a = PlotterData::from_states(&states_a);
         let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
@@ -702,8 +702,8 @@ mod tests {
 
     #[test]
     pub fn add_3x2_works_1() {
-        let states_a = generate_stress_strain_array(true, 1000.0, 600.0, 1.0);
-        let states_b = generate_stress_strain_array(true, 500.0, 200.0, 0.0);
+        let states_a = generate_states_von_mises(true, 1000.0, 600.0, 1.0);
+        let states_b = generate_states_von_mises(true, 500.0, 200.0, 0.0);
         let data_a = PlotterData::from_states(&states_a);
         let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();

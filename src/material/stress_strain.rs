@@ -11,8 +11,14 @@ pub trait StressStrainTrait: Send {
     /// Returns the number of internal values
     fn n_internal_values(&self) -> usize;
 
+    /// Returns the number of internal values directly affecting the yield function
+    fn n_internal_values_yield_function(&self) -> usize;
+
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError>;
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, state: &mut LocalState);
 
     /// Computes the consistent tangent stiffness
     fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
@@ -45,11 +51,16 @@ impl StressStrain {
             ParamStressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
 
             // von Mises plasticity model
-            ParamStressStrain::VonMises { young, poisson, z0, hh } => {
+            ParamStressStrain::VonMises {
+                young,
+                poisson,
+                z_ini,
+                hh,
+            } => {
                 if ideal.plane_stress {
                     return Err("von Mises model does not work in plane-stress");
                 }
-                Box::new(VonMises::new(ideal, young, poisson, z0, hh, allow_initial_drift))
+                Box::new(VonMises::new(ideal, young, poisson, z_ini, hh, allow_initial_drift))
             }
         };
         Ok(StressStrain { actual })
