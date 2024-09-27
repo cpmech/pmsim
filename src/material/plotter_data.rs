@@ -4,6 +4,7 @@ use russell_lab::linear_fitting;
 use russell_tensor::{Spectral2, Tensor2};
 
 /// Holds a stress-strain entry for Plotter
+#[derive(Clone, Copy)]
 pub struct PlotterEntry {
     /// Holds the mean stress invariant
     pub sig_m: f64,
@@ -34,6 +35,7 @@ pub struct PlotterEntry {
 }
 
 /// Holds a series of stress-strain points for Plotter
+#[derive(Clone)]
 pub struct PlotterData {
     all: Vec<PlotterEntry>,
 }

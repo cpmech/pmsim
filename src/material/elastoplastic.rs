@@ -97,6 +97,9 @@ pub struct Elastoplastic<'a> {
     /// Solver for the intersection finding algorithm
     root_finder: RootFinder,
 
+    /// Enables recording stress-strain history
+    save_history: bool,
+
     /// Enables verbose mode
     verbose: bool,
 }
@@ -220,7 +223,8 @@ impl<'a> Elastoplastic<'a> {
             });
 
         // set function to record the stress-strain history
-        if settings.gp_save_history {
+        let save_history = settings.gp_save_history;
+        if save_history {
             let n_out = 11;
             let h_out = 1.0 / ((n_out - 1) as f64);
             ode_elastic
@@ -282,8 +286,17 @@ impl<'a> Elastoplastic<'a> {
             ode_y_ep,
             interpolant,
             root_finder,
+            save_history,
             verbose: false,
         })
+    }
+
+    /// Returns the stress-strain history recorded by update_stress
+    pub fn get_history(&self) -> Result<PlotterData, StrError> {
+        match self.args.history.as_ref() {
+            Some(h) => Ok(h.clone()),
+            None => Err("history was not enabled"),
+        }
     }
 }
 
@@ -351,6 +364,17 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
         // set Δε in arguments struct
         self.args.depsilon.set_tensor(1.0, delta_strain);
+
+        // enable history
+        if self.save_history {
+            match state.strain.as_ref() {
+                Some(strain) => self.args.state.strain = Some(strain.clone()),
+                None => {
+                    return Err("state must have strain enabled");
+                }
+            }
+            self.args.history = Some(PlotterData::new());
+        }
 
         // run elastic path to search for eventual intersections
         let (need_elastoplastic_run, t0) = if need_intersection_finding {
@@ -605,7 +629,7 @@ mod tests {
                 for i in 0..states.len() {
                     let s = &states[i];
                     let f = model.args.model.yield_function(s).unwrap();
-                    let t = i as f64;
+                    let t = (i as f64) / 2.0;
                     data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
                 }
                 plotter
@@ -679,6 +703,12 @@ mod tests {
         if SAVE_FIGURE {
             let mut plotter = Plotter::new();
             plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
+            let history = model.get_history().unwrap();
+            plotter
+                .add_2x2(&history, false, |curve, _, _| {
+                    curve.set_line_color("#ff6600").set_line_style("--");
+                })
+                .unwrap();
             let mut data = PlotterData::new();
             for i in 0..states.len() {
                 let s = &states[i];
