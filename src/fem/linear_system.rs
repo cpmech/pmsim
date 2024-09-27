@@ -118,7 +118,7 @@ impl<'a> LinearSystem<'a> {
 #[cfg(test)]
 mod tests {
     use super::LinearSystem;
-    use crate::base::{new_empty_mesh_2d, Config, Ebc, Element, Essential, Natural, Nbc, ParamDiffusion};
+    use crate::base::{new_empty_mesh_2d, Config, Ebc, Etype, Essential, Natural, Nbc, ParamDiffusion};
     use crate::fem::{Boundaries, Elements, FemInput, PrescribedValues};
     use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
@@ -128,7 +128,7 @@ mod tests {
     fn new_handles_errors() {
         let empty_mesh = new_empty_mesh_2d();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&empty_mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&empty_mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&empty_mesh);
         let essential = Essential::new();
         let natural = Natural::new();
@@ -154,7 +154,7 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
 
         let mut essential = Essential::new();
         let mut natural = Natural::new();

@@ -240,7 +240,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Conductivity, Config, Element, ParamDiffusion};
+    use crate::base::{Conductivity, Config, Etype, ParamDiffusion};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
@@ -268,7 +268,7 @@ mod tests {
         } else {
             ParamDiffusion::sample()
         };
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
@@ -321,7 +321,7 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_n_integ_point(1, 100); // wrong
         assert_eq!(
@@ -353,7 +353,7 @@ mod tests {
             conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
             source: None,
         };
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
@@ -389,7 +389,7 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 
@@ -428,7 +428,7 @@ mod tests {
             conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
             source: None,
         };
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
@@ -468,7 +468,7 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 

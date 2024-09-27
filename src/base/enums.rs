@@ -274,7 +274,7 @@ pub enum Init {
 
 /// Defines the element type
 #[derive(Clone, Copy, Debug)]
-pub enum Element {
+pub enum Etype {
     Diffusion(ParamDiffusion),
     Rod(ParamRod),
     Beam(ParamBeam),
@@ -285,18 +285,18 @@ pub enum Element {
     PorousSldLiqGas(ParamPorousSldLiqGas),
 }
 
-impl Element {
+impl Etype {
     /// Returns the name of the Element
     pub fn name(&self) -> String {
         match self {
-            Element::Diffusion(..) => "Diffusion".to_string(),
-            Element::Rod(..) => "Rod".to_string(),
-            Element::Beam(..) => "Beam".to_string(),
-            Element::Solid(..) => "Solid".to_string(),
-            Element::PorousLiq(..) => "PorousLiq".to_string(),
-            Element::PorousLiqGas(..) => "PorousLiqGas".to_string(),
-            Element::PorousSldLiq(..) => "PorousSldLiq".to_string(),
-            Element::PorousSldLiqGas(..) => "PorousSldLiqGas".to_string(),
+            Etype::Diffusion(..) => "Diffusion".to_string(),
+            Etype::Rod(..) => "Rod".to_string(),
+            Etype::Beam(..) => "Beam".to_string(),
+            Etype::Solid(..) => "Solid".to_string(),
+            Etype::PorousLiq(..) => "PorousLiq".to_string(),
+            Etype::PorousLiqGas(..) => "PorousLiqGas".to_string(),
+            Etype::PorousSldLiq(..) => "PorousSldLiq".to_string(),
+            Etype::PorousSldLiqGas(..) => "PorousSldLiqGas".to_string(),
         }
     }
 }
@@ -305,7 +305,7 @@ impl Element {
 
 #[cfg(test)]
 mod tests {
-    use super::{Dof, Ebc, Element, Init, Nbc, Pbc};
+    use super::{Dof, Ebc, Etype, Init, Nbc, Pbc};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use std::{cmp::Ordering, collections::HashSet};
@@ -352,12 +352,12 @@ mod tests {
     #[test]
     fn element_derive_works() {
         let p = ParamDiffusion::sample();
-        let e = Element::Diffusion(p);
+        let e = Etype::Diffusion(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Diffusion");
 
         let p = ParamRod::sample();
-        let e = Element::Rod(p);
+        let e = Etype::Rod(p);
         let e_clone = e.clone();
         assert_eq!(
             format!("{:?}", e),
@@ -366,32 +366,32 @@ mod tests {
         assert_eq!(format!("{}", e_clone.name()), "Rod");
 
         let p = ParamBeam::sample();
-        let e = Element::Beam(p);
+        let e = Etype::Beam(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Beam");
 
         let p = ParamSolid::sample_linear_elastic();
-        let e = Element::Solid(p);
+        let e = Etype::Solid(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Solid");
 
         let p = ParamPorousLiq::sample_brooks_corey_constant();
-        let e = Element::PorousLiq(p);
+        let e = Etype::PorousLiq(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousLiq");
 
         let p = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let e = Element::PorousLiqGas(p);
+        let e = Etype::PorousLiqGas(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousLiqGas");
 
         let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-        let e = Element::PorousSldLiq(p);
+        let e = Etype::PorousSldLiq(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousSldLiq");
 
         let p = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let e = Element::PorousSldLiqGas(p);
+        let e = Etype::PorousSldLiqGas(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousSldLiqGas");
     }

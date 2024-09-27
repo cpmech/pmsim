@@ -248,7 +248,7 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Element, ParamSolid, StressStrain};
+    use crate::base::{Config, Etype, ParamSolid, StressStrain};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
@@ -261,7 +261,7 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_n_integ_point(1, 100); // wrong
         assert_eq!(
@@ -280,7 +280,7 @@ mod tests {
             density: 2.7, // Mg/m²
             stress_strain: StressStrain::LinearElastic { young, poisson },
         };
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         let mut state = FemState::new(&input, &config).unwrap();
@@ -353,7 +353,7 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+            let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -448,7 +448,7 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+            let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -516,7 +516,7 @@ mod tests {
             density: 2.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
         };
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
 
         // configuration
         let mut config = Config::new(&mesh);

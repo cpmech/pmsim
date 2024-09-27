@@ -47,9 +47,9 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     // input data
     #[rustfmt::skip]
     let input = FemInput::new(&mesh, [
-        (1, Element::Rod(ParamRod { area: 4_000.0, young: 200_000.0, density: 1.0 })),
-        (2, Element::Rod(ParamRod { area: 3_000.0, young: 200_000.0, density: 1.0 })),
-        (3, Element::Rod(ParamRod { area: 2_000.0, young:  70_000.0, density: 1.0 })),
+        (1, Etype::Rod(ParamRod { area: 4_000.0, young: 200_000.0, density: 1.0 })),
+        (2, Etype::Rod(ParamRod { area: 3_000.0, young: 200_000.0, density: 1.0 })),
+        (3, Etype::Rod(ParamRod { area: 2_000.0, young:  70_000.0, density: 1.0 })),
     ])?;
 
     // essential boundary conditions

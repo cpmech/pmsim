@@ -245,7 +245,7 @@ impl<'a> FemOutput<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemOutput;
-    use crate::base::{Config, Dof, Element, ParamDiffusion};
+    use crate::base::{Config, Dof, Etype, ParamDiffusion};
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Features, Samples};
     use gemlab::util::any_x;
@@ -255,7 +255,7 @@ mod tests {
         let mesh = Samples::one_tri6();
         let feat = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&input, &config).unwrap();
         state.uu[0] = 1.0;

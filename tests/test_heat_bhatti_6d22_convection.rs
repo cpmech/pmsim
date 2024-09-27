@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, Conductivity, ParamDiffusion, SampleMeshes};
+use pmsim::base::{Config, Ebc, Etype, Essential, Natural, Nbc, Conductivity, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{
     Boundaries, Elements, FemInput, FemOutput, FemSolverImplicit, FemState, LinearSystem, PrescribedValues,
 };
@@ -70,7 +70,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
     };
-    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -271,7 +271,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
     };
-    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))])?;
     let config = Config::new(&mesh);
 
     // essential boundary conditions

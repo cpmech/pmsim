@@ -238,7 +238,7 @@ impl<'a> Boundaries<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Boundaries, Boundary};
-    use crate::base::{Config, Element, Natural, Nbc, SampleMeshes};
+    use crate::base::{Config, Etype, Natural, Nbc, SampleMeshes};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Feature, Features, Samples};
@@ -254,7 +254,7 @@ mod tests {
         };
 
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let minus_ten = |_| -10.0;
         assert_eq!(minus_ten(0.0), -10.0);
@@ -291,7 +291,7 @@ mod tests {
         let bottom = features.edges.get(&(0, 1)).ok_or("cannot get edge").unwrap();
 
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
@@ -365,7 +365,7 @@ mod tests {
         let features = Features::new(&mesh, false);
         let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
 
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
@@ -382,7 +382,7 @@ mod tests {
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
 
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::PorousLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
@@ -409,7 +409,7 @@ mod tests {
         };
 
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
@@ -453,7 +453,7 @@ mod tests {
         };
 
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
@@ -490,7 +490,7 @@ mod tests {
     fn calc_methods_work() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut natural = Natural::new();
         let edge = Feature {

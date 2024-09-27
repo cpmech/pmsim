@@ -1,5 +1,5 @@
 use super::{FemInput, SecondaryValues};
-use crate::base::{Config, Element};
+use crate::base::{Config, Etype};
 use crate::StrError;
 use russell_lab::Vector;
 use serde::{Deserialize, Serialize};
@@ -80,34 +80,34 @@ impl FemState {
             let element = input.attributes.get(cell).unwrap(); // already checked by Data
             let n_integration_point = config.integ_point_data(cell)?.len();
             match element {
-                Element::Diffusion(..) => {
+                Etype::Diffusion(..) => {
                     has_diffusion = true;
                 }
-                Element::Rod(..) => {
+                Etype::Rod(..) => {
                     has_rod_or_beam = true;
                 }
-                Element::Beam(..) => {
+                Etype::Beam(..) => {
                     has_rod_or_beam = true;
                 }
-                Element::Solid(param) => {
+                Etype::Solid(param) => {
                     has_solid = true;
                     let n_internal_values = param.n_internal_values();
                     gauss[cell.id].allocate_solid(mandel, n_integration_point, n_internal_values);
                 }
-                Element::PorousLiq(..) => {
+                Etype::PorousLiq(..) => {
                     has_porous_fluid = true;
                     gauss[cell.id].allocate_porous_liq(n_integration_point);
                 }
-                Element::PorousLiqGas(..) => {
+                Etype::PorousLiqGas(..) => {
                     has_porous_fluid = true;
                     gauss[cell.id].allocate_porous_liq_gas(n_integration_point);
                 }
-                Element::PorousSldLiq(param) => {
+                Etype::PorousSldLiq(param) => {
                     has_porous_solid = true;
                     let n_internal_values = param.n_internal_values();
                     gauss[cell.id].allocate_porous_sld_liq(mandel, n_integration_point, n_internal_values);
                 }
-                Element::PorousSldLiqGas(param) => {
+                Etype::PorousSldLiqGas(param) => {
                     has_porous_solid = true;
                     let n_internal_values = param.n_internal_values();
                     gauss[cell.id].allocate_porous_sld_liq_gas(mandel, n_integration_point, n_internal_values);
@@ -201,7 +201,7 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{new_empty_mesh_2d, Config, Element};
+    use crate::base::{new_empty_mesh_2d, Config, Etype};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use crate::fem::FemInput;
@@ -211,7 +211,7 @@ mod tests {
     fn new_handles_errors() {
         let empty_mesh = new_empty_mesh_2d();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&empty_mesh, [(1, Etype::Solid(p1))]).unwrap();
         let config = Config::new(&empty_mesh);
         assert_eq!(
             FemState::new(&input, &config).err(),
@@ -225,9 +225,9 @@ mod tests {
         let input = FemInput::new(
             &mesh,
             [
-                (1, Element::Diffusion(p1)),
-                (2, Element::Solid(p2)),
-                (3, Element::Rod(p3)),
+                (1, Etype::Diffusion(p1)),
+                (2, Etype::Solid(p2)),
+                (3, Etype::Rod(p3)),
             ],
         )
         .unwrap();
@@ -241,9 +241,9 @@ mod tests {
         let input = FemInput::new(
             &mesh,
             [
-                (1, Element::PorousLiq(p1)),
-                (2, Element::Solid(p2)),
-                (3, Element::Rod(p3)),
+                (1, Etype::PorousLiq(p1)),
+                (2, Etype::Solid(p2)),
+                (3, Etype::Rod(p3)),
             ],
         )
         .unwrap();
@@ -257,9 +257,9 @@ mod tests {
         let input = FemInput::new(
             &mesh,
             [
-                (1, Element::PorousLiqGas(p1)),
-                (2, Element::Solid(p2)),
-                (3, Element::Rod(p3)),
+                (1, Etype::PorousLiqGas(p1)),
+                (2, Etype::Solid(p2)),
+                (3, Etype::Rod(p3)),
             ],
         )
         .unwrap();
@@ -279,9 +279,9 @@ mod tests {
         let input = FemInput::new(
             &mesh,
             [
-                (1, Element::PorousSldLiq(p1)),
-                (2, Element::Solid(p2)),
-                (3, Element::Beam(p3)),
+                (1, Etype::PorousSldLiq(p1)),
+                (2, Etype::Solid(p2)),
+                (3, Etype::Beam(p3)),
             ],
         )
         .unwrap();
@@ -297,7 +297,7 @@ mod tests {
     fn new_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.transient = true;
         let state = FemState::new(&input, &config).unwrap();
@@ -315,7 +315,7 @@ mod tests {
     fn new_works_rod_only() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -332,7 +332,7 @@ mod tests {
     fn new_works_porous_liq() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let input = FemInput::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::PorousLiq(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -344,7 +344,7 @@ mod tests {
     fn new_works_porous_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let input = FemInput::new(&mesh, [(1, Element::PorousLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::PorousLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -356,7 +356,7 @@ mod tests {
     fn new_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let input = FemInput::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -369,7 +369,7 @@ mod tests {
         let mesh = Samples::mixed_shapes_2d();
         let p1 = ParamRod::sample();
         let p2 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Element::Rod(p1)), (2, Element::Solid(p2))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1)), (2, Etype::Solid(p2))]).unwrap();
         let mut config = Config::new(&mesh);
         config.dynamics = true;
         let state = FemState::new(&input, &config).unwrap();
@@ -387,7 +387,7 @@ mod tests {
     fn derive_works() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state_ori = FemState::new(&input, &config).unwrap();
         let state = state_ori.clone();

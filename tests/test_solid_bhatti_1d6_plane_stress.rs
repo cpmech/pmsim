@@ -51,7 +51,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
             poisson: 0.2,
         },
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

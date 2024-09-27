@@ -60,7 +60,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
             poisson: 0.3,
         },
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(p1)), (2, Element::Solid(p2))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1)), (2, Etype::Solid(p2))])?;
 
     // essential boundary conditions
     let zero = |_| 0.0;

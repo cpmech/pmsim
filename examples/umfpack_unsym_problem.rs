@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Ebc, Element, Essential, Natural, Nbc, ParamSolid, StressStrain};
+use pmsim::base::{Config, Ebc, Etype, Essential, Natural, Nbc, ParamSolid, StressStrain};
 use pmsim::fem::{Boundaries, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
 use russell_lab::*;
 use russell_sparse::prelude::*;
@@ -41,7 +41,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
             poisson: POISSON,
         },
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Solid(param1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

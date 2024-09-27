@@ -69,7 +69,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             hh: 800.0,
         },
     };
-    let input = FemInput::new(&mesh, [(att, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(att, Etype::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

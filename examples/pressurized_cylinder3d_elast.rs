@@ -165,7 +165,7 @@ fn main() -> Result<(), StrError> {
                 poisson: POISSON,
             },
         };
-        let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(param1))])?;
 
         // total number of DOF
         let ndof = input.equations.n_equation;
