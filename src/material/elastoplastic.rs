@@ -1,6 +1,4 @@
-#![allow(unused)]
-
-use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait, VonMises};
+use super::{LocalState, PlasticityTrait, PlotterData, Settings, StressStrainTrait, VonMises};
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
@@ -68,6 +66,9 @@ struct Args {
     ///
     /// (yf_count)
     yf_values: Vector,
+
+    /// Holds the stress-strain history (e.g., for debugging)
+    history: Option<PlotterData>,
 }
 
 /// Implements general elastoplasticity models using ODE solvers for the stress-update
@@ -90,17 +91,11 @@ pub struct Elastoplastic<'a> {
     /// Holds the ODE vector of unknowns for elastoplastic case
     ode_y_ep: Vector,
 
-    /// Holds the maximum interpolant degree for finding the yield surface intersection
-    interp_nn_max: usize,
-
     /// Holds the interpolant for finding the yield surface intersection
     interpolant: InterpChebyshev,
 
     /// Solver for the intersection finding algorithm
     root_finder: RootFinder,
-
-    /// Indicates if the history recording was enabled at least once
-    history_enabled: bool,
 
     /// Enables verbose mode
     verbose: bool,
@@ -187,7 +182,7 @@ impl<'a> Elastoplastic<'a> {
         // ODE solvers
         let ode_param = Params::new(settings.gp_ode_method);
         let mut ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
-        let ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
+        let mut ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
         let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
 
         // interpolant
@@ -224,6 +219,34 @@ impl<'a> Elastoplastic<'a> {
                 Ok(KEEP_RUNNING)
             });
 
+        // set function to record the stress-strain history
+        if settings.gp_save_history {
+            let n_out = 11;
+            let h_out = 1.0 / ((n_out - 1) as f64);
+            ode_elastic
+                .enable_output()
+                .set_dense_h_out(h_out)
+                .unwrap()
+                .set_dense_callback(|_stats, _h, t, y, args| {
+                    if let Some(h) = args.history.as_mut() {
+                        // copy {y}(t) into σ
+                        args.state.stress.vector_mut().set_vector(y.as_data());
+
+                        // yield function value: f(σ, z)
+                        let f = args.model.yield_function(&args.state)?;
+
+                        // ε(t) = ε₀ + t Δε
+                        let epsilon_0 = args.state.strain.as_ref().unwrap();
+                        let mut epsilon_t = epsilon_0.clone();
+                        epsilon_t.update(t, &args.depsilon);
+
+                        // update history array
+                        h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
+                    }
+                    Ok(KEEP_RUNNING)
+                });
+        }
+
         // arguments for the ODE solvers
         let args = Args {
             state: LocalState::new(mandel, n_int_val),
@@ -239,6 +262,7 @@ impl<'a> Elastoplastic<'a> {
             ddep: Tensor4::new(mandel),
             yf_count: 0,
             yf_values: Vector::new(interp_npoint),
+            history: None,
         };
 
         // ODE vectors
@@ -256,51 +280,10 @@ impl<'a> Elastoplastic<'a> {
             ode_elastoplastic,
             ode_y_e,
             ode_y_ep,
-            interp_nn_max,
             interpolant,
             root_finder,
-            history_enabled: false,
             verbose: false,
         })
-    }
-
-    /// Configures the recording of state history (just once)
-    fn enable_history(&mut self) {
-        if self.history_enabled {
-            return;
-        }
-        let h_out = 1.0 / (self.interp_nn_max as f64);
-        self.ode_elastic
-            .enable_output()
-            .set_dense_h_out(h_out)
-            .unwrap()
-            .set_dense_callback(|_stats, _h, t, y, args| {
-                /*
-                if args.state.history.is_some() {
-                    // copy {y}(t) into σ
-                    args.state.stress.vector_mut().set_vector(y.as_data());
-
-                    // yield function value: f(σ, z)
-                    let f = args.model.yield_function(&args.state)?;
-
-                    // history information
-                    let mut info = HistoryEntry {
-                        stress: args.state.stress.clone(),
-                        strain: args.state.strain.as_ref().unwrap().clone(),
-                        yield_value: f,
-                        elastic: true,
-                    };
-
-                    // ε(t) = ε₀ + t Δε
-                    info.strain.update(t, &args.depsilon);
-
-                    // update history array
-                    args.state.history.as_mut().unwrap().push(info);
-                }
-                */
-                Ok(KEEP_RUNNING)
-            });
-        self.history_enabled = true;
     }
 }
 
@@ -550,7 +533,7 @@ mod tests {
         // constants
         let (sig_m_0, sig_d_0, yf_error) = (0.0, 0.0, None);
         let (dsig_m_el_0, dsig_d_el_0) = (1.0, z0); // will reach the yield surface exactly
-        let (dsig_m_el_1, dsig_d_el_1) = (1.0, 4.0); // to calc the next elastic trial increment
+        let (dsig_m_el_1, dsig_d_el_1) = (1.0, 9.0); // to calc the next elastic trial increment
 
         // data for plotting
         let mut data_2d = HashMap::new(); // map: lode => states
@@ -646,6 +629,77 @@ mod tests {
             }
             plotter
                 .save("/tmp/pmsim/material/test_update_stress_von_mises_1.svg")
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn update_stress_von_mises_2() {
+        // parameters
+        let param = StressStrain::sample_von_mises();
+        let (kk, gg, hh, z0) = extract_von_mises_kk_gg_hh_z0(&param);
+
+        // constants
+        let (sig_m_0, sig_d_0, yf_error) = (0.0, 0.0, None);
+        let (dsig_m_el, dsig_d_el) = (2.0, z0 + 9.0); // will cross the yield surface
+
+        // settings
+        let mut settings = Settings::new();
+        settings.set_gp_save_history(true);
+
+        // model
+        let (ndim, lode) = (2, 0.0);
+        let ideal = Idealization::new(ndim);
+        let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
+        model.verbose = VERBOSE;
+
+        // initial state
+        let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+
+        // array of states for plotting
+        let mut states = vec![state.clone()];
+
+        // update, crossing the yield surface
+        let (deps_v, deps_d) = update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el, dsig_d_el);
+        let sig_m = state.stress.invariant_sigma_m();
+        let sig_d = state.stress.invariant_sigma_d();
+        states.push(state.clone());
+
+        // check
+        let deps_d_e = z0 / (3.0 * gg);
+        let deps_d_p = deps_d - deps_d_e;
+        let correct_sig_m = kk * deps_v;
+        let correct_sig_d = z0 + 3.0 * gg * hh * deps_d_p / (3.0 * gg + hh);
+        approx_eq(sig_m, correct_sig_m, 1e-14);
+        approx_eq(sig_d, correct_sig_d, 1e-13);
+        approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
+        assert_eq!(state.elastic, false);
+
+        // plot
+        if SAVE_FIGURE {
+            let mut plotter = Plotter::new();
+            plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
+            let mut data = PlotterData::new();
+            for i in 0..states.len() {
+                let s = &states[i];
+                let f = model.args.model.yield_function(s).unwrap();
+                let t = i as f64;
+                data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+            }
+            plotter
+                .add_2x2(&data, false, |curve, _, _| {
+                    curve.set_marker_style("o").set_label(&format!(" $\\ell = {}$", lode));
+                })
+                .unwrap();
+            let p = states.len() - 1;
+            let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
+            let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+            plotter.set_oct_circle(radius_0, |_| {});
+            plotter.set_oct_circle(radius_1, |canvas| {
+                canvas.set_line_style("-");
+            });
+            plotter
+                .save("/tmp/pmsim/material/test_update_stress_von_mises_2.svg")
                 .unwrap();
         }
     }
