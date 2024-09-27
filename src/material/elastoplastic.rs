@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait, VonMises};
-use crate::base::{Idealization, ParamNonlinElast, ParamStressUpdate, StressStrain};
+use crate::base::{Idealization, StressStrain};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
 use russell_ode::{OdeSolver, Params, System};

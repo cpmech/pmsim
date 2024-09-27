@@ -60,7 +60,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     const N_STEPS: usize = 5;
 
     // input data
-    let mut p1 = ParamSolid {
+    let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
@@ -68,10 +68,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             z_ini: Z_INI,
             hh: 800.0,
         },
-        nonlin_elast: None,
-        stress_update: None,
     };
-    p1.set_save_strain(true).set_save_history(true);
     let input = FemInput::new(&mesh, [(att, Element::Solid(p1))])?;
 
     // essential boundary conditions

@@ -72,10 +72,7 @@ impl<'a> ElementSolid<'a> {
         let delta_strain = Tensor2::new(mandel);
 
         // enable the calculation of strains (not just the increment of strains)
-        let save_strain = match param.stress_update {
-            Some(p) => p.save_strain || p.save_history,
-            None => false,
-        };
+        let save_strain = settings.save_strain;
 
         // local state backup
         let n_internal_values = param.n_internal_values();
@@ -282,8 +279,6 @@ mod tests {
         let p1 = ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: StressStrain::LinearElastic { young, poisson },
-            nonlin_elast: None,
-            stress_update: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -327,13 +322,10 @@ mod tests {
         // parameters
         let young = 1.0;
         let poisson = 0.25;
-        let mut p1 = ParamSolid {
+        let p1 = ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
-            nonlin_elast: None,
-            stress_update: None,
         };
-        p1.set_save_strain(true);
 
         // strain magnitude (either ε_xx, ε_yy, or ε_xy)
         const STRAIN: f64 = 4.56;
@@ -364,7 +356,10 @@ mod tests {
             let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 
             // configuration
-            let config = Config::new(&mesh);
+            let mut config = Config::new(&mesh);
+
+            // enable saving strains
+            config.update_model_settings(cell.attribute).set_save_strain(true);
 
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
@@ -425,8 +420,6 @@ mod tests {
         let p1 = ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
-            nonlin_elast: None,
-            stress_update: None,
         };
 
         // strain magnitude (either ε_xx, ε_yy, or ε_xy)
@@ -522,8 +515,6 @@ mod tests {
         let p1 = ParamSolid {
             density: 2.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
-            nonlin_elast: None,
-            stress_update: None,
         };
         let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
 

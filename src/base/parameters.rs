@@ -1,5 +1,4 @@
 use super::{N_INT_VAL_CAM_CLAY, N_INT_VAL_DRUCKER_PRAGER, N_INT_VAL_LINEAR_ELASTIC, N_INT_VAL_VON_MISES};
-use russell_ode::Method;
 
 /// Holds parameters for stress-strain relations (total or effective stress)
 #[derive(Clone, Copy, Debug)]
@@ -259,42 +258,6 @@ pub struct ParamBeam {
     pub jj_tt: f64,
 }
 
-/// Holds parameters to convert a linear elastic model into a non-linear elastic model
-///
-/// **Note:** These options only work with the general Plasticity formulation
-#[derive(Clone, Copy, Debug)]
-pub struct ParamNonlinElast {
-    /// Coefficient for nonlinear elasticity (zero renders linear elasticity)
-    pub beta: f64,
-
-    /// Make the Young modulus vary with σm instead of σd
-    pub isotropic: bool,
-}
-
-/// Holds data to control the stress update algorithms
-#[derive(Clone, Copy, Debug)]
-pub struct ParamStressUpdate {
-    /// Enables the general formulation instead of the specialized formulation
-    pub general_plasticity: bool,
-
-    /// Defines the ODE method for stress-update with general plasticity
-    pub ode_method: Method,
-
-    /// The maximum degree of the interpolant for the yield function intersection (general plasticity only)
-    ///
-    /// Note, the actual degree of the interpolant is calculated to fit the data.
-    pub interp_nn_max: usize,
-
-    /// Allows an initial yield surface drift (e.g., for debugging)
-    pub allow_initial_drift: bool,
-
-    /// Enables the recording of the strain tensor
-    pub save_strain: bool,
-
-    /// Enables the recording of the stress-strain history (general plasticity only)
-    pub save_history: bool,
-}
-
 /// Holds parameters for solid media mechanics simulations
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSolid {
@@ -303,12 +266,6 @@ pub struct ParamSolid {
 
     /// Parameters for the stress-strain model
     pub stress_strain: StressStrain,
-
-    /// Options for nonlinear elasticity
-    pub nonlin_elast: Option<ParamNonlinElast>,
-
-    /// Options for the stress update algorithms
-    pub stress_update: Option<ParamStressUpdate>,
 }
 
 /// Holds parameters for seepage simulations with liquid only
@@ -552,106 +509,10 @@ impl ParamBeam {
     }
 }
 
-impl ParamNonlinElast {
-    /// Returns sample parameters
-    pub fn sample() -> Self {
-        ParamNonlinElast {
-            beta: 2.0,
-            isotropic: true,
-        }
-    }
-}
-
-impl ParamStressUpdate {
-    /// Allocates a new instance with default values
-    pub fn new() -> Self {
-        ParamStressUpdate {
-            general_plasticity: false,
-            ode_method: Method::DoPri8,
-            interp_nn_max: 30,
-            allow_initial_drift: false,
-            save_strain: false,
-            save_history: false,
-        }
-    }
-}
-
 impl ParamSolid {
     /// Returns the number of internal values used by the stress-strain model
     pub fn n_internal_values(&self) -> usize {
         self.stress_strain.n_internal_values()
-    }
-
-    /// Enables general plasticity formulation
-    pub fn set_general_plasticity(&mut self, flag: bool) -> &mut Self {
-        match self.stress_update.as_mut() {
-            Some(su) => su.general_plasticity = flag,
-            None => {
-                self.stress_update = Some(ParamStressUpdate::new());
-                self.stress_update.as_mut().unwrap().general_plasticity = flag;
-            }
-        }
-        self
-    }
-
-    /// Sets the ODE method for stress-update with general plasticity
-    pub fn set_ode_method(&mut self, method: Method) -> &mut Self {
-        match self.stress_update.as_mut() {
-            Some(su) => su.ode_method = method,
-            None => {
-                self.stress_update = Some(ParamStressUpdate::new());
-                self.stress_update.as_mut().unwrap().ode_method = method;
-            }
-        }
-        self
-    }
-
-    /// Sets the maximum degree of the interpolant for the yield function intersection (general plasticity only)
-    pub fn set_interp_nn_max(&mut self, nn_max: usize) -> &mut Self {
-        match self.stress_update.as_mut() {
-            Some(su) => su.interp_nn_max = nn_max,
-            None => {
-                self.stress_update = Some(ParamStressUpdate::new());
-                self.stress_update.as_mut().unwrap().interp_nn_max = nn_max;
-            }
-        }
-        self
-    }
-
-    /// Allows an initial yield surface drift (e.g., for debugging)
-    pub fn set_allow_initial_drift(&mut self, flag: bool) -> &mut Self {
-        match self.stress_update.as_mut() {
-            Some(su) => su.allow_initial_drift = flag,
-            None => {
-                self.stress_update = Some(ParamStressUpdate::new());
-                self.stress_update.as_mut().unwrap().allow_initial_drift = flag;
-            }
-        }
-        self
-    }
-
-    /// Enables the recording of the strain tensor
-    pub fn set_save_strain(&mut self, flag: bool) -> &mut Self {
-        match self.stress_update.as_mut() {
-            Some(su) => su.save_strain = flag,
-            None => {
-                self.stress_update = Some(ParamStressUpdate::new());
-                self.stress_update.as_mut().unwrap().save_strain = flag;
-            }
-        }
-        self
-    }
-
-    /// Enables the recording of the stress-strain history (general plasticity only)
-    pub fn set_save_history(&mut self, flag: bool) -> &mut Self {
-        match self.stress_update.as_mut() {
-            Some(su) => su.save_history = flag,
-            None => {
-                self.stress_update = Some(ParamStressUpdate::new());
-                self.stress_update.as_mut().unwrap().save_history = flag;
-            }
-        }
-        self
     }
 
     /// Returns a sample of parameters for the linear elastic model
@@ -659,8 +520,6 @@ impl ParamSolid {
         ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::sample_linear_elastic(),
-            nonlin_elast: None,
-            stress_update: None,
         }
     }
 
@@ -669,8 +528,6 @@ impl ParamSolid {
         ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::sample_von_mises(),
-            nonlin_elast: None,
-            stress_update: None,
         }
     }
 }
@@ -838,30 +695,14 @@ mod tests {
     }
 
     #[test]
-    fn param_non_lin_elast_works() {
-        let p = ParamNonlinElast::sample();
-        let q = p.clone();
-        let correct = "ParamNonlinElast { beta: 2.0, isotropic: true }";
-        assert_eq!(format!("{:?}", q), correct);
-    }
-
-    #[test]
-    fn param_stress_update_works() {
-        let p = ParamStressUpdate::new();
-        let q = p.clone();
-        let correct = "ParamStressUpdate { general_plasticity: false, ode_method: DoPri8, interp_nn_max: 30, allow_initial_drift: false, save_strain: false, save_history: false }";
-        assert_eq!(format!("{:?}", q), correct);
-    }
-
-    #[test]
     fn param_solid_works() {
         let p = ParamSolid::sample_linear_elastic();
         let q = p.clone();
-        let correct = "ParamSolid { density: 1.0, stress_strain: LinearElastic { young: 1500.0, poisson: 0.25 }, nonlin_elast: None, stress_update: None }";
+        let correct = "ParamSolid { density: 1.0, stress_strain: LinearElastic { young: 1500.0, poisson: 0.25 } }";
         assert_eq!(format!("{:?}", q), correct);
 
         let p = ParamSolid::sample_von_mises();
-        let correct = "ParamSolid { density: 1.0, stress_strain: VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z_ini: 9.0 }, nonlin_elast: None, stress_update: None }";
+        let correct = "ParamSolid { density: 1.0, stress_strain: VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z_ini: 9.0 } }";
         assert_eq!(format!("{:?}", p), correct);
     }
 
