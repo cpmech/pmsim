@@ -29,7 +29,7 @@ pub struct ElementDiffusion<'a> {
     pub ips: integ::IntegPointData,
 
     /// Conductivity model
-    pub model: ModelConductivity<'a>,
+    pub model: ModelConductivity,
 
     /// (temporary) Conductivity tensor at a single integration point
     pub conductivity: Tensor2,
@@ -61,7 +61,7 @@ impl<'a> ElementDiffusion<'a> {
         let ips = config.integ_point_data(cell)?;
 
         // material model
-        let model = ModelConductivity::new(&param.conductivity, ndim == 2);
+        let model = ModelConductivity::new(&config.ideal, &param.conductivity)?;
 
         // auxiliary conductivity tensor
         let conductivity = Tensor2::new_sym_ndim(ndim);

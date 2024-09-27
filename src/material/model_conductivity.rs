@@ -1,31 +1,100 @@
-use crate::base::Conductivity;
+use crate::base::{Conductivity, Idealization};
 use crate::StrError;
 use russell_tensor::Tensor2;
 
 /// Implements conductivity models
-pub struct ModelConductivity<'a> {
-    /// Material parameters
-    param: &'a Conductivity,
-
+pub struct ModelConductivity {
     /// Indicates a 2D conductivity tensor
     two_dim: bool,
 
-    /// Indicates whether the conductivity tensor depends on ϕ or not
-    variable_k: bool,
+    /// Use Constant model
+    cte_enabled: bool,
+
+    /// Use Isotropic model
+    iso_enabled: bool,
+
+    /// Isotropic model k = (1 + β T) kᵣ I  (I is the identity tensor)
+    iso_kr: f64,
+
+    /// Isotropic model k = (1 + β T) kᵣ I  (I is the identity tensor)
+    iso_beta: f64,
+
+    /// x-component of the conductivity tensor
+    kx: f64,
+
+    /// y-component of the conductivity tensor
+    ky: f64,
+
+    /// z-component of the conductivity tensor
+    kz: f64,
+
+    /// Pedroso-Zhang-Ehlers (PZE): λ0 parameter
+    pze_lambda_0: f64,
+
+    /// Pedroso-Zhang-Ehlers (PZE): λ1 parameter
+    pze_lambda_1: f64,
+
+    /// Pedroso-Zhang-Ehlers (PZE): α parameter
+    pze_alpha: f64,
+
+    /// Pedroso-Zhang-Ehlers (PZE): β parameter
+    pze_beta: f64,
 }
 
-impl<'a> ModelConductivity<'a> {
+impl ModelConductivity {
     /// Allocates a new instance
-    pub fn new(param: &'a Conductivity, two_dim: bool) -> Self {
-        let variable_k = match param {
-            Conductivity::Constant { .. } => false,
-            Conductivity::IsotropicLinear { .. } => true,
-            Conductivity::PedrosoZhangEhlers { .. } => true,
-        };
-        ModelConductivity {
-            param,
-            two_dim,
-            variable_k,
+    pub fn new(ideal: &Idealization, param: &Conductivity) -> Result<Self, StrError> {
+        match *param {
+            Conductivity::Constant { kx, ky, kz } => Ok(ModelConductivity {
+                two_dim: ideal.two_dim,
+                cte_enabled: true,
+                iso_enabled: false,
+                iso_kr: 0.0,
+                iso_beta: 0.0,
+                kx,
+                ky,
+                kz,
+                pze_lambda_0: 0.0,
+                pze_lambda_1: 0.0,
+                pze_alpha: 0.0,
+                pze_beta: 0.0,
+            }),
+            Conductivity::IsotropicLinear { kr, beta } => Ok(ModelConductivity {
+                two_dim: ideal.two_dim,
+                cte_enabled: false,
+                iso_enabled: true,
+                iso_kr: kr,
+                iso_beta: beta,
+                kx: 0.0,
+                ky: 0.0,
+                kz: 0.0,
+                pze_lambda_0: 0.0,
+                pze_lambda_1: 0.0,
+                pze_alpha: 0.0,
+                pze_beta: 0.0,
+            }),
+            Conductivity::PedrosoZhangEhlers {
+                kx,
+                ky,
+                kz,
+                lambda_0,
+                lambda_1,
+                alpha,
+                beta,
+            } => Ok(ModelConductivity {
+                two_dim: ideal.two_dim,
+                cte_enabled: false,
+                iso_enabled: false,
+                iso_kr: 0.0,
+                iso_beta: 0.0,
+                kx,
+                ky,
+                kz,
+                pze_lambda_0: lambda_0,
+                pze_lambda_1: lambda_1,
+                pze_alpha: alpha,
+                pze_beta: beta,
+            }),
         }
     }
 
@@ -34,32 +103,34 @@ impl<'a> ModelConductivity<'a> {
         true
     }
 
-    /// Indicates whether or not the model has a variable k, thus ∂k/∂ϕ is needed
+    /// Indicates whether the conductivity tensor depends on ϕ or not, thus ∂k/∂ϕ is needed
     pub fn has_variable_k(&self) -> bool {
-        self.variable_k
+        !self.cte_enabled
     }
 
     /// Calculates the conductivity tensor
     pub fn calc_k(&self, k: &mut Tensor2, phi: f64) -> Result<(), StrError> {
         k.clear();
-        match self.param {
-            Conductivity::Constant { kx, ky, kz } => {
-                k.sym_set(0, 0, *kx);
-                k.sym_set(1, 1, *ky);
-                if !self.two_dim {
-                    k.sym_set(2, 2, *kz);
-                }
+        if self.cte_enabled {
+            k.sym_set(0, 0, self.kx);
+            k.sym_set(1, 1, self.ky);
+            if !self.two_dim {
+                k.sym_set(2, 2, self.kz);
             }
-            Conductivity::IsotropicLinear { kr, beta } => {
-                // k = (1 + β T) kᵣ I   (I is the identity tensor)
-                let val = (1.0 + beta * phi) * kr;
-                k.sym_set(0, 0, val);
-                k.sym_set(1, 1, val);
-                if !self.two_dim {
-                    k.sym_set(2, 2, val);
-                }
+        } else if self.iso_enabled {
+            // k = (1 + β T) kᵣ I   (I is the identity tensor)
+            let val = (1.0 + self.iso_beta * phi) * self.iso_kr;
+            k.sym_set(0, 0, val);
+            k.sym_set(1, 1, val);
+            if !self.two_dim {
+                k.sym_set(2, 2, val);
             }
-            _ => panic!("todo"),
+        } else {
+            let _ = self.pze_lambda_0;
+            let _ = self.pze_lambda_1;
+            let _ = self.pze_alpha;
+            let _ = self.pze_beta;
+            return Err("TODO: Pedroso-Zhang-Ehlers Conductivity model");
         }
         Ok(())
     }
@@ -67,18 +138,18 @@ impl<'a> ModelConductivity<'a> {
     /// Calculates the derivative of the conductivity tensor with respect to phi (∂k/∂ϕ)
     pub fn calc_dk_dphi(&self, dk_dphi: &mut Tensor2, _phi: f64) -> Result<(), StrError> {
         dk_dphi.clear();
-        match self.param {
-            Conductivity::Constant { .. } => (),
-            Conductivity::IsotropicLinear { kr, beta } => {
-                // k = (1 + β T) kᵣ I   →  ∂k/∂ϕ = ∂k/∂T = β kᵣ I
-                let val = beta * kr;
-                dk_dphi.sym_set(0, 0, val);
-                dk_dphi.sym_set(1, 1, val);
-                if !self.two_dim {
-                    dk_dphi.sym_set(2, 2, val);
-                }
+        if self.cte_enabled {
+            // nothing else needed
+        } else if self.iso_enabled {
+            // k = (1 + β T) kᵣ I   →  ∂k/∂ϕ = ∂k/∂T = β kᵣ I
+            let val = self.iso_beta * self.iso_kr;
+            dk_dphi.sym_set(0, 0, val);
+            dk_dphi.sym_set(1, 1, val);
+            if !self.two_dim {
+                dk_dphi.sym_set(2, 2, val);
             }
-            _ => panic!("todo"),
+        } else {
+            return Err("TODO: Pedroso-Zhang-Ehlers Conductivity model");
         }
         Ok(())
     }
@@ -89,14 +160,15 @@ impl<'a> ModelConductivity<'a> {
 #[cfg(test)]
 mod tests {
     use super::ModelConductivity;
-    use crate::base::Conductivity;
+    use crate::base::{Conductivity, Idealization};
     use russell_lab::{approx_eq, deriv1_central5};
     use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn derivative_works() {
         let param = Conductivity::IsotropicLinear { kr: 20.0, beta: 0.5 };
-        let model = ModelConductivity::new(&param, true);
+        let ideal = Idealization::new(2);
+        let model = ModelConductivity::new(&ideal, &param).unwrap();
 
         let phi_ini = 100.0;
         let mut dk_dphi_ana = Tensor2::new(Mandel::Symmetric2D);
