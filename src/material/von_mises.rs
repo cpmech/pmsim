@@ -1,5 +1,5 @@
-use super::{LocalState, PlasticityTrait, StressStrainTrait};
-use crate::base::{Idealization, ParamNonlinElast, N_INT_VAL_VON_MISES};
+use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
+use crate::base::{Idealization, StressStrain, N_INT_VAL_VON_MISES};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::deriv1_invariant_sigma_d;
@@ -46,24 +46,36 @@ pub struct VonMises {
     /// Deviatoric stress: s = dev(σ)
     s: Tensor2,
 
-    /// Allows an initial yield surface drift (e.g., for debugging)
-    allow_initial_drift: bool,
+    /// Additional settings
+    settings: Settings,
 }
 
 impl VonMises {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, young: f64, poisson: f64, z_ini: f64, hh: f64, allow_initial_drift: bool) -> Self {
-        assert!(!ideal.plane_stress);
-        let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
-        let (kk, gg) = lin_elasticity.get_bulk_shear();
-        VonMises {
-            lin_elasticity,
-            kk,
-            gg,
-            hh,
-            z_ini,
-            s: Tensor2::new(ideal.mandel()),
-            allow_initial_drift,
+    pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+        if ideal.plane_stress {
+            return Err("von Mises model does not work in plane-stress");
+        }
+        match *param {
+            StressStrain::VonMises {
+                young,
+                poisson,
+                hh,
+                z_ini,
+            } => {
+                let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
+                let (kk, gg) = lin_elasticity.get_bulk_shear();
+                Ok(VonMises {
+                    lin_elasticity,
+                    kk,
+                    gg,
+                    hh,
+                    z_ini,
+                    s: Tensor2::new(ideal.mandel()),
+                    settings: settings.clone(),
+                })
+            }
+            _ => Err("VonMises parameters required"),
         }
     }
 }
@@ -87,7 +99,7 @@ impl StressStrainTrait for VonMises {
     /// Initializes the internal values for the initial stress state
     fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
         state.internal_values[I_Z] = self.z_ini;
-        if !self.allow_initial_drift {
+        if !self.settings.gp_allow_initial_drift {
             let f = self.yield_function(state)?;
             if f > 0.0 {
                 return Err("stress is outside the yield surface");
@@ -226,13 +238,12 @@ impl PlasticityTrait for VonMises {
     }
 
     /// Calculates the elastic rigidity modulus
-    fn calc_dde(
-        &self,
-        dde: &mut Tensor4,
-        _state: &LocalState,
-        _param_nle: Option<ParamNonlinElast>,
-    ) -> Result<(), StrError> {
-        dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
+    fn calc_dde(&self, dde: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+        if self.settings.nle_enabled {
+            return Err("TODO: nonlinear elasticity");
+        } else {
+            dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
+        }
         Ok(())
     }
 }
@@ -242,8 +253,8 @@ impl PlasticityTrait for VonMises {
 #[cfg(test)]
 mod tests {
     use super::VonMises;
-    use crate::base::Idealization;
-    use crate::material::{LocalState, StressStrainTrait};
+    use crate::base::{Idealization, StressStrain};
+    use crate::material::{LocalState, Settings, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, Tensor4, SQRT_3, SQRT_3_BY_2};
 
@@ -279,7 +290,14 @@ mod tests {
     #[test]
     fn initialize_internal_values_works() {
         let ideal = Idealization::new(2);
-        let model = VonMises::new(&ideal, YOUNG, POISSON, Z_INI, HH, false);
+        let param = StressStrain::VonMises {
+            young: YOUNG,
+            poisson: POISSON,
+            hh: HH,
+            z_ini: Z_INI,
+        };
+        let settings = Settings::new();
+        let model = VonMises::new(&ideal, &param, &settings).unwrap();
         let mut state = LocalState::new(ideal.mandel(), model.n_internal_values());
         model.initialize_internal_values(&mut state).unwrap();
         assert_eq!(state.internal_values.as_data(), &[Z_INI, 0.0]);
@@ -289,7 +307,14 @@ mod tests {
     fn update_stress_works_elastic() {
         for ndim in [2, 3] {
             let ideal = Idealization::new(ndim);
-            let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z_INI, HH, false);
+            let param = StressStrain::VonMises {
+                young: YOUNG,
+                poisson: POISSON,
+                hh: HH,
+                z_ini: Z_INI,
+            };
+            let settings = Settings::new();
+            let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
             for lode in [-1.0, 0.0, 1.0] {
                 let state = update_to_yield_surface(&ideal, &mut model, lode);
                 let sigma_m = state.stress.invariant_sigma_m();
@@ -315,7 +340,14 @@ mod tests {
         for ndim in [2, 3] {
             // update to yield surface (exactly)
             let ideal = Idealization::new(ndim);
-            let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z_INI, HH, false);
+            let param = StressStrain::VonMises {
+                young: YOUNG,
+                poisson: POISSON,
+                hh: HH,
+                z_ini: Z_INI,
+            };
+            let settings = Settings::new();
+            let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
             let mut state = update_to_yield_surface(&ideal, &mut model, lode);
             let sigma_m_1 = state.stress.invariant_sigma_m();
             let sigma_d_1 = state.stress.invariant_sigma_d();
@@ -353,7 +385,14 @@ mod tests {
     fn stiffness_works_elastoplastic_2d() {
         // model
         let ideal = Idealization::new(2);
-        let mut model = VonMises::new(&ideal, YOUNG, POISSON, Z_INI, HH, false);
+        let param = StressStrain::VonMises {
+            young: YOUNG,
+            poisson: POISSON,
+            hh: HH,
+            z_ini: Z_INI,
+        };
+        let settings = Settings::new();
+        let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
 
         // initial state
         let mandel = ideal.mandel();

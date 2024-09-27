@@ -1,5 +1,5 @@
-use super::{LocalState, StressStrainTrait};
-use crate::base::{Idealization, N_INT_VAL_LINEAR_ELASTIC};
+use super::{LocalState, Settings, StressStrainTrait};
+use crate::base::{Idealization, StressStrain, N_INT_VAL_LINEAR_ELASTIC};
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 
@@ -10,9 +10,12 @@ pub struct LinearElastic {
 
 impl LinearElastic {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, young: f64, poisson: f64) -> Self {
-        LinearElastic {
-            model: LinElasticity::new(young, poisson, ideal.two_dim, ideal.plane_stress),
+    pub fn new(ideal: &Idealization, param: &StressStrain, _settings: &Settings) -> Result<Self, StrError> {
+        match *param {
+            StressStrain::LinearElastic { young, poisson } => Ok(LinearElastic {
+                model: LinElasticity::new(young, poisson, ideal.two_dim, ideal.plane_stress),
+            }),
+            _ => Err("LinearElastic parameters required"),
         }
     }
 }

@@ -49,6 +49,22 @@ impl Settings {
         }
     }
 
+    /// Validates all data
+    ///
+    /// Returns a message with the inconsistent data, or returns None if everything is all right.
+    pub fn validate(&self) -> Option<String> {
+        if self.nle_beta < 0.0 {
+            return Some(format!("nle_beta = {:?} is incorrect; it must be ≥ 0.0", self.nle_beta));
+        }
+        if self.gp_interp_nn_max < 1 {
+            return Some(format!(
+                "gp_interp_nn_max = {:?} is incorrect; it must be ≥ 1",
+                self.gp_interp_nn_max
+            ));
+        }
+        None // all good
+    }
+
     /// Enables the recording of the strain tensor
     pub fn set_save_strain(&mut self, flag: bool) -> &mut Self {
         self.save_strain = flag;

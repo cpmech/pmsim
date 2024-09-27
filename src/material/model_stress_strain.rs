@@ -1,5 +1,5 @@
-use super::{LinearElastic, LocalState, Settings, VonMises};
-use crate::base::{Idealization, ParamSolid, StressStrain};
+use super::{Elastoplastic, LinearElastic, LocalState, Settings, VonMises};
+use crate::base::{Idealization, StressStrain};
 use crate::StrError;
 use russell_tensor::{Tensor2, Tensor4};
 
@@ -35,32 +35,24 @@ pub struct ModelStressStrain {
 
 impl ModelStressStrain {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, param: &ParamSolid, settings: Settings) -> Result<Self, StrError> {
-        let allow_initial_drift = match param.stress_update {
-            Some(su) => su.allow_initial_drift,
-            None => false,
-        };
-        let actual: Box<dyn StressStrainTrait> = match param.stress_strain {
-            // Linear elastic model
-            StressStrain::LinearElastic { young, poisson } => Box::new(LinearElastic::new(ideal, young, poisson)),
+    pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+        // check settings
+        if let Some(msg) = settings.validate() {
+            println!("ERROR: {}", msg);
+            return Err("cannot allocate ModelStressStrain because settings.validate() failed");
+        }
 
-            // Modified Cambridge (Cam) clay model
+        // allocate model
+        let actual: Box<dyn StressStrainTrait> = match param {
+            StressStrain::LinearElastic { .. } => Box::new(LinearElastic::new(ideal, param, settings)?),
             StressStrain::CamClay { .. } => panic!("TODO: CamClay"),
-
-            // Drucker-Prager plasticity model
             StressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
-
-            // von Mises plasticity model
-            StressStrain::VonMises {
-                young,
-                poisson,
-                z_ini,
-                hh,
-            } => {
-                if ideal.plane_stress {
-                    return Err("von Mises model does not work in plane-stress");
+            StressStrain::VonMises { .. } => {
+                if settings.general_plasticity {
+                    Box::new(Elastoplastic::new(ideal, param, settings)?)
+                } else {
+                    Box::new(VonMises::new(ideal, param, settings)?)
                 }
-                Box::new(VonMises::new(ideal, young, poisson, z_ini, hh, allow_initial_drift))
             }
         };
         Ok(ModelStressStrain { actual })
@@ -72,44 +64,39 @@ impl ModelStressStrain {
 #[cfg(test)]
 mod tests {
     use super::ModelStressStrain;
-    use crate::base::{Idealization, ParamSolid, StressStrain};
+    use crate::base::{Idealization, StressStrain};
     use crate::material::Settings;
 
     #[test]
     fn allocate_stress_strain_model_works() {
         let mut ideal = Idealization::new(2);
-        let param = ParamSolid::sample_linear_elastic();
+        let param = StressStrain::sample_linear_elastic();
         let settings = Settings::new();
-        ModelStressStrain::new(&ideal, &param, settings).unwrap();
+        ModelStressStrain::new(&ideal, &param, &settings).unwrap();
 
         ideal.plane_stress = true;
-        let param = ParamSolid::sample_von_mises();
+        let param = StressStrain::sample_von_mises();
         assert_eq!(
-            ModelStressStrain::new(&ideal, &param, settings).err(),
+            ModelStressStrain::new(&ideal, &param, &settings).err(),
             Some("von Mises model does not work in plane-stress")
         );
 
         ideal.plane_stress = false;
-        ModelStressStrain::new(&ideal, &param, settings).unwrap();
+        ModelStressStrain::new(&ideal, &param, &settings).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "TODO: DruckerPrager")]
     fn allocate_stress_strain_fails() {
         let ideal = Idealization::new(2);
-        let param = ParamSolid {
-            density: 1.0,
-            stress_strain: StressStrain::DruckerPrager {
-                young: 1500.0,
-                poisson: 0.25,
-                c: 0.0,
-                phi: 12.0,
-                hh: 800.0,
-            },
-            nonlin_elast: None,
-            stress_update: None,
+        let param = StressStrain::DruckerPrager {
+            young: 1500.0,
+            poisson: 0.25,
+            c: 0.0,
+            phi: 12.0,
+            hh: 800.0,
         };
         let settings = Settings::new();
-        ModelStressStrain::new(&ideal, &param, settings).unwrap();
+        ModelStressStrain::new(&ideal, &param, &settings).unwrap();
     }
 }

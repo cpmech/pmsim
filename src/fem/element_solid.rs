@@ -65,7 +65,7 @@ impl<'a> ElementSolid<'a> {
 
         // material model
         let settings = config.model_settings(cell.attribute);
-        let model = ModelStressStrain::new(&config.ideal, param, settings)?;
+        let model = ModelStressStrain::new(&config.ideal, &param.stress_strain, &settings)?;
 
         // auxiliary strain increment tensor
         let mandel = config.ideal.mandel();

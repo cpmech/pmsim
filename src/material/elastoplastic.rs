@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use super::{LocalState, PlasticityTrait, StressStrainTrait, VonMises};
-use crate::base::{Idealization, ParamNonlinElast, ParamSolid, ParamStressUpdate, StressStrain};
+use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait, VonMises};
+use crate::base::{Idealization, ParamNonlinElast, ParamStressUpdate, StressStrain};
 use crate::StrError;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
 use russell_ode::{OdeSolver, Params, System};
@@ -22,9 +22,6 @@ const T_BOUNDARY_TOL: f64 = 1e-7;
 
 /// Defines the arguments for the ODE solvers
 struct Args {
-    /// Holds parameters for the non-linear elastic model
-    param_nle: Option<ParamNonlinElast>,
-
     /// Holds the current stress-strain state
     state: LocalState,
 
@@ -110,30 +107,10 @@ pub struct Elastoplastic<'a> {
 }
 
 impl<'a> Elastoplastic<'a> {
-    pub fn new(ideal: &Idealization, param: &ParamSolid) -> Result<Self, StrError> {
-        // stress-update parameters
-        let su_param = match param.stress_update {
-            Some(p) => p,
-            None => ParamStressUpdate::new(),
-        };
-        if su_param.interp_nn_max < 1 {
-            return Err("The maximum interpolant degree must be > 0");
-        }
-
+    pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // plasticity model
-        let ini_drift = su_param.allow_initial_drift;
-        let model: Box<dyn PlasticityTrait> = match param.stress_strain {
-            StressStrain::VonMises {
-                young,
-                poisson,
-                z_ini,
-                hh,
-            } => {
-                if ideal.plane_stress {
-                    return Err("von Mises model does not work in plane-stress");
-                }
-                Box::new(VonMises::new(ideal, young, poisson, z_ini, hh, ini_drift))
-            }
+        let model: Box<dyn PlasticityTrait> = match param {
+            StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
             _ => return Err("model cannot be used with Elastoplastic"),
         };
 
@@ -150,7 +127,7 @@ impl<'a> Elastoplastic<'a> {
             args.state.stress.vector_mut().set_vector(y.as_data());
 
             // calculate: Dₑ(t)
-            args.model.calc_dde(&mut args.dde, &args.state, args.param_nle)?;
+            args.model.calc_dde(&mut args.dde, &args.state)?;
 
             // calculate: {dσ/dt} = [Dₑ]{Δε}
             mat_vec_mul(dydt, 1.0, &args.dde.matrix(), &args.depsilon.vector())
@@ -180,7 +157,7 @@ impl<'a> Elastoplastic<'a> {
             let mmp = -vec_inner(&args.df_dz, &args.hh_yf);
 
             // calculate: Dₑ(t)
-            args.model.calc_dde(&mut args.dde, &args.state, args.param_nle)?;
+            args.model.calc_dde(&mut args.dde, &args.state)?;
 
             // Nₚ = Mₚ + (df/dσ) : Dₑ : (dg/dσ)
             let nnp = mmp + t2_ddot_t4_ddot_t2(df_dsigma, &args.dde, dg_dsigma);
@@ -208,13 +185,13 @@ impl<'a> Elastoplastic<'a> {
         });
 
         // ODE solvers
-        let ode_param = Params::new(su_param.ode_method);
+        let ode_param = Params::new(settings.gp_ode_method);
         let mut ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
         let ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
         let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
 
         // interpolant
-        let interp_nn_max = su_param.interp_nn_max;
+        let interp_nn_max = settings.gp_interp_nn_max;
         let interpolant = InterpChebyshev::new(interp_nn_max, 0.0, 1.0).unwrap();
 
         // interior stations for dense output (intersection finding)
@@ -249,7 +226,6 @@ impl<'a> Elastoplastic<'a> {
 
         // arguments for the ODE solvers
         let args = Args {
-            param_nle: param.nonlin_elast,
             state: LocalState::new(mandel, n_int_val),
             model,
             depsilon: Tensor2::new(mandel),
@@ -376,9 +352,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             self.args.model.df_dsigma(&mut self.args.df_dsigma, state)?;
 
             // Dₑ
-            self.args
-                .model
-                .calc_dde(&mut self.args.dde, state, self.args.param_nle)?;
+            self.args.model.calc_dde(&mut self.args.dde, state)?;
 
             // (df/dσ) : Dₑ : Δε
             let indicator = t2_ddot_t4_ddot_t2(&self.args.df_dsigma, &self.args.dde, delta_strain);
@@ -507,9 +481,9 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 #[cfg(test)]
 mod tests {
     use super::Elastoplastic;
-    use crate::base::{Idealization, ParamSolid};
+    use crate::base::{Idealization, StressStrain};
     use crate::material::testing::extract_von_mises_kk_gg_hh_z0;
-    use crate::material::{Axis, LocalState, Plotter, PlotterData, StressStrainTrait};
+    use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
     use std::collections::HashMap;
@@ -521,7 +495,7 @@ mod tests {
     // Generates a initial state for the von Mises model
     fn gen_ini_state_von_mises(
         ideal: &Idealization,  // geometry idealization
-        param: &ParamSolid,    // parameters
+        param: &StressStrain,  // parameters
         model: &Elastoplastic, // model
         lode: f64,             // Lode invariant
         sig_m_0: f64,          // initial mean invariant
@@ -548,7 +522,7 @@ mod tests {
     // returns (deps_v, deps_d)
     fn update_with_von_mises(
         state: &mut LocalState,    // the state to be updated
-        param: &ParamSolid,        // parameters
+        param: &StressStrain,      // parameters
         model: &mut Elastoplastic, // model
         lode: f64,                 // Lode invariant (for the elastic increment)
         dsig_m_el: f64,            // increment of mean stress to compute a linear elastic path
@@ -569,7 +543,8 @@ mod tests {
     #[test]
     fn update_stress_von_mises_1() {
         // parameters
-        let param = ParamSolid::sample_von_mises();
+        let param = StressStrain::sample_von_mises();
+        let settings = Settings::new();
         let (kk, gg, hh, z0) = extract_von_mises_kk_gg_hh_z0(&param);
 
         // constants
@@ -589,7 +564,7 @@ mod tests {
                 }
                 // model
                 let ideal = Idealization::new(ndim);
-                let mut model = Elastoplastic::new(&ideal, &param).unwrap();
+                let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
                 model.verbose = VERBOSE;
 
                 // initial state
@@ -638,7 +613,7 @@ mod tests {
         if SAVE_FIGURE {
             let ndim = 2;
             let ideal = Idealization::new(ndim);
-            let model = Elastoplastic::new(&ideal, &param).unwrap();
+            let model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
             let mut plotter = Plotter::new();
             plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
             for (lode, marker, size, void) in [(-1, "s", 10.0, true), (0, "o", 8.0, true), (1, ".", 8.0, false)] {

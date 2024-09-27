@@ -1,5 +1,4 @@
 use super::{LocalState, StressStrainTrait};
-use crate::base::ParamNonlinElast;
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::{Tensor2, Tensor4};
@@ -27,10 +26,5 @@ pub trait PlasticityTrait: StressStrainTrait {
     fn df_dz(&self, df_dz: &mut Vector, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the elastic rigidity modulus
-    fn calc_dde(
-        &self,
-        dde: &mut Tensor4,
-        state: &LocalState,
-        param_nle: Option<ParamNonlinElast>,
-    ) -> Result<(), StrError>;
+    fn calc_dde(&self, dde: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
 }

@@ -1,5 +1,5 @@
 use super::{LoadingPath, LocalState};
-use crate::base::{ParamSolid, StressStrain};
+use crate::base::StressStrain;
 use russell_lab::Vector;
 
 /// Generates an array of LocalState according to a linear elastic model for the VonMises model
@@ -41,8 +41,8 @@ pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
 
 /// Returns (K, G, H, z0) for the von Mises model
 #[allow(dead_code)]
-pub(crate) fn extract_von_mises_kk_gg_hh_z0(param: &ParamSolid) -> (f64, f64, f64, f64) {
-    match param.stress_strain {
+pub(crate) fn extract_von_mises_kk_gg_hh_z0(param: &StressStrain) -> (f64, f64, f64, f64) {
+    match *param {
         StressStrain::VonMises {
             young,
             poisson,
@@ -54,7 +54,7 @@ pub(crate) fn extract_von_mises_kk_gg_hh_z0(param: &ParamSolid) -> (f64, f64, f6
             hh,                                    // H
             z_ini,                                 // z_ini
         ),
-        _ => panic!("ParamSolid must contain von Mises parameters"),
+        _ => panic!("VonMises parameters required"),
     }
 }
 
@@ -63,17 +63,17 @@ pub(crate) fn extract_von_mises_kk_gg_hh_z0(param: &ParamSolid) -> (f64, f64, f6
 #[cfg(test)]
 mod tests {
     use super::extract_von_mises_kk_gg_hh_z0;
-    use crate::base::ParamSolid;
+    use crate::base::StressStrain;
 
     #[test]
-    #[should_panic(expected = "ParamSolid must contain von Mises parameters")]
+    #[should_panic(expected = "VonMises parameters required")]
     fn extract_von_mises_kk_gg_z0_handles_errors() {
-        extract_von_mises_kk_gg_hh_z0(&ParamSolid::sample_linear_elastic());
+        extract_von_mises_kk_gg_hh_z0(&StressStrain::sample_linear_elastic());
     }
 
     #[test]
     fn extract_von_mises_kk_gg_z0_works() {
-        let (kk, gg, hh, z0) = extract_von_mises_kk_gg_hh_z0(&ParamSolid::sample_von_mises());
+        let (kk, gg, hh, z0) = extract_von_mises_kk_gg_hh_z0(&StressStrain::sample_von_mises());
         assert!(kk > 0.0);
         assert!(gg > 0.0);
         assert!(hh > 0.0);
