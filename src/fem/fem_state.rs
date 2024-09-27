@@ -77,9 +77,9 @@ impl FemState {
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
         for cell in &input.mesh.cells {
-            let element = input.attributes.get(cell).unwrap(); // already checked by Data
+            let e_type = input.attributes.get(cell).unwrap(); // already checked by Data
             let n_integration_point = config.integ_point_data(cell)?.len();
-            match element {
+            match e_type {
                 Etype::Diffusion(..) => {
                     has_diffusion = true;
                 }
@@ -224,11 +224,7 @@ mod tests {
         let p3 = ParamRod::sample();
         let input = FemInput::new(
             &mesh,
-            [
-                (1, Etype::Diffusion(p1)),
-                (2, Etype::Solid(p2)),
-                (3, Etype::Rod(p3)),
-            ],
+            [(1, Etype::Diffusion(p1)), (2, Etype::Solid(p2)), (3, Etype::Rod(p3))],
         )
         .unwrap();
         let config = Config::new(&mesh);
@@ -240,11 +236,7 @@ mod tests {
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
         let input = FemInput::new(
             &mesh,
-            [
-                (1, Etype::PorousLiq(p1)),
-                (2, Etype::Solid(p2)),
-                (3, Etype::Rod(p3)),
-            ],
+            [(1, Etype::PorousLiq(p1)), (2, Etype::Solid(p2)), (3, Etype::Rod(p3))],
         )
         .unwrap();
         let config = Config::new(&mesh);
@@ -256,11 +248,7 @@ mod tests {
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
         let input = FemInput::new(
             &mesh,
-            [
-                (1, Etype::PorousLiqGas(p1)),
-                (2, Etype::Solid(p2)),
-                (3, Etype::Rod(p3)),
-            ],
+            [(1, Etype::PorousLiqGas(p1)), (2, Etype::Solid(p2)), (3, Etype::Rod(p3))],
         )
         .unwrap();
         let config = Config::new(&mesh);
