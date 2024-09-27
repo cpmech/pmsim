@@ -186,7 +186,7 @@ impl<'a> Elastoplastic<'a> {
         let ode_param = Params::new(settings.gp_ode_method);
         let mut ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
         let mut ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
-        let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
+        let mut ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
 
         // interpolant
         let interp_nn_max = settings.gp_interp_nn_max;
@@ -235,6 +235,31 @@ impl<'a> Elastoplastic<'a> {
                     if let Some(h) = args.history.as_mut() {
                         // copy {y}(t) into σ
                         args.state.stress.vector_mut().set_vector(y.as_data());
+
+                        // yield function value: f(σ, z)
+                        let f = args.model.yield_function(&args.state)?;
+
+                        // ε(t) = ε₀ + t Δε
+                        let epsilon_0 = args.state.strain.as_ref().unwrap();
+                        let mut epsilon_t = epsilon_0.clone();
+                        epsilon_t.update(t, &args.depsilon);
+
+                        // update history array
+                        h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
+                    }
+                    Ok(KEEP_RUNNING)
+                });
+            ode_elastoplastic
+                .enable_output()
+                .set_dense_h_out(h_out)
+                .unwrap()
+                .set_dense_callback(|_stats, _h, t, y, args| {
+                    if let Some(h) = args.history.as_mut() {
+                        // split {y}(t) into σ and z
+                        y.split2(
+                            args.state.stress.vector_mut().as_mut_data(),
+                            args.state.internal_values.as_mut_data(),
+                        );
 
                         // yield function value: f(σ, z)
                         let f = args.model.yield_function(&args.state)?;
@@ -706,7 +731,10 @@ mod tests {
             let history = model.get_history().unwrap();
             plotter
                 .add_2x2(&history, false, |curve, _, _| {
-                    curve.set_line_color("#ff6600").set_line_style("--");
+                    curve
+                        .set_line_color("#ff6600")
+                        .set_line_style("--")
+                        .set_marker_style(".");
                 })
                 .unwrap();
             let mut data = PlotterData::new();
