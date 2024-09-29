@@ -39,9 +39,9 @@ pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
     array
 }
 
-/// Returns (K, G, H, z0) for the von Mises model
+/// Returns (K, G, H, z_ini) for the von Mises model
 #[allow(dead_code)]
-pub(crate) fn extract_von_mises_kk_gg_hh_z0(param: &StressStrain) -> (f64, f64, f64, f64) {
+pub(crate) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, f64) {
     match *param {
         StressStrain::VonMises {
             young,
@@ -62,21 +62,21 @@ pub(crate) fn extract_von_mises_kk_gg_hh_z0(param: &StressStrain) -> (f64, f64, 
 
 #[cfg(test)]
 mod tests {
-    use super::extract_von_mises_kk_gg_hh_z0;
+    use super::extract_von_mises_params;
     use crate::base::StressStrain;
 
     #[test]
     #[should_panic(expected = "VonMises parameters required")]
     fn extract_von_mises_kk_gg_z0_handles_errors() {
-        extract_von_mises_kk_gg_hh_z0(&StressStrain::sample_linear_elastic());
+        extract_von_mises_params(&StressStrain::sample_linear_elastic());
     }
 
     #[test]
-    fn extract_von_mises_kk_gg_z0_works() {
-        let (kk, gg, hh, z0) = extract_von_mises_kk_gg_hh_z0(&StressStrain::sample_von_mises());
+    fn extract_von_mises_params_works() {
+        let (kk, gg, hh, z_ini) = extract_von_mises_params(&StressStrain::sample_von_mises());
         assert!(kk > 0.0);
         assert!(gg > 0.0);
         assert!(hh > 0.0);
-        assert!(z0 > 0.0);
+        assert!(z_ini > 0.0);
     }
 }

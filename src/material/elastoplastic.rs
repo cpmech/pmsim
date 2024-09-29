@@ -514,8 +514,9 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 mod tests {
     use super::Elastoplastic;
     use crate::base::{Idealization, StressStrain};
-    use crate::material::testing::extract_von_mises_kk_gg_hh_z0;
+    use crate::material::testing::extract_von_mises_params;
     use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, StressStrainTrait};
+    use plotpy::Text;
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
     use std::collections::HashMap;
@@ -534,9 +535,9 @@ mod tests {
         sig_d_0: f64,          // initial deviatoric invariant (only if yf_error is None)
         yf_error: Option<f64>, // initial yield surface error/drift (will overwrite ini_sig_d)
     ) -> LocalState {
-        let (_, _, _, z0) = extract_von_mises_kk_gg_hh_z0(param);
+        let (_, _, _, z_ini) = extract_von_mises_params(param);
         let sig_d_0 = match yf_error {
-            Some(e) => z0 + e,
+            Some(e) => z_ini + e,
             None => sig_d_0,
         };
         let distance = sig_m_0 * SQRT_3;
@@ -544,7 +545,7 @@ mod tests {
         let n_internal_values = model.n_internal_values();
         let mut state = LocalState::new(ideal.mandel(), n_internal_values);
         state.stress = Tensor2::new_from_octahedral(distance, radius, lode, ideal.two_dim).unwrap();
-        state.internal_values[0] = z0;
+        state.internal_values[0] = z_ini;
         state.enable_strain(); // for plotting
         state
     }
@@ -560,7 +561,7 @@ mod tests {
         dsig_m_el: f64,            // increment of mean stress to compute a linear elastic path
         dsig_d_el: f64,            // increment of deviatoric stress to compute a linear elastic path
     ) -> (f64, f64) {
-        let (kk, gg, _, _) = extract_von_mises_kk_gg_hh_z0(param);
+        let (kk, gg, _, _) = extract_von_mises_params(param);
         let deps_v = dsig_m_el / kk;
         let deps_d = dsig_d_el / (3.0 * gg);
         let d_distance = deps_v / SQRT_3;
@@ -577,11 +578,11 @@ mod tests {
         // parameters
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
-        let (kk, gg, hh, z0) = extract_von_mises_kk_gg_hh_z0(&param);
+        let (kk, gg, hh, z_ini) = extract_von_mises_params(&param);
 
         // constants
         let (sig_m_0, sig_d_0, yf_error) = (0.0, 0.0, None);
-        let (dsig_m_el_0, dsig_d_el_0) = (1.0, z0); // will reach the yield surface exactly
+        let (dsig_m_el_0, dsig_d_el_0) = (1.0, z_ini); // will reach the yield surface exactly
         let (dsig_m_el_1, dsig_d_el_1) = (1.0, 9.0); // to calc the next elastic trial increment
 
         // data for plotting
@@ -619,7 +620,7 @@ mod tests {
                 let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
                 approx_eq(sig_m_1, correct_sig_m, 1e-14);
                 approx_eq(sig_d_1, correct_sig_d, 1e-14);
-                approx_eq(state.internal_values[0], z0, 1e-15);
+                approx_eq(state.internal_values[0], z_ini, 1e-15);
                 assert_eq!(state.elastic, true);
 
                 // elastoplastic update
@@ -686,11 +687,11 @@ mod tests {
     fn update_stress_von_mises_2() {
         // parameters
         let param = StressStrain::sample_von_mises();
-        let (kk, gg, hh, z0) = extract_von_mises_kk_gg_hh_z0(&param);
+        let (kk, gg, hh, z_ini) = extract_von_mises_params(&param);
 
         // constants
         let (sig_m_0, sig_d_0, yf_error) = (0.0, 0.0, None);
-        let (dsig_m_el, dsig_d_el) = (2.0, z0 + 9.0); // will cross the yield surface
+        let (dsig_m_el, dsig_d_el) = (2.0, z_ini + 9.0); // will cross the yield surface
 
         // settings
         let mut settings = Settings::new();
@@ -715,10 +716,10 @@ mod tests {
         states.push(state.clone());
 
         // check
-        let deps_d_e = z0 / (3.0 * gg);
+        let deps_d_e = z_ini / (3.0 * gg);
         let deps_d_p = deps_d - deps_d_e;
         let correct_sig_m = kk * deps_v;
-        let correct_sig_d = z0 + 3.0 * gg * hh * deps_d_p / (3.0 * gg + hh);
+        let correct_sig_d = z_ini + 3.0 * gg * hh * deps_d_p / (3.0 * gg + hh);
         approx_eq(sig_m, correct_sig_m, 1e-14);
         approx_eq(sig_d, correct_sig_d, 1e-13);
         approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
@@ -755,6 +756,21 @@ mod tests {
             plotter.set_oct_circle(radius_0, |_| {});
             plotter.set_oct_circle(radius_1, |canvas| {
                 canvas.set_line_style("-");
+            });
+            plotter.set_extra(Axis::Time, Axis::Yield, |plot| {
+                let mut text = Text::new();
+                text.set_bbox(true)
+                    .set_bbox_style("circle,pad=0.2")
+                    .set_bbox_facecolor("#fff8c1")
+                    .set_bbox_edgecolor("#7a7a7a")
+                    .set_align_horizontal("center")
+                    .set_align_vertical("bottom");
+                text.draw(0.0, -z_ini + 0.3, "A");
+                text.set_align_horizontal("right")
+                    .set_align_vertical("top")
+                    .draw(0.5 - 0.02, 0.0 - 0.2, "I");
+                text.set_align_vertical("top").draw(1.0, 0.0 - 0.2, "A★");
+                plot.add(&text);
             });
             plotter
                 .save("/tmp/pmsim/material/test_update_stress_von_mises_2.svg")
