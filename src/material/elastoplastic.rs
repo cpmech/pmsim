@@ -952,8 +952,8 @@ mod tests {
         let (_, _, _, z_ini) = extract_von_mises_params(&param);
 
         // constants
-        let alpha = 3.0;
-        let (sig_m_0, sig_d_0, yf_error) = (2.0, z_ini, None);
+        let (drift, alpha) = (1.0, 3.0);
+        let (sig_m_0, sig_d_0, yf_error) = (2.0, z_ini, Some(drift));
         let (dsig_m_el, dsig_d_el) = (1.0, -alpha * z_ini); // going inside, after crossing because of drift
 
         // settings
@@ -961,19 +961,20 @@ mod tests {
         settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
 
         // model
-        let (ndim, lode) = (2, 0.0);
+        let (ndim, lode_ini) = (2, 0.0);
         let ideal = Idealization::new(ndim);
         let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
 
         // initial state
-        let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+        let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode_ini, sig_m_0, sig_d_0, yf_error);
 
         // array of states for plotting
         let mut states = vec![state.clone()];
 
         // update, crossing the yield surface
-        update_with_von_mises(&mut state, &param, &mut model, 1.0, dsig_m_el, dsig_d_el);
+        let lode_fin = 1.0;
+        update_with_von_mises(&mut state, &param, &mut model, lode_fin, dsig_m_el, dsig_d_el);
         states.push(state.clone());
 
         // check
@@ -1040,19 +1041,17 @@ mod tests {
             };
             plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
                 let mut text = get_text();
-                text.draw(5.0, 7.0, "A$\\star$");
-                text.draw(6.0, -6.5, "X$\\star$");
+                text.draw(6.2, 7.0, "A$\\star$");
+                text.draw(6.3, -6.5, "X$\\star$");
                 text.draw(-1.0, -10.5, "A$\\star$$\\star$");
                 plot.add(&text);
             });
             plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
                 let mut text = get_text();
-                text.draw(0.01, 0.7, "A$\\star$");
-                text.draw(0.55, 0.7, "X$\\star$");
-                text.draw(0.92, 0.7, "X$\\star$$\\star$");
-                // text.draw(1.0, correct_sig_d - z_ini + 0.7, "B$\\star$");
+                text.draw(0.01, drift + 0.7, "A$\\star$");
+                text.draw(0.55, 1.0, "X$\\star$");
+                text.draw(0.97, 1.1, "A$\\star$$\\star$");
                 plot.add(&text);
-                // plot.set_yrange(-10.0, 3.0);
             });
             plotter
                 .save("/tmp/pmsim/material/test_update_stress_von_mises_4.svg")
