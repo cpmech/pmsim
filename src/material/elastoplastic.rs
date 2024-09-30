@@ -573,6 +573,72 @@ mod tests {
         (deps_v, deps_d)
     }
 
+    // Plots the results
+    fn plot_von_mises_results_1(fn_stem: &str, model: &Elastoplastic, states: &[LocalState]) {
+        let mut plotter = Plotter::new();
+        plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
+        let history = model.get_history().unwrap();
+        plotter
+            .add_2x2(&history, false, |curve, _, _| {
+                curve
+                    .set_label("history")
+                    .set_line_color("#7a7a7a")
+                    .set_line_style("--")
+                    .set_marker_style(".");
+            })
+            .unwrap();
+        let mut data = PlotterData::new();
+        for i in 0..states.len() {
+            let s = &states[i];
+            let f = model.args.model.yield_function(s).unwrap();
+            let t = i as f64;
+            data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+        }
+        plotter
+            .add_2x2(&data, false, |curve, _, _| {
+                curve
+                    .set_label("actual update")
+                    .set_marker_style("s")
+                    .set_marker_void(true);
+            })
+            .unwrap();
+        let p = states.len() - 1;
+        let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
+        let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+        plotter.set_oct_circle(radius_0, |_| {});
+        plotter.set_oct_circle(radius_1, |canvas| {
+            canvas.set_line_style("-");
+        });
+        let get_text = || {
+            let mut text = Text::new();
+            text.set_fontsize(12.0)
+                .set_bbox(true)
+                .set_bbox_style("circle,pad=0.1")
+                .set_bbox_facecolor("#fff8c1")
+                .set_bbox_edgecolor("#7a7a7a")
+                .set_align_horizontal("center")
+                .set_align_vertical("bottom");
+            text
+        };
+        plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
+            let mut text = get_text();
+            text.draw(0.0, -3.0, "A");
+            text.draw(5.0, 4.0, "X");
+            text.draw(7.0, 8.5, "A$\\star$");
+            plot.add(&text);
+        });
+        plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
+            let z_ini = states[0].internal_values[0];
+            let mut text = get_text();
+            text.draw(0.0, -z_ini + 0.5, "A");
+            text.draw(0.5, 0.0 + 0.5, "X");
+            text.draw(1.0, 0.0 + 0.7, "A$\\star$");
+            plot.add(&text);
+            plot.set_yrange(-10.0, 2.0);
+        });
+        plotter.save(&format!("/tmp/pmsim/material/{}.svg", fn_stem)).unwrap();
+    }
+
     #[test]
     fn update_stress_von_mises_1() {
         // parameters
@@ -727,58 +793,7 @@ mod tests {
 
         // plot
         if SAVE_FIGURE {
-            let mut plotter = Plotter::new();
-            plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
-            let history = model.get_history().unwrap();
-            plotter
-                .add_2x2(&history, false, |curve, _, _| {
-                    curve
-                        .set_line_color("#ff6600")
-                        .set_line_style("--")
-                        .set_marker_style(".");
-                })
-                .unwrap();
-            let mut data = PlotterData::new();
-            for i in 0..states.len() {
-                let s = &states[i];
-                let f = model.args.model.yield_function(s).unwrap();
-                let t = i as f64;
-                data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
-            }
-            plotter
-                .add_2x2(&data, false, |curve, _, _| {
-                    curve.set_marker_style("o").set_label(&format!(" $\\ell = {}$", lode));
-                })
-                .unwrap();
-            let p = states.len() - 1;
-            let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
-            let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
-            plotter.set_oct_circle(radius_0, |_| {});
-            plotter.set_oct_circle(radius_1, |canvas| {
-                canvas.set_line_style("-");
-            });
-            let get_text = || {
-                let mut text = Text::new();
-                text.set_fontsize(12.0)
-                    .set_bbox(true)
-                    .set_bbox_style("circle,pad=0.1")
-                    .set_bbox_facecolor("#fff8c1")
-                    .set_bbox_edgecolor("#7a7a7a")
-                    .set_align_horizontal("center")
-                    .set_align_vertical("bottom");
-                text
-            };
-            plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
-                let mut text = get_text();
-                text.draw(0.0, -z_ini + 0.5, "A");
-                text.draw(0.5, 0.0 + 0.5, "X");
-                text.draw(1.0, 0.0 + 0.5, "A$\\star$");
-                plot.add(&text);
-                plot.set_yrange(-10.0, 2.0);
-            });
-            plotter
-                .save("/tmp/pmsim/material/test_update_stress_von_mises_2.svg")
-                .unwrap();
+            plot_von_mises_results_1("test_update_stress_von_mises_2", &model, &states);
         }
     }
 }
