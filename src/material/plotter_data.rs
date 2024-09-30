@@ -80,6 +80,11 @@ impl PlotterData {
         });
     }
 
+    /// Returns the number of data points
+    pub fn len(&self) -> usize {
+        self.all.len()
+    }
+
     /// Allocates a new instance given an array of LocalState
     pub fn from_states(states: &[LocalState]) -> Self {
         if states.len() < 1 {

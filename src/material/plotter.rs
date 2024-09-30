@@ -54,6 +54,9 @@ pub struct Plotter<'a> {
     /// Holds the maximum radius of data lines in the octahedral plane
     oct_radius_max: f64,
 
+    /// Holds the maximum radius of data lines in the octahedral plane (enforced by the user)
+    oct_radius_max_enforced: Option<f64>,
+
     /// Holds circles to be drawn on the octahedral plane
     oct_circles: Vec<Canvas>,
 
@@ -117,6 +120,7 @@ impl<'a> Plotter<'a> {
             oct_multiplier_text: 1.31,
             oct_multiplier_text_up: 1.30,
             oct_radius_max: 0.0,
+            oct_radius_max_enforced: None,
             oct_circles: Vec::new(),
             line_style_oct_circle: "--".to_string(),
             color_oct_circle: "#7d7d7d".to_string(),
@@ -180,6 +184,12 @@ impl<'a> Plotter<'a> {
         self
     }
 
+    /// Sets the maximum number of columns of the legend in the tabular layouts
+    pub fn set_tab_leg_ncol(&mut self, value: usize) -> &mut Self {
+        self.tab_leg_ncol = value;
+        self
+    }
+
     /// Enables a legend for the specified x-y subplot
     pub fn set_legend<F>(&mut self, x: Axis, y: Axis, mut config: F) -> &mut Self
     where
@@ -195,6 +205,12 @@ impl<'a> Plotter<'a> {
     /// Sets a function to draw additional features in the specified x-y subplot
     pub fn set_extra(&mut self, x: Axis, y: Axis, f: impl Fn(&mut Plot) + 'a) -> &mut Self {
         self.extra.insert((x, y), Box::new(f));
+        self
+    }
+
+    /// Sets the maximum radius in the octahedral plane
+    pub fn set_oct_radius_max(&mut self, value: f64) -> &mut Self {
+        self.oct_radius_max_enforced = Some(value);
         self
     }
 
@@ -435,7 +451,10 @@ impl<'a> Plotter<'a> {
     /// Draws a rosetta on the octahedral plane
     fn draw_rosetta(&self, plot: &mut Plot) {
         // constants
-        let r = f64::max(self.oct_radius_max, OCT_MIN_RADIUS);
+        let r = match self.oct_radius_max_enforced {
+            Some(v) => f64::max(v, OCT_MIN_RADIUS),
+            None => f64::max(self.oct_radius_max, OCT_MIN_RADIUS),
+        };
         let ma = self.oct_multiplier_axis;
         let mt = self.oct_multiplier_text;
 

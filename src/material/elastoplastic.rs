@@ -67,8 +67,11 @@ struct Args {
     /// (yf_count)
     yf_values: Vector,
 
-    /// Holds the stress-strain history (e.g., for debugging)
-    history: Option<PlotterData>,
+    /// Holds the stress-strain history during the intersection finding (e.g., for debugging)
+    history_int: Option<PlotterData>,
+
+    /// Holds the stress-strain history during the elastic and elastoplastic update (e.g., for debugging)
+    history_eep: Option<PlotterData>,
 }
 
 /// Implements general elastoplasticity models using ODE solvers for the stress-update
@@ -206,7 +209,7 @@ impl<'a> Elastoplastic<'a> {
             .enable_output()
             .set_dense_x_out(&interior_t_out)
             .unwrap()
-            .set_dense_callback(|stats, _h, _t, y, args| {
+            .set_dense_callback(|stats, _h, t, y, args| {
                 // reset the counter
                 if stats.n_accepted == 0 {
                     args.yf_count = 0;
@@ -219,6 +222,17 @@ impl<'a> Elastoplastic<'a> {
                 let f = args.model.yield_function(&args.state)?;
                 args.yf_values[args.yf_count] = f;
                 args.yf_count += 1;
+
+                // history
+                if let Some(h) = args.history_int.as_mut() {
+                    // ε(t) = ε₀ + t Δε
+                    let epsilon_0 = args.state.strain.as_ref().unwrap();
+                    let mut epsilon_t = epsilon_0.clone();
+                    epsilon_t.update(t, &args.depsilon);
+
+                    // update history array
+                    h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
+                }
                 Ok(KEEP_RUNNING)
             });
 
@@ -232,7 +246,7 @@ impl<'a> Elastoplastic<'a> {
                 .set_dense_h_out(h_out)
                 .unwrap()
                 .set_dense_callback(|_stats, _h, t, y, args| {
-                    if let Some(h) = args.history.as_mut() {
+                    if let Some(h) = args.history_eep.as_mut() {
                         // copy {y}(t) into σ
                         args.state.stress.vector_mut().set_vector(y.as_data());
 
@@ -254,7 +268,7 @@ impl<'a> Elastoplastic<'a> {
                 .set_dense_h_out(h_out)
                 .unwrap()
                 .set_dense_callback(|_stats, _h, t, y, args| {
-                    if let Some(h) = args.history.as_mut() {
+                    if let Some(h) = args.history_eep.as_mut() {
                         // split {y}(t) into σ and z
                         y.split2(
                             args.state.stress.vector_mut().as_mut_data(),
@@ -291,7 +305,8 @@ impl<'a> Elastoplastic<'a> {
             ddep: Tensor4::new(mandel),
             yf_count: 0,
             yf_values: Vector::new(interp_npoint),
-            history: None,
+            history_int: None,
+            history_eep: None,
         };
 
         // ODE vectors
@@ -316,11 +331,19 @@ impl<'a> Elastoplastic<'a> {
         })
     }
 
-    /// Returns the stress-strain history recorded by update_stress
-    pub fn get_history(&self) -> Result<PlotterData, StrError> {
-        match self.args.history.as_ref() {
+    /// Returns the stress-strain history during the intersection finding (e.g., for debugging)
+    pub fn get_history_int(&self) -> Result<PlotterData, StrError> {
+        match self.args.history_int.as_ref() {
             Some(h) => Ok(h.clone()),
-            None => Err("history was not enabled"),
+            None => Err("history needs to be enabled"),
+        }
+    }
+
+    /// Returns the stress-strain history during the elastic and elastoplastic update (e.g., for debugging)
+    pub fn get_history_eep(&self) -> Result<PlotterData, StrError> {
+        match self.args.history_eep.as_ref() {
+            Some(h) => Ok(h.clone()),
+            None => Err("history needs to be enabled"),
         }
     }
 }
@@ -398,7 +421,8 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                     return Err("state must have strain enabled");
                 }
             }
-            self.args.history = Some(PlotterData::new());
+            self.args.history_int = Some(PlotterData::new());
+            self.args.history_eep = Some(PlotterData::new());
         }
 
         // run elastic path to search for eventual intersections
@@ -420,7 +444,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             // intersection data
             let mut t_int = 0.0;
             let mut has_intersection = false;
-            let yf_final = *self.args.yf_values.as_data().last().unwrap();
+            let yf_final = self.args.yf_values[self.args.yf_count - 1];
             if yf_final > 0.0 {
                 // set data for interpolation
                 self.interpolant
@@ -728,12 +752,24 @@ mod tests {
         // plot
         if SAVE_FIGURE {
             let mut plotter = Plotter::new();
-            plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
-            let history = model.get_history().unwrap();
             plotter
-                .add_2x2(&history, false, |curve, _, _| {
+                .set_oct_radius_max(9.5)
+                .set_tab_leg_ncol(2)
+                .set_layout_selected_2x2(Axis::Time, Axis::Yield);
+            let history_int = model.get_history_int().unwrap();
+            let history_eep = model.get_history_eep().unwrap();
+            plotter
+                .add_2x2(&history_int, false, |curve, _, _| {
                     curve
-                        .set_label("history")
+                        .set_label("history(int)")
+                        .set_line_color("gold")
+                        .set_line_style("-");
+                })
+                .unwrap();
+            plotter
+                .add_2x2(&history_eep, false, |curve, _, _| {
+                    curve
+                        .set_label("history(e-ep)")
                         .set_line_color("#7a7a7a")
                         .set_line_style("--")
                         .set_marker_style(".");
@@ -841,14 +877,15 @@ mod tests {
         if SAVE_FIGURE {
             let mut plotter = Plotter::new();
             plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
-            let history = model.get_history().unwrap();
+            let history_int = model.get_history_int().unwrap();
+            let history_eep = model.get_history_eep().unwrap();
+            assert_eq!(history_eep.len(), 0); // because "int" covers all the elastic region
             plotter
-                .add_2x2(&history, false, |curve, _, _| {
+                .add_2x2(&history_int, false, |curve, _, _| {
                     curve
-                        .set_label("history")
-                        .set_line_color("#7a7a7a")
-                        .set_line_style("--")
-                        .set_marker_style(".");
+                        .set_label("history(int)")
+                        .set_line_color("gold")
+                        .set_line_style("-");
                 })
                 .unwrap();
             let mut data = PlotterData::new();
