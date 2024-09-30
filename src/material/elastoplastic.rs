@@ -834,12 +834,12 @@ mod tests {
     fn update_stress_von_mises_3() {
         // parameters
         let param = StressStrain::sample_von_mises();
-        let (kk, gg, hh, z_ini) = extract_von_mises_params(&param);
+        let (kk, gg, _, z_ini) = extract_von_mises_params(&param);
 
         // constants
-        let drift = 0.5;
+        let (drift, alpha) = (1.0, 1.8);
         let (sig_m_0, sig_d_0, yf_error) = (2.0, z_ini, Some(drift));
-        let (dsig_m_el, dsig_d_el) = (1.0, -1.95 * z_ini); // going inside, after crossing because of drift
+        let (dsig_m_el, dsig_d_el) = (1.0, -alpha * z_ini); // going inside, after crossing because of drift
 
         // settings
         let mut settings = Settings::new();
@@ -864,14 +864,17 @@ mod tests {
         states.push(state.clone());
 
         // check
-        let deps_d_e = z_ini / (3.0 * gg);
-        let deps_d_p = deps_d - deps_d_e;
-        let correct_sig_m = kk * deps_v;
-        let correct_sig_d = z_ini + 3.0 * gg * hh * deps_d_p / (3.0 * gg + hh);
-        // approx_eq(sig_m, correct_sig_m, 1e-14);
-        // approx_eq(sig_d, correct_sig_d, 1e-13);
-        // approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
-        // assert_eq!(state.elastic, false);
+        let sig_d_0_el = sig_d_0 + drift;
+        let sig_d_1_el = sig_d_0_el + dsig_d_el;
+        let a = sig_d_0_el / (sig_d_0_el - sig_d_1_el);
+        let b = 1.0 - a;
+        let del = f64::abs(deps_d);
+        let correct_sig_m = sig_m_0 + kk * deps_v;
+        let correct_sig_d = sig_d_0_el - a * 3.0 * gg * del + b * 3.0 * gg * del;
+        approx_eq(sig_m, correct_sig_m, 1e-14);
+        approx_eq(sig_d, correct_sig_d, 1e-14);
+        approx_eq(state.internal_values[0], z_ini, 1e-15);
+        assert_eq!(state.elastic, true);
 
         // plot
         if SAVE_FIGURE {
@@ -909,6 +912,34 @@ mod tests {
             plotter.set_oct_circle(radius_0, |_| {});
             plotter.set_oct_circle(radius_1, |canvas| {
                 canvas.set_line_style("-");
+            });
+            plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
+                plot.set_vert_line(a, "gray", "-", 1.0);
+            });
+            let get_text = || {
+                let mut text = Text::new();
+                text.set_fontsize(12.0)
+                    .set_bbox(true)
+                    .set_bbox_style("circle,pad=0.1")
+                    .set_bbox_facecolor("#fff8c1")
+                    .set_bbox_edgecolor("#7a7a7a")
+                    .set_align_horizontal("center")
+                    .set_align_vertical("bottom");
+                text
+            };
+            plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
+                let mut text = get_text();
+                text.draw(6.0, 7.0, "A$\\star$");
+                text.draw(-0.5, -6.0, "B$\\star$");
+                plot.add(&text);
+            });
+            plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
+                let z_ini = states[0].internal_values[0];
+                let mut text = get_text();
+                text.draw(0.01, drift + 0.7, "A$\\star$");
+                text.draw(1.0, correct_sig_d - z_ini + 0.7, "B$\\star$");
+                plot.add(&text);
+                plot.set_yrange(-10.0, 3.0);
             });
             plotter
                 .save("/tmp/pmsim/material/test_update_stress_von_mises_3.svg")
