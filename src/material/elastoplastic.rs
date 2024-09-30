@@ -475,7 +475,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
                 // print message
                 if self.verbose {
-                    println!("🔸 {}", if inside { "I" } else { "I★" });
+                    println!("🔸 {}", if inside { "X" } else { "X★" });
                 }
 
                 // need elastoplastic update starting from t_int
@@ -520,7 +520,8 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
             // print message
             if self.verbose {
-                println!("🔸 {}", if inside { "A★" } else { "D★" });
+                let final_key = if need_intersection_finding { "A★★" } else { "D★" };
+                println!("🔸 {}", if inside { "A★" } else { final_key });
             }
 
             // set elastic flag
@@ -913,9 +914,6 @@ mod tests {
             plotter.set_oct_circle(radius_1, |canvas| {
                 canvas.set_line_style("-");
             });
-            plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
-                plot.set_vert_line(a, "gray", "-", 1.0);
-            });
             let get_text = || {
                 let mut text = Text::new();
                 text.set_fontsize(12.0)
@@ -943,6 +941,121 @@ mod tests {
             });
             plotter
                 .save("/tmp/pmsim/material/test_update_stress_von_mises_3.svg")
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn update_stress_von_mises_4() {
+        // parameters
+        let param = StressStrain::sample_von_mises();
+        let (_, _, _, z_ini) = extract_von_mises_params(&param);
+
+        // constants
+        let alpha = 3.0;
+        let (sig_m_0, sig_d_0, yf_error) = (2.0, z_ini, None);
+        let (dsig_m_el, dsig_d_el) = (1.0, -alpha * z_ini); // going inside, after crossing because of drift
+
+        // settings
+        let mut settings = Settings::new();
+        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+
+        // model
+        let (ndim, lode) = (2, 0.0);
+        let ideal = Idealization::new(ndim);
+        let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
+        model.verbose = VERBOSE;
+
+        // initial state
+        let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+
+        // array of states for plotting
+        let mut states = vec![state.clone()];
+
+        // update, crossing the yield surface
+        update_with_von_mises(&mut state, &param, &mut model, 1.0, dsig_m_el, dsig_d_el);
+        states.push(state.clone());
+
+        // check
+        assert_eq!(state.elastic, false);
+
+        // plot
+        if SAVE_FIGURE {
+            let mut plotter = Plotter::new();
+            plotter
+                .set_oct_radius_max(9.5)
+                .set_tab_leg_ncol(2)
+                .set_layout_selected_2x2(Axis::Time, Axis::Yield);
+            let history_int = model.get_history_int().unwrap();
+            let history_eep = model.get_history_eep().unwrap();
+            plotter
+                .add_2x2(&history_int, false, |curve, _, _| {
+                    curve
+                        .set_label("history(int)")
+                        .set_line_color("gold")
+                        .set_line_style("-");
+                })
+                .unwrap();
+            plotter
+                .add_2x2(&history_eep, false, |curve, _, _| {
+                    curve
+                        .set_label("history(e-ep)")
+                        .set_line_color("#7a7a7a")
+                        .set_line_style("--")
+                        .set_marker_style(".");
+                })
+                .unwrap();
+            let mut data = PlotterData::new();
+            for i in 0..states.len() {
+                let s = &states[i];
+                let f = model.args.model.yield_function(s).unwrap();
+                let t = i as f64;
+                data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+            }
+            plotter
+                .add_2x2(&data, false, |curve, _, _| {
+                    curve
+                        .set_label("actual update")
+                        .set_marker_style("s")
+                        .set_marker_void(true);
+                })
+                .unwrap();
+            let p = states.len() - 1;
+            let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
+            let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+            plotter.set_oct_circle(radius_0, |_| {});
+            plotter.set_oct_circle(radius_1, |canvas| {
+                canvas.set_line_style("-");
+            });
+            let get_text = || {
+                let mut text = Text::new();
+                text.set_fontsize(12.0)
+                    .set_bbox(true)
+                    .set_bbox_style("circle,pad=0.1")
+                    .set_bbox_facecolor("#fff8c1")
+                    .set_bbox_edgecolor("#7a7a7a")
+                    .set_align_horizontal("center")
+                    .set_align_vertical("bottom");
+                text
+            };
+            plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
+                let mut text = get_text();
+                text.draw(5.0, 7.0, "A$\\star$");
+                text.draw(6.0, -6.5, "X$\\star$");
+                text.draw(-1.0, -10.5, "A$\\star$$\\star$");
+                plot.add(&text);
+            });
+            plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
+                let mut text = get_text();
+                text.draw(0.01, 0.7, "A$\\star$");
+                text.draw(0.55, 0.7, "X$\\star$");
+                text.draw(0.92, 0.7, "X$\\star$$\\star$");
+                // text.draw(1.0, correct_sig_d - z_ini + 0.7, "B$\\star$");
+                plot.add(&text);
+                // plot.set_yrange(-10.0, 3.0);
+            });
+            plotter
+                .save("/tmp/pmsim/material/test_update_stress_von_mises_4.svg")
                 .unwrap();
         }
     }
