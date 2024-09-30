@@ -545,7 +545,7 @@ mod tests {
         let n_internal_values = model.n_internal_values();
         let mut state = LocalState::new(ideal.mandel(), n_internal_values);
         state.stress = Tensor2::new_from_octahedral(distance, radius, lode, ideal.two_dim).unwrap();
-        state.internal_values[0] = z_ini;
+        model.initialize_internal_values(&mut state).unwrap();
         state.enable_strain(); // for plotting
         state
     }
@@ -571,72 +571,6 @@ mod tests {
         model.update_stress(state, &delta_strain).unwrap(); // update stress
         state.strain.as_mut().unwrap().update(1.0, &delta_strain); // update strain (for plotting)
         (deps_v, deps_d)
-    }
-
-    // Plots the results
-    fn plot_von_mises_results_1(fn_stem: &str, model: &Elastoplastic, states: &[LocalState]) {
-        let mut plotter = Plotter::new();
-        plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
-        let history = model.get_history().unwrap();
-        plotter
-            .add_2x2(&history, false, |curve, _, _| {
-                curve
-                    .set_label("history")
-                    .set_line_color("#7a7a7a")
-                    .set_line_style("--")
-                    .set_marker_style(".");
-            })
-            .unwrap();
-        let mut data = PlotterData::new();
-        for i in 0..states.len() {
-            let s = &states[i];
-            let f = model.args.model.yield_function(s).unwrap();
-            let t = i as f64;
-            data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
-        }
-        plotter
-            .add_2x2(&data, false, |curve, _, _| {
-                curve
-                    .set_label("actual update")
-                    .set_marker_style("s")
-                    .set_marker_void(true);
-            })
-            .unwrap();
-        let p = states.len() - 1;
-        let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
-        let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
-        plotter.set_oct_circle(radius_0, |_| {});
-        plotter.set_oct_circle(radius_1, |canvas| {
-            canvas.set_line_style("-");
-        });
-        let get_text = || {
-            let mut text = Text::new();
-            text.set_fontsize(12.0)
-                .set_bbox(true)
-                .set_bbox_style("circle,pad=0.1")
-                .set_bbox_facecolor("#fff8c1")
-                .set_bbox_edgecolor("#7a7a7a")
-                .set_align_horizontal("center")
-                .set_align_vertical("bottom");
-            text
-        };
-        plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
-            let mut text = get_text();
-            text.draw(0.0, -3.0, "A");
-            text.draw(5.0, 4.0, "X");
-            text.draw(7.0, 8.5, "A$\\star$");
-            plot.add(&text);
-        });
-        plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
-            let z_ini = states[0].internal_values[0];
-            let mut text = get_text();
-            text.draw(0.0, -z_ini + 0.5, "A");
-            text.draw(0.5, 0.0 + 0.5, "X");
-            text.draw(1.0, 0.0 + 0.7, "A$\\star$");
-            plot.add(&text);
-            plot.set_yrange(-10.0, 2.0);
-        });
-        plotter.save(&format!("/tmp/pmsim/material/{}.svg", fn_stem)).unwrap();
     }
 
     #[test]
@@ -793,7 +727,155 @@ mod tests {
 
         // plot
         if SAVE_FIGURE {
-            plot_von_mises_results_1("test_update_stress_von_mises_2", &model, &states);
+            let mut plotter = Plotter::new();
+            plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
+            let history = model.get_history().unwrap();
+            plotter
+                .add_2x2(&history, false, |curve, _, _| {
+                    curve
+                        .set_label("history")
+                        .set_line_color("#7a7a7a")
+                        .set_line_style("--")
+                        .set_marker_style(".");
+                })
+                .unwrap();
+            let mut data = PlotterData::new();
+            for i in 0..states.len() {
+                let s = &states[i];
+                let f = model.args.model.yield_function(s).unwrap();
+                let t = i as f64;
+                data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+            }
+            plotter
+                .add_2x2(&data, false, |curve, _, _| {
+                    curve
+                        .set_label("actual update")
+                        .set_marker_style("s")
+                        .set_marker_void(true);
+                })
+                .unwrap();
+            let p = states.len() - 1;
+            let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
+            let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+            plotter.set_oct_circle(radius_0, |_| {});
+            plotter.set_oct_circle(radius_1, |canvas| {
+                canvas.set_line_style("-");
+            });
+            let get_text = || {
+                let mut text = Text::new();
+                text.set_fontsize(12.0)
+                    .set_bbox(true)
+                    .set_bbox_style("circle,pad=0.1")
+                    .set_bbox_facecolor("#fff8c1")
+                    .set_bbox_edgecolor("#7a7a7a")
+                    .set_align_horizontal("center")
+                    .set_align_vertical("bottom");
+                text
+            };
+            plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
+                let mut text = get_text();
+                text.draw(0.0, -3.0, "A");
+                text.draw(5.0, 4.0, "X");
+                text.draw(7.0, 8.5, "A$\\star$");
+                plot.add(&text);
+            });
+            plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
+                let z_ini = states[0].internal_values[0];
+                let mut text = get_text();
+                text.draw(0.0, -z_ini + 0.5, "A");
+                text.draw(0.5, 0.0 + 0.5, "X");
+                text.draw(1.0, 0.0 + 0.7, "A$\\star$");
+                plot.add(&text);
+                plot.set_yrange(-10.0, 2.0);
+            });
+            plotter
+                .save("/tmp/pmsim/material/test_update_stress_von_mises_2.svg")
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn update_stress_von_mises_3() {
+        // parameters
+        let param = StressStrain::sample_von_mises();
+        let (kk, gg, hh, z_ini) = extract_von_mises_params(&param);
+
+        // constants
+        let drift = 0.5;
+        let (sig_m_0, sig_d_0, yf_error) = (2.0, z_ini, Some(drift));
+        let (dsig_m_el, dsig_d_el) = (1.0, -1.95 * z_ini); // going inside, after crossing because of drift
+
+        // settings
+        let mut settings = Settings::new();
+        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+
+        // model
+        let (ndim, lode) = (2, 0.0);
+        let ideal = Idealization::new(ndim);
+        let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
+        model.verbose = VERBOSE;
+
+        // initial state
+        let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+
+        // array of states for plotting
+        let mut states = vec![state.clone()];
+
+        // update, crossing the yield surface
+        let (deps_v, deps_d) = update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el, dsig_d_el);
+        let sig_m = state.stress.invariant_sigma_m();
+        let sig_d = state.stress.invariant_sigma_d();
+        states.push(state.clone());
+
+        // check
+        let deps_d_e = z_ini / (3.0 * gg);
+        let deps_d_p = deps_d - deps_d_e;
+        let correct_sig_m = kk * deps_v;
+        let correct_sig_d = z_ini + 3.0 * gg * hh * deps_d_p / (3.0 * gg + hh);
+        // approx_eq(sig_m, correct_sig_m, 1e-14);
+        // approx_eq(sig_d, correct_sig_d, 1e-13);
+        // approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
+        // assert_eq!(state.elastic, false);
+
+        // plot
+        if SAVE_FIGURE {
+            let mut plotter = Plotter::new();
+            plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
+            let history = model.get_history().unwrap();
+            plotter
+                .add_2x2(&history, false, |curve, _, _| {
+                    curve
+                        .set_label("history")
+                        .set_line_color("#7a7a7a")
+                        .set_line_style("--")
+                        .set_marker_style(".");
+                })
+                .unwrap();
+            let mut data = PlotterData::new();
+            for i in 0..states.len() {
+                let s = &states[i];
+                let f = model.args.model.yield_function(s).unwrap();
+                let t = i as f64;
+                data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+            }
+            plotter
+                .add_2x2(&data, false, |curve, _, _| {
+                    curve
+                        .set_label("actual update")
+                        .set_marker_style("s")
+                        .set_marker_void(true);
+                })
+                .unwrap();
+            let p = states.len() - 1;
+            let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
+            let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+            plotter.set_oct_circle(radius_0, |_| {});
+            plotter.set_oct_circle(radius_1, |canvas| {
+                canvas.set_line_style("-");
+            });
+            plotter
+                .save("/tmp/pmsim/material/test_update_stress_von_mises_3.svg")
+                .unwrap();
         }
     }
 }
