@@ -757,20 +757,24 @@ mod tests {
             plotter.set_oct_circle(radius_1, |canvas| {
                 canvas.set_line_style("-");
             });
-            plotter.set_extra(Axis::Time, Axis::Yield, |plot| {
+            let get_text = || {
                 let mut text = Text::new();
-                text.set_bbox(true)
-                    .set_bbox_style("circle,pad=0.2")
+                text.set_fontsize(12.0)
+                    .set_bbox(true)
+                    .set_bbox_style("circle,pad=0.1")
                     .set_bbox_facecolor("#fff8c1")
                     .set_bbox_edgecolor("#7a7a7a")
                     .set_align_horizontal("center")
                     .set_align_vertical("bottom");
-                text.draw(0.0, -z_ini + 0.3, "A");
-                text.set_align_horizontal("right")
-                    .set_align_vertical("top")
-                    .draw(0.5 - 0.02, 0.0 - 0.2, "I");
-                text.set_align_vertical("top").draw(1.0, 0.0 - 0.2, "A★");
+                text
+            };
+            plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
+                let mut text = get_text();
+                text.draw(0.0, -z_ini + 0.5, "A");
+                text.draw(0.5, 0.0 + 0.5, "X");
+                text.draw(1.0, 0.0 + 0.5, "A$\\star$");
                 plot.add(&text);
+                plot.set_yrange(-10.0, 2.0);
             });
             plotter
                 .save("/tmp/pmsim/material/test_update_stress_von_mises_2.svg")
