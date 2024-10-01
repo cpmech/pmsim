@@ -9,6 +9,9 @@ use russell_tensor::{Tensor2, Tensor4};
 /// Indicates that the simulation should not stop
 const KEEP_RUNNING: bool = false;
 
+/// Number of divisions for dense output during stress-strain history recording
+const HISTORY_N_OUT: usize = 20;
+
 /// Holds the yield function tolerance allowing small negative values to be regarded as zero
 const YF_TOL: f64 = 1e-8;
 
@@ -239,8 +242,7 @@ impl<'a> Elastoplastic<'a> {
         // set function to record the stress-strain history
         let save_history = settings.gp_save_history;
         if save_history {
-            let n_out = 11;
-            let h_out = 1.0 / ((n_out - 1) as f64);
+            let h_out = 1.0 / ((HISTORY_N_OUT - 1) as f64);
             ode_elastic
                 .enable_output()
                 .set_dense_h_out(h_out)
@@ -539,11 +541,11 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 mod tests {
     use super::Elastoplastic;
     use crate::base::{Idealization, StressStrain};
-    use crate::material::testing::extract_von_mises_params;
+    use crate::material::testing::{extract_von_mises_params, extract_von_mises_params_kg};
     use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, StressStrainTrait};
     use plotpy::Text;
-    use russell_lab::approx_eq;
-    use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
+    use russell_lab::{approx_eq, math::PI};
+    use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Tensor2, Tensor4, SQRT_2_BY_3, SQRT_3};
     use std::collections::HashMap;
 
     const VERBOSE: bool = true;
@@ -552,23 +554,16 @@ mod tests {
     // Generates a initial state for the von Mises model
     fn gen_ini_state_von_mises(
         ideal: &Idealization,  // geometry idealization
-        param: &StressStrain,  // parameters
         model: &Elastoplastic, // model
-        lode: f64,             // Lode invariant
-        sig_m_0: f64,          // initial mean invariant
-        sig_d_0: f64,          // initial deviatoric invariant (only if yf_error is None)
-        yf_error: Option<f64>, // initial yield surface error/drift (will overwrite ini_sig_d)
+        sig_m: f64,            // initial mean invariant
+        sig_d: f64,            // initial deviatoric invariant (only if yf_error is None)
+        alpha: f64,            // initial octahedral angle related to the Lode invariant
     ) -> LocalState {
-        let (_, _, _, z_ini) = extract_von_mises_params(param);
-        let sig_d_0 = match yf_error {
-            Some(e) => z_ini + e,
-            None => sig_d_0,
-        };
-        let distance = sig_m_0 * SQRT_3;
-        let radius = sig_d_0 * SQRT_2_BY_3;
+        let distance = sig_m * SQRT_3;
+        let radius = sig_d * SQRT_2_BY_3;
         let n_internal_values = model.n_internal_values();
         let mut state = LocalState::new(ideal.mandel(), n_internal_values);
-        state.stress = Tensor2::new_from_octahedral(distance, radius, lode, ideal.two_dim).unwrap();
+        state.stress = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, ideal.two_dim).unwrap();
         model.initialize_internal_values(&mut state).unwrap();
         state.enable_strain(); // for plotting
         state
@@ -578,23 +573,34 @@ mod tests {
     //
     // returns (deps_v, deps_d)
     fn update_with_von_mises(
-        state: &mut LocalState,    // the state to be updated
         param: &StressStrain,      // parameters
         model: &mut Elastoplastic, // model
-        lode: f64,                 // Lode invariant (for the elastic increment)
-        dsig_m_el: f64,            // increment of mean stress to compute a linear elastic path
-        dsig_d_el: f64,            // increment of deviatoric stress to compute a linear elastic path
+        state: &mut LocalState,    // the state to be updated
+        sig_m_el: f64,             // next mean stress corresponding to a linear elastic path
+        sig_d_el: f64,             // next deviatoric stress corresponding to a linear elastic path
+        alpha_el: f64,             // next octahedral angle corresponding to a linear elastic path
     ) -> (f64, f64) {
-        let (kk, gg, _, _) = extract_von_mises_params(param);
-        let deps_v = dsig_m_el / kk;
-        let deps_d = dsig_d_el / (3.0 * gg);
-        let d_distance = deps_v / SQRT_3;
-        let d_radius = deps_d * SQRT_3_BY_2;
-        let two_dim = state.stress.mandel().two_dim();
-        let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, two_dim).unwrap();
-        model.update_stress(state, &delta_strain).unwrap(); // update stress
-        state.strain.as_mut().unwrap().update(1.0, &delta_strain); // update strain (for plotting)
-        (deps_v, deps_d)
+        // calculate stress increment
+        let distance = sig_m_el * SQRT_3;
+        let radius = sig_d_el * SQRT_2_BY_3;
+        let mandel = state.stress.mandel();
+        let two_dim = mandel.two_dim();
+        let stress_fin = Tensor2::new_from_octahedral_alpha(distance, radius, alpha_el, two_dim).unwrap();
+        let mut dsigma = Tensor2::new(mandel);
+        t2_add(&mut dsigma, 1.0, &stress_fin, -1.0, &state.stress); // Δσ = σ_fin - σ_ini
+
+        // calculate strain increment
+        let (young, poisson, _, _) = extract_von_mises_params(param);
+        let elast = LinElasticity::new(young, poisson, two_dim, false);
+        let mut cc = Tensor4::new(mandel);
+        elast.calc_compliance(&mut cc).unwrap();
+        let mut depsilon = Tensor2::new(mandel);
+        t4_ddot_t2(&mut depsilon, 1.0, &cc, &dsigma); // Δε = C : Δσ
+
+        // perform the update
+        model.update_stress(state, &depsilon).unwrap(); // update stress
+        state.strain.as_mut().unwrap().update(1.0, &depsilon); // update strain (for plotting)
+        (depsilon.invariant_eps_v(), depsilon.invariant_eps_d())
     }
 
     #[test]
@@ -602,37 +608,39 @@ mod tests {
         // parameters
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
-        let (kk, gg, hh, z_ini) = extract_von_mises_params(&param);
+        let (kk, gg, hh, z_ini) = extract_von_mises_params_kg(&param);
 
         // constants
-        let (sig_m_0, sig_d_0, yf_error) = (0.0, 0.0, None);
-        let (dsig_m_el_0, dsig_d_el_0) = (1.0, z_ini); // will reach the yield surface exactly
-        let (dsig_m_el_1, dsig_d_el_1) = (1.0, 9.0); // to calc the next elastic trial increment
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, 0.0, PI / 2.0);
+        let (sig_m_1, sig_d_1) = (1.0, z_ini); // will reach the yield surface exactly
+        let (sig_m_2, sig_d_2) = (2.0, 2.0 * z_ini); // to calc the next elastic trial increment
 
         // data for plotting
-        let mut data_2d = HashMap::new(); // map: lode => states
+        let mut data_2d = HashMap::new(); // map: lode => states (2D only)
 
         // test
         for ndim in [2, 3] {
             for lode_int in [-1, 0, 1] {
                 let lode = lode_int as f64;
+                let alpha = PI / 2.0 - f64::acos(lode) / 3.0;
+                let alpha_deg = alpha * 180.0 / PI;
                 if VERBOSE {
-                    println!("\nndim = {}, lode = {}", ndim, lode);
+                    println!("\nndim = {}, lode = {}, alpha = {}°", ndim, lode, alpha_deg);
                 }
+
                 // model
                 let ideal = Idealization::new(ndim);
                 let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
                 model.verbose = VERBOSE;
 
                 // initial state
-                let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+                let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
                 if ndim == 2 {
                     data_2d.insert(lode_int, vec![state.clone()]);
                 }
 
                 // elastic update (to yield surface exactly)
-                let (deps_v, deps_d) =
-                    update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el_0, dsig_d_el_0);
+                let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha);
                 let sig_m_1 = state.stress.invariant_sigma_m();
                 let sig_d_1 = state.stress.invariant_sigma_d();
                 if ndim == 2 {
@@ -643,13 +651,12 @@ mod tests {
                 let correct_sig_m = sig_m_0 + kk * deps_v;
                 let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
                 approx_eq(sig_m_1, correct_sig_m, 1e-14);
-                approx_eq(sig_d_1, correct_sig_d, 1e-14);
+                approx_eq(sig_d_1, correct_sig_d, 1e-13);
                 approx_eq(state.internal_values[0], z_ini, 1e-15);
                 assert_eq!(state.elastic, true);
 
                 // elastoplastic update
-                let (deps_v, deps_d) =
-                    update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el_1, dsig_d_el_1);
+                let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
                 let sig_m_2 = state.stress.invariant_sigma_m();
                 let sig_d_2 = state.stress.invariant_sigma_d();
                 if ndim == 2 {
@@ -739,7 +746,8 @@ mod tests {
                     .set_label("history(e-ep)")
                     .set_line_color("#7a7a7a")
                     .set_line_style("--")
-                    .set_marker_style(".");
+                    .set_marker_style(".")
+                    .set_marker_every(2);
             })
             .unwrap();
         let mut data = PlotterData::new();
@@ -799,30 +807,30 @@ mod tests {
     fn update_stress_von_mises_2() {
         // parameters
         let param = StressStrain::sample_von_mises();
-        let (kk, gg, hh, z_ini) = extract_von_mises_params(&param);
+        let (kk, gg, hh, z_ini) = extract_von_mises_params_kg(&param);
 
         // constants
-        let (sig_m_0, sig_d_0, yf_error) = (0.0, 0.0, None);
-        let (dsig_m_el, dsig_d_el) = (2.0, z_ini + 9.0); // will cross the yield surface
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, 0.0, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, z_ini + 9.0, PI / 3.0); // will cross the yield surface
 
         // settings
         let mut settings = Settings::new();
         settings.set_gp_save_history(true);
 
         // model
-        let (ndim, lode) = (2, 0.0);
+        let ndim = 2;
         let ideal = Idealization::new(ndim);
         let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
 
         // initial state
-        let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
 
         // array of states for plotting
         let mut states = vec![state.clone()];
 
         // update, crossing the yield surface
-        let (deps_v, deps_d) = update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el, dsig_d_el);
+        let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         let sig_m = state.stress.invariant_sigma_m();
         let sig_d = state.stress.invariant_sigma_d();
         states.push(state.clone());
@@ -857,59 +865,52 @@ mod tests {
     fn update_stress_von_mises_3() {
         // parameters
         let param = StressStrain::sample_von_mises();
-        let (kk, gg, _, z_ini) = extract_von_mises_params(&param);
+        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
 
         // constants
-        let (drift, alpha) = (1.0, 1.8);
-        let (sig_m_0, sig_d_0, yf_error) = (2.0, z_ini, Some(drift));
-        let (dsig_m_el, dsig_d_el) = (1.0, -alpha * z_ini); // going inside, after crossing because of drift
+        let (drift, mz) = (1.0, 0.8);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, z_ini + drift, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * z_ini, -2.0 * PI / 3.0); // going inside, after crossing because of drift
 
         // settings
         let mut settings = Settings::new();
         settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
 
         // model
-        let (ndim, lode) = (2, 0.0);
+        let ndim = 2;
         let ideal = Idealization::new(ndim);
         let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
 
         // initial state
-        let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode, sig_m_0, sig_d_0, yf_error);
+        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
 
         // array of states for plotting
         let mut states = vec![state.clone()];
 
         // update, crossing the yield surface
-        let (deps_v, deps_d) = update_with_von_mises(&mut state, &param, &mut model, lode, dsig_m_el, dsig_d_el);
+        update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         let sig_m = state.stress.invariant_sigma_m();
         let sig_d = state.stress.invariant_sigma_d();
         states.push(state.clone());
 
         // check
-        let sig_d_0_el = sig_d_0 + drift;
-        let sig_d_1_el = sig_d_0_el + dsig_d_el;
-        let a = sig_d_0_el / (sig_d_0_el - sig_d_1_el);
-        let b = 1.0 - a;
-        let del = f64::abs(deps_d);
-        let correct_sig_m = sig_m_0 + kk * deps_v;
-        let correct_sig_d = sig_d_0_el - a * 3.0 * gg * del + b * 3.0 * gg * del;
-        approx_eq(sig_m, correct_sig_m, 1e-14);
-        approx_eq(sig_d, correct_sig_d, 1e-14);
+        approx_eq(sig_m, sig_m_1, 1e-14);
+        approx_eq(sig_d, sig_d_1, 1e-13);
         approx_eq(state.internal_values[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 6.0, 7.2), ("G", -0.35, -4.5)];
-            let labels_tyf = [("D", 0.0, -0.12), ("G", 1.0, -1.9)];
+            let labels_oct = [("D", 5.7, 7.2), ("G", -1.0, -5.0)];
+            let labels_tyf = [("D", 0.0, -0.12), ("G", 1.0, -0.8)];
             do_plot(
                 "test_update_stress_von_mises_3",
                 &model,
                 &states,
                 &labels_oct,
                 &labels_tyf,
-                Some(9.5),
+                None,
                 Some((-10.0, 2.0)),
             );
         }
@@ -919,32 +920,31 @@ mod tests {
     fn update_stress_von_mises_4() {
         // parameters
         let param = StressStrain::sample_von_mises();
-        let (_, _, _, z_ini) = extract_von_mises_params(&param);
+        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
 
         // constants
-        let (drift, alpha) = (1.0, 3.0);
-        let (sig_m_0, sig_d_0, yf_error) = (2.0, z_ini, Some(drift));
-        let (dsig_m_el, dsig_d_el) = (1.0, -alpha * z_ini); // going inside, after crossing because of drift
+        let (drift, mz) = (1.0, 2.5);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, z_ini + drift, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * z_ini, -PI / 3.0);
 
         // settings
         let mut settings = Settings::new();
         settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
 
         // model
-        let (ndim, lode_ini) = (2, 0.0);
+        let ndim = 2;
         let ideal = Idealization::new(ndim);
         let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
 
         // initial state
-        let mut state = gen_ini_state_von_mises(&ideal, &param, &model, lode_ini, sig_m_0, sig_d_0, yf_error);
+        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
 
         // array of states for plotting
         let mut states = vec![state.clone()];
 
         // update, crossing the yield surface
-        let lode_fin = 1.0;
-        update_with_von_mises(&mut state, &param, &mut model, lode_fin, dsig_m_el, dsig_d_el);
+        update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         states.push(state.clone());
 
         // check
@@ -952,16 +952,16 @@ mod tests {
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 6.1, 7.1), ("Y", 5.9, -6.1), ("F", 0.2, -10.0)];
-            let labels_tyf = [("D", 0.0, 2.1), ("Y", 0.58, 1.2), ("F", 1.0, 1.1)];
+            let labels_oct = [("D", 5.7, 7.2), ("Y", 8.0, -3.0), ("F", 2.8, -10.0)];
+            let labels_tyf = [("D", 0.0, 1.0), ("Y", 0.41, 0.0), ("F", 1.0, 0.4)];
             do_plot(
                 "test_update_stress_von_mises_4",
                 &model,
                 &states,
                 &labels_oct,
                 &labels_tyf,
-                Some(9.5),
-                None,
+                Some(10.5),
+                Some((-3.0, 2.0)),
             );
         }
     }
