@@ -387,6 +387,21 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+        // set Δε in arguments struct
+        self.args.depsilon.set_tensor(1.0, delta_strain);
+
+        // enable history
+        if self.save_history {
+            match state.strain.as_ref() {
+                Some(strain) => self.args.state.strain = Some(strain.clone()),
+                None => {
+                    return Err("state must have strain enabled");
+                }
+            }
+            self.args.history_int = Some(PlotterData::new());
+            self.args.history_eep = Some(PlotterData::new());
+        }
+
         // current yield function value: f(σ, z)
         let yf_initial = self.args.model.yield_function(state)?;
 
@@ -414,21 +429,6 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         // print message
         if self.verbose {
             println!("👉 {}", if inside { "A" } else { "D" });
-        }
-
-        // set Δε in arguments struct
-        self.args.depsilon.set_tensor(1.0, delta_strain);
-
-        // enable history
-        if self.save_history {
-            match state.strain.as_ref() {
-                Some(strain) => self.args.state.strain = Some(strain.clone()),
-                None => {
-                    return Err("state must have strain enabled");
-                }
-            }
-            self.args.history_int = Some(PlotterData::new());
-            self.args.history_eep = Some(PlotterData::new());
         }
 
         // run elastic path to search for eventual intersections
