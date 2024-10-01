@@ -12,6 +12,9 @@ const KEEP_RUNNING: bool = false;
 /// Number of divisions for dense output during stress-strain history recording
 const HISTORY_N_OUT: usize = 20;
 
+/// Tolerance to handle near zero indicator
+const INDICATOR_TOL: f64 = 1e-8;
+
 /// Holds the yield function tolerance allowing small negative values to be regarded as zero
 const YF_TOL: f64 = 1e-8;
 
@@ -174,7 +177,8 @@ impl<'a> Elastoplastic<'a> {
 
             // indicator = (df/dσ) : Dₑ : Δε
             let indicator = t2_ddot_t4_ddot_t2(df_dsigma, &args.dde, &args.depsilon);
-            assert!(indicator >= 0.0);
+            assert!(indicator >= -INDICATOR_TOL);
+            let indicator = f64::max(0.0, indicator);
 
             // Λd = ((df/dσ) : Dₑ : Δε) / Nₚ
             let llambda_d = indicator / nnp;
@@ -456,7 +460,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 let roots = self.root_finder.chebyshev(&self.interpolant)?;
                 if let Some(r) = roots.last() {
                     t_int = *r;
-                    has_intersection = t_int < 1.0 - T_BOUNDARY_TOL;
+                    has_intersection = t_int > T_BOUNDARY_TOL && t_int < 1.0 - T_BOUNDARY_TOL;
                 };
             }
 
@@ -962,6 +966,61 @@ mod tests {
                 &labels_tyf,
                 Some(10.5),
                 Some((-3.0, 2.0)),
+            );
+        }
+    }
+
+    #[test]
+    fn update_stress_von_mises_5() {
+        // parameters
+        let param = StressStrain::sample_von_mises();
+        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
+
+        // constants
+        let (drift, mz) = (1e-14, 2.0);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, z_ini + drift, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * z_ini, 0.0);
+
+        // settings
+        let mut settings = Settings::new();
+        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+
+        // model
+        let ndim = 2;
+        let ideal = Idealization::new(ndim);
+        let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
+        model.verbose = VERBOSE;
+
+        // initial state
+        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+
+        // array of states for plotting
+        let mut states = vec![state.clone()];
+
+        // update, crossing the yield surface
+        update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
+        // let sig_m = state.stress.invariant_sigma_m();
+        // let sig_d = state.stress.invariant_sigma_d();
+        states.push(state.clone());
+
+        // check
+        // approx_eq(sig_m, sig_m_1, 1e-14);
+        // approx_eq(sig_d, sig_d_1, 1e-13);
+        // approx_eq(state.internal_values[0], z_ini, 1e-15);
+        // assert_eq!(state.elastic, true);
+
+        // plot
+        if SAVE_FIGURE {
+            let labels_oct = [("D", 5.7, 7.2), ("G", -1.0, -5.0)];
+            let labels_tyf = [("D", 0.0, -0.12), ("G", 1.0, -0.8)];
+            do_plot(
+                "test_update_stress_von_mises_5",
+                &model,
+                &states,
+                &labels_oct,
+                &labels_tyf,
+                None,
+                None,
             );
         }
     }
