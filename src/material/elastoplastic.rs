@@ -164,6 +164,9 @@ pub struct Elastoplastic<'a> {
 
     /// Enables verbose mode
     verbose: bool,
+
+    /// Holds the last Case analyzed by update_stress (for debugging)
+    last_case: Option<Case>,
 }
 
 impl<'a> Elastoplastic<'a> {
@@ -390,6 +393,7 @@ impl<'a> Elastoplastic<'a> {
             root_finder,
             save_history,
             verbose: false,
+            last_case: None,
         })
     }
 
@@ -550,6 +554,9 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         if self.verbose {
             println!("👉 {:?}", case);
         }
+
+        // record last_case for debugging
+        self.last_case = Some(case);
         Ok(())
     }
 }
@@ -558,7 +565,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::Elastoplastic;
+    use super::{Case, Elastoplastic};
     use crate::base::{Idealization, StressStrain};
     use crate::material::testing::{extract_von_mises_params, extract_von_mises_params_kg};
     use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, StressStrainTrait};
@@ -569,6 +576,19 @@ mod tests {
 
     const VERBOSE: bool = true;
     const SAVE_FIGURE: bool = true;
+
+    // Returns a vector of keys associated with the Case (for debugging)
+    fn case_to_keys(case: &Case) -> Vec<&str> {
+        match case {
+            Case::AB => vec!["A", "B"],
+            Case::AC => vec!["A", "C"],
+            Case::AXD(..) => vec!["A", "X", "D"],
+            Case::DE => vec!["D", "E"],
+            Case::DF => vec!["D", "F"],
+            Case::DYG(..) => vec!["D", "Y", "G"],
+            Case::DH => vec!["D", "H"],
+        }
+    }
 
     // Generates a initial state for the von Mises model
     fn gen_ini_state_von_mises(
@@ -673,6 +693,9 @@ mod tests {
                 approx_eq(sig_d_1, correct_sig_d, 1e-13);
                 approx_eq(state.internal_values[0], z_ini, 1e-15);
                 assert_eq!(state.elastic, true);
+                let case = model.last_case.as_ref().unwrap();
+                let keys = case_to_keys(case);
+                assert!(keys == ["A", "B"] || keys == ["A", "C"]);
 
                 // elastoplastic update
                 let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
@@ -689,6 +712,9 @@ mod tests {
                 approx_eq(sig_d_2, correct_sig_d, 1e-14);
                 approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
                 assert_eq!(state.elastic, false);
+                let case = model.last_case.as_ref().unwrap();
+                let keys = case_to_keys(case);
+                assert_eq!(keys, &["D", "H"]);
             }
         }
 
@@ -863,6 +889,9 @@ mod tests {
         approx_eq(sig_d, correct_sig_d, 1e-13);
         approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
         assert_eq!(state.elastic, false);
+        let case = model.last_case.as_ref().unwrap();
+        let keys = case_to_keys(case);
+        assert_eq!(keys, &["A", "X", "D"]);
 
         // plot
         if SAVE_FIGURE {
@@ -918,6 +947,9 @@ mod tests {
         approx_eq(sig_d, sig_d_1, 1e-13);
         approx_eq(state.internal_values[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
+        let case = model.last_case.as_ref().unwrap();
+        let keys = case_to_keys(case);
+        assert_eq!(keys, &["D", "F"]);
 
         // plot
         if SAVE_FIGURE {
@@ -1023,6 +1055,9 @@ mod tests {
 
         // check
         assert_eq!(state.elastic, false);
+        let case = model.last_case.as_ref().unwrap();
+        let keys = case_to_keys(case);
+        assert_eq!(keys, &["D", "Y", "G"]);
 
         // plot
         if SAVE_FIGURE {
@@ -1078,19 +1113,22 @@ mod tests {
         // approx_eq(sig_d, sig_d_1, 1e-13);
         // approx_eq(state.internal_values[0], z_ini, 1e-15);
         // assert_eq!(state.elastic, true);
+        let case = model.last_case.as_ref().unwrap();
+        let keys = case_to_keys(case);
+        assert_eq!(keys, &["D", "H"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.7, 7.2), ("G", -1.0, -5.0)];
-            let labels_tyf = [("D", 0.0, -0.12), ("G", 1.0, -0.8)];
+            let labels_oct = [("D", 3.0, 8.5), ("H", 11.5, -2.0)];
+            let labels_tyf = [("D", 0.0, -0.3), ("H", 1.0, -0.3)];
             do_plot(
                 "test_update_stress_von_mises_5",
                 &model,
                 &states,
                 &labels_oct,
                 &labels_tyf,
-                None,
-                None,
+                Some(9.5),
+                Some((-2.0, 2.0)),
             );
         }
     }
