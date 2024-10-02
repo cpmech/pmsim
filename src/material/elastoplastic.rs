@@ -12,17 +12,70 @@ const KEEP_RUNNING: bool = false;
 /// Number of divisions for dense output during stress-strain history recording
 const HISTORY_N_OUT: usize = 20;
 
-/// Tolerance to handle near zero indicator
-const INDICATOR_TOL: f64 = 1e-8;
-
-/// Holds the yield function tolerance allowing small negative values to be regarded as zero
-const YF_TOL: f64 = 1e-8;
+/// Tolerance to avoid negative plastic numerator (df/dσ : Dₑ : Δε)
+const NUMERATOR_TOL: f64 = 1e-8;
 
 /// Holds the tolerance to truncate the Chebyshev series used in root-finding
 const CHEBYSHEV_TOL: f64 = 1e-8;
 
-/// Holds the pseudo-time tolerance to accept values at the boundary of the interval
-const T_BOUNDARY_TOL: f64 = 1e-7;
+/// Holds the pseudo-time tolerance
+const PT_TOL: f64 = 1e-7;
+
+/// Indicates the yield surface crossing case
+#[derive(Clone, Copy, Debug)]
+enum Case {
+    AB,       // elastic
+    AC,       // elastic reaching the YS
+    AXD(f64), // elastic-elastoplastic; holds t_intersection
+    DE,       // elastic; going inside (with eventual crossing)
+    DF,       // elastic; going inside reaching the YS (with eventual crossing)
+    DYG(f64), // elastic-elastoplastic; going inside then outside with two crossings; holds t_intersection
+    DH,       // elastoplastic
+}
+
+/// Selects the yield surface crossing case
+fn select_case(yf_initial: f64, yf_final: f64, roots: &[f64]) -> Result<Case, StrError> {
+    if roots.len() > 2 {
+        return Err("cannot handle more than two intersections");
+    }
+    let t_int = match roots.last() {
+        Some(r) => *r,
+        None => 1.0,
+    };
+    let has_intersection = t_int > PT_TOL && t_int < 1.0 - PT_TOL;
+    let yf_tol = f64::max(1e-15, PT_TOL * f64::abs(yf_final - yf_initial));
+    if yf_initial < -yf_tol {
+        // A: inside the yield surface
+        if yf_final < 0.0 {
+            if has_intersection {
+                Err("cannot handle elastic loop")
+            } else {
+                Ok(Case::AB)
+            }
+        } else if yf_final <= yf_tol {
+            Ok(Case::AC)
+        } else {
+            if has_intersection {
+                Ok(Case::AXD(t_int))
+            } else {
+                Err("impossible elastic case")
+            }
+        }
+    } else {
+        // D: on the yield surface or slightly outside
+        if yf_final < 0.0 {
+            Ok(Case::DE)
+        } else if yf_final <= yf_tol {
+            Ok(Case::DF)
+        } else {
+            if has_intersection {
+                Ok(Case::DYG(t_int))
+            } else {
+                Ok(Case::DH)
+            }
+        }
+    }
+}
 
 /// Defines the arguments for the ODE solvers
 struct Args {
@@ -114,6 +167,7 @@ pub struct Elastoplastic<'a> {
 }
 
 impl<'a> Elastoplastic<'a> {
+    /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // plasticity model
         let model: Box<dyn PlasticityTrait> = match param {
@@ -175,13 +229,15 @@ impl<'a> Elastoplastic<'a> {
             // dσ/dt = Dₑₚ : Δε
             t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.ddep, &args.depsilon);
 
-            // indicator = (df/dσ) : Dₑ : Δε
-            let indicator = t2_ddot_t4_ddot_t2(df_dsigma, &args.dde, &args.depsilon);
-            assert!(indicator >= -INDICATOR_TOL);
-            let indicator = f64::max(0.0, indicator);
+            // numerator = (df/dσ) : Dₑ : Δε
+            let numerator = t2_ddot_t4_ddot_t2(df_dsigma, &args.dde, &args.depsilon);
+            if numerator < -NUMERATOR_TOL {
+                return Err("plastic numerator (df/dσ : Dₑ : Δε) is overly negative");
+            }
+            let num = f64::max(0.0, numerator);
 
             // Λd = ((df/dσ) : Dₑ : Δε) / Nₚ
-            let llambda_d = indicator / nnp;
+            let llambda_d = num / nnp;
 
             // dz/dt = Λd H
             args.model.hardening(&mut args.dz_dt, &args.state)?; // dz/dt ← H
@@ -405,135 +461,94 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         // current yield function value: f(σ, z)
         let yf_initial = self.args.model.yield_function(state)?;
 
-        // is the stress point inside the yield surface?
-        let inside = yf_initial < -YF_TOL;
-
-        // check if the elastic path must be calculated first
-        let need_intersection_finding = if inside {
-            // always check the intersection if starting inside of the yield surface
-            true
-        } else {
-            // gradients of the yield function
-            self.args.model.df_dsigma(&mut self.args.df_dsigma, state)?;
-
-            // Dₑ
-            self.args.model.calc_dde(&mut self.args.dde, state)?;
-
-            // (df/dσ) : Dₑ : Δε
-            let indicator = t2_ddot_t4_ddot_t2(&self.args.df_dsigma, &self.args.dde, delta_strain);
-
-            // outside and going to the inside of the yield surface => need intersection finding
-            indicator < 0.0
-        };
-
-        // print message
-        if self.verbose {
-            println!("👉 {}", if inside { "A" } else { "D" });
-        }
-
         // run elastic path to search for eventual intersections
-        let (need_elastoplastic_run, t0) = if need_intersection_finding {
-            // copy z into arguments (z is frozen)
-            self.args
-                .state
-                .internal_values
-                .set_vector(state.internal_values.as_data());
 
-            // copy σ into {y}
-            self.ode_y_e.set_vector(state.stress.vector().as_data());
+        // copy z into arguments (z is frozen)
+        self.args
+            .state
+            .internal_values
+            .set_vector(state.internal_values.as_data());
 
-            // solve the elastic problem with intersection finding data
-            self.ode_intersection
-                .solve(&mut self.ode_y_e, 0.0, 1.0, None, &mut self.args)?;
-            assert_eq!(self.args.yf_count, self.args.yf_values.dim());
+        // copy σ into {y}
+        self.ode_y_e.set_vector(state.stress.vector().as_data());
 
-            // intersection data
-            let mut t_int = 0.0;
-            let mut has_intersection = false;
-            let yf_final = self.args.yf_values[self.args.yf_count - 1];
-            if yf_final > 0.0 {
-                // set data for interpolation
-                self.interpolant
-                    .adapt_data(CHEBYSHEV_TOL, self.args.yf_values.as_data())?;
+        // solve the elastic problem with intersection finding data
+        self.ode_intersection
+            .solve(&mut self.ode_y_e, 0.0, 1.0, None, &mut self.args)?;
+        assert_eq!(self.args.yf_count, self.args.yf_values.dim());
 
-                // find roots == intersections
-                let roots = self.root_finder.chebyshev(&self.interpolant)?;
-                if let Some(r) = roots.last() {
-                    t_int = *r;
-                    has_intersection = t_int > T_BOUNDARY_TOL && t_int < 1.0 - T_BOUNDARY_TOL;
-                };
+        // set data for interpolation
+        self.interpolant
+            .adapt_data(CHEBYSHEV_TOL, self.args.yf_values.as_data())?;
+
+        // find roots == intersections
+        let roots = self.root_finder.chebyshev(&self.interpolant)?;
+
+        // final yield function value
+        let yf_final = self.args.yf_values[self.args.yf_count - 1];
+
+        // select case regarding yield surface crossing
+        let case = select_case(yf_initial, yf_final, &roots)?;
+
+        // perform the update
+        match case {
+            // purely elastic => done
+            Case::AB | Case::AC | Case::DE | Case::DF => {
+                // update
+                state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
+                state.elastic = true;
             }
 
-            // handle eventual intersection
-            if has_intersection {
-                // avoid case when f = 1e-15 and t_int = 0
-                assert!(t_int > 0.0, "intersection pseudo time must be greater than zero");
-
-                // copy σ into {y} again (to start from scratch)
+            // elastic-elastoplastic with crossing
+            Case::AXD(t_int) | Case::DYG(t_int) => {
+                // copy σ into {y} (again; to start from scratch)
                 self.ode_y_e.set_vector(state.stress.vector().as_data());
 
-                // solve the elastic problem again to update σ to the intersection point
+                // solve the elastic problem (again) to update σ to the intersection point
                 self.ode_elastic
                     .solve(&mut self.ode_y_e, 0.0, t_int, None, &mut self.args)?;
 
-                // set stress at intersection (points I and I*)
+                // set stress at intersection
                 state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
 
-                // print message
-                if self.verbose {
-                    println!("🔸 {}", if inside { "X" } else { "Y" });
-                }
+                // elastoplastic run: join σ and z into {y} (now z plays a role)
+                self.ode_y_ep
+                    .join2(state.stress.vector().as_data(), state.internal_values.as_data());
 
-                // need elastoplastic update starting from t_int
-                (true, t_int)
-            } else {
-                // no intersection (pure elastic regime)
-                state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
+                // solve elastoplastic problem (starting from t_int)
+                self.ode_elastoplastic
+                    .solve(&mut self.ode_y_ep, t_int, 1.0, None, &mut self.args)?;
 
-                // print message
-                if self.verbose {
-                    let inside_final = yf_final < -YF_TOL;
-                    if inside_final {
-                        println!("🔸 {}", if inside { "B" } else { "G" });
-                    } else {
-                        println!("🔸 {}", if inside { "C" } else { "H" });
-                    }
-                }
-
-                // all done (no need for elastoplastic run)
-                (false, 1.0)
-            }
-        } else {
-            // need elastoplastic run starting from 0.0
-            (true, 0.0)
-        };
-
-        // run elastoplastic update
-        if need_elastoplastic_run {
-            // join σ and z into {y}
-            self.ode_y_ep
-                .join2(state.stress.vector().as_data(), state.internal_values.as_data());
-
-            // solve elastoplastic problem
-            self.ode_elastoplastic
-                .solve(&mut self.ode_y_ep, t0, 1.0, None, &mut self.args)?;
-
-            // split {y} into σ and z
-            self.ode_y_ep.split2(
-                state.stress.vector_mut().as_mut_data(),
-                state.internal_values.as_mut_data(),
-            );
-
-            // print message
-            if self.verbose {
-                let key_outside = if need_intersection_finding { "F" } else { "E" };
-                println!("🔸 {}", if inside { "D" } else { key_outside });
+                // update: split {y} into σ and z
+                self.ode_y_ep.split2(
+                    state.stress.vector_mut().as_mut_data(),
+                    state.internal_values.as_mut_data(),
+                );
+                state.elastic = false;
             }
 
-            // set elastic flag
-            state.elastic = false;
-        } else {
-            state.elastic = true;
+            // elastoplastic
+            Case::DH => {
+                // join σ and z into {y} (now z plays a role)
+                self.ode_y_ep
+                    .join2(state.stress.vector().as_data(), state.internal_values.as_data());
+
+                // solve elastoplastic problem
+                self.ode_elastoplastic
+                    .solve(&mut self.ode_y_ep, 0.0, 1.0, None, &mut self.args)?;
+
+                // update: split {y} into σ and z
+                self.ode_y_ep.split2(
+                    state.stress.vector_mut().as_mut_data(),
+                    state.internal_values.as_mut_data(),
+                );
+                state.elastic = false;
+            }
+        }
+
+        // print message
+        if self.verbose {
+            println!("👉 {:?}", case);
         }
         Ok(())
     }
@@ -906,8 +921,8 @@ mod tests {
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.7, 7.2), ("G", -1.0, -5.0)];
-            let labels_tyf = [("D", 0.0, -0.12), ("G", 1.0, -0.8)];
+            let labels_oct = [("D", 5.7, 7.2), ("E", -1.0, -5.0)];
+            let labels_tyf = [("D", 0.0, -0.12), ("E", 1.0, -0.8)];
             do_plot(
                 "test_update_stress_von_mises_3",
                 &model,
@@ -956,8 +971,8 @@ mod tests {
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.7, 7.2), ("Y", 8.0, -3.0), ("F", 2.8, -10.0)];
-            let labels_tyf = [("D", 0.0, 1.0), ("Y", 0.41, 0.0), ("F", 1.0, 0.4)];
+            let labels_oct = [("D", 5.7, 7.2), ("Y", 8.0, -3.0), ("G", 2.8, -10.0)];
+            let labels_tyf = [("D", 0.0, 1.0), ("Y", 0.41, 0.0), ("G", 1.0, 0.4)];
             do_plot(
                 "test_update_stress_von_mises_4",
                 &model,
