@@ -642,6 +642,96 @@ mod tests {
         (depsilon.invariant_eps_v(), depsilon.invariant_eps_d())
     }
 
+    // Plot the results
+    fn do_plot(
+        file_stem: &str,
+        model: &Elastoplastic,
+        states: &[LocalState],
+        labels_oct: &[(&str, f64, f64)],
+        labels_tyf: &[(&str, f64, f64)],
+        oct_radius_max: Option<f64>,
+        tyf_range: Option<(f64, f64)>,
+    ) {
+        let mut plotter = Plotter::new();
+        plotter
+            .set_tab_leg_ncol(2)
+            .set_layout_selected_2x2(Axis::Time, Axis::Yield);
+        if let Some(r) = oct_radius_max {
+            plotter.set_oct_radius_max(r);
+        }
+        let history_int = model.get_history_int().unwrap();
+        let history_eep = model.get_history_eep().unwrap();
+        plotter
+            .add_2x2(&history_int, false, |curve, _, _| {
+                curve
+                    .set_label("history(int)")
+                    .set_line_color("gold")
+                    .set_line_style("-");
+            })
+            .unwrap();
+        plotter
+            .add_2x2(&history_eep, false, |curve, _, _| {
+                curve
+                    .set_label("history(e-ep)")
+                    .set_line_color("#7a7a7a")
+                    .set_line_style("--")
+                    .set_marker_style(".")
+                    .set_marker_every(2);
+            })
+            .unwrap();
+        let mut data = PlotterData::new();
+        for i in 0..states.len() {
+            let s = &states[i];
+            let f = model.args.model.yield_function(s).unwrap();
+            let t = i as f64;
+            data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+        }
+        plotter
+            .add_2x2(&data, false, |curve, _, _| {
+                curve
+                    .set_label("actual update")
+                    .set_marker_style("s")
+                    .set_marker_void(true);
+            })
+            .unwrap();
+        let p = states.len() - 1;
+        let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
+        let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+        plotter.set_oct_circle(radius_0, |_| {});
+        plotter.set_oct_circle(radius_1, |canvas| {
+            canvas.set_line_style("-");
+        });
+        let get_text = || {
+            let mut text = Text::new();
+            text.set_fontsize(12.0)
+                .set_bbox(true)
+                .set_bbox_style("round,pad=0.1")
+                .set_bbox_facecolor("#fff8c1")
+                .set_bbox_edgecolor("#7a7a7a")
+                .set_align_horizontal("center")
+                .set_align_vertical("center");
+            text
+        };
+        plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
+            let mut text = get_text();
+            for (label, x, y) in labels_oct {
+                text.draw(*x, *y, label);
+            }
+            plot.add(&text);
+        });
+        plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
+            let mut text = get_text();
+            for (label, x, y) in labels_tyf {
+                text.draw(*x, *y, label);
+            }
+            plot.add(&text);
+            if let Some((y_min, y_max)) = tyf_range {
+                plot.set_yrange(y_min, y_max);
+            }
+        });
+        plotter.save(&format!("/tmp/pmsim/material/{}.svg", file_stem)).unwrap();
+    }
+
     #[test]
     fn update_stress_von_mises_1() {
         // parameters
@@ -757,95 +847,6 @@ mod tests {
                 .save("/tmp/pmsim/material/test_update_stress_von_mises_1.svg")
                 .unwrap();
         }
-    }
-
-    fn do_plot(
-        file_stem: &str,
-        model: &Elastoplastic,
-        states: &[LocalState],
-        labels_oct: &[(&str, f64, f64)],
-        labels_tyf: &[(&str, f64, f64)],
-        oct_radius_max: Option<f64>,
-        tyf_range: Option<(f64, f64)>,
-    ) {
-        let mut plotter = Plotter::new();
-        plotter
-            .set_tab_leg_ncol(2)
-            .set_layout_selected_2x2(Axis::Time, Axis::Yield);
-        if let Some(r) = oct_radius_max {
-            plotter.set_oct_radius_max(r);
-        }
-        let history_int = model.get_history_int().unwrap();
-        let history_eep = model.get_history_eep().unwrap();
-        plotter
-            .add_2x2(&history_int, false, |curve, _, _| {
-                curve
-                    .set_label("history(int)")
-                    .set_line_color("gold")
-                    .set_line_style("-");
-            })
-            .unwrap();
-        plotter
-            .add_2x2(&history_eep, false, |curve, _, _| {
-                curve
-                    .set_label("history(e-ep)")
-                    .set_line_color("#7a7a7a")
-                    .set_line_style("--")
-                    .set_marker_style(".")
-                    .set_marker_every(2);
-            })
-            .unwrap();
-        let mut data = PlotterData::new();
-        for i in 0..states.len() {
-            let s = &states[i];
-            let f = model.args.model.yield_function(s).unwrap();
-            let t = i as f64;
-            data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
-        }
-        plotter
-            .add_2x2(&data, false, |curve, _, _| {
-                curve
-                    .set_label("actual update")
-                    .set_marker_style("s")
-                    .set_marker_void(true);
-            })
-            .unwrap();
-        let p = states.len() - 1;
-        let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
-        let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
-        plotter.set_oct_circle(radius_0, |_| {});
-        plotter.set_oct_circle(radius_1, |canvas| {
-            canvas.set_line_style("-");
-        });
-        let get_text = || {
-            let mut text = Text::new();
-            text.set_fontsize(12.0)
-                .set_bbox(true)
-                .set_bbox_style("round,pad=0.1")
-                .set_bbox_facecolor("#fff8c1")
-                .set_bbox_edgecolor("#7a7a7a")
-                .set_align_horizontal("center")
-                .set_align_vertical("center");
-            text
-        };
-        plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
-            let mut text = get_text();
-            for (label, x, y) in labels_oct {
-                text.draw(*x, *y, label);
-            }
-            plot.add(&text);
-        });
-        plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
-            let mut text = get_text();
-            for (label, x, y) in labels_tyf {
-                text.draw(*x, *y, label);
-            }
-            plot.add(&text);
-            if let Some((y_min, y_max)) = tyf_range {
-                plot.set_yrange(y_min, y_max);
-            }
-        });
-        plotter.save(&format!("/tmp/pmsim/material/{}.svg", file_stem)).unwrap();
     }
 
     #[test]
