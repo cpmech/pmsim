@@ -642,8 +642,83 @@ mod tests {
         (depsilon.invariant_eps_v(), depsilon.invariant_eps_d())
     }
 
-    // Plot the results
-    fn do_plot(
+    // Returns Text for labels in plots
+    fn get_text_label() -> Text {
+        let mut text = Text::new();
+        text.set_fontsize(12.0)
+            .set_bbox(true)
+            .set_bbox_style("round,pad=0.1")
+            .set_bbox_facecolor("#fff8c1")
+            .set_bbox_edgecolor("#7a7a7a")
+            .set_align_horizontal("center")
+            .set_align_vertical("center");
+        text
+    }
+
+    // Plot the results (test type # a)
+    fn do_plot_a(
+        file_stem: &str,
+        data: &HashMap<i32, Vec<LocalState>>,
+        labels_oct: &[(&str, f64, f64)],
+        labels_tyf: &[(&str, f64, f64)],
+        oct_radius_max: Option<f64>,
+        tyf_range: Option<(f64, f64)>,
+    ) {
+        let mut plotter = Plotter::new();
+        plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
+        if let Some(r) = oct_radius_max {
+            plotter.set_oct_radius_max(r);
+        }
+        for (lode, marker, size, void) in [(-1, "s", 10.0, true), (0, "o", 8.0, true), (1, ".", 8.0, false)] {
+            let states = data.get(&lode).unwrap();
+            let mut data = PlotterData::new();
+            for i in 0..states.len() {
+                let s = &states[i];
+                let f = s.stress.invariant_sigma_d() - s.internal_values[0];
+                let t = (i as f64) / 2.0;
+                data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+            }
+            plotter
+                .add_2x2(&data, false, |curve, _, _| {
+                    curve
+                        .set_marker_style(marker)
+                        .set_marker_size(size)
+                        .set_marker_void(void)
+                        .set_label(&format!(" $\\ell = {}$", lode));
+                })
+                .unwrap();
+            if lode == 0 {
+                let p = states.len() - 1;
+                let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
+                let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+                plotter.set_oct_circle(radius_0, |_| {});
+                plotter.set_oct_circle(radius_1, |canvas| {
+                    canvas.set_line_style("-");
+                });
+            }
+        }
+        plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
+            let mut text = get_text_label();
+            for (label, x, y) in labels_oct {
+                text.draw(*x, *y, label);
+            }
+            plot.add(&text);
+        });
+        plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
+            let mut text = get_text_label();
+            for (label, x, y) in labels_tyf {
+                text.draw(*x, *y, label);
+            }
+            plot.add(&text);
+            if let Some((y_min, y_max)) = tyf_range {
+                plot.set_yrange(y_min, y_max);
+            }
+        });
+        plotter.save(&format!("/tmp/pmsim/material/{}.svg", file_stem)).unwrap();
+    }
+
+    // Plot the results (test type # b)
+    fn do_plot_b(
         file_stem: &str,
         model: &Elastoplastic,
         states: &[LocalState],
@@ -701,26 +776,15 @@ mod tests {
         plotter.set_oct_circle(radius_1, |canvas| {
             canvas.set_line_style("-");
         });
-        let get_text = || {
-            let mut text = Text::new();
-            text.set_fontsize(12.0)
-                .set_bbox(true)
-                .set_bbox_style("round,pad=0.1")
-                .set_bbox_facecolor("#fff8c1")
-                .set_bbox_edgecolor("#7a7a7a")
-                .set_align_horizontal("center")
-                .set_align_vertical("center");
-            text
-        };
         plotter.set_extra(Axis::OctX, Axis::OctY, move |plot| {
-            let mut text = get_text();
+            let mut text = get_text_label();
             for (label, x, y) in labels_oct {
                 text.draw(*x, *y, label);
             }
             plot.add(&text);
         });
         plotter.set_extra(Axis::Time, Axis::Yield, move |plot| {
-            let mut text = get_text();
+            let mut text = get_text_label();
             for (label, x, y) in labels_tyf {
                 text.draw(*x, *y, label);
             }
@@ -785,7 +849,11 @@ mod tests {
                 assert_eq!(state.elastic, true);
                 let case = model.last_case.as_ref().unwrap();
                 let keys = case_to_keys(case);
-                assert!(keys == ["A", "B"] || keys == ["A", "C"]);
+                if lode_int == -1 {
+                    assert_eq!(keys, ["A", "B"]); // very slightly on the inside
+                } else {
+                    assert_eq!(keys, ["A", "C"]);
+                }
 
                 // elastoplastic update
                 let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
@@ -810,42 +878,29 @@ mod tests {
 
         // plot
         if SAVE_FIGURE {
-            let ndim = 2;
-            let ideal = Idealization::new(ndim);
-            let model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
-            let mut plotter = Plotter::new();
-            plotter.set_layout_selected_2x2(Axis::Time, Axis::Yield);
-            for (lode, marker, size, void) in [(-1, "s", 10.0, true), (0, "o", 8.0, true), (1, ".", 8.0, false)] {
-                let states = data_2d.get(&lode).unwrap();
-                let mut data = PlotterData::new();
-                for i in 0..states.len() {
-                    let s = &states[i];
-                    let f = model.args.model.yield_function(s).unwrap();
-                    let t = (i as f64) / 2.0;
-                    data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
-                }
-                plotter
-                    .add_2x2(&data, false, |curve, _, _| {
-                        curve
-                            .set_marker_style(marker)
-                            .set_marker_size(size)
-                            .set_marker_void(void)
-                            .set_label(&format!(" $\\ell = {}$", lode));
-                    })
-                    .unwrap();
-                if lode == 0 {
-                    let p = states.len() - 1;
-                    let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
-                    let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
-                    plotter.set_oct_circle(radius_0, |_| {});
-                    plotter.set_oct_circle(radius_1, |canvas| {
-                        canvas.set_line_style("-");
-                    });
-                }
-            }
-            plotter
-                .save("/tmp/pmsim/material/test_update_stress_von_mises_1.svg")
-                .unwrap();
+            let labels_oct = [
+                ("A", 0.0, -2.3),
+                ("B", 6.5, 1.5),
+                ("C", -1.5, 7.1),
+                ("C", 2.0, 6.5),
+                ("H", 10.5, 4.0),
+                ("H", 3.2, 9.5),
+                ("H", -1.5, 10.0),
+            ];
+            let labels_tyf = [
+                ("A", 0.0, -7.9),
+                ("B or C", 0.5, 1.1),
+                ("D", 0.5, -1.1),
+                ("H", 1.0, -1.1),
+            ];
+            do_plot_a(
+                "test_update_stress_von_mises_1",
+                &data_2d,
+                &labels_oct,
+                &labels_tyf,
+                None,
+                Some((-10.0, 2.0)),
+            );
         }
     }
 
@@ -898,7 +953,7 @@ mod tests {
         if SAVE_FIGURE {
             let labels_oct = [("A", 0.0, -2.0), ("X", 4.9, 5.5), ("D", 6.8, 8.5)];
             let labels_tyf = [("A", 0.0, -8.0), ("X", 0.46, 0.71), ("D", 1.0, 0.9)];
-            do_plot(
+            do_plot_b(
                 "test_update_stress_von_mises_2",
                 &model,
                 &states,
@@ -956,7 +1011,7 @@ mod tests {
         if SAVE_FIGURE {
             let labels_oct = [("D", 5.2, 7.2), ("F", -5.2, -7.2)];
             let labels_tyf = [("D", 0.0, 1.0), ("F", 1.0, 1.0)];
-            do_plot(
+            do_plot_b(
                 "test_update_stress_von_mises_3a",
                 &model,
                 &states,
@@ -1011,7 +1066,7 @@ mod tests {
         if SAVE_FIGURE {
             let labels_oct = [("D", 5.7, 7.2), ("E", -1.0, -5.0)];
             let labels_tyf = [("D", 0.0, -0.12), ("E", 1.0, -0.8)];
-            do_plot(
+            do_plot_b(
                 "test_update_stress_von_mises_3b",
                 &model,
                 &states,
@@ -1064,7 +1119,7 @@ mod tests {
         if SAVE_FIGURE {
             let labels_oct = [("D", 5.7, 7.2), ("Y", 8.0, -3.0), ("G", 2.8, -10.0)];
             let labels_tyf = [("D", 0.0, 1.0), ("Y", 0.41, 0.0), ("G", 1.0, 0.4)];
-            do_plot(
+            do_plot_b(
                 "test_update_stress_von_mises_4",
                 &model,
                 &states,
@@ -1122,7 +1177,7 @@ mod tests {
         if SAVE_FIGURE {
             let labels_oct = [("D", 3.0, 8.5), ("H", 11.5, -2.0)];
             let labels_tyf = [("D", 0.0, -0.3), ("H", 1.0, -0.3)];
-            do_plot(
+            do_plot_b(
                 "test_update_stress_von_mises_5",
                 &model,
                 &states,
