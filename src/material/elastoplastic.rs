@@ -881,7 +881,62 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_3() {
+    fn update_stress_von_mises_3a() {
+        // parameters
+        let param = StressStrain::sample_von_mises();
+        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
+
+        // constants
+        let (drift, mz) = (0.0, 0.99999999999999999);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, z_ini + drift, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * z_ini, -2.0 * PI / 3.0); // going inside, after crossing because of drift
+
+        // settings
+        let mut settings = Settings::new();
+        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+
+        // model
+        let ndim = 2;
+        let ideal = Idealization::new(ndim);
+        let mut model = Elastoplastic::new(&ideal, &param, &settings).unwrap();
+        model.verbose = VERBOSE;
+
+        // initial state
+        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+
+        // array of states for plotting
+        let mut states = vec![state.clone()];
+
+        // update, crossing the yield surface
+        update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
+        let sig_m = state.stress.invariant_sigma_m();
+        let sig_d = state.stress.invariant_sigma_d();
+        states.push(state.clone());
+
+        // check
+        approx_eq(sig_m, sig_m_1, 1e-14);
+        approx_eq(sig_d, sig_d_1, 1e-13);
+        approx_eq(state.internal_values[0], z_ini, 1e-15);
+        assert_eq!(state.elastic, true);
+
+        // plot
+        if SAVE_FIGURE {
+            let labels_oct = [("D", 5.2, 7.2), ("F", -5.2, -7.2)];
+            let labels_tyf = [("D", 0.0, 1.0), ("F", 1.0, 1.0)];
+            do_plot(
+                "test_update_stress_von_mises_3a",
+                &model,
+                &states,
+                &labels_oct,
+                &labels_tyf,
+                None,
+                Some((-10.0, 2.0)),
+            );
+        }
+    }
+
+    #[test]
+    fn update_stress_von_mises_3b() {
         // parameters
         let param = StressStrain::sample_von_mises();
         let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
@@ -924,7 +979,7 @@ mod tests {
             let labels_oct = [("D", 5.7, 7.2), ("E", -1.0, -5.0)];
             let labels_tyf = [("D", 0.0, -0.12), ("E", 1.0, -0.8)];
             do_plot(
-                "test_update_stress_von_mises_3",
+                "test_update_stress_von_mises_3b",
                 &model,
                 &states,
                 &labels_oct,
