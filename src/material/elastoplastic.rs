@@ -397,6 +397,11 @@ impl<'a> Elastoplastic<'a> {
         })
     }
 
+    /// Calculates the yield function f
+    pub fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
+        self.args.model.yield_function(state)
+    }
+
     /// Returns the stress-strain history during the intersection finding (e.g., for debugging)
     pub fn get_history_int(&self) -> Result<PlotterData, StrError> {
         match self.args.history_int.as_ref() {
