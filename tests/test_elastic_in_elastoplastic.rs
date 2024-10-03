@@ -1,12 +1,54 @@
 use plotpy::Text;
 use pmsim::base::{Idealization, StressStrain};
 use pmsim::material::{Axis, Plotter, PlotterData, Settings, StressStrainTrait, VonMises};
-use pmsim::material::{Elastoplastic, LinearElastic, LocalState, PlasticityTrait};
+use pmsim::material::{Elastoplastic, LinearElastic, LocalState};
 use pmsim::StrError;
 use russell_lab::math::PI;
 use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3};
 
 const FILE_STEM: &str = "test_elastic_in_elastoplastic";
+
+fn run(
+    state: &mut LocalState,
+    mut model: Box<dyn StressStrainTrait>,
+    depsilon_total: &Tensor2,
+    n_step: usize,
+) -> Result<PlotterData, StrError> {
+    // check
+    if n_step < 1 {
+        return Err("n_step must be ≥ 1");
+    }
+
+    // initialize internal values
+    model.initialize_internal_values(state)?;
+
+    // initialize plotting data
+    let mut data = PlotterData::new();
+    data.push(
+        &state.stress,
+        Some(state.strain.as_ref().unwrap()),
+        Some(0.0),
+        Some(0.0),
+    );
+
+    // sub-steps
+    let mut depsilon = Tensor2::new(state.stress.mandel());
+    depsilon.update(1.0 / (n_step as f64), &depsilon_total);
+    for _ in 0..n_step {
+        // update stress and strain
+        model.update_stress(state, &depsilon)?;
+        state.strain.as_mut().unwrap().update(1.0, &depsilon);
+
+        // update plotting data
+        data.push(
+            &state.stress,
+            Some(state.strain.as_ref().unwrap()),
+            Some(0.0),
+            Some(1.0),
+        );
+    }
+    Ok(data)
+}
 
 #[test]
 fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
@@ -28,15 +70,19 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
     let ideal = Idealization::new(ndim);
     let mut settings = Settings::new();
     settings.set_gp_save_history(true);
-    let mut elast = LinearElastic::new(&ideal, &param_el, &settings)?;
-    let mut direct = VonMises::new(&ideal, &param_vm, &settings)?;
-    let mut general = Elastoplastic::new(&ideal, &param_vm, &settings)?;
+    let elast = LinearElastic::new(&ideal, &param_el, &settings)?;
+    let direct = VonMises::new(&ideal, &param_vm, &settings)?;
+    let general = Elastoplastic::new(&ideal, &param_vm, &settings)?;
+    let mut general_full = Elastoplastic::new(&ideal, &param_vm, &settings)?;
+    let box_elast: Box<dyn StressStrainTrait> = Box::new(elast);
+    let box_direct: Box<dyn StressStrainTrait> = Box::new(direct);
+    let box_general: Box<dyn StressStrainTrait> = Box::new(general);
 
     // constants
     let mandel = ideal.mandel();
     let two_dim = ideal.two_dim;
-    let n_int_val = direct.n_internal_values();
-    assert_eq!(general.n_internal_values(), n_int_val);
+    let n_int_val = box_direct.n_internal_values();
+    assert_eq!(box_general.n_internal_values(), n_int_val);
 
     // initial state
     let sig_m_0 = 1.0;
@@ -47,35 +93,9 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
     let mut state_elast = LocalState::new(mandel, n_int_val);
     state_elast.stress = Tensor2::new_from_octahedral_alpha(dist_0, radius_0, alpha_0, two_dim)?;
     state_elast.enable_strain();
-
-    // clone state
     let mut state_direct = state_elast.clone();
     let mut state_general = state_elast.clone();
-    direct.initialize_internal_values(&mut state_direct)?;
-    general.initialize_internal_values(&mut state_general)?;
-
-    // initialize plotting data
-    let mut data_elast = PlotterData::new();
-    let mut data_direct = PlotterData::new();
-    let mut data_general = PlotterData::new();
-    data_elast.push(
-        &state_elast.stress,
-        Some(state_elast.strain.as_ref().unwrap()),
-        Some(0.0),
-        Some(0.0),
-    );
-    data_direct.push(
-        &state_direct.stress,
-        Some(state_direct.strain.as_ref().unwrap()),
-        Some(direct.yield_function(&state_direct)?),
-        Some(0.0),
-    );
-    data_general.push(
-        &state_general.stress,
-        Some(state_general.strain.as_ref().unwrap()),
-        Some(direct.yield_function(&state_general)?), // TODO
-        Some(0.0),
-    );
+    let mut state_general_full = state_elast.clone();
 
     // total strain increment
     let depsilon = Tensor2::from_matrix(
@@ -87,28 +107,26 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
         mandel,
     )?;
 
-    // update stress
-    elast.update_stress(&mut state_elast, &depsilon)?;
-    direct.update_stress(&mut state_direct, &depsilon)?;
-    general.update_stress(&mut state_general, &depsilon)?;
+    // run test with sub-steps
+    let n_step = 7;
+    let data_elast = run(&mut state_elast, box_elast, &depsilon, n_step)?;
+    let data_direct = run(&mut state_direct, box_direct, &depsilon, n_step)?;
+    let data_general = run(&mut state_general, box_general, &depsilon, n_step)?;
 
-    // update plotting data
-    data_elast.push(
-        &state_elast.stress,
-        Some(state_elast.strain.as_ref().unwrap()),
+    // run general with full step
+    let mut data_general_full = PlotterData::new();
+    data_general_full.push(
+        &state_general_full.stress,
+        Some(state_general_full.strain.as_ref().unwrap()),
+        Some(general_full.yield_function(&state_general_full)?),
         Some(0.0),
-        Some(1.0),
     );
-    data_direct.push(
-        &state_direct.stress,
-        Some(state_direct.strain.as_ref().unwrap()),
-        Some(direct.yield_function(&state_direct)?),
-        Some(1.0),
-    );
-    data_general.push(
-        &state_general.stress,
-        Some(state_general.strain.as_ref().unwrap()),
-        Some(general.yield_function(&state_general)?),
+    general_full.initialize_internal_values(&mut state_general_full)?;
+    general_full.update_stress(&mut state_general_full, &depsilon)?;
+    data_general_full.push(
+        &state_general_full.stress,
+        Some(state_general_full.strain.as_ref().unwrap()),
+        Some(general_full.yield_function(&state_general_full)?),
         Some(1.0),
     );
 
@@ -120,8 +138,6 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
     plotter
         .set_tab_leg_ncol(2)
         .set_layout_selected_3x2(Axis::Time, Axis::Yield);
-    let history_int = general.get_history_int().unwrap();
-    let history_eep = general.get_history_eep().unwrap();
     plotter
         .add_3x2(&data_elast, false, |curve, _, _| {
             curve
@@ -132,11 +148,13 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
                 .set_marker_style("h");
         })
         .unwrap();
+    let history_int = general_full.get_history_int().unwrap();
+    let history_eep = general_full.get_history_eep().unwrap();
     plotter
         .add_3x2(&history_int, false, |curve, _, _| {
             curve
                 .set_label("history(int)")
-                .set_line_color("gold")
+                .set_line_color("purple")
                 .set_line_style("-");
         })
         .unwrap();
