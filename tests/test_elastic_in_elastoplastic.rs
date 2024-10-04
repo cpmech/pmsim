@@ -4,7 +4,15 @@ use pmsim::material::{Axis, Plotter, PlotterData, Settings, StressStrainTrait, V
 use pmsim::material::{Elastoplastic, LinearElastic, LocalState};
 use pmsim::StrError;
 use russell_lab::math::PI;
+use russell_lab::vec_approx_eq;
 use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3};
+
+///////////////////////////////////////////////////////////////////////
+//                                                                   //
+// This tests verifies the elastic update calculated by the          //
+// general Elastoplastic and von Mises models.                       //
+//                                                                   //
+///////////////////////////////////////////////////////////////////////
 
 const FILE_STEM: &str = "test_elastic_in_elastoplastic";
 
@@ -13,7 +21,7 @@ fn run(
     mut model: Box<dyn StressStrainTrait>,
     depsilon_total: &Tensor2,
     n_step: usize,
-) -> Result<PlotterData, StrError> {
+) -> Result<Vec<LocalState>, StrError> {
     // check
     if n_step < 1 {
         return Err("n_step must be ≥ 1");
@@ -21,33 +29,17 @@ fn run(
 
     // initialize internal values
     model.initialize_internal_values(state)?;
+    let mut states = vec![state.clone()];
 
-    // initialize plotting data
-    let mut data = PlotterData::new();
-    data.push(
-        &state.stress,
-        Some(state.strain.as_ref().unwrap()),
-        Some(0.0),
-        Some(0.0),
-    );
-
-    // sub-steps
+    // update stress and strain
     let mut depsilon = Tensor2::new(state.stress.mandel());
     depsilon.update(1.0 / (n_step as f64), &depsilon_total);
     for _ in 0..n_step {
-        // update stress and strain
         model.update_stress(state, &depsilon)?;
         state.strain.as_mut().unwrap().update(1.0, &depsilon);
-
-        // update plotting data
-        data.push(
-            &state.stress,
-            Some(state.strain.as_ref().unwrap()),
-            Some(0.0),
-            Some(1.0),
-        );
+        states.push(state.clone())
     }
-    Ok(data)
+    Ok(states)
 }
 
 #[test]
@@ -109,9 +101,9 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
 
     // run test with sub-steps
     let n_step = 7;
-    let data_elast = run(&mut state_elast, box_elast, &depsilon, n_step)?;
-    let data_direct = run(&mut state_direct, box_direct, &depsilon, n_step)?;
-    let data_general = run(&mut state_general, box_general, &depsilon, n_step)?;
+    let states_elast = run(&mut state_elast, box_elast, &depsilon, n_step)?;
+    let states_direct = run(&mut state_direct, box_direct, &depsilon, n_step)?;
+    let states_general = run(&mut state_general, box_general, &depsilon, n_step)?;
 
     // run general with full step
     let mut data_general_full = PlotterData::new();
@@ -130,8 +122,14 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
         Some(1.0),
     );
 
-    // check
-    // TODO
+    // plotting data
+    let mut data_elast = PlotterData::from_states(&states_elast);
+    let mut data_direct = PlotterData::from_states(&states_elast);
+    let mut data_general = PlotterData::from_states(&states_elast);
+    let tf = |i| (i as f64) / (n_step as f64);
+    data_elast.set_time_and_yield(|i| Ok((tf(i), 0.0)))?;
+    data_direct.set_time_and_yield(|i| Ok((tf(i), general_full.yield_function(&states_direct[i])?)))?;
+    data_general.set_time_and_yield(|i| Ok((tf(i), general_full.yield_function(&states_general[i])?)))?;
 
     // plot results
     let mut plotter = Plotter::new();
@@ -201,6 +199,12 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
     plotter.set_figure_size(800.0, 1000.0);
     plotter.save(&format!("/tmp/pmsim/{}.svg", FILE_STEM)).unwrap();
 
+    // check
+    for i in 0..n_step {
+        let correct_stress = states_elast[i].stress.vector();
+        vec_approx_eq(states_direct[i].stress.vector(), correct_stress, 1e-15);
+        vec_approx_eq(states_general[i].stress.vector(), correct_stress, 1e-14);
+    }
     Ok(())
 }
 

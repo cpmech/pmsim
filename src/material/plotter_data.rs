@@ -123,6 +123,23 @@ impl PlotterData {
         }
     }
 
+    /// Sets all pseudo time and yield values
+    ///
+    /// # Input
+    ///
+    /// * `f` -- a function taking `(index)` and returning `(pseudo_time, yield_value)`
+    pub fn set_time_and_yield<F>(&mut self, f: F) -> Result<(), StrError>
+    where
+        F: Fn(usize) -> Result<(f64, f64), StrError>,
+    {
+        for i in 0..self.all.len() {
+            let (pt, yv) = f(i)?;
+            self.all[i].pseudo_time = Some(pt);
+            self.all[i].yield_value = Some(yv);
+        }
+        Ok(())
+    }
+
     /// Generates an array with the values associated with a given Axis
     pub fn array(&self, axis: Axis) -> Result<Vec<f64>, StrError> {
         match axis {
