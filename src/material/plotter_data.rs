@@ -262,7 +262,7 @@ mod tests {
     fn from_states_and_array_work() {
         let lode = 1.0;
         let states = generate_states_von_mises(true, 1000.0, 600.0, lode);
-        let data = PlotterData::from_states(&states);
+        let mut data = PlotterData::from_states(&states);
 
         // stress
 
@@ -310,13 +310,23 @@ mod tests {
         let epsd = data.array(axis).unwrap();
         array_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
 
-        // others
+        // none
 
         let axis = Axis::Yield;
         assert_eq!(data.array(axis).err(), Some("yield function value is not available"));
 
         let axis = Axis::Time;
         assert_eq!(data.array(axis).err(), Some("pseudo time is not available"));
+
+        // set time and yield
+
+        data.set_time_and_yield(|i| Ok((i as f64, (2 * i) as f64))).unwrap();
+
+        let arr = data.array(Axis::Yield).unwrap();
+        array_approx_eq(&arr, &[0.0, 2.0, 4.0], 1e-15);
+
+        let arr = data.array(Axis::Time).unwrap();
+        array_approx_eq(&arr, &[0.0, 1.0, 2.0], 1e-15);
     }
 
     #[test]
