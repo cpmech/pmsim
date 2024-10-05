@@ -24,11 +24,11 @@ const PSEUDO_TIME_TOL: f64 = 1e-7;
 /// Indicates the yield surface crossing case
 #[derive(Clone, Copy, Debug)]
 enum Case {
-    AB,       // elastic
-    AXD(f64), // elastic-elastoplastic; holds t_intersection
-    DE,       // elastic; going inside (with eventual crossing)
-    DYG(f64), // elastic-elastoplastic; going inside then outside with two crossings; holds t_intersection
-    DH,       // elastoplastic
+    AE,       // elastic
+    AXB(f64), // elastic-elastoplastic; holds t_intersection
+    BE,       // elastic; going inside (with eventual crossing)
+    BXP(f64), // elastic-elastoplastic; going inside then outside with two crossings; holds t_intersection
+    BP,       // elastoplastic
 }
 
 /// Defines the arguments for the ODE solvers
@@ -452,18 +452,18 @@ impl<'a> Elastoplastic<'a> {
                         // start inside, intersecting the YS with a tiny length, meaning that
                         // the stress point is very close to the yield surface (from the inside)
                         // in this situation, disregard the elastic regime altogether => DH
-                        Ok(Case::DH)
+                        Ok(Case::BP)
                     } else if t_int >= 1.0 - PSEUDO_TIME_TOL {
                         // start inside, intersecting the YS after crossing the "whole" elastic domain
-                        Ok(Case::AB)
+                        Ok(Case::AE)
                     } else {
                         // start inside, crossing the yield surface
-                        Ok(Case::AXD(t_int))
+                        Ok(Case::AXB(t_int))
                     }
                 }
                 None => {
                     assert!(yf_trial <= 0.0); // cannot be positive if there is no intersection
-                    Ok(Case::AB)
+                    Ok(Case::AE)
                 }
             }
         } else {
@@ -478,23 +478,23 @@ impl<'a> Elastoplastic<'a> {
                             // start on YS, going inside with a tiny length, meaning that
                             // the stress point remains on the yield surface due to a
                             // "neutral loading"
-                            Ok(Case::DH)
+                            Ok(Case::BP)
                         } else if t_int >= 1.0 - PSEUDO_TIME_TOL {
                             // start on YS, going inside, reaching the "other" side of the YS
-                            Ok(Case::DE)
+                            Ok(Case::BE)
                         } else {
                             // start on YS, crossing the "whole" elastic domain,
                             // and reaching the outside again
-                            Ok(Case::DYG(t_int))
+                            Ok(Case::BXP(t_int))
                         }
                     }
                     None => {
                         assert!(yf_trial <= 0.0); // cannot be positive if there is no intersection
-                        Ok(Case::DE)
+                        Ok(Case::BE)
                     }
                 }
             } else {
-                Ok(Case::DH)
+                Ok(Case::BP)
             }
         }
     }
@@ -554,14 +554,14 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         // perform the update
         match case {
             // purely elastic => done
-            Case::AB | Case::DE => {
+            Case::AE | Case::BE => {
                 // update (note that select_case already calculated this path)
                 state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
                 state.elastic = true;
             }
 
             // elastic-elastoplastic with crossing
-            Case::AXD(t_int) | Case::DYG(t_int) => {
+            Case::AXB(t_int) | Case::BXP(t_int) => {
                 // copy σ into {y} (again; to start from scratch; because select_case modified ode_y_e)
                 self.ode_y_e.set_vector(state.stress.vector().as_data());
 
@@ -589,7 +589,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             }
 
             // elastoplastic
-            Case::DH => {
+            Case::BP => {
                 // join σ and z into {y} (now z plays a role)
                 self.ode_y_ep
                     .join2(state.stress.vector().as_data(), state.internal_values.as_data());
@@ -637,11 +637,11 @@ mod tests {
     // Returns a vector of keys associated with the Case (for debugging)
     fn case_to_keys(case: &Case) -> Vec<&str> {
         match case {
-            Case::AB => vec!["A", "B"],
-            Case::AXD(..) => vec!["A", "X", "D"],
-            Case::DE => vec!["D", "E"],
-            Case::DYG(..) => vec!["D", "Y", "G"],
-            Case::DH => vec!["D", "H"],
+            Case::AE => vec!["A", "E"],
+            Case::AXB(..) => vec!["A", "X", "B"],
+            Case::BE => vec!["B", "E"],
+            Case::BXP(..) => vec!["B", "X", "P"],
+            Case::BP => vec!["B", "P"],
         }
     }
 
@@ -911,7 +911,7 @@ mod tests {
                 assert_eq!(state.elastic, true);
                 let case = model.last_case.as_ref().unwrap();
                 let keys = case_to_keys(case);
-                assert_eq!(keys, ["A", "B"]); // very slightly on the inside
+                assert_eq!(keys, ["A", "E"]);
 
                 // Case DH: elastoplastic update
                 let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
@@ -930,7 +930,7 @@ mod tests {
                 assert_eq!(state.elastic, false);
                 let case = model.last_case.as_ref().unwrap();
                 let keys = case_to_keys(case);
-                assert_eq!(keys, &["D", "H"]);
+                assert_eq!(keys, &["B", "P"]);
             }
         }
 
@@ -938,19 +938,14 @@ mod tests {
         if SAVE_FIGURE {
             let labels_oct = [
                 ("A", 0.0, -2.3),
-                ("B", 6.5, 1.5),
-                ("C", -1.5, 7.1),
-                ("C", 2.0, 6.5),
-                ("H", 10.5, 4.0),
-                ("H", 3.2, 9.5),
-                ("H", -1.5, 10.0),
+                ("E,B", 6.5, 1.5),
+                ("E", -1.5, 7.1),
+                ("E", 2.0, 6.5),
+                ("P", 10.5, 4.0),
+                ("P", 3.2, 9.5),
+                ("P", -1.5, 10.0),
             ];
-            let labels_tyf = [
-                ("A", 0.0, -7.9),
-                ("B or C", 0.5, 1.1),
-                ("D", 0.5, -1.1),
-                ("H", 1.0, -1.1),
-            ];
+            let labels_tyf = [("A", 0.0, -7.9), ("E", 0.5, 1.1), ("B", 0.5, -1.1), ("P", 1.0, -1.1)];
             do_plot_a(
                 "test_update_stress_von_mises_1",
                 &data_2d,
@@ -1011,12 +1006,12 @@ mod tests {
         assert_eq!(state.elastic, false);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["A", "X", "D"]);
+        assert_eq!(keys, &["A", "X", "B"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("A", 0.0, -2.0), ("X", 4.9, 5.5), ("D", 6.8, 8.5)];
-            let labels_tyf = [("A", 0.0, -8.0), ("X", 0.46, 0.71), ("D", 1.0, 0.9)];
+            let labels_oct = [("A", 0.0, -2.0), ("X", 4.9, 5.5), ("B", 6.8, 8.5)];
+            let labels_tyf = [("A", 0.0, -8.0), ("X", 0.46, 0.71), ("B", 1.0, 0.9)];
             do_plot_b(
                 "test_update_stress_von_mises_2",
                 &model,
@@ -1075,12 +1070,12 @@ mod tests {
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "E"]);
+        assert_eq!(keys, &["B", "E"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.2, 7.2), ("E", -5.2, -7.2)];
-            let labels_tyf = [("D", 0.0, 1.0), ("E", 1.0, 1.0)];
+            let labels_oct = [("B", 5.2, 7.2), ("E", -5.2, -7.2)];
+            let labels_tyf = [("B", 0.0, 1.0), ("E", 1.0, 1.0)];
             do_plot_b(
                 "test_update_stress_von_mises_3a",
                 &model,
@@ -1141,12 +1136,12 @@ mod tests {
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "E"]);
+        assert_eq!(keys, &["B", "E"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.7, 7.2), ("E", -1.0, -5.0)];
-            let labels_tyf = [("D", 0.0, -0.12), ("E", 1.0, -0.8)];
+            let labels_oct = [("B", 5.7, 7.2), ("E", -1.0, -5.0)];
+            let labels_tyf = [("B", 0.0, -0.12), ("E", 1.0, -0.8)];
             do_plot_b(
                 "test_update_stress_von_mises_3b",
                 &model,
@@ -1211,12 +1206,12 @@ mod tests {
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "E"]);
+        assert_eq!(keys, &["B", "E"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.2, 7.2), ("E", 5.2, -7.2)];
-            let labels_tyf = [("D", 0.0, 1.0), ("E", 1.0, 1.0)];
+            let labels_oct = [("B", 5.2, 7.2), ("E", 5.2, -7.2)];
+            let labels_tyf = [("B", 0.0, 1.0), ("E", 1.0, 1.0)];
             do_plot_b(
                 "test_update_stress_von_mises_3c",
                 &model,
@@ -1281,12 +1276,12 @@ mod tests {
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "E"]);
+        assert_eq!(keys, &["B", "E"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.2, 7.2), ("F", -5.2, 7.2)];
-            let labels_tyf = [("D", 0.0, 1.0), ("F", 1.0, 1.0)];
+            let labels_oct = [("B", 5.2, 7.2), ("E", -5.2, 7.2)];
+            let labels_tyf = [("B", 0.0, 1.0), ("E", 1.0, 1.0)];
             do_plot_b(
                 "test_update_stress_von_mises_3d",
                 &model,
@@ -1339,12 +1334,12 @@ mod tests {
         assert_eq!(state.elastic, false);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "Y", "G"]);
+        assert_eq!(keys, &["B", "X", "P"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.7, 7.2), ("Y", 8.0, -3.0), ("G", 2.8, -10.0)];
-            let labels_tyf = [("D", 0.0, 1.0), ("Y", 0.41, 0.0), ("G", 1.0, 0.4)];
+            let labels_oct = [("B", 5.7, 7.2), ("X", 8.0, -3.0), ("P", 2.8, -10.0)];
+            let labels_tyf = [("B", 0.0, 1.0), ("X", 0.41, 0.0), ("P", 1.0, 0.4)];
             do_plot_b(
                 "test_update_stress_von_mises_4",
                 &model,
@@ -1403,12 +1398,12 @@ mod tests {
         assert_eq!(state.elastic, false);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "H"]);
+        assert_eq!(keys, &["B", "P"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 3.0, 8.5), ("H", 11.5, -2.0)];
-            let labels_tyf = [("D", 0.0, -0.3), ("H", 1.0, -0.3)];
+            let labels_oct = [("B", 3.0, 8.5), ("P", 11.5, -2.0)];
+            let labels_tyf = [("B", 0.0, -0.3), ("P", 1.0, -0.3)];
             do_plot_b(
                 "test_update_stress_von_mises_5",
                 &model,
