@@ -1003,9 +1003,9 @@ mod tests {
 
         // check
         let deps_d_e = z_ini / (3.0 * gg);
-        let deps_d_p = deps_d - deps_d_e;
+        let deps_d_ep = deps_d - deps_d_e;
         let correct_sig_m = kk * deps_v;
-        let correct_sig_d = z_ini + 3.0 * gg * hh * deps_d_p / (3.0 * gg + hh);
+        let correct_sig_d = z_ini + 3.0 * gg * hh * deps_d_ep / (3.0 * gg + hh);
         approx_eq(sig_m, correct_sig_m, 1e-14);
         approx_eq(sig_d, correct_sig_d, 1e-13);
         approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
@@ -1360,6 +1360,17 @@ mod tests {
 
     #[test]
     fn update_stress_von_mises_5() {
+        //
+        // This test simulates an elastoplastic loading such that the initial
+        // loading direction is tangent to the yield surface. The initial drift
+        // is essential to make the Case DH with going_inside = true to activate.
+        // In this situation:
+        //     yf_initial = 1.2434497875801753E-14
+        //     indicator = -1.2434497875801753E-14 (going inside; but actually tangent)
+        //     roots = [0, 0] (double root at the initial state)
+        //     has_intersection = false
+        //     yf_final = 9
+        //
         // parameters
         let param = StressStrain::sample_von_mises();
         let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
@@ -1387,15 +1398,10 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        // let sig_m = state.stress.invariant_sigma_m();
-        // let sig_d = state.stress.invariant_sigma_d();
         states.push(state.clone());
 
         // check
-        // approx_eq(sig_m, sig_m_1, 1e-14);
-        // approx_eq(sig_d, sig_d_1, 1e-13);
-        // approx_eq(state.internal_values[0], z_ini, 1e-15);
-        // assert_eq!(state.elastic, true);
+        assert_eq!(state.elastic, false);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
         assert_eq!(keys, &["D", "H"]);
