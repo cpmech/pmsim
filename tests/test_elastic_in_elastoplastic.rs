@@ -18,7 +18,7 @@ const FILE_STEM: &str = "test_elastic_in_elastoplastic";
 
 const SAVE_FIGURE: bool = true;
 
-const N_STEP: usize = 1;
+const N_STEP: usize = 4;
 
 #[test]
 fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
@@ -59,8 +59,7 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
     let (stresses, strain_increments) = walk_on_oct_plane(young, poisson, z_ini, sig_m_0, alpha_0);
 
     // run test
-    // for i in 0..stresses.len() {
-    for i in 2..3 {
+    for i in 0..stresses.len() {
         // initial state
         let mut state_elast = LocalState::new(mandel, n_int_val);
         state_elast.stress.set_tensor(1.0, &stresses[i]);
