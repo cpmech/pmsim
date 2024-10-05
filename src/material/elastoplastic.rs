@@ -6,9 +6,6 @@ use russell_ode::{OdeSolver, Params, System};
 use russell_tensor::{t2_ddot_t4_ddot_t2, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4};
 use russell_tensor::{Tensor2, Tensor4};
 
-/// Indicates an ignored f64 value
-const IGNORED: f64 = f64::INFINITY;
-
 /// Indicates that the simulation should not stop
 const KEEP_RUNNING: bool = false;
 
@@ -28,10 +25,8 @@ const PSEUDO_TIME_TOL: f64 = 1e-7;
 #[derive(Clone, Copy, Debug)]
 enum Case {
     AB,       // elastic
-    AC,       // elastic reaching the YS
     AXD(f64), // elastic-elastoplastic; holds t_intersection
     DE,       // elastic; going inside (with eventual crossing)
-    DF,       // elastic; going inside reaching the YS (with eventual crossing)
     DYG(f64), // elastic-elastoplastic; going inside then outside with two crossings; holds t_intersection
     DH,       // elastoplastic
 }
@@ -394,8 +389,8 @@ impl<'a> Elastoplastic<'a> {
 
     /// Performs the intersection finding algorithm
     ///
-    /// Returns `(has_intersection, t_int, yf_final)`
-    fn intersection_finding(&mut self, state: &LocalState, inside: bool) -> Result<(bool, f64, f64), StrError> {
+    /// Returns `(t_int, yf_trial)`
+    fn intersection_finding(&mut self, state: &LocalState, inside: bool) -> Result<(Option<f64>, f64), StrError> {
         // copy z into arguments (z is frozen)
         self.args
             .state
@@ -420,27 +415,24 @@ impl<'a> Elastoplastic<'a> {
         // extract last root (ignore first root if crossing twice)
         let t_int = if inside {
             match roots.len() {
-                0 => IGNORED,
-                1 => roots[0],
+                0 => None,
+                1 => Some(roots[0]),
                 _ => return Err("inside: cannot handle more than one intersection"),
             }
         } else {
             match roots.len() {
-                0 => IGNORED,
-                1 => IGNORED,
-                2 => roots[1],
+                0 => None,
+                1 => None,
+                2 => Some(roots[1]),
                 _ => return Err("not inside: cannot handle more than two intersections"),
             }
         };
 
-        // analyze intersection
-        let has_intersection = t_int > PSEUDO_TIME_TOL && t_int < 1.0 - PSEUDO_TIME_TOL;
-
-        // final yield function value
-        let yf_final = self.args.yf_values[self.args.yf_count - 1];
+        // trial yield function value
+        let yf_trial = self.args.yf_values[self.args.yf_count - 1];
 
         // results
-        Ok((has_intersection, t_int, yf_final))
+        Ok((t_int, yf_trial))
     }
 
     /// Selects the yield surface crossing case
@@ -448,26 +440,30 @@ impl<'a> Elastoplastic<'a> {
         // current yield function value: f(σ, z)
         let yf_initial = self.args.model.yield_function(state)?;
 
-        let yf_tol = 1e-8; // TODO: move this to PlasticityTrait
-
-        if yf_initial < -yf_tol {
+        // run analysis
+        if yf_initial < 0.0 {
             //
             // A: inside the yield surface
             //
-            let (has_intersection, t_int, yf_final) = self.intersection_finding(state, true)?;
-            if has_intersection {
-                if yf_final < 0.0 {
-                    Err("cannot handle elastic loop")
-                } else {
-                    Ok(Case::AXD(t_int))
+            let (t_intersection, yf_trial) = self.intersection_finding(state, true)?;
+            match t_intersection {
+                Some(t_int) => {
+                    if t_int <= PSEUDO_TIME_TOL {
+                        // start inside, intersecting the YS with a tiny length, meaning that
+                        // the stress point is very close to the yield surface (from the inside)
+                        // in this situation, disregard the elastic regime altogether => DH
+                        Ok(Case::DH)
+                    } else if t_int >= 1.0 - PSEUDO_TIME_TOL {
+                        // start inside, intersecting the YS after crossing the "whole" elastic domain
+                        Ok(Case::AB)
+                    } else {
+                        // start inside, crossing the yield surface
+                        Ok(Case::AXD(t_int))
+                    }
                 }
-            } else {
-                if yf_final < 0.0 {
+                None => {
+                    assert!(yf_trial <= 0.0); // cannot be positive if there is no intersection
                     Ok(Case::AB)
-                } else if yf_final < yf_tol {
-                    Ok(Case::AC)
-                } else {
-                    Err("impossible elastic case")
                 }
             }
         } else {
@@ -475,17 +471,26 @@ impl<'a> Elastoplastic<'a> {
             // D: on the yield surface or slightly outside
             //
             if self.going_inside(state, delta_strain)? {
-                let (has_intersection, t_int, yf_final) = self.intersection_finding(state, false)?;
-                if has_intersection {
-                    assert!(yf_final > 0.0);
-                    Ok(Case::DYG(t_int))
-                } else {
-                    if yf_final < 0.0 {
+                let (t_intersection, yf_trial) = self.intersection_finding(state, false)?;
+                match t_intersection {
+                    Some(t_int) => {
+                        if t_int <= PSEUDO_TIME_TOL {
+                            // start on YS, going inside with a tiny length, meaning that
+                            // the stress point remains on the yield surface due to a
+                            // "neutral loading"
+                            Ok(Case::DH)
+                        } else if t_int >= 1.0 - PSEUDO_TIME_TOL {
+                            // start on YS, going inside, reaching the "other" side of the YS
+                            Ok(Case::DE)
+                        } else {
+                            // start on YS, crossing the "whole" elastic domain,
+                            // and reaching the outside again
+                            Ok(Case::DYG(t_int))
+                        }
+                    }
+                    None => {
+                        assert!(yf_trial <= 0.0); // cannot be positive if there is no intersection
                         Ok(Case::DE)
-                    } else if yf_final < yf_tol {
-                        Ok(Case::DF)
-                    } else {
-                        Ok(Case::DH) // possibly neutral loading with tiny drift
                     }
                 }
             } else {
@@ -549,7 +554,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         // perform the update
         match case {
             // purely elastic => done
-            Case::AB | Case::AC | Case::DE | Case::DF => {
+            Case::AB | Case::DE => {
                 // update (note that select_case already calculated this path)
                 state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
                 state.elastic = true;
@@ -633,10 +638,8 @@ mod tests {
     fn case_to_keys(case: &Case) -> Vec<&str> {
         match case {
             Case::AB => vec!["A", "B"],
-            Case::AC => vec!["A", "C"],
             Case::AXD(..) => vec!["A", "X", "D"],
             Case::DE => vec!["D", "E"],
-            Case::DF => vec!["D", "F"],
             Case::DYG(..) => vec!["D", "Y", "G"],
             Case::DH => vec!["D", "H"],
         }
@@ -908,11 +911,7 @@ mod tests {
                 assert_eq!(state.elastic, true);
                 let case = model.last_case.as_ref().unwrap();
                 let keys = case_to_keys(case);
-                if lode_int == -1 {
-                    assert_eq!(keys, ["A", "B"]); // very slightly on the inside
-                } else {
-                    assert_eq!(keys, ["A", "C"]);
-                }
+                assert_eq!(keys, ["A", "B"]); // very slightly on the inside
 
                 // Case DH: elastoplastic update
                 let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
@@ -1076,12 +1075,12 @@ mod tests {
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "F"]);
+        assert_eq!(keys, &["D", "E"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.2, 7.2), ("F", -5.2, -7.2)];
-            let labels_tyf = [("D", 0.0, 1.0), ("F", 1.0, 1.0)];
+            let labels_oct = [("D", 5.2, 7.2), ("E", -5.2, -7.2)];
+            let labels_tyf = [("D", 0.0, 1.0), ("E", 1.0, 1.0)];
             do_plot_b(
                 "test_update_stress_von_mises_3a",
                 &model,
@@ -1212,12 +1211,12 @@ mod tests {
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "F"]);
+        assert_eq!(keys, &["D", "E"]);
 
         // plot
         if SAVE_FIGURE {
-            let labels_oct = [("D", 5.2, 7.2), ("F", 5.2, -7.2)];
-            let labels_tyf = [("D", 0.0, 1.0), ("F", 1.0, 1.0)];
+            let labels_oct = [("D", 5.2, 7.2), ("E", 5.2, -7.2)];
+            let labels_tyf = [("D", 0.0, 1.0), ("E", 1.0, 1.0)];
             do_plot_b(
                 "test_update_stress_von_mises_3c",
                 &model,
@@ -1282,7 +1281,7 @@ mod tests {
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
-        assert_eq!(keys, &["D", "F"]);
+        assert_eq!(keys, &["D", "E"]);
 
         // plot
         if SAVE_FIGURE {
@@ -1369,7 +1368,7 @@ mod tests {
         //     indicator = -1.2434497875801753E-14 (going inside; but actually tangent)
         //     roots = [0, 0] (double root at the initial state)
         //     has_intersection = false
-        //     yf_final = 9
+        //     yf_trial = 9
         //
         // parameters
         let param = StressStrain::sample_von_mises();
