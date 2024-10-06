@@ -170,7 +170,7 @@ impl StressStrainTrait for VonMises {
         let sigma_m_trial = state.stress.invariant_sigma_m();
         let sigma_d_trial = state.stress.invariant_sigma_d();
         let lambda = f_trial / (3.0 * gg + hh);
-        let m = 1.0 - lambda * 3.0 * gg / sigma_d_trial;
+        let beta = 1.0 - lambda * 3.0 * gg / sigma_d_trial;
 
         // s_trial = dev(σ_trial)
         state.stress.deviator(&mut self.s); // s ← s_trial
@@ -182,7 +182,7 @@ impl StressStrainTrait for VonMises {
 
         // σ_new = m s_trial + σm_trial I
         for i in 0..nd {
-            vec[i] = m * s_trial[i] + sigma_m_trial * I[i];
+            vec[i] = beta * s_trial[i] + sigma_m_trial * I[i];
         }
 
         // elastoplastic update
