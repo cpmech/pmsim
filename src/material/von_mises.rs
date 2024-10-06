@@ -180,9 +180,9 @@ impl StressStrainTrait for VonMises {
         let vec = state.stress.vector_mut();
         let s_trial = self.s.vector();
 
-        // σ_new = m s_trial + σm_trial I
+        // σ_new = σm_trial I + β s_trial
         for i in 0..nd {
-            vec[i] = beta * s_trial[i] + sigma_m_trial * I[i];
+            vec[i] = sigma_m_trial * I[i] + beta * s_trial[i];
         }
 
         // elastoplastic update
