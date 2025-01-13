@@ -243,7 +243,7 @@ impl<'a> FemSolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemSolverImplicit;
-    use crate::base::{new_empty_mesh_2d, Config, Ebc, Etype, Essential, Natural, Nbc, ParamSolid, Pbc};
+    use crate::base::{new_empty_mesh_2d, Config, Ebc, Essential, Etype, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemInput, FemOutput, FemState};
     use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
