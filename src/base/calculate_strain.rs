@@ -1,4 +1,4 @@
-use super::Config;
+use super::Idealization;
 use crate::StrError;
 use gemlab::shapes::Scratchpad;
 use russell_lab::Vector;
@@ -10,7 +10,7 @@ use russell_tensor::Tensor2;
 ///
 /// * `eps` -- The (delta) strain tensor
 /// * `uu` -- The global (delta) displacement vector
-/// * `config` -- Configuration data
+/// * `ideal` -- The geometry idealization (axisymmetric, plane-strain, plane-stress, none)
 /// * `l2g` -- The local to global map
 /// * `ksi` -- The coordinate of the integration point (ξᵖ)
 /// * `pad` -- Scratchpad to calculate interpolation functions
@@ -18,7 +18,7 @@ use russell_tensor::Tensor2;
 pub(crate) fn calculate_strain(
     eps: &mut Tensor2,
     uu: &Vector,
-    config: &Config,
+    ideal: &Idealization,
     l2g: &[usize],
     ksi: &[f64],
     pad: &mut Scratchpad,
@@ -27,13 +27,13 @@ pub(crate) fn calculate_strain(
     pad.calc_gradient(ksi)?;
     let gg = &pad.gradient;
     eps.clear();
-    if config.two_dim {
+    if ideal.two_dim {
         for m in 0..nnode {
             eps.sym_add(0, 0, 1.0,  uu[l2g[0+2*m]] * gg.get(m,0));
             eps.sym_add(1, 1, 1.0,  uu[l2g[1+2*m]] * gg.get(m,1));
             eps.sym_add(0, 1, 1.0, (uu[l2g[0+2*m]] * gg.get(m,1) + uu[l2g[1+2*m]] * gg.get(m,0))/2.0);
         }
-        if config.axisymmetric {
+        if ideal.axisymmetric {
             // calculate radius
             (pad.fn_interp)(&mut pad.interp, ksi);
             let nn = &pad.interp;
@@ -64,7 +64,7 @@ pub(crate) fn calculate_strain(
 #[cfg(test)]
 mod tests {
     use super::calculate_strain;
-    use crate::base::{compute_local_to_global, Attributes, Config, Element, ElementDofsMap, Equations, SampleParams};
+    use crate::base::{compute_local_to_global, Attributes, Config, Etype, ElementDofsMap, Equations, ParamSolid};
     use crate::base::{
         elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
@@ -107,8 +107,8 @@ mod tests {
             let cell = &mesh.cells[0];
 
             // local-to-global map
-            let p1 = SampleParams::param_solid();
-            let att = Attributes::from([(1, Element::Solid(p1))]);
+            let p1 = ParamSolid::sample_linear_elastic();
+            let att = Attributes::from([(1, Etype::Solid(p1))]);
             let emap = ElementDofsMap::new(&mesh, &att).unwrap();
             let eqs = Equations::new(&mesh, &emap).unwrap();
             let l2g = compute_local_to_global(&emap, &eqs, cell).unwrap();
@@ -125,19 +125,19 @@ mod tests {
             let ips = config.integ_point_data(cell).unwrap();
 
             // strain increment
-            let mut de = Tensor2::new(config.mandel);
+            let mut de = Tensor2::new(config.ideal.mandel());
 
             // check increment of strains for all integration points
             for p in 0..ips.len() {
                 let ksi = &ips[p];
                 // horizontal strain
-                calculate_strain(&mut de, &duu_h, &config, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, ksi, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_h.vector(), 1e-13);
                 // vertical strain
-                calculate_strain(&mut de, &duu_v, &config, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_v, &config.ideal, &l2g, ksi, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_v.vector(), 1e-14);
                 // shear strain
-                calculate_strain(&mut de, &duu_s, &config, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_s, &config.ideal, &l2g, ksi, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_s.vector(), 1e-14);
             }
         }

@@ -147,14 +147,12 @@ fn main() -> Result<(), StrError> {
         // input data
         let param1 = ParamSolid {
             density: 1.0,
-            stress_strain: ParamStressStrain::LinearElastic {
+            stress_strain: StressStrain::LinearElastic {
                 young: YOUNG,
                 poisson: POISSON,
             },
-            nonlin_elast: None,
-            stress_update: None,
         };
-        let input = FemInput::new(&mesh, [(1, Element::Solid(param1))])?;
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(param1))])?;
 
         // total number of DOF
         let ndof = input.equations.n_equation;

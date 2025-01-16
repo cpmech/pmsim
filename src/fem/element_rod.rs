@@ -10,9 +10,6 @@ use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
 ///
 /// * Felippa C., Chapter 20: Implementation of One-Dimensional Elements (IFEM.Ch20.pdf)
 pub struct ElementRod<'a> {
-    /// Number of space dimensions
-    pub ndim: usize,
-
     /// Global configuration
     pub config: &'a Config<'a>,
 
@@ -72,7 +69,6 @@ impl<'a> ElementRod<'a> {
             ])
         };
         Ok(ElementRod {
-            ndim,
             config,
             cell,
             param,
@@ -121,6 +117,15 @@ impl<'a> ElementTrait for ElementRod<'a> {
     fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
+
+    /// Creates a copy of the secondary values (e.g., stress, internal_values)
+    fn backup_secondary_values(&mut self, _state: &FemState) {}
+
+    /// Restores the secondary values (e.g., stress, internal_values) from the backup
+    fn restore_secondary_values(&self, _state: &mut FemState) {}
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -128,7 +133,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, Element, ParamRod};
+    use crate::base::{assemble_matrix, Config, Etype, ParamRod};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
@@ -155,7 +160,7 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
             ElementRod::new(&input, &config, &mesh.cells[0], &p1).err(),
@@ -191,7 +196,7 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -229,7 +234,7 @@ mod tests {
             young: 343.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -270,7 +275,7 @@ mod tests {
             young: 1.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Element::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -333,7 +338,7 @@ mod tests {
         };
         let input = FemInput::new(
             &mesh,
-            [(1, Element::Rod(p1)), (2, Element::Rod(p2)), (3, Element::Rod(p3))],
+            [(1, Etype::Rod(p1)), (2, Etype::Rod(p2)), (3, Etype::Rod(p3))],
         )
         .unwrap();
 

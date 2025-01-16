@@ -1,4 +1,5 @@
 use gemlab::prelude::*;
+use plotpy::{Curve, Plot};
 use pmsim::prelude::*;
 use russell_lab::*;
 
@@ -40,6 +41,8 @@ use russell_lab::*;
 
 const NAME: &str = "test_heat_arpaci_nonlinear_1d";
 
+const SAVE_FIGURE: bool = false;
+
 #[test]
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // constants
@@ -58,10 +61,10 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // input data
     let p1 = ParamDiffusion {
         rho: 1.0,
-        conductivity: ParamConductivity::IsotropicLinear { kr: K_R, beta: BETA },
+        conductivity: Conductivity::IsotropicLinear { kr: K_R, beta: BETA },
         source: Some(SOURCE),
     };
-    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -99,6 +102,35 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let ref_tt = state.uu[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
+
+    // plot
+    if SAVE_FIGURE {
+        // get temperature values along x
+        let post = FemOutput::new(&input, None, None, None)?;
+        let (_, x_values, tt_values) = post.values_along_x(&feat, &state, Dof::T, 0.0, any_x)?;
+
+        // compute plot data
+        let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();
+        let yy_num: Vec<_> = tt_values.iter().map(|tt| 2.0 * K_R * tt / (SOURCE * L * L)).collect();
+        let yy_ana: Vec<_> = x_values.iter().map(|x| normalized(*x)).collect();
+
+        // figure
+        let mut curve_num = Curve::new();
+        let mut curve_ana = Curve::new();
+        curve_num
+            .set_line_color("#cd0000")
+            .set_line_style("None")
+            .set_marker_style("+");
+        curve_num.draw(&xx, &yy_num);
+        curve_ana.draw(&xx, &yy_ana);
+        let mut plot = Plot::new();
+        plot.add(&curve_ana);
+        plot.add(&curve_num);
+        plot.set_title(format!("$\\beta\\;s\\;L^2\\;/\\;(2\\;k_r)$ = {:.2}", coef).as_str())
+            .grid_and_labels("$x\\;/\\;L$", "$2\\,k_r\\,T\\;/\\;(s\\,L^2)$")
+            .legend()
+            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+    }
     Ok(())
 }
 

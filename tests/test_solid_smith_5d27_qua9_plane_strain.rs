@@ -61,14 +61,12 @@ fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: 1e6,
             poisson: 0.3,
         },
-        nonlin_elast: None,
-        stress_update: None,
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

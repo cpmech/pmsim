@@ -81,10 +81,10 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     let (kx, ky) = (52.0, 52.0);
     let p1 = ParamDiffusion {
         rho: 1.0,
-        conductivity: ParamConductivity::Constant { kx, ky, kz: 0.0 },
+        conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -96,7 +96,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric(true);
+    config.set_axisymmetric();
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

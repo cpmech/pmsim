@@ -45,14 +45,12 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: 100.0,
             poisson: 0.3,
         },
-        nonlin_elast: None,
-        stress_update: None,
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
 
     // essential boundary conditions
     let zero = |_| 0.0;

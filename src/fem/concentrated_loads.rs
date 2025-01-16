@@ -65,7 +65,7 @@ impl ConcentratedLoads {
 #[cfg(test)]
 mod tests {
     use super::{ConcentratedLoad, ConcentratedLoads};
-    use crate::base::{Element, Natural, Pbc, SampleParams};
+    use crate::base::{Etype, Natural, ParamSolid, Pbc};
     use crate::fem::FemInput;
     use gemlab::mesh::Samples;
     use russell_lab::Vector;
@@ -73,8 +73,8 @@ mod tests {
     #[test]
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let minus_ten = |_| -10.0;
         assert_eq!(minus_ten(0.0), -10.0);
         assert_eq!(
@@ -93,8 +93,8 @@ mod tests {
     #[test]
     fn add_to_residual_works() {
         let mesh = Samples::one_tet4();
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let mut natural = Natural::new();
         let f = |_| -20.0;
         assert_eq!(f(0.0), -20.0);

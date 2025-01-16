@@ -46,14 +46,12 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: 10_000.0,
             poisson: 0.2,
         },
-        nonlin_elast: None,
-        stress_update: None,
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -66,7 +64,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_plane_stress(true, 0.25);
+    config.set_plane_stress(0.25);
 
     // elements
     let mut elements = Elements::new(&input, &config)?;

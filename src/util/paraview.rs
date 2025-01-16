@@ -196,7 +196,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::paraview_write_vtu;
-    use crate::base::{Config, Element, SampleParams, DEFAULT_OUT_DIR};
+    use crate::base::{Config, Etype, ParamSolid, DEFAULT_OUT_DIR};
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::Samples;
     use std::fs;
@@ -204,8 +204,8 @@ mod tests {
     #[test]
     fn write_vtu_works() {
         let mesh = Samples::three_tri3();
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&input, &config).unwrap();
 

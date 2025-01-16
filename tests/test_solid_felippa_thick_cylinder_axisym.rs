@@ -55,14 +55,12 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::LinearElastic {
+        stress_strain: StressStrain::LinearElastic {
             young: YOUNG,
             poisson: POISSON,
         },
-        nonlin_elast: None,
-        stress_update: None,
     };
-    let input = FemInput::new(&mesh, [(1, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -74,7 +72,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric(true).set_n_integ_point(1, 4); // reduced integration => better results
+    config.set_axisymmetric().set_n_integ_point(1, 4); // reduced integration => better results
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

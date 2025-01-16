@@ -89,7 +89,8 @@ impl<'a> PrescribedValues<'a> {
 #[cfg(test)]
 mod tests {
     use super::{PrescribedValue, PrescribedValues};
-    use crate::base::{Ebc, Element, Essential, SampleParams};
+    use crate::base::{Ebc, Essential, Etype, ParamBeam, ParamDiffusion};
+    use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::FemInput;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
     use gemlab::shapes::GeoKind;
@@ -98,8 +99,8 @@ mod tests {
     #[test]
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let f = |_| 123.0;
         assert_eq!(f(0.0), 123.0);
         assert_eq!(
@@ -128,8 +129,8 @@ mod tests {
     #[test]
     fn set_values_works_diffusion() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_diffusion();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let p1 = ParamDiffusion::sample();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.at(&[0], Ebc::T(|_| 110.0));
         let mut duu = Vector::new(input.equations.n_equation);
@@ -154,8 +155,8 @@ mod tests {
                 Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
         };
-        let p1 = SampleParams::param_beam();
-        let input = FemInput::new(&mesh, [(1, Element::Beam(p1))]).unwrap();
+        let p1 = ParamBeam::sample();
+        let input = FemInput::new(&mesh, [(1, Etype::Beam(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .at(&[0], Ebc::Ux(|_| 1.0))
@@ -196,15 +197,15 @@ mod tests {
         //                     {Pl→8}
         //  *10 => {Ux→26, Uy→27, Rz→28}
         let mesh = Samples::qua8_tri6_lin2();
-        let p1 = SampleParams::param_porous_sld_liq();
-        let p2 = SampleParams::param_solid();
-        let p3 = SampleParams::param_beam();
+        let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
+        let p2 = ParamSolid::sample_linear_elastic();
+        let p3 = ParamBeam::sample();
         let input = FemInput::new(
             &mesh,
             [
-                (1, Element::PorousSldLiq(p1)),
-                (2, Element::Solid(p2)),
-                (3, Element::Beam(p3)),
+                (1, Etype::PorousSldLiq(p1)),
+                (2, Etype::Solid(p2)),
+                (3, Etype::Beam(p3)),
             ],
         )
         .unwrap();
@@ -264,8 +265,8 @@ mod tests {
     #[test]
     fn set_values_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
-        let p1 = SampleParams::param_porous_sld_liq_gas();
-        let input = FemInput::new(&mesh, [(1, Element::PorousSldLiqGas(p1))]).unwrap();
+        let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::PorousSldLiqGas(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .at(&[0], Ebc::Ux(|_| 1.0))
@@ -309,8 +310,8 @@ mod tests {
         //            `--.__\/__.---'
         //               {1} 1
         let mesh = Samples::three_tri3();
-        let p1 = SampleParams::param_porous_liq();
-        let input = FemInput::new(&mesh, [(1, Element::PorousLiq(p1))]).unwrap();
+        let p1 = ParamPorousLiq::sample_brooks_corey_constant();
+        let input = FemInput::new(&mesh, [(1, Etype::PorousLiq(p1))]).unwrap();
         let mut essential = Essential::new();
         let zero = |_| 0.0;
         assert_eq!(zero(1.0), 0.0);
@@ -331,8 +332,8 @@ mod tests {
         //            `--.__\/__.---'     {5}
         //                   1 {2}
         //                     {3}
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .at(&[0], Ebc::Ux(zero))

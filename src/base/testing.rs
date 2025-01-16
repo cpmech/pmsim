@@ -1,4 +1,3 @@
-use super::Config;
 use gemlab::mesh::Mesh;
 use russell_lab::Vector;
 use russell_tensor::{Mandel, Tensor2};
@@ -21,20 +20,6 @@ pub(crate) fn new_empty_mesh_3d() -> Mesh {
         points: Vec::new(),
         cells: Vec::new(),
     }
-}
-
-/// Returns a new empty configuration for 2D simulations
-#[allow(dead_code)]
-pub(crate) fn new_empty_config_2d<'a>() -> Config<'a> {
-    let mesh = new_empty_mesh_2d();
-    Config::new(&mesh)
-}
-
-/// Returns a new empty configuration for 3D simulations
-#[allow(dead_code)]
-pub(crate) fn new_empty_config_3d<'a>() -> Config<'a> {
-    let mesh = new_empty_mesh_3d();
-    Config::new(&mesh)
 }
 
 /// Generates a displacement field corresponding to a horizontal stretching

@@ -1,6 +1,6 @@
 use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamDiffusion};
-use crate::material::Conductivity;
+use crate::material::ModelConductivity;
 use crate::StrError;
 use gemlab::integ;
 use gemlab::mesh::Cell;
@@ -10,9 +10,6 @@ use russell_tensor::{t2_dot_vec, Tensor2};
 
 /// Implements the local Diffusion Element equations
 pub struct ElementDiffusion<'a> {
-    /// Number of space dimensions
-    pub ndim: usize,
-
     /// Global configuration
     pub config: &'a Config<'a>,
 
@@ -32,7 +29,7 @@ pub struct ElementDiffusion<'a> {
     pub ips: integ::IntegPointData,
 
     /// Conductivity model
-    pub model: Conductivity<'a>,
+    pub model: ModelConductivity,
 
     /// (temporary) Conductivity tensor at a single integration point
     pub conductivity: Tensor2,
@@ -64,7 +61,7 @@ impl<'a> ElementDiffusion<'a> {
         let ips = config.integ_point_data(cell)?;
 
         // material model
-        let model = Conductivity::new(&param.conductivity, ndim == 2);
+        let model = ModelConductivity::new(&config.ideal, &param.conductivity)?;
 
         // auxiliary conductivity tensor
         let conductivity = Tensor2::new_sym_ndim(ndim);
@@ -74,7 +71,6 @@ impl<'a> ElementDiffusion<'a> {
 
         // allocate new instance
         Ok(ElementDiffusion {
-            ndim,
             config,
             cell,
             param,
@@ -106,12 +102,12 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
-        let ndim = self.ndim;
+        let ndim = self.config.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
-        args.alpha = self.config.thickness;
-        args.axisymmetric = self.config.axisymmetric;
+        args.alpha = self.config.ideal.thickness;
+        args.axisymmetric = self.config.ideal.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
         integ::vec_03_vb(residual, &mut args, |w, _, nn, bb| {
@@ -168,12 +164,12 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
-        let ndim = self.ndim;
+        let ndim = self.config.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
-        args.alpha = self.config.thickness;
-        args.axisymmetric = self.config.axisymmetric;
+        args.alpha = self.config.ideal.thickness;
+        args.axisymmetric = self.config.ideal.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
         integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {
@@ -228,6 +224,15 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
+
+    /// Creates a copy of the secondary values (e.g., stress, internal_values)
+    fn backup_secondary_values(&mut self, _state: &FemState) {}
+
+    /// Restores the secondary values (e.g., stress, internal_values) from the backup
+    fn restore_secondary_values(&self, _state: &mut FemState) {}
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -235,7 +240,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Config, Element, ParamConductivity, ParamDiffusion, SampleParams};
+    use crate::base::{Conductivity, Config, Etype, ParamDiffusion};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Samples};
@@ -257,13 +262,13 @@ mod tests {
         let p1 = if nonlinear {
             ParamDiffusion {
                 rho: 1.0,
-                conductivity: ParamConductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
+                conductivity: Conductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
                 source: None,
             }
         } else {
-            SampleParams::param_diffusion()
+            ParamDiffusion::sample()
         };
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
@@ -315,8 +320,8 @@ mod tests {
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_diffusion();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let p1 = ParamDiffusion::sample();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_n_integ_point(1, 100); // wrong
         assert_eq!(
@@ -340,8 +345,15 @@ mod tests {
     fn element_diffusion_works_2d() {
         // mesh and parameters
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_diffusion();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        const KX: f64 = 0.1;
+        const KY: f64 = 0.2;
+        const KZ: f64 = 0.3;
+        let p1 = ParamDiffusion {
+            rho: 1.0,
+            conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
+            source: None,
+        };
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
@@ -360,8 +372,7 @@ mod tests {
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
         let dtt_dx = 5.0;
-        let (kx, ky) = (0.1, 0.2);
-        let w0 = -kx * dtt_dx;
+        let w0 = -KX * dtt_dx;
         let w1 = 0.0;
         let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1));
         vec_approx_eq(&residual, &correct_r, 1e-15);
@@ -369,7 +380,7 @@ mod tests {
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
-        let correct_kk = ana.mat_03_btb(kx, ky, false);
+        let correct_kk = ana.mat_03_btb(KX, KY, false);
         mat_approx_eq(&jacobian, &correct_kk, 1e-15);
 
         // with source term -------------------------------------------------
@@ -378,7 +389,7 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 
@@ -409,8 +420,15 @@ mod tests {
     fn element_diffusion_works_3d() {
         // mesh and parameters
         let mesh = Samples::one_tet4();
-        let p1 = SampleParams::param_diffusion();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        const KX: f64 = 0.1;
+        const KY: f64 = 0.2;
+        const KZ: f64 = 0.3;
+        let p1 = ParamDiffusion {
+            rho: 1.0,
+            conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
+            source: None,
+        };
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
 
@@ -430,10 +448,9 @@ mod tests {
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
         let (dtt_dx, dtt_dz) = (7.0, 3.0);
-        let (kx, ky, kz) = (0.1, 0.2, 0.3);
-        let w0 = -kx * dtt_dx;
+        let w0 = -KX * dtt_dx;
         let w1 = 0.0;
-        let w2 = -kz * dtt_dz;
+        let w2 = -KZ * dtt_dz;
         let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
         vec_approx_eq(&residual, &correct_r, 1e-15);
 
@@ -441,7 +458,7 @@ mod tests {
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let conductivity =
-            Tensor2::from_matrix(&[[kx, 0.0, 0.0], [0.0, ky, 0.0], [0.0, 0.0, kz]], Mandel::Symmetric).unwrap();
+            Tensor2::from_matrix(&[[KX, 0.0, 0.0], [0.0, KY, 0.0], [0.0, 0.0, KZ]], Mandel::Symmetric).unwrap();
         let correct_kk = ana.mat_03_btb(&conductivity);
         mat_approx_eq(&jacobian, &correct_kk, 1e-15);
 
@@ -451,7 +468,7 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1_new))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
 

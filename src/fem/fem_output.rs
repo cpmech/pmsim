@@ -23,11 +23,22 @@ pub struct FemOutputSummary {
 
 /// Assists in the post-processing of results
 pub struct FemOutput<'a> {
+    /// Holds the input data
     input: &'a FemInput<'a>,
+
+    /// Defines the filename stem
     filename_stem: Option<String>,
+
+    /// Defines the output directory
     output_directory: String,
+
+    /// Holds the count of files written
     output_count: usize,
+
+    /// Defines an auxiliary callback function
     callback: Option<fn(&FemState, usize)>,
+
+    /// Holds the summary
     summary: FemOutputSummary,
 }
 
@@ -137,7 +148,7 @@ impl<'a> FemOutput<'a> {
         format!("{}/{}-{:0>20}.json", out_dir, fn_stem, index)
     }
 
-    /// Writes the current FEM state to a binary file
+    /// Writes the current FEM state to a file
     ///
     /// **Note:** No output is generated if `filename_stem` is None.
     pub(crate) fn write(&mut self, state: &mut FemState) -> Result<(), StrError> {
@@ -234,7 +245,7 @@ impl<'a> FemOutput<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemOutput;
-    use crate::base::{Config, Dof, Element, SampleParams};
+    use crate::base::{Config, Dof, Etype, ParamDiffusion};
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::{Features, Samples};
     use gemlab::util::any_x;
@@ -243,8 +254,8 @@ mod tests {
     fn values_along_x_works() {
         let mesh = Samples::one_tri6();
         let feat = Features::new(&mesh, false);
-        let p1 = SampleParams::param_diffusion();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let p1 = ParamDiffusion::sample();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&input, &config).unwrap();
         state.uu[0] = 1.0;

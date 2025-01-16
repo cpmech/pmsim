@@ -44,7 +44,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
     let att = mesh.cells[0].attribute;
-    let id = 0;
 
     // features
     let feat = Features::new(&mesh, false);
@@ -55,7 +54,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // constants
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
-    const Z0: f64 = 9.0;
+    const Z_INI: f64 = 9.0;
     const NU: f64 = POISSON;
     const NU2: f64 = POISSON * POISSON;
     const N_STEPS: usize = 5;
@@ -63,16 +62,14 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // input data
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: ParamStressStrain::VonMises {
+        stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            z0: Z0,
+            z_ini: Z_INI,
             hh: 800.0,
         },
-        nonlin_elast: None,
-        stress_update: None,
     };
-    let input = FemInput::new(&mesh, [(att, Element::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(att, Etype::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -80,7 +77,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         on(&left,   Ebc::Ux(|_| 0.0)). // left
         on(&bottom, Ebc::Uy(|_| 0.0)). // bottom
         on(&top,    Ebc::Uy(|t| {      // top
-            let delta_y = Z0 * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+            let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
             // println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
             -delta_y * t
         }),
@@ -96,8 +93,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)
-        .set_n_max_iterations(20)
-        .set_output_strains(id);
+        .set_n_max_iterations(20);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

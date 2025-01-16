@@ -1,4 +1,4 @@
-use crate::base::{Attributes, Element, ElementDofsMap, Equations};
+use crate::base::{Attributes, Etype, ElementDofsMap, Equations};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
 
@@ -19,7 +19,7 @@ pub struct FemInput<'a> {
 
 impl<'a> FemInput<'a> {
     /// Allocate new instance
-    pub fn new<const N: usize>(mesh: &'a Mesh, arr: [(CellAttribute, Element); N]) -> Result<Self, StrError> {
+    pub fn new<const N: usize>(mesh: &'a Mesh, arr: [(CellAttribute, Etype); N]) -> Result<Self, StrError> {
         let attributes = Attributes::from(arr);
         let information = ElementDofsMap::new(&mesh, &attributes)?;
         let equations = Equations::new(&mesh, &information).unwrap(); // cannot fail
@@ -43,16 +43,16 @@ impl<'a> FemInput<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemInput;
-    use crate::base::{Element, SampleParams};
+    use crate::base::{Etype, ParamDiffusion, ParamSolid};
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let p2 = SampleParams::param_solid();
+        let p2 = ParamSolid::sample_linear_elastic();
         assert_eq!(
-            FemInput::new(&mesh, [(2, Element::Solid(p2))]).err(),
+            FemInput::new(&mesh, [(2, Etype::Solid(p2))]).err(),
             Some("cannot find CellAttribute in Attributes map")
         );
     }
@@ -60,16 +60,16 @@ mod tests {
     #[test]
     fn new_works() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         assert_eq!(input.equations.n_equation, 6);
     }
 
     #[test]
     fn n_local_eq_works() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_diffusion();
-        let input = FemInput::new(&mesh, [(1, Element::Diffusion(p1))]).unwrap();
+        let p1 = ParamDiffusion::sample();
+        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         assert_eq!(input.n_local_eq(&mesh.cells[0]).unwrap(), 3);
 
         let wrong_cell = Cell {

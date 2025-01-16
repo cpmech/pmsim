@@ -106,7 +106,7 @@ impl<'a> FemSolverImplicit<'a> {
 
             // reset algorithmic variables
             if !config.linear_problem {
-                state.reset_algorithmic_variables();
+                self.elements.reset_algorithmic_variables(state);
             }
 
             // message
@@ -200,9 +200,9 @@ impl<'a> FemSolverImplicit<'a> {
                 // backup/restore secondary variables
                 if !config.linear_problem {
                     if iteration == 0 {
-                        state.backup_secondary_values();
+                        self.elements.backup_secondary_values(state);
                     } else {
-                        state.restore_secondary_values();
+                        self.elements.restore_secondary_values(state);
                     }
                 }
 
@@ -243,7 +243,7 @@ impl<'a> FemSolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemSolverImplicit;
-    use crate::base::{new_empty_mesh_2d, Config, Ebc, Element, Essential, Natural, Nbc, Pbc, SampleParams};
+    use crate::base::{new_empty_mesh_2d, Config, Ebc, Essential, Etype, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemInput, FemOutput, FemState};
     use gemlab::mesh::{Feature, Samples};
     use gemlab::shapes::GeoKind;
@@ -251,8 +251,8 @@ mod tests {
     #[test]
     fn new_captures_errors() {
         let mesh = Samples::one_hex8();
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 
@@ -310,7 +310,7 @@ mod tests {
         // error due to linear_system
         let empty_mesh = new_empty_mesh_2d();
         let config = Config::new(&empty_mesh);
-        let input = FemInput::new(&empty_mesh, [(1, Element::Solid(p1))]).unwrap();
+        let input = FemInput::new(&empty_mesh, [(1, Etype::Solid(p1))]).unwrap();
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("nrow must be ≥ 1")
@@ -320,8 +320,8 @@ mod tests {
     #[test]
     fn run_captures_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = SampleParams::param_solid();
-        let input = FemInput::new(&mesh, [(1, Element::Solid(p1))]).unwrap();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_dt(|_| -1.0); // wrong
         let essential = Essential::new();
