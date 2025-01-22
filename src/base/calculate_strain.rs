@@ -64,7 +64,7 @@ pub(crate) fn calculate_strain(
 #[cfg(test)]
 mod tests {
     use super::calculate_strain;
-    use crate::base::{compute_local_to_global, Attributes, Config, Etype, ElementDofsMap, Equations, ParamSolid};
+    use crate::base::{compute_local_to_global, Attributes, Config, ElementDofsMap, Equations, Etype, ParamSolid};
     use crate::base::{
         elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
@@ -128,16 +128,16 @@ mod tests {
             let mut de = Tensor2::new(config.ideal.mandel());
 
             // check increment of strains for all integration points
-            for p in 0..ips.len() {
-                let ksi = &ips[p];
+            for p in 0..ips.npoint() {
+                let iota = ips.coords(p);
                 // horizontal strain
-                calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, iota, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_h.vector(), 1e-13);
                 // vertical strain
-                calculate_strain(&mut de, &duu_v, &config.ideal, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_v, &config.ideal, &l2g, iota, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_v.vector(), 1e-14);
                 // shear strain
-                calculate_strain(&mut de, &duu_s, &config.ideal, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_s, &config.ideal, &l2g, iota, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_s.vector(), 1e-14);
             }
         }

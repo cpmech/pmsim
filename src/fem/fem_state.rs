@@ -78,7 +78,7 @@ impl FemState {
         let mut has_porous_solid = false;
         for cell in &input.mesh.cells {
             let e_type = input.attributes.get(cell).unwrap(); // already checked by Data
-            let n_integration_point = config.integ_point_data(cell)?.len();
+            let n_integration_point = config.integ_point_data(cell)?.npoint();
             match e_type {
                 Etype::Diffusion(..) => {
                     has_diffusion = true;

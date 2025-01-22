@@ -1,7 +1,7 @@
 use super::{FemInput, FemState};
 use crate::base::{assemble_matrix, assemble_vector, Config, Natural, Nbc};
 use crate::StrError;
-use gemlab::integ;
+use gemlab::integ::{self, Gauss};
 use gemlab::mesh::Feature;
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
@@ -21,7 +21,7 @@ pub struct Boundary<'a> {
     pub pad: Scratchpad,
 
     /// Integration (Gauss) points
-    pub ips: integ::IntegPointData,
+    pub ips: Gauss,
 
     /// Residual vector
     pub residual: Vector,
@@ -61,7 +61,7 @@ impl<'a> Boundary<'a> {
         let (kind, points) = (feature.kind, &feature.points);
         let mut pad = Scratchpad::new(ndim, kind).unwrap();
         input.mesh.set_pad(&mut pad, &points);
-        let ips = integ::default_points(pad.kind);
+        let ips = Gauss::new(pad.kind);
 
         // dofs
         let (ndim, nnode) = pad.xxt.dims();
@@ -97,7 +97,7 @@ impl<'a> Boundary<'a> {
     pub fn calc_residual(&mut self, state: &FemState) -> Result<(), StrError> {
         let (ndim, nnode) = self.pad.xxt.dims();
         let res = &mut self.residual;
-        let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+        let mut args = integ::CommonArgs::new(&mut self.pad, &self.ips);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
         match self.nbc {
@@ -158,7 +158,7 @@ impl<'a> Boundary<'a> {
         match self.nbc {
             Nbc::Cv(cc, _) => {
                 let kk = self.jacobian.as_mut().unwrap();
-                let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+                let mut args = integ::CommonArgs::new(&mut self.pad, &self.ips);
                 args.alpha = self.config.ideal.thickness;
                 args.axisymmetric = self.config.ideal.axisymmetric;
                 integ::mat_01_nsn_bry(kk, &mut args, |_, _, _| Ok(cc))

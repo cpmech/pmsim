@@ -2,7 +2,7 @@ use super::{ElementTrait, FemInput, FemState};
 use crate::base::{compute_local_to_global, Config, ParamDiffusion};
 use crate::material::ModelConductivity;
 use crate::StrError;
-use gemlab::integ;
+use gemlab::integ::{self, Gauss};
 use gemlab::mesh::Cell;
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
@@ -26,7 +26,7 @@ pub struct ElementDiffusion<'a> {
     pub pad: Scratchpad,
 
     /// Integration point coordinates and weights
-    pub ips: integ::IntegPointData,
+    pub ips: Gauss,
 
     /// Conductivity model
     pub model: ModelConductivity,
@@ -105,7 +105,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         let ndim = self.config.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
-        let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+        let mut args = integ::CommonArgs::new(&mut self.pad, &self.ips);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
@@ -167,7 +167,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         let ndim = self.config.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
-        let mut args = integ::CommonArgs::new(&mut self.pad, self.ips);
+        let mut args = integ::CommonArgs::new(&mut self.pad, &self.ips);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
@@ -326,7 +326,7 @@ mod tests {
         config.set_n_integ_point(1, 100); // wrong
         assert_eq!(
             ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).err(),
-            Some("desired number of integration points is not available for Tri class")
+            Some("requested number of integration points is not available for Tri class")
         );
         config.set_n_integ_point(1, 3);
         let wrong_cell = Cell {

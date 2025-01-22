@@ -290,7 +290,7 @@ mod tests {
         config.set_n_integ_point(1, 100); // wrong
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
-            Some("desired number of integration points is not available for Hex class")
+            Some("requested number of integration points is not available for Hex class")
         );
         let config = Config::new(&mesh);
 

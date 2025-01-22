@@ -213,7 +213,7 @@ impl<'a> Elements<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Elements, GenericElement};
-    use crate::base::{Config, Etype, ParamBeam, Conductivity, ParamPorousLiqGas};
+    use crate::base::{Conductivity, Config, Etype, ParamBeam, ParamPorousLiqGas};
     use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::{FemInput, FemState};
     use gemlab::mesh::Samples;
@@ -229,22 +229,22 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         assert_eq!(
             GenericElement::new(&input, &config, &mesh.cells[0]).err(),
-            Some("desired number of integration points is not available for Tri class")
+            Some("requested number of integration points is not available for Tri class")
         );
         assert_eq!(
             Elements::new(&input, &config).err(),
-            Some("desired number of integration points is not available for Tri class")
+            Some("requested number of integration points is not available for Tri class")
         );
 
         let p1 = ParamDiffusion::sample();
         let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         assert_eq!(
             GenericElement::new(&input, &config, &mesh.cells[0]).err(),
-            Some("desired number of integration points is not available for Tri class")
+            Some("requested number of integration points is not available for Tri class")
         );
         assert_eq!(
             Elements::new(&input, &config).err(),
-            Some("desired number of integration points is not available for Tri class")
+            Some("requested number of integration points is not available for Tri class")
         );
     }
 
