@@ -75,7 +75,7 @@ pub struct Config<'a> {
     pub(crate) model_allow_initial_drift: bool,
 
     /// Holds the number of integration points for a group of cells
-    pub(crate) n_integ_point: HashMap<CellAttribute, usize>,
+    pub(crate) ngauss: HashMap<CellAttribute, usize>,
 
     /// Holds extra configuration parameters for the material models
     pub(crate) model_settings: HashMap<CellAttribute, Settings>,
@@ -155,7 +155,7 @@ impl<'a> Config<'a> {
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
-            n_integ_point: HashMap::new(),
+            ngauss: HashMap::new(),
             model_settings: HashMap::new(),
             // control
             t_ini: 0.0,
@@ -357,7 +357,7 @@ impl<'a> Config<'a> {
 
     /// Returns the integration (Gauss) points data
     pub fn gauss(&self, cell: &Cell) -> Result<Gauss, StrError> {
-        match self.n_integ_point.get(&cell.attribute) {
+        match self.ngauss.get(&cell.attribute) {
             Some(n) => Gauss::new_sized(cell.kind.class(), *n),
             None => Ok(Gauss::new(cell.kind)),
         }
@@ -477,8 +477,8 @@ impl<'a> Config<'a> {
     ///
     /// Note: This function is optional because a default number
     /// of integration points is selected for all cell types.
-    pub fn set_n_integ_point(&mut self, cell_attribute: CellAttribute, n_integ_point: usize) -> &mut Self {
-        self.n_integ_point.insert(cell_attribute, n_integ_point);
+    pub fn set_ngauss(&mut self, cell_attribute: CellAttribute, ngauss: usize) -> &mut Self {
+        self.ngauss.insert(cell_attribute, ngauss);
         self
     }
 
@@ -605,7 +605,7 @@ impl<'a> fmt::Display for Config<'a> {
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
         write!(f, "\nSpecified number of integration points\n").unwrap();
         write!(f, "======================================\n").unwrap();
-        let mut key_val: Vec<_> = self.n_integ_point.iter().map(|x| x).collect();
+        let mut key_val: Vec<_> = self.ngauss.iter().map(|x| x).collect();
         key_val.sort();
         for (key, val) in key_val {
             write!(f, "{}: {}\n", key, val).unwrap();
@@ -659,7 +659,7 @@ mod tests {
 
         let mesh = Samples::one_lin2();
         assert_eq!(config.gauss(&mesh.cells[0]).unwrap().npoint(), 2);
-        config.n_integ_point = HashMap::from([(1, 3), (2, 6)]);
+        config.ngauss = HashMap::from([(1, 3), (2, 6)]);
         assert_eq!(config.gauss(&mesh.cells[0]).unwrap().npoint(), 3);
 
         assert_eq!(

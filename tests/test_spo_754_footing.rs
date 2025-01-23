@@ -83,7 +83,7 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_tol_rr(1e-6)
-        .set_n_integ_point(att, 4)
+        .set_ngauss(att, 4)
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin((UY.len() - 1) as f64)

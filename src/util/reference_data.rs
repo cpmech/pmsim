@@ -28,16 +28,16 @@ pub struct ReferenceData {
     pub displacement: Vec<Vec<f64>>,
 
     /// Holds the stresses (standard components)
-    /// Size: `[nele][n_integ_point][n_components]`
+    /// Size: `[nele][ngauss][n_components]`
     pub stresses: Vec<Vec<Vec<f64>>>,
 
     /// Holds the elastic strains (standard components)
     ///
-    /// Size: `[nele][n_integ_point][n_components]`
+    /// Size: `[nele][ngauss][n_components]`
     pub elastic_strains: Vec<Vec<Vec<f64>>>,
 
     /// Holds (plastic_loading, apex_return, acc_plastic_strain)
-    pub plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][n_integ_point][3]
+    pub plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][ngauss][3]
 }
 
 /// Holds reference results for comparisons and tests

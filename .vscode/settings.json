@@ -19,6 +19,7 @@
     "jacobians",
     "llambda",
     "nafems",
+    "ngauss",
     "Nonlin",
     "Paraview",
     "plast",

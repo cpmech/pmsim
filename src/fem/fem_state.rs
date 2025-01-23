@@ -78,7 +78,7 @@ impl FemState {
         let mut has_porous_solid = false;
         for cell in &input.mesh.cells {
             let e_type = input.attributes.get(cell).unwrap(); // already checked by Data
-            let n_integration_point = config.gauss(cell)?.npoint();
+            let ngauss = config.gauss(cell)?.npoint();
             match e_type {
                 Etype::Diffusion(..) => {
                     has_diffusion = true;
@@ -92,25 +92,25 @@ impl FemState {
                 Etype::Solid(param) => {
                     has_solid = true;
                     let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_solid(mandel, n_integration_point, n_internal_values);
+                    gauss[cell.id].allocate_solid(mandel, ngauss, n_internal_values);
                 }
                 Etype::PorousLiq(..) => {
                     has_porous_fluid = true;
-                    gauss[cell.id].allocate_porous_liq(n_integration_point);
+                    gauss[cell.id].allocate_porous_liq(ngauss);
                 }
                 Etype::PorousLiqGas(..) => {
                     has_porous_fluid = true;
-                    gauss[cell.id].allocate_porous_liq_gas(n_integration_point);
+                    gauss[cell.id].allocate_porous_liq_gas(ngauss);
                 }
                 Etype::PorousSldLiq(param) => {
                     has_porous_solid = true;
                     let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_porous_sld_liq(mandel, n_integration_point, n_internal_values);
+                    gauss[cell.id].allocate_porous_sld_liq(mandel, ngauss, n_internal_values);
                 }
                 Etype::PorousSldLiqGas(param) => {
                     has_porous_solid = true;
                     let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_porous_sld_liq_gas(mandel, n_integration_point, n_internal_values);
+                    gauss[cell.id].allocate_porous_sld_liq_gas(mandel, ngauss, n_internal_values);
                 }
             };
         }

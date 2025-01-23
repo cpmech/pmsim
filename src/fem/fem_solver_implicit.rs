@@ -287,7 +287,7 @@ mod tests {
 
         // error due to elements
         let mut config = Config::new(&mesh);
-        config.set_n_integ_point(1, 100); // wrong
+        config.set_ngauss(1, 100); // wrong
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("requested number of integration points is not available for Hex class")

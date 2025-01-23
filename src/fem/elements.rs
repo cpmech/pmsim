@@ -223,7 +223,7 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let mut config = Config::new(&mesh);
-        config.set_n_integ_point(1, 100); // wrong
+        config.set_ngauss(1, 100); // wrong
 
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();

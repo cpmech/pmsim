@@ -86,8 +86,8 @@ pub fn verify_results(
         // check stresses
         println!("ERROR ON STRESSES");
         for e in 0..ncell {
-            let n_integ_point = compare.stresses[e].len();
-            if n_integ_point < 1 {
+            let ngauss = compare.stresses[e].len();
+            if ngauss < 1 {
                 return Err("there must be at least on integration point in reference data (stress)");
             }
             let ref_tensor_vec_dim = compare.stresses[e][0].len();
@@ -95,7 +95,7 @@ pub fn verify_results(
                 return Err("the number of stress components must equal the reference number of stress components");
             }
             let secondary_values = &fem_state.gauss[e];
-            for ip in 0..n_integ_point {
+            for ip in 0..ngauss {
                 let local_state = &secondary_values.solid[ip];
                 for i in 0..tensor_vec_dim {
                     let a = local_state.stress.vector()[i];

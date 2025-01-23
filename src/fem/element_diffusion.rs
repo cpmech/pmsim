@@ -323,12 +323,12 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_n_integ_point(1, 100); // wrong
+        config.set_ngauss(1, 100); // wrong
         assert_eq!(
             ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).err(),
             Some("requested number of integration points is not available for Tri class")
         );
-        config.set_n_integ_point(1, 3);
+        config.set_ngauss(1, 3);
         let wrong_cell = Cell {
             id: 0,
             attribute: 2, // wrong
