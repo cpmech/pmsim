@@ -86,7 +86,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     ]);
     mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
-    // solve problem
+    // solution
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 

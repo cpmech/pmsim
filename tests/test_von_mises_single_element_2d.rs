@@ -101,7 +101,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // FEM output
     let mut output = FemOutput::new(&input, Some(NAME.to_string()), None, None)?;
 
-    // solve problem
+    // solution
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 

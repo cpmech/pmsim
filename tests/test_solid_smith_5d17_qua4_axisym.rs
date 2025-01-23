@@ -93,7 +93,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
     let mut state = FemState::new(&input, &config)?;
     let mut output = FemOutput::new(&input, None, None, None)?;
 
-    // solve problem
+    // solution
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 

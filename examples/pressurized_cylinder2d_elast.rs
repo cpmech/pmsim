@@ -232,7 +232,7 @@ fn main() -> Result<(), StrError> {
         // FEM output
         let mut output = FemOutput::new(&input, None, None, None)?;
 
-        // solve problem
+        // solution
         let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
         solver.solve(&mut state, &mut output)?;

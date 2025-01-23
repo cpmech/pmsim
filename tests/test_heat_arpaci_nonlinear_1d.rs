@@ -80,7 +80,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let mut state = FemState::new(&input, &config)?;
     let mut output = FemOutput::new(&input, None, None, None)?;
 
-    // solve problem
+    // solution
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 

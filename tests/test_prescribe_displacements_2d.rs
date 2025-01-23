@@ -77,7 +77,7 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     let mut state = FemState::new(&input, &config)?;
     let mut output = FemOutput::new(&input, None, None, None)?;
 
-    // solve problem
+    // solution
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
     let eps_x = -DY * POISSON / (POISSON - 1.0);

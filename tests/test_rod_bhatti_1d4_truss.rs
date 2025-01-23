@@ -68,7 +68,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     let mut state = FemState::new(&input, &config)?;
     let mut output = FemOutput::new(&input, None, None, None)?;
 
-    // solve problem
+    // solution
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
