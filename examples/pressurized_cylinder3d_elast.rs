@@ -133,13 +133,13 @@ fn main() -> Result<(), StrError> {
         // println!("2. mesh verified");
 
         // features
-        let feat = Features::new(&mesh, false);
-        let faces_y_min = feat.search_faces(At::Y(0.0), any_x)?;
-        let faces_x_min = feat.search_faces(At::X(0.0), any_x)?;
-        let faces_inner = feat.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R1), any_x)?;
-        let faces_outer = feat.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R2), any_x)?;
-        let faces_z_min = feat.search_faces(At::Z(0.0), any_x)?;
-        let faces_z_max = feat.search_faces(At::Z(THICKNESS), any_x)?;
+        let features = Features::new(&mesh, false);
+        let faces_y_min = features.search_faces(At::Y(0.0), any_x)?;
+        let faces_x_min = features.search_faces(At::X(0.0), any_x)?;
+        let faces_inner = features.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R1), any_x)?;
+        let faces_outer = features.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R2), any_x)?;
+        let faces_z_min = features.search_faces(At::Z(0.0), any_x)?;
+        let faces_z_max = features.search_faces(At::Z(THICKNESS), any_x)?;
 
         // check boundaries
         if kind == GeoKind::Hex8 {
@@ -150,11 +150,11 @@ fn main() -> Result<(), StrError> {
         // println!("3. found boundaries");
 
         // reference point to compare analytical vs numerical result
-        let ref_point_id = feat.search_point_ids(At::XYZ(R1, 0.0, 0.0), any_x)?[0];
+        let ref_point_id = features.search_point_ids(At::XYZ(R1, 0.0, 0.0), any_x)?[0];
         array_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0, 0.0], 1e-15);
 
         // study point (for debugging)
-        let study_point = feat.search_point_ids(At::XYZ(0.0, R2, 0.0), any_x)?[0];
+        let study_point = features.search_point_ids(At::XYZ(0.0, R2, 0.0), any_x)?[0];
         array_approx_eq(&mesh.points[study_point].coords, &[0.0, R2, 0.0], 1e-13); // << some error
 
         // input data

@@ -43,9 +43,9 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     let mesh = SampleMeshes::bhatti_example_1d5_heat();
 
     // features
-    let feat = Features::new(&mesh, false); // boundary only
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let right = feat.search_edges(At::X(0.2), any_x)?;
+    let features = Features::new(&mesh, false); // boundary only
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let right = features.search_edges(At::X(0.2), any_x)?;
 
     // input data
     let (kx, ky) = (1.4, 1.4);

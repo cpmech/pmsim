@@ -55,8 +55,8 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(L, false);
 
     // features
-    let feat = Features::new(&mesh, false);
-    let right = feat.search_edges(At::X(L), any_x)?;
+    let features = Features::new(&mesh, false);
+    let right = features.search_edges(At::X(L), any_x)?;
 
     // input data
     let p1 = ParamDiffusion {
@@ -107,7 +107,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     if SAVE_FIGURE {
         // get temperature values along x
         let post = FemOutput::new(&input, None, None, None)?;
-        let (_, x_values, tt_values) = post.values_along_x(&feat, &state, Dof::T, 0.0, any_x)?;
+        let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::T, 0.0, any_x)?;
 
         // compute plot data
         let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();

@@ -34,10 +34,10 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d30_tet4();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let faces_x_min = feat.search_faces(At::X(0.0), any_x)?;
-    let faces_y_min = feat.search_faces(At::Y(0.0), any_x)?;
-    let bottom = feat.search_faces(At::Z(-1.0), any_x)?;
+    let features = Features::new(&mesh, false);
+    let faces_x_min = features.search_faces(At::X(0.0), any_x)?;
+    let faces_y_min = features.search_faces(At::Y(0.0), any_x)?;
+    let bottom = features.search_faces(At::Z(-1.0), any_x)?;
     println!("faces_x_min = {:?}", &faces_x_min);
     println!("faces_y_min = {:?}", &faces_y_min);
     println!("bottom = {:?}", &bottom);

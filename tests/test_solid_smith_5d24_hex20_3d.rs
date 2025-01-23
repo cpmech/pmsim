@@ -35,11 +35,11 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d24_hex20();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let faces_x_min = feat.search_faces(At::X(0.0), any_x)?;
-    let faces_y_min = feat.search_faces(At::Y(0.0), any_x)?;
-    let bottom = feat.search_faces(At::Z(-2.0), any_x)?;
-    let top = feat.search_faces(At::Z(0.0), |x| x[1] <= 1.0)?;
+    let features = Features::new(&mesh, false);
+    let faces_x_min = features.search_faces(At::X(0.0), any_x)?;
+    let faces_y_min = features.search_faces(At::Y(0.0), any_x)?;
+    let bottom = features.search_faces(At::Z(-2.0), any_x)?;
+    let top = features.search_faces(At::Z(0.0), |x| x[1] <= 1.0)?;
     println!("faces_x_min = {:?}", &faces_x_min);
     println!("faces_y_min = {:?}", &faces_y_min);
     println!("bottom = {:?}", &bottom);

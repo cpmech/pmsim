@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Ebc, Etype, Essential, Natural, Nbc, Conductivity, ParamDiffusion, SampleMeshes};
+use pmsim::base::{Conductivity, Config, Ebc, Essential, Etype, Natural, Nbc, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{
     Boundaries, Elements, FemInput, FemOutput, FemSolverImplicit, FemState, LinearSystem, PrescribedValues,
 };
@@ -44,13 +44,13 @@ use russell_lab::*;
 fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6d22_heat();
-    let feat = Features::new(&mesh, false); // boundary only
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let edges_flux = feat.search_edges(At::X(0.0), any_x)?;
+    let features = Features::new(&mesh, false); // boundary only
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let edges_flux = features.search_edges(At::X(0.0), any_x)?;
     let edges_conv = vec![
-        feat.search_edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
-        feat.search_edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
-        feat.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
+        features.search_edges(At::Y(0.03), any_x)?.as_slice(), // top-horizontal
+        features.search_edges(At::X(0.03), any_x)?.as_slice(), // middle-vertical
+        features.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
     ]
     .concat();
     let points_flux: Vec<_> = edges_flux.iter().map(|f| &f.points).collect();
@@ -253,13 +253,13 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6d22_heat();
-    let feat = Features::new(&mesh, false); // boundary only
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let edges_flux = feat.search_edges(At::X(0.0), any_x)?;
+    let features = Features::new(&mesh, false); // boundary only
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let edges_flux = features.search_edges(At::X(0.0), any_x)?;
     let edges_conv = vec![
-        feat.search_edges(At::Y(0.03), any_x)?.as_slice(),  // top-horizontal
-        feat.search_edges(At::X(0.03), any_x)?.as_slice(),  // middle-vertical
-        feat.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
+        features.search_edges(At::Y(0.03), any_x)?.as_slice(), // top-horizontal
+        features.search_edges(At::X(0.03), any_x)?.as_slice(), // middle-vertical
+        features.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
     ]
     .concat();
 

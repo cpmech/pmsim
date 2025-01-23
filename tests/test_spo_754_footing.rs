@@ -24,12 +24,12 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     }
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let right = feat.search_edges(At::X(5.0), any_x)?;
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let top = feat.search_edges(At::Y(5.0), any_x)?;
-    let footing = feat.search_edges(At::Y(5.0), |x| x[0] <= 0.5)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let right = features.search_edges(At::X(5.0), any_x)?;
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let top = features.search_edges(At::Y(5.0), any_x)?;
+    let footing = features.search_edges(At::Y(5.0), |x| x[0] <= 0.5)?;
     // for f in footing {
     //     println!("{:?}", f.points);
     // }

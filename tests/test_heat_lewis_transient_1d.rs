@@ -45,8 +45,8 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(false);
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(0.0), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
 
     // input data
     let p1 = ParamDiffusion {
@@ -86,9 +86,9 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
             * (f64::exp(-x * x / (4.0 * t)) - (x / 2.0) * f64::sqrt(PI / t) * erfc(x / (2.0 * f64::sqrt(t))))
     };
     let selected = vec![
-        feat.search_point_ids(At::X(0.0), any_x).unwrap(),
-        feat.search_point_ids(At::X(1.0), any_x).unwrap(),
-        feat.search_point_ids(At::X(2.0), any_x).unwrap(),
+        features.search_point_ids(At::X(0.0), any_x).unwrap(),
+        features.search_point_ids(At::X(1.0), any_x).unwrap(),
+        features.search_point_ids(At::X(2.0), any_x).unwrap(),
     ]
     .concat();
     println!("");
@@ -109,7 +109,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
         // get temperature values along x
         let post = FemOutput::new(&input, None, None, None)?;
-        let (_, xx_num, tt_num) = post.values_along_x(&feat, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
+        let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
         // plot
         let mut curve_ana = Curve::new();

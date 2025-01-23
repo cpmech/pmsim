@@ -46,9 +46,9 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(rin, rout, h, false);
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(rin), any_x)?;
-    let right = feat.search_edges(At::X(rout), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(rin), any_x)?;
+    let right = features.search_edges(At::X(rout), any_x)?;
 
     // input data
     let (kx, ky) = (10.0, 10.0);

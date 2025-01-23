@@ -67,9 +67,9 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(rin, rref, rout, ya, yb, h, generate);
 
     // features
-    let feat = Features::new(&mesh, false);
-    let edges_temp = feat.search_many_edges(&[At::Y(0.0), At::Y(h), At::X(rout)], any_x)?;
-    let edges_flux = feat.search_edges(At::X(rin), |x| x[1] >= ya && x[1] <= yb)?;
+    let features = Features::new(&mesh, false);
+    let edges_temp = features.search_many_edges(&[At::Y(0.0), At::Y(h), At::X(rout)], any_x)?;
+    let edges_flux = features.search_edges(At::X(rin), |x| x[1] >= ya && x[1] <= yb)?;
 
     // reference point
     let ref_point = mesh.search_first_marked_point(REF_POINT_MARKER, any_x)?;
@@ -130,8 +130,8 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
 
         // mark reference point
         let extract_all = true; // << needed to find interior point
-        let feat = Features::new(&mesh, extract_all);
-        let ref_points = feat.search_point_ids(At::XY(rref, ya), any_x).unwrap();
+        let features = Features::new(&mesh, extract_all);
+        let ref_points = features.search_point_ids(At::XY(rref, ya), any_x).unwrap();
         assert_eq!(ref_points.len(), 1);
         mesh.points[ref_points[0]].marker = REF_POINT_MARKER;
 

@@ -118,11 +118,11 @@ fn main() -> Result<(), StrError> {
         mesh.check_overlapping_points(0.001).unwrap();
 
         // features
-        let feat = Features::new(&mesh, false);
-        let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-        let left = feat.search_edges(At::X(0.0), any_x)?;
-        let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
-        let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
+        let features = Features::new(&mesh, false);
+        let bottom = features.search_edges(At::Y(0.0), any_x)?;
+        let left = features.search_edges(At::X(0.0), any_x)?;
+        let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
+        let outer_circle = features.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
 
         // check boundaries
         if kind == GeoKind::Qua4 {
@@ -137,11 +137,11 @@ fn main() -> Result<(), StrError> {
         }
 
         // reference point to compare analytical vs numerical result
-        let ref_point_id = feat.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
+        let ref_point_id = features.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
         array_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0], 1e-15);
 
         // study point (for debugging)
-        let study_point = feat.search_point_ids(At::XY(0.0, R2), any_x)?[0];
+        let study_point = features.search_point_ids(At::XY(0.0, R2), any_x)?[0];
         array_approx_eq(&mesh.points[study_point].coords, &[0.0, R2], 1e-13); // << some error
 
         // input data

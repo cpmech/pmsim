@@ -45,10 +45,10 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let mesh = generate_or_read_mesh(rin, rout, thickness, false);
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(rin), any_x)?;
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let top = feat.search_edges(At::Y(thickness), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(rin), any_x)?;
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let top = features.search_edges(At::Y(thickness), any_x)?;
 
     const YOUNG: f64 = 1000.0;
     const POISSON: f64 = 0.0;
@@ -90,7 +90,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // check displacements
     println!("");
-    let selection = feat.search_point_ids(At::Y(0.0), any_x)?;
+    let selection = features.search_point_ids(At::Y(0.0), any_x)?;
     for p in &selection {
         let r = mesh.points[*p].coords[0];
         let eq = input.equations.eq(*p, Dof::Ux).unwrap();

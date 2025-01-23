@@ -27,11 +27,11 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     }
 
     // features
-    let feat = Features::new(&mesh, false);
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
-    let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
+    let features = Features::new(&mesh, false);
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
+    let outer_circle = features.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
 
     // material parameters
     let param1 = ParamSolid {

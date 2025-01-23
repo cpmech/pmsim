@@ -43,11 +43,11 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d11_qua4();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let right = feat.search_edges(At::X(30.0), any_x)?;
-    let bottom = feat.search_edges(At::Y(-10.0), any_x)?;
-    let footing = feat.search_edges(At::Y(0.0), |x| x[0] <= 10.0)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let right = features.search_edges(At::X(30.0), any_x)?;
+    let bottom = features.search_edges(At::Y(-10.0), any_x)?;
+    let footing = features.search_edges(At::Y(0.0), |x| x[0] <= 10.0)?;
 
     // input data
     let p1 = ParamSolid {

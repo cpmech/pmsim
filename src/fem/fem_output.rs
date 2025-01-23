@@ -209,7 +209,7 @@ impl<'a> FemOutput<'a> {
     /// * `dd` -- are the DOF values (e.g., temperature) along x and corresponding to the `ids` and `xx`
     pub fn values_along_x<F>(
         &self,
-        feat: &Features,
+        features: &Features,
         state: &FemState,
         dof: Dof,
         y: f64,
@@ -219,7 +219,7 @@ impl<'a> FemOutput<'a> {
         F: FnMut(&[f64]) -> bool,
     {
         // find points and sort by x-coordinates
-        let point_ids = feat.search_point_ids(At::Y(y), filter)?;
+        let point_ids = features.search_point_ids(At::Y(y), filter)?;
         let mut id_x_pairs: Vec<_> = point_ids
             .iter()
             .map(|id| (*id, self.input.mesh.points[*id].coords[0]))
@@ -253,7 +253,7 @@ mod tests {
     #[test]
     fn values_along_x_works() {
         let mesh = Samples::one_tri6();
-        let feat = Features::new(&mesh, false);
+        let features = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
         let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -265,7 +265,7 @@ mod tests {
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
         let output = FemOutput::new(&input, None, None, None).unwrap();
-        let (ids, xx, dd) = output.values_along_x(&feat, &state, Dof::T, 0.0, any_x).unwrap();
+        let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
         assert_eq!(dd, &[1.0, 4.0, 2.0]);

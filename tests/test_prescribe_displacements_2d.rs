@@ -39,10 +39,10 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     let mesh = Samples::one_qua4();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let top = feat.search_edges(At::Y(1.0), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let top = features.search_edges(At::Y(1.0), any_x)?;
 
     // constants
     const YOUNG: f64 = 1500.0;
