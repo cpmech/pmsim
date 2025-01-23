@@ -58,7 +58,7 @@ impl<'a> ElementDiffusion<'a> {
         input.mesh.set_pad(&mut pad, &points);
 
         // integration points
-        let gauss = config.integ_point_data(cell)?;
+        let gauss = config.gauss(cell)?;
 
         // material model
         let model = ModelConductivity::new(&config.ideal, &param.conductivity)?;

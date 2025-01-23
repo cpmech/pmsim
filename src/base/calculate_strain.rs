@@ -122,7 +122,7 @@ mod tests {
             mesh.set_pad(&mut pad, &points);
 
             // integration points
-            let gauss = config.integ_point_data(cell).unwrap();
+            let gauss = config.gauss(cell).unwrap();
 
             // strain increment
             let mut de = Tensor2::new(config.ideal.mandel());

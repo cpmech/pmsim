@@ -356,7 +356,7 @@ impl<'a> Config<'a> {
     }
 
     /// Returns the integration (Gauss) points data
-    pub fn integ_point_data(&self, cell: &Cell) -> Result<Gauss, StrError> {
+    pub fn gauss(&self, cell: &Cell) -> Result<Gauss, StrError> {
         match self.n_integ_point.get(&cell.attribute) {
             Some(n) => Gauss::new_sized(cell.kind.class(), *n),
             None => Ok(Gauss::new(cell.kind)),
@@ -658,9 +658,9 @@ mod tests {
         assert_eq!(config.initial_overburden_stress(), -123.0);
 
         let mesh = Samples::one_lin2();
-        assert_eq!(config.integ_point_data(&mesh.cells[0]).unwrap().npoint(), 2);
+        assert_eq!(config.gauss(&mesh.cells[0]).unwrap().npoint(), 2);
         config.n_integ_point = HashMap::from([(1, 3), (2, 6)]);
-        assert_eq!(config.integ_point_data(&mesh.cells[0]).unwrap().npoint(), 3);
+        assert_eq!(config.gauss(&mesh.cells[0]).unwrap().npoint(), 3);
 
         assert_eq!(
             format!("{}", config),
