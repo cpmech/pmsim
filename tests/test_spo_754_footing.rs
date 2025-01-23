@@ -7,7 +7,7 @@ use russell_lab::*;
 const SAVE_FIGURE: bool = true;
 
 #[test]
-fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
+fn test_spo_754_footing() -> Result<(), StrError> {
     // mesh
     let mesh = Mesh::from_text_file("data/meshes/test_spo_754_footing.msh")?;
     let att = mesh.cells[0].attribute;
