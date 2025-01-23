@@ -90,7 +90,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
         &self.local_to_global
     }
 
-    /// Initializes the internal values
+    /// Initializes the internal variables
     fn initialize_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
@@ -111,17 +111,17 @@ impl<'a> ElementTrait for ElementRod<'a> {
         Ok(())
     }
 
-    /// Updates secondary values such as stresses and internal values
+    /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Creates a copy of the secondary values (e.g., stress, internal_values)
+    /// Creates a copy of the secondary values (e.g., stress, int_vars)
     fn backup_secondary_values(&mut self, _state: &FemState) {}
 
-    /// Restores the secondary values (e.g., stress, internal_values) from the backup
+    /// Restores the secondary values (e.g., stress, int_vars) from the backup
     fn restore_secondary_values(&self, _state: &mut FemState) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
@@ -336,11 +336,7 @@ mod tests {
             young: 100.0,
             density: 1.0,
         };
-        let input = FemInput::new(
-            &mesh,
-            [(1, Etype::Rod(p1)), (2, Etype::Rod(p2)), (3, Etype::Rod(p3))],
-        )
-        .unwrap();
+        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1)), (2, Etype::Rod(p2)), (3, Etype::Rod(p3))]).unwrap();
 
         let config = Config::new(&mesh);
         let mut rod0 = ElementRod::new(&input, &config, &mesh.cells[0], &p1).unwrap();

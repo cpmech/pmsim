@@ -349,7 +349,7 @@ pub struct ParamPorousSldLiqGas {
 // implementations --------------------------------------------------------------------------------
 
 impl StressStrain {
-    /// Returns the number of internal values used by the model
+    /// Returns the number of internal variables used by the model
     pub fn n_internal_values(&self) -> usize {
         match self {
             Self::LinearElastic { .. } => N_INT_VAL_LINEAR_ELASTIC,
@@ -510,7 +510,7 @@ impl ParamBeam {
 }
 
 impl ParamSolid {
-    /// Returns the number of internal values used by the stress-strain model
+    /// Returns the number of internal variables used by the stress-strain model
     pub fn n_internal_values(&self) -> usize {
         self.stress_strain.n_internal_values()
     }
@@ -556,7 +556,7 @@ impl ParamPorousLiqGas {
 }
 
 impl ParamPorousSldLiq {
-    /// Returns the number of internal values used by the stress-strain model
+    /// Returns the number of internal variables used by the stress-strain model
     pub fn n_internal_values(&self) -> usize {
         self.stress_strain.n_internal_values()
     }
@@ -577,7 +577,7 @@ impl ParamPorousSldLiq {
 }
 
 impl ParamPorousSldLiqGas {
-    /// Returns the number of internal values used by the stress-strain model
+    /// Returns the number of internal variables used by the stress-strain model
     pub fn n_internal_values(&self) -> usize {
         self.stress_strain.n_internal_values()
     }

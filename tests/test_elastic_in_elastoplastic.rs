@@ -118,7 +118,7 @@ fn update_with_steps(
         return Err("n_step must be ≥ 1");
     }
 
-    // initialize internal values
+    // initialize internal variables
     model.initialize_internal_values(state)?;
     let mut states = vec![state.clone()];
 
@@ -143,8 +143,8 @@ fn do_plot(
     // constants
     let n = states_elast.len();
     let l = n - 1;
-    let z_ini = states_general[0].internal_values[0];
-    let z_fin = states_general[l].internal_values[0];
+    let z_ini = states_general[0].int_vars[0];
+    let z_fin = states_general[l].int_vars[0];
 
     // plotting data
     let mut data_elast = PlotterData::from_states(&states_elast);

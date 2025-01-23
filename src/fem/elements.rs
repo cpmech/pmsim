@@ -165,7 +165,7 @@ impl<'a> Elements<'a> {
         Ok(())
     }
 
-    /// Initializes all internal values
+    /// Initializes all internal variables
     pub fn initialize_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         self.all
             .iter_mut()
@@ -173,7 +173,7 @@ impl<'a> Elements<'a> {
             .collect()
     }
 
-    /// Updates secondary values such as stresses and internal values
+    /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     pub fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
@@ -183,7 +183,7 @@ impl<'a> Elements<'a> {
             .collect()
     }
 
-    /// Creates a copy of the secondary values (e.g., stress, internal_values)
+    /// Creates a copy of the secondary values (e.g., stress, int_vars)
     pub fn backup_secondary_values(&mut self, state: &FemState) {
         self.all
             .iter_mut()
@@ -191,7 +191,7 @@ impl<'a> Elements<'a> {
             .collect()
     }
 
-    /// Restores the secondary values (e.g., stress, internal_values) from the backup
+    /// Restores the secondary values (e.g., stress, int_vars) from the backup
     pub fn restore_secondary_values(&self, state: &mut FemState) {
         self.all
             .iter()

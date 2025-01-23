@@ -74,7 +74,7 @@ impl<'a> FemSolverImplicit<'a> {
             config.print_header();
         }
 
-        // initialize internal values
+        // initialize internal variables
         self.elements.initialize_internal_values(state)?;
 
         // first output (must occur initialize_internal_values)

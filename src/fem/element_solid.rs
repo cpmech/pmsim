@@ -108,7 +108,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         &self.local_to_global
     }
 
-    /// Initializes the internal values
+    /// Initializes the internal variables
     fn initialize_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         state.gauss[self.cell.id]
             .solid
@@ -179,7 +179,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         })
     }
 
-    /// Updates secondary values such as stresses and internal values
+    /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
@@ -215,14 +215,14 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         Ok(())
     }
 
-    /// Creates a copy of the secondary values (e.g., stress, internal_values)
+    /// Creates a copy of the secondary values (e.g., stress, int_vars)
     fn backup_secondary_values(&mut self, state: &FemState) {
         for p in 0..self.gauss.npoint() {
             self.backup[p].mirror(&state.gauss[self.cell.id].solid[p]);
         }
     }
 
-    /// Restores the secondary values (e.g., stress, internal_values) from the backup
+    /// Restores the secondary values (e.g., stress, int_vars) from the backup
     fn restore_secondary_values(&self, state: &mut FemState) {
         for p in 0..self.gauss.npoint() {
             state.gauss[self.cell.id].solid[p].mirror(&self.backup[p]);

@@ -31,7 +31,7 @@ pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
         .zip(path.strains.iter())
         .map(|(sig, eps)| LocalState {
             elastic: true,
-            internal_values: Vector::from(&[z, 0.0]), // VonMises needs [z, lambda]
+            int_vars: Vector::from(&[z, 0.0]), // VonMises needs [z, lambda]
             stress: sig.clone(),
             strain: Some(eps.clone()),
         })

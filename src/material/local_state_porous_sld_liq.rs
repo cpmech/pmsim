@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 /// This data is associated with a Gauss (integration) point
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LocalStatePorousSldLiq {
-    /// Holds the internal values Z
-    pub internal_values: Vector,
+    /// Holds the internal variables z
+    pub int_vars: Vector,
 
     /// Holds the stress tensor σ
     pub stress: Tensor2,
@@ -36,7 +36,7 @@ impl LocalStatePorousSldLiq {
     /// Allocates a new instance
     pub fn new(mandel: Mandel, n_internal_values: usize) -> Self {
         LocalStatePorousSldLiq {
-            internal_values: Vector::new(n_internal_values),
+            int_vars: Vector::new(n_internal_values),
             stress: Tensor2::new(mandel),
             elastic: true,
             apex_return: false,
@@ -49,7 +49,7 @@ impl LocalStatePorousSldLiq {
 
     /// Copy data from another state into this state
     pub fn mirror(&mut self, other: &LocalStatePorousSldLiq) {
-        vec_copy(&mut self.internal_values, &other.internal_values).unwrap();
+        vec_copy(&mut self.int_vars, &other.int_vars).unwrap();
         self.stress.set_tensor(1.0, &other.stress);
         self.elastic = other.elastic;
         self.apex_return = other.apex_return;
