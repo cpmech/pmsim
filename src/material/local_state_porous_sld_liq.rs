@@ -16,12 +16,6 @@ pub struct LocalStatePorousSldLiq {
     /// Holds the elastic (vs elastoplastic) flag
     pub elastic: bool,
 
-    /// Holds the apex return flag for implicit methods
-    pub apex_return: bool,
-
-    /// Holds the algorithmic lagrange multiplier (Λ) for implicit methods
-    pub algo_lagrange: f64,
-
     /// Holds the liquid saturation
     pub liquid_saturation: f64,
 
@@ -39,8 +33,6 @@ impl LocalStatePorousSldLiq {
             int_vars: Vector::new(n_internal_values),
             stress: Tensor2::new(mandel),
             elastic: true,
-            apex_return: false,
-            algo_lagrange: 0.0,
             liquid_saturation: 1.0,
             porosity: 0.5,
             drying: true,
@@ -52,15 +44,11 @@ impl LocalStatePorousSldLiq {
         vec_copy(&mut self.int_vars, &other.int_vars).unwrap();
         self.stress.set_tensor(1.0, &other.stress);
         self.elastic = other.elastic;
-        self.apex_return = other.apex_return;
-        self.algo_lagrange = other.algo_lagrange;
         self.liquid_saturation = other.liquid_saturation;
         self.porosity = other.porosity;
         self.drying = other.drying;
     }
 
     /// Resets the algorithmic variables such as the Lagrange multiplier
-    pub fn reset_algorithmic_variables(&mut self) {
-        self.algo_lagrange = 0.0;
-    }
+    pub fn reset_algorithmic_variables(&mut self) {}
 }
