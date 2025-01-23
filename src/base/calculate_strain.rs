@@ -122,14 +122,14 @@ mod tests {
             mesh.set_pad(&mut pad, &points);
 
             // integration points
-            let ips = config.integ_point_data(cell).unwrap();
+            let gauss = config.integ_point_data(cell).unwrap();
 
             // strain increment
             let mut de = Tensor2::new(config.ideal.mandel());
 
             // check increment of strains for all integration points
-            for p in 0..ips.npoint() {
-                let iota = ips.coords(p);
+            for p in 0..gauss.npoint() {
+                let iota = gauss.coords(p);
                 // horizontal strain
                 calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, iota, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_h.vector(), 1e-13);

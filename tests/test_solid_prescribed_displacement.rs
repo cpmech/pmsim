@@ -117,7 +117,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     println!("\nstrain = {:?}", strain);
     println!("stress = {:?}", stress);
     elem.update_secondary_values(&mut state)?;
-    for p in 0..elem.ips.npoint() {
+    for p in 0..elem.gauss.npoint() {
         println!("σ = {:?}", state.gauss[0].solid[p].stress.vector().as_data());
         vec_approx_eq(&state.gauss[0].solid[p].stress.vector(), &stress, 1e-15);
     }
@@ -203,7 +203,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     println!("\nstrain = {:?}", strain);
     println!("stress = {:?}", stress);
     elem.update_secondary_values(&mut state)?;
-    for p in 0..elem.ips.npoint() {
+    for p in 0..elem.gauss.npoint() {
         println!("σ = {:?}", state.gauss[0].solid[p].stress.vector().as_data());
     }
 
@@ -274,7 +274,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     println!("stress = {:?}", stress);
     elem.update_secondary_values(&mut state)?;
     // σ = [0.0, -2.0000000000000004, -0.5, 4.4408920985006264e-17]
-    for p in 0..elem.ips.npoint() {
+    for p in 0..elem.gauss.npoint() {
         println!("σ = {:?}", state.gauss[0].solid[p].stress.vector().as_data());
         vec_approx_eq(&state.gauss[0].solid[p].stress.vector(), &stress, 1e-15);
     }

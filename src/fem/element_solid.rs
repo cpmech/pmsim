@@ -26,7 +26,7 @@ pub struct ElementSolid<'a> {
     pub pad: Scratchpad,
 
     /// Integration point coordinates and weights
-    pub ips: Gauss,
+    pub gauss: Gauss,
 
     /// Stress-strain model
     pub model: ModelStressStrain,
@@ -61,7 +61,7 @@ impl<'a> ElementSolid<'a> {
         input.mesh.set_pad(&mut pad, &points);
 
         // integration points
-        let ips = config.integ_point_data(cell)?;
+        let gauss = config.integ_point_data(cell)?;
 
         // material model
         let settings = config.model_settings(cell.attribute);
@@ -76,7 +76,7 @@ impl<'a> ElementSolid<'a> {
 
         // local state backup
         let n_internal_values = param.n_internal_values();
-        let backup = (0..ips.npoint())
+        let backup = (0..gauss.npoint())
             .into_iter()
             .map(|_| LocalState::new(mandel, n_internal_values))
             .collect();
@@ -88,7 +88,7 @@ impl<'a> ElementSolid<'a> {
             param,
             local_to_global,
             pad,
-            ips,
+            gauss,
             model,
             delta_strain,
             save_strain,
@@ -124,7 +124,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
-        let mut args = integ::CommonArgs::new(&mut self.pad, &self.ips);
+        let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
@@ -171,7 +171,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
-        let mut args = integ::CommonArgs::new(&mut self.pad, &self.ips);
+        let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
         integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
@@ -183,14 +183,14 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     ///
     /// Note that state.uu, state.vv, and state.aa have been updated already
     fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        for p in 0..self.ips.npoint() {
+        for p in 0..self.gauss.npoint() {
             // calculate increment of strains Δε at integration point (from global increment of displacements)
             calculate_strain(
                 &mut self.delta_strain,
                 &state.duu,
                 &self.config.ideal,
                 &self.local_to_global,
-                self.ips.coords(p),
+                self.gauss.coords(p),
                 &mut self.pad,
             )?;
             // perform stress-update
@@ -199,7 +199,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 .update_stress(&mut state.gauss[self.cell.id].solid[p], &self.delta_strain)?;
         }
         if self.save_strain {
-            for p in 0..self.ips.npoint() {
+            for p in 0..self.gauss.npoint() {
                 // calculate the strains ε at integration point (from global displacements)
                 let strain = state.gauss[self.cell.id].solid[p].strain.as_mut().unwrap();
                 calculate_strain(
@@ -207,7 +207,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                     &state.uu,
                     &self.config.ideal,
                     &self.local_to_global,
-                    self.ips.coords(p),
+                    self.gauss.coords(p),
                     &mut self.pad,
                 )?;
             }
@@ -217,14 +217,14 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 
     /// Creates a copy of the secondary values (e.g., stress, internal_values)
     fn backup_secondary_values(&mut self, state: &FemState) {
-        for p in 0..self.ips.npoint() {
+        for p in 0..self.gauss.npoint() {
             self.backup[p].mirror(&state.gauss[self.cell.id].solid[p]);
         }
     }
 
     /// Restores the secondary values (e.g., stress, internal_values) from the backup
     fn restore_secondary_values(&self, state: &mut FemState) {
-        for p in 0..self.ips.npoint() {
+        for p in 0..self.gauss.npoint() {
             state.gauss[self.cell.id].solid[p].mirror(&self.backup[p]);
         }
     }
@@ -368,7 +368,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
-            for p in 0..element.ips.npoint() {
+            for p in 0..element.gauss.npoint() {
                 vec_approx_eq(state.gauss[id].solid[p].stress.vector(), stress_h.vector(), 1e-13);
                 vec_approx_eq(
                     state.gauss[id].solid[p].strain.as_mut().unwrap().vector(),
@@ -384,7 +384,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
-            for p in 0..element.ips.npoint() {
+            for p in 0..element.gauss.npoint() {
                 vec_approx_eq(state.gauss[id].solid[p].stress.vector(), stress_v.vector(), 1e-13);
                 vec_approx_eq(
                     state.gauss[id].solid[p].strain.as_mut().unwrap().vector(),
@@ -400,7 +400,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
-            for p in 0..element.ips.npoint() {
+            for p in 0..element.gauss.npoint() {
                 vec_approx_eq(state.gauss[id].solid[p].stress.vector(), stress_s.vector(), 1e-13);
                 vec_approx_eq(
                     state.gauss[id].solid[p].strain.as_mut().unwrap().vector(),
@@ -461,7 +461,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
-            for p in 0..element.ips.npoint() {
+            for p in 0..element.gauss.npoint() {
                 vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_h, 1e-13);
             }
 
@@ -472,7 +472,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
-            for p in 0..element.ips.npoint() {
+            for p in 0..element.gauss.npoint() {
                 vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_v, 1e-13);
             }
 
@@ -483,7 +483,7 @@ mod tests {
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
-            for p in 0..element.ips.npoint() {
+            for p in 0..element.gauss.npoint() {
                 vec_approx_eq(&state.gauss[id].solid[p].stress.vector(), &solution_s, 1e-13);
             }
         }

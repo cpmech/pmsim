@@ -26,7 +26,7 @@ pub struct ElementDiffusion<'a> {
     pub pad: Scratchpad,
 
     /// Integration point coordinates and weights
-    pub ips: Gauss,
+    pub gauss: Gauss,
 
     /// Conductivity model
     pub model: ModelConductivity,
@@ -58,7 +58,7 @@ impl<'a> ElementDiffusion<'a> {
         input.mesh.set_pad(&mut pad, &points);
 
         // integration points
-        let ips = config.integ_point_data(cell)?;
+        let gauss = config.integ_point_data(cell)?;
 
         // material model
         let model = ModelConductivity::new(&config.ideal, &param.conductivity)?;
@@ -76,7 +76,7 @@ impl<'a> ElementDiffusion<'a> {
             param,
             local_to_global,
             pad,
-            ips,
+            gauss,
             model,
             conductivity,
             grad_tt,
@@ -105,7 +105,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         let ndim = self.config.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
-        let mut args = integ::CommonArgs::new(&mut self.pad, &self.ips);
+        let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
@@ -167,7 +167,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         let ndim = self.config.ndim;
         let npoint = self.cell.points.len();
         let l2g = &self.local_to_global;
-        let mut args = integ::CommonArgs::new(&mut self.pad, &self.ips);
+        let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
