@@ -91,8 +91,8 @@ impl FemState {
                 }
                 Etype::Solid(param) => {
                     has_solid = true;
-                    let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_solid(mandel, ngauss, n_internal_values);
+                    let n_int_var = param.n_int_var();
+                    gauss[cell.id].allocate_solid(mandel, ngauss, n_int_var);
                 }
                 Etype::PorousLiq(..) => {
                     has_porous_fluid = true;
@@ -104,13 +104,13 @@ impl FemState {
                 }
                 Etype::PorousSldLiq(param) => {
                     has_porous_solid = true;
-                    let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_porous_sld_liq(mandel, ngauss, n_internal_values);
+                    let n_int_var = param.n_int_var();
+                    gauss[cell.id].allocate_porous_sld_liq(mandel, ngauss, n_int_var);
                 }
                 Etype::PorousSldLiqGas(param) => {
                     has_porous_solid = true;
-                    let n_internal_values = param.n_internal_values();
-                    gauss[cell.id].allocate_porous_sld_liq_gas(mandel, ngauss, n_internal_values);
+                    let n_int_var = param.n_int_var();
+                    gauss[cell.id].allocate_porous_sld_liq_gas(mandel, ngauss, n_int_var);
                 }
             };
         }

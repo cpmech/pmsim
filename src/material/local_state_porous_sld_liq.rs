@@ -28,9 +28,9 @@ pub struct LocalStatePorousSldLiq {
 
 impl LocalStatePorousSldLiq {
     /// Allocates a new instance
-    pub fn new(mandel: Mandel, n_internal_values: usize) -> Self {
+    pub fn new(mandel: Mandel, n_int_vars: usize) -> Self {
         LocalStatePorousSldLiq {
-            int_vars: Vector::new(n_internal_values),
+            int_vars: Vector::new(n_int_vars),
             stress: Tensor2::new(mandel),
             elastic: true,
             liquid_saturation: 1.0,

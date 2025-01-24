@@ -134,8 +134,8 @@ impl<'a> Elastoplastic<'a> {
 
         // constants
         let mandel = ideal.mandel();
-        let n_int_val = model.n_internal_values();
-        let n_int_val_yf = model.n_internal_values_yield_function();
+        let n_int_val = model.n_int_vars();
+        let n_int_val_yf = model.n_int_vars_yield_function();
         let ndim_e = mandel.dim();
         let ndim_ep = ndim_e + n_int_val;
 
@@ -504,18 +504,18 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     }
 
     /// Returns the number of internal variables
-    fn n_internal_values(&self) -> usize {
-        self.args.model.n_internal_values()
+    fn n_int_vars(&self) -> usize {
+        self.args.model.n_int_vars()
     }
 
     /// Returns the number of internal variables directly affecting the yield function
-    fn n_internal_values_yield_function(&self) -> usize {
-        self.args.model.n_internal_values_yield_function()
+    fn n_int_vars_yield_function(&self) -> usize {
+        self.args.model.n_int_vars_yield_function()
     }
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
-        self.args.model.initialize_internal_values(state)
+    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
+        self.args.model.initialize_int_vars(state)
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
@@ -648,10 +648,10 @@ mod tests {
     ) -> LocalState {
         let distance = sig_m * SQRT_3;
         let radius = sig_d * SQRT_2_BY_3;
-        let n_internal_values = model.n_internal_values();
-        let mut state = LocalState::new(ideal.mandel(), n_internal_values);
+        let n_int_vars = model.n_int_vars();
+        let mut state = LocalState::new(ideal.mandel(), n_int_vars);
         state.stress = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, ideal.two_dim).unwrap();
-        model.initialize_internal_values(&mut state).unwrap();
+        model.initialize_int_vars(&mut state).unwrap();
         state.enable_strain(); // for plotting
         state
     }

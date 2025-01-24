@@ -50,8 +50,8 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
 
     // constants
     let mandel = ideal.mandel();
-    let n_int_val = box_direct.n_internal_values();
-    assert_eq!(box_general.n_internal_values(), n_int_val);
+    let n_int_val = box_direct.n_int_vars();
+    assert_eq!(box_general.n_int_vars(), n_int_val);
 
     // initial states and increments
     let sig_m_0 = 1.0;
@@ -82,7 +82,7 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
             Some(general_full.yield_function(&state_general_full)?),
             Some(0.0),
         );
-        general_full.initialize_internal_values(&mut state_general_full)?;
+        general_full.initialize_int_vars(&mut state_general_full)?;
         general_full.update_stress(&mut state_general_full, &depsilon)?;
         data_general_full.push(
             &state_general_full.stress,
@@ -119,7 +119,7 @@ fn update_with_steps(
     }
 
     // initialize internal variables
-    model.initialize_internal_values(state)?;
+    model.initialize_int_vars(state)?;
     let mut states = vec![state.clone()];
 
     // update stress and strain

@@ -1,5 +1,5 @@
 use super::{LocalState, Settings, StressStrainTrait};
-use crate::base::{Idealization, StressStrain, N_INT_VAL_LINEAR_ELASTIC};
+use crate::base::{Idealization, StressStrain, NZ_LINEAR_ELASTIC};
 use crate::StrError;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 
@@ -27,17 +27,17 @@ impl StressStrainTrait for LinearElastic {
     }
 
     /// Returns the number of internal variables
-    fn n_internal_values(&self) -> usize {
-        N_INT_VAL_LINEAR_ELASTIC
+    fn n_int_vars(&self) -> usize {
+        NZ_LINEAR_ELASTIC
     }
 
     /// Returns the number of internal variables directly affecting the yield function
-    fn n_internal_values_yield_function(&self) -> usize {
+    fn n_int_vars_yield_function(&self) -> usize {
         0
     }
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_internal_values(&self, _state: &mut LocalState) -> Result<(), StrError> {
+    fn initialize_int_vars(&self, _state: &mut LocalState) -> Result<(), StrError> {
         Ok(())
     }
 

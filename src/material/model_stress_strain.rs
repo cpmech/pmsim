@@ -9,13 +9,15 @@ pub trait StressStrainTrait: Send {
     fn symmetric_stiffness(&self) -> bool;
 
     /// Returns the number of internal variables
-    fn n_internal_values(&self) -> usize;
+    fn n_int_vars(&self) -> usize;
 
     /// Returns the number of internal variables directly affecting the yield function
-    fn n_internal_values_yield_function(&self) -> usize;
+    ///
+    /// Note: The first `n_int_vars_yield_function` affect the yield function
+    fn n_int_vars_yield_function(&self) -> usize;
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError>;
+    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError>;
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, state: &mut LocalState);

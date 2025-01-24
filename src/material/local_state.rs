@@ -22,10 +22,10 @@ pub struct LocalState {
 
 impl LocalState {
     /// Allocates a new instance
-    pub fn new(mandel: Mandel, n_internal_values: usize) -> Self {
+    pub fn new(mandel: Mandel, n_int_var: usize) -> Self {
         LocalState {
             elastic: true,
-            int_vars: Vector::new(n_internal_values),
+            int_vars: Vector::new(n_int_var),
             stress: Tensor2::new(mandel),
             strain: None,
         }

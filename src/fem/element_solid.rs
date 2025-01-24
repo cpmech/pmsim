@@ -75,10 +75,10 @@ impl<'a> ElementSolid<'a> {
         let save_strain = settings.save_strain;
 
         // local state backup
-        let n_internal_values = param.n_internal_values();
+        let n_int_var = param.n_int_var();
         let backup = (0..gauss.npoint())
             .into_iter()
-            .map(|_| LocalState::new(mandel, n_internal_values))
+            .map(|_| LocalState::new(mandel, n_int_var))
             .collect();
 
         // allocate new instance
@@ -117,7 +117,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 if self.save_strain {
                     state.enable_strain();
                 }
-                self.model.actual.initialize_internal_values(state)
+                self.model.actual.initialize_int_vars(state)
             })
             .collect()
     }

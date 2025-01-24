@@ -1,5 +1,5 @@
 use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
-use crate::base::{Idealization, StressStrain, N_INT_VAL_VON_MISES};
+use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::deriv1_invariant_sigma_d;
@@ -87,17 +87,17 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Returns the number of internal variables
-    fn n_internal_values(&self) -> usize {
-        N_INT_VAL_VON_MISES // [z, lambda]
+    fn n_int_vars(&self) -> usize {
+        NZ_VON_MISES // [z, lambda]
     }
 
     /// Returns the number of internal variables directly affecting the yield function
-    fn n_internal_values_yield_function(&self) -> usize {
+    fn n_int_vars_yield_function(&self) -> usize {
         1 // z
     }
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
+    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
         state.int_vars[I_Z] = self.z_ini;
         if !self.settings.gp_allow_initial_drift {
             let f = self.yield_function(state)?;
@@ -269,9 +269,9 @@ mod tests {
         let (kk, gg) = model.lin_elasticity.get_bulk_shear();
 
         // initial state
-        let n_internal_values = model.n_internal_values();
-        let mut state = LocalState::new(ideal.mandel(), n_internal_values);
-        model.initialize_internal_values(&mut state).unwrap();
+        let n_int_vars = model.n_int_vars();
+        let mut state = LocalState::new(ideal.mandel(), n_int_vars);
+        model.initialize_int_vars(&mut state).unwrap();
 
         // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
@@ -298,8 +298,8 @@ mod tests {
         };
         let settings = Settings::new();
         let model = VonMises::new(&ideal, &param, &settings).unwrap();
-        let mut state = LocalState::new(ideal.mandel(), model.n_internal_values());
-        model.initialize_internal_values(&mut state).unwrap();
+        let mut state = LocalState::new(ideal.mandel(), model.n_int_vars());
+        model.initialize_int_vars(&mut state).unwrap();
         assert_eq!(state.int_vars.as_data(), &[Z_INI, 0.0]);
     }
 
@@ -396,9 +396,9 @@ mod tests {
 
         // initial state
         let mandel = ideal.mandel();
-        let n_internal_values = model.n_internal_values();
-        let mut state = LocalState::new(mandel, n_internal_values);
-        model.initialize_internal_values(&mut state).unwrap();
+        let n_int_vars = model.n_int_vars();
+        let mut state = LocalState::new(mandel, n_int_vars);
+        model.initialize_int_vars(&mut state).unwrap();
 
         // plane-strain strain increments reaching yield surface
         let ee = YOUNG;

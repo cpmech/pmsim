@@ -1,4 +1,4 @@
-use super::{N_INT_VAL_CAM_CLAY, N_INT_VAL_DRUCKER_PRAGER, N_INT_VAL_LINEAR_ELASTIC, N_INT_VAL_VON_MISES};
+use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES};
 
 /// Holds parameters for stress-strain relations (total or effective stress)
 #[derive(Clone, Copy, Debug)]
@@ -350,12 +350,12 @@ pub struct ParamPorousSldLiqGas {
 
 impl StressStrain {
     /// Returns the number of internal variables used by the model
-    pub fn n_internal_values(&self) -> usize {
+    pub fn n_int_var(&self) -> usize {
         match self {
-            Self::LinearElastic { .. } => N_INT_VAL_LINEAR_ELASTIC,
-            Self::VonMises { .. } => N_INT_VAL_VON_MISES,
-            Self::DruckerPrager { .. } => N_INT_VAL_DRUCKER_PRAGER,
-            Self::CamClay { .. } => N_INT_VAL_CAM_CLAY,
+            Self::LinearElastic { .. } => NZ_LINEAR_ELASTIC,
+            Self::VonMises { .. } => NZ_VON_MISES,
+            Self::DruckerPrager { .. } => NZ_DRUCKER_PRAGER,
+            Self::CamClay { .. } => NZ_CAM_CLAY,
         }
     }
 
@@ -511,8 +511,8 @@ impl ParamBeam {
 
 impl ParamSolid {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn n_internal_values(&self) -> usize {
-        self.stress_strain.n_internal_values()
+    pub fn n_int_var(&self) -> usize {
+        self.stress_strain.n_int_var()
     }
 
     /// Returns a sample of parameters for the linear elastic model
@@ -557,8 +557,8 @@ impl ParamPorousLiqGas {
 
 impl ParamPorousSldLiq {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn n_internal_values(&self) -> usize {
-        self.stress_strain.n_internal_values()
+    pub fn n_int_var(&self) -> usize {
+        self.stress_strain.n_int_var()
     }
 
     /// Returns a sample with BrooksCorey retention, Constant conductivity, and LinearElastic
@@ -578,8 +578,8 @@ impl ParamPorousSldLiq {
 
 impl ParamPorousSldLiqGas {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn n_internal_values(&self) -> usize {
-        self.stress_strain.n_internal_values()
+    pub fn n_int_var(&self) -> usize {
+        self.stress_strain.n_int_var()
     }
 
     /// Returns a sample with BrooksCorey retention, Constant conductivity, and LinearElastic

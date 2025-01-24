@@ -31,7 +31,6 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let right = features.search_edges(At::X(W), any_x)?;
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let footing = features.search_edges(At::Y(H), |x| x[0] <= B)?;
-    println!("{}", footing);
 
     // input data
     let p1 = ParamSolid {
@@ -66,8 +65,13 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     // results
     for edge in &left.all {
         let cells = features.get_cells_via_2d_edge(edge);
-        let cell_id = cells[0]; // only one cells because the edge is on boundary
+        let cell_id = cells[0]; // only one cell because the edge is on boundary
         println!("{}", cell_id);
+        let second_vals = &state.gauss[cell_id].solid;
+        let ngauss = second_vals.len();
+        for p in 0..ngauss {
+            println!("{}", second_vals[p].stress.as_matrix());
+        }
     }
 
     // verification
@@ -86,8 +90,6 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         let sigma_v = f_aux(theta_1) - f_aux(theta_2); // compressive is negative
         sigma_v
     };
-
-    println!(">>> {}", f_sigma_v(0.0, 9.0 * B));
 
     let k_str = kind.to_string();
     let mut plot = Plot::new();

@@ -44,8 +44,8 @@ impl SecondaryValues {
     }
 
     /// Allocates secondary values for Solid elements
-    pub(crate) fn allocate_solid(&mut self, mandel: Mandel, ngauss: usize, n_internal_values: usize) {
-        let zero = LocalState::new(mandel, n_internal_values);
+    pub(crate) fn allocate_solid(&mut self, mandel: Mandel, ngauss: usize, n_int_var: usize) {
+        let zero = LocalState::new(mandel, n_int_var);
         self.solid = vec![zero; ngauss];
     }
 
@@ -62,14 +62,14 @@ impl SecondaryValues {
     }
 
     /// Allocates secondary values for PorousSldLiq elements
-    pub(crate) fn allocate_porous_sld_liq(&mut self, mandel: Mandel, ngauss: usize, n_internal_values: usize) {
-        let zero = LocalStatePorousSldLiq::new(mandel, n_internal_values);
+    pub(crate) fn allocate_porous_sld_liq(&mut self, mandel: Mandel, ngauss: usize, n_int_var: usize) {
+        let zero = LocalStatePorousSldLiq::new(mandel, n_int_var);
         self.porous_sld_liq = vec![zero; ngauss];
     }
 
     /// Allocates secondary values for PorousSldLiqGas elements
-    pub(crate) fn allocate_porous_sld_liq_gas(&mut self, mandel: Mandel, ngauss: usize, n_internal_values: usize) {
-        let zero = LocalStatePorousSldLiq::new(mandel, n_internal_values);
+    pub(crate) fn allocate_porous_sld_liq_gas(&mut self, mandel: Mandel, ngauss: usize, n_int_var: usize) {
+        let zero = LocalStatePorousSldLiq::new(mandel, n_int_var);
         self.porous_sld_liq_gas = vec![zero; ngauss];
     }
 }
