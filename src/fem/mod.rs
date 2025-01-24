@@ -12,6 +12,7 @@ mod fem_output;
 mod fem_solver_implicit;
 mod fem_state;
 mod linear_system;
+mod post_processing;
 mod prescribed_values;
 mod secondary_values;
 
@@ -27,5 +28,6 @@ pub use fem_output::*;
 pub use fem_solver_implicit::*;
 pub use fem_state::*;
 pub use linear_system::*;
+pub use post_processing::*;
 pub use prescribed_values::*;
 pub use secondary_values::*;

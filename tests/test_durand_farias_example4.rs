@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use gemlab::prelude::*;
+use gemlab::recovery::{get_interp_matrix, get_points_coords};
 use math::{sign, PI};
 use plotpy::{linspace, Curve, Plot};
 use pmsim::{base::SampleMeshes, prelude::*};
@@ -63,14 +64,20 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     solver.solve(&mut state, &mut output)?;
 
     // results
+    let mut post = PostProcessing::new(&input, &config);
+    let mut all_gauss_coord_x = Vec::new();
+    let mut all_gauss_coord_y = Vec::new();
+    let mut all_gauss_sigma_yy = Vec::new();
     for edge in &left.all {
         let cells = features.get_cells_via_2d_edge(edge);
         let cell_id = cells[0]; // only one cell because the edge is on boundary
-        println!("{}", cell_id);
-        let second_vals = &state.gauss[cell_id].solid;
-        let ngauss = second_vals.len();
+        let ccs = post.gauss_coords(cell_id)?;
+        let syy = post.stress(cell_id, &state, 1, 1)?;
+        let ngauss = ccs.len();
         for p in 0..ngauss {
-            println!("{}", second_vals[p].stress.as_matrix());
+            all_gauss_coord_x.push(ccs[p][0]);
+            all_gauss_coord_y.push(ccs[p][1]);
+            all_gauss_sigma_yy.push(syy[p]);
         }
     }
 
@@ -96,17 +103,25 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
 
     let mut curve1 = Curve::new();
     let ll = linspace(0.0, 15.0, 101);
-    let nn: Vec<_> = ll.iter().map(|l| -f_sigma_v(0.0, l * B) / QN).collect();
-    curve1.draw(&nn, &ll);
+    let ss: Vec<_> = ll.iter().map(|l| -f_sigma_v(0.0, l * B) / QN).collect();
+    curve1.draw(&ss, &ll);
+
+    let mut curve1b = Curve::new();
+    curve1b.set_marker_style("o").set_line_style("None");
+    let ll_num: Vec<_> = all_gauss_coord_y.iter().map(|y| y / B).collect();
+    let ss_num: Vec<_> = all_gauss_sigma_yy.iter().map(|sy| -sy / QN).collect();
+    curve1b.draw(&ss_num, &ll_num);
 
     plot.set_gaps(0.25, 0.0)
         .set_subplot(1, 2, 1)
         .set_title("Durand and Farias Fig 13")
         .add(&curve1)
+        .add(&curve1b)
         .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
 
     plot.set_subplot(1, 2, 2)
         .set_title("Stress near the surface with y = H - d");
+
     let xx = linspace(0.0, 2.0 * B, 101);
     for d in [0.0, 0.1, B / 2.0, B] {
         let mut curve2 = Curve::new();

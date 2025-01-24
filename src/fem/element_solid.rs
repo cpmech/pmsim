@@ -55,10 +55,7 @@ impl<'a> ElementSolid<'a> {
         let local_to_global = compute_local_to_global(&input.information, &input.equations, cell)?;
 
         // pad for numerical integration
-        let ndim = input.mesh.ndim;
-        let (kind, points) = (cell.kind, &cell.points);
-        let mut pad = Scratchpad::new(ndim, kind).unwrap();
-        input.mesh.set_pad(&mut pad, &points);
+        let pad = input.mesh.get_pad(cell.id);
 
         // integration points
         let gauss = config.gauss(cell)?;

@@ -71,7 +71,6 @@ mod tests {
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
     use gemlab::mesh::Samples;
-    use gemlab::shapes::Scratchpad;
     use russell_lab::vec_approx_eq;
     use russell_tensor::Tensor2;
 
@@ -117,9 +116,7 @@ mod tests {
             let config = Config::new(&mesh);
 
             // pad for numerical integration
-            let (kind, points) = (cell.kind, &cell.points);
-            let mut pad = Scratchpad::new(ndim, kind).unwrap();
-            mesh.set_pad(&mut pad, &points);
+            let mut pad = mesh.get_pad(cell.id);
 
             // integration points
             let gauss = config.gauss(cell).unwrap();
