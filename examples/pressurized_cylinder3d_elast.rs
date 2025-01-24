@@ -143,8 +143,8 @@ fn main() -> Result<(), StrError> {
 
         // check boundaries
         if kind == GeoKind::Hex8 {
-            assert_eq!(faces_inner.len(), *na * NZ);
-            assert_eq!(faces_outer.len(), *na * NZ);
+            assert_eq!(faces_inner.all.len(), *na * NZ);
+            assert_eq!(faces_outer.all.len(), *na * NZ);
         }
 
         // println!("3. found boundaries");

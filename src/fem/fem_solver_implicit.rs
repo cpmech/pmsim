@@ -300,7 +300,7 @@ mod tests {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
         };
-        natural.edges(&[&edge], Nbc::Qn(f));
+        natural.edge(&edge, Nbc::Qn(f));
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")

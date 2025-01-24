@@ -165,7 +165,7 @@ mod tests {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
         };
-        natural.edges(&[&edge_conv], Nbc::Cv(55.0, f));
+        natural.edge(&edge_conv, Nbc::Cv(55.0, f));
         let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
 
         let n_equation_global = mesh.points.len() * 1; // 1 DOF per node

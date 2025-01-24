@@ -126,12 +126,12 @@ fn main() -> Result<(), StrError> {
 
         // check boundaries
         if kind == GeoKind::Qua4 {
-            assert_eq!(inner_circle.len(), *na);
-            assert_eq!(outer_circle.len(), *na);
+            assert_eq!(inner_circle.all.len(), *na);
+            assert_eq!(outer_circle.all.len(), *na);
             for i in 0..*na {
                 if i > 0 {
-                    assert_eq!(inner_circle[i].points[0], inner_circle[i - 1].points[1]);
-                    assert_eq!(outer_circle[i].points[1], outer_circle[i - 1].points[0]);
+                    assert_eq!(inner_circle.all[i].points[0], inner_circle.all[i - 1].points[1]);
+                    assert_eq!(outer_circle.all[i].points[1], outer_circle.all[i - 1].points[0]);
                 }
             }
         }

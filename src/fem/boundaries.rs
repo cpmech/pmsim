@@ -282,7 +282,7 @@ mod tests {
         );
 
         let mut natural = Natural::new();
-        natural.edges(&[&edge], Nbc::Qn(minus_ten));
+        natural.edge(&edge, Nbc::Qn(minus_ten));
         assert_eq!(
             Boundaries::new(&input, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
@@ -509,7 +509,7 @@ mod tests {
         let ft = |_| 20.0;
         assert_eq!(ft(0.0), 20.0);
 
-        natural.edges(&[&edge], Nbc::Cv(40.0, ft));
+        natural.edge(&edge, Nbc::Cv(40.0, ft));
         let mut elements = Boundaries::new(&input, &config, &natural).unwrap();
         let state = FemState::new(&input, &config).unwrap();
         elements.calc_residuals(&state).unwrap();

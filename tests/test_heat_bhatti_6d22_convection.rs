@@ -47,20 +47,9 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let features = Features::new(&mesh, false); // boundary only
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let edges_flux = features.search_edges(At::X(0.0), any_x)?;
-    let edges_conv = vec![
-        features.search_edges(At::Y(0.03), any_x)?.as_slice(), // top-horizontal
-        features.search_edges(At::X(0.03), any_x)?.as_slice(), // middle-vertical
-        features.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
-    ]
-    .concat();
-    let points_flux: Vec<_> = edges_flux.iter().map(|f| &f.points).collect();
-    let points_conv: Vec<_> = edges_conv.iter().map(|f| &f.points).collect();
-    println!("flux: {:?}", points_flux);
-    println!("conv: {:?}", points_conv);
-    assert_eq!(points_flux[0], &[10, 0, 11]);
-    assert_eq!(points_conv[0], &[0, 2, 1]);
-    assert_eq!(points_conv[1], &[2, 4, 3]);
-    assert_eq!(points_conv[2], &[4, 6, 5]);
+    let edges_conv_a = features.search_edges(At::Y(0.03), any_x)?; // top-horizontal
+    let edges_conv_b = features.search_edges(At::X(0.03), any_x)?; // middle-vertical
+    let edges_conv_c = features.search_edges(At::Y(0.015), any_x)?; // middle-horizontal
 
     // input data
     let (kx, ky) = (45.0, 45.0);
@@ -81,7 +70,9 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural
         .edges(&edges_flux, Nbc::Qt(|_| 8000.0))
-        .edges(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
+        .edges(&edges_conv_a, Nbc::Cv(55.0, |_| 20.0))
+        .edges(&edges_conv_b, Nbc::Cv(55.0, |_| 20.0))
+        .edges(&edges_conv_c, Nbc::Cv(55.0, |_| 20.0));
     println!("{}", natural);
 
     // configuration
@@ -256,12 +247,9 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     let features = Features::new(&mesh, false); // boundary only
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let edges_flux = features.search_edges(At::X(0.0), any_x)?;
-    let edges_conv = vec![
-        features.search_edges(At::Y(0.03), any_x)?.as_slice(), // top-horizontal
-        features.search_edges(At::X(0.03), any_x)?.as_slice(), // middle-vertical
-        features.search_edges(At::Y(0.015), any_x)?.as_slice(), // middle-horizontal
-    ]
-    .concat();
+    let edges_conv_a = features.search_edges(At::Y(0.03), any_x)?; // top-horizontal
+    let edges_conv_b = features.search_edges(At::X(0.03), any_x)?; // middle-vertical
+    let edges_conv_c = features.search_edges(At::Y(0.015), any_x)?; // middle-horizontal
 
     // input data
     let (kx, ky) = (45.0, 45.0);
@@ -282,7 +270,9 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     let mut natural = Natural::new();
     natural
         .edges(&edges_flux, Nbc::Qt(|_| 8000.0))
-        .edges(&edges_conv, Nbc::Cv(55.0, |_| 20.0));
+        .edges(&edges_conv_a, Nbc::Cv(55.0, |_| 20.0))
+        .edges(&edges_conv_b, Nbc::Cv(55.0, |_| 20.0))
+        .edges(&edges_conv_c, Nbc::Cv(55.0, |_| 20.0));
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

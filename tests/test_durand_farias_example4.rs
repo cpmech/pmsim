@@ -31,6 +31,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let right = features.search_edges(At::X(W), any_x)?;
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let footing = features.search_edges(At::Y(H), |x| x[0] <= B)?;
+    println!("{}", footing);
 
     // input data
     let p1 = ParamSolid {
@@ -63,12 +64,11 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     solver.solve(&mut state, &mut output)?;
 
     // results
-    // for edge in &left {
-    //     let (a, b) = (edge.points[0], edge.points[1]);
-    //     let cell = features.all_2d_edges.get(&(a, b)).unwrap();
-    //     let cell_id = cell[0].0; // the first 0 corresponds to the only boundary cell, the second 0 is the first tuple's item
-    //     println!("{}", cell_id);
-    // }
+    for edge in &left.all {
+        let cells = features.get_cells_via_2d_edge(edge);
+        let cell_id = cells[0]; // only one cells because the edge is on boundary
+        println!("{}", cell_id);
+    }
 
     // verification
     let f_aux = |theta: f64| QN * (theta + 0.5 * f64::sin(2.0 * theta)) / PI;
