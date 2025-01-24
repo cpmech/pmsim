@@ -207,13 +207,15 @@ fn main() -> Result<(), StrError> {
 
         // essential boundary conditions
         let mut essential = Essential::new();
-        essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0));
+        essential
+            .edges(&left, Ebc::Ux(|_| 0.0))
+            .edges(&bottom, Ebc::Uy(|_| 0.0));
 
         // natural boundary conditions
         let mut natural = Natural::new();
         natural
-            .on(&inner_circle, Nbc::Qn(|_| -P1))
-            .on(&outer_circle, Nbc::Qn(|_| -P2));
+            .edges(&inner_circle, Nbc::Qn(|_| -P1))
+            .edges(&outer_circle, Nbc::Qn(|_| -P2));
 
         // configuration
         let mut config = Config::new(&mesh);

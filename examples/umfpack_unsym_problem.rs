@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Ebc, Etype, Essential, Natural, Nbc, ParamSolid, StressStrain};
+use pmsim::base::{Config, Ebc, Essential, Etype, Natural, Nbc, ParamSolid, StressStrain};
 use pmsim::fem::{Boundaries, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
 use russell_lab::*;
 use russell_sparse::prelude::*;
@@ -45,7 +45,9 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0));
+    essential
+        .edges(&left, Ebc::Ux(|_| 0.0))
+        .edges(&bottom, Ebc::Uy(|_| 0.0));
 
     // prescribed values
     let prescribed_values = PrescribedValues::new(&input, &essential)?;
@@ -53,8 +55,8 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .on(&inner_circle, Nbc::Qn(|_| -P1))
-        .on(&outer_circle, Nbc::Qn(|_| -P2));
+        .edges(&inner_circle, Nbc::Qn(|_| -P1))
+        .edges(&outer_circle, Nbc::Qn(|_| -P2));
 
     // configuration
     let mut config = Config::new(&mesh);

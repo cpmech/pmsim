@@ -218,16 +218,16 @@ fn main() -> Result<(), StrError> {
         // essential boundary conditions
         let mut essential = Essential::new();
         essential
-            .on(&faces_x_min, Ebc::Ux(|_| 0.0))
-            .on(&faces_y_min, Ebc::Uy(|_| 0.0))
-            .on(&faces_z_min, Ebc::Uz(|_| 0.0))
-            .on(&faces_z_max, Ebc::Uz(|_| 0.0));
+            .faces(&faces_x_min, Ebc::Ux(|_| 0.0))
+            .faces(&faces_y_min, Ebc::Uy(|_| 0.0))
+            .faces(&faces_z_min, Ebc::Uz(|_| 0.0))
+            .faces(&faces_z_max, Ebc::Uz(|_| 0.0));
 
         // natural boundary conditions
         let mut natural = Natural::new();
         natural
-            .on(&faces_inner, Nbc::Qn(|_| -P1))
-            .on(&faces_outer, Nbc::Qn(|_| -P2));
+            .faces(&faces_inner, Nbc::Qn(|_| -P1))
+            .faces(&faces_outer, Nbc::Qn(|_| -P2));
 
         // configuration
         let mut config = Config::new(&mesh);

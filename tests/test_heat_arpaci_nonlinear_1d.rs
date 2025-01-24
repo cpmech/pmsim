@@ -68,7 +68,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&right, Ebc::T(|_| 0.0)); // must be zero to match analytical solution
+    essential.edges(&right, Ebc::T(|_| 0.0)); // must be zero to match analytical solution
 
     // natural boundary conditions
     let natural = Natural::new();

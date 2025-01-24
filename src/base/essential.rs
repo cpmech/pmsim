@@ -1,5 +1,5 @@
 use super::{Dof, Ebc};
-use gemlab::mesh::{Feature, PointId};
+use gemlab::mesh::{Edge, Face, PointId};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -14,18 +14,28 @@ impl Essential {
         Essential { all: HashMap::new() }
     }
 
-    /// Sets essential boundary condition at points
-    pub fn at(&mut self, points: &[PointId], ebc: Ebc) -> &mut Self {
+    /// Sets essential boundary condition given points
+    pub fn points(&mut self, points: &[PointId], ebc: Ebc) -> &mut Self {
         for point_id in points {
             self.all.insert((*point_id, ebc.dof()), ebc);
         }
         self
     }
 
-    /// Sets essential boundary condition on edges or faces
-    pub fn on(&mut self, features: &[&Feature], ebc: Ebc) -> &mut Self {
-        for edge in features {
+    /// Sets essential boundary condition given edges
+    pub fn edges(&mut self, edges: &[&Edge], ebc: Ebc) -> &mut Self {
+        for edge in edges {
             for point_id in &edge.points {
+                self.all.insert((*point_id, ebc.dof()), ebc);
+            }
+        }
+        self
+    }
+
+    /// Sets essential boundary condition given faces
+    pub fn faces(&mut self, faces: &[&Face], ebc: Ebc) -> &mut Self {
+        for face in faces {
+            for point_id in &face.points {
                 self.all.insert((*point_id, ebc.dof()), ebc);
             }
         }
@@ -54,25 +64,25 @@ impl fmt::Display for Essential {
 mod tests {
     use super::Essential;
     use crate::base::Ebc;
-    use gemlab::mesh::Feature;
+    use gemlab::mesh::{Edge, Face};
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn essential_works() {
         let mut essential = Essential::new();
-        let edges = &[&Feature {
+        let edges = &[&Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
         }];
-        let faces = &[&Feature {
+        let faces = &[&Face {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
         essential
-            .at(&[0], Ebc::Ux(|_| 0.0))
-            .at(&[0], Ebc::Uy(|_| 0.0))
-            .on(edges, Ebc::Pl(|t| t))
-            .on(faces, Ebc::T(|t| t / 2.0));
+            .points(&[0], Ebc::Ux(|_| 0.0))
+            .points(&[0], Ebc::Uy(|_| 0.0))
+            .edges(edges, Ebc::Pl(|t| t))
+            .faces(faces, Ebc::T(|t| t / 2.0));
         print!("{}", essential);
         assert_eq!(
             format!("{}", essential),

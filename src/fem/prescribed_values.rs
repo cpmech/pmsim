@@ -113,13 +113,13 @@ mod tests {
         );
 
         let mut essential = Essential::new();
-        essential.at(&[100], Ebc::Ux(f));
+        essential.points(&[100], Ebc::Ux(f));
         assert_eq!(
             PrescribedValues::new(&input, &essential).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let mut essential = Essential::new();
-        essential.at(&[0], Ebc::T(f));
+        essential.points(&[0], Ebc::T(f));
         assert_eq!(
             PrescribedValues::new(&input, &essential).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
@@ -132,7 +132,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
-        essential.at(&[0], Ebc::T(|_| 110.0));
+        essential.points(&[0], Ebc::T(|_| 110.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         uu.fill(100.0);
@@ -159,12 +159,12 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Etype::Beam(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
-            .at(&[0], Ebc::Ux(|_| 1.0))
-            .at(&[0], Ebc::Uy(|_| 2.0))
-            .at(&[0], Ebc::Uz(|_| 3.0))
-            .at(&[0], Ebc::Rx(|_| 4.0))
-            .at(&[0], Ebc::Ry(|_| 5.0))
-            .at(&[0], Ebc::Rz(|_| 6.0));
+            .points(&[0], Ebc::Ux(|_| 1.0))
+            .points(&[0], Ebc::Uy(|_| 2.0))
+            .points(&[0], Ebc::Uz(|_| 3.0))
+            .points(&[0], Ebc::Rx(|_| 4.0))
+            .points(&[0], Ebc::Ry(|_| 5.0))
+            .points(&[0], Ebc::Rz(|_| 6.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         let values = PrescribedValues::new(&input, &essential).unwrap();
@@ -211,35 +211,35 @@ mod tests {
         .unwrap();
         let mut essential = Essential::new();
         essential
-            .at(&[0], Ebc::Ux(|_| 0.0))
-            .at(&[0], Ebc::Uy(|_| 1.0))
-            .at(&[0], Ebc::Pl(|_| 2.0))
-            .at(&[1], Ebc::Ux(|_| 3.0))
-            .at(&[1], Ebc::Uy(|_| 4.0))
-            .at(&[2], Ebc::Ux(|_| 5.0))
-            .at(&[2], Ebc::Uy(|_| 6.0))
-            .at(&[2], Ebc::Rz(|_| 7.0))
-            .at(&[2], Ebc::Pl(|_| 8.0))
-            .at(&[3], Ebc::Ux(|_| 9.0))
-            .at(&[3], Ebc::Uy(|_| 10.0))
-            .at(&[4], Ebc::Ux(|_| 11.0))
-            .at(&[4], Ebc::Uy(|_| 12.0))
-            .at(&[5], Ebc::Ux(|_| 13.0))
-            .at(&[5], Ebc::Uy(|_| 14.0))
-            .at(&[6], Ebc::Ux(|_| 15.0))
-            .at(&[6], Ebc::Uy(|_| 16.0))
-            .at(&[6], Ebc::Rz(|_| 17.0))
-            .at(&[6], Ebc::Pl(|_| 18.0))
-            .at(&[7], Ebc::Ux(|_| 19.0))
-            .at(&[7], Ebc::Uy(|_| 20.0))
-            .at(&[8], Ebc::Ux(|_| 21.0))
-            .at(&[8], Ebc::Uy(|_| 22.0))
-            .at(&[8], Ebc::Pl(|_| 23.0))
-            .at(&[9], Ebc::Ux(|_| 24.0))
-            .at(&[9], Ebc::Uy(|_| 25.0))
-            .at(&[10], Ebc::Ux(|_| 26.0))
-            .at(&[10], Ebc::Uy(|_| 27.0))
-            .at(&[10], Ebc::Rz(|_| 28.0));
+            .points(&[0], Ebc::Ux(|_| 0.0))
+            .points(&[0], Ebc::Uy(|_| 1.0))
+            .points(&[0], Ebc::Pl(|_| 2.0))
+            .points(&[1], Ebc::Ux(|_| 3.0))
+            .points(&[1], Ebc::Uy(|_| 4.0))
+            .points(&[2], Ebc::Ux(|_| 5.0))
+            .points(&[2], Ebc::Uy(|_| 6.0))
+            .points(&[2], Ebc::Rz(|_| 7.0))
+            .points(&[2], Ebc::Pl(|_| 8.0))
+            .points(&[3], Ebc::Ux(|_| 9.0))
+            .points(&[3], Ebc::Uy(|_| 10.0))
+            .points(&[4], Ebc::Ux(|_| 11.0))
+            .points(&[4], Ebc::Uy(|_| 12.0))
+            .points(&[5], Ebc::Ux(|_| 13.0))
+            .points(&[5], Ebc::Uy(|_| 14.0))
+            .points(&[6], Ebc::Ux(|_| 15.0))
+            .points(&[6], Ebc::Uy(|_| 16.0))
+            .points(&[6], Ebc::Rz(|_| 17.0))
+            .points(&[6], Ebc::Pl(|_| 18.0))
+            .points(&[7], Ebc::Ux(|_| 19.0))
+            .points(&[7], Ebc::Uy(|_| 20.0))
+            .points(&[8], Ebc::Ux(|_| 21.0))
+            .points(&[8], Ebc::Uy(|_| 22.0))
+            .points(&[8], Ebc::Pl(|_| 23.0))
+            .points(&[9], Ebc::Ux(|_| 24.0))
+            .points(&[9], Ebc::Uy(|_| 25.0))
+            .points(&[10], Ebc::Ux(|_| 26.0))
+            .points(&[10], Ebc::Uy(|_| 27.0))
+            .points(&[10], Ebc::Rz(|_| 28.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         let values = PrescribedValues::new(&input, &essential).unwrap();
@@ -269,18 +269,18 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Etype::PorousSldLiqGas(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
-            .at(&[0], Ebc::Ux(|_| 1.0))
-            .at(&[0], Ebc::Uy(|_| 2.0))
-            .at(&[0], Ebc::Pl(|_| 3.0))
-            .at(&[0], Ebc::Pg(|_| 4.0))
-            .at(&[1], Ebc::Ux(|_| 5.0))
-            .at(&[1], Ebc::Uy(|_| 6.0))
-            .at(&[1], Ebc::Pl(|_| 7.0))
-            .at(&[1], Ebc::Pg(|_| 8.0))
-            .at(&[2], Ebc::Ux(|_| 9.0))
-            .at(&[2], Ebc::Uy(|_| 10.0))
-            .at(&[2], Ebc::Pl(|_| 11.0))
-            .at(&[2], Ebc::Pg(|_| 12.0));
+            .points(&[0], Ebc::Ux(|_| 1.0))
+            .points(&[0], Ebc::Uy(|_| 2.0))
+            .points(&[0], Ebc::Pl(|_| 3.0))
+            .points(&[0], Ebc::Pg(|_| 4.0))
+            .points(&[1], Ebc::Ux(|_| 5.0))
+            .points(&[1], Ebc::Uy(|_| 6.0))
+            .points(&[1], Ebc::Pl(|_| 7.0))
+            .points(&[1], Ebc::Pg(|_| 8.0))
+            .points(&[2], Ebc::Ux(|_| 9.0))
+            .points(&[2], Ebc::Uy(|_| 10.0))
+            .points(&[2], Ebc::Pl(|_| 11.0))
+            .points(&[2], Ebc::Pg(|_| 12.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         let values = PrescribedValues::new(&input, &essential).unwrap();
@@ -315,7 +315,7 @@ mod tests {
         let mut essential = Essential::new();
         let zero = |_| 0.0;
         assert_eq!(zero(1.0), 0.0);
-        essential.at(&[0, 4], Ebc::Pl(zero));
+        essential.points(&[0, 4], Ebc::Pl(zero));
         let values = PrescribedValues::new(&input, &essential).unwrap();
         assert_eq!(values.flags, &[true, false, false, false, true]);
         let mut eqs = values.equations.clone();
@@ -336,9 +336,9 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
-            .at(&[0], Ebc::Ux(zero))
-            .at(&[0], Ebc::Uy(zero))
-            .at(&[1, 2], Ebc::Uy(zero));
+            .points(&[0], Ebc::Ux(zero))
+            .points(&[0], Ebc::Uy(zero))
+            .points(&[1, 2], Ebc::Uy(zero));
         let values = PrescribedValues::new(&input, &essential).unwrap();
         assert_eq!(
             values.flags,

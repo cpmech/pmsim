@@ -40,10 +40,10 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let faces_y_min = features.search_faces(At::Y(0.0), any_x)?;
     let bottom = features.search_faces(At::Z(-2.0), any_x)?;
     let top = features.search_faces(At::Z(0.0), |x| x[1] <= 1.0)?;
-    println!("faces_x_min = {:?}", &faces_x_min);
-    println!("faces_y_min = {:?}", &faces_y_min);
-    println!("bottom = {:?}", &bottom);
-    println!("top = {:?}", &top);
+    // println!("faces_x_min = {:?}", &faces_x_min);
+    // println!("faces_y_min = {:?}", &faces_y_min);
+    // println!("bottom = {:?}", &bottom);
+    // println!("top = {:?}", &top);
 
     // input data
     let p1 = ParamSolid {
@@ -66,15 +66,15 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let zero = |_| 0.0;
     let mut essential = Essential::new();
     essential
-        .on(&faces_x_min, Ebc::Ux(zero))
-        .on(&faces_y_min, Ebc::Uy(zero))
-        .on(&bottom, Ebc::Ux(zero))
-        .on(&bottom, Ebc::Uy(zero))
-        .on(&bottom, Ebc::Uz(zero));
+        .faces(&faces_x_min, Ebc::Ux(zero))
+        .faces(&faces_y_min, Ebc::Uy(zero))
+        .faces(&bottom, Ebc::Ux(zero))
+        .faces(&bottom, Ebc::Uy(zero))
+        .faces(&bottom, Ebc::Uz(zero));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&top, Nbc::Qn(|_| -1.0));
+    natural.faces(&top, Nbc::Qn(|_| -1.0));
 
     // configuration
     let mut config = Config::new(&mesh);

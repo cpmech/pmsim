@@ -73,17 +73,17 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .on(&left, Ebc::Ux(|_| 0.0))
-        .on(&right, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Uy(|_| 0.0));
+        .edges(&left, Ebc::Ux(|_| 0.0))
+        .edges(&right, Ebc::Ux(|_| 0.0))
+        .edges(&bottom, Ebc::Ux(|_| 0.0))
+        .edges(&bottom, Ebc::Uy(|_| 0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .at(&[0], Pbc::Fy(|_| -2.6667))
-        .at(&[3], Pbc::Fy(|_| -23.3333))
-        .at(&[6], Pbc::Fy(|_| -24.0));
+        .points(&[0], Pbc::Fy(|_| -2.6667))
+        .points(&[3], Pbc::Fy(|_| -23.3333))
+        .points(&[6], Pbc::Fy(|_| -24.0));
 
     // configuration
     let mut config = Config::new(&mesh);

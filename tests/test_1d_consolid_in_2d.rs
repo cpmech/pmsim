@@ -17,9 +17,9 @@ fn main() -> Result<(), StrError> {
     let zero = |_| 0.0;
     let mut essential = Essential::new();
     essential
-        .on(&left, Ebc::Ux(zero))
-        .on(&right, Ebc::Ux(zero))
-        .on(&bottom, Ebc::Uy(zero));
+        .edges(&left, Ebc::Ux(zero))
+        .edges(&right, Ebc::Ux(zero))
+        .edges(&bottom, Ebc::Uy(zero));
 
     Ok(())
 }

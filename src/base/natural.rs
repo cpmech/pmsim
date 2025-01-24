@@ -1,34 +1,44 @@
 use super::{Nbc, Pbc};
-use gemlab::mesh::{Feature, PointId};
+use gemlab::mesh::{Edge, Face, PointId};
 use std::fmt;
 
 /// Holds natural boundary conditions
 pub struct Natural<'a> {
-    pub concentrated: Vec<(PointId, Pbc)>,
-    pub distributed: Vec<(&'a Feature, Nbc)>,
+    pub at_points: Vec<(PointId, Pbc)>,
+    pub on_edges: Vec<(&'a Edge, Nbc)>,
+    pub on_faces: Vec<(&'a Face, Nbc)>,
 }
 
 impl<'a> Natural<'a> {
     /// Allocates a new instance
     pub fn new() -> Self {
         Natural {
-            concentrated: Vec::new(),
-            distributed: Vec::new(),
+            at_points: Vec::new(),
+            on_edges: Vec::new(),
+            on_faces: Vec::new(),
         }
     }
 
-    /// Sets natural boundary condition at points
-    pub fn at(&mut self, points: &[PointId], pbc: Pbc) -> &mut Self {
+    /// Sets natural boundary condition given points
+    pub fn points(&mut self, points: &[PointId], pbc: Pbc) -> &mut Self {
         for point_id in points {
-            self.concentrated.push((*point_id, pbc));
+            self.at_points.push((*point_id, pbc));
         }
         self
     }
 
-    /// Sets natural boundary condition on edges or faces
-    pub fn on(&mut self, features: &[&'a Feature], nbc: Nbc) -> &mut Self {
-        for feature in features {
-            self.distributed.push((feature, nbc));
+    /// Sets natural boundary condition given edges
+    pub fn edges(&mut self, edges: &[&'a Edge], nbc: Nbc) -> &mut Self {
+        for edge in edges {
+            self.on_edges.push((edge, nbc));
+        }
+        self
+    }
+
+    /// Sets natural boundary condition given faces
+    pub fn faces(&mut self, faces: &[&'a Face], nbc: Nbc) -> &mut Self {
+        for face in faces {
+            self.on_faces.push((face, nbc));
         }
         self
     }
@@ -37,15 +47,20 @@ impl<'a> Natural<'a> {
 impl<'a> fmt::Display for Natural<'a> {
     /// Prints a formatted summary of Boundary Conditions
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Concentrated boundary conditions\n").unwrap();
-        write!(f, "================================\n").unwrap();
-        for (id, pbc) in &self.concentrated {
+        write!(f, "Points: concentrated boundary conditions\n").unwrap();
+        write!(f, "========================================\n").unwrap();
+        for (id, pbc) in &self.at_points {
             write!(f, "{:?} : {}\n", id, pbc).unwrap();
         }
-        write!(f, "\nDistributed boundary conditions\n").unwrap();
-        write!(f, "===============================\n").unwrap();
-        for (feature, nbc) in &self.distributed {
-            write!(f, "{:?} : {}\n", feature.points, nbc).unwrap();
+        write!(f, "\nEdges: distributed boundary conditions\n").unwrap();
+        write!(f, "======================================\n").unwrap();
+        for (edge, nbc) in &self.on_edges {
+            write!(f, "{:?} : {}\n", edge.points, nbc).unwrap();
+        }
+        write!(f, "\nFaces: distributed boundary conditions\n").unwrap();
+        write!(f, "======================================\n").unwrap();
+        for (face, nbc) in &self.on_faces {
+            write!(f, "{:?} : {}\n", face.points, nbc).unwrap();
         }
         Ok(())
     }
@@ -57,52 +72,37 @@ impl<'a> fmt::Display for Natural<'a> {
 mod tests {
     use super::Natural;
     use crate::base::{Nbc, Pbc};
-    use gemlab::mesh::{Feature, Features, Samples};
+    use gemlab::mesh::{Edge, Face, Features, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
     fn set_points_edges_faces_work() {
         let mut natural = Natural::new();
-        let edges = &[&Feature {
+        let edges = &[&Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
         }];
-        let faces = &[&Feature {
+        let faces = &[&Face {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
         }];
         natural
-            .at(&[10], Pbc::Fy(|_| -100.0))
-            .on(edges, Nbc::Qy(|t| t))
-            .on(faces, Nbc::Qn(|t| t / 2.0));
+            .points(&[10], Pbc::Fy(|_| -100.0))
+            .edges(edges, Nbc::Qy(|t| t))
+            .faces(faces, Nbc::Qn(|t| t / 2.0));
         assert_eq!(
             format!("{}", natural),
-            "Concentrated boundary conditions\n\
-             ================================\n\
+            "Points: concentrated boundary conditions\n\
+             ========================================\n\
              10 : Fy(0) = -100.0, Fy(1) = -100.0\n\
              \n\
-             Distributed boundary conditions\n\
-             ===============================\n\
+             Edges: distributed boundary conditions\n\
+             ======================================\n\
              [1, 2] : Qy(0) = 0.0, Qy(1) = 1.0\n\
-             [3, 4, 5] : Qn(0) = 0.0, Qn(1) = 0.5\n"
-        );
-
-        // note that Display follows the setting order
-        let mut natural = Natural::new();
-        natural
-            .at(&[10], Pbc::Fy(|_| -100.0))
-            .on(faces, Nbc::Qn(|t| t / 2.0))
-            .on(edges, Nbc::Qy(|t| t));
-        assert_eq!(
-            format!("{}", natural),
-            "Concentrated boundary conditions\n\
-             ================================\n\
-             10 : Fy(0) = -100.0, Fy(1) = -100.0\n\
              \n\
-             Distributed boundary conditions\n\
-             ===============================\n\
-             [3, 4, 5] : Qn(0) = 0.0, Qn(1) = 0.5\n\
-             [1, 2] : Qy(0) = 0.0, Qy(1) = 1.0\n"
+             Faces: distributed boundary conditions\n\
+             ======================================\n\
+             [3, 4, 5] : Qn(0) = 0.0, Qn(1) = 0.5\n"
         );
     }
 
@@ -125,19 +125,25 @@ mod tests {
         let features = Features::new(&mesh, false);
         let mut natural = Natural::new();
         let fbc = |t| -10.0 * t;
-        let top_edges = [features.edges.get(&(4, 5)).unwrap(), features.edges.get(&(6, 7)).unwrap()];
+        let top_edges = [
+            features.edges.get(&(4, 5)).unwrap(),
+            features.edges.get(&(6, 7)).unwrap(),
+        ];
         let top_face = features.faces.get(&(0, 1, 4, 5)).unwrap();
-        natural.on(&top_edges, Nbc::Qn(fbc));
-        natural.on(&[&top_face], Nbc::Qy(fbc));
+        natural.edges(&top_edges, Nbc::Qn(fbc));
+        natural.faces(&[&top_face], Nbc::Qy(fbc));
         assert_eq!(
             format!("{}", natural),
-            "Concentrated boundary conditions\n\
-             ================================\n\
+            "Points: concentrated boundary conditions\n\
+             ========================================\n\
              \n\
-             Distributed boundary conditions\n\
-             ===============================\n\
+             Edges: distributed boundary conditions\n\
+             ======================================\n\
              [4, 5] : Qn(0) = -0.0, Qn(1) = -10.0\n\
              [6, 7] : Qn(0) = -0.0, Qn(1) = -10.0\n\
+             \n\
+             Faces: distributed boundary conditions\n\
+             ======================================\n\
              [0, 1, 5, 4] : Qy(0) = -0.0, Qy(1) = -10.0\n"
         );
         assert_eq!(fbc(1.0), -10.0);

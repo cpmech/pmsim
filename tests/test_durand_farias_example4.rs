@@ -42,13 +42,13 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .on(&left, Ebc::Ux(|_| 0.0))
-        .on(&right, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Uy(|_| 0.0));
+        .edges(&left, Ebc::Ux(|_| 0.0))
+        .edges(&right, Ebc::Ux(|_| 0.0))
+        .edges(&bottom, Ebc::Uy(|_| 0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&footing, Nbc::Qn(|_| -QN));
+    natural.edges(&footing, Nbc::Qn(|_| -QN));
 
     // configuration
     let mut config = Config::new(&mesh);
@@ -61,6 +61,14 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     // solution
     let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
+
+    // results
+    // for edge in &left {
+    //     let (a, b) = (edge.points[0], edge.points[1]);
+    //     let cell = features.all_2d_edges.get(&(a, b)).unwrap();
+    //     let cell_id = cell[0].0; // the first 0 corresponds to the only boundary cell, the second 0 is the first tuple's item
+    //     println!("{}", cell_id);
+    // }
 
     // verification
     let f_aux = |theta: f64| QN * (theta + 0.5 * f64::sin(2.0 * theta)) / PI;
@@ -110,13 +118,6 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         .set_figure_size_points(800.0, 300.0)
         .save(&format!("{}/{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))?;
 
-    // calculate σz along left vertical boundary
-    for edge in &footing {
-        let (a, b) = (edge.points[0], edge.points[1]);
-        let cell = features.all_2d_edges.get(&(a, b)).unwrap();
-        let cell_id = cell[0].0; // the first 0 corresponds to the only boundary cell, the second 0 is the first tuple's item
-    }
-
     Ok(())
 }
 
@@ -150,6 +151,7 @@ fn generate_or_read_mesh(att: usize, kind: GeoKind, generate: bool) -> Mesh {
             // opt.point_dots = true;
             opt.point_ids = true;
             opt.cell_ids = true;
+            opt.with_cell_att = false;
             opt.figure_size = Some((1000.0, 1000.0));
             mesh.draw(
                 Some(opt),

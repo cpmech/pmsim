@@ -71,14 +71,14 @@ fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .on(&left, Ebc::Ux(|_| 0.0))
-        .on(&right, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Uy(|_| 0.0));
+        .edges(&left, Ebc::Ux(|_| 0.0))
+        .edges(&right, Ebc::Ux(|_| 0.0))
+        .edges(&bottom, Ebc::Ux(|_| 0.0))
+        .edges(&bottom, Ebc::Uy(|_| 0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&top, Nbc::Qn(|_| -1.0));
+    natural.edges(&top, Nbc::Qn(|_| -1.0));
 
     // configuration
     let config = Config::new(&mesh);

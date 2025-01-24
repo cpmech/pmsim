@@ -118,9 +118,9 @@ impl<'a> LinearSystem<'a> {
 #[cfg(test)]
 mod tests {
     use super::LinearSystem;
-    use crate::base::{new_empty_mesh_2d, Config, Ebc, Etype, Essential, Natural, Nbc, ParamDiffusion};
+    use crate::base::{new_empty_mesh_2d, Config, Ebc, Essential, Etype, Natural, Nbc, ParamDiffusion};
     use crate::fem::{Boundaries, Elements, FemInput, PrescribedValues};
-    use gemlab::mesh::{Feature, Samples};
+    use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
     use russell_sparse::{Genie, Sym};
 
@@ -160,12 +160,12 @@ mod tests {
         let mut natural = Natural::new();
         let f = |_| 123.0;
         assert_eq!(f(0.0), 123.0);
-        essential.at(&[0, 4], Ebc::T(f));
-        let edge_conv = Feature {
+        essential.points(&[0, 4], Ebc::T(f));
+        let edge_conv = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
         };
-        natural.on(&[&edge_conv], Nbc::Cv(55.0, f));
+        natural.edges(&[&edge_conv], Nbc::Cv(55.0, f));
         let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
 
         let n_equation_global = mesh.points.len() * 1; // 1 DOF per node

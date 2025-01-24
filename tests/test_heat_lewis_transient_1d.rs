@@ -65,7 +65,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&left, Nbc::Qt(|_| 1.0));
+    natural.edges(&left, Nbc::Qt(|_| 1.0));
 
     // configuration
     let mut config = Config::new(&mesh);

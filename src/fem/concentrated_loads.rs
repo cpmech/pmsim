@@ -43,15 +43,11 @@ impl ConcentratedLoad {
 impl ConcentratedLoads {
     /// Allocates new instance
     pub fn new(input: &FemInput, natural: &Natural) -> Result<Self, StrError> {
-        let res: Result<Vec<_>, _> = natural
-            .concentrated
-            .iter()
-            .map(|(point_id, pbc)| ConcentratedLoad::new(input, *point_id, *pbc))
-            .collect();
-        match res {
-            Ok(all) => Ok(ConcentratedLoads { all }),
-            Err(e) => Err(e),
+        let mut all = Vec::with_capacity(natural.at_points.len() + 1);
+        for (point_id, pbc) in &natural.at_points {
+            all.push(ConcentratedLoad::new(input, *point_id, *pbc)?);
         }
+        Ok(ConcentratedLoads { all })
     }
 
     /// Adds all concentrated load values at given time to the global residual
@@ -83,7 +79,7 @@ mod tests {
         );
 
         let mut natural = Natural::new();
-        natural.at(&[100], Pbc::Fx(minus_ten));
+        natural.points(&[100], Pbc::Fx(minus_ten));
         assert_eq!(
             ConcentratedLoads::new(&input, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
@@ -98,9 +94,9 @@ mod tests {
         let mut natural = Natural::new();
         let f = |_| -20.0;
         assert_eq!(f(0.0), -20.0);
-        natural.at(&[0], Pbc::Fx(f));
-        natural.at(&[1], Pbc::Fy(f));
-        natural.at(&[2], Pbc::Fz(f));
+        natural.points(&[0], Pbc::Fx(f));
+        natural.points(&[1], Pbc::Fy(f));
+        natural.points(&[2], Pbc::Fz(f));
         let b_points = ConcentratedLoads::new(&input, &natural).unwrap();
         let mut residual = Vector::new(4 * 3);
         b_points.add_to_residual(&mut residual, 0.0);

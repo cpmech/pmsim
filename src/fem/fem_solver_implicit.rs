@@ -245,7 +245,7 @@ mod tests {
     use super::FemSolverImplicit;
     use crate::base::{new_empty_mesh_2d, Config, Ebc, Essential, Etype, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemInput, FemOutput, FemState};
-    use gemlab::mesh::{Feature, Samples};
+    use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
 
     #[test]
@@ -269,7 +269,7 @@ mod tests {
         let f = |_| 123.0;
         assert_eq!(f(0.0), 123.0);
         let mut essential = Essential::new();
-        essential.at(&[123], Ebc::Ux(f));
+        essential.points(&[123], Ebc::Ux(f));
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
@@ -278,7 +278,7 @@ mod tests {
 
         // error due to concentrated_loads
         let mut natural = Natural::new();
-        natural.at(&[100], Pbc::Fx(f));
+        natural.points(&[100], Pbc::Fx(f));
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
@@ -296,11 +296,11 @@ mod tests {
 
         // error due to boundaries
         let mut natural = Natural::new();
-        let edge = Feature {
+        let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
         };
-        natural.on(&[&edge], Nbc::Qn(f));
+        natural.edges(&[&edge], Nbc::Qn(f));
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")

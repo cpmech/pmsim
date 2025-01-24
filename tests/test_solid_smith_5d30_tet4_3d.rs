@@ -56,15 +56,15 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     let zero = |_| 0.0;
     let mut essential = Essential::new();
     essential
-        .on(&faces_x_min, Ebc::Ux(zero))
-        .on(&faces_y_min, Ebc::Uy(zero))
-        .on(&bottom, Ebc::Uz(zero));
+        .faces(&faces_x_min, Ebc::Ux(zero))
+        .faces(&faces_y_min, Ebc::Uy(zero))
+        .faces(&bottom, Ebc::Uz(zero));
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .at(&[0, 5], Pbc::Fz(|_| -0.1667))
-        .at(&[1, 4], Pbc::Fz(|_| -0.3333));
+        .points(&[0, 5], Pbc::Fz(|_| -0.1667))
+        .points(&[1, 4], Pbc::Fz(|_| -0.3333));
 
     // configuration
     let config = Config::new(&mesh);
