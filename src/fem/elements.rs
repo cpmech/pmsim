@@ -23,6 +23,8 @@ pub struct Elements<'a> {
     pub config: &'a Config<'a>,
 
     /// All elements
+    ///
+    /// (ncell)
     pub all: Vec<GenericElement<'a>>,
 }
 
@@ -261,7 +263,8 @@ mod tests {
         let config = Config::new(&mesh);
         GenericElement::new(&input, &config, &mesh.cells[0]).unwrap();
 
-        Elements::new(&input, &config).unwrap();
+        let elements = Elements::new(&input, &config).unwrap();
+        assert_eq!(elements.all.len(), mesh.cells.len());
     }
 
     #[test]
