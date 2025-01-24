@@ -52,7 +52,7 @@ pub struct FemState {
 
     /// Holds the secondary values (e.g. stress) at all integration (Gauss) points of all elements
     ///
-    /// (n_cell)
+    /// (ncell)
     pub gauss: Vec<SecondaryValues>,
 }
 
