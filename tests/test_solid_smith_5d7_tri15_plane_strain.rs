@@ -70,17 +70,17 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .edges(&left, Ebc::Ux(|_| 0.0))
-        .edges(&right, Ebc::Ux(|_| 0.0))
-        .edges(&bottom, Ebc::Ux(|_| 0.0))
-        .edges(&bottom, Ebc::Uy(|_| 0.0));
+        .edges(&left, Ebc::Ux(0.0))
+        .edges(&right, Ebc::Ux(0.0))
+        .edges(&bottom, Ebc::Ux(0.0))
+        .edges(&bottom, Ebc::Uy(0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .points(&[0, 20], Pbc::Fy(|_| -0.0778))
-        .points(&[5, 15], Pbc::Fy(|_| -0.3556))
-        .points(&[10], Pbc::Fy(|_| -0.1333));
+        .points(&[0, 20], Pbc::Fy(-0.0778))
+        .points(&[5, 15], Pbc::Fy(-0.3556))
+        .points(&[10], Pbc::Fy(-0.1333));
 
     // configuration
     let mut config = Config::new(&mesh);

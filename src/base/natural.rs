@@ -105,22 +105,22 @@ mod tests {
             points: vec![3, 4, 5],
         };
         natural
-            .point(10, Pbc::Fy(|_| -100.0))
-            .edge(&edge, Nbc::Qy(|t| t))
-            .face(&face, Nbc::Qn(|t| t / 2.0));
+            .point(10, Pbc::Fy(-100.0))
+            .edge(&edge, Nbc::Qy(1.0))
+            .face(&face, Nbc::Qn(2.0));
         assert_eq!(
             format!("{}", natural),
             "Points: concentrated boundary conditions\n\
              ========================================\n\
-             10 : Fy(0) = -100.0, Fy(1) = -100.0\n\
+             10 : Fy = -100.0\n\
              \n\
              Edges: distributed boundary conditions\n\
              ======================================\n\
-             [1, 2] : Qy(0) = 0.0, Qy(1) = 1.0\n\
+             [1, 2] : Qy = 1.0\n\
              \n\
              Faces: distributed boundary conditions\n\
              ======================================\n\
-             [3, 4, 5] : Qn(0) = 0.0, Qn(1) = 0.5\n"
+             [3, 4, 5] : Qn = 2.0\n"
         );
     }
 
@@ -138,22 +138,22 @@ mod tests {
         let faces = Faces { all: vec![&face] };
         let edges = Edges { all: vec![&edge] };
         natural
-            .points(&[10], Pbc::Fy(|_| -100.0))
-            .edges(&edges, Nbc::Qy(|t| t))
-            .faces(&faces, Nbc::Qn(|t| t / 2.0));
+            .points(&[10], Pbc::Fy(-100.0))
+            .edges(&edges, Nbc::Qy(1.0))
+            .faces(&faces, Nbc::Qn(2.0));
         assert_eq!(
             format!("{}", natural),
             "Points: concentrated boundary conditions\n\
              ========================================\n\
-             10 : Fy(0) = -100.0, Fy(1) = -100.0\n\
+             10 : Fy = -100.0\n\
              \n\
              Edges: distributed boundary conditions\n\
              ======================================\n\
-             [1, 2] : Qy(0) = 0.0, Qy(1) = 1.0\n\
+             [1, 2] : Qy = 1.0\n\
              \n\
              Faces: distributed boundary conditions\n\
              ======================================\n\
-             [3, 4, 5] : Qn(0) = 0.0, Qn(1) = 0.5\n"
+             [3, 4, 5] : Qn = 2.0\n"
         );
     }
 
@@ -175,7 +175,6 @@ mod tests {
         let mesh = Samples::one_hex8();
         let features = Features::new(&mesh, false);
         let mut natural = Natural::new();
-        let fbc = |t| -10.0 * t;
         let top_edges = Edges {
             all: vec![
                 features.edges.get(&(4, 5)).unwrap(),
@@ -185,8 +184,8 @@ mod tests {
         let top_faces = Faces {
             all: vec![features.faces.get(&(0, 1, 4, 5)).unwrap()],
         };
-        natural.edges(&top_edges, Nbc::Qn(fbc));
-        natural.faces(&top_faces, Nbc::Qy(fbc));
+        natural.edges(&top_edges, Nbc::Qn(-10.0));
+        natural.faces(&top_faces, Nbc::Qy(-20.0));
         assert_eq!(
             format!("{}", natural),
             "Points: concentrated boundary conditions\n\
@@ -194,13 +193,12 @@ mod tests {
              \n\
              Edges: distributed boundary conditions\n\
              ======================================\n\
-             [4, 5] : Qn(0) = -0.0, Qn(1) = -10.0\n\
-             [6, 7] : Qn(0) = -0.0, Qn(1) = -10.0\n\
+             [4, 5] : Qn = -10.0\n\
+             [6, 7] : Qn = -10.0\n\
              \n\
              Faces: distributed boundary conditions\n\
              ======================================\n\
-             [0, 1, 5, 4] : Qy(0) = -0.0, Qy(1) = -10.0\n"
+             [0, 1, 5, 4] : Qy = -20.0\n"
         );
-        assert_eq!(fbc(1.0), -10.0);
     }
 }

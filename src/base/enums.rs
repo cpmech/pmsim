@@ -3,9 +3,6 @@ use super::{ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSld
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Defines a function of time that returns f64 (e.g., to calculate boundary condition values)
-pub type FnTime = fn(t: f64) -> f64;
-
 /// Defines degrees-of-freedom (DOF) types
 ///
 /// Note: The fixed numbering scheme assists in sorting the DOFs.
@@ -46,31 +43,31 @@ pub enum Dof {
 #[derive(Clone, Copy)]
 pub enum Ebc {
     /// Displacement along the first dimension
-    Ux(FnTime),
+    Ux(f64),
 
     /// Displacement along the second dimension
-    Uy(FnTime),
+    Uy(f64),
 
     /// Displacement along the third dimension
-    Uz(FnTime),
+    Uz(f64),
 
     /// Rotation around the first axis
-    Rx(FnTime),
+    Rx(f64),
 
     /// Rotation around the second axis
-    Ry(FnTime),
+    Ry(f64),
 
     /// Rotation around the third axis
-    Rz(FnTime),
+    Rz(f64),
 
     /// Temperature
-    T(FnTime),
+    T(f64),
 
     /// Liquid pressure
-    Pl(FnTime),
+    Pl(f64),
 
     /// Gas pressure
-    Pg(FnTime),
+    Pg(f64),
 }
 
 impl Ebc {
@@ -93,15 +90,15 @@ impl Ebc {
 impl fmt::Display for Ebc {
     fn fmt(&self, b: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ebc::Ux(f) => write!(b, "Ux(0) = {:?}, Ux(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Ebc::Uy(f) => write!(b, "Uy(0) = {:?}, Uy(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Ebc::Uz(f) => write!(b, "Uz(0) = {:?}, Uz(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Ebc::Rx(f) => write!(b, "Rx(0) = {:?}, Rx(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Ebc::Ry(f) => write!(b, "Ry(0) = {:?}, Ry(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Ebc::Rz(f) => write!(b, "Rz(0) = {:?}, Rz(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Ebc::T(f) => write!(b, "T(0) = {:?}, T(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Ebc::Pl(f) => write!(b, "Pl(0) = {:?}, Pl(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Ebc::Pg(f) => write!(b, "Pg(0) = {:?}, Pg(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Ebc::Ux(v) => write!(b, "Ux = {:?}", v).unwrap(),
+            Ebc::Uy(v) => write!(b, "Uy = {:?}", v).unwrap(),
+            Ebc::Uz(v) => write!(b, "Uz = {:?}", v).unwrap(),
+            Ebc::Rx(v) => write!(b, "Rx = {:?}", v).unwrap(),
+            Ebc::Ry(v) => write!(b, "Ry = {:?}", v).unwrap(),
+            Ebc::Rz(v) => write!(b, "Rz = {:?}", v).unwrap(),
+            Ebc::T(v) => write!(b, "T = {:?}", v).unwrap(),
+            Ebc::Pl(v) => write!(b, "Pl = {:?}", v).unwrap(),
+            Ebc::Pg(v) => write!(b, "Pg = {:?}", v).unwrap(),
         }
         Ok(())
     }
@@ -111,31 +108,31 @@ impl fmt::Display for Ebc {
 #[derive(Clone, Copy)]
 pub enum Nbc {
     /// Normal distributed load
-    Qn(FnTime),
+    Qn(f64),
 
     /// Distributed load parallel to x
-    Qx(FnTime),
+    Qx(f64),
 
     /// Distributed load parallel to y
-    Qy(FnTime),
+    Qy(f64),
 
     /// Distributed load parallel to z
-    Qz(FnTime),
+    Qz(f64),
 
     /// Liquid flux
-    Ql(FnTime),
+    Ql(f64),
 
     /// Gas flux
-    Qg(FnTime),
+    Qg(f64),
 
     /// Temperature flux
-    Qt(FnTime),
+    Qt(f64),
 
     /// Temperature convection
     ///
     /// The first value is the convection coefficient `cc`
-    /// The second value is the environment temperature `T`
-    Cv(f64, FnTime),
+    /// The second value is the environment temperature `T_env`
+    Cv(f64, f64),
 }
 
 impl Nbc {
@@ -203,14 +200,14 @@ impl Nbc {
 impl fmt::Display for Nbc {
     fn fmt(&self, b: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Nbc::Qn(f) => write!(b, "Qn(0) = {:?}, Qn(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Nbc::Qx(f) => write!(b, "Qx(0) = {:?}, Qx(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Nbc::Qy(f) => write!(b, "Qy(0) = {:?}, Qy(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Nbc::Qz(f) => write!(b, "Qz(0) = {:?}, Qz(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Nbc::Ql(f) => write!(b, "Ql(0) = {:?}, Ql(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Nbc::Qg(f) => write!(b, "Qg(0) = {:?}, Qg(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Nbc::Qt(f) => write!(b, "Qt(0) = {:?}, Qt(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Nbc::Cv(cc, f) => write!(b, "cc = {:?}, T(0) = {:?}, T(1) = {:?}", cc, f(0.0), f(1.0)).unwrap(),
+            Nbc::Qn(v) => write!(b, "Qn = {:?}", v).unwrap(),
+            Nbc::Qx(v) => write!(b, "Qx = {:?}", v).unwrap(),
+            Nbc::Qy(v) => write!(b, "Qy = {:?}", v).unwrap(),
+            Nbc::Qz(v) => write!(b, "Qz = {:?}", v).unwrap(),
+            Nbc::Ql(v) => write!(b, "Ql = {:?}", v).unwrap(),
+            Nbc::Qg(v) => write!(b, "Qg = {:?}", v).unwrap(),
+            Nbc::Qt(v) => write!(b, "Qt = {:?}", v).unwrap(),
+            Nbc::Cv(cc, tt_env) => write!(b, "cc = {:?}, T_env = {:?}", cc, tt_env).unwrap(),
         }
         Ok(())
     }
@@ -220,13 +217,13 @@ impl fmt::Display for Nbc {
 #[derive(Clone, Copy)]
 pub enum Pbc {
     /// Concentrated load parallel to x
-    Fx(FnTime),
+    Fx(f64),
 
     /// Concentrated load parallel to y
-    Fy(FnTime),
+    Fy(f64),
 
     /// Concentrated load parallel to z
-    Fz(FnTime),
+    Fz(f64),
 }
 
 impl Pbc {
@@ -243,9 +240,9 @@ impl Pbc {
 impl fmt::Display for Pbc {
     fn fmt(&self, b: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Pbc::Fx(f) => write!(b, "Fx(0) = {:?}, Fx(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Pbc::Fy(f) => write!(b, "Fy(0) = {:?}, Fy(1) = {:?}", f(0.0), f(1.0)).unwrap(),
-            Pbc::Fz(f) => write!(b, "Fz(0) = {:?}, Fz(1) = {:?}", f(0.0), f(1.0)).unwrap(),
+            Pbc::Fx(v) => write!(b, "Fx = {:?}", v).unwrap(),
+            Pbc::Fy(v) => write!(b, "Fy = {:?}", v).unwrap(),
+            Pbc::Fz(v) => write!(b, "Fz = {:?}", v).unwrap(),
         }
         Ok(())
     }
@@ -327,19 +324,19 @@ mod tests {
         assert_eq!(set.len(), 1);
 
         // ebc
-        let ebc_ux_ori = Ebc::Ux(|_| 10.0);
+        let ebc_ux_ori = Ebc::Ux(10.0);
         let ebc_ux = ebc_ux_ori.clone();
-        assert_eq!(format!("{}", ebc_ux), "Ux(0) = 10.0, Ux(1) = 10.0");
+        assert_eq!(format!("{}", ebc_ux), "Ux = 10.0");
 
         // nbc
-        let qn_ori = Nbc::Qn(|t| -10.0 * (1.0 + t));
+        let qn_ori = Nbc::Qn(-10.0);
         let qn = qn_ori.clone();
-        assert_eq!(format!("{}", qn), "Qn(0) = -10.0, Qn(1) = -20.0");
+        assert_eq!(format!("{}", qn), "Qn = -10.0");
 
         // pbc
-        let fx_ori = Pbc::Fx(|t| -1.0 * (1.0 + t));
+        let fx_ori = Pbc::Fx(-1.0);
         let fx = fx_ori.clone();
-        assert_eq!(format!("{}", fx), "Fx(0) = -1.0, Fx(1) = -2.0");
+        assert_eq!(format!("{}", fx), "Fx = -1.0");
     }
 
     #[test]
@@ -398,70 +395,70 @@ mod tests {
 
     #[test]
     fn ebc_methods_work() {
-        let ux = Ebc::Ux(|t| 10.0 + 10.0 * t);
+        let ux = Ebc::Ux(20.0);
         assert_eq!(ux.dof(), Dof::Ux);
-        assert_eq!(format!("{}", ux), "Ux(0) = 10.0, Ux(1) = 20.0");
+        assert_eq!(format!("{}", ux), "Ux = 20.0");
 
-        let uy = Ebc::Uy(|t| 10.0 + 10.0 * t);
+        let uy = Ebc::Uy(20.0);
         assert_eq!(uy.dof(), Dof::Uy);
-        assert_eq!(format!("{}", uy), "Uy(0) = 10.0, Uy(1) = 20.0");
+        assert_eq!(format!("{}", uy), "Uy = 20.0");
 
-        let uz = Ebc::Uz(|t| 10.0 + 10.0 * t);
+        let uz = Ebc::Uz(20.0);
         assert_eq!(uz.dof(), Dof::Uz);
-        assert_eq!(format!("{}", uz), "Uz(0) = 10.0, Uz(1) = 20.0");
+        assert_eq!(format!("{}", uz), "Uz = 20.0");
 
-        let rx = Ebc::Rx(|t| 10.0 + 10.0 * t);
+        let rx = Ebc::Rx(20.0);
         assert_eq!(rx.dof(), Dof::Rx);
-        assert_eq!(format!("{}", rx), "Rx(0) = 10.0, Rx(1) = 20.0");
+        assert_eq!(format!("{}", rx), "Rx = 20.0");
 
-        let ry = Ebc::Ry(|t| 10.0 + 10.0 * t);
+        let ry = Ebc::Ry(20.0);
         assert_eq!(ry.dof(), Dof::Ry);
-        assert_eq!(format!("{}", ry), "Ry(0) = 10.0, Ry(1) = 20.0");
+        assert_eq!(format!("{}", ry), "Ry = 20.0");
 
-        let rz = Ebc::Rz(|t| 10.0 + 10.0 * t);
+        let rz = Ebc::Rz(20.0);
         assert_eq!(rz.dof(), Dof::Rz);
-        assert_eq!(format!("{}", rz), "Rz(0) = 10.0, Rz(1) = 20.0");
+        assert_eq!(format!("{}", rz), "Rz = 20.0");
 
-        let pl = Ebc::Pl(|t| 10.0 + 10.0 * t);
+        let pl = Ebc::Pl(20.0);
         assert_eq!(pl.dof(), Dof::Pl);
-        assert_eq!(format!("{}", pl), "Pl(0) = 10.0, Pl(1) = 20.0");
+        assert_eq!(format!("{}", pl), "Pl = 20.0");
 
-        let pg = Ebc::Pg(|t| 10.0 + 10.0 * t);
+        let pg = Ebc::Pg(20.0);
         assert_eq!(pg.dof(), Dof::Pg);
-        assert_eq!(format!("{}", pg), "Pg(0) = 10.0, Pg(1) = 20.0");
+        assert_eq!(format!("{}", pg), "Pg = 20.0");
 
-        let tt = Ebc::T(|t| 10.0 + 10.0 * t);
+        let tt = Ebc::T(20.0);
         assert_eq!(tt.dof(), Dof::T);
-        assert_eq!(format!("{}", tt), "T(0) = 10.0, T(1) = 20.0");
+        assert_eq!(format!("{}", tt), "T = 20.0");
     }
 
     #[test]
     fn nbc_methods_work() {
-        let qn = Nbc::Qn(|_| -10.0);
+        let qn = Nbc::Qn(-10.0);
         assert_eq!(
             qn.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
         assert_eq!(qn.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qn), "Qn(0) = -10.0, Qn(1) = -10.0");
+        assert_eq!(format!("{}", qn), "Qn = -10.0");
 
-        let qx = Nbc::Qx(|_| -10.0);
+        let qx = Nbc::Qx(-10.0);
         assert_eq!(
             qx.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
         assert_eq!(qx.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qx), "Qx(0) = -10.0, Qx(1) = -10.0");
+        assert_eq!(format!("{}", qx), "Qx = -10.0");
 
-        let qy = Nbc::Qy(|_| -10.0);
+        let qy = Nbc::Qy(-10.0);
         assert_eq!(
             qy.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
         assert_eq!(qy.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qy), "Qy(0) = -10.0, Qy(1) = -10.0");
+        assert_eq!(format!("{}", qy), "Qy = -10.0");
 
-        let qn = Nbc::Qn(|_| -10.0);
+        let qn = Nbc::Qn(-10.0);
         assert_eq!(
             qn.dof_equation_pairs(3, 2),
             vec![
@@ -470,9 +467,9 @@ mod tests {
             ]
         );
         assert_eq!(qn.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qn), "Qn(0) = -10.0, Qn(1) = -10.0");
+        assert_eq!(format!("{}", qn), "Qn = -10.0");
 
-        let qx = Nbc::Qx(|_| -10.0);
+        let qx = Nbc::Qx(-10.0);
         assert_eq!(
             qx.dof_equation_pairs(3, 2),
             vec![
@@ -481,9 +478,9 @@ mod tests {
             ]
         );
         assert_eq!(qx.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qx), "Qx(0) = -10.0, Qx(1) = -10.0");
+        assert_eq!(format!("{}", qx), "Qx = -10.0");
 
-        let qy = Nbc::Qy(|_| -10.0);
+        let qy = Nbc::Qy(-10.0);
         assert_eq!(
             qy.dof_equation_pairs(3, 2),
             vec![
@@ -492,9 +489,9 @@ mod tests {
             ]
         );
         assert_eq!(qy.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qy), "Qy(0) = -10.0, Qy(1) = -10.0");
+        assert_eq!(format!("{}", qy), "Qy = -10.0");
 
-        let qz = Nbc::Qz(|_| -10.0);
+        let qz = Nbc::Qz(-10.0);
         assert_eq!(
             qz.dof_equation_pairs(3, 2),
             vec![
@@ -503,53 +500,53 @@ mod tests {
             ]
         );
         assert_eq!(qz.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qz), "Qz(0) = -10.0, Qz(1) = -10.0");
+        assert_eq!(format!("{}", qz), "Qz = -10.0");
 
-        let ql = Nbc::Ql(|_| -10.0);
+        let ql = Nbc::Ql(-10.0);
         assert_eq!(
             ql.dof_equation_pairs(2, 3),
             &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]
         );
         assert_eq!(ql.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", ql), "Ql(0) = -10.0, Ql(1) = -10.0");
+        assert_eq!(format!("{}", ql), "Ql = -10.0");
 
-        let qt = Nbc::Qt(|_| -10.0);
+        let qt = Nbc::Qt(-10.0);
         assert_eq!(
             qt.dof_equation_pairs(2, 3),
             &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]
         );
         assert_eq!(qt.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qt), "Qt(0) = -10.0, Qt(1) = -10.0");
+        assert_eq!(format!("{}", qt), "Qt = -10.0");
 
-        let qg = Nbc::Qg(|_| -10.0);
+        let qg = Nbc::Qg(-10.0);
         assert_eq!(
             qg.dof_equation_pairs(2, 3),
             &[[(Dof::Pg, 0)], [(Dof::Pg, 1)], [(Dof::Pg, 2)]]
         );
         assert_eq!(qg.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qg), "Qg(0) = -10.0, Qg(1) = -10.0");
+        assert_eq!(format!("{}", qg), "Qg = -10.0");
 
-        let cv = Nbc::Cv(0.5, |_| 25.0);
+        let cv = Nbc::Cv(0.5, 25.0);
         assert_eq!(
             cv.dof_equation_pairs(2, 3),
             &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]
         );
         assert_eq!(cv.contributes_to_jacobian_matrix(), true);
-        assert_eq!(format!("{}", cv), "cc = 0.5, T(0) = 25.0, T(1) = 25.0");
+        assert_eq!(format!("{}", cv), "cc = 0.5, T_env = 25.0");
     }
 
     #[test]
     fn pbc_methods_work() {
-        let fx = Pbc::Fx(|_| -1.0);
+        let fx = Pbc::Fx(-1.0);
         assert_eq!(fx.dof(), Dof::Ux);
-        assert_eq!(format!("{}", fx), "Fx(0) = -1.0, Fx(1) = -1.0");
+        assert_eq!(format!("{}", fx), "Fx = -1.0");
 
-        let fy = Pbc::Fy(|_| -1.0);
+        let fy = Pbc::Fy(-1.0);
         assert_eq!(fy.dof(), Dof::Uy);
-        assert_eq!(format!("{}", fy), "Fy(0) = -1.0, Fy(1) = -1.0");
+        assert_eq!(format!("{}", fy), "Fy = -1.0");
 
-        let fz = Pbc::Fz(|_| -1.0);
+        let fz = Pbc::Fz(-1.0);
         assert_eq!(fz.dof(), Dof::Uz);
-        assert_eq!(format!("{}", fz), "Fz(0) = -1.0, Fz(1) = -1.0");
+        assert_eq!(format!("{}", fz), "Fz = -1.0");
     }
 }

@@ -107,7 +107,7 @@ impl<'a> Boundary<'a> {
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
         match self.nbc {
-            Nbc::Qn(f) => integ::vec_02_nv_bry(res, &mut args, |v, _, un, _| {
+            Nbc::Qn(qn) => integ::vec_02_nv_bry(res, &mut args, |v, _, un, _| {
                 // note the negative sign
                 //                 ↓
                 // →    ⌠              ⌠    →
@@ -117,44 +117,44 @@ impl<'a> Boundary<'a> {
                 //                \_____________/
                 //                we compute this
                 for i in 0..ndim {
-                    v[i] = -f(state.t) * un[i];
+                    v[i] = -qn * un[i];
                 }
                 Ok(())
             }),
-            Nbc::Qx(f) => integ::vec_02_nv(res, &mut args, |v, _, _| {
+            Nbc::Qx(qx) => integ::vec_02_nv(res, &mut args, |v, _, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[0] = -f(state.t);
+                v[0] = -qx;
                 Ok(())
             }),
-            Nbc::Qy(f) => integ::vec_02_nv(res, &mut args, |v, _, _| {
+            Nbc::Qy(qy) => integ::vec_02_nv(res, &mut args, |v, _, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[1] = -f(state.t);
+                v[1] = -qy;
                 Ok(())
             }),
-            Nbc::Qz(f) => integ::vec_02_nv(res, &mut args, |v, _, _| {
+            Nbc::Qz(qz) => integ::vec_02_nv(res, &mut args, |v, _, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[2] = -f(state.t);
+                v[2] = -qz;
                 Ok(())
             }),
-            Nbc::Ql(f) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-f(state.t))),
-            Nbc::Qg(f) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-f(state.t))),
-            Nbc::Qt(f) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-f(state.t))),
+            Nbc::Ql(ql) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-ql)),
+            Nbc::Qg(qg) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-qg)),
+            Nbc::Qt(qt) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-qt)),
             Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, &mut args, |_, nn| {
                 // interpolate T from nodes to integration point
                 let mut tt = 0.0;
                 for m in 0..nnode {
                     tt += nn[m] * state.uu[self.local_to_global[m]];
                 }
-                Ok(cc * (tt - tt_env(state.t)))
+                Ok(cc * (tt - tt_env))
             }),
         }
     }
@@ -261,15 +261,13 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let minus_ten = |_| -10.0;
-        assert_eq!(minus_ten(0.0), -10.0);
 
         assert_eq!(
-            Boundary::new(&input, &config, edge.kind, &edge.points, Nbc::Qn(minus_ten)).err(),
+            Boundary::new(&input, &config, edge.kind, &edge.points, Nbc::Qn(-10.0)).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
         assert_eq!(
-            Boundary::new(&input, &config, edge.kind, &edge.points, Nbc::Qz(minus_ten)).err(),
+            Boundary::new(&input, &config, edge.kind, &edge.points, Nbc::Qz(-10.0)).err(),
             None
         ); // Qz is OK
         let face = Face {
@@ -277,12 +275,12 @@ mod tests {
             points: vec![4, 5, 6, 7],
         };
         assert_eq!(
-            Boundary::new(&input, &config, face.kind, &face.points, Nbc::Ql(minus_ten)).err(), // << flux
+            Boundary::new(&input, &config, face.kind, &face.points, Nbc::Ql(-10.0)).err(), // << flux
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
 
         let mut natural = Natural::new();
-        natural.edge(&edge, Nbc::Qn(minus_ten));
+        natural.edge(&edge, Nbc::Qn(-10.0));
         assert_eq!(
             Boundaries::new(&input, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
@@ -304,66 +302,64 @@ mod tests {
         let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 25.0;
-        let fq = |_| Q;
-        assert_eq!(fq(0.0), Q);
 
         // Qn
 
-        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qn(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, left.kind, &left.points, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, left.kind, &left.points, Nbc::Qn(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, right.kind, &right.points, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, right.kind, &right.points, Nbc::Qn(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qn(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qn(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
         // Qx
 
-        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qx(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, left.kind, &left.points, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, left.kind, &left.points, Nbc::Qx(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, right.kind, &right.points, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, right.kind, &right.points, Nbc::Qx(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qx(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qx(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
         // Qy
 
-        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qy(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, left.kind, &left.points, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, left.kind, &left.points, Nbc::Qy(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, right.kind, &right.points, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, right.kind, &right.points, Nbc::Qy(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qy(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qy(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
@@ -377,7 +373,7 @@ mod tests {
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
-        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qz(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qz(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, 0.0, -Q / 2.0, 0.0, 0.0, -Q / 2.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
@@ -395,15 +391,13 @@ mod tests {
         let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = -10.0;
-        let fq = |_| Q;
-        assert_eq!(fq(0.0), Q);
 
-        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Ql(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Ql(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, -Q / 6.0, 2.0 * -Q / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qg(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, top.kind, &top.points, Nbc::Qg(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
     }
@@ -422,21 +416,16 @@ mod tests {
         let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 10.0;
-        let fq = |_| Q;
-        assert_eq!(fq(0.0), Q);
 
         // flux: not present in Bhatti's example but we can check the flux BC here
         const L: f64 = 0.3;
-        let mut bry = Boundary::new(&input, &config, edge.kind, &edge.points, Nbc::Qt(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, edge.kind, &edge.points, Nbc::Qt(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 2.0, -Q * L / 2.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let ft = |_| 20.0;
-        assert_eq!(ft(0.0), 20.0);
-
         // convection BC
-        let mut bry = Boundary::new(&input, &config, edge.kind, &edge.points, Nbc::Cv(27.0, ft)).unwrap();
+        let mut bry = Boundary::new(&input, &config, edge.kind, &edge.points, Nbc::Cv(27.0, 20.0)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, &[-81.0, -81.0], 1e-15);
         bry.calc_jacobian(&state).unwrap();
@@ -466,20 +455,15 @@ mod tests {
         let state = FemState::new(&input, &config).unwrap();
 
         const Q: f64 = 5e6;
-        let fq = |_| Q;
-        assert_eq!(fq(0.0), Q);
 
         const L: f64 = 0.03;
-        let mut bry = Boundary::new(&input, &config, edge_flux.kind, &edge_flux.points, Nbc::Qt(fq)).unwrap();
+        let mut bry = Boundary::new(&input, &config, edge_flux.kind, &edge_flux.points, Nbc::Qt(Q)).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 6.0, -Q * L / 6.0, 2.0 * -Q * L / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-10);
 
-        let ft = |_| 20.0;
-        assert_eq!(ft(0.0), 20.0);
-
         // convection BC
-        let mut bry = Boundary::new(&input, &config, edge_conv.kind, &edge_conv.points, Nbc::Cv(55.0, ft)).unwrap();
+        let mut bry = Boundary::new(&input, &config, edge_conv.kind, &edge_conv.points, Nbc::Cv(55.0, 20.0)).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, &[-5.5, -5.5, -22.0], 1e-14);
         bry.calc_jacobian(&state).unwrap();
@@ -506,10 +490,7 @@ mod tests {
             points: vec![0, 2],
         };
 
-        let ft = |_| 20.0;
-        assert_eq!(ft(0.0), 20.0);
-
-        natural.edge(&edge, Nbc::Cv(40.0, ft));
+        natural.edge(&edge, Nbc::Cv(40.0, 20.0));
         let mut elements = Boundaries::new(&input, &config, &natural).unwrap();
         let state = FemState::new(&input, &config).unwrap();
         elements.calc_residuals(&state).unwrap();

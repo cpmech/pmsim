@@ -50,9 +50,9 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .points(&[0], Ebc::Ux(|_| 0.0))
-        .points(&[0, 1], Ebc::Uy(|_| 0.0))
-        .points(&[2, 3], Ebc::Uy(|_| STRAIN_Y));
+        .points(&[0], Ebc::Ux(0.0))
+        .points(&[0, 1], Ebc::Uy(0.0))
+        .points(&[2, 3], Ebc::Uy(STRAIN_Y));
     let values = PrescribedValues::new(&input, &essential)?;
     let prescribed = &values.flags;
 
@@ -178,9 +178,9 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .points(&[0], Ebc::Ux(|_| 0.0))
-        .points(&[0, 1], Ebc::Uy(|_| 0.0))
-        .points(&[2, 3], Ebc::Uy(|_| STRAIN_Y));
+        .points(&[0], Ebc::Ux(0.0))
+        .points(&[0, 1], Ebc::Uy(0.0))
+        .points(&[2, 3], Ebc::Uy(STRAIN_Y));
     let values = PrescribedValues::new(&input, &essential)?;
     let prescribed = &values.flags;
 

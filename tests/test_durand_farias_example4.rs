@@ -42,13 +42,13 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .edges(&left, Ebc::Ux(|_| 0.0))
-        .edges(&right, Ebc::Ux(|_| 0.0))
-        .edges(&bottom, Ebc::Uy(|_| 0.0));
+        .edges(&left, Ebc::Ux(0.0))
+        .edges(&right, Ebc::Ux(0.0))
+        .edges(&bottom, Ebc::Uy(0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&footing, Nbc::Qn(|_| -QN));
+    natural.edges(&footing, Nbc::Qn(-QN));
 
     // configuration
     let mut config = Config::new(&mesh);

@@ -57,12 +57,11 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    let zero = |_| 0.0;
-    essential.points(&[0, 1], Ebc::Ux(zero)).points(&[0, 1], Ebc::Uy(zero));
+    essential.points(&[0, 1], Ebc::Ux(0.0)).points(&[0, 1], Ebc::Uy(0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&top, Nbc::Qn(|_| -20.0));
+    natural.edges(&top, Nbc::Qn(-20.0));
 
     // configuration
     let mut config = Config::new(&mesh);

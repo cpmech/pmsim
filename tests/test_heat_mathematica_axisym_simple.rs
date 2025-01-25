@@ -61,11 +61,11 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&right, Ebc::T(|_| 10.0));
+    essential.edges(&right, Ebc::T(10.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&left, Nbc::Qt(|_| 100.0));
+    natural.edges(&left, Nbc::Qt(100.0));
 
     // configuration
     let mut config = Config::new(&mesh);

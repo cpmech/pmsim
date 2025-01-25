@@ -29,11 +29,11 @@ impl ConcentratedLoad {
     }
 
     /// Adds the concentrated load value at given time to the global residual
-    pub fn add_to_residual(&self, residual: &mut Vector, time: f64) {
+    pub fn add_to_residual(&self, residual: &mut Vector, _time: f64) {
         let value = match self.pbc {
-            Pbc::Fx(f) => f(time),
-            Pbc::Fy(f) => f(time),
-            Pbc::Fz(f) => f(time),
+            Pbc::Fx(fx) => fx,
+            Pbc::Fy(fy) => fy,
+            Pbc::Fz(fz) => fz,
         };
         // note the negative sign
         residual[self.eq] -= value;
@@ -71,15 +71,13 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
-        let minus_ten = |_| -10.0;
-        assert_eq!(minus_ten(0.0), -10.0);
         assert_eq!(
-            ConcentratedLoad::new(&input, 123, Pbc::Fy(minus_ten)).err(),
+            ConcentratedLoad::new(&input, 123, Pbc::Fy(-10.0)).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
 
         let mut natural = Natural::new();
-        natural.points(&[100], Pbc::Fx(minus_ten));
+        natural.points(&[100], Pbc::Fx(-10.0));
         assert_eq!(
             ConcentratedLoads::new(&input, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
@@ -92,11 +90,9 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let mut natural = Natural::new();
-        let f = |_| -20.0;
-        assert_eq!(f(0.0), -20.0);
-        natural.points(&[0], Pbc::Fx(f));
-        natural.points(&[1], Pbc::Fy(f));
-        natural.points(&[2], Pbc::Fz(f));
+        natural.points(&[0], Pbc::Fx(-20.0));
+        natural.points(&[1], Pbc::Fy(-20.0));
+        natural.points(&[2], Pbc::Fz(-20.0));
         let b_points = ConcentratedLoads::new(&input, &natural).unwrap();
         let mut residual = Vector::new(4 * 3);
         b_points.add_to_residual(&mut residual, 0.0);

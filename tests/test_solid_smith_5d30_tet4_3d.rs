@@ -53,18 +53,17 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
 
     // essential boundary conditions
-    let zero = |_| 0.0;
     let mut essential = Essential::new();
     essential
-        .faces(&faces_x_min, Ebc::Ux(zero))
-        .faces(&faces_y_min, Ebc::Uy(zero))
-        .faces(&bottom, Ebc::Uz(zero));
+        .faces(&faces_x_min, Ebc::Ux(0.0))
+        .faces(&faces_y_min, Ebc::Uy(0.0))
+        .faces(&bottom, Ebc::Uz(0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .points(&[0, 5], Pbc::Fz(|_| -0.1667))
-        .points(&[1, 4], Pbc::Fz(|_| -0.3333));
+        .points(&[0, 5], Pbc::Fz(-0.1667))
+        .points(&[1, 4], Pbc::Fz(-0.3333));
 
     // configuration
     let config = Config::new(&mesh);

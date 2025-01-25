@@ -71,10 +71,10 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .edges(&left, Ebc::Ux(|_| 0.0))
-        .edges(&right, Ebc::Ux(|_| 0.0))
-        .edges(&bottom, Ebc::Uy(|_| 0.0))
-        .edges(&footing, Ebc::Uy(|t: f64| UY[t as usize]));
+        .edges(&left, Ebc::Ux(0.0))
+        .edges(&right, Ebc::Ux(0.0))
+        .edges(&bottom, Ebc::Uy(0.0))
+        .edges(&footing, Ebc::Uy(1.0)); // multiplier = |t: f64| UY[t as usize];
 
     // natural boundary conditions
     let natural = Natural::new();

@@ -101,22 +101,22 @@ mod tests {
             points: vec![3, 4, 5],
         };
         essential
-            .point(0, Ebc::Ux(|_| 0.0))
-            .point(0, Ebc::Uy(|_| 0.0))
-            .edge(&edge, Ebc::Pl(|t| t))
-            .face(&face, Ebc::T(|t| t / 2.0));
+            .point(0, Ebc::Ux(0.0))
+            .point(0, Ebc::Uy(0.0))
+            .edge(&edge, Ebc::Pl(1.0))
+            .face(&face, Ebc::T(2.0));
         print!("{}", essential);
         assert_eq!(
             format!("{}", essential),
             "Essential boundary conditions\n\
              =============================\n\
-             0 : Ux(0) = 0.0, Ux(1) = 0.0\n\
-             0 : Uy(0) = 0.0, Uy(1) = 0.0\n\
-             1 : Pl(0) = 0.0, Pl(1) = 1.0\n\
-             2 : Pl(0) = 0.0, Pl(1) = 1.0\n\
-             3 : T(0) = 0.0, T(1) = 0.5\n\
-             4 : T(0) = 0.0, T(1) = 0.5\n\
-             5 : T(0) = 0.0, T(1) = 0.5\n"
+             0 : Ux = 0.0\n\
+             0 : Uy = 0.0\n\
+             1 : Pl = 1.0\n\
+             2 : Pl = 1.0\n\
+             3 : T = 2.0\n\
+             4 : T = 2.0\n\
+             5 : T = 2.0\n"
         );
     }
 
@@ -134,22 +134,22 @@ mod tests {
         let faces = Faces { all: vec![&face] };
         let edges = Edges { all: vec![&edge] };
         essential
-            .points(&[0], Ebc::Ux(|_| 0.0))
-            .points(&[0], Ebc::Uy(|_| 0.0))
-            .edges(&edges, Ebc::Pl(|t| t))
-            .faces(&faces, Ebc::T(|t| t / 2.0));
+            .points(&[0], Ebc::Ux(0.0))
+            .points(&[0], Ebc::Uy(0.0))
+            .edges(&edges, Ebc::Pl(1.0))
+            .faces(&faces, Ebc::T(2.0));
         print!("{}", essential);
         assert_eq!(
             format!("{}", essential),
             "Essential boundary conditions\n\
              =============================\n\
-             0 : Ux(0) = 0.0, Ux(1) = 0.0\n\
-             0 : Uy(0) = 0.0, Uy(1) = 0.0\n\
-             1 : Pl(0) = 0.0, Pl(1) = 1.0\n\
-             2 : Pl(0) = 0.0, Pl(1) = 1.0\n\
-             3 : T(0) = 0.0, T(1) = 0.5\n\
-             4 : T(0) = 0.0, T(1) = 0.5\n\
-             5 : T(0) = 0.0, T(1) = 0.5\n"
+             0 : Ux = 0.0\n\
+             0 : Uy = 0.0\n\
+             1 : Pl = 1.0\n\
+             2 : Pl = 1.0\n\
+             3 : T = 2.0\n\
+             4 : T = 2.0\n\
+             5 : T = 2.0\n"
         );
     }
 }

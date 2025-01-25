@@ -63,18 +63,17 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let input = FemInput::new(&mesh, [(1, Etype::Solid(p1)), (2, Etype::Solid(p2))])?;
 
     // essential boundary conditions
-    let zero = |_| 0.0;
     let mut essential = Essential::new();
     essential
-        .faces(&faces_x_min, Ebc::Ux(zero))
-        .faces(&faces_y_min, Ebc::Uy(zero))
-        .faces(&bottom, Ebc::Ux(zero))
-        .faces(&bottom, Ebc::Uy(zero))
-        .faces(&bottom, Ebc::Uz(zero));
+        .faces(&faces_x_min, Ebc::Ux(0.0))
+        .faces(&faces_y_min, Ebc::Uy(0.0))
+        .faces(&bottom, Ebc::Ux(0.0))
+        .faces(&bottom, Ebc::Uy(0.0))
+        .faces(&bottom, Ebc::Uz(0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.faces(&top, Nbc::Qn(|_| -1.0));
+    natural.faces(&top, Nbc::Qn(-1.0));
 
     // configuration
     let mut config = Config::new(&mesh);

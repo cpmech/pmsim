@@ -74,14 +74,14 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential.
-        edges(&left,   Ebc::Ux(|_| 0.0)). // left
-        edges(&bottom, Ebc::Uy(|_| 0.0)). // bottom
-        edges(&top,    Ebc::Uy(|t| {      // top
-            let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-            // println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
-            -delta_y * t
-        }),
-    );
+        edges(&left,   Ebc::Ux( 0.0)). // left
+        edges(&bottom, Ebc::Uy( 0.0)). // bottom
+        edges(&top,    Ebc::Uy(1.0)); // top
+
+    // multiplier = |t| {
+    // let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+    // println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
+    // -delta_y * t
 
     // natural boundary conditions
     let natural = Natural::new();

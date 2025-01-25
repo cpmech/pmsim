@@ -158,14 +158,12 @@ mod tests {
 
         let mut essential = Essential::new();
         let mut natural = Natural::new();
-        let f = |_| 123.0;
-        assert_eq!(f(0.0), 123.0);
-        essential.points(&[0, 4], Ebc::T(f));
+        essential.points(&[0, 4], Ebc::T(123.0));
         let edge_conv = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
         };
-        natural.edge(&edge_conv, Nbc::Cv(55.0, f));
+        natural.edge(&edge_conv, Nbc::Cv(55.0, 123.0));
         let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
 
         let n_equation_global = mesh.points.len() * 1; // 1 DOF per node

@@ -62,11 +62,11 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .edges(&left, Ebc::Ux(|_| 0.0))
-        .edges(&right, Ebc::Ux(|_| 0.0))
-        .edges(&bottom, Ebc::Ux(|_| 0.0))
-        .edges(&bottom, Ebc::Uy(|_| 0.0))
-        .edges(&footing, Ebc::Uy(|_| -1e-5));
+        .edges(&left, Ebc::Ux(0.0))
+        .edges(&right, Ebc::Ux(0.0))
+        .edges(&bottom, Ebc::Ux(0.0))
+        .edges(&bottom, Ebc::Uy(0.0))
+        .edges(&footing, Ebc::Uy(-1e-5));
 
     // natural boundary conditions
     let natural = Natural::new();

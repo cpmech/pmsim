@@ -63,16 +63,16 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&bottom, Ebc::T(|_| 110.0));
+    essential.edges(&bottom, Ebc::T(110.0));
     println!("\n{}", essential);
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .edges(&edges_flux, Nbc::Qt(|_| 8000.0))
-        .edges(&edges_conv_a, Nbc::Cv(55.0, |_| 20.0))
-        .edges(&edges_conv_b, Nbc::Cv(55.0, |_| 20.0))
-        .edges(&edges_conv_c, Nbc::Cv(55.0, |_| 20.0));
+        .edges(&edges_flux, Nbc::Qt(8000.0))
+        .edges(&edges_conv_a, Nbc::Cv(55.0, 20.0))
+        .edges(&edges_conv_b, Nbc::Cv(55.0, 20.0))
+        .edges(&edges_conv_c, Nbc::Cv(55.0, 20.0));
     println!("{}", natural);
 
     // configuration
@@ -264,15 +264,15 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&bottom, Ebc::T(|_| 110.0));
+    essential.edges(&bottom, Ebc::T(110.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .edges(&edges_flux, Nbc::Qt(|_| 8000.0))
-        .edges(&edges_conv_a, Nbc::Cv(55.0, |_| 20.0))
-        .edges(&edges_conv_b, Nbc::Cv(55.0, |_| 20.0))
-        .edges(&edges_conv_c, Nbc::Cv(55.0, |_| 20.0));
+        .edges(&edges_flux, Nbc::Qt(8000.0))
+        .edges(&edges_conv_a, Nbc::Cv(55.0, 20.0))
+        .edges(&edges_conv_b, Nbc::Cv(55.0, 20.0))
+        .edges(&edges_conv_c, Nbc::Cv(55.0, 20.0));
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;

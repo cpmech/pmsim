@@ -64,11 +64,11 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&bottom, Ebc::Uy(|_| 0.0)).edges(&top, Ebc::Uy(|_| 0.0));
+    essential.edges(&bottom, Ebc::Uy(0.0)).edges(&top, Ebc::Uy(0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&left, Nbc::Qn(|_| -PRESSURE));
+    natural.edges(&left, Nbc::Qn(-PRESSURE));
 
     // configuration
     let mut config = Config::new(&mesh);

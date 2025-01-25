@@ -46,17 +46,17 @@ impl<'a> PrescribedValue<'a> {
     }
 
     /// Sets prescribed value in the solution vector
-    pub fn set_value(&self, duu: &mut Vector, uu: &mut Vector, time: f64) {
+    pub fn set_value(&self, duu: &mut Vector, uu: &mut Vector, _time: f64) {
         let value = match self.ebc {
-            Ebc::Ux(f) => f(time),
-            Ebc::Uy(f) => f(time),
-            Ebc::Uz(f) => f(time),
-            Ebc::Rx(f) => f(time),
-            Ebc::Ry(f) => f(time),
-            Ebc::Rz(f) => f(time),
-            Ebc::T(f) => f(time),
-            Ebc::Pl(f) => f(time),
-            Ebc::Pg(f) => f(time),
+            Ebc::Ux(v) => v,
+            Ebc::Uy(v) => v,
+            Ebc::Uz(v) => v,
+            Ebc::Rx(v) => v,
+            Ebc::Ry(v) => v,
+            Ebc::Rz(v) => v,
+            Ebc::T(v) => v,
+            Ebc::Pl(v) => v,
+            Ebc::Pg(v) => v,
         };
         duu[self.eq] = value - uu[self.eq];
         uu[self.eq] = value;
@@ -101,25 +101,23 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
-        let f = |_| 123.0;
-        assert_eq!(f(0.0), 123.0);
         assert_eq!(
-            PrescribedValue::new(&input, 123, Ebc::Ux(f)).err(),
+            PrescribedValue::new(&input, 123, Ebc::Ux(0.0)).err(),
             Some("cannot initialize prescribed value because PointId is out-of-bounds")
         );
         assert_eq!(
-            PrescribedValue::new(&input, 0, Ebc::T(f)).err(),
+            PrescribedValue::new(&input, 0, Ebc::T(0.0)).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
 
         let mut essential = Essential::new();
-        essential.points(&[100], Ebc::Ux(f));
+        essential.points(&[100], Ebc::Ux(0.0));
         assert_eq!(
             PrescribedValues::new(&input, &essential).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let mut essential = Essential::new();
-        essential.points(&[0], Ebc::T(f));
+        essential.points(&[0], Ebc::T(0.0));
         assert_eq!(
             PrescribedValues::new(&input, &essential).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
@@ -132,7 +130,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
-        essential.points(&[0], Ebc::T(|_| 110.0));
+        essential.points(&[0], Ebc::T(110.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         uu.fill(100.0);
@@ -159,12 +157,12 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Etype::Beam(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
-            .points(&[0], Ebc::Ux(|_| 1.0))
-            .points(&[0], Ebc::Uy(|_| 2.0))
-            .points(&[0], Ebc::Uz(|_| 3.0))
-            .points(&[0], Ebc::Rx(|_| 4.0))
-            .points(&[0], Ebc::Ry(|_| 5.0))
-            .points(&[0], Ebc::Rz(|_| 6.0));
+            .points(&[0], Ebc::Ux(1.0))
+            .points(&[0], Ebc::Uy(2.0))
+            .points(&[0], Ebc::Uz(3.0))
+            .points(&[0], Ebc::Rx(4.0))
+            .points(&[0], Ebc::Ry(5.0))
+            .points(&[0], Ebc::Rz(6.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         let values = PrescribedValues::new(&input, &essential).unwrap();
@@ -211,35 +209,35 @@ mod tests {
         .unwrap();
         let mut essential = Essential::new();
         essential
-            .points(&[0], Ebc::Ux(|_| 0.0))
-            .points(&[0], Ebc::Uy(|_| 1.0))
-            .points(&[0], Ebc::Pl(|_| 2.0))
-            .points(&[1], Ebc::Ux(|_| 3.0))
-            .points(&[1], Ebc::Uy(|_| 4.0))
-            .points(&[2], Ebc::Ux(|_| 5.0))
-            .points(&[2], Ebc::Uy(|_| 6.0))
-            .points(&[2], Ebc::Rz(|_| 7.0))
-            .points(&[2], Ebc::Pl(|_| 8.0))
-            .points(&[3], Ebc::Ux(|_| 9.0))
-            .points(&[3], Ebc::Uy(|_| 10.0))
-            .points(&[4], Ebc::Ux(|_| 11.0))
-            .points(&[4], Ebc::Uy(|_| 12.0))
-            .points(&[5], Ebc::Ux(|_| 13.0))
-            .points(&[5], Ebc::Uy(|_| 14.0))
-            .points(&[6], Ebc::Ux(|_| 15.0))
-            .points(&[6], Ebc::Uy(|_| 16.0))
-            .points(&[6], Ebc::Rz(|_| 17.0))
-            .points(&[6], Ebc::Pl(|_| 18.0))
-            .points(&[7], Ebc::Ux(|_| 19.0))
-            .points(&[7], Ebc::Uy(|_| 20.0))
-            .points(&[8], Ebc::Ux(|_| 21.0))
-            .points(&[8], Ebc::Uy(|_| 22.0))
-            .points(&[8], Ebc::Pl(|_| 23.0))
-            .points(&[9], Ebc::Ux(|_| 24.0))
-            .points(&[9], Ebc::Uy(|_| 25.0))
-            .points(&[10], Ebc::Ux(|_| 26.0))
-            .points(&[10], Ebc::Uy(|_| 27.0))
-            .points(&[10], Ebc::Rz(|_| 28.0));
+            .points(&[0], Ebc::Ux(0.0))
+            .points(&[0], Ebc::Uy(1.0))
+            .points(&[0], Ebc::Pl(2.0))
+            .points(&[1], Ebc::Ux(3.0))
+            .points(&[1], Ebc::Uy(4.0))
+            .points(&[2], Ebc::Ux(5.0))
+            .points(&[2], Ebc::Uy(6.0))
+            .points(&[2], Ebc::Rz(7.0))
+            .points(&[2], Ebc::Pl(8.0))
+            .points(&[3], Ebc::Ux(9.0))
+            .points(&[3], Ebc::Uy(10.0))
+            .points(&[4], Ebc::Ux(11.0))
+            .points(&[4], Ebc::Uy(12.0))
+            .points(&[5], Ebc::Ux(13.0))
+            .points(&[5], Ebc::Uy(14.0))
+            .points(&[6], Ebc::Ux(15.0))
+            .points(&[6], Ebc::Uy(16.0))
+            .points(&[6], Ebc::Rz(17.0))
+            .points(&[6], Ebc::Pl(18.0))
+            .points(&[7], Ebc::Ux(19.0))
+            .points(&[7], Ebc::Uy(20.0))
+            .points(&[8], Ebc::Ux(21.0))
+            .points(&[8], Ebc::Uy(22.0))
+            .points(&[8], Ebc::Pl(23.0))
+            .points(&[9], Ebc::Ux(24.0))
+            .points(&[9], Ebc::Uy(25.0))
+            .points(&[10], Ebc::Ux(26.0))
+            .points(&[10], Ebc::Uy(27.0))
+            .points(&[10], Ebc::Rz(28.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         let values = PrescribedValues::new(&input, &essential).unwrap();
@@ -269,18 +267,18 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Etype::PorousSldLiqGas(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
-            .points(&[0], Ebc::Ux(|_| 1.0))
-            .points(&[0], Ebc::Uy(|_| 2.0))
-            .points(&[0], Ebc::Pl(|_| 3.0))
-            .points(&[0], Ebc::Pg(|_| 4.0))
-            .points(&[1], Ebc::Ux(|_| 5.0))
-            .points(&[1], Ebc::Uy(|_| 6.0))
-            .points(&[1], Ebc::Pl(|_| 7.0))
-            .points(&[1], Ebc::Pg(|_| 8.0))
-            .points(&[2], Ebc::Ux(|_| 9.0))
-            .points(&[2], Ebc::Uy(|_| 10.0))
-            .points(&[2], Ebc::Pl(|_| 11.0))
-            .points(&[2], Ebc::Pg(|_| 12.0));
+            .points(&[0], Ebc::Ux(1.0))
+            .points(&[0], Ebc::Uy(2.0))
+            .points(&[0], Ebc::Pl(3.0))
+            .points(&[0], Ebc::Pg(4.0))
+            .points(&[1], Ebc::Ux(5.0))
+            .points(&[1], Ebc::Uy(6.0))
+            .points(&[1], Ebc::Pl(7.0))
+            .points(&[1], Ebc::Pg(8.0))
+            .points(&[2], Ebc::Ux(9.0))
+            .points(&[2], Ebc::Uy(10.0))
+            .points(&[2], Ebc::Pl(11.0))
+            .points(&[2], Ebc::Pg(12.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         let values = PrescribedValues::new(&input, &essential).unwrap();
@@ -313,9 +311,7 @@ mod tests {
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
         let input = FemInput::new(&mesh, [(1, Etype::PorousLiq(p1))]).unwrap();
         let mut essential = Essential::new();
-        let zero = |_| 0.0;
-        assert_eq!(zero(1.0), 0.0);
-        essential.points(&[0, 4], Ebc::Pl(zero));
+        essential.points(&[0, 4], Ebc::Pl(0.0));
         let values = PrescribedValues::new(&input, &essential).unwrap();
         assert_eq!(values.flags, &[true, false, false, false, true]);
         let mut eqs = values.equations.clone();
@@ -336,9 +332,9 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
-            .points(&[0], Ebc::Ux(zero))
-            .points(&[0], Ebc::Uy(zero))
-            .points(&[1, 2], Ebc::Uy(zero));
+            .points(&[0], Ebc::Ux(0.0))
+            .points(&[0], Ebc::Uy(0.0))
+            .points(&[1, 2], Ebc::Uy(0.0));
         let values = PrescribedValues::new(&input, &essential).unwrap();
         assert_eq!(
             values.flags,

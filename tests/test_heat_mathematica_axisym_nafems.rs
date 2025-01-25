@@ -88,11 +88,11 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&edges_temp, Ebc::T(|_| 273.15));
+    essential.edges(&edges_temp, Ebc::T(273.15));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&edges_flux, Nbc::Qt(|_| 5e5));
+    natural.edges(&edges_flux, Nbc::Qt(5e5));
 
     // configuration
     let mut config = Config::new(&mesh);

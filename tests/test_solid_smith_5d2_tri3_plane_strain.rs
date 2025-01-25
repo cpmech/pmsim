@@ -66,13 +66,11 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential
-        .edges(&left, Ebc::Ux(|_| 0.0))
-        .edges(&bottom, Ebc::Uy(|_| 0.0));
+    essential.edges(&left, Ebc::Ux(0.0)).edges(&bottom, Ebc::Uy(0.0));
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&top, Nbc::Qn(|_| -1.0));
+    natural.edges(&top, Nbc::Qn(-1.0));
 
     // configuration
     let config = Config::new(&mesh);
