@@ -17,7 +17,8 @@ const W: f64 = 15.0 * B; // width of the domain
 const H: f64 = 15.0 * B; // height of the domain
 const QN: f64 = 200.0; // magnitude of the distributed loading
 const E: f64 = 1000.0; // Young's modulus
-const NU: f64 = 0.25; // Poisson's coefficient
+const NU: f64 = 0.0; // Poisson's coefficient
+const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
 fn test_durand_farias_example4() -> Result<(), StrError> {
@@ -53,7 +54,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_ngauss(att, 4);
+    config.set_ngauss(att, NGAUSS);
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
@@ -71,13 +72,24 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     for edge in &left.all {
         let cells = features.get_cells_via_2d_edge(edge);
         let cell_id = cells[0]; // only one cell because the edge is on boundary
-        let ccs = post.gauss_coords(cell_id)?;
-        let syy = post.stress(cell_id, &state, 1, 1)?;
-        let ngauss = ccs.len();
+        let gcs = post.gauss_coords(cell_id)?;
+        let ngauss = gcs.len();
+        let mut p_min = 0;
+        let mut x_min = gcs[p_min][0];
         for p in 0..ngauss {
-            all_gauss_coord_x.push(ccs[p][0]);
-            all_gauss_coord_y.push(ccs[p][1]);
-            all_gauss_sigma_yy.push(syy[p]);
+            if gcs[p][0] < x_min {
+                p_min = p;
+                x_min = gcs[p][0];
+            }
+        }
+        println!("{}", x_min);
+        let syy = post.stress(cell_id, &state, 1, 1)?;
+        for p in 0..ngauss {
+            if f64::abs(gcs[p][0] - x_min) < 1e-3 {
+                all_gauss_coord_x.push(gcs[p][0]);
+                all_gauss_coord_y.push(gcs[p][1]);
+                all_gauss_sigma_yy.push(syy[p]);
+            }
         }
     }
 
@@ -102,19 +114,32 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let mut plot = Plot::new();
 
     let mut curve1 = Curve::new();
+    curve1
+        .set_label("analytical (semi-infinite domain)")
+        .set_line_style("--");
     let ll = linspace(0.0, 15.0, 101);
     let ss: Vec<_> = ll.iter().map(|l| -f_sigma_v(0.0, l * B) / QN).collect();
     curve1.draw(&ss, &ll);
 
     let mut curve1b = Curve::new();
-    curve1b.set_marker_style("o").set_line_style("None");
+    curve1b
+        .set_label("integration points")
+        .set_marker_style("o")
+        .set_marker_void(true)
+        .set_line_style("None");
     let ll_num: Vec<_> = all_gauss_coord_y.iter().map(|y| y / B).collect();
     let ss_num: Vec<_> = all_gauss_sigma_yy.iter().map(|sy| -sy / QN).collect();
     curve1b.draw(&ss_num, &ll_num);
 
+    plot.set_title("Durand and Farias Fig 15")
+        .add(&curve1)
+        .add(&curve1b)
+        .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
+
+    /*
     plot.set_gaps(0.25, 0.0)
         .set_subplot(1, 2, 1)
-        .set_title("Durand and Farias Fig 13")
+        .set_title("Durand and Farias Fig 15")
         .add(&curve1)
         .add(&curve1b)
         .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
@@ -130,10 +155,11 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         curve2.draw(&xx, &sv);
         plot.add(&curve2);
     }
-
     plot.grid_labels_legend("$x$", "$\\sigma_v$")
-        .set_figure_size_points(800.0, 300.0)
-        .save(&format!("{}/{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))?;
+        .set_figure_size_points(800.0, 300.0);
+    */
+
+    plot.save(&format!("{}/{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))?;
 
     Ok(())
 }
