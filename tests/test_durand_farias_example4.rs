@@ -3,10 +3,11 @@ use plotpy::{Curve, Plot};
 use pmsim::analytical::FlexibleFooting2d;
 use pmsim::prelude::*;
 use russell_lab::*;
+use std::collections::HashMap;
 
 const NAME: &str = "test_durand_farias_example4";
-const GENERATE_MESH: bool = true;
-const SAVE_FIGURE: bool = true;
+const GENERATE_MESH: bool = false;
+const SAVE_FIGURE: bool = false;
 
 // constants
 const B: f64 = 2.5; // half-width of the flexible footing
@@ -63,12 +64,14 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
 
     // results
     let mut post = PostProcessing::new(&input, &config);
-    let mut all_gauss_coord_x = Vec::new();
-    let mut all_gauss_coord_y = Vec::new();
-    let mut all_gauss_sigma_yy = Vec::new();
+    let mut gauss_x = Vec::new();
+    let mut gauss_y = Vec::new();
+    let mut gauss_syy = Vec::new();
+    let mut map_nodal_count = HashMap::new();
+    let mut map_nodal_syy = HashMap::new();
     for edge in &left.all {
-        let cells = features.get_cells_via_2d_edge(edge);
-        let cell_id = cells[0]; // only one cell because the edge is on boundary
+        let attached_cells = features.get_cells_via_2d_edge(edge);
+        let cell_id = attached_cells[0]; // only one cell because the edge is on boundary
         let gcs = post.gauss_coords(cell_id)?;
         let ngauss = gcs.len();
         let mut x_min = gcs[0][0];
@@ -80,11 +83,32 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         let syy = post.stress(cell_id, &state, 1, 1)?;
         for p in 0..ngauss {
             if f64::abs(gcs[p][0] - x_min) < 1e-3 {
-                all_gauss_coord_x.push(gcs[p][0]);
-                all_gauss_coord_y.push(gcs[p][1]);
-                all_gauss_sigma_yy.push(syy[p]);
+                gauss_x.push(gcs[p][0]);
+                gauss_y.push(gcs[p][1]);
+                gauss_syy.push(syy[p]);
             }
         }
+        let syy = post.stress_nodal(cell_id, &state, 1, 1)?;
+        let nnode = syy.dim();
+        for m in 0..nnode {
+            let nid = mesh.cells[cell_id].points[m];
+            if mesh.points[nid].coords[0] < 1e-3 {
+                map_nodal_count.entry(nid).and_modify(|v| *v += 1).or_insert(1_usize);
+                map_nodal_syy.entry(nid).and_modify(|v| *v += syy[m]).or_insert(syy[m]);
+            }
+        }
+    }
+    let mut nodal_x = Vec::new();
+    let mut nodal_y = Vec::new();
+    let mut nodal_syy = Vec::new();
+    for nid in map_nodal_syy.keys() {
+        let count = map_nodal_count.get(&nid).unwrap();
+        let correct = if *nid == 0 || *nid == 14 { 1 } else { 2 };
+        assert_eq!(*count, correct);
+        let syy = map_nodal_syy.get(nid).unwrap();
+        nodal_x.push(mesh.points[*nid].coords[0]);
+        nodal_y.push(mesh.points[*nid].coords[1]);
+        nodal_syy.push(*syy / (*count as f64));
     }
 
     // verification
@@ -96,6 +120,15 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         young: E,
         poisson: NU,
     };
+    for i in 0..nodal_x.len() {
+        let x = nodal_x[i];
+        let y = nodal_y[i];
+        let syy_num = nodal_syy[i];
+        let syy_ana = ana.stress(x, y).get(1, 1);
+        let rel_err = 100.0 * f64::abs(syy_num - syy_ana) / f64::abs(syy_ana);
+        // println!("{} =? {} => {}", syy_num, syy_ana, rel_err);
+        assert!(rel_err < 39.0); // yes, high percentage because the analytical solution is for an infinite medium
+    }
 
     // figure
     if SAVE_FIGURE {
@@ -107,19 +140,30 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         let (ss, ll) = ana.get_normalized_syy_along_center(101);
         curve_ana.draw(&ss, &ll);
 
-        let mut curve_num = Curve::new();
-        curve_num
+        let mut curve_gauss = Curve::new();
+        curve_gauss
             .set_label("integration points")
             .set_marker_style("o")
             .set_marker_void(true)
             .set_line_style("None");
-        let ll_num: Vec<_> = all_gauss_coord_y.iter().map(|y| y / B).collect();
-        let ss_num: Vec<_> = all_gauss_sigma_yy.iter().map(|sy| -sy / QN).collect();
-        curve_num.draw(&ss_num, &ll_num);
+        let ll: Vec<_> = gauss_y.iter().map(|y| y / B).collect();
+        let ss: Vec<_> = gauss_syy.iter().map(|sy| -sy / QN).collect();
+        curve_gauss.draw(&ss, &ll);
+
+        let mut curve_nodal = Curve::new();
+        curve_nodal
+            .set_label("nodal points (averaged)")
+            .set_marker_style("s")
+            .set_marker_size(5.0)
+            .set_line_style("None");
+        let ll: Vec<_> = nodal_y.iter().map(|y| y / B).collect();
+        let ss: Vec<_> = nodal_syy.iter().map(|sy| -sy / QN).collect();
+        curve_nodal.draw(&ss, &ll);
 
         plot.set_title("Durand and Farias Fig 15")
             .add(&curve_ana)
-            .add(&curve_num)
+            .add(&curve_gauss)
+            .add(&curve_nodal)
             .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
 
         plot.save(&format!("{}/{}_{}.svg", DEFAULT_TEST_DIR, NAME, kind.to_string()))?;

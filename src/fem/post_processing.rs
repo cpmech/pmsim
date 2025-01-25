@@ -73,7 +73,7 @@ impl<'a> PostProcessing<'a> {
     /// # Output
     ///
     /// Returns a vector (nnode) with the stress components `σij` at each node
-    pub fn sigma_nodal(&mut self, cell_id: CellId, state: &FemState, i: usize, j: usize) -> Result<Vector, StrError> {
+    pub fn stress_nodal(&mut self, cell_id: CellId, state: &FemState, i: usize, j: usize) -> Result<Vector, StrError> {
         let nnode = self.input.mesh.cells[cell_id].points.len();
         let sij_point = self.stress(cell_id, state, i, j)?;
         let mut sxx_nodal = Vector::new(nnode);
