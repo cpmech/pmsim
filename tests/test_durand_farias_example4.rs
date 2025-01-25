@@ -1,10 +1,7 @@
-#![allow(unused)]
-
 use gemlab::prelude::*;
-use gemlab::recovery::{get_interp_matrix, get_points_coords};
-use math::{sign, PI};
-use plotpy::{linspace, Curve, Plot};
-use pmsim::{base::SampleMeshes, prelude::*};
+use plotpy::{Curve, Plot};
+use pmsim::analytical::FlexibleFooting2d;
+use pmsim::prelude::*;
 use russell_lab::*;
 
 const NAME: &str = "test_durand_farias_example4";
@@ -74,15 +71,12 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         let cell_id = cells[0]; // only one cell because the edge is on boundary
         let gcs = post.gauss_coords(cell_id)?;
         let ngauss = gcs.len();
-        let mut p_min = 0;
-        let mut x_min = gcs[p_min][0];
+        let mut x_min = gcs[0][0];
         for p in 0..ngauss {
             if gcs[p][0] < x_min {
-                p_min = p;
                 x_min = gcs[p][0];
             }
         }
-        println!("{}", x_min);
         let syy = post.stress(cell_id, &state, 1, 1)?;
         for p in 0..ngauss {
             if f64::abs(gcs[p][0] - x_min) < 1e-3 {
@@ -94,73 +88,42 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     }
 
     // verification
-    let f_aux = |theta: f64| QN * (theta + 0.5 * f64::sin(2.0 * theta)) / PI;
-    let f_sigma_v = |x: f64, y: f64| {
-        assert!(x >= 0.0 && y >= 0.0 && y <= H);
-        let z = H - y;
-        let d1 = x - B;
-        let d2 = B + x;
-        let s = sign(d1);
-        let (theta_1, theta_2) = if z == 0.0 {
-            (s * PI / 2.0, PI / 2.0)
-        } else {
-            (s * f64::atan(f64::abs(d1) / z), f64::atan(d2 / z))
-        };
-        let sigma_v = f_aux(theta_1) - f_aux(theta_2); // compressive is negative
-        sigma_v
+    let ana = FlexibleFooting2d {
+        bb: B,
+        hh: H,
+        ww: W,
+        qn: QN,
+        young: E,
+        poisson: NU,
     };
 
-    let k_str = kind.to_string();
-    let mut plot = Plot::new();
+    // figure
+    if SAVE_FIGURE {
+        let mut plot = Plot::new();
+        let mut curve_ana = Curve::new();
+        curve_ana
+            .set_label("analytical (semi-infinite domain)")
+            .set_line_style("--");
+        let (ss, ll) = ana.get_normalized_syy_along_center(101);
+        curve_ana.draw(&ss, &ll);
 
-    let mut curve1 = Curve::new();
-    curve1
-        .set_label("analytical (semi-infinite domain)")
-        .set_line_style("--");
-    let ll = linspace(0.0, 15.0, 101);
-    let ss: Vec<_> = ll.iter().map(|l| -f_sigma_v(0.0, l * B) / QN).collect();
-    curve1.draw(&ss, &ll);
+        let mut curve_num = Curve::new();
+        curve_num
+            .set_label("integration points")
+            .set_marker_style("o")
+            .set_marker_void(true)
+            .set_line_style("None");
+        let ll_num: Vec<_> = all_gauss_coord_y.iter().map(|y| y / B).collect();
+        let ss_num: Vec<_> = all_gauss_sigma_yy.iter().map(|sy| -sy / QN).collect();
+        curve_num.draw(&ss_num, &ll_num);
 
-    let mut curve1b = Curve::new();
-    curve1b
-        .set_label("integration points")
-        .set_marker_style("o")
-        .set_marker_void(true)
-        .set_line_style("None");
-    let ll_num: Vec<_> = all_gauss_coord_y.iter().map(|y| y / B).collect();
-    let ss_num: Vec<_> = all_gauss_sigma_yy.iter().map(|sy| -sy / QN).collect();
-    curve1b.draw(&ss_num, &ll_num);
+        plot.set_title("Durand and Farias Fig 15")
+            .add(&curve_ana)
+            .add(&curve_num)
+            .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
 
-    plot.set_title("Durand and Farias Fig 15")
-        .add(&curve1)
-        .add(&curve1b)
-        .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
-
-    /*
-    plot.set_gaps(0.25, 0.0)
-        .set_subplot(1, 2, 1)
-        .set_title("Durand and Farias Fig 15")
-        .add(&curve1)
-        .add(&curve1b)
-        .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
-
-    plot.set_subplot(1, 2, 2)
-        .set_title("Stress near the surface with y = H - d");
-
-    let xx = linspace(0.0, 2.0 * B, 101);
-    for d in [0.0, 0.1, B / 2.0, B] {
-        let mut curve2 = Curve::new();
-        curve2.set_label(&format!("d = {}", d));
-        let sv: Vec<_> = xx.iter().map(|x| f_sigma_v(*x, H - d)).collect();
-        curve2.draw(&xx, &sv);
-        plot.add(&curve2);
+        plot.save(&format!("{}/{}_{}.svg", DEFAULT_TEST_DIR, NAME, kind.to_string()))?;
     }
-    plot.grid_labels_legend("$x$", "$\\sigma_v$")
-        .set_figure_size_points(800.0, 300.0);
-    */
-
-    plot.save(&format!("{}/{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))?;
-
     Ok(())
 }
 
