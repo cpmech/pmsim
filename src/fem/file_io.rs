@@ -75,7 +75,7 @@ impl FileIoSummary {
 }
 
 impl<'a> FileIo<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     ///
     /// # Input
     ///

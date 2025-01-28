@@ -46,7 +46,7 @@ impl<'a> BcPrescribed<'a> {
 }
 
 impl<'a> BcPrescribedArray<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     pub fn new(fem: &'a FemMesh, essential: &'a Essential) -> Result<Self, StrError> {
         let mut all = Vec::new();
         let mut flags = vec![false; fem.equations.n_equation];

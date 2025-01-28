@@ -45,7 +45,7 @@ pub struct BcDistributedArray<'a> {
 }
 
 impl<'a> BcDistributed<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     ///
     /// Note: `Qn` is not allowed for 3D edges
     pub fn new(

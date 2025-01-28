@@ -26,7 +26,7 @@ pub struct SolverImplicit<'a> {
 }
 
 impl<'a> SolverImplicit<'a> {
-    /// Allocate new instance
+    /// Allocates a new instance
     pub fn new(
         fem: &'a FemMesh,
         config: &'a Config,

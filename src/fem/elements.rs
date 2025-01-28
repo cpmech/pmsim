@@ -38,7 +38,7 @@ struct ArgsForNumericalJacobian<'a> {
 }
 
 impl<'a> GenericElement<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     pub fn new(fem: &'a FemMesh, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
         let element = fem.attributes.get(cell).unwrap(); // already checked
         let actual: Box<dyn ElementTrait> = match element {
@@ -102,7 +102,7 @@ impl<'a> GenericElement<'a> {
 }
 
 impl<'a> Elements<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     pub fn new(fem: &'a FemMesh, config: &'a Config) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = fem
             .mesh

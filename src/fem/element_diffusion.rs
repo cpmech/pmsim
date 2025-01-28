@@ -41,7 +41,7 @@ pub struct ElementDiffusion<'a> {
 }
 
 impl<'a> ElementDiffusion<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     pub fn new(
         fem: &'a FemMesh,
         config: &'a Config,

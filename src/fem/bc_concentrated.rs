@@ -36,7 +36,7 @@ impl<'a> BcConcentrated<'a> {
 }
 
 impl<'a> BcConcentratedArray<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     pub fn new(fem: &FemMesh, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.at_points.len() + 1);
         for (point_id, pbc, value, f_index) in &natural.at_points {

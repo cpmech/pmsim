@@ -39,7 +39,7 @@ pub struct LinearSystem<'a> {
 }
 
 impl<'a> LinearSystem<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     pub fn new(
         fem: &FemMesh,
         config: &Config,

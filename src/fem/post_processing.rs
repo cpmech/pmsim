@@ -29,7 +29,7 @@ pub struct PostProc<'a> {
 }
 
 impl<'a> PostProc<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     pub fn new(fem: &'a FemMesh, config: &'a Config) -> Self {
         PostProc {
             fem,

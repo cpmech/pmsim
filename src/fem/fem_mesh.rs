@@ -18,7 +18,7 @@ pub struct FemMesh<'a> {
 }
 
 impl<'a> FemMesh<'a> {
-    /// Allocate new instance
+    /// Allocates a new instance
     pub fn new<const N: usize>(mesh: &'a Mesh, arr: [(CellAttribute, Elem); N]) -> Result<Self, StrError> {
         let attributes = Attributes::from(arr);
         let information = ElementDofsMap::new(&mesh, &attributes)?;

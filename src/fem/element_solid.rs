@@ -44,7 +44,7 @@ pub struct ElementSolid<'a> {
 }
 
 impl<'a> ElementSolid<'a> {
-    /// Allocates new instance
+    /// Allocates a new instance
     pub fn new(fem: &'a FemMesh, config: &'a Config, cell: &'a Cell, param: &'a ParamSolid) -> Result<Self, StrError> {
         // local-to-global mapping
         let local_to_global = compute_local_to_global(&fem.information, &fem.equations, cell)?;
