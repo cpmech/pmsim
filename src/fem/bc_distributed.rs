@@ -26,6 +26,8 @@ pub struct BcDistributed<'a> {
     jacobian: Option<Matrix>,
 
     /// Local-to-global mapping
+    ///
+    /// (n_local_eq)
     local_to_global: Vec<usize>,
 
     /// Natural boundary condition
@@ -80,10 +82,10 @@ impl<'a> BcDistributed<'a> {
         // dofs
         let (ndim, nnode) = pad.xxt.dims();
         let dofs = nbc.dof_equation_pairs(ndim, nnode);
-        let n_equation_local = 1 + dofs.last().unwrap().last().unwrap().1;
+        let n_local_eq = 1 + dofs.last().unwrap().last().unwrap().1;
 
         // local_to_global
-        let mut local_to_global = vec![0; n_equation_local];
+        let mut local_to_global = vec![0; n_local_eq];
         for m in 0..nnode {
             for (dof, local) in &dofs[m] {
                 let global = fem.equations.eq(points[m], *dof)?;
@@ -96,9 +98,9 @@ impl<'a> BcDistributed<'a> {
             config,
             pad,
             gauss,
-            residual: Vector::new(n_equation_local),
+            residual: Vector::new(n_local_eq),
             jacobian: if nbc.contributes_to_jacobian_matrix() {
-                Some(Matrix::new(n_equation_local, n_equation_local))
+                Some(Matrix::new(n_local_eq, n_local_eq))
             } else {
                 None
             },
@@ -187,8 +189,8 @@ impl<'a> BcDistributed<'a> {
         }
     }
 
-    /// Returns the number of equations
-    pub fn number_of_equations(&self) -> usize {
+    /// Returns the number of local equations
+    pub fn n_local_eq(&self) -> usize {
         self.local_to_global.len()
     }
 

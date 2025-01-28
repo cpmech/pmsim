@@ -88,7 +88,7 @@ impl<'a> LinearSystem<'a> {
 
         // boundary data may have a Jacobian matrix (all must be symmetric to use symmetry)
         nnz_sup += boundaries.all.iter().fold(0, |acc, e| {
-            let n = e.number_of_equations();
+            let n = e.n_local_eq();
             if e.with_jacobian() {
                 if sym.triangular() {
                     acc + (n * n + n) / 2
