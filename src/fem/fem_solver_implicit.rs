@@ -53,7 +53,7 @@ impl<'a> FemSolverImplicit<'a> {
     }
 
     /// Solves the associated system of partial differential equations
-    pub fn solve(&mut self, state: &mut FemState, output: &mut FileIo) -> Result<(), StrError> {
+    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
         let prescribed = &self.bc_prescribed.flags;
@@ -79,7 +79,7 @@ impl<'a> FemSolverImplicit<'a> {
         self.elements.initialize_internal_values(state)?;
 
         // first output (must occur initialize_internal_values)
-        output.write(state)?;
+        file_io.write(state)?;
         let mut t_out = state.t + (config.dt_out)(state.t);
 
         // time loop
@@ -224,7 +224,7 @@ impl<'a> FemSolverImplicit<'a> {
             // perform output
             let last_timestep = timestep == config.n_max_time_steps - 1;
             if state.t >= t_out || last_timestep {
-                output.write(state)?;
+                file_io.write(state)?;
                 t_out += (config.dt_out)(state.t);
             }
 
@@ -235,7 +235,7 @@ impl<'a> FemSolverImplicit<'a> {
         }
 
         // write the summary file
-        output.write_summary()
+        file_io.write_summary()
     }
 }
 
@@ -327,9 +327,9 @@ mod tests {
         let natural = Natural::new();
         let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&fem, &config).unwrap();
-        let mut output = FileIo::new(&fem, None, None).unwrap();
+        let mut file_io = FileIo::new(&fem, None, None).unwrap();
         assert_eq!(
-            solver.solve(&mut state, &mut output).err(),
+            solver.solve(&mut state, &mut file_io).err(),
             Some("Δt is smaller than the allowed minimum")
         );
     }

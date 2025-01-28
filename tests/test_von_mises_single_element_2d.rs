@@ -94,12 +94,12 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
 
-    // FEM output
-    let mut output = FileIo::new(&fem, Some(NAME.to_string()), None)?;
+    // File IO
+    let mut file_io = FileIo::new(&fem, Some(NAME.to_string()), None)?;
 
     // solution
     let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // verify the results
     let tol_displacement = 1e-13;

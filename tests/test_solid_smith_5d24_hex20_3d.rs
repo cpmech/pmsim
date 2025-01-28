@@ -81,11 +81,13 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
-    let mut output = FileIo::new(&fem, None, None)?;
+
+    // File IO
+    let mut file_io = FileIo::new(&fem, None, None)?;
 
     // solution
     let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // check displacements
     #[rustfmt::skip]

@@ -229,13 +229,13 @@ fn main() -> Result<(), StrError> {
         // FEM state
         let mut state = FemState::new(&fem, &config)?;
 
-        // FEM output
-        let mut output = FileIo::new(&fem, None, None)?;
+        // File IO
+        let mut file_io = FileIo::new(&fem, None, None)?;
 
         // solution
         let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
-        solver.solve(&mut state, &mut output)?;
+        solver.solve(&mut state, &mut file_io)?;
         results.time[idx] = stopwatch.stop();
 
         // compute error

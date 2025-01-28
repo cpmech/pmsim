@@ -243,15 +243,15 @@ fn main() -> Result<(), StrError> {
         // FEM state
         let mut state = FemState::new(&fem, &config)?;
 
-        // FEM output
-        let mut output = FileIo::new(&fem, None, None)?;
+        // File IO
+        let mut file_io = FileIo::new(&fem, None, None)?;
 
         // println!("5. running simulation");
 
         // solution
         let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
-        match solver.solve(&mut state, &mut output) {
+        match solver.solve(&mut state, &mut file_io) {
             Err(e) => {
                 println!("{:?} failed with: {}", genie, e);
                 continue;
