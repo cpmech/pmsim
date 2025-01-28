@@ -9,7 +9,7 @@ use std::path::Path;
 
 /// Holds a summary of the generated files
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FemOutputSummary {
+pub struct FileIoSummary {
     /// Holds the indices of the output files
     pub indices: Vec<usize>,
 
@@ -20,8 +20,8 @@ pub struct FemOutputSummary {
     pub equations: Option<Equations>,
 }
 
-/// Assists in the post-processing of results
-pub struct FemOutput<'a> {
+/// Assists in generating output files
+pub struct FileIo<'a> {
     /// Holds the FEM mesh, attributes, and DOF numbers
     fem: &'a FemMesh<'a>,
 
@@ -35,10 +35,10 @@ pub struct FemOutput<'a> {
     output_count: usize,
 
     /// Holds the summary
-    summary: FemOutputSummary,
+    summary: FileIoSummary,
 }
 
-impl FemOutputSummary {
+impl FileIoSummary {
     /// Reads a JSON file containing the summary
     ///
     /// # Input
@@ -74,7 +74,7 @@ impl FemOutputSummary {
     }
 }
 
-impl<'a> FemOutput<'a> {
+impl<'a> FileIo<'a> {
     /// Allocates new instance
     ///
     /// # Input
@@ -102,12 +102,12 @@ impl<'a> FemOutput<'a> {
 
         // summary
         let summary = match &filename_stem {
-            Some(_) => FemOutputSummary {
+            Some(_) => FileIoSummary {
                 indices: Vec::new(),
                 times: Vec::new(),
                 equations: Some(fem.equations.clone()),
             },
-            None => FemOutputSummary {
+            None => FileIoSummary {
                 indices: Vec::new(),
                 times: Vec::new(),
                 equations: None,
@@ -115,7 +115,7 @@ impl<'a> FemOutput<'a> {
         };
 
         // output
-        Ok(FemOutput {
+        Ok(FileIo {
             fem,
             filename_stem,
             output_directory: out_dir.to_string(),
@@ -147,12 +147,12 @@ impl<'a> FemOutput<'a> {
         if let Some(fn_stem) = &self.filename_stem {
             // save the mesh
             if self.output_count == 0 {
-                let path = &FemOutput::path_mesh(&self.output_directory, fn_stem);
+                let path = &FileIo::path_mesh(&self.output_directory, fn_stem);
                 self.fem.mesh.write_json(&path)?;
             }
 
             // save the state
-            let path = FemOutput::path_state(&self.output_directory, fn_stem, self.output_count);
+            let path = FileIo::path_state(&self.output_directory, fn_stem, self.output_count);
             state.write_json(&path)?;
 
             // update summary
@@ -166,7 +166,7 @@ impl<'a> FemOutput<'a> {
     /// Writes the summary of generated files (at the end of the simulation)
     pub(crate) fn write_summary(&self) -> Result<(), StrError> {
         if let Some(fn_stem) = &self.filename_stem {
-            let path = FemOutput::path_summary(&self.output_directory, fn_stem);
+            let path = FileIo::path_summary(&self.output_directory, fn_stem);
             self.summary.write_json(&path)?;
         }
         Ok(())

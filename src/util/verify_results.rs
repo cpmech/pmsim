@@ -1,5 +1,5 @@
 use crate::base::DEFAULT_OUT_DIR;
-use crate::fem::{FemOutput, FemOutputSummary, FemState};
+use crate::fem::{FileIo, FemState, FileIoSummary};
 use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -40,7 +40,7 @@ pub fn verify_results(
     let reference = ReferenceDataSet::read_json(format!("data/results/{}", ref_filename).as_str())?;
 
     // compare results
-    let summary = FemOutputSummary::read_json(&FemOutput::path_summary(DEFAULT_OUT_DIR, name))?;
+    let summary = FileIoSummary::read_json(&FileIo::path_summary(DEFAULT_OUT_DIR, name))?;
     for step in &summary.indices {
         if *step >= reference.all.len() {
             return Err("the number of load steps must match the reference data");
@@ -56,7 +56,7 @@ pub fn verify_results(
         }
 
         // load state
-        let fem_state = FemState::read_json(&FemOutput::path_state(DEFAULT_OUT_DIR, name, *step))?;
+        let fem_state = FemState::read_json(&FileIo::path_state(DEFAULT_OUT_DIR, name, *step))?;
 
         if verbose {
             println!("\nSTEP # {} ===================================================", step);

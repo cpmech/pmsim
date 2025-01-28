@@ -91,7 +91,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
-    let mut output = FemOutput::new(&fem, None, None)?;
+    let mut output = FileIo::new(&fem, None, None)?;
 
     // solution
     let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;

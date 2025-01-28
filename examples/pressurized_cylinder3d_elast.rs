@@ -244,7 +244,7 @@ fn main() -> Result<(), StrError> {
         let mut state = FemState::new(&fem, &config)?;
 
         // FEM output
-        let mut output = FemOutput::new(&fem, None, None)?;
+        let mut output = FileIo::new(&fem, None, None)?;
 
         // println!("5. running simulation");
 

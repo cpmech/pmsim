@@ -1,7 +1,7 @@
 use gemlab::prelude::*;
 use pmsim::base::{Conductivity, Config, Dof, Elem, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{
-    BcDistributedArray, BcPrescribedArray, Elements, FemMesh, FemOutput, FemSolverImplicit, FemState, LinearSystem,
+    BcDistributedArray, BcPrescribedArray, Elements, FemMesh, FileIo, FemSolverImplicit, FemState, LinearSystem,
 };
 use russell_lab::*;
 
@@ -276,7 +276,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
-    let mut output = FemOutput::new(&fem, None, None)?;
+    let mut output = FileIo::new(&fem, None, None)?;
 
     // solution
     let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;

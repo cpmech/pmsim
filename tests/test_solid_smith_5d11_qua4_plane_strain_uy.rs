@@ -76,7 +76,7 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
-    let mut output = FemOutput::new(&fem, None, None)?;
+    let mut output = FileIo::new(&fem, None, None)?;
 
     // solution
     let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;

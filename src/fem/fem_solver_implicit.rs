@@ -1,5 +1,5 @@
 use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray};
-use super::{Elements, FemMesh, FemOutput, FemState, LinearSystem};
+use super::{Elements, FemMesh, FemState, FileIo, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
@@ -53,7 +53,7 @@ impl<'a> FemSolverImplicit<'a> {
     }
 
     /// Solves the associated system of partial differential equations
-    pub fn solve(&mut self, state: &mut FemState, output: &mut FemOutput) -> Result<(), StrError> {
+    pub fn solve(&mut self, state: &mut FemState, output: &mut FileIo) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
         let prescribed = &self.bc_prescribed.flags;
@@ -245,7 +245,7 @@ impl<'a> FemSolverImplicit<'a> {
 mod tests {
     use super::FemSolverImplicit;
     use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, Pbc};
-    use crate::fem::{FemMesh, FemOutput, FemState};
+    use crate::fem::{FemMesh, FemState, FileIo};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -327,7 +327,7 @@ mod tests {
         let natural = Natural::new();
         let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&fem, &config).unwrap();
-        let mut output = FemOutput::new(&fem, None, None).unwrap();
+        let mut output = FileIo::new(&fem, None, None).unwrap();
         assert_eq!(
             solver.solve(&mut state, &mut output).err(),
             Some("Δt is smaller than the allowed minimum")

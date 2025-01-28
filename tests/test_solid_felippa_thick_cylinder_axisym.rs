@@ -76,7 +76,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
-    let mut output = FemOutput::new(&fem, None, None)?;
+    let mut output = FileIo::new(&fem, None, None)?;
 
     // solution
     let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
