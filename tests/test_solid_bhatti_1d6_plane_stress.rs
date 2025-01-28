@@ -72,7 +72,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
-    let mut output = FemOutput::new(&fem, None, None, None)?;
+    let mut output = FemOutput::new(&fem, None, None)?;
 
     // check Jacobian matrix of first element
     elements.calc_jacobians(&state)?;

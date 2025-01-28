@@ -78,7 +78,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
-    let mut output = FemOutput::new(&fem, None, None, None)?;
+    let mut output = FemOutput::new(&fem, None, None)?;
 
     // solution
     let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
@@ -106,7 +106,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // plot
     if SAVE_FIGURE {
         // get temperature values along x
-        let post = FemOutput::new(&fem, None, None, None)?;
+        let post = FemOutput::new(&fem, None, None)?;
         let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::T, 0.0, any_x)?;
 
         // compute plot data

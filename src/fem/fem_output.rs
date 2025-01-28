@@ -35,9 +35,6 @@ pub struct FemOutput<'a> {
     /// Holds the count of files written
     output_count: usize,
 
-    /// Defines an auxiliary callback function
-    callback: Option<fn(&FemState, usize)>,
-
     /// Holds the summary
     summary: FemOutputSummary,
 }
@@ -88,14 +85,10 @@ impl<'a> FemOutput<'a> {
     ///   None means that no files will be written.
     /// * `output_directory` -- the directory to save the output files.
     ///   None means that the default directory will be used; see [DEFAULT_OUT_DIR]
-    /// * `callback` -- is a function to be called at each time-output.
-    ///   Example use `Some(|state, count| { ... })` to perform some processing on state at time `state.t`.
-    ///   `count` is the corresponding `output_count` used to generate the output file.
     pub fn new(
         fem: &'a FemMesh,
         filename_stem: Option<String>,
         output_directory: Option<&str>,
-        callback: Option<fn(&FemState, usize)>,
     ) -> Result<Self, StrError> {
         // output directory
         let out_dir = match output_directory {
@@ -128,7 +121,7 @@ impl<'a> FemOutput<'a> {
             filename_stem,
             output_directory: out_dir.to_string(),
             output_count: 0,
-            callback,
+            // callback,
             summary,
         })
     }
@@ -162,11 +155,6 @@ impl<'a> FemOutput<'a> {
             // save the state
             let path = FemOutput::path_state(&self.output_directory, fn_stem, self.output_count);
             state.write_json(&path)?;
-
-            // handle callback
-            if let Some(callback) = self.callback {
-                (callback)(state, self.output_count);
-            }
 
             // update summary
             self.summary.indices.push(self.output_count);
@@ -264,7 +252,7 @@ mod tests {
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let output = FemOutput::new(&fem, None, None, None).unwrap();
+        let output = FemOutput::new(&fem, None, None).unwrap();
         let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);

@@ -230,7 +230,7 @@ fn main() -> Result<(), StrError> {
         let mut state = FemState::new(&fem, &config)?;
 
         // FEM output
-        let mut output = FemOutput::new(&fem, None, None, None)?;
+        let mut output = FemOutput::new(&fem, None, None)?;
 
         // solution
         let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;

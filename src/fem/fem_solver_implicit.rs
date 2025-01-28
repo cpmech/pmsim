@@ -328,7 +328,7 @@ mod tests {
         let natural = Natural::new();
         let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&fem, &config).unwrap();
-        let mut output = FemOutput::new(&fem, None, None, None).unwrap();
+        let mut output = FemOutput::new(&fem, None, None).unwrap();
         assert_eq!(
             solver.solve(&mut state, &mut output).err(),
             Some("Δt is smaller than the allowed minimum")
