@@ -245,7 +245,7 @@ impl<'a> FemSolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemSolverImplicit;
-    use crate::base::{new_empty_mesh_2d, Config, Ebc, Essential, Etype, Natural, Nbc, ParamSolid, Pbc};
+    use crate::base::{new_empty_mesh_2d, Config, Dof, Essential, Etype, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemInput, FemOutput, FemState};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
@@ -269,7 +269,7 @@ mod tests {
 
         // error due to prescribed_values
         let mut essential = Essential::new();
-        essential.points(&[123], Ebc::Ux(0.0));
+        essential.points(&[123], Dof::Ux, 0.0);
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")

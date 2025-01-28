@@ -1,7 +1,7 @@
 use gemlab::prelude::*;
-use pmsim::base::{Conductivity, Config, Ebc, Essential, Etype, Natural, Nbc, ParamDiffusion, SampleMeshes};
+use pmsim::base::{Conductivity, Config, Dof, Essential, Etype, Natural, Nbc, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{
-    BcDistributedArray, Elements, FemInput, FemOutput, FemSolverImplicit, FemState, LinearSystem, BcPrescribedArray,
+    BcDistributedArray, BcPrescribedArray, Elements, FemInput, FemOutput, FemSolverImplicit, FemState, LinearSystem,
 };
 use russell_lab::*;
 
@@ -63,7 +63,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&bottom, Ebc::T(110.0));
+    essential.edges(&bottom, Dof::T, 110.0);
     println!("\n{}", essential);
 
     // natural boundary conditions
@@ -264,7 +264,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&bottom, Ebc::T(110.0));
+    essential.edges(&bottom, Dof::T, 110.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();

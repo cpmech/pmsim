@@ -58,7 +58,7 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&left, Ebc::T(300.0));
+    essential.edges(&left, Dof::T, 300.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();

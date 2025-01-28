@@ -72,10 +72,10 @@ fn test_solid_smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .edges(&left, Ebc::Ux(0.0))
-        .edges(&right, Ebc::Ux(0.0))
-        .edges(&bottom, Ebc::Ux(0.0))
-        .edges(&bottom, Ebc::Uy(0.0));
+        .edges(&left, Dof::Ux, 0.0)
+        .edges(&right, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();

@@ -1,4 +1,4 @@
-use super::{BcDistributedArray, Elements, FemInput, BcPrescribedArray};
+use super::{BcDistributedArray, BcPrescribedArray, Elements, FemInput};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
@@ -118,8 +118,8 @@ impl<'a> LinearSystem<'a> {
 #[cfg(test)]
 mod tests {
     use super::LinearSystem;
-    use crate::base::{new_empty_mesh_2d, Config, Ebc, Essential, Etype, Natural, Nbc, ParamDiffusion};
-    use crate::fem::{BcDistributedArray, Elements, FemInput, BcPrescribedArray};
+    use crate::base::{new_empty_mesh_2d, Config, Dof, Essential, Etype, Natural, Nbc, ParamDiffusion};
+    use crate::fem::{BcDistributedArray, BcPrescribedArray, Elements, FemInput};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
     use russell_sparse::{Genie, Sym};
@@ -158,7 +158,7 @@ mod tests {
 
         let mut essential = Essential::new();
         let mut natural = Natural::new();
-        essential.points(&[0, 4], Ebc::T(123.0));
+        essential.points(&[0, 4], Dof::T, 123.0);
         let edge_conv = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],

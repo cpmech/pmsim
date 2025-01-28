@@ -218,10 +218,10 @@ fn main() -> Result<(), StrError> {
         // essential boundary conditions
         let mut essential = Essential::new();
         essential
-            .faces(&faces_x_min, Ebc::Ux(0.0))
-            .faces(&faces_y_min, Ebc::Uy(0.0))
-            .faces(&faces_z_min, Ebc::Uz(0.0))
-            .faces(&faces_z_max, Ebc::Uz(0.0));
+            .faces(&faces_x_min, Dof::Ux, 0.0)
+            .faces(&faces_y_min, Dof::Uy, 0.0)
+            .faces(&faces_z_min, Dof::Uz, 0.0)
+            .faces(&faces_z_max, Dof::Uz, 0.0);
 
         // natural boundary conditions
         let mut natural = Natural::new();

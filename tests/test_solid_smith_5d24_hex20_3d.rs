@@ -65,11 +65,11 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .faces(&faces_x_min, Ebc::Ux(0.0))
-        .faces(&faces_y_min, Ebc::Uy(0.0))
-        .faces(&bottom, Ebc::Ux(0.0))
-        .faces(&bottom, Ebc::Uy(0.0))
-        .faces(&bottom, Ebc::Uz(0.0));
+        .faces(&faces_x_min, Dof::Ux, 0.0)
+        .faces(&faces_y_min, Dof::Uy, 0.0)
+        .faces(&bottom, Dof::Ux, 0.0)
+        .faces(&bottom, Dof::Uy, 0.0)
+        .faces(&bottom, Dof::Uz, 0.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();

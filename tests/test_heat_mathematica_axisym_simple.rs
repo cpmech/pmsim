@@ -61,7 +61,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&right, Ebc::T(10.0));
+    essential.edges(&right, Dof::T, 10.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();

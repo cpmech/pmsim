@@ -54,7 +54,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.points(&[0, 3], Ebc::Ux(0.0)).points(&[0, 3], Ebc::Uy(0.0));
+    essential.points(&[0, 3], Dof::Ux, 0.0).points(&[0, 3], Dof::Uy, 0.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();

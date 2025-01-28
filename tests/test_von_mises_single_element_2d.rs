@@ -72,16 +72,12 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let input = FemInput::new(&mesh, [(att, Etype::Solid(p1))])?;
 
     // essential boundary conditions
+    let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
     let mut essential = Essential::new();
-    essential.
-        edges(&left,   Ebc::Ux( 0.0)). // left
-        edges(&bottom, Ebc::Uy( 0.0)). // bottom
-        edges(&top,    Ebc::Uy(1.0)); // top
-
-    // multiplier = |t| {
-    // let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-    // println!(">>>>>>>>>>>>>> {:?}", -delta_y * t);
-    // -delta_y * t
+    essential
+        .edges(&left, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Uy, 0.0)
+        .edges_fn(&top, Dof::Uy, |t| -delta_y * t);
 
     // natural boundary conditions
     let natural = Natural::new();

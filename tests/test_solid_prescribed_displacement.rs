@@ -1,6 +1,6 @@
 use gemlab::mesh::Samples;
 use pmsim::base::{assemble_matrix, assemble_vector};
-use pmsim::fem::{ElementSolid, ElementTrait, BcPrescribedArray};
+use pmsim::fem::{BcPrescribedArray, ElementSolid, ElementTrait};
 use pmsim::prelude::*;
 use russell_lab::*;
 use russell_sparse::prelude::*;
@@ -50,9 +50,9 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .points(&[0], Ebc::Ux(0.0))
-        .points(&[0, 1], Ebc::Uy(0.0))
-        .points(&[2, 3], Ebc::Uy(STRAIN_Y));
+        .points(&[0], Dof::Ux, 0.0)
+        .points(&[0, 1], Dof::Uy, 0.0)
+        .points(&[2, 3], Dof::Uy, STRAIN_Y);
     let values = BcPrescribedArray::new(&input, &essential)?;
     let prescribed = &values.flags;
 
@@ -178,9 +178,9 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .points(&[0], Ebc::Ux(0.0))
-        .points(&[0, 1], Ebc::Uy(0.0))
-        .points(&[2, 3], Ebc::Uy(STRAIN_Y));
+        .points(&[0], Dof::Ux, 0.0)
+        .points(&[0, 1], Dof::Uy, 0.0)
+        .points(&[2, 3], Dof::Uy, STRAIN_Y);
     let values = BcPrescribedArray::new(&input, &essential)?;
     let prescribed = &values.flags;
 

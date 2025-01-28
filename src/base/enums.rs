@@ -39,71 +39,6 @@ pub enum Dof {
     Fso = 9,
 }
 
-/// Defines essential boundary conditions (EBC)
-#[derive(Clone, Copy)]
-pub enum Ebc {
-    /// Displacement along the first dimension
-    Ux(f64),
-
-    /// Displacement along the second dimension
-    Uy(f64),
-
-    /// Displacement along the third dimension
-    Uz(f64),
-
-    /// Rotation around the first axis
-    Rx(f64),
-
-    /// Rotation around the second axis
-    Ry(f64),
-
-    /// Rotation around the third axis
-    Rz(f64),
-
-    /// Temperature
-    T(f64),
-
-    /// Liquid pressure
-    Pl(f64),
-
-    /// Gas pressure
-    Pg(f64),
-}
-
-impl Ebc {
-    /// Returns the DOF corresponding to the essential boundary condition
-    pub fn dof(&self) -> Dof {
-        match self {
-            Ebc::Ux(..) => Dof::Ux,
-            Ebc::Uy(..) => Dof::Uy,
-            Ebc::Uz(..) => Dof::Uz,
-            Ebc::Rx(..) => Dof::Rx,
-            Ebc::Ry(..) => Dof::Ry,
-            Ebc::Rz(..) => Dof::Rz,
-            Ebc::T(..) => Dof::T,
-            Ebc::Pl(..) => Dof::Pl,
-            Ebc::Pg(..) => Dof::Pg,
-        }
-    }
-}
-
-impl fmt::Display for Ebc {
-    fn fmt(&self, b: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Ebc::Ux(v) => write!(b, "Ux = {:?}", v).unwrap(),
-            Ebc::Uy(v) => write!(b, "Uy = {:?}", v).unwrap(),
-            Ebc::Uz(v) => write!(b, "Uz = {:?}", v).unwrap(),
-            Ebc::Rx(v) => write!(b, "Rx = {:?}", v).unwrap(),
-            Ebc::Ry(v) => write!(b, "Ry = {:?}", v).unwrap(),
-            Ebc::Rz(v) => write!(b, "Rz = {:?}", v).unwrap(),
-            Ebc::T(v) => write!(b, "T = {:?}", v).unwrap(),
-            Ebc::Pl(v) => write!(b, "Pl = {:?}", v).unwrap(),
-            Ebc::Pg(v) => write!(b, "Pg = {:?}", v).unwrap(),
-        }
-        Ok(())
-    }
-}
-
 /// Defines natural boundary conditions (NBC)
 #[derive(Clone, Copy)]
 pub enum Nbc {
@@ -302,7 +237,7 @@ impl Etype {
 
 #[cfg(test)]
 mod tests {
-    use super::{Dof, Ebc, Etype, Init, Nbc, Pbc};
+    use super::{Dof, Etype, Init, Nbc, Pbc};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use std::{cmp::Ordering, collections::HashSet};
@@ -322,11 +257,6 @@ mod tests {
         let mut set = HashSet::new();
         set.insert(ux);
         assert_eq!(set.len(), 1);
-
-        // ebc
-        let ebc_ux_ori = Ebc::Ux(10.0);
-        let ebc_ux = ebc_ux_ori.clone();
-        assert_eq!(format!("{}", ebc_ux), "Ux = 10.0");
 
         // nbc
         let qn_ori = Nbc::Qn(-10.0);
@@ -391,45 +321,6 @@ mod tests {
         let e = Etype::PorousSldLiqGas(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousSldLiqGas");
-    }
-
-    #[test]
-    fn ebc_methods_work() {
-        let ux = Ebc::Ux(20.0);
-        assert_eq!(ux.dof(), Dof::Ux);
-        assert_eq!(format!("{}", ux), "Ux = 20.0");
-
-        let uy = Ebc::Uy(20.0);
-        assert_eq!(uy.dof(), Dof::Uy);
-        assert_eq!(format!("{}", uy), "Uy = 20.0");
-
-        let uz = Ebc::Uz(20.0);
-        assert_eq!(uz.dof(), Dof::Uz);
-        assert_eq!(format!("{}", uz), "Uz = 20.0");
-
-        let rx = Ebc::Rx(20.0);
-        assert_eq!(rx.dof(), Dof::Rx);
-        assert_eq!(format!("{}", rx), "Rx = 20.0");
-
-        let ry = Ebc::Ry(20.0);
-        assert_eq!(ry.dof(), Dof::Ry);
-        assert_eq!(format!("{}", ry), "Ry = 20.0");
-
-        let rz = Ebc::Rz(20.0);
-        assert_eq!(rz.dof(), Dof::Rz);
-        assert_eq!(format!("{}", rz), "Rz = 20.0");
-
-        let pl = Ebc::Pl(20.0);
-        assert_eq!(pl.dof(), Dof::Pl);
-        assert_eq!(format!("{}", pl), "Pl = 20.0");
-
-        let pg = Ebc::Pg(20.0);
-        assert_eq!(pg.dof(), Dof::Pg);
-        assert_eq!(format!("{}", pg), "Pg = 20.0");
-
-        let tt = Ebc::T(20.0);
-        assert_eq!(tt.dof(), Dof::T);
-        assert_eq!(format!("{}", tt), "T = 20.0");
     }
 
     #[test]

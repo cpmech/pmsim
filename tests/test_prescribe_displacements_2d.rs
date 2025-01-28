@@ -62,9 +62,9 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .edges(&left, Ebc::Ux(0.0))
-        .edges(&bottom, Ebc::Uy(0.0))
-        .edges(&top, Ebc::Uy(-DY));
+        .edges(&left, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Uy, 0.0)
+        .edges(&top, Dof::Uy, -DY);
     println!("{}", essential);
 
     // natural boundary conditions
