@@ -92,7 +92,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&edges_flux, Nbc::Qt(5e5));
+    natural.edges(&edges_flux, Nbc::Qt, 5e5);
 
     // configuration
     let mut config = Config::new(&mesh);

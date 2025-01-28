@@ -62,8 +62,8 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .points(&[0, 5], Pbc::Fz(-0.1667))
-        .points(&[1, 4], Pbc::Fz(-0.3333));
+        .points(&[0, 5], Pbc::Fz, -0.1667)
+        .points(&[1, 4], Pbc::Fz, -0.3333);
 
     // configuration
     let config = Config::new(&mesh);

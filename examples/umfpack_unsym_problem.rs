@@ -53,8 +53,8 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .edges(&inner_circle, Nbc::Qn(-P1))
-        .edges(&outer_circle, Nbc::Qn(-P2));
+        .edges(&inner_circle, Nbc::Qn, -P1)
+        .edges(&outer_circle, Nbc::Qn, -P2);
 
     // configuration
     let mut config = Config::new(&mesh);

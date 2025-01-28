@@ -58,7 +58,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.points(&[1], Pbc::Fy(-150000.0));
+    natural.points(&[1], Pbc::Fy, -150000.0);
 
     // configuration
     let config = Config::new(&mesh);

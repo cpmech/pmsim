@@ -226,8 +226,8 @@ fn main() -> Result<(), StrError> {
         // natural boundary conditions
         let mut natural = Natural::new();
         natural
-            .faces(&faces_inner, Nbc::Qn(-P1))
-            .faces(&faces_outer, Nbc::Qn(-P2));
+            .faces(&faces_inner, Nbc::Qn, -P1)
+            .faces(&faces_outer, Nbc::Qn, -P2);
 
         // configuration
         let mut config = Config::new(&mesh);

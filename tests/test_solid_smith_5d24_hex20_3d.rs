@@ -73,7 +73,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.faces(&top, Nbc::Qn(-1.0));
+    natural.faces(&top, Nbc::Qn, -1.0);
 
     // configuration
     let mut config = Config::new(&mesh);

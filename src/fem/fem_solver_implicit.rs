@@ -11,7 +11,7 @@ pub struct FemSolverImplicit<'a> {
     pub config: &'a Config<'a>,
 
     // Holds a collection of concentrated loads
-    pub bc_concentrated: BcConcentratedArray,
+    pub bc_concentrated: BcConcentratedArray<'a>,
 
     // Holds a collection of boundary integration data
     pub bc_distributed: BcDistributedArray<'a>,
@@ -278,7 +278,7 @@ mod tests {
 
         // error due to concentrated_loads
         let mut natural = Natural::new();
-        natural.points(&[100], Pbc::Fx(0.0));
+        natural.points(&[100], Pbc::Fx, 0.0);
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
@@ -300,7 +300,7 @@ mod tests {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
         };
-        natural.edge(&edge, Nbc::Qn(0.0));
+        natural.edge(&edge, Nbc::Qn, 0.0);
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")

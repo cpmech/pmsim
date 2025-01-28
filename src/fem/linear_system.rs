@@ -62,7 +62,7 @@ impl<'a> LinearSystem<'a> {
                 }
             }
             for b in &boundaries.all {
-                if let Some(_) = b.jacobian {
+                if b.with_jacobian() {
                     if !b.symmetric_jacobian() {
                         all_symmetric = false;
                         break;
@@ -88,16 +88,15 @@ impl<'a> LinearSystem<'a> {
 
         // boundary data may have a Jacobian matrix (all must be symmetric to use symmetry)
         nnz_sup += boundaries.all.iter().fold(0, |acc, e| {
-            let n = e.local_to_global.len();
-            match e.jacobian {
-                Some(_) => {
-                    if sym.triangular() {
-                        acc + (n * n + n) / 2
-                    } else {
-                        acc + n * n
-                    }
+            let n = e.number_of_equations();
+            if e.with_jacobian() {
+                if sym.triangular() {
+                    acc + (n * n + n) / 2
+                } else {
+                    acc + n * n
                 }
-                None => acc,
+            } else {
+                acc
             }
         });
 
@@ -163,7 +162,7 @@ mod tests {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
         };
-        natural.edge(&edge_conv, Nbc::Cv(55.0, 123.0));
+        natural.edge(&edge_conv, Nbc::Cv(55.0), 123.0);
         let prescribed_values = BcPrescribedArray::new(&input, &essential).unwrap();
 
         let n_equation_global = mesh.points.len() * 1; // 1 DOF per node

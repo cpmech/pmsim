@@ -11,25 +11,31 @@ use russell_sparse::CooMatrix;
 /// This data structure corresponds to a single Natural (Neumann) boundary condition
 pub struct BcDistributed<'a> {
     /// Global configuration
-    pub config: &'a Config<'a>,
-
-    /// Natural boundary condition
-    pub nbc: Nbc,
+    config: &'a Config<'a>,
 
     /// Scratchpad to perform numerical integration
-    pub pad: Scratchpad,
+    pad: Scratchpad,
 
     /// Integration (Gauss) points
-    pub gauss: Gauss,
+    gauss: Gauss,
 
     /// Residual vector
-    pub residual: Vector,
+    residual: Vector,
 
     /// Optional Jacobian matrix (e.g., from convection model)
-    pub jacobian: Option<Matrix>,
+    jacobian: Option<Matrix>,
 
     /// Local-to-global mapping
-    pub local_to_global: Vec<usize>,
+    local_to_global: Vec<usize>,
+
+    /// Natural boundary condition
+    nbc: Nbc,
+
+    /// Specified BC value (overridden by the function, if not None)
+    value: f64,
+
+    /// Function to calculate the BC value (overrides the value, if not None)
+    function: Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>,
 }
 
 /// Implements an array of BcDistributed
@@ -48,6 +54,8 @@ impl<'a> BcDistributed<'a> {
         kind: GeoKind,
         points: &[usize],
         nbc: Nbc,
+        value: f64,
+        function: Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>,
     ) -> Result<Self, StrError> {
         // check
         let ndim = input.mesh.ndim;
@@ -55,7 +63,7 @@ impl<'a> BcDistributed<'a> {
             let is_3d_edge = kind.ndim() == 1;
             if is_3d_edge {
                 let is_qn = match nbc {
-                    Nbc::Qn(..) => true,
+                    Nbc::Qn => true,
                     _ => false,
                 };
                 if is_qn {
@@ -86,7 +94,6 @@ impl<'a> BcDistributed<'a> {
         // new instance
         Ok(BcDistributed {
             config,
-            nbc,
             pad,
             gauss,
             residual: Vector::new(n_equation_local),
@@ -96,6 +103,9 @@ impl<'a> BcDistributed<'a> {
                 None
             },
             local_to_global,
+            nbc,
+            value,
+            function,
         })
     }
 
@@ -106,8 +116,12 @@ impl<'a> BcDistributed<'a> {
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
+        let value = match self.function {
+            Some(f) => (f)(state.t),
+            None => self.value,
+        };
         match self.nbc {
-            Nbc::Qn(qn) => integ::vec_02_nv_bry(res, &mut args, |v, _, un, _| {
+            Nbc::Qn => integ::vec_02_nv_bry(res, &mut args, |v, _, un, _| {
                 // note the negative sign
                 //                 ↓
                 // →    ⌠              ⌠    →
@@ -117,44 +131,44 @@ impl<'a> BcDistributed<'a> {
                 //                \_____________/
                 //                we compute this
                 for i in 0..ndim {
-                    v[i] = -qn * un[i];
+                    v[i] = -value * un[i];
                 }
                 Ok(())
             }),
-            Nbc::Qx(qx) => integ::vec_02_nv(res, &mut args, |v, _, _| {
+            Nbc::Qx => integ::vec_02_nv(res, &mut args, |v, _, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[0] = -qx;
+                v[0] = -value;
                 Ok(())
             }),
-            Nbc::Qy(qy) => integ::vec_02_nv(res, &mut args, |v, _, _| {
+            Nbc::Qy => integ::vec_02_nv(res, &mut args, |v, _, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[1] = -qy;
+                v[1] = -value;
                 Ok(())
             }),
-            Nbc::Qz(qz) => integ::vec_02_nv(res, &mut args, |v, _, _| {
+            Nbc::Qz => integ::vec_02_nv(res, &mut args, |v, _, _| {
                 // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
                 for i in 0..ndim {
                     v[i] = 0.0;
                 }
-                v[2] = -qz;
+                v[2] = -value;
                 Ok(())
             }),
-            Nbc::Ql(ql) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-ql)),
-            Nbc::Qg(qg) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-qg)),
-            Nbc::Qt(qt) => integ::vec_01_ns(res, &mut args, |_, _| Ok(-qt)),
-            Nbc::Cv(cc, tt_env) => integ::vec_01_ns(res, &mut args, |_, nn| {
+            Nbc::Ql => integ::vec_01_ns(res, &mut args, |_, _| Ok(-value)),
+            Nbc::Qg => integ::vec_01_ns(res, &mut args, |_, _| Ok(-value)),
+            Nbc::Qt => integ::vec_01_ns(res, &mut args, |_, _| Ok(-value)),
+            Nbc::Cv(cc) => integ::vec_01_ns(res, &mut args, |_, nn| {
                 // interpolate T from nodes to integration point
                 let mut tt = 0.0;
                 for m in 0..nnode {
                     tt += nn[m] * state.uu[self.local_to_global[m]];
                 }
-                Ok(cc * (tt - tt_env))
+                Ok(cc * (tt - value))
             }),
         }
     }
@@ -162,7 +176,7 @@ impl<'a> BcDistributed<'a> {
     /// Calculates the Jacobian matrix at given time
     pub fn calc_jacobian(&mut self, _state: &FemState) -> Result<(), StrError> {
         match self.nbc {
-            Nbc::Cv(cc, _) => {
+            Nbc::Cv(cc) => {
                 let kk = self.jacobian.as_mut().unwrap();
                 let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
                 args.alpha = self.config.ideal.thickness;
@@ -173,10 +187,20 @@ impl<'a> BcDistributed<'a> {
         }
     }
 
+    /// Returns the number of equations
+    pub fn number_of_equations(&self) -> usize {
+        self.local_to_global.len()
+    }
+
+    /// Tells whether this BC needs the calculation of a Jacobian matrix or not
+    pub fn with_jacobian(&self) -> bool {
+        self.jacobian.is_some()
+    }
+
     /// Returns whether the local Jacobian matrix (if any) is symmetric or not
     pub fn symmetric_jacobian(&self) -> bool {
         match self.nbc {
-            Nbc::Cv(_, _) => true,
+            Nbc::Cv(_) => true,
             _ => false,
         }
     }
@@ -186,11 +210,35 @@ impl<'a> BcDistributedArray<'a> {
     // Allocates new instance
     pub fn new(input: &'a FemInput, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.on_edges.len() + natural.on_faces.len() + 1);
-        for (edge, nbc) in &natural.on_edges {
-            all.push(BcDistributed::new(input, config, edge.kind, &edge.points, *nbc)?);
+        for (edge, nbc, value, f_index) in &natural.on_edges {
+            let function = match f_index {
+                Some(index) => Some(&natural.functions[*index]),
+                None => None,
+            };
+            all.push(BcDistributed::new(
+                input,
+                config,
+                edge.kind,
+                &edge.points,
+                *nbc,
+                *value,
+                function,
+            )?);
         }
-        for (face, nbc) in &natural.on_faces {
-            all.push(BcDistributed::new(input, config, face.kind, &face.points, *nbc)?);
+        for (face, nbc, value, f_index) in &natural.on_faces {
+            let function = match f_index {
+                Some(index) => Some(&natural.functions[*index]),
+                None => None,
+            };
+            all.push(BcDistributed::new(
+                input,
+                config,
+                face.kind,
+                &face.points,
+                *nbc,
+                *value,
+                function,
+            )?);
         }
         Ok(BcDistributedArray { all })
     }
@@ -263,11 +311,11 @@ mod tests {
         let config = Config::new(&mesh);
 
         assert_eq!(
-            BcDistributed::new(&input, &config, edge.kind, &edge.points, Nbc::Qn(-10.0)).err(),
+            BcDistributed::new(&input, &config, edge.kind, &edge.points, Nbc::Qn, -10.0, None).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
         assert_eq!(
-            BcDistributed::new(&input, &config, edge.kind, &edge.points, Nbc::Qz(-10.0)).err(),
+            BcDistributed::new(&input, &config, edge.kind, &edge.points, Nbc::Qz, -10.0, None).err(),
             None
         ); // Qz is OK
         let face = Face {
@@ -275,12 +323,12 @@ mod tests {
             points: vec![4, 5, 6, 7],
         };
         assert_eq!(
-            BcDistributed::new(&input, &config, face.kind, &face.points, Nbc::Ql(-10.0)).err(), // << flux
+            BcDistributed::new(&input, &config, face.kind, &face.points, Nbc::Ql, -10.0, None).err(), // << flux
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
 
         let mut natural = Natural::new();
-        natural.edge(&edge, Nbc::Qn(-10.0));
+        natural.edge(&edge, Nbc::Qn, -10.0);
         assert_eq!(
             BcDistributedArray::new(&input, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
@@ -305,61 +353,61 @@ mod tests {
 
         // Qn
 
-        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qn(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qn, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, left.kind, &left.points, Nbc::Qn(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, left.kind, &left.points, Nbc::Qn, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, right.kind, &right.points, Nbc::Qn(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, right.kind, &right.points, Nbc::Qn, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qn(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qn, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
         // Qx
 
-        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qx(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qx, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, left.kind, &left.points, Nbc::Qx(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, left.kind, &left.points, Nbc::Qx, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, right.kind, &right.points, Nbc::Qx(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, right.kind, &right.points, Nbc::Qx, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qx(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qx, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
         // Qy
 
-        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qy(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qy, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, left.kind, &left.points, Nbc::Qy(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, left.kind, &left.points, Nbc::Qy, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, right.kind, &right.points, Nbc::Qy(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, right.kind, &right.points, Nbc::Qy, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qy(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, bottom.kind, &bottom.points, Nbc::Qy, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
@@ -373,7 +421,7 @@ mod tests {
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
 
-        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qz(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qz, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[0.0, 0.0, -Q / 2.0, 0.0, 0.0, -Q / 2.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
@@ -392,12 +440,12 @@ mod tests {
 
         const Q: f64 = -10.0;
 
-        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Ql(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Ql, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q / 6.0, -Q / 6.0, 2.0 * -Q / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qg(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, top.kind, &top.points, Nbc::Qg, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, correct, 1e-14);
     }
@@ -419,13 +467,13 @@ mod tests {
 
         // flux: not present in Bhatti's example but we can check the flux BC here
         const L: f64 = 0.3;
-        let mut bry = BcDistributed::new(&input, &config, edge.kind, &edge.points, Nbc::Qt(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, edge.kind, &edge.points, Nbc::Qt, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 2.0, -Q * L / 2.0];
         vec_approx_eq(&bry.residual, correct, 1e-14);
 
         // convection BC
-        let mut bry = BcDistributed::new(&input, &config, edge.kind, &edge.points, Nbc::Cv(27.0, 20.0)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, edge.kind, &edge.points, Nbc::Cv(27.0), 20.0, None).unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, &[-81.0, -81.0], 1e-15);
         bry.calc_jacobian(&state).unwrap();
@@ -457,14 +505,22 @@ mod tests {
         const Q: f64 = 5e6;
 
         const L: f64 = 0.03;
-        let mut bry = BcDistributed::new(&input, &config, edge_flux.kind, &edge_flux.points, Nbc::Qt(Q)).unwrap();
+        let mut bry = BcDistributed::new(&input, &config, edge_flux.kind, &edge_flux.points, Nbc::Qt, Q, None).unwrap();
         bry.calc_residual(&state).unwrap();
         let correct = &[-Q * L / 6.0, -Q * L / 6.0, 2.0 * -Q * L / 3.0];
         vec_approx_eq(&bry.residual, correct, 1e-10);
 
         // convection BC
-        let mut bry =
-            BcDistributed::new(&input, &config, edge_conv.kind, &edge_conv.points, Nbc::Cv(55.0, 20.0)).unwrap();
+        let mut bry = BcDistributed::new(
+            &input,
+            &config,
+            edge_conv.kind,
+            &edge_conv.points,
+            Nbc::Cv(55.0),
+            20.0,
+            None,
+        )
+        .unwrap();
         bry.calc_residual(&state).unwrap();
         vec_approx_eq(&bry.residual, &[-5.5, -5.5, -22.0], 1e-14);
         bry.calc_jacobian(&state).unwrap();
@@ -491,7 +547,7 @@ mod tests {
             points: vec![0, 2],
         };
 
-        natural.edge(&edge, Nbc::Cv(40.0, 20.0));
+        natural.edge(&edge, Nbc::Cv(40.0), 20.0);
         let mut elements = BcDistributedArray::new(&input, &config, &natural).unwrap();
         let state = FemState::new(&input, &config).unwrap();
         elements.calc_residuals(&state).unwrap();

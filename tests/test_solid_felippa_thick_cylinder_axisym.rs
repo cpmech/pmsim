@@ -68,7 +68,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&left, Nbc::Qn(-PRESSURE));
+    natural.edges(&left, Nbc::Qn, -PRESSURE);
 
     // configuration
     let mut config = Config::new(&mesh);

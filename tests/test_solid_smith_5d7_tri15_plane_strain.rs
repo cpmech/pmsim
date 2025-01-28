@@ -78,9 +78,9 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .points(&[0, 20], Pbc::Fy(-0.0778))
-        .points(&[5, 15], Pbc::Fy(-0.3556))
-        .points(&[10], Pbc::Fy(-0.1333));
+        .points(&[0, 20], Pbc::Fy, -0.0778)
+        .points(&[5, 15], Pbc::Fy, -0.3556)
+        .points(&[10], Pbc::Fy, -0.1333);
 
     // configuration
     let mut config = Config::new(&mesh);

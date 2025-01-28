@@ -62,7 +62,7 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&right, Nbc::Cv(27.0, 20.0));
+    natural.edges(&right, Nbc::Cv(27.0), 20.0);
 
     // configuration
     let config = Config::new(&mesh);

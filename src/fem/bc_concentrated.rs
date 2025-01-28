@@ -1,53 +1,55 @@
 use super::FemInput;
-use crate::base::{Natural, Pbc};
+use crate::base::Natural;
 use crate::StrError;
-use gemlab::mesh::PointId;
 use russell_lab::Vector;
 
 /// Assists in calculating a concentrated load boundary condition
 ///
 /// This data structure corresponds to a single Natural (Neumann) boundary condition
-pub struct BcConcentrated {
-    /// Point boundary condition
-    pub pbc: Pbc,
-
+pub struct BcConcentrated<'a> {
     /// Equation corresponding to the concentrated load
-    pub eq: usize,
+    eq: usize,
+
+    /// Specified BC value (overridden by the function, if not None)
+    value: f64,
+
+    /// Function to calculate the BC value (overrides the value, if not None)
+    function: Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>,
 }
 
 /// Implements an array of BcConcentrated
-pub struct BcConcentratedArray {
+pub struct BcConcentratedArray<'a> {
     /// All values
-    pub all: Vec<BcConcentrated>,
+    pub all: Vec<BcConcentrated<'a>>,
 }
 
-impl BcConcentrated {
-    /// Allocates new instance
-    pub fn new(input: &FemInput, point_id: PointId, pbc: Pbc) -> Result<Self, StrError> {
-        Ok(BcConcentrated {
-            pbc,
-            eq: input.equations.eq(point_id, pbc.dof())?,
-        })
-    }
-
+impl<'a> BcConcentrated<'a> {
     /// Adds the concentrated load value at given time to the global residual
-    pub fn add_to_residual(&self, residual: &mut Vector, _time: f64) {
-        let value = match self.pbc {
-            Pbc::Fx(fx) => fx,
-            Pbc::Fy(fy) => fy,
-            Pbc::Fz(fz) => fz,
+    pub fn add_to_residual(&self, residual: &mut Vector, time: f64) {
+        let value = match self.function {
+            Some(f) => (f)(time),
+            None => self.value,
         };
         // note the negative sign
         residual[self.eq] -= value;
     }
 }
 
-impl BcConcentratedArray {
+impl<'a> BcConcentratedArray<'a> {
     /// Allocates new instance
-    pub fn new(input: &FemInput, natural: &Natural) -> Result<Self, StrError> {
+    pub fn new(input: &FemInput, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.at_points.len() + 1);
-        for (point_id, pbc) in &natural.at_points {
-            all.push(BcConcentrated::new(input, *point_id, *pbc)?);
+        for (point_id, pbc, value, f_index) in &natural.at_points {
+            let eq = input.equations.eq(*point_id, pbc.dof())?;
+            let function = match f_index {
+                Some(index) => Some(&natural.functions[*index]),
+                None => None,
+            };
+            all.push(BcConcentrated {
+                eq,
+                value: *value,
+                function,
+            });
         }
         Ok(BcConcentratedArray { all })
     }
@@ -62,7 +64,7 @@ impl BcConcentratedArray {
 
 #[cfg(test)]
 mod tests {
-    use super::{BcConcentrated, BcConcentratedArray};
+    use super::BcConcentratedArray;
     use crate::base::{Etype, Natural, ParamSolid, Pbc};
     use crate::fem::FemInput;
     use gemlab::mesh::Samples;
@@ -73,13 +75,9 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
-        assert_eq!(
-            BcConcentrated::new(&input, 123, Pbc::Fy(-10.0)).err(),
-            Some("cannot find equation number because PointId is out-of-bounds")
-        );
 
         let mut natural = Natural::new();
-        natural.points(&[100], Pbc::Fx(-10.0));
+        natural.points(&[100], Pbc::Fx, -10.0);
         assert_eq!(
             BcConcentratedArray::new(&input, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
@@ -92,9 +90,9 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         let mut natural = Natural::new();
-        natural.points(&[0], Pbc::Fx(-20.0));
-        natural.points(&[1], Pbc::Fy(-20.0));
-        natural.points(&[2], Pbc::Fz(-20.0));
+        natural.points(&[0], Pbc::Fx, -20.0);
+        natural.points(&[1], Pbc::Fy, -20.0);
+        natural.points(&[2], Pbc::Fz, -20.0);
         let b_points = BcConcentratedArray::new(&input, &natural).unwrap();
         let mut residual = Vector::new(4 * 3);
         b_points.add_to_residual(&mut residual, 0.0);

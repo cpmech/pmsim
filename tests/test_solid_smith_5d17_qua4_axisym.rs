@@ -81,9 +81,9 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .points(&[0], Pbc::Fy(-2.6667))
-        .points(&[3], Pbc::Fy(-23.3333))
-        .points(&[6], Pbc::Fy(-24.0));
+        .points(&[0], Pbc::Fy, -2.6667)
+        .points(&[3], Pbc::Fy, -23.3333)
+        .points(&[6], Pbc::Fy, -24.0);
 
     // configuration
     let mut config = Config::new(&mesh);

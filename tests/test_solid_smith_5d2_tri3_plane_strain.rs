@@ -70,7 +70,7 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&top, Nbc::Qn(-1.0));
+    natural.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
     let config = Config::new(&mesh);

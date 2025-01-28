@@ -48,7 +48,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&footing, Nbc::Qn(-QN));
+    natural.edges(&footing, Nbc::Qn, -QN);
 
     // configuration
     let mut config = Config::new(&mesh);

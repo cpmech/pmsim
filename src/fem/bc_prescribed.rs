@@ -1,7 +1,6 @@
 use super::FemInput;
-use crate::base::{Dof, Essential};
+use crate::base::Essential;
 use crate::StrError;
-use gemlab::mesh::PointId;
 use russell_lab::Vector;
 
 /// Assists in calculating a prescribed value boundary condition
@@ -35,26 +34,6 @@ pub struct BcPrescribedArray<'a> {
 }
 
 impl<'a> BcPrescribed<'a> {
-    /// Allocates new instance
-    pub fn new(input: &'a FemInput, essential: &'a Essential, point_id: PointId, dof: Dof) -> Result<Self, StrError> {
-        if point_id >= input.mesh.points.len() {
-            return Err("cannot initialize prescribed value because PointId is out-of-bounds");
-        }
-        let (value, f_index) = match essential.all.get(&(point_id, dof)) {
-            Some(pair) => pair,
-            None => return Err("cannot find (PointId,DOF) pair in map of essential BCs"),
-        };
-        let function = match f_index {
-            Some(index) => Some(&essential.functions[*index]),
-            None => None,
-        };
-        Ok(BcPrescribed {
-            eq: input.equations.eq(point_id, dof)?,
-            value: *value,
-            function,
-        })
-    }
-
     /// Sets prescribed value in the solution vector
     pub fn set_value(&self, duu: &mut Vector, uu: &mut Vector, time: f64) {
         let value = match self.function {
@@ -72,9 +51,17 @@ impl<'a> BcPrescribedArray<'a> {
         let mut all = Vec::new();
         let mut flags = vec![false; input.equations.n_equation];
         let mut equations = Vec::new();
-        for (point_id, dof) in essential.all.keys() {
+        for ((point_id, dof), (value, f_index)) in &essential.all {
             let eq = input.equations.eq(*point_id, *dof)?;
-            all.push(BcPrescribed::new(input, essential, *point_id, *dof).unwrap()); // already checked
+            let function = match f_index {
+                Some(index) => Some(&essential.functions[*index]),
+                None => None,
+            };
+            all.push(BcPrescribed {
+                eq,
+                value: *value,
+                function,
+            });
             flags[eq] = true;
             equations.push(eq);
         }
@@ -91,7 +78,7 @@ impl<'a> BcPrescribedArray<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BcPrescribed, BcPrescribedArray};
+    use super::BcPrescribedArray;
     use crate::base::{Dof, Essential, Etype, ParamBeam, ParamDiffusion};
     use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::FemInput;
@@ -104,20 +91,6 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
-        let mut essential = Essential::new();
-        assert_eq!(
-            BcPrescribed::new(&input, &essential, 123, Dof::Ux).err(),
-            Some("cannot initialize prescribed value because PointId is out-of-bounds")
-        );
-        assert_eq!(
-            BcPrescribed::new(&input, &essential, 0, Dof::T).err(),
-            Some("cannot find (PointId,DOF) pair in map of essential BCs")
-        );
-        essential.points(&[0], Dof::T, 0.0);
-        assert_eq!(
-            BcPrescribed::new(&input, &essential, 0, Dof::T).err(),
-            Some("cannot find equation number corresponding to (PointId,DOF)")
-        );
 
         let mut essential = Essential::new();
         essential.points(&[100], Dof::Ux, 0.0);

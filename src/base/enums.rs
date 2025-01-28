@@ -1,7 +1,6 @@
 use super::{ParamBeam, ParamDiffusion, ParamRod};
 use super::{ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// Defines degrees-of-freedom (DOF) types
 ///
@@ -40,34 +39,34 @@ pub enum Dof {
 }
 
 /// Defines natural boundary conditions (NBC)
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Nbc {
     /// Normal distributed load
-    Qn(f64),
+    Qn,
 
     /// Distributed load parallel to x
-    Qx(f64),
+    Qx,
 
     /// Distributed load parallel to y
-    Qy(f64),
+    Qy,
 
     /// Distributed load parallel to z
-    Qz(f64),
+    Qz,
 
     /// Liquid flux
-    Ql(f64),
+    Ql,
 
     /// Gas flux
-    Qg(f64),
+    Qg,
 
     /// Temperature flux
-    Qt(f64),
+    Qt,
 
     /// Temperature convection
     ///
-    /// The first value is the convection coefficient `cc`
-    /// The second value is the environment temperature `T_env`
-    Cv(f64, f64),
+    /// The constant value is the convection coefficient `cc`.
+    /// The actual value is the environment temperature `T_env`.
+    Cv(f64),
 }
 
 impl Nbc {
@@ -89,21 +88,21 @@ impl Nbc {
             }
         };
         match self {
-            Nbc::Qn(..) => solid(),
-            Nbc::Qx(..) => solid(),
-            Nbc::Qy(..) => solid(),
-            Nbc::Qz(..) => solid(),
-            Nbc::Ql(..) => {
+            Nbc::Qn => solid(),
+            Nbc::Qx => solid(),
+            Nbc::Qy => solid(),
+            Nbc::Qz => solid(),
+            Nbc::Ql => {
                 for m in 0..nnode {
                     dofs[m].push((Dof::Pl, count)); count += 1;
                 }
             }
-            Nbc::Qg(..) => {
+            Nbc::Qg => {
                 for m in 0..nnode {
                     dofs[m].push((Dof::Pg, count)); count += 1;
                 }
             }
-            Nbc::Qt(..) => {
+            Nbc::Qt => {
                 for m in 0..nnode {
                     dofs[m].push((Dof::T, count)); count += 1;
                 }
@@ -120,66 +119,39 @@ impl Nbc {
     /// Indicates whether this NBC contributes to the Jacobian matrix or not
     pub fn contributes_to_jacobian_matrix(&self) -> bool {
         match self {
-            Nbc::Qn(..) => false,
-            Nbc::Qx(..) => false,
-            Nbc::Qy(..) => false,
-            Nbc::Qz(..) => false,
-            Nbc::Ql(..) => false,
-            Nbc::Qg(..) => false,
-            Nbc::Qt(..) => false,
+            Nbc::Qn => false,
+            Nbc::Qx => false,
+            Nbc::Qy => false,
+            Nbc::Qz => false,
+            Nbc::Ql => false,
+            Nbc::Qg => false,
+            Nbc::Qt => false,
             Nbc::Cv(..) => true,
         }
     }
 }
 
-impl fmt::Display for Nbc {
-    fn fmt(&self, b: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Nbc::Qn(v) => write!(b, "Qn = {:?}", v).unwrap(),
-            Nbc::Qx(v) => write!(b, "Qx = {:?}", v).unwrap(),
-            Nbc::Qy(v) => write!(b, "Qy = {:?}", v).unwrap(),
-            Nbc::Qz(v) => write!(b, "Qz = {:?}", v).unwrap(),
-            Nbc::Ql(v) => write!(b, "Ql = {:?}", v).unwrap(),
-            Nbc::Qg(v) => write!(b, "Qg = {:?}", v).unwrap(),
-            Nbc::Qt(v) => write!(b, "Qt = {:?}", v).unwrap(),
-            Nbc::Cv(cc, tt_env) => write!(b, "cc = {:?}, T_env = {:?}", cc, tt_env).unwrap(),
-        }
-        Ok(())
-    }
-}
-
 /// Defines point boundary conditions (e.g., point loads)
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Pbc {
     /// Concentrated load parallel to x
-    Fx(f64),
+    Fx,
 
     /// Concentrated load parallel to y
-    Fy(f64),
+    Fy,
 
     /// Concentrated load parallel to z
-    Fz(f64),
+    Fz,
 }
 
 impl Pbc {
     /// Returns the DOF corresponding to the concentrated load
     pub fn dof(&self) -> Dof {
         match self {
-            Pbc::Fx(..) => Dof::Ux,
-            Pbc::Fy(..) => Dof::Uy,
-            Pbc::Fz(..) => Dof::Uz,
+            Pbc::Fx => Dof::Ux,
+            Pbc::Fy => Dof::Uy,
+            Pbc::Fz => Dof::Uz,
         }
-    }
-}
-
-impl fmt::Display for Pbc {
-    fn fmt(&self, b: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Pbc::Fx(v) => write!(b, "Fx = {:?}", v).unwrap(),
-            Pbc::Fy(v) => write!(b, "Fy = {:?}", v).unwrap(),
-            Pbc::Fz(v) => write!(b, "Fz = {:?}", v).unwrap(),
-        }
-        Ok(())
     }
 }
 
@@ -259,14 +231,14 @@ mod tests {
         assert_eq!(set.len(), 1);
 
         // nbc
-        let qn_ori = Nbc::Qn(-10.0);
-        let qn = qn_ori.clone();
-        assert_eq!(format!("{}", qn), "Qn = -10.0");
+        let cv_ori = Nbc::Cv(1.2);
+        let cv = cv_ori.clone();
+        assert_eq!(format!("{:?}", cv), "Cv(1.2)");
 
         // pbc
-        let fx_ori = Pbc::Fx(-1.0);
+        let fx_ori = Pbc::Fx;
         let fx = fx_ori.clone();
-        assert_eq!(format!("{}", fx), "Fx = -1.0");
+        assert_eq!(format!("{:?}", fx), "Fx");
     }
 
     #[test]
@@ -325,31 +297,28 @@ mod tests {
 
     #[test]
     fn nbc_methods_work() {
-        let qn = Nbc::Qn(-10.0);
+        let qn = Nbc::Qn;
         assert_eq!(
             qn.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
         assert_eq!(qn.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qn), "Qn = -10.0");
 
-        let qx = Nbc::Qx(-10.0);
+        let qx = Nbc::Qx;
         assert_eq!(
             qx.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
         assert_eq!(qx.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qx), "Qx = -10.0");
 
-        let qy = Nbc::Qy(-10.0);
+        let qy = Nbc::Qy;
         assert_eq!(
             qy.dof_equation_pairs(2, 2),
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
         );
         assert_eq!(qy.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qy), "Qy = -10.0");
 
-        let qn = Nbc::Qn(-10.0);
+        let qn = Nbc::Qn;
         assert_eq!(
             qn.dof_equation_pairs(3, 2),
             vec![
@@ -358,9 +327,8 @@ mod tests {
             ]
         );
         assert_eq!(qn.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qn), "Qn = -10.0");
 
-        let qx = Nbc::Qx(-10.0);
+        let qx = Nbc::Qx;
         assert_eq!(
             qx.dof_equation_pairs(3, 2),
             vec![
@@ -369,9 +337,8 @@ mod tests {
             ]
         );
         assert_eq!(qx.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qx), "Qx = -10.0");
 
-        let qy = Nbc::Qy(-10.0);
+        let qy = Nbc::Qy;
         assert_eq!(
             qy.dof_equation_pairs(3, 2),
             vec![
@@ -380,9 +347,8 @@ mod tests {
             ]
         );
         assert_eq!(qy.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qy), "Qy = -10.0");
 
-        let qz = Nbc::Qz(-10.0);
+        let qz = Nbc::Qz;
         assert_eq!(
             qz.dof_equation_pairs(3, 2),
             vec![
@@ -391,53 +357,45 @@ mod tests {
             ]
         );
         assert_eq!(qz.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qz), "Qz = -10.0");
 
-        let ql = Nbc::Ql(-10.0);
+        let ql = Nbc::Ql;
         assert_eq!(
             ql.dof_equation_pairs(2, 3),
             &[[(Dof::Pl, 0)], [(Dof::Pl, 1)], [(Dof::Pl, 2)]]
         );
         assert_eq!(ql.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", ql), "Ql = -10.0");
 
-        let qt = Nbc::Qt(-10.0);
+        let qt = Nbc::Qt;
         assert_eq!(
             qt.dof_equation_pairs(2, 3),
             &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]
         );
         assert_eq!(qt.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qt), "Qt = -10.0");
 
-        let qg = Nbc::Qg(-10.0);
+        let qg = Nbc::Qg;
         assert_eq!(
             qg.dof_equation_pairs(2, 3),
             &[[(Dof::Pg, 0)], [(Dof::Pg, 1)], [(Dof::Pg, 2)]]
         );
         assert_eq!(qg.contributes_to_jacobian_matrix(), false);
-        assert_eq!(format!("{}", qg), "Qg = -10.0");
 
-        let cv = Nbc::Cv(0.5, 25.0);
+        let cv = Nbc::Cv(0.5);
         assert_eq!(
             cv.dof_equation_pairs(2, 3),
             &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]
         );
         assert_eq!(cv.contributes_to_jacobian_matrix(), true);
-        assert_eq!(format!("{}", cv), "cc = 0.5, T_env = 25.0");
     }
 
     #[test]
     fn pbc_methods_work() {
-        let fx = Pbc::Fx(-1.0);
+        let fx = Pbc::Fx;
         assert_eq!(fx.dof(), Dof::Ux);
-        assert_eq!(format!("{}", fx), "Fx = -1.0");
 
-        let fy = Pbc::Fy(-1.0);
+        let fy = Pbc::Fy;
         assert_eq!(fy.dof(), Dof::Uy);
-        assert_eq!(format!("{}", fy), "Fy = -1.0");
 
-        let fz = Pbc::Fz(-1.0);
+        let fz = Pbc::Fz;
         assert_eq!(fz.dof(), Dof::Uz);
-        assert_eq!(format!("{}", fz), "Fz = -1.0");
     }
 }
