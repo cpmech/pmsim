@@ -42,7 +42,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     // println!("faces_y_min = {}", &faces_y_min);
     // println!("bottom = {}\n", &bottom);
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
@@ -50,7 +50,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
             poisson: 0.3,
         },
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -69,11 +69,11 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // check displacements

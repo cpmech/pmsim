@@ -45,7 +45,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
         all: vec![features.get_edge(1, 3), features.get_edge(3, 5)],
     };
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
@@ -53,7 +53,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
             poisson: 0.2,
         },
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -68,11 +68,11 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     config.set_plane_stress(0.25);
 
     // elements
-    let mut elements = Elements::new(&input, &config)?;
+    let mut elements = Elements::new(&fem, &config)?;
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // check Jacobian matrix of first element
     elements.calc_jacobians(&state)?;
@@ -88,7 +88,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // check displacements

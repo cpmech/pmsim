@@ -32,16 +32,16 @@ pub struct ElementRod<'a> {
 impl<'a> ElementRod<'a> {
     /// Allocates a new instance
     #[rustfmt::skip]
-    pub fn new(input: &'a FemMesh, config: &'a Config, cell: &'a Cell, param: &'a ParamRod) -> Result<Self, StrError> {
-        let ndim = input.mesh.ndim;
+    pub fn new(fem: &'a FemMesh, config: &'a Config, cell: &'a Cell, param: &'a ParamRod) -> Result<Self, StrError> {
+        let ndim = fem.mesh.ndim;
         let pp = &cell.points;
         if pp.len() != 2 {
             return Err("number of nodes for Rod must be 2");
         }
-        let xa = input.mesh.points[pp[0]].coords[0];
-        let ya = input.mesh.points[pp[0]].coords[1];
-        let xb = input.mesh.points[pp[1]].coords[0];
-        let yb = input.mesh.points[pp[1]].coords[1];
+        let xa = fem.mesh.points[pp[0]].coords[0];
+        let ya = fem.mesh.points[pp[0]].coords[1];
+        let xb = fem.mesh.points[pp[1]].coords[0];
+        let yb = fem.mesh.points[pp[1]].coords[1];
         let dx = xb - xa;
         let dy = yb - ya;
         let stiffness = if ndim == 2 {
@@ -54,8 +54,8 @@ impl<'a> ElementRod<'a> {
                 [-dy*dx*m, -dy*dy*m,  dy*dx*m,  dy*dy*m],
             ])
         } else {
-            let za = input.mesh.points[pp[0]].coords[2];
-            let zb = input.mesh.points[pp[1]].coords[2];
+            let za = fem.mesh.points[pp[0]].coords[2];
+            let zb = fem.mesh.points[pp[1]].coords[2];
             let dz = zb - za;
             let l = f64::sqrt(dx * dx + dy * dy + dz * dz);
             let m = param.young * param.area / (l * l * l);
@@ -72,7 +72,7 @@ impl<'a> ElementRod<'a> {
             config,
             cell,
             param,
-            local_to_global: compute_local_to_global(&input.information, &input.equations, cell)?,
+            local_to_global: compute_local_to_global(&fem.information, &fem.equations, cell)?,
             stiffness,
             uu:Vector::new(2*ndim),
         })
@@ -160,10 +160,10 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            ElementRod::new(&input, &config, &mesh.cells[0], &p1).err(),
+            ElementRod::new(&fem, &config, &mesh.cells[0], &p1).err(),
             Some("number of nodes for Rod must be 2")
         );
         let wrong_cell = Cell {
@@ -173,7 +173,7 @@ mod tests {
             points: vec![0, 1],
         };
         assert_eq!(
-            ElementRod::new(&input, &config, &wrong_cell, &p1).err(),
+            ElementRod::new(&fem, &config, &wrong_cell, &p1).err(),
             Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
@@ -196,11 +196,11 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
-        let state = FemState::new(&input, &config).unwrap();
+        let mut rod = ElementRod::new(&fem, &config, cell, &p1).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         let neq = 4;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -234,11 +234,11 @@ mod tests {
             young: 343.0,
             density: 1.0,
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
-        let state = FemState::new(&input, &config).unwrap();
+        let mut rod = ElementRod::new(&fem, &config, cell, &p1).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         let neq = 6;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -275,11 +275,11 @@ mod tests {
             young: 1.0,
             density: 1.0,
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
-        let state = FemState::new(&input, &config).unwrap();
+        let mut rod = ElementRod::new(&fem, &config, cell, &p1).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         let neq = 6;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -336,16 +336,16 @@ mod tests {
             young: 100.0,
             density: 1.0,
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
 
         let config = Config::new(&mesh);
-        let mut rod0 = ElementRod::new(&input, &config, &mesh.cells[0], &p1).unwrap();
-        let mut rod1 = ElementRod::new(&input, &config, &mesh.cells[1], &p2).unwrap();
-        let mut rod2 = ElementRod::new(&input, &config, &mesh.cells[2], &p3).unwrap();
+        let mut rod0 = ElementRod::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
+        let mut rod1 = ElementRod::new(&fem, &config, &mesh.cells[1], &p2).unwrap();
+        let mut rod2 = ElementRod::new(&fem, &config, &mesh.cells[2], &p3).unwrap();
         let neq = 4;
         let mut jacobian = Matrix::new(neq, neq);
 
-        let state = FemState::new(&input, &config).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         let (neq_global, nnz) = (6, 3 * neq * neq);
 
         let mut kk = CooMatrix::new(neq_global, neq_global, nnz, Sym::No).unwrap();

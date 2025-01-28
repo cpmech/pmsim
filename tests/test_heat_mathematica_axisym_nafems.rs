@@ -77,14 +77,14 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     // reference solution
     let ref_temperature = 332.97;
 
-    // input data
+    // parameters
     let (kx, ky) = (52.0, 52.0);
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -99,15 +99,15 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     config.set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // check
-    let eq = input.equations.eq(ref_point, Dof::T).unwrap();
+    let eq = fem.equations.eq(ref_point, Dof::T).unwrap();
     let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",

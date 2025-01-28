@@ -61,16 +61,16 @@ mod tests {
     fn new_works() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        assert_eq!(input.equations.n_equation, 6);
+        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        assert_eq!(fem.equations.n_equation, 6);
     }
 
     #[test]
     fn n_local_eq_works() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
-        assert_eq!(input.n_local_eq(&mesh.cells[0]).unwrap(), 3);
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        assert_eq!(fem.n_local_eq(&mesh.cells[0]).unwrap(), 3);
 
         let wrong_cell = Cell {
             id: 0,
@@ -79,7 +79,7 @@ mod tests {
             points: vec![0, 1, 2, 3],
         };
         assert_eq!(
-            input.n_local_eq(&wrong_cell).err(),
+            fem.n_local_eq(&wrong_cell).err(),
             Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }

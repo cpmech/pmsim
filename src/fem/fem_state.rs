@@ -58,9 +58,9 @@ pub struct FemState {
 
 impl FemState {
     /// Allocates a new instance
-    pub fn new(input: &FemMesh, config: &Config) -> Result<FemState, StrError> {
+    pub fn new(fem: &FemMesh, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
-        let ncell = input.mesh.cells.len();
+        let ncell = fem.mesh.cells.len();
         if ncell == 0 {
             return Err("there are no cells in the mesh");
         }
@@ -76,8 +76,8 @@ impl FemState {
         let mut has_solid = false;
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
-        for cell in &input.mesh.cells {
-            let e_type = input.attributes.get(cell).unwrap(); // already checked by Data
+        for cell in &fem.mesh.cells {
+            let e_type = fem.attributes.get(cell).unwrap(); // already checked by Data
             let ngauss = config.gauss(cell)?.npoint();
             match e_type {
                 Elem::Diffusion(..) => {
@@ -124,7 +124,7 @@ impl FemState {
         }
 
         // constants
-        let n_equation = input.equations.n_equation;
+        let n_equation = fem.equations.n_equation;
 
         // primary variables
         let t = config.t_ini;
@@ -171,8 +171,8 @@ impl FemState {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let input = File::open(path).map_err(|_| "cannot open file")?;
-        let buffered = BufReader::new(input);
+        let fem = File::open(path).map_err(|_| "cannot open file")?;
+        let buffered = BufReader::new(fem);
         let state = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
         Ok(state)
     }
@@ -211,10 +211,10 @@ mod tests {
     fn new_handles_errors() {
         let empty_mesh = new_empty_mesh_2d();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemMesh::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let fem = FemMesh::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&empty_mesh);
         assert_eq!(
-            FemState::new(&input, &config).err(),
+            FemState::new(&fem, &config).err(),
             Some("there are no cells in the mesh")
         );
 
@@ -222,38 +222,38 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamRod::sample();
-        let input = FemMesh::new(
+        let fem = FemMesh::new(
             &mesh,
             [(1, Elem::Diffusion(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
         .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&input, &config).err(),
+            FemState::new(&fem, &config).err(),
             Some("cannot combine Diffusion elements with other elements")
         );
 
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let input = FemMesh::new(
+        let fem = FemMesh::new(
             &mesh,
             [(1, Elem::PorousLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
         .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&input, &config).err(),
+            FemState::new(&fem, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
 
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let input = FemMesh::new(
+        let fem = FemMesh::new(
             &mesh,
             [(1, Elem::PorousLiqGas(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
         .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&input, &config).err(),
+            FemState::new(&fem, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
     }
@@ -264,38 +264,34 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let input = FemMesh::new(
+        let fem = FemMesh::new(
             &mesh,
-            [
-                (1, Elem::PorousSldLiq(p1)),
-                (2, Elem::Solid(p2)),
-                (3, Elem::Beam(p3)),
-            ],
+            [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
         )
         .unwrap();
         let config = Config::new(&mesh);
-        let state = FemState::new(&input, &config).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.dt, 1.0);
-        assert_eq!(state.duu.dim(), input.equations.n_equation);
-        assert_eq!(state.uu.dim(), input.equations.n_equation);
+        assert_eq!(state.duu.dim(), fem.equations.n_equation);
+        assert_eq!(state.uu.dim(), fem.equations.n_equation);
     }
 
     #[test]
     fn new_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.transient = true;
-        let state = FemState::new(&input, &config).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.duu.dim(), input.equations.n_equation);
-        assert_eq!(state.uu.dim(), input.equations.n_equation);
-        assert_eq!(state.vv.dim(), input.equations.n_equation);
+        assert_eq!(state.duu.dim(), fem.equations.n_equation);
+        assert_eq!(state.uu.dim(), fem.equations.n_equation);
+        assert_eq!(state.vv.dim(), fem.equations.n_equation);
         assert_eq!(state.aa.dim(), 0);
-        assert_eq!(state.uu_star.dim(), input.equations.n_equation);
-        assert_eq!(state.vv_star.dim(), input.equations.n_equation);
+        assert_eq!(state.uu_star.dim(), fem.equations.n_equation);
+        assert_eq!(state.vv_star.dim(), fem.equations.n_equation);
         assert_eq!(state.aa_star.dim(), 0);
     }
 
@@ -303,12 +299,12 @@ mod tests {
     fn new_works_rod_only() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state = FemState::new(&input, &config).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.duu.dim(), input.equations.n_equation);
-        assert_eq!(state.uu.dim(), input.equations.n_equation);
+        assert_eq!(state.duu.dim(), fem.equations.n_equation);
+        assert_eq!(state.uu.dim(), fem.equations.n_equation);
         assert_eq!(state.vv.dim(), 0);
         assert_eq!(state.aa.dim(), 0);
         assert_eq!(state.uu_star.dim(), 0);
@@ -320,36 +316,36 @@ mod tests {
     fn new_works_porous_liq() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let input = FemMesh::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state = FemState::new(&input, &config).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.duu.dim(), input.equations.n_equation);
-        assert_eq!(state.uu.dim(), input.equations.n_equation);
+        assert_eq!(state.duu.dim(), fem.equations.n_equation);
+        assert_eq!(state.uu.dim(), fem.equations.n_equation);
     }
 
     #[test]
     fn new_works_porous_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let input = FemMesh::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state = FemState::new(&input, &config).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.duu.dim(), input.equations.n_equation);
-        assert_eq!(state.uu.dim(), input.equations.n_equation);
+        assert_eq!(state.duu.dim(), fem.equations.n_equation);
+        assert_eq!(state.uu.dim(), fem.equations.n_equation);
     }
 
     #[test]
     fn new_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let input = FemMesh::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state = FemState::new(&input, &config).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.duu.dim(), input.equations.n_equation);
-        assert_eq!(state.uu.dim(), input.equations.n_equation);
+        assert_eq!(state.duu.dim(), fem.equations.n_equation);
+        assert_eq!(state.uu.dim(), fem.equations.n_equation);
     }
 
     #[test]
@@ -357,27 +353,27 @@ mod tests {
         let mesh = Samples::mixed_shapes_2d();
         let p1 = ParamRod::sample();
         let p2 = ParamSolid::sample_linear_elastic();
-        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Solid(p2))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Solid(p2))]).unwrap();
         let mut config = Config::new(&mesh);
         config.dynamics = true;
-        let state = FemState::new(&input, &config).unwrap();
+        let state = FemState::new(&fem, &config).unwrap();
         assert_eq!(state.t, 0.0);
-        assert_eq!(state.duu.dim(), input.equations.n_equation);
-        assert_eq!(state.uu.dim(), input.equations.n_equation);
-        assert_eq!(state.vv.dim(), input.equations.n_equation);
-        assert_eq!(state.aa.dim(), input.equations.n_equation);
-        assert_eq!(state.uu_star.dim(), input.equations.n_equation);
-        assert_eq!(state.vv_star.dim(), input.equations.n_equation);
-        assert_eq!(state.aa_star.dim(), input.equations.n_equation);
+        assert_eq!(state.duu.dim(), fem.equations.n_equation);
+        assert_eq!(state.uu.dim(), fem.equations.n_equation);
+        assert_eq!(state.vv.dim(), fem.equations.n_equation);
+        assert_eq!(state.aa.dim(), fem.equations.n_equation);
+        assert_eq!(state.uu_star.dim(), fem.equations.n_equation);
+        assert_eq!(state.vv_star.dim(), fem.equations.n_equation);
+        assert_eq!(state.aa_star.dim(), fem.equations.n_equation);
     }
 
     #[test]
     fn derive_works() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state_ori = FemState::new(&input, &config).unwrap();
+        let state_ori = FemState::new(&fem, &config).unwrap();
         let state = state_ori.clone();
         let str_ori = format!("{:?}", state).to_string();
         assert!(str_ori.len() > 0);

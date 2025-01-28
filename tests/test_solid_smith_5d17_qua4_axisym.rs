@@ -53,7 +53,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
     let right = features.search_edges(At::X(30.0), any_x)?;
     let bottom = features.search_edges(At::Y(-10.0), any_x)?;
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
@@ -68,7 +68,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
             poisson: 0.45,
         },
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -90,11 +90,11 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
     config.set_axisymmetric().set_ngauss(1, 9).set_ngauss(2, 9);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // check displacements

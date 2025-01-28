@@ -57,7 +57,7 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
     let right = features.search_edges(At::X(6.0), any_x)?;
     let bottom = features.search_edges(At::Y(-2.0), any_x)?;
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
@@ -65,7 +65,7 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
             poisson: 0.2,
         },
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -87,11 +87,11 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
     config.set_ngauss(1, 12);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // check displacements

@@ -43,17 +43,17 @@ pub struct ElementDiffusion<'a> {
 impl<'a> ElementDiffusion<'a> {
     /// Allocates new instance
     pub fn new(
-        input: &'a FemMesh,
+        fem: &'a FemMesh,
         config: &'a Config,
         cell: &'a Cell,
         param: &'a ParamDiffusion,
     ) -> Result<Self, StrError> {
         // local-to-global mapping
-        let local_to_global = compute_local_to_global(&input.information, &input.equations, cell)?;
+        let local_to_global = compute_local_to_global(&fem.information, &fem.equations, cell)?;
 
         // pad for numerical integration
-        let ndim = input.mesh.ndim;
-        let pad = input.mesh.get_pad(cell.id);
+        let ndim = fem.mesh.ndim;
+        let pad = fem.mesh.get_pad(cell.id);
 
         // integration points
         let gauss = config.gauss(cell)?;
@@ -266,12 +266,12 @@ mod tests {
         } else {
             ParamDiffusion::sample()
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&input, &config).unwrap();
+        let mut state = FemState::new(&fem, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -319,11 +319,11 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_ngauss(1, 100); // wrong
         assert_eq!(
-            ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).err(),
+            ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).err(),
             Some("requested number of integration points is not available for Tri class")
         );
         config.set_ngauss(1, 3);
@@ -334,7 +334,7 @@ mod tests {
             points: vec![0, 1, 2],
         };
         assert_eq!(
-            ElementDiffusion::new(&input, &config, &wrong_cell, &p1).err(),
+            ElementDiffusion::new(&fem, &config, &wrong_cell, &p1).err(),
             Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
@@ -351,12 +351,12 @@ mod tests {
             conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
             source: None,
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&input, &config).unwrap();
+        let mut state = FemState::new(&fem, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -387,9 +387,9 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
+        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1_new).unwrap();
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();
@@ -402,7 +402,7 @@ mod tests {
 
         let mut config = Config::new(&mesh);
         config.transient = true;
-        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
         state.dt = 0.0; // wrong
         assert_eq!(
             elem.calc_residual(&mut residual, &state).err(),
@@ -426,12 +426,12 @@ mod tests {
             conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
             source: None,
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&input, &config).unwrap();
+        let mut state = FemState::new(&fem, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
@@ -466,9 +466,9 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&input, &config, &mesh.cells[0], &p1_new).unwrap();
+        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1_new).unwrap();
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();

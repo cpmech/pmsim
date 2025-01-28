@@ -45,17 +45,12 @@ pub struct ElementSolid<'a> {
 
 impl<'a> ElementSolid<'a> {
     /// Allocates new instance
-    pub fn new(
-        input: &'a FemMesh,
-        config: &'a Config,
-        cell: &'a Cell,
-        param: &'a ParamSolid,
-    ) -> Result<Self, StrError> {
+    pub fn new(fem: &'a FemMesh, config: &'a Config, cell: &'a Cell, param: &'a ParamSolid) -> Result<Self, StrError> {
         // local-to-global mapping
-        let local_to_global = compute_local_to_global(&input.information, &input.equations, cell)?;
+        let local_to_global = compute_local_to_global(&fem.information, &fem.equations, cell)?;
 
         // pad for numerical integration
-        let pad = input.mesh.get_pad(cell.id);
+        let pad = fem.mesh.get_pad(cell.id);
 
         // integration points
         let gauss = config.gauss(cell)?;
@@ -258,11 +253,11 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_ngauss(1, 100); // wrong
         assert_eq!(
-            ElementSolid::new(&input, &config, &mesh.cells[0], &p1).err(),
+            ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).err(),
             Some("requested number of integration points is not available for Tri class")
         );
     }
@@ -277,10 +272,10 @@ mod tests {
             density: 2.7, // Mg/m²
             stress_strain: StressStrain::LinearElastic { young, poisson },
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
-        let mut state = FemState::new(&input, &config).unwrap();
+        let mut elem = ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
+        let mut state = FemState::new(&fem, &config).unwrap();
 
         // set stress state
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
@@ -350,7 +345,7 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+            let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -359,8 +354,8 @@ mod tests {
             config.update_model_settings(cell.attribute).set_save_strain(true);
 
             // check stress update (horizontal displacement field)
-            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
-            let mut state = FemState::new(&input, &config).unwrap();
+            let mut element = ElementSolid::new(&fem, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&fem, &config).unwrap();
             vec_copy(&mut state.duu, &duu_h).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -375,8 +370,8 @@ mod tests {
             }
 
             // check stress update (vertical displacement field)
-            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
-            let mut state = FemState::new(&input, &config).unwrap();
+            let mut element = ElementSolid::new(&fem, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&fem, &config).unwrap();
             vec_copy(&mut state.duu, &duu_v).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -391,8 +386,8 @@ mod tests {
             }
 
             // check stress update (shear displacement field)
-            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
-            let mut state = FemState::new(&input, &config).unwrap();
+            let mut element = ElementSolid::new(&fem, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&fem, &config).unwrap();
             vec_copy(&mut state.duu, &duu_s).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -445,15 +440,15 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+            let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
             // configuration
             let mut config = Config::new(&mesh);
             config.ideal.plane_stress = true;
 
             // check stress update (horizontal displacement field)
-            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
-            let mut state = FemState::new(&input, &config).unwrap();
+            let mut element = ElementSolid::new(&fem, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&fem, &config).unwrap();
             vec_copy(&mut state.duu, &duu_h).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -463,8 +458,8 @@ mod tests {
             }
 
             // check stress update (vertical displacement field)
-            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
-            let mut state = FemState::new(&input, &config).unwrap();
+            let mut element = ElementSolid::new(&fem, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&fem, &config).unwrap();
             vec_copy(&mut state.duu, &duu_v).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -474,8 +469,8 @@ mod tests {
             }
 
             // check stress update (shear displacement field)
-            let mut element = ElementSolid::new(&input, &config, cell, &p1).unwrap();
-            let mut state = FemState::new(&input, &config).unwrap();
+            let mut element = ElementSolid::new(&fem, &config, cell, &p1).unwrap();
+            let mut state = FemState::new(&fem, &config).unwrap();
             vec_copy(&mut state.duu, &duu_s).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -513,7 +508,7 @@ mod tests {
             density: 2.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
         // configuration
         let mut config = Config::new(&mesh);
@@ -524,11 +519,11 @@ mod tests {
         config.set_gravity(|_| 0.5); // 1/2 because rho = 2
 
         // element
-        let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
 
         // check residual vector (1 integ point)
         // NOTE: since the stress is zero, the residual is due to the body force only
-        let mut state = FemState::new(&input, &config).unwrap();
+        let mut state = FemState::new(&fem, &config).unwrap();
         let neq = 4 * 2;
         let mut residual = Vector::new(neq);
         elem.initialize_internal_values(&mut state).unwrap();
@@ -539,8 +534,8 @@ mod tests {
 
         // check residual vector (4 integ point)
         config.set_ngauss(1, 4);
-        let mut state = FemState::new(&input, &config).unwrap();
-        let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
+        let mut state = FemState::new(&fem, &config).unwrap();
+        let mut elem = ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
         let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
         elem.initialize_internal_values(&mut state).unwrap();
         elem.calc_residual(&mut residual, &state).unwrap();

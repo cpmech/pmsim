@@ -48,7 +48,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     let features = Features::new(&mesh, false);
     let left = features.search_edges(At::X(0.0), any_x)?;
 
-    // input data
+    // parameters
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: Conductivity::Constant {
@@ -58,7 +58,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         },
         source: None,
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let essential = Essential::new();
@@ -73,11 +73,11 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     config.set_transient(true).set_dt(|_| 0.1).set_t_fin(t_fin);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // check
@@ -93,8 +93,8 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     .concat();
     println!("");
     for p in &selected {
-        let x = input.mesh.points[*p].coords[0];
-        let eq = input.equations.eq(*p, Dof::T).unwrap();
+        let x = fem.mesh.points[*p].coords[0];
+        let eq = fem.equations.eq(*p, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(state.t, x));
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
@@ -108,7 +108,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
         // get temperature values along x
-        let post = FemOutput::new(&input, None, None, None)?;
+        let post = FemOutput::new(&fem, None, None, None)?;
         let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
         // plot

@@ -58,13 +58,13 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let features = Features::new(&mesh, false);
     let right = features.search_edges(At::X(L), any_x)?;
 
-    // input data
+    // parameters
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: Conductivity::IsotropicLinear { kr: K_R, beta: BETA },
         source: Some(SOURCE),
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -77,11 +77,11 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // analytical solution
@@ -98,7 +98,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = input.equations.eq(ref_id, Dof::T)?;
+    let ref_eq = fem.equations.eq(ref_id, Dof::T)?;
     let ref_tt = state.uu[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
@@ -106,7 +106,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // plot
     if SAVE_FIGURE {
         // get temperature values along x
-        let post = FemOutput::new(&input, None, None, None)?;
+        let post = FemOutput::new(&fem, None, None, None)?;
         let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::T, 0.0, any_x)?;
 
         // compute plot data

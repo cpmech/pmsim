@@ -23,8 +23,8 @@ pub struct FemOutputSummary {
 
 /// Assists in the post-processing of results
 pub struct FemOutput<'a> {
-    /// Holds the input data
-    input: &'a FemMesh<'a>,
+    /// Holds the FEM mesh, attributes, and DOF numbers
+    fem: &'a FemMesh<'a>,
 
     /// Defines the filename stem
     filename_stem: Option<String>,
@@ -53,8 +53,8 @@ impl FemOutputSummary {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let input = File::open(path).map_err(|_| "cannot open file")?;
-        let buffered = BufReader::new(input);
+        let fem = File::open(path).map_err(|_| "cannot open file")?;
+        let buffered = BufReader::new(fem);
         let summary = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
         Ok(summary)
     }
@@ -83,7 +83,7 @@ impl<'a> FemOutput<'a> {
     ///
     /// # Input
     ///
-    /// * `input` -- the FEM input data
+    /// * `fem` -- the FEM mesh, attributes, and DOF numbers
     /// * `filename_steam` -- the last part of the filename without extension, e.g., "my_simulation".
     ///   None means that no files will be written.
     /// * `output_directory` -- the directory to save the output files.
@@ -92,7 +92,7 @@ impl<'a> FemOutput<'a> {
     ///   Example use `Some(|state, count| { ... })` to perform some processing on state at time `state.t`.
     ///   `count` is the corresponding `output_count` used to generate the output file.
     pub fn new(
-        input: &'a FemMesh,
+        fem: &'a FemMesh,
         filename_stem: Option<String>,
         output_directory: Option<&str>,
         callback: Option<fn(&FemState, usize)>,
@@ -113,7 +113,7 @@ impl<'a> FemOutput<'a> {
             Some(_) => FemOutputSummary {
                 indices: Vec::new(),
                 times: Vec::new(),
-                equations: Some(input.equations.clone()),
+                equations: Some(fem.equations.clone()),
             },
             None => FemOutputSummary {
                 indices: Vec::new(),
@@ -124,7 +124,7 @@ impl<'a> FemOutput<'a> {
 
         // output
         Ok(FemOutput {
-            input,
+            fem,
             filename_stem,
             output_directory: out_dir.to_string(),
             output_count: 0,
@@ -156,7 +156,7 @@ impl<'a> FemOutput<'a> {
             // save the mesh
             if self.output_count == 0 {
                 let path = &FemOutput::path_mesh(&self.output_directory, fn_stem);
-                self.input.mesh.write_json(&path)?;
+                self.fem.mesh.write_json(&path)?;
             }
 
             // save the state
@@ -222,14 +222,14 @@ impl<'a> FemOutput<'a> {
         let point_ids = features.search_point_ids(At::Y(y), filter)?;
         let mut id_x_pairs: Vec<_> = point_ids
             .iter()
-            .map(|id| (*id, self.input.mesh.points[*id].coords[0]))
+            .map(|id| (*id, self.fem.mesh.points[*id].coords[0]))
             .collect();
         id_x_pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         // extract dof values
         let dd: Vec<_> = id_x_pairs
             .iter()
-            .map(|(id, _)| state.uu[self.input.equations.eq(*id, dof).unwrap()])
+            .map(|(id, _)| state.uu[self.fem.equations.eq(*id, dof).unwrap()])
             .collect();
 
         // unzip id_x_pairs
@@ -255,16 +255,16 @@ mod tests {
         let mesh = Samples::one_tri6();
         let features = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
-        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&input, &config).unwrap();
+        let mut state = FemState::new(&fem, &config).unwrap();
         state.uu[0] = 1.0;
         state.uu[1] = 2.0;
         state.uu[2] = 3.0;
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let output = FemOutput::new(&input, None, None, None).unwrap();
+        let output = FemOutput::new(&fem, None, None, None).unwrap();
         let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);

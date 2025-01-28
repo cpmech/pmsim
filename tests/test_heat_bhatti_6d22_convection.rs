@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Conductivity, Config, Dof, Essential, Elem, Natural, Nbc, ParamDiffusion, SampleMeshes};
+use pmsim::base::{Conductivity, Config, Dof, Elem, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{
     BcDistributedArray, BcPrescribedArray, Elements, FemMesh, FemOutput, FemSolverImplicit, FemState, LinearSystem,
 };
@@ -51,7 +51,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let edges_conv_b = features.search_edges(At::X(0.03), any_x)?; // middle-vertical
     let edges_conv_c = features.search_edges(At::Y(0.015), any_x)?; // middle-horizontal
 
-    // input data
+    // parameters
     let (kx, ky) = (45.0, 45.0);
     let source = 5e6;
     let p1 = ParamDiffusion {
@@ -59,7 +59,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -79,13 +79,13 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // elements
-    let mut elements = Elements::new(&input, &config)?;
+    let mut elements = Elements::new(&fem, &config)?;
 
     // boundaries
-    let mut boundaries = BcDistributedArray::new(&input, &config, &natural)?;
+    let mut boundaries = BcDistributedArray::new(&fem, &config, &natural)?;
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
+    let mut state = FemState::new(&fem, &config)?;
 
     // check residual of first element
     state.uu.fill(0.0);
@@ -124,10 +124,10 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[1].jacobian, &bhatti_kk1, 1e-12);
 
     // prescribed values
-    let prescribed_values = BcPrescribedArray::new(&input, &essential)?;
+    let prescribed_values = BcPrescribedArray::new(&fem, &essential)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&fem, &config, &prescribed_values, &elements, &boundaries)?;
 
     // fix state.uu (must do this before calculating residuals)
     for eq in &prescribed_values.equations {
@@ -251,7 +251,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     let edges_conv_b = features.search_edges(At::X(0.03), any_x)?; // middle-vertical
     let edges_conv_c = features.search_edges(At::Y(0.015), any_x)?; // middle-horizontal
 
-    // input data
+    // parameters
     let (kx, ky) = (45.0, 45.0);
     let source = 5e6;
     let p1 = ParamDiffusion {
@@ -259,7 +259,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
     let config = Config::new(&mesh);
 
     // essential boundary conditions
@@ -275,11 +275,11 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // check U vector

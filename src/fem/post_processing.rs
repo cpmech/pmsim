@@ -12,8 +12,8 @@ use std::collections::HashMap;
 ///
 /// This structure also implements the extrapolation from Gauss points to nodes.
 pub struct PostProcessing<'a> {
-    /// Holds the input data
-    input: &'a FemMesh<'a>,
+    /// Holds the FEM mesh, parameters, attributes, and DOF numbers
+    fem: &'a FemMesh<'a>,
 
     /// Holds configuration parameters
     config: &'a Config<'a>,
@@ -30,9 +30,9 @@ pub struct PostProcessing<'a> {
 
 impl<'a> PostProcessing<'a> {
     /// Allocates new instance
-    pub fn new(input: &'a FemMesh, config: &'a Config) -> Self {
+    pub fn new(fem: &'a FemMesh, config: &'a Config) -> Self {
         PostProcessing {
-            input,
+            fem,
             config,
             all_gauss: HashMap::new(),
             all_pads: HashMap::new(),
@@ -74,7 +74,7 @@ impl<'a> PostProcessing<'a> {
     ///
     /// Returns a vector (nnode) with the stress components `σij` at each node
     pub fn stress_nodal(&mut self, cell_id: CellId, state: &FemState, i: usize, j: usize) -> Result<Vector, StrError> {
-        let nnode = self.input.mesh.cells[cell_id].points.len();
+        let nnode = self.fem.mesh.cells[cell_id].points.len();
         let sij_point = self.stress(cell_id, state, i, j)?;
         let mut sxx_nodal = Vector::new(nnode);
         let ee = self.get_extrap_mat(cell_id)?;
@@ -92,17 +92,17 @@ impl<'a> PostProcessing<'a> {
     ///
     /// Returns an array with ngauss (number of integration points) vectors, where each vector has a dimension equal to space_ndim.
     pub fn gauss_coords(&mut self, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
-        let cell = &self.input.mesh.cells[cell_id];
+        let cell = &self.fem.mesh.cells[cell_id];
         let gauss = self.all_gauss.entry(cell_id).or_insert(self.config.gauss(cell)?);
-        let mut pad = self.all_pads.entry(cell_id).or_insert(self.input.mesh.get_pad(cell_id));
+        let mut pad = self.all_pads.entry(cell_id).or_insert(self.fem.mesh.get_pad(cell_id));
         get_points_coords(&mut pad, &gauss)
     }
 
     /// Computes the extrapolation matrix
     fn get_extrap_mat(&mut self, cell_id: CellId) -> Result<&Matrix, StrError> {
-        let cell = &self.input.mesh.cells[cell_id];
+        let cell = &self.fem.mesh.cells[cell_id];
         let gauss = self.all_gauss.entry(cell_id).or_insert(self.config.gauss(cell)?);
-        let mut pad = self.all_pads.entry(cell_id).or_insert(self.input.mesh.get_pad(cell_id));
+        let mut pad = self.all_pads.entry(cell_id).or_insert(self.fem.mesh.get_pad(cell_id));
         let ee = self
             .all_extrap_mat
             .entry(cell_id)

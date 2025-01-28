@@ -205,9 +205,9 @@ mod tests {
     fn write_vtu_works() {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&input, &config).unwrap();
+        let mut state = FemState::new(&fem, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
@@ -220,7 +220,7 @@ mod tests {
 
         let fn_stem = "test_write_vtu_works";
         let path = format!("{}/{}-{:0>20}.vtu", DEFAULT_OUT_DIR, fn_stem, 0);
-        paraview_write_vtu(&mesh, &input.equations, &state, &path).unwrap();
+        paraview_write_vtu(&mesh, &fem.equations, &state, &path).unwrap();
 
         let contents = fs::read_to_string(path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(

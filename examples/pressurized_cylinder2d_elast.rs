@@ -144,7 +144,7 @@ fn main() -> Result<(), StrError> {
         let study_point = features.search_point_ids(At::XY(0.0, R2), any_x)?[0];
         array_approx_eq(&mesh.points[study_point].coords, &[0.0, R2], 1e-13); // << some error
 
-        // input data
+        // parameters
         let param1 = ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::LinearElastic {
@@ -152,10 +152,10 @@ fn main() -> Result<(), StrError> {
                 poisson: POISSON,
             },
         };
-        let input = FemMesh::new(&mesh, [(1, Elem::Solid(param1))])?;
+        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(param1))])?;
 
         // total number of DOF
-        let ndof = input.equations.n_equation;
+        let ndof = fem.equations.n_equation;
         let n_str = format!("{:0>5}", ndof);
 
         // filepaths
@@ -227,13 +227,13 @@ fn main() -> Result<(), StrError> {
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // FEM state
-        let mut state = FemState::new(&input, &config)?;
+        let mut state = FemState::new(&fem, &config)?;
 
         // FEM output
-        let mut output = FemOutput::new(&input, None, None, None)?;
+        let mut output = FemOutput::new(&fem, None, None, None)?;
 
         // solution
-        let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+        let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
         solver.solve(&mut state, &mut output)?;
         results.time[idx] = stopwatch.stop();
@@ -241,12 +241,12 @@ fn main() -> Result<(), StrError> {
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = input.equations.eq(ref_point_id, Dof::Ux).unwrap();
+        let eq = fem.equations.eq(ref_point_id, Dof::Ux).unwrap();
         let numerical_ur = state.uu[eq];
         let error = f64::abs(numerical_ur - ana.radial_displacement(r));
 
         // study point error
-        let eq = input.equations.eq(study_point, Dof::Uy).unwrap();
+        let eq = fem.equations.eq(study_point, Dof::Uy).unwrap();
         let numerical_ur = state.uu[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 

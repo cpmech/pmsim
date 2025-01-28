@@ -50,14 +50,14 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let left = features.search_edges(At::X(rin), any_x)?;
     let right = features.search_edges(At::X(rout), any_x)?;
 
-    // input data
+    // parameters
     let (kx, ky) = (10.0, 10.0);
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -72,11 +72,11 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     config.set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
     // println!("{}", state.uu);
 
@@ -84,7 +84,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
-        let eq = input.equations.eq(point.id, Dof::T).unwrap();
+        let eq = fem.equations.eq(point.id, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);

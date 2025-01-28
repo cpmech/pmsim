@@ -32,12 +32,12 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let footing = features.search_edges(At::Y(H), |x| x[0] <= B)?;
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic { young: E, poisson: NU },
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -55,15 +55,15 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     config.set_ngauss(att, NGAUSS);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // results
-    let mut post = PostProcessing::new(&input, &config);
+    let mut post = PostProcessing::new(&fem, &config);
     let mut gauss_x = Vec::new();
     let mut gauss_y = Vec::new();
     let mut gauss_syy = Vec::new();

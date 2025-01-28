@@ -52,7 +52,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     const YOUNG: f64 = 1000.0;
     const POISSON: f64 = 0.0;
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
@@ -60,7 +60,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
             poisson: POISSON,
         },
     };
-    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -75,11 +75,11 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     config.set_axisymmetric().set_ngauss(1, 4); // reduced integration => better results
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&fem, &config)?;
+    let mut output = FemOutput::new(&fem, None, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // Felippa's Equation 14.2 on page 14-4
@@ -93,7 +93,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let selection = features.search_point_ids(At::Y(0.0), any_x)?;
     for p in &selection {
         let r = mesh.points[*p].coords[0];
-        let eq = input.equations.eq(*p, Dof::Ux).unwrap();
+        let eq = fem.equations.eq(*p, Dof::Ux).unwrap();
         let ux = state.uu[eq];
         let diff = f64::abs(ux - analytical_ur(r));
         println!("point = {}, r = {:?}, Ux = {:?}, diff = {:?}", p, r, ux, diff);

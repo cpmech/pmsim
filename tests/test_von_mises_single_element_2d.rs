@@ -59,7 +59,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     const NU2: f64 = POISSON * POISSON;
     const N_STEPS: usize = 5;
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::VonMises {
@@ -69,7 +69,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             hh: 800.0,
         },
     };
-    let input = FemMesh::new(&mesh, [(att, Elem::Solid(p1))])?;
+    let fem = FemMesh::new(&mesh, [(att, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
@@ -92,13 +92,13 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_n_max_iterations(20);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
+    let mut state = FemState::new(&fem, &config)?;
 
     // FEM output
-    let mut output = FemOutput::new(&input, Some(NAME.to_string()), None, None)?;
+    let mut output = FemOutput::new(&fem, Some(NAME.to_string()), None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut output)?;
 
     // verify the results

@@ -43,8 +43,8 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     let stress = vec![0.0, q, q * nu, 0.0];
 
     // data, DOF numbers, and equations
-    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-    let neq = input.equations.n_equation;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+    let neq = fem.equations.n_equation;
     assert_eq!(neq, 8);
 
     // essential boundary conditions
@@ -53,7 +53,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
         .points(&[0], Dof::Ux, 0.0)
         .points(&[0, 1], Dof::Uy, 0.0)
         .points(&[2, 3], Dof::Uy, STRAIN_Y);
-    let values = BcPrescribedArray::new(&input, &essential)?;
+    let values = BcPrescribedArray::new(&fem, &essential)?;
     let prescribed = &values.flags;
 
     // prescribed and unknown equations
@@ -65,8 +65,8 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
 
     // element and state
     let config = Config::new(&mesh);
-    let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
-    let mut state = FemState::new(&input, &config)?;
+    let mut elem = ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
+    let mut state = FemState::new(&fem, &config)?;
 
     // update state with prescribed displacements
     values.apply(&mut state.duu, &mut state.uu, 1.0);
@@ -172,8 +172,8 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     let stress = vec![0.0, q, q * nu, 0.0];
 
     // data, DOF numbers, and equations
-    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-    let neq = input.equations.n_equation;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+    let neq = fem.equations.n_equation;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -181,7 +181,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
         .points(&[0], Dof::Ux, 0.0)
         .points(&[0, 1], Dof::Uy, 0.0)
         .points(&[2, 3], Dof::Uy, STRAIN_Y);
-    let values = BcPrescribedArray::new(&input, &essential)?;
+    let values = BcPrescribedArray::new(&fem, &essential)?;
     let prescribed = &values.flags;
 
     // prescribed and unknown equations
@@ -191,8 +191,8 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
 
     // element and state
     let config = Config::new(&mesh);
-    let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
-    let mut state = FemState::new(&input, &config)?;
+    let mut elem = ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
+    let mut state = FemState::new(&fem, &config)?;
 
     // update state with prescribed displacements
     values.apply(&mut state.duu, &mut state.uu, 1.0);
