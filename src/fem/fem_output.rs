@@ -1,7 +1,6 @@
-use crate::base::{Dof, Equations, DEFAULT_OUT_DIR};
+use crate::base::{Equations, DEFAULT_OUT_DIR};
 use crate::fem::{FemMesh, FemState};
 use crate::StrError;
-use gemlab::mesh::{At, Features, PointId};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs::{self, File};
@@ -171,91 +170,5 @@ impl<'a> FemOutput<'a> {
             self.summary.write_json(&path)?;
         }
         Ok(())
-    }
-
-    /// Extracts primary values along x
-    ///
-    /// Returns the DOF values (e.g., T) corresponding to the points with constant y coordinate
-    ///
-    /// **Important:** If you need values at points on the interior of the mesh,
-    /// then you have to pass the Extract::All option when allocating a new Find instance.
-    ///
-    /// # Input
-    ///
-    /// * `state` -- state for which the {U} values are extracted
-    /// * `dof` -- the desired DOF, e.g., T
-    /// * `y` -- the constant elevation
-    /// * `filter` -- fn(x) -> bool that returns true to **keep** the coordinate just found
-    ///   (yields only the elements for which the closure returns true)
-    ///
-    /// # Output
-    ///
-    /// Returns `(ids, xx, dd)`, where:
-    ///
-    /// * `ids` -- contains the IDs of the points along x
-    /// * `xx` -- are the x-coordinates
-    /// * `dd` -- are the DOF values (e.g., temperature) along x and corresponding to the `ids` and `xx`
-    pub fn values_along_x<F>(
-        &self,
-        features: &Features,
-        state: &FemState,
-        dof: Dof,
-        y: f64,
-        filter: F,
-    ) -> Result<(Vec<PointId>, Vec<f64>, Vec<f64>), StrError>
-    where
-        F: FnMut(&[f64]) -> bool,
-    {
-        // find points and sort by x-coordinates
-        let point_ids = features.search_point_ids(At::Y(y), filter)?;
-        let mut id_x_pairs: Vec<_> = point_ids
-            .iter()
-            .map(|id| (*id, self.fem.mesh.points[*id].coords[0]))
-            .collect();
-        id_x_pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-
-        // extract dof values
-        let dd: Vec<_> = id_x_pairs
-            .iter()
-            .map(|(id, _)| state.uu[self.fem.equations.eq(*id, dof).unwrap()])
-            .collect();
-
-        // unzip id_x_pairs
-        let (ids, xx): (Vec<_>, Vec<_>) = id_x_pairs.iter().cloned().unzip();
-
-        // results
-        Ok((ids, xx, dd))
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[cfg(test)]
-mod tests {
-    use super::FemOutput;
-    use crate::base::{Config, Dof, Elem, ParamDiffusion};
-    use crate::fem::{FemMesh, FemState};
-    use gemlab::mesh::{Features, Samples};
-    use gemlab::util::any_x;
-
-    #[test]
-    fn values_along_x_works() {
-        let mesh = Samples::one_tri6();
-        let features = Features::new(&mesh, false);
-        let p1 = ParamDiffusion::sample();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
-        let config = Config::new(&mesh);
-        let mut state = FemState::new(&fem, &config).unwrap();
-        state.uu[0] = 1.0;
-        state.uu[1] = 2.0;
-        state.uu[2] = 3.0;
-        state.uu[3] = 4.0;
-        state.uu[4] = 5.0;
-        state.uu[5] = 6.0;
-        let output = FemOutput::new(&fem, None, None).unwrap();
-        let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
-        assert_eq!(ids, &[0, 3, 1]);
-        assert_eq!(xx, &[0.0, 0.5, 1.0]);
-        assert_eq!(dd, &[1.0, 4.0, 2.0]);
     }
 }

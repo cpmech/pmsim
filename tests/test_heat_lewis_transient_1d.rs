@@ -108,7 +108,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
         // get temperature values along x
-        let post = FemOutput::new(&fem, None, None)?;
+        let post = PostProcessing::new(&fem, &config);
         let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
         // plot
