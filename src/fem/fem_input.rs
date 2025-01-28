@@ -1,4 +1,4 @@
-use crate::base::{Attributes, Etype, ElementDofsMap, Equations};
+use crate::base::{Attributes, ElementDofsMap, Equations, Etype};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
 
