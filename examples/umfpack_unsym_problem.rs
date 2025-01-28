@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Ebc, Essential, Etype, Natural, Nbc, ParamSolid, StressStrain};
-use pmsim::fem::{Boundaries, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
+use pmsim::fem::{BcDistributedArray, BcPrescribedArray, Elements, FemInput, FemState, LinearSystem};
 use russell_lab::*;
 use russell_sparse::prelude::*;
 
@@ -48,7 +48,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     essential.edges(&left, Ebc::Ux(0.0)).edges(&bottom, Ebc::Uy(0.0));
 
     // prescribed values
-    let prescribed_values = PrescribedValues::new(&input, &essential)?;
+    let prescribed_values = BcPrescribedArray::new(&input, &essential)?;
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -67,7 +67,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     let mut elements = Elements::new(&input, &config)?;
 
     // boundaries
-    let mut boundaries = Boundaries::new(&input, &config, &natural)?;
+    let mut boundaries = BcDistributedArray::new(&input, &config, &natural)?;
 
     // FEM state
     let state = FemState::new(&input, &config)?;

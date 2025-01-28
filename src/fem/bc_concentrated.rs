@@ -4,8 +4,10 @@ use crate::StrError;
 use gemlab::mesh::PointId;
 use russell_lab::Vector;
 
-/// Assists in calculating concentrated loads
-pub struct ConcentratedLoad {
+/// Assists in calculating a concentrated load boundary condition
+///
+/// This data structure corresponds to a single Natural (Neumann) boundary condition
+pub struct BcConcentrated {
     /// Point boundary condition
     pub pbc: Pbc,
 
@@ -13,16 +15,16 @@ pub struct ConcentratedLoad {
     pub eq: usize,
 }
 
-/// Holds a collection of concentrated loads
-pub struct ConcentratedLoads {
+/// Implements an array of BcConcentrated
+pub struct BcConcentratedArray {
     /// All values
-    pub all: Vec<ConcentratedLoad>,
+    pub all: Vec<BcConcentrated>,
 }
 
-impl ConcentratedLoad {
+impl BcConcentrated {
     /// Allocates new instance
     pub fn new(input: &FemInput, point_id: PointId, pbc: Pbc) -> Result<Self, StrError> {
-        Ok(ConcentratedLoad {
+        Ok(BcConcentrated {
             pbc,
             eq: input.equations.eq(point_id, pbc.dof())?,
         })
@@ -40,14 +42,14 @@ impl ConcentratedLoad {
     }
 }
 
-impl ConcentratedLoads {
+impl BcConcentratedArray {
     /// Allocates new instance
     pub fn new(input: &FemInput, natural: &Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.at_points.len() + 1);
         for (point_id, pbc) in &natural.at_points {
-            all.push(ConcentratedLoad::new(input, *point_id, *pbc)?);
+            all.push(BcConcentrated::new(input, *point_id, *pbc)?);
         }
-        Ok(ConcentratedLoads { all })
+        Ok(BcConcentratedArray { all })
     }
 
     /// Adds all concentrated load values at given time to the global residual
@@ -60,7 +62,7 @@ impl ConcentratedLoads {
 
 #[cfg(test)]
 mod tests {
-    use super::{ConcentratedLoad, ConcentratedLoads};
+    use super::{BcConcentrated, BcConcentratedArray};
     use crate::base::{Etype, Natural, ParamSolid, Pbc};
     use crate::fem::FemInput;
     use gemlab::mesh::Samples;
@@ -72,14 +74,14 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         assert_eq!(
-            ConcentratedLoad::new(&input, 123, Pbc::Fy(-10.0)).err(),
+            BcConcentrated::new(&input, 123, Pbc::Fy(-10.0)).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
 
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx(-10.0));
         assert_eq!(
-            ConcentratedLoads::new(&input, &natural).err(),
+            BcConcentratedArray::new(&input, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
     }
@@ -93,7 +95,7 @@ mod tests {
         natural.points(&[0], Pbc::Fx(-20.0));
         natural.points(&[1], Pbc::Fy(-20.0));
         natural.points(&[2], Pbc::Fz(-20.0));
-        let b_points = ConcentratedLoads::new(&input, &natural).unwrap();
+        let b_points = BcConcentratedArray::new(&input, &natural).unwrap();
         let mut residual = Vector::new(4 * 3);
         b_points.add_to_residual(&mut residual, 0.0);
         assert_eq!(

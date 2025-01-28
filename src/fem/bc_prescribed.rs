@@ -4,8 +4,10 @@ use crate::StrError;
 use gemlab::mesh::{Point, PointId};
 use russell_lab::Vector;
 
-/// Assists in calculating prescribed values
-pub struct PrescribedValue<'a> {
+/// Assists in calculating a prescribed value boundary condition
+///
+/// This data structure corresponds to a single Essential (Dirichlet) boundary condition
+pub struct BcPrescribed<'a> {
     /// Point corresponding to the prescribed value
     pub point: &'a Point,
 
@@ -16,10 +18,10 @@ pub struct PrescribedValue<'a> {
     pub eq: usize,
 }
 
-/// Holds a collection of prescribed (primary) values
-pub struct PrescribedValues<'a> {
+/// Implements an array of BcPrescribed
+pub struct BcPrescribedArray<'a> {
     /// All values
-    pub all: Vec<PrescribedValue<'a>>,
+    pub all: Vec<BcPrescribed<'a>>,
 
     /// An array indicating which DOFs (equations) are prescribed
     ///
@@ -32,13 +34,13 @@ pub struct PrescribedValues<'a> {
     pub equations: Vec<usize>,
 }
 
-impl<'a> PrescribedValue<'a> {
+impl<'a> BcPrescribed<'a> {
     /// Allocates new instance
     pub fn new(input: &'a FemInput, point_id: PointId, ebc: Ebc) -> Result<Self, StrError> {
         if point_id >= input.mesh.points.len() {
             return Err("cannot initialize prescribed value because PointId is out-of-bounds");
         }
-        Ok(PrescribedValue {
+        Ok(BcPrescribed {
             point: &input.mesh.points[point_id],
             ebc,
             eq: input.equations.eq(point_id, ebc.dof())?,
@@ -63,7 +65,7 @@ impl<'a> PrescribedValue<'a> {
     }
 }
 
-impl<'a> PrescribedValues<'a> {
+impl<'a> BcPrescribedArray<'a> {
     /// Allocates new instance
     pub fn new(input: &'a FemInput, essential: &Essential) -> Result<Self, StrError> {
         let mut all = Vec::new();
@@ -71,11 +73,11 @@ impl<'a> PrescribedValues<'a> {
         let mut equations = Vec::new();
         for ((point_id, dof), ebc) in &essential.all {
             let eq = input.equations.eq(*point_id, *dof)?;
-            all.push(PrescribedValue::new(input, *point_id, *ebc).unwrap()); // already checked
+            all.push(BcPrescribed::new(input, *point_id, *ebc).unwrap()); // already checked
             flags[eq] = true;
             equations.push(eq);
         }
-        Ok(PrescribedValues { all, flags, equations })
+        Ok(BcPrescribedArray { all, flags, equations })
     }
 
     /// Sets all prescribed values in the solution vector
@@ -88,7 +90,7 @@ impl<'a> PrescribedValues<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrescribedValue, PrescribedValues};
+    use super::{BcPrescribed, BcPrescribedArray};
     use crate::base::{Ebc, Essential, Etype, ParamBeam, ParamDiffusion};
     use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::FemInput;
@@ -102,24 +104,24 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
         assert_eq!(
-            PrescribedValue::new(&input, 123, Ebc::Ux(0.0)).err(),
+            BcPrescribed::new(&input, 123, Ebc::Ux(0.0)).err(),
             Some("cannot initialize prescribed value because PointId is out-of-bounds")
         );
         assert_eq!(
-            PrescribedValue::new(&input, 0, Ebc::T(0.0)).err(),
+            BcPrescribed::new(&input, 0, Ebc::T(0.0)).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
 
         let mut essential = Essential::new();
         essential.points(&[100], Ebc::Ux(0.0));
         assert_eq!(
-            PrescribedValues::new(&input, &essential).err(),
+            BcPrescribedArray::new(&input, &essential).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let mut essential = Essential::new();
         essential.points(&[0], Ebc::T(0.0));
         assert_eq!(
-            PrescribedValues::new(&input, &essential).err(),
+            BcPrescribedArray::new(&input, &essential).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
     }
@@ -134,7 +136,7 @@ mod tests {
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
         uu.fill(100.0);
-        let values = PrescribedValues::new(&input, &essential).unwrap();
+        let values = BcPrescribedArray::new(&input, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         assert_eq!(duu.as_data(), &[10.0, 0.0, 0.0]);
         assert_eq!(uu.as_data(), &[110.0, 100.0, 100.0]);
@@ -165,7 +167,7 @@ mod tests {
             .points(&[0], Ebc::Rz(6.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
-        let values = PrescribedValues::new(&input, &essential).unwrap();
+        let values = BcPrescribedArray::new(&input, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
@@ -240,7 +242,7 @@ mod tests {
             .points(&[10], Ebc::Rz(28.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
-        let values = PrescribedValues::new(&input, &essential).unwrap();
+        let values = BcPrescribedArray::new(&input, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[            // point
@@ -281,7 +283,7 @@ mod tests {
             .points(&[2], Ebc::Pg(12.0));
         let mut duu = Vector::new(input.equations.n_equation);
         let mut uu = Vector::new(input.equations.n_equation);
-        let values = PrescribedValues::new(&input, &essential).unwrap();
+        let values = BcPrescribedArray::new(&input, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
@@ -312,7 +314,7 @@ mod tests {
         let input = FemInput::new(&mesh, [(1, Etype::PorousLiq(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.points(&[0, 4], Ebc::Pl(0.0));
-        let values = PrescribedValues::new(&input, &essential).unwrap();
+        let values = BcPrescribedArray::new(&input, &essential).unwrap();
         assert_eq!(values.flags, &[true, false, false, false, true]);
         let mut eqs = values.equations.clone();
         eqs.sort();
@@ -335,7 +337,7 @@ mod tests {
             .points(&[0], Ebc::Ux(0.0))
             .points(&[0], Ebc::Uy(0.0))
             .points(&[1, 2], Ebc::Uy(0.0));
-        let values = PrescribedValues::new(&input, &essential).unwrap();
+        let values = BcPrescribedArray::new(&input, &essential).unwrap();
         assert_eq!(
             values.flags,
             //   0     1      2     3      4     5      6      7      8      9

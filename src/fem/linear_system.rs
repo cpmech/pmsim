@@ -1,4 +1,4 @@
-use super::{Boundaries, Elements, FemInput, PrescribedValues};
+use super::{BcDistributedArray, Elements, FemInput, BcPrescribedArray};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
@@ -43,9 +43,9 @@ impl<'a> LinearSystem<'a> {
     pub fn new(
         input: &FemInput,
         config: &Config,
-        prescribed_values: &PrescribedValues,
+        prescribed_values: &BcPrescribedArray,
         elements: &Elements,
-        boundaries: &Boundaries,
+        boundaries: &BcDistributedArray,
     ) -> Result<Self, StrError> {
         // equation (DOF) numbers
         let n_equation = input.equations.n_equation;
@@ -119,7 +119,7 @@ impl<'a> LinearSystem<'a> {
 mod tests {
     use super::LinearSystem;
     use crate::base::{new_empty_mesh_2d, Config, Ebc, Essential, Etype, Natural, Nbc, ParamDiffusion};
-    use crate::fem::{Boundaries, Elements, FemInput, PrescribedValues};
+    use crate::fem::{BcDistributedArray, Elements, FemInput, BcPrescribedArray};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
     use russell_sparse::{Genie, Sym};
@@ -132,9 +132,9 @@ mod tests {
         let config = Config::new(&empty_mesh);
         let essential = Essential::new();
         let natural = Natural::new();
-        let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
+        let prescribed_values = BcPrescribedArray::new(&input, &essential).unwrap();
         let elements = Elements::new(&input, &config).unwrap();
-        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
+        let boundaries = BcDistributedArray::new(&input, &config, &natural).unwrap();
         assert_eq!(
             LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).err(),
             Some("nrow must be ≥ 1")
@@ -164,7 +164,7 @@ mod tests {
             points: vec![2, 3],
         };
         natural.edge(&edge_conv, Nbc::Cv(55.0, 123.0));
-        let prescribed_values = PrescribedValues::new(&input, &essential).unwrap();
+        let prescribed_values = BcPrescribedArray::new(&input, &essential).unwrap();
 
         let n_equation_global = mesh.points.len() * 1; // 1 DOF per node
 
@@ -185,7 +185,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.lin_sol_genie = Genie::Umfpack;
         let elements = Elements::new(&input, &config).unwrap();
-        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
+        let boundaries = BcDistributedArray::new(&input, &config, &natural).unwrap();
         let lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).unwrap();
         assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
         assert_eq!(
@@ -202,7 +202,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.lin_sol_genie = Genie::Mumps;
         let elements = Elements::new(&input, &config).unwrap();
-        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
+        let boundaries = BcDistributedArray::new(&input, &config, &natural).unwrap();
         let lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).unwrap();
         assert_eq!(lin_sys.nnz_sup, nnz_correct_triangle);
         assert_eq!(
@@ -220,7 +220,7 @@ mod tests {
         config.lin_sol_genie = Genie::Mumps;
         config.ignore_jacobian_symmetry = true;
         let elements = Elements::new(&input, &config).unwrap();
-        let boundaries = Boundaries::new(&input, &config, &natural).unwrap();
+        let boundaries = BcDistributedArray::new(&input, &config, &natural).unwrap();
         let lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries).unwrap();
         assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
         assert_eq!(

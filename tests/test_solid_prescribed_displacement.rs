@@ -1,6 +1,6 @@
 use gemlab::mesh::Samples;
 use pmsim::base::{assemble_matrix, assemble_vector};
-use pmsim::fem::{ElementSolid, ElementTrait, PrescribedValues};
+use pmsim::fem::{ElementSolid, ElementTrait, BcPrescribedArray};
 use pmsim::prelude::*;
 use russell_lab::*;
 use russell_sparse::prelude::*;
@@ -53,7 +53,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
         .points(&[0], Ebc::Ux(0.0))
         .points(&[0, 1], Ebc::Uy(0.0))
         .points(&[2, 3], Ebc::Uy(STRAIN_Y));
-    let values = PrescribedValues::new(&input, &essential)?;
+    let values = BcPrescribedArray::new(&input, &essential)?;
     let prescribed = &values.flags;
 
     // prescribed and unknown equations
@@ -181,7 +181,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
         .points(&[0], Ebc::Ux(0.0))
         .points(&[0, 1], Ebc::Uy(0.0))
         .points(&[2, 3], Ebc::Uy(STRAIN_Y));
-    let values = PrescribedValues::new(&input, &essential)?;
+    let values = BcPrescribedArray::new(&input, &essential)?;
     let prescribed = &values.flags;
 
     // prescribed and unknown equations

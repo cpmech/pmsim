@@ -1,7 +1,7 @@
 use gemlab::prelude::*;
 use pmsim::base::{Conductivity, Config, Ebc, Essential, Etype, Natural, Nbc, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{
-    Boundaries, Elements, FemInput, FemOutput, FemSolverImplicit, FemState, LinearSystem, PrescribedValues,
+    BcDistributedArray, Elements, FemInput, FemOutput, FemSolverImplicit, FemState, LinearSystem, BcPrescribedArray,
 };
 use russell_lab::*;
 
@@ -82,7 +82,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let mut elements = Elements::new(&input, &config)?;
 
     // boundaries
-    let mut boundaries = Boundaries::new(&input, &config, &natural)?;
+    let mut boundaries = BcDistributedArray::new(&input, &config, &natural)?;
 
     // FEM state
     let mut state = FemState::new(&input, &config)?;
@@ -124,7 +124,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[1].jacobian, &bhatti_kk1, 1e-12);
 
     // prescribed values
-    let prescribed_values = PrescribedValues::new(&input, &essential)?;
+    let prescribed_values = BcPrescribedArray::new(&input, &essential)?;
 
     // linear system
     let mut lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;

@@ -1,4 +1,6 @@
-use super::{Boundaries, ConcentratedLoads, Elements, FemInput, FemOutput, FemState, LinearSystem, PrescribedValues};
+use super::{
+    BcConcentratedArray, BcDistributedArray, BcPrescribedArray, Elements, FemInput, FemOutput, FemState, LinearSystem,
+};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
@@ -9,16 +11,16 @@ pub struct FemSolverImplicit<'a> {
     pub config: &'a Config<'a>,
 
     /// Holds a collection of prescribed (primary) values
-    pub prescribed_values: PrescribedValues<'a>,
+    pub prescribed_values: BcPrescribedArray<'a>,
 
     // Holds a collection of concentrated loads
-    pub concentrated_loads: ConcentratedLoads,
+    pub concentrated_loads: BcConcentratedArray,
 
     /// Holds a collection of elements
     pub elements: Elements<'a>,
 
     // Holds a collection of boundary integration data
-    pub boundaries: Boundaries<'a>,
+    pub boundaries: BcDistributedArray<'a>,
 
     /// Holds variables to solve the global linear system
     pub linear_system: LinearSystem<'a>,
@@ -36,10 +38,10 @@ impl<'a> FemSolverImplicit<'a> {
             println!("ERROR: {}", msg);
             return Err("cannot allocate simulation because config.validate() failed");
         }
-        let prescribed_values = PrescribedValues::new(input, essential)?;
-        let concentrated_loads = ConcentratedLoads::new(input, natural)?;
+        let prescribed_values = BcPrescribedArray::new(input, essential)?;
+        let concentrated_loads = BcConcentratedArray::new(input, natural)?;
         let elements = Elements::new(input, config)?;
-        let boundaries = Boundaries::new(input, config, natural)?;
+        let boundaries = BcDistributedArray::new(input, config, natural)?;
         let linear_system = LinearSystem::new(input, config, &prescribed_values, &elements, &boundaries)?;
         Ok(FemSolverImplicit {
             config,
