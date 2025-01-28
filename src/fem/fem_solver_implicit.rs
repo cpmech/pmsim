@@ -10,17 +10,17 @@ pub struct FemSolverImplicit<'a> {
     /// Holds configuration parameters
     pub config: &'a Config<'a>,
 
-    /// Holds a collection of prescribed (primary) values
-    pub prescribed_values: BcPrescribedArray<'a>,
-
     // Holds a collection of concentrated loads
-    pub concentrated_loads: BcConcentratedArray,
+    pub bc_concentrated: BcConcentratedArray,
+
+    // Holds a collection of boundary integration data
+    pub bc_distributed: BcDistributedArray<'a>,
+
+    /// Holds a collection of prescribed (primary) values
+    pub bc_prescribed: BcPrescribedArray<'a>,
 
     /// Holds a collection of elements
     pub elements: Elements<'a>,
-
-    // Holds a collection of boundary integration data
-    pub boundaries: BcDistributedArray<'a>,
 
     /// Holds variables to solve the global linear system
     pub linear_system: LinearSystem<'a>,
@@ -38,17 +38,17 @@ impl<'a> FemSolverImplicit<'a> {
             println!("ERROR: {}", msg);
             return Err("cannot allocate simulation because config.validate() failed");
         }
-        let prescribed_values = BcPrescribedArray::new(input, essential)?;
-        let concentrated_loads = BcConcentratedArray::new(input, natural)?;
+        let bc_concentrated = BcConcentratedArray::new(input, natural)?;
+        let bc_distributed = BcDistributedArray::new(input, config, natural)?;
+        let bc_prescribed = BcPrescribedArray::new(input, essential)?;
         let elements = Elements::new(input, config)?;
-        let boundaries = BcDistributedArray::new(input, config, natural)?;
-        let linear_system = LinearSystem::new(input, config, &prescribed_values, &elements, &boundaries)?;
+        let linear_system = LinearSystem::new(input, config, &bc_prescribed, &elements, &bc_distributed)?;
         Ok(FemSolverImplicit {
             config,
-            prescribed_values,
-            concentrated_loads,
+            bc_concentrated,
+            bc_distributed,
+            bc_prescribed,
             elements,
-            boundaries,
             linear_system,
         })
     }
@@ -57,7 +57,7 @@ impl<'a> FemSolverImplicit<'a> {
     pub fn solve(&mut self, state: &mut FemState, output: &mut FemOutput) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
-        let prescribed = &self.prescribed_values.flags;
+        let prescribed = &self.bc_prescribed.flags;
         let rr = &mut self.linear_system.residual;
         let kk = &mut self.linear_system.jacobian;
         let mdu = &mut self.linear_system.mdu;
@@ -102,8 +102,8 @@ impl<'a> FemSolverImplicit<'a> {
             state.duu.fill(0.0);
 
             // set prescribed U and ΔU at the new time
-            if self.prescribed_values.equations.len() > 0 {
-                self.prescribed_values.apply(&mut state.duu, &mut state.uu, state.t);
+            if self.bc_prescribed.equations.len() > 0 {
+                self.bc_prescribed.apply(&mut state.duu, &mut state.uu, state.t);
             }
 
             // reset algorithmic variables
@@ -125,14 +125,14 @@ impl<'a> FemSolverImplicit<'a> {
             for iteration in 0..config.n_max_iterations {
                 // compute residuals (for the new time)
                 self.elements.calc_residuals(&state)?;
-                self.boundaries.calc_residuals(&state)?;
+                self.bc_distributed.calc_residuals(&state)?;
 
                 // assemble residuals
                 self.elements.assemble_residuals(rr, prescribed);
-                self.boundaries.assemble_residuals(rr, prescribed);
+                self.bc_distributed.assemble_residuals(rr, prescribed);
 
                 // add concentrated loads
-                self.concentrated_loads.add_to_residual(rr, state.t);
+                self.bc_concentrated.add_to_residual(rr, state.t);
 
                 // check convergence on residual
                 max_rr_prev = max_rr;
@@ -156,14 +156,14 @@ impl<'a> FemSolverImplicit<'a> {
                 if iteration == 0 || !config.constant_tangent {
                     // compute local Jacobian matrices
                     self.elements.calc_jacobians(&state)?;
-                    self.boundaries.calc_jacobians(&state)?;
+                    self.bc_distributed.calc_jacobians(&state)?;
 
                     // assemble local Jacobian matrices into the global Jacobian matrix
                     self.elements.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
-                    self.boundaries.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
+                    self.bc_distributed.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
 
                     // augment global Jacobian matrix
-                    for eq in &self.prescribed_values.equations {
+                    for eq in &self.bc_prescribed.equations {
                         kk.put(*eq, *eq, 1.0).unwrap();
                     }
 
