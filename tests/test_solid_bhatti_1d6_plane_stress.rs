@@ -90,7 +90,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
     // solution
-    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // check displacements

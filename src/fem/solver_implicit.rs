@@ -4,8 +4,8 @@ use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
-/// Performs a finite element simulation
-pub struct FemSolverImplicit<'a> {
+/// Implements the implicit finite element method solver
+pub struct SolverImplicit<'a> {
     /// Holds configuration parameters
     pub config: &'a Config<'a>,
 
@@ -25,7 +25,7 @@ pub struct FemSolverImplicit<'a> {
     pub linear_system: LinearSystem<'a>,
 }
 
-impl<'a> FemSolverImplicit<'a> {
+impl<'a> SolverImplicit<'a> {
     /// Allocate new instance
     pub fn new(
         fem: &'a FemMesh,
@@ -42,7 +42,7 @@ impl<'a> FemSolverImplicit<'a> {
         let bc_prescribed = BcPrescribedArray::new(fem, essential)?;
         let elements = Elements::new(fem, config)?;
         let linear_system = LinearSystem::new(fem, config, &bc_prescribed, &elements, &bc_distributed)?;
-        Ok(FemSolverImplicit {
+        Ok(SolverImplicit {
             config,
             bc_concentrated,
             bc_distributed,
@@ -243,7 +243,7 @@ impl<'a> FemSolverImplicit<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::FemSolverImplicit;
+    use super::SolverImplicit;
     use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemMesh, FemState, FileIo};
     use gemlab::mesh::{Edge, Samples};
@@ -261,7 +261,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_dt_min(-1.0);
         assert_eq!(
-            FemSolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
         let config = Config::new(&mesh);
@@ -270,7 +270,7 @@ mod tests {
         let mut essential = Essential::new();
         essential.points(&[123], Dof::Ux, 0.0);
         assert_eq!(
-            FemSolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let essential = Essential::new();
@@ -279,7 +279,7 @@ mod tests {
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, 0.0);
         assert_eq!(
-            FemSolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let natural = Natural::new();
@@ -288,7 +288,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_ngauss(1, 100); // wrong
         assert_eq!(
-            FemSolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
             Some("requested number of integration points is not available for Hex class")
         );
         let config = Config::new(&mesh);
@@ -301,7 +301,7 @@ mod tests {
         };
         natural.edge(&edge, Nbc::Qn, 0.0);
         assert_eq!(
-            FemSolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
         let natural = Natural::new();
@@ -311,7 +311,7 @@ mod tests {
         let config = Config::new(&empty_mesh);
         let fem = FemMesh::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
         assert_eq!(
-            FemSolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
             Some("nrow must be ≥ 1")
         );
     }
@@ -325,7 +325,7 @@ mod tests {
         config.set_dt(|_| -1.0); // wrong
         let essential = Essential::new();
         let natural = Natural::new();
-        let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural).unwrap();
+        let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&fem, &config).unwrap();
         let mut file_io = FileIo::new(&fem, None, None).unwrap();
         assert_eq!(

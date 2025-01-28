@@ -86,7 +86,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let mut file_io = FileIo::new(&fem, None, None)?;
 
     // solution
-    let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // check displacements

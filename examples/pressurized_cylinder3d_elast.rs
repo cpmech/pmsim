@@ -249,7 +249,7 @@ fn main() -> Result<(), StrError> {
         // println!("5. running simulation");
 
         // solution
-        let mut solver = FemSolverImplicit::new(&fem, &config, &essential, &natural)?;
+        let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
         match solver.solve(&mut state, &mut file_io) {
             Err(e) => {
