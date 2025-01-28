@@ -65,7 +65,7 @@ impl<'a> BcConcentratedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcConcentratedArray;
-    use crate::base::{Etype, Natural, ParamSolid, Pbc};
+    use crate::base::{Elem, Natural, ParamSolid, Pbc};
     use crate::fem::FemInput;
     use gemlab::mesh::Samples;
     use russell_lab::Vector;
@@ -74,7 +74,7 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, -10.0);
@@ -88,7 +88,7 @@ mod tests {
     fn add_to_residual_works() {
         let mesh = Samples::one_tet4();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut natural = Natural::new();
         natural.points(&[0], Pbc::Fx, -20.0);
         natural.points(&[1], Pbc::Fy, -20.0);

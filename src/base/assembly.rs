@@ -140,7 +140,7 @@ pub fn assemble_matrix(
 #[cfg(test)]
 mod tests {
     use super::{assemble_matrix, assemble_vector};
-    use crate::base::{compute_local_to_global, Attributes, Etype, ElementDofsMap, Equations};
+    use crate::base::{compute_local_to_global, Attributes, Elem, ElementDofsMap, Equations};
     use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
     use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{mat_approx_eq, Matrix, Vector};
@@ -150,7 +150,7 @@ mod tests {
     fn compute_local_to_global_handles_errors() {
         let mut mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let att = Attributes::from([(1, Etype::Solid(p1))]);
+        let att = Attributes::from([(1, Elem::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         mesh.cells[0].kind = GeoKind::Qua4; // never do this!
@@ -180,7 +180,7 @@ mod tests {
         //                     {3}
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let att = Attributes::from([(1, Etype::Solid(p1))]);
+        let att = Attributes::from([(1, Elem::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
@@ -200,7 +200,7 @@ mod tests {
         // 0------------1------------4
         let mesh = Samples::two_tri3_one_qua4();
         let p = ParamPorousLiq::sample_brooks_corey_constant();
-        let att = Attributes::from([(1, Etype::PorousLiq(p)), (2, Etype::PorousLiq(p))]);
+        let att = Attributes::from([(1, Elem::PorousLiq(p)), (2, Elem::PorousLiq(p))]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
@@ -222,9 +222,9 @@ mod tests {
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
         let att = Attributes::from([
-            (1, Etype::PorousSldLiq(p1)),
-            (2, Etype::Solid(p2)),
-            (3, Etype::Beam(p3)),
+            (1, Elem::PorousSldLiq(p1)),
+            (2, Elem::Solid(p2)),
+            (3, Elem::Beam(p3)),
         ]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();

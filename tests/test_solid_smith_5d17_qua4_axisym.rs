@@ -68,7 +68,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
             poisson: 0.45,
         },
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1)), (2, Etype::Solid(p2))])?;
+    let input = FemInput::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

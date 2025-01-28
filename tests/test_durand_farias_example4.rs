@@ -37,7 +37,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic { young: E, poisson: NU },
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

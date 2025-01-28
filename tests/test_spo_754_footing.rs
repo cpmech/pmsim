@@ -48,7 +48,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
             poisson: 0.48,
         },
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     const UY: [f64; 15] = [
         0.0,     //  0

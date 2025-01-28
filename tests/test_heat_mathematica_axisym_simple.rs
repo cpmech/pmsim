@@ -57,7 +57,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))])?;
+    let input = FemInput::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

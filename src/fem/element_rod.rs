@@ -133,7 +133,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, Etype, ParamRod};
+    use crate::base::{assemble_matrix, Config, Elem, ParamRod};
     use crate::fem::{ElementTrait, FemInput, FemState};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
@@ -160,7 +160,7 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
             ElementRod::new(&input, &config, &mesh.cells[0], &p1).err(),
@@ -196,7 +196,7 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -234,7 +234,7 @@ mod tests {
             young: 343.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -275,7 +275,7 @@ mod tests {
             young: 1.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -336,7 +336,7 @@ mod tests {
             young: 100.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Etype::Rod(p1)), (2, Etype::Rod(p2)), (3, Etype::Rod(p3))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
 
         let config = Config::new(&mesh);
         let mut rod0 = ElementRod::new(&input, &config, &mesh.cells[0], &p1).unwrap();

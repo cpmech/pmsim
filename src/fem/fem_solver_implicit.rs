@@ -245,7 +245,7 @@ impl<'a> FemSolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::FemSolverImplicit;
-    use crate::base::{new_empty_mesh_2d, Config, Dof, Essential, Etype, Natural, Nbc, ParamSolid, Pbc};
+    use crate::base::{new_empty_mesh_2d, Config, Dof, Essential, Elem, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemInput, FemOutput, FemState};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
@@ -254,7 +254,7 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_hex8();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 
@@ -310,7 +310,7 @@ mod tests {
         // error due to linear_system
         let empty_mesh = new_empty_mesh_2d();
         let config = Config::new(&empty_mesh);
-        let input = FemInput::new(&empty_mesh, [(1, Etype::Solid(p1))]).unwrap();
+        let input = FemInput::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("nrow must be ≥ 1")
@@ -321,7 +321,7 @@ mod tests {
     fn run_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_dt(|_| -1.0); // wrong
         let essential = Essential::new();

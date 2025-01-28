@@ -79,7 +79,7 @@ impl<'a> BcPrescribedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcPrescribedArray;
-    use crate::base::{Dof, Essential, Etype, ParamBeam, ParamDiffusion};
+    use crate::base::{Dof, Essential, Elem, ParamBeam, ParamDiffusion};
     use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::FemInput;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
@@ -90,7 +90,7 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
         let mut essential = Essential::new();
         essential.points(&[100], Dof::Ux, 0.0);
@@ -111,7 +111,7 @@ mod tests {
     fn set_values_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.points(&[0], Dof::T, 110.0);
         let mut duu = Vector::new(input.equations.n_equation);
@@ -137,7 +137,7 @@ mod tests {
             ],
         };
         let p1 = ParamBeam::sample();
-        let input = FemInput::new(&mesh, [(1, Etype::Beam(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Beam(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 1.0)
@@ -184,9 +184,9 @@ mod tests {
         let input = FemInput::new(
             &mesh,
             [
-                (1, Etype::PorousSldLiq(p1)),
-                (2, Etype::Solid(p2)),
-                (3, Etype::Beam(p3)),
+                (1, Elem::PorousSldLiq(p1)),
+                (2, Elem::Solid(p2)),
+                (3, Elem::Beam(p3)),
             ],
         )
         .unwrap();
@@ -247,7 +247,7 @@ mod tests {
     fn set_values_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let input = FemInput::new(&mesh, [(1, Etype::PorousSldLiqGas(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 1.0)
@@ -292,7 +292,7 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let input = FemInput::new(&mesh, [(1, Etype::PorousLiq(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.points(&[0, 4], Dof::Pl, 0.0);
         let values = BcPrescribedArray::new(&input, &essential).unwrap();
@@ -312,7 +312,7 @@ mod tests {
         //                   1 {2}
         //                     {3}
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))]).unwrap();
+        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 0.0)
