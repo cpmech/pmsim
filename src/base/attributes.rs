@@ -3,7 +3,7 @@ use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute};
 use std::collections::HashMap;
 
-/// Holds all (CellAttribute, Element) pairs
+/// Holds all (CellAttribute, Elem) pairs
 pub struct Attributes {
     all: HashMap<CellAttribute, Elem>,
 }
