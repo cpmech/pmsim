@@ -1,6 +1,5 @@
-use super::{
-    BcConcentratedArray, BcDistributedArray, BcPrescribedArray, Elements, FemMesh, FemOutput, FemState, LinearSystem,
-};
+use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray};
+use super::{Elements, FemMesh, FemOutput, FemState, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
