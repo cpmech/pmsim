@@ -1,4 +1,4 @@
-use super::FemInput;
+use super::FemMesh;
 use crate::base::Natural;
 use crate::StrError;
 use russell_lab::Vector;
@@ -37,7 +37,7 @@ impl<'a> BcConcentrated<'a> {
 
 impl<'a> BcConcentratedArray<'a> {
     /// Allocates new instance
-    pub fn new(input: &FemInput, natural: &'a Natural) -> Result<Self, StrError> {
+    pub fn new(input: &FemMesh, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.at_points.len() + 1);
         for (point_id, pbc, value, f_index) in &natural.at_points {
             let eq = input.equations.eq(*point_id, pbc.dof())?;
@@ -66,7 +66,7 @@ impl<'a> BcConcentratedArray<'a> {
 mod tests {
     use super::BcConcentratedArray;
     use crate::base::{Elem, Natural, ParamSolid, Pbc};
-    use crate::fem::FemInput;
+    use crate::fem::FemMesh;
     use gemlab::mesh::Samples;
     use russell_lab::Vector;
 
@@ -74,7 +74,7 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, -10.0);
@@ -88,7 +88,7 @@ mod tests {
     fn add_to_residual_works() {
         let mesh = Samples::one_tet4();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut natural = Natural::new();
         natural.points(&[0], Pbc::Fx, -20.0);
         natural.points(&[1], Pbc::Fy, -20.0);

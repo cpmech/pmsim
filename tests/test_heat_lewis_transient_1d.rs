@@ -58,7 +58,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         },
         source: None,
     };
-    let input = FemInput::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let essential = Essential::new();

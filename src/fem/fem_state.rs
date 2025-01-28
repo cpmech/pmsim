@@ -1,4 +1,4 @@
-use super::{FemInput, SecondaryValues};
+use super::{FemMesh, SecondaryValues};
 use crate::base::{Config, Elem};
 use crate::StrError;
 use russell_lab::Vector;
@@ -58,7 +58,7 @@ pub struct FemState {
 
 impl FemState {
     /// Allocates a new instance
-    pub fn new(input: &FemInput, config: &Config) -> Result<FemState, StrError> {
+    pub fn new(input: &FemMesh, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
         let ncell = input.mesh.cells.len();
         if ncell == 0 {
@@ -204,14 +204,14 @@ mod tests {
     use crate::base::{new_empty_mesh_2d, Config, Elem};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
-    use crate::fem::FemInput;
+    use crate::fem::FemMesh;
     use gemlab::mesh::Samples;
 
     #[test]
     fn new_handles_errors() {
         let empty_mesh = new_empty_mesh_2d();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&empty_mesh);
         assert_eq!(
             FemState::new(&input, &config).err(),
@@ -222,7 +222,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamRod::sample();
-        let input = FemInput::new(
+        let input = FemMesh::new(
             &mesh,
             [(1, Elem::Diffusion(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
@@ -234,7 +234,7 @@ mod tests {
         );
 
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let input = FemInput::new(
+        let input = FemMesh::new(
             &mesh,
             [(1, Elem::PorousLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
@@ -246,7 +246,7 @@ mod tests {
         );
 
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let input = FemInput::new(
+        let input = FemMesh::new(
             &mesh,
             [(1, Elem::PorousLiqGas(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
@@ -264,7 +264,7 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let input = FemInput::new(
+        let input = FemMesh::new(
             &mesh,
             [
                 (1, Elem::PorousSldLiq(p1)),
@@ -285,7 +285,7 @@ mod tests {
     fn new_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.transient = true;
         let state = FemState::new(&input, &config).unwrap();
@@ -303,7 +303,7 @@ mod tests {
     fn new_works_rod_only() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -320,7 +320,7 @@ mod tests {
     fn new_works_porous_liq() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let input = FemInput::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -332,7 +332,7 @@ mod tests {
     fn new_works_porous_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let input = FemInput::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -344,7 +344,7 @@ mod tests {
     fn new_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let input = FemInput::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&input, &config).unwrap();
         assert_eq!(state.t, 0.0);
@@ -357,7 +357,7 @@ mod tests {
         let mesh = Samples::mixed_shapes_2d();
         let p1 = ParamRod::sample();
         let p2 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Solid(p2))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Solid(p2))]).unwrap();
         let mut config = Config::new(&mesh);
         config.dynamics = true;
         let state = FemState::new(&input, &config).unwrap();
@@ -375,7 +375,7 @@ mod tests {
     fn derive_works() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let state_ori = FemState::new(&input, &config).unwrap();
         let state = state_ori.clone();

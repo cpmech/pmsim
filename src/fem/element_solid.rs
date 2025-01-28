@@ -1,4 +1,4 @@
-use super::{ElementTrait, FemInput, FemState};
+use super::{ElementTrait, FemMesh, FemState};
 use crate::base::{calculate_strain, compute_local_to_global, Config, ParamSolid};
 use crate::material::{LocalState, ModelStressStrain};
 use crate::StrError;
@@ -46,7 +46,7 @@ pub struct ElementSolid<'a> {
 impl<'a> ElementSolid<'a> {
     /// Allocates new instance
     pub fn new(
-        input: &'a FemInput,
+        input: &'a FemMesh,
         config: &'a Config,
         cell: &'a Cell,
         param: &'a ParamSolid,
@@ -246,7 +246,7 @@ mod tests {
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
     use crate::base::{Config, Elem, ParamSolid, StressStrain};
-    use crate::fem::{ElementTrait, FemInput, FemState};
+    use crate::fem::{ElementTrait, FemMesh, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
     use gemlab::shapes::GeoKind;
@@ -258,7 +258,7 @@ mod tests {
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_ngauss(1, 100); // wrong
         assert_eq!(
@@ -277,7 +277,7 @@ mod tests {
             density: 2.7, // Mg/m²
             stress_strain: StressStrain::LinearElastic { young, poisson },
         };
-        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementSolid::new(&input, &config, &mesh.cells[0], &p1).unwrap();
         let mut state = FemState::new(&input, &config).unwrap();
@@ -350,7 +350,7 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+            let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -445,7 +445,7 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+            let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -513,7 +513,7 @@ mod tests {
             density: 2.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
         };
-        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
         // configuration
         let mut config = Config::new(&mesh);

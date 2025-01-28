@@ -1,9 +1,9 @@
-use crate::base::{Attributes, ElementDofsMap, Equations, Elem};
+use crate::base::{Attributes, Elem, ElementDofsMap, Equations};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
 
-/// Holds the input data for a FEM simulation
-pub struct FemInput<'a> {
+/// Holds the mesh, element attributes, and equation numbers for a FEM simulation
+pub struct FemMesh<'a> {
     /// Holds an access to the Mesh
     pub mesh: &'a Mesh,
 
@@ -17,13 +17,13 @@ pub struct FemInput<'a> {
     pub equations: Equations,
 }
 
-impl<'a> FemInput<'a> {
+impl<'a> FemMesh<'a> {
     /// Allocate new instance
     pub fn new<const N: usize>(mesh: &'a Mesh, arr: [(CellAttribute, Elem); N]) -> Result<Self, StrError> {
         let attributes = Attributes::from(arr);
         let information = ElementDofsMap::new(&mesh, &attributes)?;
         let equations = Equations::new(&mesh, &information).unwrap(); // cannot fail
-        Ok(FemInput {
+        Ok(FemMesh {
             mesh,
             attributes,
             information,
@@ -42,7 +42,7 @@ impl<'a> FemInput<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::FemInput;
+    use super::FemMesh;
     use crate::base::{Elem, ParamDiffusion, ParamSolid};
     use gemlab::mesh::{Cell, Samples};
     use gemlab::shapes::GeoKind;
@@ -52,7 +52,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p2 = ParamSolid::sample_linear_elastic();
         assert_eq!(
-            FemInput::new(&mesh, [(2, Elem::Solid(p2))]).err(),
+            FemMesh::new(&mesh, [(2, Elem::Solid(p2))]).err(),
             Some("cannot find CellAttribute in Attributes map")
         );
     }
@@ -61,7 +61,7 @@ mod tests {
     fn new_works() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         assert_eq!(input.equations.n_equation, 6);
     }
 
@@ -69,7 +69,7 @@ mod tests {
     fn n_local_eq_works() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         assert_eq!(input.n_local_eq(&mesh.cells[0]).unwrap(), 3);
 
         let wrong_cell = Cell {

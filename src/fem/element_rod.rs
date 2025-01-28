@@ -1,4 +1,4 @@
-use super::{ElementTrait, FemInput, FemState};
+use super::{ElementTrait, FemMesh, FemState};
 use crate::base::{compute_local_to_global, Config, ParamRod};
 use crate::StrError;
 use gemlab::mesh::Cell;
@@ -32,7 +32,7 @@ pub struct ElementRod<'a> {
 impl<'a> ElementRod<'a> {
     /// Allocates a new instance
     #[rustfmt::skip]
-    pub fn new(input: &'a FemInput, config: &'a Config, cell: &'a Cell, param: &'a ParamRod) -> Result<Self, StrError> {
+    pub fn new(input: &'a FemMesh, config: &'a Config, cell: &'a Cell, param: &'a ParamRod) -> Result<Self, StrError> {
         let ndim = input.mesh.ndim;
         let pp = &cell.points;
         if pp.len() != 2 {
@@ -134,7 +134,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 mod tests {
     use super::ElementRod;
     use crate::base::{assemble_matrix, Config, Elem, ParamRod};
-    use crate::fem::{ElementTrait, FemInput, FemState};
+    use crate::fem::{ElementTrait, FemMesh, FemState};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;
@@ -160,7 +160,7 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
             ElementRod::new(&input, &config, &mesh.cells[0], &p1).err(),
@@ -196,7 +196,7 @@ mod tests {
             young: 1_000.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -234,7 +234,7 @@ mod tests {
             young: 343.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -275,7 +275,7 @@ mod tests {
             young: 1.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&input, &config, cell, &p1).unwrap();
@@ -336,7 +336,7 @@ mod tests {
             young: 100.0,
             density: 1.0,
         };
-        let input = FemInput::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
 
         let config = Config::new(&mesh);
         let mut rod0 = ElementRod::new(&input, &config, &mesh.cells[0], &p1).unwrap();

@@ -1,4 +1,4 @@
-use super::{BcDistributedArray, BcPrescribedArray, Elements, FemInput};
+use super::{BcDistributedArray, BcPrescribedArray, Elements, FemMesh};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
@@ -41,7 +41,7 @@ pub struct LinearSystem<'a> {
 impl<'a> LinearSystem<'a> {
     /// Allocates new instance
     pub fn new(
-        input: &FemInput,
+        input: &FemMesh,
         config: &Config,
         prescribed_values: &BcPrescribedArray,
         elements: &Elements,
@@ -118,7 +118,7 @@ impl<'a> LinearSystem<'a> {
 mod tests {
     use super::LinearSystem;
     use crate::base::{new_empty_mesh_2d, Config, Dof, Essential, Elem, Natural, Nbc, ParamDiffusion};
-    use crate::fem::{BcDistributedArray, BcPrescribedArray, Elements, FemInput};
+    use crate::fem::{BcDistributedArray, BcPrescribedArray, Elements, FemMesh};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
     use russell_sparse::{Genie, Sym};
@@ -127,7 +127,7 @@ mod tests {
     fn new_handles_errors() {
         let empty_mesh = new_empty_mesh_2d();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&empty_mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let input = FemMesh::new(&empty_mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&empty_mesh);
         let essential = Essential::new();
         let natural = Natural::new();
@@ -153,7 +153,7 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
 
         let mut essential = Essential::new();
         let mut natural = Natural::new();

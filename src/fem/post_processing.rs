@@ -1,4 +1,4 @@
-use super::{FemInput, FemState};
+use super::{FemMesh, FemState};
 use crate::base::Config;
 use crate::StrError;
 use gemlab::integ::Gauss;
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 /// This structure also implements the extrapolation from Gauss points to nodes.
 pub struct PostProcessing<'a> {
     /// Holds the input data
-    input: &'a FemInput<'a>,
+    input: &'a FemMesh<'a>,
 
     /// Holds configuration parameters
     config: &'a Config<'a>,
@@ -30,7 +30,7 @@ pub struct PostProcessing<'a> {
 
 impl<'a> PostProcessing<'a> {
     /// Allocates new instance
-    pub fn new(input: &'a FemInput, config: &'a Config) -> Self {
+    pub fn new(input: &'a FemMesh, config: &'a Config) -> Self {
         PostProcessing {
             input,
             config,

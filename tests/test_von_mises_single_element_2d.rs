@@ -69,7 +69,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             hh: 800.0,
         },
     };
-    let input = FemInput::new(&mesh, [(att, Elem::Solid(p1))])?;
+    let input = FemMesh::new(&mesh, [(att, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));

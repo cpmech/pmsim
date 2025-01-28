@@ -1,5 +1,5 @@
 use super::{
-    BcConcentratedArray, BcDistributedArray, BcPrescribedArray, Elements, FemInput, FemOutput, FemState, LinearSystem,
+    BcConcentratedArray, BcDistributedArray, BcPrescribedArray, Elements, FemMesh, FemOutput, FemState, LinearSystem,
 };
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
@@ -29,7 +29,7 @@ pub struct FemSolverImplicit<'a> {
 impl<'a> FemSolverImplicit<'a> {
     /// Allocate new instance
     pub fn new(
-        input: &'a FemInput,
+        input: &'a FemMesh,
         config: &'a Config,
         essential: &'a Essential,
         natural: &'a Natural,
@@ -246,7 +246,7 @@ impl<'a> FemSolverImplicit<'a> {
 mod tests {
     use super::FemSolverImplicit;
     use crate::base::{new_empty_mesh_2d, Config, Dof, Essential, Elem, Natural, Nbc, ParamSolid, Pbc};
-    use crate::fem::{FemInput, FemOutput, FemState};
+    use crate::fem::{FemMesh, FemOutput, FemState};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -254,7 +254,7 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_hex8();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 
@@ -310,7 +310,7 @@ mod tests {
         // error due to linear_system
         let empty_mesh = new_empty_mesh_2d();
         let config = Config::new(&empty_mesh);
-        let input = FemInput::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
         assert_eq!(
             FemSolverImplicit::new(&input, &config, &essential, &natural).err(),
             Some("nrow must be ≥ 1")
@@ -321,7 +321,7 @@ mod tests {
     fn run_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_dt(|_| -1.0); // wrong
         let essential = Essential::new();

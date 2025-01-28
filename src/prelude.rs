@@ -8,4 +8,4 @@ pub use crate::base::{
     ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, StressStrain,
 };
 pub use crate::base::{Config, Dof, Essential, Elem, Natural, Nbc, Pbc, DEFAULT_OUT_DIR, DEFAULT_TEST_DIR};
-pub use crate::fem::{FemInput, FemOutput, FemSolverImplicit, FemState, PostProcessing};
+pub use crate::fem::{FemMesh, FemOutput, FemSolverImplicit, FemState, PostProcessing};

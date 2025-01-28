@@ -1,5 +1,5 @@
 use crate::base::{Dof, Equations, DEFAULT_OUT_DIR};
-use crate::fem::{FemInput, FemState};
+use crate::fem::{FemMesh, FemState};
 use crate::StrError;
 use gemlab::mesh::{At, Features, PointId};
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ pub struct FemOutputSummary {
 /// Assists in the post-processing of results
 pub struct FemOutput<'a> {
     /// Holds the input data
-    input: &'a FemInput<'a>,
+    input: &'a FemMesh<'a>,
 
     /// Defines the filename stem
     filename_stem: Option<String>,
@@ -92,7 +92,7 @@ impl<'a> FemOutput<'a> {
     ///   Example use `Some(|state, count| { ... })` to perform some processing on state at time `state.t`.
     ///   `count` is the corresponding `output_count` used to generate the output file.
     pub fn new(
-        input: &'a FemInput,
+        input: &'a FemMesh,
         filename_stem: Option<String>,
         output_directory: Option<&str>,
         callback: Option<fn(&FemState, usize)>,
@@ -246,7 +246,7 @@ impl<'a> FemOutput<'a> {
 mod tests {
     use super::FemOutput;
     use crate::base::{Config, Dof, Elem, ParamDiffusion};
-    use crate::fem::{FemInput, FemState};
+    use crate::fem::{FemMesh, FemState};
     use gemlab::mesh::{Features, Samples};
     use gemlab::util::any_x;
 
@@ -255,7 +255,7 @@ mod tests {
         let mesh = Samples::one_tri6();
         let features = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
-        let input = FemInput::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&input, &config).unwrap();
         state.uu[0] = 1.0;

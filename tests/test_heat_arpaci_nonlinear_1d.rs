@@ -64,7 +64,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
         conductivity: Conductivity::IsotropicLinear { kr: K_R, beta: BETA },
         source: Some(SOURCE),
     };
-    let input = FemInput::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let input = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

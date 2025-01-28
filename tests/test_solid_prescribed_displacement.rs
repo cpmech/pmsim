@@ -43,7 +43,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     let stress = vec![0.0, q, q * nu, 0.0];
 
     // data, DOF numbers, and equations
-    let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
     let neq = input.equations.n_equation;
     assert_eq!(neq, 8);
 
@@ -172,7 +172,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     let stress = vec![0.0, q, q * nu, 0.0];
 
     // data, DOF numbers, and equations
-    let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
     let neq = input.equations.n_equation;
 
     // essential boundary conditions

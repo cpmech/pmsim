@@ -57,7 +57,7 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
             poisson: POISSON,
         },
     };
-    let input = FemInput::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let input = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
