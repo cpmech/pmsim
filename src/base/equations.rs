@@ -36,14 +36,14 @@ use std::fmt;
 /// ```
 /// use gemlab::mesh::Samples;
 /// use gemlab::StrError;
-/// use pmsim::base::{Attributes, Dof, Equations, ElementDofsMap, Etype};
+/// use pmsim::base::{Attributes, Dof, Equations, Elem, ElementDofsMap};
 /// use pmsim::base::ParamPorousSldLiq;
 /// use std::collections::HashMap;
 ///
 /// fn main() -> Result<(), StrError> {
 ///     let mesh = Samples::one_tri6();
 ///     let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-///     let att = Attributes::from([(1, Etype::PorousSldLiq(p1))]);
+///     let att = Attributes::from([(1, Elem::PorousSldLiq(p1))]);
 ///     let emap = ElementDofsMap::new(&mesh, &att)?;
 ///     let mut eqs = Equations::new(&mesh, &emap)?;
 ///     assert_eq!(
@@ -140,7 +140,7 @@ impl fmt::Display for Equations {
 #[cfg(test)]
 mod tests {
     use super::Equations;
-    use crate::base::{Attributes, Dof, ElementDofsMap, Elem, SampleMeshes};
+    use crate::base::{Attributes, Dof, Elem, ElementDofsMap, SampleMeshes};
     use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
     use gemlab::mesh::{PointId, Samples};
 
@@ -186,11 +186,7 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let att = Attributes::from([
-            (1, Elem::PorousSldLiq(p1)),
-            (2, Elem::Solid(p2)),
-            (3, Elem::Beam(p3)),
-        ]);
+        let att = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
 
