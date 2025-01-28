@@ -11,7 +11,7 @@ use std::collections::HashMap;
 /// Assists in post-processing the results given at Gauss points
 ///
 /// This structure also implements the extrapolation from Gauss points to nodes.
-pub struct PostProcessing<'a> {
+pub struct PostProc<'a> {
     /// Holds the FEM mesh, parameters, attributes, and DOF numbers
     fem: &'a FemMesh<'a>,
 
@@ -28,10 +28,10 @@ pub struct PostProcessing<'a> {
     all_extrap_mat: HashMap<CellId, Matrix>,
 }
 
-impl<'a> PostProcessing<'a> {
+impl<'a> PostProc<'a> {
     /// Allocates new instance
     pub fn new(fem: &'a FemMesh, config: &'a Config) -> Self {
-        PostProcessing {
+        PostProc {
             fem,
             config,
             all_gauss: HashMap::new(),
@@ -169,7 +169,7 @@ impl<'a> PostProcessing<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::PostProcessing;
+    use super::PostProc;
     use crate::base::{Config, Dof, Elem, ParamDiffusion};
     use crate::fem::{FemMesh, FemState};
     use gemlab::mesh::{Features, Samples};
@@ -189,7 +189,7 @@ mod tests {
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let output = PostProcessing::new(&fem, &config);
+        let output = PostProc::new(&fem, &config);
         let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);

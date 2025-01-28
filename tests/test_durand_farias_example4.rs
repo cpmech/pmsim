@@ -63,7 +63,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     solver.solve(&mut state, &mut output)?;
 
     // results
-    let mut post = PostProcessing::new(&fem, &config);
+    let mut post = PostProc::new(&fem, &config);
     let mut gauss_x = Vec::new();
     let mut gauss_y = Vec::new();
     let mut gauss_syy = Vec::new();
