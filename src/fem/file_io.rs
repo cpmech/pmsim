@@ -80,7 +80,7 @@ impl<'a> FileIo<'a> {
     /// # Input
     ///
     /// * `fem` -- the FEM mesh, attributes, and DOF numbers
-    /// * `filename_steam` -- the last part of the filename without extension, e.g., "my_simulation".
+    /// * `filename_stem` -- the last part of the filename without extension, e.g., "my_simulation".
     ///   None means that no files will be written.
     /// * `output_directory` -- the directory to save the output files.
     ///   None means that the default directory will be used; see [DEFAULT_OUT_DIR]
