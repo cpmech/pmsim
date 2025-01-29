@@ -221,11 +221,7 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let att = Attributes::from([
-            (1, Elem::PorousSldLiq(p1)),
-            (2, Elem::Solid(p2)),
-            (3, Elem::Beam(p3)),
-        ]);
+        let att = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
         let emap = ElementDofsMap::new(&mesh, &att).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
