@@ -10,14 +10,14 @@ use std::path::Path;
 /// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FileIo {
-    /// Holds a flag to enable/disable the file generation
-    enabled: bool,
+    /// Holds a flag to activate the file generation
+    pub(crate) active: bool,
 
     /// Defines the output directory
-    output_dir: String,
+    pub(crate) output_dir: String,
 
     /// Defines the filename stem
-    filename_stem: String,
+    pub(crate) filename_stem: String,
 
     /// Holds the count of files written
     output_count: usize,
@@ -36,7 +36,7 @@ impl FileIo {
     /// Allocates a new instance with deactivated generation of files
     pub fn new() -> Self {
         FileIo {
-            enabled: false,
+            active: false,
             output_dir: String::new(),
             filename_stem: String::new(),
             output_count: 0,
@@ -77,7 +77,7 @@ impl FileIo {
         fem.mesh.write_json(&path)?;
 
         // set structure
-        self.enabled = true;
+        self.active = true;
         self.output_dir = out_dir.to_string();
         self.filename_stem = filename_stem.to_string();
         self.output_count = 0;
@@ -89,7 +89,7 @@ impl FileIo {
 
     /// Generates the filename path for the mesh file
     pub fn path_mesh(&self) -> String {
-        if self.enabled {
+        if self.active {
             format!("{}/{}-mesh.json", self.output_dir, self.filename_stem)
         } else {
             "".to_string()
@@ -98,7 +98,7 @@ impl FileIo {
 
     /// Generates the filename path for the summary file
     pub fn path_summary(&self) -> String {
-        if self.enabled {
+        if self.active {
             format!("{}/{}-summary.json", self.output_dir, self.filename_stem)
         } else {
             "".to_string()
@@ -107,7 +107,7 @@ impl FileIo {
 
     /// Generates the filename path for the state files
     pub fn path_state(&self, index: usize) -> String {
-        if self.enabled {
+        if self.active {
             format!("{}/{}-{:0>20}.json", self.output_dir, self.filename_stem, index)
         } else {
             "".to_string()
@@ -115,9 +115,22 @@ impl FileIo {
     }
 
     /// Generates the filename path for the VTU (ParaView) files
+    ///
+    /// The VTU file is associated with a single time station.
     pub fn path_vtu(&self, index: usize) -> String {
-        if self.enabled {
-            format!("{}/{}-{:0>20}.json", self.output_dir, self.filename_stem, index)
+        if self.active {
+            format!("{}/{}-{:0>20}.vtu", self.output_dir, self.filename_stem, index)
+        } else {
+            "".to_string()
+        }
+    }
+
+    /// Generates the filename path for the PVD (ParaView) file
+    ///
+    /// The PVD file is summary for all time stations.
+    pub fn path_pvd(&self) -> String {
+        if self.active {
+            format!("{}/{}.pvd", self.output_dir, self.filename_stem,)
         } else {
             "".to_string()
         }
@@ -133,7 +146,7 @@ impl FileIo {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let fem = File::open(path).map_err(|_| "cannot open file")?;
+        let fem = File::open(path).map_err(|_| "cannot open JSON file")?;
         let buffered = BufReader::new(fem);
         let summary = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
         Ok(summary)
@@ -149,19 +162,16 @@ impl FileIo {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        if let Some(p) = path.parent() {
-            fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
-        }
-        let mut file = File::create(&path).map_err(|_| "cannot create file")?;
-        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
+        let mut file = File::create(&path).map_err(|_| "cannot create JSON file")?;
+        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write JSON file")?;
         Ok(())
     }
 
     /// Writes the current FEM state to a file
     ///
     /// **Note:** No output is generated if `filename_stem` is None.
-    pub(crate) fn write_state(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        if self.enabled {
+    pub(crate) fn write_state(&mut self, state: &FemState) -> Result<(), StrError> {
+        if self.active {
             // save the state
             let path = self.path_state(self.output_count);
             state.write_json(&path)?;
@@ -176,7 +186,7 @@ impl FileIo {
 
     /// Writes this struct to a file
     pub(crate) fn write_self(&self) -> Result<(), StrError> {
-        if self.enabled {
+        if self.active {
             let path = self.path_summary();
             self.write_json(&path)?;
         }

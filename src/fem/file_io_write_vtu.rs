@@ -9,10 +9,14 @@ use std::fs::File;
 use std::io::Write as IoWrite;
 
 impl FileIo {
-    /// Writes a VTU file for ParaView
+    /// Writes a file associated with a single time station to perform visualization with ParaView
     ///
-    /// The files will be indexed with `index` corresponding to each time series.
+    /// The files will be indexed with `index` corresponding to each time station.
     pub fn write_vtu(&self, mesh: &Mesh, state: &FemState, index: usize) -> Result<(), StrError> {
+        if !self.active {
+            return Err("FileIo must be activated first");
+        }
+
         let ndim = mesh.ndim;
         let npoint = mesh.points.len();
         let ncell = mesh.cells.len();
@@ -171,8 +175,39 @@ impl FileIo {
 
         // write file
         let path = self.path_vtu(index);
-        let mut file = File::create(path).map_err(|_| "cannot create file")?;
-        file.write_all(buffer.as_bytes()).map_err(|_| "cannot write file")?;
+        let mut file = File::create(&path).map_err(|_| "cannot create VTU file")?;
+        file.write_all(buffer.as_bytes()).map_err(|_| "cannot write VTU file")?;
+        Ok(())
+    }
+
+    /// Writes a summary file for all time stations to perform visualization with ParaView
+    pub fn write_pvd(&self) -> Result<(), StrError> {
+        if !self.active {
+            return Err("FileIo must be activated first");
+        }
+
+        // header
+        let mut buffer = String::new();
+        write!(&mut buffer, "<?xml version=\"1.0\"?>\n<VTKFile type=\"Collection\" version=\"0.1\" byte_order=\"LittleEndian\">\n<Collection>\n").unwrap();
+
+        // add VTU entries to PVD file
+        for index in &self.indices {
+            let vtu_fn = self.path_vtu(*index);
+            write!(
+                &mut buffer,
+                "<DataSet timestep=\"{:?}\" file=\"{}\" />\n",
+                self.times[*index], vtu_fn
+            )
+            .unwrap();
+        }
+
+        // footer
+        write!(&mut buffer, "</Collection>\n</VTKFile>\n").unwrap();
+
+        // write file
+        let path = self.path_pvd();
+        let mut file = File::create(&path).map_err(|_| "cannot create PVD file")?;
+        file.write_all(buffer.as_bytes()).map_err(|_| "cannot write PVD file")?;
         Ok(())
     }
 }
@@ -240,6 +275,34 @@ mod tests {
 </PointData>
 </Piece>
 </UnstructuredGrid>
+</VTKFile>
+"#
+        );
+    }
+
+    #[test]
+    fn write_pvd_works() {
+        let mesh = Samples::three_tri3();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let config = Config::new(&mesh);
+        let state = FemState::new(&fem, &config).unwrap();
+        let fn_stem = "test_write_pvd_works";
+        let mut file_io = FileIo::new();
+
+        file_io.activate(&fem, fn_stem, None).unwrap();
+        file_io.write_state(&state).unwrap();
+        file_io.write_pvd().unwrap();
+
+        let fn_path = file_io.path_pvd();
+        let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
+        assert_eq!(
+            contents,
+            r#"<?xml version="1.0"?>
+<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
+<Collection>
+<DataSet timestep="0.0" file="/tmp/pmsim/results/test_write_pvd_works-00000000000000000000.vtu" />
+</Collection>
 </VTKFile>
 "#
         );
