@@ -1,5 +1,4 @@
-use crate::base::DEFAULT_OUT_DIR;
-use crate::fem::{FileIo, FemState, FileIoSummary};
+use crate::fem::{FemState, FileIo, FileIoSummary};
 use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -11,14 +10,14 @@ use russell_tensor::SQRT_2;
 /// # Input
 ///
 /// * `mesh` -- The mesh
-/// * `name` -- The file name given to [FemOutput]
+/// * `file_io` -- The file output struct
 /// * `ref_filename` -- The filename of the file with the reference results (located in `data/results`)
 /// * `tol_displacement` -- A tolerance to compare displacements
 /// * `tol_stress` -- A tolerance to compare stresses
 /// * `verbose` -- Enables the verbose mode
 pub fn verify_results(
     mesh: &Mesh,
-    name: &str,
+    file_io: &FileIo,
     ref_filename: &str,
     tol_displacement: f64,
     tol_stress: f64,
@@ -40,7 +39,7 @@ pub fn verify_results(
     let reference = ReferenceDataSet::read_json(format!("data/results/{}", ref_filename).as_str())?;
 
     // compare results
-    let summary = FileIoSummary::read_json(&FileIo::path_summary(DEFAULT_OUT_DIR, name))?;
+    let summary = FileIoSummary::read_json(&file_io.path_summary())?;
     for step in &summary.indices {
         if *step >= reference.all.len() {
             return Err("the number of load steps must match the reference data");
@@ -56,7 +55,7 @@ pub fn verify_results(
         }
 
         // load state
-        let fem_state = FemState::read_json(&FileIo::path_state(DEFAULT_OUT_DIR, name, *step))?;
+        let fem_state = FemState::read_json(&file_io.path_state(*step))?;
 
         if verbose {
             println!("\nSTEP # {} ===================================================", step);

@@ -29,7 +29,7 @@ pub struct FileIo<'a> {
     filename_stem: Option<String>,
 
     /// Defines the output directory
-    output_directory: String,
+    output_dir: String,
 
     /// Holds the count of files written
     output_count: usize,
@@ -118,41 +118,49 @@ impl<'a> FileIo<'a> {
         Ok(FileIo {
             fem,
             filename_stem,
-            output_directory: out_dir.to_string(),
+            output_dir: out_dir.to_string(),
             output_count: 0,
-            // callback,
             summary,
         })
     }
 
     /// Generates the filename path for the mesh file
-    pub fn path_mesh(out_dir: &str, fn_stem: &str) -> String {
-        format!("{}/{}-mesh.json", out_dir, fn_stem)
+    pub fn path_mesh(&self) -> String {
+        match &self.filename_stem {
+            Some(fn_stem) => format!("{}/{}-mesh.json", self.output_dir, fn_stem),
+            None => "unavailable".to_string(),
+        }
     }
 
     /// Generates the filename path for the summary file
-    pub fn path_summary(out_dir: &str, fn_stem: &str) -> String {
-        format!("{}/{}-summary.json", out_dir, fn_stem)
+    pub fn path_summary(&self) -> String {
+        match &self.filename_stem {
+            Some(fn_steam) => format!("{}/{}-summary.json", self.output_dir, fn_steam),
+            None => "unavailable".to_string(),
+        }
     }
 
     /// Generates the filename path for the state files
-    pub fn path_state(out_dir: &str, fn_stem: &str, index: usize) -> String {
-        format!("{}/{}-{:0>20}.json", out_dir, fn_stem, index)
+    pub fn path_state(&self, index: usize) -> String {
+        match &self.filename_stem {
+            Some(fn_steam) => format!("{}/{}-{:0>20}.json", self.output_dir, fn_steam, index),
+            None => "unavailable".to_string(),
+        }
     }
 
     /// Writes the current FEM state to a file
     ///
     /// **Note:** No output is generated if `filename_stem` is None.
     pub(crate) fn write(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        if let Some(fn_stem) = &self.filename_stem {
+        if let Some(_) = &self.filename_stem {
             // save the mesh
             if self.output_count == 0 {
-                let path = &FileIo::path_mesh(&self.output_directory, fn_stem);
+                let path = &self.path_mesh();
                 self.fem.mesh.write_json(&path)?;
             }
 
             // save the state
-            let path = FileIo::path_state(&self.output_directory, fn_stem, self.output_count);
+            let path = self.path_state(self.output_count);
             state.write_json(&path)?;
 
             // update summary
@@ -165,8 +173,8 @@ impl<'a> FileIo<'a> {
 
     /// Writes the summary of generated files (at the end of the simulation)
     pub(crate) fn write_summary(&self) -> Result<(), StrError> {
-        if let Some(fn_stem) = &self.filename_stem {
-            let path = FileIo::path_summary(&self.output_directory, fn_stem);
+        if let Some(_) = &self.filename_stem {
+            let path = self.path_summary();
             self.summary.write_json(&path)?;
         }
         Ok(())

@@ -42,9 +42,11 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     // parameters
     let param1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::LinearElastic {
+        stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
+            hh: 0.0,
+            z_ini: 0.24,
         },
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(param1))])?;
@@ -81,6 +83,12 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     println!("\nnumerical_ur = {:?}, error = {:?}", numerical_ur, error);
     // approx_eq(numerical_ur, ana.ur(r), 1.29e-4);
 
+    // results
+    // let summary = FileIoSummary::read_json(file_io.path_mesh())?;
+    // for index in &summary.indices{
+    //     let s = FemState::read_json(&format!("{}/{}"))
+
+    // }
     Ok(())
 }
 

@@ -106,7 +106,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let tol_stress = 1e-10;
     verify_results(
         &mesh,
-        NAME,
+        &file_io,
         "spo_von_mises_single_element_2d.json",
         tol_displacement,
         tol_stress,

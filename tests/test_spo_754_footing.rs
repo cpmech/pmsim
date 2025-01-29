@@ -110,7 +110,14 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     // verify the results
     let tol_displacement = 1e-1;
     let tol_stress = 1e+3;
-    verify_results(&mesh, NAME, "spo_754_footing.json", tol_displacement, tol_stress, true)?;
+    verify_results(
+        &mesh,
+        &file_io,
+        "spo_754_footing.json",
+        tol_displacement,
+        tol_stress,
+        true,
+    )?;
 
     Ok(())
 }
