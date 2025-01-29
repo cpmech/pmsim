@@ -110,7 +110,8 @@ fn main() -> Result<(), StrError> {
             let global_max_area = Some(delta_x * delta_x / 2.0);
             Unstructured::quarter_ring_2d(R1, R2, *nr, *na, kind, global_max_area, true).unwrap()
         } else {
-            Structured::quarter_ring_2d(R1, R2, *nr, *na, kind, true).unwrap()
+            let wr = vec![1.0; *nr];
+            Structured::quarter_ring_2d(R1, R2, &wr, *na, kind, true).unwrap()
         };
 
         // check mesh

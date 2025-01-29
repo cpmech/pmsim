@@ -17,7 +17,8 @@ const NA: usize = 94; // number of alpha divisions
 
 fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // generate mesh
-    let mesh = Structured::quarter_ring_2d(R1, R2, nr, NA, GeoKind::Qua4, true).unwrap();
+    let wr = vec![1.0; nr];
+    let mesh = Structured::quarter_ring_2d(R1, R2, &wr, NA, GeoKind::Qua4, true).unwrap();
 
     // draw mesh
     if SAVE_FIGURE {

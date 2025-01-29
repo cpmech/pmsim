@@ -118,7 +118,8 @@ fn main() -> Result<(), StrError> {
             // println!("0. max vol = {:?}", global_max_volume);
             Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume, true).unwrap()
         } else {
-            Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind, true).unwrap()
+            let wr = vec![1.0; *nr];
+            Structured::quarter_ring_3d(R1, R2, THICKNESS, &wr, *na, NZ, kind, true).unwrap()
         };
 
         // println!("1. npoint = {}, ncell = {}", mesh.points.len(), mesh.cells.len());
