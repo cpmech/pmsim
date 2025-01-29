@@ -493,15 +493,26 @@ impl<'a> Config<'a> {
     ///
     /// ```text
     /// self.set_t_ini(0.0)
-    ///     .set_t_fin(n_increment as f64)
+    ///     .set_t_fin((n_station - 1) as f64)
     ///     .set_dt(|_| 1.0)
     ///     .set_dt_out(|_| 1.0)
     /// ```
-    pub fn set_incremental(&mut self, n_increment: usize) -> &mut Self {
-        self.set_t_ini(0.0)
-            .set_t_fin(n_increment as f64)
-            .set_dt(|_| 1.0)
-            .set_dt_out(|_| 1.0)
+    ///
+    /// # Input
+    ///
+    /// * `n_station` -- is the number of (pseudo) time stations. For example, with a
+    ///   displacement control such as `uy = [0.0, -0.1, -0.2]`, the number of stations
+    ///   is `n_station = 3`, corresponding to `time = [0.0, 1.0, 2.0]`.
+    ///
+    /// **Note:** `n_station` must be ≥ 2, otherwise `t_ini` and `t_fin` will be set to zero,
+    /// and the simulation will not be run.
+    pub fn set_incremental(&mut self, n_station: usize) -> &mut Self {
+        self.set_t_ini(0.0).set_dt(|_| 1.0).set_dt_out(|_| 1.0);
+        if n_station > 1 {
+            self.set_t_fin((n_station - 1) as f64)
+        } else {
+            self.set_t_fin(0.0)
+        }
     }
 
     /// Sets the initial time
@@ -933,12 +944,21 @@ mod tests {
     fn set_incremental_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
-        config.set_incremental(3);
+        const UY: [f64; 4] = [0.0, -0.7, -0.9, -1.0];
+        config.set_incremental(UY.len());
         assert_eq!(config.t_ini, 0.0);
         assert_eq!(config.t_fin, 3.0);
         assert_eq!((config.dt)(0.0), 1.0);
         assert_eq!((config.dt)(3.0), 1.0);
         assert_eq!((config.dt_out)(0.0), 1.0);
         assert_eq!((config.dt_out)(3.0), 1.0);
+
+        config.set_incremental(0);
+        assert_eq!(config.t_ini, 0.0);
+        assert_eq!(config.t_fin, 0.0);
+
+        config.set_incremental(1);
+        assert_eq!(config.t_ini, 0.0);
+        assert_eq!(config.t_fin, 0.0);
     }
 }
