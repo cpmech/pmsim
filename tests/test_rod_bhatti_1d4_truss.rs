@@ -67,7 +67,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     let mut state = FemState::new(&fem, &config)?;
 
     // File IO
-    let mut file_io = FileIo::new(&fem, None, None)?;
+    let mut file_io = FileIo::new();
 
     // solution
     let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;

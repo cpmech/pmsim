@@ -74,7 +74,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     let mut state = FemState::new(&fem, &config)?;
 
     // File IO
-    let mut file_io = FileIo::new(&fem, None, None)?;
+    let mut file_io = FileIo::new();
 
     // check Jacobian matrix of first element
     elements.calc_jacobians(&state)?;

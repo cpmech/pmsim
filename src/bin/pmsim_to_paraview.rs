@@ -62,7 +62,7 @@ fn main() -> Result<(), StrError> {
             summary.times[*count], vtu_fn
         )
         .unwrap();
-        paraview_write_vtu(&mesh, &summary.equations.as_ref().unwrap(), &state, &vtu_fn)?;
+        // paraview_write_vtu(&mesh, &summary.equations.as_ref().unwrap(), &state, &vtu_fn)?;
     }
 
     // generate PVD file

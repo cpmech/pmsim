@@ -327,7 +327,7 @@ mod tests {
         let natural = Natural::new();
         let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&fem, &config).unwrap();
-        let mut file_io = FileIo::new(&fem, None, None).unwrap();
+        let mut file_io = FileIo::new();
         assert_eq!(
             solver.solve(&mut state, &mut file_io).err(),
             Some("Δt is smaller than the allowed minimum")

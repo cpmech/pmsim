@@ -10,6 +10,18 @@ use std::path::Path;
 /// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FileIo {
+    /// Holds a flag to enable/disable the file generation
+    enabled: bool,
+
+    /// Defines the output directory
+    output_dir: String,
+
+    /// Defines the filename stem
+    filename_stem: String,
+
+    /// Holds the count of files written
+    output_count: usize,
+
     /// Holds the indices of the output files
     pub indices: Vec<usize>,
 
@@ -17,83 +29,84 @@ pub struct FileIo {
     pub times: Vec<f64>,
 
     /// Holds equation numbers (DOF numbers)
-    pub equations: Option<Equations>,
-
-    /// Defines the filename stem
-    filename_stem: Option<String>,
-
-    /// Defines the output directory
-    output_dir: String,
-
-    /// Holds the count of files written
-    output_count: usize,
+    equations: Equations,
 }
 
 impl FileIo {
-    /// Allocates a new instance
+    /// Allocates a new instance with deactivated generation of files
+    pub fn new() -> Self {
+        FileIo {
+            enabled: false,
+            output_dir: String::new(),
+            filename_stem: String::new(),
+            output_count: 0,
+            indices: Vec::new(),
+            times: Vec::new(),
+            equations: Equations {
+                all: Vec::new(),
+                n_equation: 0,
+            },
+        }
+    }
+
+    /// Allocates a new instance given a FemMesh
     ///
     /// # Input
     ///
     /// * `fem` -- the FEM mesh, attributes, and DOF numbers
-    /// * `filename_stem` -- the last part of the filename without extension, e.g., "my_simulation".
-    ///   None means that no files will be written.
+    /// * `filename_stem` -- the last part of the filename without extension, e.g., "my_simulation"
     /// * `output_directory` -- the directory to save the output files.
     ///   None means that the default directory will be used; see [DEFAULT_OUT_DIR]
-    pub fn new(fem: &FemMesh, filename_stem: Option<String>, output_directory: Option<&str>) -> Result<Self, StrError> {
+    pub fn new_enabled(fem: &FemMesh, filename_stem: &str, output_directory: Option<&str>) -> Result<Self, StrError> {
         // output directory
         let out_dir = match output_directory {
             Some(d) => d,
             None => DEFAULT_OUT_DIR,
         };
 
-        // prepare data
-        let equations = match &filename_stem {
-            Some(fn_stem) => {
-                // create directory only if filename_stem is provided
-                fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
+        // create directory
+        fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
 
-                // save the mesh
-                let path = format!("{}/{}-mesh.json", out_dir, fn_stem);
-                fem.mesh.write_json(&path)?;
-
-                // equations
-                Some(fem.equations.clone())
-            }
-            None => None,
-        };
+        // write the mesh
+        let path = format!("{}/{}-mesh.json", out_dir, filename_stem);
+        fem.mesh.write_json(&path)?;
 
         // new structure
         Ok(FileIo {
+            enabled: true,
+            output_dir: out_dir.to_string(),
+            filename_stem: filename_stem.to_string(),
+            output_count: 0,
             indices: Vec::new(),
             times: Vec::new(),
-            equations,
-            filename_stem,
-            output_dir: out_dir.to_string(),
-            output_count: 0,
+            equations: fem.equations.clone(),
         })
     }
 
     /// Generates the filename path for the mesh file
     pub fn path_mesh(&self) -> String {
-        match &self.filename_stem {
-            Some(fn_stem) => format!("{}/{}-mesh.json", self.output_dir, fn_stem),
-            None => "unavailable".to_string(),
+        if self.enabled {
+            format!("{}/{}-mesh.json", self.output_dir, self.filename_stem)
+        } else {
+            "".to_string()
         }
     }
 
     /// Generates the filename path for the summary file
     pub fn path_summary(&self) -> String {
-        match &self.filename_stem {
-            Some(fn_steam) => format!("{}/{}-summary.json", self.output_dir, fn_steam),
-            None => "unavailable".to_string(),
+        if self.enabled {
+            format!("{}/{}-summary.json", self.output_dir, self.filename_stem)
+        } else {
+            "".to_string()
         }
     }
 
     /// Generates the filename path for the state files
     pub fn path_state(&self, index: usize) -> String {
-        match &self.filename_stem {
-            Some(fn_steam) => format!("{}/{}-{:0>20}.json", self.output_dir, fn_steam, index),
-            None => "unavailable".to_string(),
+        if self.enabled {
+            format!("{}/{}-{:0>20}.json", self.output_dir, self.filename_stem, index)
+        } else {
+            "".to_string()
         }
     }
 
@@ -135,7 +148,7 @@ impl FileIo {
     ///
     /// **Note:** No output is generated if `filename_stem` is None.
     pub(crate) fn write_state(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        if let Some(_) = &self.filename_stem {
+        if self.enabled {
             // save the state
             let path = self.path_state(self.output_count);
             state.write_json(&path)?;
@@ -150,7 +163,7 @@ impl FileIo {
 
     /// Writes this struct to a file
     pub(crate) fn write_self(&self) -> Result<(), StrError> {
-        if let Some(_) = &self.filename_stem {
+        if self.enabled {
             let path = self.path_summary();
             self.write_json(&path)?;
         }

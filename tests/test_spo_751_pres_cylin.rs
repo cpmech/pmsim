@@ -66,7 +66,7 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     let mut state = FemState::new(&fem, &config)?;
 
     // File IO
-    let mut file_io = FileIo::new(&fem, Some(NAME.to_string()), None)?;
+    let mut file_io = FileIo::new_enabled(&fem, NAME, None)?;
 
     // solution
     let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
