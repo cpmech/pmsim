@@ -1,6 +1,7 @@
 use gemlab::prelude::*;
 use plotpy::Curve;
 use plotpy::Surface;
+use pmsim::analytical::ElastPlaneStrainPresCylin;
 use pmsim::prelude::*;
 use pmsim::util::ConvergenceResults;
 use russell_lab::*;
@@ -21,33 +22,6 @@ const P1: f64 = 200.0; // inner pressure (magnitude)
 const P2: f64 = 100.0; // outer pressure (magnitude)
 const YOUNG: f64 = 1000.0; // Young's modulus
 const POISSON: f64 = 0.25; // Poisson's coefficient
-
-/// Calculates the analytical solution (elastic pressurized cylinder)
-/// Reference (page 160)
-/// Sadd MH (2005) Elasticity: Theory, Applications and Numerics, Elsevier, 474p
-struct AnalyticalSolution {
-    aa: f64,
-    bb: f64,
-    c1: f64,
-    c2: f64,
-}
-
-impl AnalyticalSolution {
-    pub fn new() -> Self {
-        let rr1 = R1 * R1;
-        let rr2 = R2 * R2;
-        let drr = rr2 - rr1;
-        let dp = P2 - P1;
-        let aa = rr1 * rr2 * dp / drr;
-        let bb = (rr1 * P1 - rr2 * P2) / drr;
-        let c1 = (1.0 + POISSON) / YOUNG;
-        let c2 = 1.0 - 2.0 * POISSON;
-        AnalyticalSolution { aa, bb, c1, c2 }
-    }
-    pub fn radial_displacement(&self, r: f64) -> f64 {
-        self.c1 * (r * self.c2 * self.bb - self.aa / r)
-    }
-}
 
 fn main() -> Result<(), StrError> {
     // arguments
@@ -92,7 +66,7 @@ fn main() -> Result<(), StrError> {
     };
 
     // analytical solution
-    let ana = AnalyticalSolution::new();
+    let ana = ElastPlaneStrainPresCylin::new(R1, R2, P1, P2, YOUNG, POISSON)?;
 
     // numerical solution arrays
     let n = sizes.len();
@@ -268,7 +242,7 @@ fn main() -> Result<(), StrError> {
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
         let eq = fem.equations.eq(ref_point_id, Dof::Ux).unwrap();
         let numerical_ur = state.uu[eq];
-        let error = f64::abs(numerical_ur - ana.radial_displacement(r));
+        let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
         let eq = fem.equations.eq(study_point, Dof::Uy).unwrap();
