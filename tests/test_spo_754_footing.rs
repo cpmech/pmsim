@@ -90,9 +90,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     config
         .set_tol_rr(1e-6)
         .set_ngauss(att, 4)
-        .set_dt(|_| 1.0)
-        .set_dt_out(|_| 1.0)
-        .set_t_fin((UY.len() - 1) as f64)
+        .set_incremental(UY.len() - 1)
         .set_ignore_jacobian_symmetry(true)
         .set_n_max_iterations(20);
 

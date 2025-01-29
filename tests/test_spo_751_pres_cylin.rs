@@ -16,7 +16,7 @@ const SAVE_FIGURE: bool = true;
 
 const R1: f64 = 100.0; // inner radius
 const R2: f64 = 200.0; // outer radius
-const P1: f64 = 0.2; // inner pressure (magnitude)
+const P1: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
 const P2: f64 = 0.0; // outer pressure (magnitude)
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
@@ -55,11 +55,11 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&inner_circle, Nbc::Qn, -P1);
+    natural.edges_fn(&inner_circle, Nbc::Qn, |t| -P1[t as usize]);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_ngauss(att, NGAUSS);
+    config.set_ngauss(att, NGAUSS).set_incremental(P1.len() - 1);
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
@@ -72,14 +72,14 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     solver.solve(&mut state, &mut file_io)?;
 
     // compute error
-    let ana = ElastPlaneStrainPresCylin::new(R1, R2, P1, P2, YOUNG, POISSON)?;
+    let ana = ElastPlaneStrainPresCylin::new(R1, R2, P1[P1.len() - 1], P2, YOUNG, POISSON)?;
     let r = mesh.points[ref_point_id].coords[0];
     assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
     let eq = fem.equations.eq(ref_point_id, Dof::Ux).unwrap();
     let numerical_ur = state.uu[eq];
     let error = f64::abs(numerical_ur - ana.ur(r));
     println!("error = {}", error);
-    approx_eq(numerical_ur, ana.ur(r), 1.35e-4);
+    approx_eq(numerical_ur, ana.ur(r), 1.29e-4);
 
     Ok(())
 }

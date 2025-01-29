@@ -487,6 +487,23 @@ impl<'a> Config<'a> {
         self.model_settings.entry(cell_attribute).or_insert(Settings::new())
     }
 
+    /// Sets t, dt, and dt_out to simulate an incremental loading
+    ///
+    /// This function corresponds to:
+    ///
+    /// ```text
+    /// self.set_t_ini(0.0)
+    ///     .set_t_fin(n_increment as f64)
+    ///     .set_dt(|_| 1.0)
+    ///     .set_dt_out(|_| 1.0)
+    /// ```
+    pub fn set_incremental(&mut self, n_increment: usize) -> &mut Self {
+        self.set_t_ini(0.0)
+            .set_t_fin(n_increment as f64)
+            .set_dt(|_| 1.0)
+            .set_dt_out(|_| 1.0)
+    }
+
     /// Sets the initial time
     pub fn set_t_ini(&mut self, t_ini: f64) -> &mut Self {
         self.t_ini = t_ini;
@@ -910,5 +927,18 @@ mod tests {
             .set_general_plasticity(true)
             .set_gp_interp_nn_max(20);
         assert_eq!(config.model_settings(att).general_plasticity, true);
+    }
+
+    #[test]
+    fn set_incremental_works() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
+        config.set_incremental(3);
+        assert_eq!(config.t_ini, 0.0);
+        assert_eq!(config.t_fin, 3.0);
+        assert_eq!((config.dt)(0.0), 1.0);
+        assert_eq!((config.dt)(3.0), 1.0);
+        assert_eq!((config.dt_out)(0.0), 1.0);
+        assert_eq!((config.dt_out)(3.0), 1.0);
     }
 }
