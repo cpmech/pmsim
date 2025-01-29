@@ -5,9 +5,8 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use std::collections::HashSet;
 use std::fmt::Write;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::Write as IoWrite;
-use std::path::Path;
 
 impl FileIo {
     /// Writes a VTU file for ParaView
@@ -170,17 +169,11 @@ impl FileIo {
         )
         .unwrap();
 
-        // create directory
-        let fn_path = self.path_vtu(index);
-        let path = Path::new(&fn_path);
-        if let Some(p) = path.parent() {
-            fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
-        }
-
         // write file
+        let path = self.path_vtu(index);
         let mut file = File::create(path).map_err(|_| "cannot create file")?;
         file.write_all(buffer.as_bytes()).map_err(|_| "cannot write file")?;
-        file.sync_all().map_err(|_| "cannot sync file")
+        Ok(())
     }
 }
 
