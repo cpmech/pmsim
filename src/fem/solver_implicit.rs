@@ -79,7 +79,7 @@ impl<'a> SolverImplicit<'a> {
         self.elements.initialize_internal_values(state)?;
 
         // first output (must occur initialize_internal_values)
-        file_io.write(state)?;
+        file_io.write_state(state)?;
         let mut t_out = state.t + (config.dt_out)(state.t);
 
         // time loop
@@ -224,7 +224,7 @@ impl<'a> SolverImplicit<'a> {
             // perform output
             let last_timestep = timestep == config.n_max_time_steps - 1;
             if state.t >= t_out || last_timestep {
-                file_io.write(state)?;
+                file_io.write_state(state)?;
                 t_out += (config.dt_out)(state.t);
             }
 
@@ -234,8 +234,8 @@ impl<'a> SolverImplicit<'a> {
             }
         }
 
-        // write the summary file
-        file_io.write_summary()
+        // write the file_io file
+        file_io.write_self()
     }
 }
 

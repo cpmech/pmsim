@@ -4,7 +4,6 @@ use gemlab::prelude::*;
 use pmsim::{
     analytical::ElastPlaneStrainPresCylin,
     base::SampleMeshes,
-    fem::FileIoSummary,
     prelude::*,
     util::{paraview_write_vtu, verify_results},
 };

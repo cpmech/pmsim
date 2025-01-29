@@ -7,9 +7,9 @@ use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
 
-/// Holds a summary of the generated files
+/// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FileIoSummary {
+pub struct FileIo {
     /// Holds the indices of the output files
     pub indices: Vec<usize>,
 
@@ -18,12 +18,6 @@ pub struct FileIoSummary {
 
     /// Holds equation numbers (DOF numbers)
     pub equations: Option<Equations>,
-}
-
-/// Assists in generating output files
-pub struct FileIo<'a> {
-    /// Holds the FEM mesh, attributes, and DOF numbers
-    fem: &'a FemMesh<'a>,
 
     /// Defines the filename stem
     filename_stem: Option<String>,
@@ -33,48 +27,9 @@ pub struct FileIo<'a> {
 
     /// Holds the count of files written
     output_count: usize,
-
-    /// Holds the summary
-    summary: FileIoSummary,
 }
 
-impl FileIoSummary {
-    /// Reads a JSON file containing the summary
-    ///
-    /// # Input
-    ///
-    /// * `full_path` -- may be a String, &str, or Path
-    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-    {
-        let path = Path::new(full_path).to_path_buf();
-        let fem = File::open(path).map_err(|_| "cannot open file")?;
-        let buffered = BufReader::new(fem);
-        let summary = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
-        Ok(summary)
-    }
-
-    /// Writes a JSON file with the summary
-    ///
-    /// # Input
-    ///
-    /// * `full_path` -- may be a String, &str, or Path
-    pub fn write_json<P>(&self, full_path: &P) -> Result<(), StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-    {
-        let path = Path::new(full_path).to_path_buf();
-        if let Some(p) = path.parent() {
-            fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
-        }
-        let mut file = File::create(&path).map_err(|_| "cannot create file")?;
-        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
-        Ok(())
-    }
-}
-
-impl<'a> FileIo<'a> {
+impl FileIo {
     /// Allocates a new instance
     ///
     /// # Input
@@ -84,43 +39,37 @@ impl<'a> FileIo<'a> {
     ///   None means that no files will be written.
     /// * `output_directory` -- the directory to save the output files.
     ///   None means that the default directory will be used; see [DEFAULT_OUT_DIR]
-    pub fn new(
-        fem: &'a FemMesh,
-        filename_stem: Option<String>,
-        output_directory: Option<&str>,
-    ) -> Result<Self, StrError> {
+    pub fn new(fem: &FemMesh, filename_stem: Option<String>, output_directory: Option<&str>) -> Result<Self, StrError> {
         // output directory
         let out_dir = match output_directory {
             Some(d) => d,
             None => DEFAULT_OUT_DIR,
         };
 
-        // create directory only if filename_stem is provided
-        if let Some(_) = filename_stem {
-            fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
-        }
+        // prepare data
+        let equations = match &filename_stem {
+            Some(fn_stem) => {
+                // create directory only if filename_stem is provided
+                fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
 
-        // summary
-        let summary = match &filename_stem {
-            Some(_) => FileIoSummary {
-                indices: Vec::new(),
-                times: Vec::new(),
-                equations: Some(fem.equations.clone()),
-            },
-            None => FileIoSummary {
-                indices: Vec::new(),
-                times: Vec::new(),
-                equations: None,
-            },
+                // save the mesh
+                let path = format!("{}/{}-mesh.json", out_dir, fn_stem);
+                fem.mesh.write_json(&path)?;
+
+                // equations
+                Some(fem.equations.clone())
+            }
+            None => None,
         };
 
-        // output
+        // new structure
         Ok(FileIo {
-            fem,
+            indices: Vec::new(),
+            times: Vec::new(),
+            equations,
             filename_stem,
             output_dir: out_dir.to_string(),
             output_count: 0,
-            summary,
         })
     }
 
@@ -148,34 +97,62 @@ impl<'a> FileIo<'a> {
         }
     }
 
+    /// Reads a JSON file containing this struct
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        let fem = File::open(path).map_err(|_| "cannot open file")?;
+        let buffered = BufReader::new(fem);
+        let summary = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
+        Ok(summary)
+    }
+
+    /// Writes a JSON file with this struct
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn write_json<P>(&self, full_path: &P) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        if let Some(p) = path.parent() {
+            fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
+        }
+        let mut file = File::create(&path).map_err(|_| "cannot create file")?;
+        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
+        Ok(())
+    }
+
     /// Writes the current FEM state to a file
     ///
     /// **Note:** No output is generated if `filename_stem` is None.
-    pub(crate) fn write(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    pub(crate) fn write_state(&mut self, state: &mut FemState) -> Result<(), StrError> {
         if let Some(_) = &self.filename_stem {
-            // save the mesh
-            if self.output_count == 0 {
-                let path = &self.path_mesh();
-                self.fem.mesh.write_json(&path)?;
-            }
-
             // save the state
             let path = self.path_state(self.output_count);
             state.write_json(&path)?;
 
-            // update summary
-            self.summary.indices.push(self.output_count);
-            self.summary.times.push(state.t);
+            // update counters
+            self.indices.push(self.output_count);
+            self.times.push(state.t);
             self.output_count += 1;
         }
         Ok(())
     }
 
-    /// Writes the summary of generated files (at the end of the simulation)
-    pub(crate) fn write_summary(&self) -> Result<(), StrError> {
+    /// Writes this struct to a file
+    pub(crate) fn write_self(&self) -> Result<(), StrError> {
         if let Some(_) = &self.filename_stem {
             let path = self.path_summary();
-            self.summary.write_json(&path)?;
+            self.write_json(&path)?;
         }
         Ok(())
     }

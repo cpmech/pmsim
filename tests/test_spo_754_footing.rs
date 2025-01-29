@@ -1,7 +1,9 @@
 #![allow(unused)]
 
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, fem::FileIoSummary, prelude::*, util::verify_results};
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
+use pmsim::util::verify_results;
 use russell_lab::*;
 
 const NAME: &str = "test_spo_754_footing";

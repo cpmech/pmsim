@@ -1,5 +1,5 @@
 use gemlab::mesh::Mesh;
-use pmsim::fem::{FemState, FileIoSummary};
+use pmsim::fem::{FemState, FileIo};
 use pmsim::util::paraview_write_vtu;
 use pmsim::StrError;
 use std::fmt::Write;
@@ -30,7 +30,7 @@ fn main() -> Result<(), StrError> {
     let options = Options::from_args();
 
     // load summary
-    let summary = FileIoSummary::read_json(&format!(
+    let summary = FileIo::read_json(&format!(
         "{}/{}-summary.json",
         options.results_dir, options.filename_stem
     ))?;

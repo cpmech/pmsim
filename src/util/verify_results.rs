@@ -1,4 +1,4 @@
-use crate::fem::{FemState, FileIo, FileIoSummary};
+use crate::fem::{FemState, FileIo};
 use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -39,7 +39,7 @@ pub fn verify_results(
     let reference = ReferenceDataSet::read_json(format!("data/results/{}", ref_filename).as_str())?;
 
     // compare results
-    let summary = FileIoSummary::read_json(&file_io.path_summary())?;
+    let summary = FileIo::read_json(&file_io.path_summary())?;
     for step in &summary.indices {
         if *step >= reference.all.len() {
             return Err("the number of load steps must match the reference data");
