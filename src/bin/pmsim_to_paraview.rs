@@ -42,13 +42,15 @@ fn main() -> Result<(), StrError> {
         vec![options.output_index as usize]
     };
 
+    // load mesh
+    let mesh = Mesh::read_json(&format!("{}/{}-mesh.json", options.results_dir, options.filename_stem))?;
+
     // initiate PVD fle
     let mut pvd = String::new();
     write!(&mut pvd, "<?xml version=\"1.0\"?>\n<VTKFile type=\"Collection\" version=\"0.1\" byte_order=\"LittleEndian\">\n<Collection>\n").unwrap();
 
     // generate VTU file
     for count in &indices {
-        let mesh = Mesh::read_json(&format!("{}/{}-mesh.json", options.results_dir, options.filename_stem))?;
         let state = FemState::read_json(&format!(
             "{}/{}-{:0>20}.json",
             options.results_dir, options.filename_stem, count
