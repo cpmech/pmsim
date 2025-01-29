@@ -222,6 +222,20 @@ mod tests {
     use std::fs;
 
     #[test]
+    fn write_vtu_captures_errors() {
+        let mesh = Samples::three_tri3();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let config = Config::new(&mesh);
+        let state = FemState::new(&fem, &config).unwrap();
+        let file_io = FileIo::new();
+        assert_eq!(
+            file_io.write_vtu(&mesh, &state, 0).err(),
+            Some("FileIo must be activated first")
+        );
+    }
+
+    #[test]
     fn write_vtu_works() {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
@@ -278,6 +292,12 @@ mod tests {
 </VTKFile>
 "#
         );
+    }
+
+    #[test]
+    fn write_pvd_captures_errors() {
+        let file_io = FileIo::new();
+        assert_eq!(file_io.write_pvd().err(), Some("FileIo must be activated first"));
     }
 
     #[test]
