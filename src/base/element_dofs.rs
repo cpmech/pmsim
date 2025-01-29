@@ -2,6 +2,7 @@ use super::{Attributes, Dof, Elem};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
 use gemlab::shapes::GeoKind;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -41,6 +42,7 @@ pub const POROUS_SLD_GEO_KIND_ALLOWED: [GeoKind; 7] = [
 ///                                  13 → Pl @ 1 →  5
 ///                                  14 → Pl @ 2 →  8
 /// ```
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ElementDofs {
     /// Holds all cell DOF keys and local equation numbers
     ///
@@ -190,6 +192,7 @@ impl ElementDofs {
 }
 
 /// Maps (CellAttribute, GeoKind) to ElementDofs
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ElementDofsMap {
     all: HashMap<(CellAttribute, GeoKind), ElementDofs>,
     names: HashMap<(CellAttribute, GeoKind), String>,

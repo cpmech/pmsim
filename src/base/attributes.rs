@@ -1,9 +1,11 @@
 use super::Elem;
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Holds all (CellAttribute, Elem) pairs
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Attributes {
     all: HashMap<CellAttribute, Elem>,
 }

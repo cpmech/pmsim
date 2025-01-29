@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// Defines degrees-of-freedom (DOF) types
 ///
 /// Note: The fixed numbering scheme assists in sorting the DOFs.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum Dof {
     /// Displacement along the first dimension
     Ux = 0,
@@ -39,7 +39,7 @@ pub enum Dof {
 }
 
 /// Defines natural boundary conditions (NBC)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Nbc {
     /// Normal distributed load
     Qn,
@@ -132,7 +132,7 @@ impl Nbc {
 }
 
 /// Defines point boundary conditions (e.g., point loads)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Pbc {
     /// Concentrated load parallel to x
     Fx,
@@ -156,7 +156,7 @@ impl Pbc {
 }
 
 /// Defines how stresses are initialized
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Init {
     /// Geostatic initial state with data = (overburden)
     ///
@@ -177,7 +177,7 @@ pub enum Init {
 }
 
 /// Defines the element type
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Elem {
     Diffusion(ParamDiffusion),
     Rod(ParamRod),

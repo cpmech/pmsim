@@ -61,7 +61,7 @@ use std::fmt;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Equations {
     /// Holds all points DOFs and numbers
     ///

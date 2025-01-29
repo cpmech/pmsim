@@ -1,7 +1,8 @@
 use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES};
+use serde::{Deserialize, Serialize};
 
 /// Holds parameters for stress-strain relations (total or effective stress)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum StressStrain {
     /// Linear elastic model
     LinearElastic {
@@ -65,7 +66,7 @@ pub enum StressStrain {
 }
 
 /// Holds parameters for liquid-retention models
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum LiquidRetention {
     BrooksCorey {
         /// Slope coefficient
@@ -136,7 +137,7 @@ pub enum LiquidRetention {
 }
 
 /// Holds parameters for liquid or gas conductivity
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Conductivity {
     Constant {
         /// x-component of the conductivity tensor
@@ -180,7 +181,7 @@ pub enum Conductivity {
 }
 
 /// Holds parameters for intrinsic (real) density
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamRealDensity {
     /// Compressibility C = dρReal/dp
     pub cc: f64,
@@ -196,7 +197,7 @@ pub struct ParamRealDensity {
 }
 
 /// Holds parameters for fluids (liquid and gas)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamFluids {
     /// Density of liquid constituent
     pub density_liquid: ParamRealDensity,
@@ -208,7 +209,7 @@ pub struct ParamFluids {
 // parameters for elements ------------------------------------------------------------------------
 
 /// Holds parameters for diffusion problems
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamDiffusion {
     /// Transient coefficient (e.g., MassDensity times SpecificHeatCapacity)
     pub rho: f64,
@@ -221,7 +222,7 @@ pub struct ParamDiffusion {
 }
 
 /// Holds parameters for (linear-elastic) rods
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamRod {
     /// Intrinsic (real) density
     pub density: f64,
@@ -234,7 +235,7 @@ pub struct ParamRod {
 }
 
 /// Holds parameters for (Euler-Bernoulli) beams
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamBeam {
     /// Intrinsic (real) density
     pub density: f64,
@@ -259,7 +260,7 @@ pub struct ParamBeam {
 }
 
 /// Holds parameters for solid media mechanics simulations
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamSolid {
     /// Intrinsic (real) density
     pub density: f64,
@@ -269,7 +270,7 @@ pub struct ParamSolid {
 }
 
 /// Holds parameters for seepage simulations with liquid only
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamPorousLiq {
     /// Initial porosity nf₀
     pub porosity_initial: f64,
@@ -282,7 +283,7 @@ pub struct ParamPorousLiq {
 }
 
 /// Holds parameters for seepage simulations with liquid and gas
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamPorousLiqGas {
     /// Initial porosity nf₀
     pub porosity_initial: f64,
@@ -298,7 +299,7 @@ pub struct ParamPorousLiqGas {
 }
 
 /// Holds parameters for porous media mechanics simulations with solid and liquid
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamPorousSldLiq {
     /// At-rest earth pressure coefficient `K0 = σₕ'/σᵥ'` to compute initial
     /// horizontal effective stress (`σₕ'`) from vertical effective stress (`σᵥ'`)
@@ -321,7 +322,7 @@ pub struct ParamPorousSldLiq {
 }
 
 /// Holds parameters for porous media mechanics simulations with solid, liquid, and gas
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamPorousSldLiqGas {
     /// At-rest earth pressure coefficient `K0 = σₕ'/σᵥ'` to compute initial
     /// horizontal effective stress (`σₕ'`) from vertical effective stress (`σᵥ'`)
