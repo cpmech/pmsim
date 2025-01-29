@@ -59,7 +59,7 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_ngauss(att, NGAUSS).set_incremental(0);
+    config.set_ngauss(att, NGAUSS).set_incremental(P1.len());
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
