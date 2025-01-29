@@ -7,7 +7,7 @@ use crate::StrError;
 /// # Reference
 ///
 /// 1. Sadd MH (2005) Elasticity: Theory, Applications and Numerics, Elsevier, 474p
-pub struct ElastPlaneStrainPressCylin {
+pub struct ElastPlaneStrainPresCylin {
     r1: f64,
     r2: f64,
     poisson: f64,
@@ -17,7 +17,7 @@ pub struct ElastPlaneStrainPressCylin {
     c2: f64,
 }
 
-impl ElastPlaneStrainPressCylin {
+impl ElastPlaneStrainPresCylin {
     /// Allocates a new instance
     ///
     /// * `r1` -- inner radius
@@ -47,7 +47,7 @@ impl ElastPlaneStrainPressCylin {
         let bb = (rr1 * p1 - rr2 * p2) / drr;
         let c1 = (1.0 + poisson) / young;
         let c2 = 1.0 - 2.0 * poisson;
-        Ok(ElastPlaneStrainPressCylin {
+        Ok(ElastPlaneStrainPresCylin {
             r1,
             r2,
             poisson,
@@ -87,7 +87,7 @@ impl ElastPlaneStrainPressCylin {
 
 #[cfg(test)]
 mod tests {
-    use super::ElastPlaneStrainPressCylin;
+    use super::ElastPlaneStrainPresCylin;
     use crate::base::DEFAULT_TEST_DIR;
     use plotpy::{linspace, Curve, Plot};
     use russell_lab::approx_eq;
@@ -101,7 +101,7 @@ mod tests {
     fn formulae_are_correct_1() {
         let (r1, r2) = (1.0, 2.0);
         let (p1, p2) = (200.0, 100.0);
-        let ana = ElastPlaneStrainPressCylin::new(r1, r2, p1, p2, E, NU).unwrap();
+        let ana = ElastPlaneStrainPresCylin::new(r1, r2, p1, p2, E, NU).unwrap();
 
         approx_eq(ana.sr(r1), -p1, 1e-15);
         approx_eq(ana.sr(r2), -p2, 1e-15);
@@ -113,7 +113,7 @@ mod tests {
     fn formulae_are_correct_2() {
         let (r1, r2) = (1.0, 2.0);
         let p = 200.0;
-        let ana = ElastPlaneStrainPressCylin::new(r1, r2, p, 0.0, E, NU).unwrap();
+        let ana = ElastPlaneStrainPresCylin::new(r1, r2, p, 0.0, E, NU).unwrap();
 
         approx_eq(ana.sr(r1), -p, 1e-15);
         approx_eq(ana.sr(r2), 0.0, 1e-15);
