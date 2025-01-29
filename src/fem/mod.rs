@@ -11,6 +11,7 @@ mod elements;
 mod fem_mesh;
 mod fem_state;
 mod file_io;
+mod file_io_write_vtu;
 mod linear_system;
 mod post_processing;
 mod secondary_values;

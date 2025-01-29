@@ -1,12 +1,9 @@
 #![allow(unused)]
 
 use gemlab::prelude::*;
-use pmsim::{
-    analytical::ElastPlaneStrainPresCylin,
-    base::SampleMeshes,
-    prelude::*,
-    util::{paraview_write_vtu, verify_results},
-};
+use pmsim::analytical::ElastPlaneStrainPresCylin;
+use pmsim::prelude::*;
+use pmsim::util::verify_results;
 use russell_lab::*;
 
 const NAME: &str = "test_spo_751_pres_cylin";

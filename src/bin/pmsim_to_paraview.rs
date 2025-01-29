@@ -1,6 +1,5 @@
 use gemlab::mesh::Mesh;
 use pmsim::fem::{FemState, FileIo};
-use pmsim::util::paraview_write_vtu;
 use pmsim::StrError;
 use std::fmt::Write;
 use std::fs::File;
@@ -29,15 +28,16 @@ fn main() -> Result<(), StrError> {
     // parse options
     let options = Options::from_args();
 
-    // load summary
-    let summary = FileIo::read_json(&format!(
+    // load FileIo
+    let file_io = FileIo::read_json(&format!(
         "{}/{}-summary.json",
         options.results_dir, options.filename_stem
     ))?;
 
+    /*
     // selected indices
     let indices = if options.output_index < 0 {
-        summary.indices
+        file_io.indices
     } else {
         vec![options.output_index as usize]
     };
@@ -50,19 +50,19 @@ fn main() -> Result<(), StrError> {
     write!(&mut pvd, "<?xml version=\"1.0\"?>\n<VTKFile type=\"Collection\" version=\"0.1\" byte_order=\"LittleEndian\">\n<Collection>\n").unwrap();
 
     // generate VTU file
-    for count in &indices {
+    for index in &indices {
         let state = FemState::read_json(&format!(
             "{}/{}-{:0>20}.json",
-            options.results_dir, options.filename_stem, count
+            options.results_dir, options.filename_stem, index
         ))?;
-        let vtu_fn = &format!("{}/{}-{:0>20}.vtu", options.results_dir, options.filename_stem, count);
+        let vtu_fn = file_io.path_vtu(*index);
         write!(
             &mut pvd,
             "<DataSet timestep=\"{:?}\" file=\"{}\" />\n",
-            summary.times[*count], vtu_fn
+            file_io.times[*index], vtu_fn
         )
         .unwrap();
-        // paraview_write_vtu(&mesh, &summary.equations.as_ref().unwrap(), &state, &vtu_fn)?;
+        file_io.write_vtu(&mesh, &state, *index)?;
     }
 
     // generate PVD file
@@ -78,5 +78,6 @@ fn main() -> Result<(), StrError> {
     println!("VTU files generated; the PVD file is:");
     println!("{}", pvd_fn);
     println!("{}\n\n", thin_line);
+    */
     Ok(())
 }

@@ -29,7 +29,7 @@ pub struct FileIo {
     pub times: Vec<f64>,
 
     /// Holds equation numbers (DOF numbers)
-    equations: Equations,
+    pub(crate) equations: Equations,
 }
 
 impl FileIo {
@@ -107,6 +107,15 @@ impl FileIo {
 
     /// Generates the filename path for the state files
     pub fn path_state(&self, index: usize) -> String {
+        if self.enabled {
+            format!("{}/{}-{:0>20}.json", self.output_dir, self.filename_stem, index)
+        } else {
+            "".to_string()
+        }
+    }
+
+    /// Generates the filename path for the VTU (ParaView) files
+    pub fn path_vtu(&self, index: usize) -> String {
         if self.enabled {
             format!("{}/{}-{:0>20}.json", self.output_dir, self.filename_stem, index)
         } else {
