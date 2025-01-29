@@ -49,7 +49,7 @@ impl FileIo {
         }
     }
 
-    /// Allocates a new instance given a FemMesh
+    /// Activates the generation of files
     ///
     /// # Input
     ///
@@ -57,7 +57,12 @@ impl FileIo {
     /// * `filename_stem` -- the last part of the filename without extension, e.g., "my_simulation"
     /// * `output_directory` -- the directory to save the output files.
     ///   None means that the default directory will be used; see [DEFAULT_OUT_DIR]
-    pub fn new_enabled(fem: &FemMesh, filename_stem: &str, output_directory: Option<&str>) -> Result<Self, StrError> {
+    pub fn activate(
+        &mut self,
+        fem: &FemMesh,
+        filename_stem: &str,
+        output_directory: Option<&str>,
+    ) -> Result<(), StrError> {
         // output directory
         let out_dir = match output_directory {
             Some(d) => d,
@@ -71,16 +76,15 @@ impl FileIo {
         let path = format!("{}/{}-mesh.json", out_dir, filename_stem);
         fem.mesh.write_json(&path)?;
 
-        // new structure
-        Ok(FileIo {
-            enabled: true,
-            output_dir: out_dir.to_string(),
-            filename_stem: filename_stem.to_string(),
-            output_count: 0,
-            indices: Vec::new(),
-            times: Vec::new(),
-            equations: fem.equations.clone(),
-        })
+        // set structure
+        self.enabled = true;
+        self.output_dir = out_dir.to_string();
+        self.filename_stem = filename_stem.to_string();
+        self.output_count = 0;
+        self.indices = Vec::new();
+        self.times = Vec::new();
+        self.equations = fem.equations.clone();
+        Ok(())
     }
 
     /// Generates the filename path for the mesh file

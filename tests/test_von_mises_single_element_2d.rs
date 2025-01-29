@@ -95,7 +95,8 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut state = FemState::new(&fem, &config)?;
 
     // File IO
-    let mut file_io = FileIo::new_enabled(&fem, NAME, None)?;
+    let mut file_io = FileIo::new();
+    file_io.activate(&fem, NAME, None)?;
 
     // solution
     let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
