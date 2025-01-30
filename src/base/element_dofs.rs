@@ -601,4 +601,19 @@ mod tests {
              -----------------------------------------\n"
         );
     }
+
+    #[test]
+    fn derive_works() {
+        let p1 = ParamSolid::sample_linear_elastic();
+        let dofs = ElementDofs::new(2, Elem::Solid(p1), GeoKind::Tri3).unwrap();
+        let clone = dofs.clone();
+        let str_ori = format!("{:?}", dofs).to_string();
+        assert_eq!(format!("{:?}", clone), str_ori);
+        println!("{:?}", dofs);
+        // serialize
+        let json = serde_json::to_string(&dofs).unwrap();
+        // deserialize
+        let read: ElementDofs = serde_json::from_str(&json).unwrap();
+        assert_eq!(format!("{:?}", read), str_ori);
+    }
 }
