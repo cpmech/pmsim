@@ -10,23 +10,20 @@ use std::fmt;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ElementDofsMap {
     all: HashMap<(CellAttribute, GeoKind), ElementDofs>,
-    names: HashMap<(CellAttribute, GeoKind), String>,
 }
 
 impl ElementDofsMap {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, att_map: &Attributes) -> Result<Self, StrError> {
         let mut all = HashMap::new();
-        let mut names = HashMap::new();
         for cell in &mesh.cells {
             let element = att_map.get(cell.attribute)?;
             all.insert(
                 (cell.attribute, cell.kind),
                 ElementDofs::new(mesh.ndim, *element, cell.kind)?,
             );
-            names.insert((cell.attribute, cell.kind), element.name());
         }
-        Ok(ElementDofsMap { all, names })
+        Ok(ElementDofsMap { all })
     }
 
     /// Returns the ElementDofs corresponding to Cell
@@ -45,9 +42,8 @@ impl fmt::Display for ElementDofsMap {
         keys.sort_by(|a, b| a.0.cmp(&b.0));
         for key in keys {
             let info = self.all.get(key).unwrap();
-            let name = self.names.get(key).unwrap();
             let (id, kind) = key;
-            write!(f, "{} → {} → {:?}\n", id, name, kind).unwrap();
+            write!(f, "{} → {:?}\n", id, kind).unwrap();
             write!(f, "{}", info).unwrap();
             write!(f, "-----------------------------------------\n").unwrap();
         }
@@ -116,7 +112,7 @@ mod tests {
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
-             1 → Solid → Tri3\n\
+             1 → Tri3\n\
              0: [(Ux, 0), (Uy, 1)]\n\
              1: [(Ux, 2), (Uy, 3)]\n\
              2: [(Ux, 4), (Uy, 5)]\n\
@@ -140,13 +136,13 @@ mod tests {
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
-             1 → PorousLiq → Tri3\n\
+             1 → Tri3\n\
              0: [(Pl, 0)]\n\
              1: [(Pl, 1)]\n\
              2: [(Pl, 2)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
              -----------------------------------------\n\
-             2 → PorousLiq → Qua4\n\
+             2 → Qua4\n\
              0: [(Pl, 0)]\n\
              1: [(Pl, 1)]\n\
              2: [(Pl, 2)]\n\
@@ -172,7 +168,7 @@ mod tests {
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
-             1 → PorousSldLiq → Qua8\n\
+             1 → Qua8\n\
              0: [(Ux, 0), (Uy, 1), (Pl, 16)]\n\
              1: [(Ux, 2), (Uy, 3), (Pl, 17)]\n\
              2: [(Ux, 4), (Uy, 5), (Pl, 18)]\n\
@@ -183,7 +179,7 @@ mod tests {
              7: [(Ux, 14), (Uy, 15)]\n\
              (Pl @ Some(16), Pg @ None, T @ None)\n\
              -----------------------------------------\n\
-             2 → Solid → Tri6\n\
+             2 → Tri6\n\
              0: [(Ux, 0), (Uy, 1)]\n\
              1: [(Ux, 2), (Uy, 3)]\n\
              2: [(Ux, 4), (Uy, 5)]\n\
@@ -192,7 +188,7 @@ mod tests {
              5: [(Ux, 10), (Uy, 11)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
              -----------------------------------------\n\
-             3 → Beam → Lin2\n\
+             3 → Lin2\n\
              0: [(Ux, 0), (Uy, 1), (Rz, 2)]\n\
              1: [(Ux, 3), (Uy, 4), (Rz, 5)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
