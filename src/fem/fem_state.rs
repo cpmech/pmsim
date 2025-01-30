@@ -174,9 +174,9 @@ impl FemState {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let data = File::open(path).map_err(|_| "cannot open file")?;
+        let data = File::open(path).map_err(|_| "cannot open state file")?;
         let buffered = BufReader::new(data);
-        let state = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
+        let state = serde_json::from_reader(buffered).map_err(|_| "cannot parse state file")?;
         Ok(state)
     }
 
@@ -193,8 +193,8 @@ impl FemState {
         if let Some(p) = path.parent() {
             fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
         }
-        let mut file = File::create(&path).map_err(|_| "cannot create file")?;
-        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write file")?;
+        let mut file = File::create(&path).map_err(|_| "cannot create state file")?;
+        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write state file")?;
         Ok(())
     }
 }

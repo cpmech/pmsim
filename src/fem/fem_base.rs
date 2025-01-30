@@ -1,8 +1,14 @@
 use crate::base::{Attributes, Elem, ElementDofsMap, Equations};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
+use serde::{Deserialize, Serialize};
+use std::ffi::OsStr;
+use std::fs::{self, File};
+use std::io::BufReader;
+use std::path::Path;
 
 /// Holds the material parameters, element attributes, and equation numbers
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemBase {
     /// Holds all attributes
     pub attributes: Attributes,
@@ -31,6 +37,40 @@ impl FemBase {
     pub fn n_local_eq(&self, cell: &Cell) -> Result<usize, StrError> {
         let info = self.information.get(cell)?;
         Ok(info.n_equation)
+    }
+
+    /// Reads a JSON file containing the base data
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        let data = File::open(path).map_err(|_| "cannot open base file")?;
+        let buffered = BufReader::new(data);
+        let state = serde_json::from_reader(buffered).map_err(|_| "cannot parse base file")?;
+        Ok(state)
+    }
+
+    /// Writes a JSON file with the base data
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub fn write_json<P>(&self, full_path: &P) -> Result<(), StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        if let Some(p) = path.parent() {
+            fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
+        }
+        let mut file = File::create(&path).map_err(|_| "cannot create base file")?;
+        serde_json::to_writer(&mut file, &self).map_err(|_| "cannot write base file")?;
+        Ok(())
     }
 }
 
@@ -78,5 +118,22 @@ mod tests {
             base.n_local_eq(&wrong_cell).err(),
             Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
+    }
+
+    #[test]
+    fn derive_works() {
+        let mesh = Samples::one_tri3();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let clone = base.clone();
+        let str_ori = format!("{:?}", clone).to_string();
+        assert_eq!(format!("{:?}", clone), str_ori);
+        // serialize
+        let json = serde_json::to_string(&clone).unwrap();
+        // deserialize
+        let read: FemBase = serde_json::from_str(&json).unwrap();
+        assert_eq!(format!("{:?}", read.attributes), format!("{:?}", base.attributes));
+        assert_eq!(format!("{:?}", read.information), format!("{:?}", base.information));
+        assert_eq!(format!("{}", read.equations), format!("{}", base.equations));
     }
 }

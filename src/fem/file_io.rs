@@ -78,6 +78,10 @@ impl FileIo {
         let path = format!("{}/{}-mesh.json", out_dir, filename_stem);
         mesh.write_json(&path)?;
 
+        // write the FEM base
+        let path = format!("{}/{}-base.json", out_dir, filename_stem);
+        base.write_json(&path)?;
+
         // set structure
         self.active = true;
         self.output_dir = out_dir.to_string();
@@ -93,6 +97,15 @@ impl FileIo {
     pub fn path_mesh(&self) -> String {
         if self.active {
             format!("{}/{}-mesh.json", self.output_dir, self.filename_stem)
+        } else {
+            "".to_string()
+        }
+    }
+
+    /// Generates the filename path for the base file
+    pub fn path_base(&self) -> String {
+        if self.active {
+            format!("{}/{}-base.json", self.output_dir, self.filename_stem)
         } else {
             "".to_string()
         }
