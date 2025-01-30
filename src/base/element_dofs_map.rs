@@ -1,15 +1,14 @@
 use super::{Attributes, ElementDofs};
 use crate::StrError;
-use gemlab::mesh::{Cell, CellAttribute, Mesh};
-use gemlab::shapes::GeoKind;
+use gemlab::mesh::{Cell, Mesh};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
-/// Maps (CellAttribute, GeoKind) to ElementDofs
+/// Maps "CellAttribute,GeoKind" to ElementDofs
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ElementDofsMap {
-    all: HashMap<(CellAttribute, GeoKind), ElementDofs>,
+    all: HashMap<String, ElementDofs>,
 }
 
 impl ElementDofsMap {
@@ -18,18 +17,17 @@ impl ElementDofsMap {
         let mut all = HashMap::new();
         for cell in &mesh.cells {
             let element = att_map.get(cell.attribute)?;
-            all.insert(
-                (cell.attribute, cell.kind),
-                ElementDofs::new(mesh.ndim, *element, cell.kind)?,
-            );
+            let key = format!("{:?},{:?}", cell.attribute, cell.kind);
+            all.insert(key, ElementDofs::new(mesh.ndim, *element, cell.kind)?);
         }
         Ok(ElementDofsMap { all })
     }
 
     /// Returns the ElementDofs corresponding to Cell
     pub fn get(&self, cell: &Cell) -> Result<&ElementDofs, StrError> {
+        let key = format!("{:?},{:?}", cell.attribute, cell.kind);
         self.all
-            .get(&(cell.attribute, cell.kind))
+            .get(&key)
             .ok_or("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
     }
 }
@@ -39,11 +37,14 @@ impl fmt::Display for ElementDofsMap {
         write!(f, "Elements: DOFs and local equation numbers\n").unwrap();
         write!(f, "=========================================\n").unwrap();
         let mut keys: Vec<_> = self.all.keys().collect();
-        keys.sort_by(|a, b| a.0.cmp(&b.0));
+        keys.sort_by(|a, b| {
+            let aa = a.split_once(",").unwrap();
+            let bb = b.split_once(",").unwrap();
+            aa.0.cmp(&bb.0)
+        });
         for key in keys {
             let info = self.all.get(key).unwrap();
-            let (id, kind) = key;
-            write!(f, "{} → {:?}\n", id, kind).unwrap();
+            write!(f, "{}\n", key).unwrap();
             write!(f, "{}", info).unwrap();
             write!(f, "-----------------------------------------\n").unwrap();
         }
@@ -112,7 +113,7 @@ mod tests {
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
-             1 → Tri3\n\
+             1,Tri3\n\
              0: [(Ux, 0), (Uy, 1)]\n\
              1: [(Ux, 2), (Uy, 3)]\n\
              2: [(Ux, 4), (Uy, 5)]\n\
@@ -136,13 +137,13 @@ mod tests {
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
-             1 → Tri3\n\
+             1,Tri3\n\
              0: [(Pl, 0)]\n\
              1: [(Pl, 1)]\n\
              2: [(Pl, 2)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
              -----------------------------------------\n\
-             2 → Qua4\n\
+             2,Qua4\n\
              0: [(Pl, 0)]\n\
              1: [(Pl, 1)]\n\
              2: [(Pl, 2)]\n\
@@ -168,7 +169,7 @@ mod tests {
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
              =========================================\n\
-             1 → Qua8\n\
+             1,Qua8\n\
              0: [(Ux, 0), (Uy, 1), (Pl, 16)]\n\
              1: [(Ux, 2), (Uy, 3), (Pl, 17)]\n\
              2: [(Ux, 4), (Uy, 5), (Pl, 18)]\n\
@@ -179,7 +180,7 @@ mod tests {
              7: [(Ux, 14), (Uy, 15)]\n\
              (Pl @ Some(16), Pg @ None, T @ None)\n\
              -----------------------------------------\n\
-             2 → Tri6\n\
+             2,Tri6\n\
              0: [(Ux, 0), (Uy, 1)]\n\
              1: [(Ux, 2), (Uy, 3)]\n\
              2: [(Ux, 4), (Uy, 5)]\n\
@@ -188,7 +189,7 @@ mod tests {
              5: [(Ux, 10), (Uy, 11)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
              -----------------------------------------\n\
-             3 → Lin2\n\
+             3,Lin2\n\
              0: [(Ux, 0), (Uy, 1), (Rz, 2)]\n\
              1: [(Ux, 3), (Uy, 4), (Rz, 5)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
