@@ -51,9 +51,8 @@ pub fn polar_to_cartesian(x: f64, y: f64, sr: f64, st: f64, srt: f64) -> (f64, f
 
 #[cfg(test)]
 mod tests {
-    use russell_lab::approx_eq;
-
     use super::{cartesian_to_polar, polar_to_cartesian};
+    use russell_lab::approx_eq;
 
     #[test]
     fn cartesian_to_polar_and_vice_versa_work() {
