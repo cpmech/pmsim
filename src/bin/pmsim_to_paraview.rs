@@ -1,5 +1,4 @@
-use gemlab::mesh::Mesh;
-use pmsim::fem::{FemBase, FemState, FileIo};
+use pmsim::fem::PostProc;
 use pmsim::StrError;
 use structopt::StructOpt;
 
@@ -10,31 +9,21 @@ use structopt::StructOpt;
     about = "Generates VTU and PVD files for visualization with Paraview"
 )]
 struct Options {
-    path_summary: String,
+    out_dir: String,
+
+    fn_stem: String,
 }
 
 fn main() -> Result<(), StrError> {
     // parse options
     let options = Options::from_args();
 
-    // load FileIo
-    let file_io = FileIo::read_json(&options.path_summary)?;
-
-    // load the mesh
-    let path_mesh = file_io.path_mesh();
-    let mesh = Mesh::read_json(&path_mesh)?;
-
-    // load the FemBase
-    let path_base = file_io.path_base();
-    let base = FemBase::read_json(&path_base)?;
+    // load data
+    let (file_io, mesh, base) = PostProc::read_essential(&options.out_dir, &options.fn_stem)?;
 
     // write VTU files
     for index in &file_io.indices {
-        // load state
-        let path_state = file_io.path_state(*index);
-        let state = FemState::read_json(&path_state)?;
-
-        // write file
+        let state = PostProc::read_state(&file_io, *index)?;
         file_io.write_vtu(&mesh, &base, &state, *index)?;
     }
 

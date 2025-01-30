@@ -1,4 +1,4 @@
-use super::{FemBase, FemState};
+use super::{FemBase, FemState, FileIo};
 use crate::base::Dof;
 use crate::StrError;
 use gemlab::integ::Gauss;
@@ -29,6 +29,30 @@ pub struct PostProc<'a> {
 }
 
 impl<'a> PostProc<'a> {
+    /// Reads the essential files for post-processing
+    pub fn read_essential(out_dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
+        // load FileIo
+        let full_path = format!("{}/{}-summary.json", out_dir, fn_stem);
+        let file_io = FileIo::read_json(&full_path)?;
+
+        // load the mesh
+        let path_mesh = file_io.path_mesh();
+        let mesh = Mesh::read_json(&path_mesh)?;
+
+        // load the FemBase
+        let path_base = file_io.path_base();
+        let base = FemBase::read_json(&path_base)?;
+
+        // done
+        Ok((file_io, mesh, base))
+    }
+
+    /// Reads a JSON file with the FEM state at a given index (time station)
+    pub fn read_state(file_io: &FileIo, index: usize) -> Result<FemState, StrError> {
+        let path_state = file_io.path_state(index);
+        FemState::read_json(&path_state)
+    }
+
     /// Allocates a new instance
     pub fn new(mesh: &'a Mesh, base: &'a FemBase) -> Self {
         PostProc {
