@@ -52,8 +52,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     natural.edges(&footing, Nbc::Qn, -QN);
 
     // configuration
-    let mut config = Config::new(&mesh);
-    config.set_ngauss(att, NGAUSS);
+    let config = Config::new(&mesh);
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;
@@ -66,7 +65,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     solver.solve(&mut state, &mut file_io)?;
 
     // results
-    let mut post = PostProc::new(&fem, &config);
+    let mut post = PostProc::new(&fem);
     let mut gauss_x = Vec::new();
     let mut gauss_y = Vec::new();
     let mut gauss_syy = Vec::new();

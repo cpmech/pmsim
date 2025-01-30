@@ -1,8 +1,7 @@
 use super::{Idealization, Init, ParamFluids};
 use crate::material::Settings;
 use crate::StrError;
-use gemlab::integ::Gauss;
-use gemlab::mesh::{Cell, CellAttribute, Mesh};
+use gemlab::mesh::{CellAttribute, Mesh};
 use russell_sparse::SparseMatrix;
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::HashMap;
@@ -73,9 +72,6 @@ pub struct Config<'a> {
 
     /// Holds a flag allowing an initial yield surface drift in (stress-strain) material models
     pub(crate) model_allow_initial_drift: bool,
-
-    /// Holds the number of integration points for a group of cells
-    pub(crate) ngauss: HashMap<CellAttribute, usize>,
 
     /// Holds extra configuration parameters for the material models
     pub(crate) model_settings: HashMap<CellAttribute, Settings>,
@@ -155,7 +151,6 @@ impl<'a> Config<'a> {
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
-            ngauss: HashMap::new(),
             model_settings: HashMap::new(),
             // control
             t_ini: 0.0,
@@ -355,14 +350,6 @@ impl<'a> Config<'a> {
         }
     }
 
-    /// Returns the integration (Gauss) points data
-    pub fn gauss(&self, cell: &Cell) -> Result<Gauss, StrError> {
-        match self.ngauss.get(&cell.attribute) {
-            Some(n) => Gauss::new_sized(cell.kind.class(), *n),
-            None => Ok(Gauss::new(cell.kind)),
-        }
-    }
-
     /// Returns the extra model settings
     pub fn model_settings(&self, cell_attribute: CellAttribute) -> Settings {
         match self.model_settings.get(&cell_attribute) {
@@ -470,15 +457,6 @@ impl<'a> Config<'a> {
     /// Sets a flag allowing an initial yield surface drift in (stress-strain) material models
     pub fn set_model_allow_initial_drift(&mut self, model_allow_initial_drift: bool) -> &mut Self {
         self.model_allow_initial_drift = model_allow_initial_drift;
-        self
-    }
-
-    /// Sets the number of integration points for a group of cells
-    ///
-    /// Note: This function is optional because a default number
-    /// of integration points is selected for all cell types.
-    pub fn set_ngauss(&mut self, cell_attribute: CellAttribute, ngauss: usize) -> &mut Self {
-        self.ngauss.insert(cell_attribute, ngauss);
         self
     }
 
@@ -631,13 +609,6 @@ impl<'a> fmt::Display for Config<'a> {
         write!(f, "thickness = {:?}\n", self.ideal.thickness).unwrap();
         write!(f, "plane_stress = {:?}\n", self.ideal.plane_stress).unwrap();
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
-        write!(f, "\nSpecified number of integration points\n").unwrap();
-        write!(f, "======================================\n").unwrap();
-        let mut key_val: Vec<_> = self.ngauss.iter().map(|x| x).collect();
-        key_val.sort();
-        for (key, val) in key_val {
-            write!(f, "{}: {}\n", key, val).unwrap();
-        }
         write!(f, "\nParameters for fluids\n").unwrap();
         write!(f, "=====================\n").unwrap();
         write!(f, "{:?}\n", self.param_fluids).unwrap();
@@ -651,8 +622,6 @@ impl<'a> fmt::Display for Config<'a> {
 mod tests {
     use super::Config;
     use crate::base::{Init, ParamFluids, ParamRealDensity, SampleMeshes};
-    use gemlab::mesh::Samples;
-    use std::collections::HashMap;
 
     #[test]
     fn new_works() {
@@ -685,11 +654,6 @@ mod tests {
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
 
-        let mesh = Samples::one_lin2();
-        assert_eq!(config.gauss(&mesh.cells[0]).unwrap().npoint(), 2);
-        config.ngauss = HashMap::from([(1, 3), (2, 6)]);
-        assert_eq!(config.gauss(&mesh.cells[0]).unwrap().npoint(), 3);
-
         assert_eq!(
             format!("{}", config),
             "Configuration data\n\
@@ -697,11 +661,6 @@ mod tests {
              thickness = 1.0\n\
              plane_stress = true\n\
              initialization = Geostatic(-123.0)\n\
-             \n\
-             Specified number of integration points\n\
-             ======================================\n\
-             1: 3\n\
-             2: 6\n\
              \n\
              Parameters for fluids\n\
              =====================\n\

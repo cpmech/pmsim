@@ -56,7 +56,7 @@ impl<'a> ElementDiffusion<'a> {
         let pad = fem.mesh.get_pad(cell.id);
 
         // integration points
-        let gauss = config.gauss(cell)?;
+        let gauss = Gauss::new_or_sized(cell.kind, param.ngauss)?;
 
         // material model
         let model = ModelConductivity::new(&config.ideal, &param.conductivity)?;
@@ -319,15 +319,15 @@ mod tests {
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = ParamDiffusion::sample();
+        let mut p1 = ParamDiffusion::sample();
+        p1.ngauss = Some(123); // wrong
         let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
-        let mut config = Config::new(&mesh);
-        config.set_ngauss(1, 100); // wrong
+        let config = Config::new(&mesh);
         assert_eq!(
             ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).err(),
             Some("requested number of integration points is not available for Tri class")
         );
-        config.set_ngauss(1, 3);
+        p1.ngauss = None;
         let wrong_cell = Cell {
             id: 0,
             attribute: 2, // wrong

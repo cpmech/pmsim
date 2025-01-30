@@ -53,7 +53,7 @@ impl<'a> ElementSolid<'a> {
         let pad = fem.mesh.get_pad(cell.id);
 
         // integration points
-        let gauss = config.gauss(cell)?;
+        let gauss = Gauss::new_or_sized(cell.kind, param.ngauss)?;
 
         // material model
         let settings = config.model_settings(cell.attribute);
@@ -252,10 +252,10 @@ mod tests {
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
+        let mut p1 = ParamSolid::sample_linear_elastic();
+        p1.ngauss = Some(123); // wrong
         let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let mut config = Config::new(&mesh);
-        config.set_ngauss(1, 100); // wrong
+        let config = Config::new(&mesh);
         assert_eq!(
             ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).err(),
             Some("requested number of integration points is not available for Tri class")
@@ -484,8 +484,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn body_force_axisymmetric_works_2d() {
+    fn felippa_example_axisym_example(reduced_integration: bool) {
         // Example from Felippa's A_FEM page 12-11 (without the horizontal acceleration)
 
         // mesh
@@ -504,20 +503,22 @@ mod tests {
             ],
         };
 
+        // number of integration points
+        let ngauss = if reduced_integration { 1 } else { 4 };
+
         // parameters
         let young = 1000.0;
         let poisson = 0.25;
         let p1 = ParamSolid {
             density: 2.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
-            ngauss: None,
+            ngauss: Some(ngauss),
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
         // configuration
         let mut config = Config::new(&mesh);
         config.ideal.axisymmetric = true;
-        config.set_ngauss(1, 1);
 
         // vertical acceleration (must be positive)
         config.set_gravity(|_| 0.5); // 1/2 because rho = 2
@@ -525,25 +526,26 @@ mod tests {
         // element
         let mut elem = ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
 
-        // check residual vector (1 integ point)
         // NOTE: since the stress is zero, the residual is due to the body force only
         let mut state = FemState::new(&fem, &config).unwrap();
         let neq = 4 * 2;
         let mut residual = Vector::new(neq);
         elem.initialize_internal_values(&mut state).unwrap();
         elem.calc_residual(&mut residual, &state).unwrap();
-        // println!("{}", residual);
-        let felippa_neg_rr_1ip = &[0.0, 12.0, 0.0, 12.0, 0.0, 12.0, 0.0, 12.0];
-        vec_approx_eq(&residual, felippa_neg_rr_1ip, 1e-15);
 
-        // check residual vector (4 integ point)
-        config.set_ngauss(1, 4);
-        let mut state = FemState::new(&fem, &config).unwrap();
-        let mut elem = ElementSolid::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
-        let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
-        elem.initialize_internal_values(&mut state).unwrap();
-        elem.calc_residual(&mut residual, &state).unwrap();
-        // println!("{}", residual);
-        vec_approx_eq(&residual, felippa_neg_rr_4ip, 1e-14);
+        // check residual vector
+        if reduced_integration {
+            let felippa_neg_rr_1ip = &[0.0, 12.0, 0.0, 12.0, 0.0, 12.0, 0.0, 12.0];
+            vec_approx_eq(&residual, felippa_neg_rr_1ip, 1e-15);
+        } else {
+            let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
+            vec_approx_eq(&residual, felippa_neg_rr_4ip, 1e-14);
+        }
+    }
+
+    #[test]
+    fn body_force_axisymmetric_works_2d() {
+        felippa_example_axisym_example(true);
+        felippa_example_axisym_example(false);
     }
 }

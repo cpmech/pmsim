@@ -89,7 +89,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric().set_ngauss(1, 9).set_ngauss(2, 9);
+    config.set_axisymmetric();
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;

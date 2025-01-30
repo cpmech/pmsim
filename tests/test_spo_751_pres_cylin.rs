@@ -21,9 +21,8 @@ const NGAUSS: usize = 4; // number of gauss points
 #[test]
 fn test_spo_751_press_cylin() -> Result<(), StrError> {
     // mesh
-    let att = 1;
     let kind = GeoKind::Qua4;
-    let mesh = generate_or_read_mesh(att, kind, GENERATE_MESH);
+    let mesh = generate_or_read_mesh(1, kind, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -58,7 +57,7 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_ngauss(att, NGAUSS).set_incremental(P1.len());
+    config.set_incremental(P1.len());
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;

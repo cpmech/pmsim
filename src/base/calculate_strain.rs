@@ -64,12 +64,13 @@ pub(crate) fn calculate_strain(
 #[cfg(test)]
 mod tests {
     use super::calculate_strain;
-    use crate::base::{compute_local_to_global, Attributes, Config, ElementDofsMap, Equations, Elem, ParamSolid};
+    use crate::base::{compute_local_to_global, Attributes, Config, Elem, ElementDofsMap, Equations, ParamSolid};
     use crate::base::{
         elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
+    use gemlab::integ::Gauss;
     use gemlab::mesh::Samples;
     use russell_lab::vec_approx_eq;
     use russell_tensor::Tensor2;
@@ -119,7 +120,7 @@ mod tests {
             let mut pad = mesh.get_pad(cell.id);
 
             // integration points
-            let gauss = config.gauss(cell).unwrap();
+            let gauss = Gauss::new(cell.kind);
 
             // strain increment
             let mut de = Tensor2::new(config.ideal.mandel());

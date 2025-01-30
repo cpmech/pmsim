@@ -52,7 +52,6 @@ const N_STEPS: usize = 5;
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
-    let att = mesh.cells[0].attribute;
 
     // features
     let features = Features::new(&mesh, false);
@@ -71,7 +70,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let fem = FemMesh::new(&mesh, [(att, Elem::Solid(p1))])?;
+    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
@@ -87,7 +86,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_ngauss(att, 1)
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)

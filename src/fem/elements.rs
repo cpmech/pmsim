@@ -40,7 +40,7 @@ struct ArgsForNumericalJacobian<'a> {
 impl<'a> GenericElement<'a> {
     /// Allocates a new instance
     pub fn new(fem: &'a FemMesh, config: &'a Config, cell: &'a Cell) -> Result<Self, StrError> {
-        let element = fem.attributes.get(cell).unwrap(); // already checked
+        let element = fem.attributes.get(cell.attribute).unwrap(); // already checked
         let actual: Box<dyn ElementTrait> = match element {
             Elem::Diffusion(p) => Box::new(ElementDiffusion::new(fem, config, cell, p)?),
             Elem::Rod(p) => Box::new(ElementRod::new(fem, config, cell, p)?),
@@ -224,10 +224,10 @@ mod tests {
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let mut config = Config::new(&mesh);
-        config.set_ngauss(1, 100); // wrong
+        let config = Config::new(&mesh);
 
-        let p1 = ParamSolid::sample_linear_elastic();
+        let mut p1 = ParamSolid::sample_linear_elastic();
+        p1.ngauss = Some(123); // wrong
         let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         assert_eq!(
             GenericElement::new(&fem, &config, &mesh.cells[0]).err(),
@@ -238,7 +238,8 @@ mod tests {
             Some("requested number of integration points is not available for Tri class")
         );
 
-        let p1 = ParamDiffusion::sample();
+        let mut p1 = ParamDiffusion::sample();
+        p1.ngauss = Some(123); // wrong
         let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         assert_eq!(
             GenericElement::new(&fem, &config, &mesh.cells[0]).err(),

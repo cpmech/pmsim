@@ -252,7 +252,8 @@ mod tests {
     #[test]
     fn new_captures_errors() {
         let mesh = Samples::one_hex8();
-        let p1 = ParamSolid::sample_linear_elastic();
+        let mut p1 = ParamSolid::sample_linear_elastic();
+        p1.ngauss = Some(123); // wrong
         let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
@@ -285,13 +286,10 @@ mod tests {
         let natural = Natural::new();
 
         // error due to elements
-        let mut config = Config::new(&mesh);
-        config.set_ngauss(1, 100); // wrong
         assert_eq!(
             SolverImplicit::new(&fem, &config, &essential, &natural).err(),
             Some("requested number of integration points is not available for Hex class")
         );
-        let config = Config::new(&mesh);
 
         // error due to boundaries
         let mut natural = Natural::new();

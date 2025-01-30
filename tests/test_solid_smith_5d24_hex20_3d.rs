@@ -78,8 +78,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     natural.faces(&top, Nbc::Qn, -1.0);
 
     // configuration
-    let mut config = Config::new(&mesh);
-    config.set_ngauss(1, 8).set_ngauss(2, 8);
+    let config = Config::new(&mesh);
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;

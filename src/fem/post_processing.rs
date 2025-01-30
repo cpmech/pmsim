@@ -1,5 +1,5 @@
 use super::{FemMesh, FemState};
-use crate::base::{Config, Dof};
+use crate::base::Dof;
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::{At, CellId, Features, PointId};
@@ -15,9 +15,6 @@ pub struct PostProc<'a> {
     /// Holds the FEM mesh, parameters, attributes, and DOF numbers
     fem: &'a FemMesh<'a>,
 
-    /// Holds configuration parameters
-    config: &'a Config<'a>,
-
     /// Holds all Gauss points data
     all_gauss: HashMap<CellId, Gauss>,
 
@@ -30,10 +27,9 @@ pub struct PostProc<'a> {
 
 impl<'a> PostProc<'a> {
     /// Allocates a new instance
-    pub fn new(fem: &'a FemMesh, config: &'a Config) -> Self {
+    pub fn new(fem: &'a FemMesh) -> Self {
         PostProc {
             fem,
-            config,
             all_gauss: HashMap::new(),
             all_pads: HashMap::new(),
             all_extrap_mat: HashMap::new(),
@@ -93,7 +89,11 @@ impl<'a> PostProc<'a> {
     /// Returns an array with ngauss (number of integration points) vectors, where each vector has a dimension equal to space_ndim.
     pub fn gauss_coords(&mut self, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
         let cell = &self.fem.mesh.cells[cell_id];
-        let gauss = self.all_gauss.entry(cell_id).or_insert(self.config.gauss(cell)?);
+        let ngauss_opt = self.fem.attributes.ngauss(cell.attribute)?;
+        let gauss = self
+            .all_gauss
+            .entry(cell_id)
+            .or_insert(Gauss::new_or_sized(cell.kind, ngauss_opt)?);
         let mut pad = self.all_pads.entry(cell_id).or_insert(self.fem.mesh.get_pad(cell_id));
         get_points_coords(&mut pad, &gauss)
     }
@@ -101,7 +101,11 @@ impl<'a> PostProc<'a> {
     /// Computes the extrapolation matrix
     fn get_extrap_mat(&mut self, cell_id: CellId) -> Result<&Matrix, StrError> {
         let cell = &self.fem.mesh.cells[cell_id];
-        let gauss = self.all_gauss.entry(cell_id).or_insert(self.config.gauss(cell)?);
+        let ngauss_opt = self.fem.attributes.ngauss(cell.attribute)?;
+        let gauss = self
+            .all_gauss
+            .entry(cell_id)
+            .or_insert(Gauss::new_or_sized(cell.kind, ngauss_opt)?);
         let mut pad = self.all_pads.entry(cell_id).or_insert(self.fem.mesh.get_pad(cell_id));
         let ee = self
             .all_extrap_mat
@@ -189,7 +193,7 @@ mod tests {
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let output = PostProc::new(&fem, &config);
+        let output = PostProc::new(&fem);
         let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);

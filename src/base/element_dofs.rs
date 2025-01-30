@@ -200,11 +200,11 @@ pub struct ElementDofsMap {
 
 impl ElementDofsMap {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, att: &Attributes) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, att_map: &Attributes) -> Result<Self, StrError> {
         let mut all = HashMap::new();
         let mut names = HashMap::new();
         for cell in &mesh.cells {
-            let element = att.get(cell)?;
+            let element = att_map.get(cell.attribute)?;
             all.insert(
                 (cell.attribute, cell.kind),
                 ElementDofs::new(mesh.ndim, *element, cell.kind)?,

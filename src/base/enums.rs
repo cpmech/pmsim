@@ -203,6 +203,20 @@ impl Elem {
             Elem::PorousSldLiqGas(..) => "PorousSldLiqGas".to_string(),
         }
     }
+
+    /// Returns the number of integration (Gauss) points
+    pub fn ngauss(&self) -> Option<usize> {
+        match self {
+            Elem::Diffusion(param) => param.ngauss,
+            Elem::Rod(param) => param.ngauss,
+            Elem::Beam(param) => param.ngauss,
+            Elem::Solid(param) => param.ngauss,
+            Elem::PorousLiq(param) => param.ngauss,
+            Elem::PorousLiqGas(param) => param.ngauss,
+            Elem::PorousSldLiq(param) => param.ngauss,
+            Elem::PorousSldLiqGas(param) => param.ngauss,
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -254,6 +268,7 @@ mod tests {
         let e = Elem::Diffusion(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Diffusion");
+        assert_eq!(e.ngauss(), None);
 
         let p = ParamRod::sample();
         let e = Elem::Rod(p);
@@ -263,36 +278,43 @@ mod tests {
             "Rod(ParamRod { density: 1.0, young: 1000.0, area: 1.0, ngauss: None })"
         );
         assert_eq!(format!("{}", e_clone.name()), "Rod");
+        assert_eq!(e.ngauss(), None);
 
         let p = ParamBeam::sample();
         let e = Elem::Beam(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Beam");
+        assert_eq!(e.ngauss(), None);
 
         let p = ParamSolid::sample_linear_elastic();
         let e = Elem::Solid(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "Solid");
+        assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousLiq::sample_brooks_corey_constant();
         let e = Elem::PorousLiq(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousLiq");
+        assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousLiqGas::sample_brooks_corey_constant();
         let e = Elem::PorousLiqGas(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousLiqGas");
+        assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let e = Elem::PorousSldLiq(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousSldLiq");
+        assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let e = Elem::PorousSldLiqGas(p);
         let e_clone = e.clone();
         assert_eq!(format!("{}", e_clone.name()), "PorousSldLiqGas");
+        assert_eq!(e.ngauss(), None);
     }
 
     #[test]

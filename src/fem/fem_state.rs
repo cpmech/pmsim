@@ -1,6 +1,7 @@
 use super::{FemMesh, SecondaryValues};
 use crate::base::{Config, Elem};
 use crate::StrError;
+use gemlab::integ::Gauss;
 use russell_lab::Vector;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -77,8 +78,9 @@ impl FemState {
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
         for cell in &fem.mesh.cells {
-            let e_type = fem.attributes.get(cell).unwrap(); // already checked by Data
-            let ngauss = config.gauss(cell)?.npoint();
+            let e_type = fem.attributes.get(cell.attribute).unwrap(); // already checked by Data
+            let ngauss_opt = fem.attributes.ngauss(cell.attribute).unwrap();
+            let ngauss = Gauss::new_or_sized(cell.kind, ngauss_opt)?.npoint();
             match e_type {
                 Elem::Diffusion(..) => {
                     has_diffusion = true;

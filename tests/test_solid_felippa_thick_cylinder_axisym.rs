@@ -73,7 +73,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric().set_ngauss(1, 4);
+    config.set_axisymmetric();
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;

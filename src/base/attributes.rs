@@ -1,6 +1,6 @@
 use super::Elem;
 use crate::StrError;
-use gemlab::mesh::{Cell, CellAttribute};
+use gemlab::mesh::CellAttribute;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -18,19 +18,19 @@ impl Attributes {
         }
     }
 
-    /// Returns the Element corresponding to Cell
-    pub fn get(&self, cell: &Cell) -> Result<&Elem, StrError> {
-        self.all
-            .get(&cell.attribute)
-            .ok_or("cannot find CellAttribute in Attributes map")
+    /// Returns the Elem associated with a CellAttribute
+    pub fn get(&self, att: CellAttribute) -> Result<&Elem, StrError> {
+        self.all.get(&att).ok_or("cannot find CellAttribute in Attributes map")
     }
 
-    /// Returns the Element name corresponding to a CellAttribute
-    pub fn name(&self, id: CellAttribute) -> String {
-        match self.all.get(&id) {
-            Some(e) => e.name(),
-            None => "NOT FOUND".to_string(),
-        }
+    /// Returns the Elem name associated with a CellAttribute
+    pub fn name(&self, att: CellAttribute) -> Result<String, StrError> {
+        Ok(self.get(att)?.name())
+    }
+
+    /// Returns the Elem number of integration (Gauss) points associated with a CellAttribute
+    pub fn ngauss(&self, att: CellAttribute) -> Result<Option<usize>, StrError> {
+        Ok(self.get(att)?.ngauss())
     }
 }
 
@@ -54,15 +54,16 @@ mod tests {
     #[test]
     fn get_and_name_work() {
         let mut mesh = Samples::one_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
+        let mut p1 = ParamSolid::sample_linear_elastic();
+        p1.ngauss = Some(1);
         let att = Attributes::from([(1, Elem::Solid(p1))]);
-        assert_eq!(att.get(&mesh.cells[0]).unwrap().name(), "Solid");
+        assert_eq!(att.get(mesh.cells[0].attribute).unwrap().name(), "Solid");
         mesh.cells[0].attribute = 2;
         assert_eq!(
-            att.get(&mesh.cells[0]).err(),
+            att.get(mesh.cells[0].attribute).err(),
             Some("cannot find CellAttribute in Attributes map")
         );
-        assert_eq!(att.name(1), "Solid");
-        assert_eq!(att.name(2), "NOT FOUND");
+        assert_eq!(att.name(1).unwrap(), "Solid");
+        assert_eq!(att.ngauss(1).unwrap(), Some(1));
     }
 }
