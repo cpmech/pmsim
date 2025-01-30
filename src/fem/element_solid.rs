@@ -271,6 +271,7 @@ mod tests {
         let p1 = ParamSolid {
             density: 2.7, // Mg/m²
             stress_strain: StressStrain::LinearElastic { young, poisson },
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -317,6 +318,7 @@ mod tests {
         let p1 = ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
+            ngauss: None,
         };
 
         // strain magnitude (either ε_xx, ε_yy, or ε_xy)
@@ -412,6 +414,7 @@ mod tests {
         let p1 = ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
+            ngauss: None,
         };
 
         // strain magnitude (either ε_xx, ε_yy, or ε_xy)
@@ -507,6 +510,7 @@ mod tests {
         let p1 = ParamSolid {
             density: 2.0,
             stress_strain: StressStrain::LinearElastic { young, poisson },
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 

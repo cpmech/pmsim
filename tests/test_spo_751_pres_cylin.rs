@@ -44,6 +44,7 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
             hh: 0.0,
             z_ini: 0.24,
         },
+        ngauss: Some(NGAUSS),
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(param1))])?;
 

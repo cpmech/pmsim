@@ -262,6 +262,7 @@ mod tests {
                 rho: 1.0,
                 conductivity: Conductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
                 source: None,
+                ngauss: None,
             }
         } else {
             ParamDiffusion::sample()
@@ -350,6 +351,7 @@ mod tests {
             rho: 1.0,
             conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
             source: None,
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -425,6 +427,7 @@ mod tests {
             rho: 1.0,
             conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
             source: None,
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);

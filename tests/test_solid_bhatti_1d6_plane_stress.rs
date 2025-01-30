@@ -52,6 +52,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
             young: 10_000.0,
             poisson: 0.2,
         },
+        ngauss: None,
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 

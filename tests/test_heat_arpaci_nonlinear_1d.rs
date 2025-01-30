@@ -63,6 +63,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
         rho: 1.0,
         conductivity: Conductivity::IsotropicLinear { kr: K_R, beta: BETA },
         source: Some(SOURCE),
+        ngauss: None,
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 

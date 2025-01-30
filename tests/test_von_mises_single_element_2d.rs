@@ -39,6 +39,15 @@ use russell_lab::*;
 
 const NAME: &str = "test_von_mises_single_element_2d";
 
+// constants
+const YOUNG: f64 = 1500.0;
+const POISSON: f64 = 0.25;
+const Z_INI: f64 = 9.0;
+const NU: f64 = POISSON;
+const NU2: f64 = POISSON * POISSON;
+const NGAUSS: usize = 1;
+const N_STEPS: usize = 5;
+
 #[test]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
@@ -51,14 +60,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let top = features.search_edges(At::Y(1.0), any_x)?;
 
-    // constants
-    const YOUNG: f64 = 1500.0;
-    const POISSON: f64 = 0.25;
-    const Z_INI: f64 = 9.0;
-    const NU: f64 = POISSON;
-    const NU2: f64 = POISSON * POISSON;
-    const N_STEPS: usize = 5;
-
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
@@ -68,6 +69,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             z_ini: Z_INI,
             hh: 800.0,
         },
+        ngauss: Some(NGAUSS),
     };
     let fem = FemMesh::new(&mesh, [(att, Elem::Solid(p1))])?;
 

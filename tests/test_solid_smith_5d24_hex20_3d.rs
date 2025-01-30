@@ -52,6 +52,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
             young: 100.0,
             poisson: 0.3,
         },
+        ngauss: Some(8),
     };
     let p2 = ParamSolid {
         density: 1.0,
@@ -59,6 +60,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
             young: 50.0,
             poisson: 0.3,
         },
+        ngauss: Some(8),
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
 

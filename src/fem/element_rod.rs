@@ -159,6 +159,7 @@ mod tests {
             area: 5.0,
             young: 1_000.0,
             density: 1.0,
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -195,6 +196,7 @@ mod tests {
             area: 5.0,
             young: 1_000.0,
             density: 1.0,
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -233,6 +235,7 @@ mod tests {
             area: 10.0,
             young: 343.0,
             density: 1.0,
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -274,6 +277,7 @@ mod tests {
             area: 9.0,
             young: 1.0,
             density: 1.0,
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
@@ -325,16 +329,19 @@ mod tests {
             area: 1.0,
             young: 100.0,
             density: 1.0,
+            ngauss: None,
         };
         let p2 = ParamRod {
             area: 1.0 / 2.0,
             young: 100.0,
             density: 1.0,
+            ngauss: None,
         };
         let p3 = ParamRod {
             area: 2.0 * SQRT_2,
             young: 100.0,
             density: 1.0,
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
 

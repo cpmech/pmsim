@@ -260,7 +260,7 @@ mod tests {
         let e_clone = e.clone();
         assert_eq!(
             format!("{:?}", e),
-            "Rod(ParamRod { density: 1.0, young: 1000.0, area: 1.0 })"
+            "Rod(ParamRod { density: 1.0, young: 1000.0, area: 1.0, ngauss: None })"
         );
         assert_eq!(format!("{}", e_clone.name()), "Rod");
 

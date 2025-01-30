@@ -36,6 +36,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic { young: E, poisson: NU },
+        ngauss: Some(NGAUSS),
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 

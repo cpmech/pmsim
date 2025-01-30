@@ -35,6 +35,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
             young: YOUNG,
             poisson: POISSON,
         },
+        ngauss: None,
     };
 
     // prescribed strain value (compression)
@@ -164,6 +165,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
             young: YOUNG,
             poisson: POISSON,
         },
+        ngauss: None,
     };
 
     // prescribed strain value (compression)

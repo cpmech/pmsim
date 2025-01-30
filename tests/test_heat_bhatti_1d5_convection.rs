@@ -53,6 +53,7 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
+        ngauss: None,
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 

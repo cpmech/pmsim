@@ -56,6 +56,7 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
             young: YOUNG,
             poisson: POISSON,
         },
+        ngauss: None,
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 

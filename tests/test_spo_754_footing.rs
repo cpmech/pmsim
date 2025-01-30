@@ -52,6 +52,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
             z_ini: 848.7,
             hh: 0.0,
         },
+        ngauss: Some(4),
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 

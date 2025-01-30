@@ -139,6 +139,7 @@ fn main() -> Result<(), StrError> {
                 young: YOUNG,
                 poisson: POISSON,
             },
+            ngauss: None,
         };
         let fem = FemMesh::new(&mesh, [(1, Elem::Solid(param1))])?;
 

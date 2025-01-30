@@ -83,6 +83,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
+        ngauss: None,
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 

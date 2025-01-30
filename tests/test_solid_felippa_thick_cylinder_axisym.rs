@@ -59,6 +59,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
             young: YOUNG,
             poisson: POISSON,
         },
+        ngauss: Some(4), // reduced integration => better results
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 
@@ -72,7 +73,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric().set_ngauss(1, 4); // reduced integration => better results
+    config.set_axisymmetric().set_ngauss(1, 4);
 
     // FEM state
     let mut state = FemState::new(&fem, &config)?;

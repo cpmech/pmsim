@@ -60,6 +60,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
             young: 100.0,
             poisson: 0.3,
         },
+        ngauss: Some(9),
     };
     let p2 = ParamSolid {
         density: 1.0,
@@ -67,6 +68,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
             young: 1000.0,
             poisson: 0.45,
         },
+        ngauss: Some(9),
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
 

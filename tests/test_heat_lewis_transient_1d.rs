@@ -57,6 +57,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
             kz: 1.0,
         },
         source: None,
+        ngauss: None,
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 

@@ -64,6 +64,7 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
             young: 1e5,
             poisson: 0.2,
         },
+        ngauss: Some(12),
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
 

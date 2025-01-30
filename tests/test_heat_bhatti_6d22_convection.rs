@@ -58,6 +58,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         rho: 0.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
+        ngauss: None,
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
@@ -258,6 +259,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: Some(source),
+        ngauss: None,
     };
     let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
     let config = Config::new(&mesh);
