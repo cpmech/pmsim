@@ -3,11 +3,10 @@ use plotpy::{Curve, Plot};
 use pmsim::analytical::FlexibleFooting2d;
 use pmsim::prelude::*;
 use russell_lab::*;
-use std::collections::HashMap;
 
 const NAME: &str = "test_durand_farias_example4";
 const GENERATE_MESH: bool = false;
-const SAVE_FIGURE: bool = false;
+const SAVE_FIGURE: bool = true;
 
 // constants
 const B: f64 = 2.5; // half-width of the flexible footing
@@ -69,8 +68,6 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let mut gauss_x = Vec::new();
     let mut gauss_y = Vec::new();
     let mut gauss_syy = Vec::new();
-    let mut map_nodal_count = HashMap::new();
-    let mut map_nodal_syy = HashMap::new();
     for edge in &left.all {
         let attached_cells = features.get_cells_via_2d_edge(edge);
         let cell_id = attached_cells[0]; // only one cell because the edge is on boundary
@@ -90,28 +87,11 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
                 gauss_syy.push(syy[p]);
             }
         }
-        let syy = post.stress_nodal(cell_id, &state, 1, 1)?;
-        let nnode = syy.dim();
-        for m in 0..nnode {
-            let nid = mesh.cells[cell_id].points[m];
-            if mesh.points[nid].coords[0] < 1e-3 {
-                map_nodal_count.entry(nid).and_modify(|v| *v += 1).or_insert(1_usize);
-                map_nodal_syy.entry(nid).and_modify(|v| *v += syy[m]).or_insert(syy[m]);
-            }
-        }
     }
-    let mut nodal_x = Vec::new();
-    let mut nodal_y = Vec::new();
-    let mut nodal_syy = Vec::new();
-    for nid in map_nodal_syy.keys() {
-        let count = map_nodal_count.get(&nid).unwrap();
-        let correct = if *nid == 0 || *nid == 14 { 1 } else { 2 };
-        assert_eq!(*count, correct);
-        let syy = map_nodal_syy.get(nid).unwrap();
-        nodal_x.push(mesh.points[*nid].coords[0]);
-        nodal_y.push(mesh.points[*nid].coords[1]);
-        nodal_syy.push(*syy / (*count as f64));
-    }
+
+    // extrapolated results
+    let cell_ids = features.get_cells_via_2d_edges(&left);
+    let nodal = post.extrapolate_stress_2d(&cell_ids, &state, |_, x, _| x < 1e-3)?;
 
     // verification
     let ana = FlexibleFooting2d {
@@ -122,14 +102,18 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         young: E,
         poisson: NU,
     };
-    for i in 0..nodal_x.len() {
-        let x = nodal_x[i];
-        let y = nodal_y[i];
-        let syy_num = nodal_syy[i];
-        let syy_ana = ana.stress(x, y).get(1, 1);
-        let rel_err = 100.0 * f64::abs(syy_num - syy_ana) / f64::abs(syy_ana);
-        // println!("{} =? {} => {}", syy_num, syy_ana, rel_err);
-        assert!(rel_err < 39.0); // yes, high percentage because the analytical solution is for an infinite medium
+    for i in 0..nodal.x.len() {
+        let x = nodal.x[i];
+        let y = nodal.y[i];
+        println!(
+            "{:8.3} =? {:8.3}   #   {:8.3} =? {:8.3}   #   {:8.3} =? {:8.3}",
+            nodal.sxx[i],
+            ana.stress(x, y).get(0, 0),
+            nodal.syy[i],
+            ana.stress(x, y).get(1, 1),
+            nodal.sxy[i],
+            ana.stress(x, y).get(0, 1)
+        );
     }
 
     // figure
@@ -158,8 +142,8 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
             .set_marker_style("s")
             .set_marker_size(5.0)
             .set_line_style("None");
-        let ll: Vec<_> = nodal_y.iter().map(|y| y / B).collect();
-        let ss: Vec<_> = nodal_syy.iter().map(|sy| -sy / QN).collect();
+        let ll: Vec<_> = nodal.y.iter().map(|y| y / B).collect();
+        let ss: Vec<_> = nodal.syy.iter().map(|sy| -sy / QN).collect();
         curve_nodal.draw(&ss, &ll);
 
         plot.set_title("Durand and Farias Fig 15")

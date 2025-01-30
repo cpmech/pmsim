@@ -8,6 +8,27 @@ use gemlab::shapes::Scratchpad;
 use russell_lab::{mat_vec_mul, Matrix, Vector};
 use std::collections::HashMap;
 
+/// Holds the results of a gauss-to-node extrapolation procedure for stress components
+pub struct ExtrapolatedStress2d {
+    /// The IDs of nodes (nnode)
+    pub ids: Vec<PointId>,
+
+    /// The x coordinates of nodes (nnode)
+    pub x: Vec<f64>,
+
+    /// The y coordinates of nodes (nnode)
+    pub y: Vec<f64>,
+
+    /// The extrapolated σxx components @ each node (nnode)
+    pub sxx: Vec<f64>,
+
+    /// The extrapolated σyy components @ each node (nnode)
+    pub syy: Vec<f64>,
+
+    /// The extrapolated σxy components @ each node (nnode)
+    pub sxy: Vec<f64>,
+}
+
 /// Assists in post-processing the results given at Gauss points
 ///
 /// This structure also implements the extrapolation from Gauss points to nodes.
@@ -124,6 +145,63 @@ impl<'a> PostProc<'a> {
             .or_insert(Gauss::new_or_sized(cell.kind, ngauss_opt)?);
         let mut pad = self.all_pads.entry(cell_id).or_insert(self.mesh.get_pad(cell_id));
         get_points_coords(&mut pad, &gauss)
+    }
+
+    /// Extrapolates stress components from Gauss points to the nodes of cells (averaging)
+    ///
+    /// Returns `(ids, x, y, sxx, syy, sxy)`
+    pub fn extrapolate_stress_2d<F>(
+        &mut self,
+        cell_ids: &[CellId],
+        state: &FemState,
+        filter_nodes: F,
+    ) -> Result<ExtrapolatedStress2d, StrError>
+    where
+        F: Fn(PointId, f64, f64) -> bool,
+    {
+        let mut map_nodal_count = HashMap::new();
+        let mut map_nodal_sxx = HashMap::new();
+        let mut map_nodal_syy = HashMap::new();
+        let mut map_nodal_sxy = HashMap::new();
+        for cell_id in cell_ids {
+            let sxx = self.stress_nodal(*cell_id, &state, 0, 0)?;
+            let syy = self.stress_nodal(*cell_id, &state, 1, 1)?;
+            let sxy = self.stress_nodal(*cell_id, &state, 0, 1)?;
+            let nnode = sxx.dim();
+            for m in 0..nnode {
+                let nid = self.mesh.cells[*cell_id].points[m];
+                map_nodal_count.entry(nid).and_modify(|v| *v += 1).or_insert(1_usize);
+                map_nodal_sxx.entry(nid).and_modify(|v| *v += sxx[m]).or_insert(sxx[m]);
+                map_nodal_syy.entry(nid).and_modify(|v| *v += syy[m]).or_insert(syy[m]);
+                map_nodal_sxy.entry(nid).and_modify(|v| *v += sxy[m]).or_insert(sxy[m]);
+            }
+        }
+        let n_entries = map_nodal_count.len();
+        let mut res = ExtrapolatedStress2d {
+            ids: Vec::with_capacity(n_entries),
+            x: Vec::with_capacity(n_entries),
+            y: Vec::with_capacity(n_entries),
+            sxx: Vec::with_capacity(n_entries),
+            syy: Vec::with_capacity(n_entries),
+            sxy: Vec::with_capacity(n_entries),
+        };
+        for nid in map_nodal_sxx.keys() {
+            let x = self.mesh.points[*nid].coords[0];
+            let y = self.mesh.points[*nid].coords[1];
+            if filter_nodes(*nid, x, y) {
+                let count = *map_nodal_count.get(&nid).unwrap() as f64;
+                let sxx = map_nodal_sxx.get(nid).unwrap();
+                let syy = map_nodal_syy.get(nid).unwrap();
+                let sxy = map_nodal_sxy.get(nid).unwrap();
+                res.ids.push(*nid);
+                res.x.push(x);
+                res.y.push(y);
+                res.sxx.push(*sxx / count);
+                res.syy.push(*syy / count);
+                res.sxy.push(*sxy / count);
+            }
+        }
+        Ok(res)
     }
 
     /// Computes the extrapolation matrix
