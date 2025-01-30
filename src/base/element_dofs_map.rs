@@ -196,4 +196,20 @@ mod tests {
              -----------------------------------------\n"
         );
     }
+
+    #[test]
+    fn derive_works() {
+        let mesh = Samples::three_tri3();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let amap = Attributes::from([(1, Elem::Solid(p1))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
+        let clone = emap.clone();
+        let str_ori = format!("{:?}", emap).to_string();
+        assert_eq!(format!("{:?}", clone), str_ori);
+        // serialize
+        let json = serde_json::to_string(&emap).unwrap();
+        // deserialize
+        let read: ElementDofsMap = serde_json::from_str(&json).unwrap();
+        assert_eq!(format!("{:?}", read), str_ori);
+    }
 }
