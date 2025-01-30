@@ -40,7 +40,7 @@ struct ArgsForNumericalJacobian<'a> {
 impl<'a> GenericElement<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, base: &'a FemBase, config: &'a Config, cell: &Cell) -> Result<Self, StrError> {
-        let element = base.attributes.get(cell.attribute).unwrap(); // already checked
+        let element = base.amap.get(cell.attribute).unwrap(); // already checked
         let actual: Box<dyn ElementTrait> = match element {
             Elem::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, base, config, p, cell.id)?),
             Elem::Rod(p) => Box::new(ElementRod::new(mesh, base, config, p, cell.id)?),

@@ -93,7 +93,7 @@ impl<'a> PostProc<'a> {
     /// Returns an array with ngauss (number of integration points) vectors, where each vector has a dimension equal to space_ndim.
     pub fn gauss_coords(&mut self, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let ngauss_opt = self.base.attributes.ngauss(cell.attribute)?;
+        let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
         let gauss = self
             .all_gauss
             .entry(cell_id)
@@ -105,7 +105,7 @@ impl<'a> PostProc<'a> {
     /// Computes the extrapolation matrix
     fn get_extrap_mat(&mut self, cell_id: CellId) -> Result<&Matrix, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let ngauss_opt = self.base.attributes.ngauss(cell.attribute)?;
+        let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
         let gauss = self
             .all_gauss
             .entry(cell_id)

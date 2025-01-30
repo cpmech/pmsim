@@ -11,10 +11,10 @@ use std::path::Path;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemBase {
     /// Holds all attributes
-    pub attributes: Attributes,
+    pub amap: Attributes,
 
     /// Holds the element information such as local DOFs and equation numbers
-    pub information: ElementDofsMap,
+    pub emap: ElementDofsMap,
 
     /// Holds all DOF numbers
     pub equations: Equations,
@@ -23,19 +23,15 @@ pub struct FemBase {
 impl FemBase {
     /// Allocates a new instance
     pub fn new<const N: usize>(mesh: &Mesh, arr: [(CellAttribute, Elem); N]) -> Result<Self, StrError> {
-        let attributes = Attributes::from(arr);
-        let information = ElementDofsMap::new(&mesh, &attributes)?;
-        let equations = Equations::new(&mesh, &information).unwrap(); // cannot fail
-        Ok(FemBase {
-            attributes,
-            information,
-            equations,
-        })
+        let amap = Attributes::from(arr);
+        let emap = ElementDofsMap::new(&mesh, &amap)?;
+        let equations = Equations::new(&mesh, &emap).unwrap(); // cannot fail
+        Ok(FemBase { amap, emap, equations })
     }
 
     /// Returns the number of local equations
     pub fn n_local_eq(&self, cell: &Cell) -> Result<usize, StrError> {
-        let info = self.information.get(cell)?;
+        let info = self.emap.get(cell)?;
         Ok(info.n_equation)
     }
 
@@ -132,8 +128,8 @@ mod tests {
         let json = serde_json::to_string(&clone).unwrap();
         // deserialize
         let read: FemBase = serde_json::from_str(&json).unwrap();
-        assert_eq!(format!("{:?}", read.attributes), format!("{:?}", base.attributes));
-        assert_eq!(format!("{:?}", read.information), format!("{:?}", base.information));
+        assert_eq!(format!("{:?}", read.amap), format!("{:?}", base.amap));
+        assert_eq!(format!("{:?}", read.emap), format!("{:?}", base.emap));
         assert_eq!(format!("{}", read.equations), format!("{}", base.equations));
     }
 }

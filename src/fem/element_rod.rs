@@ -75,7 +75,7 @@ impl<'a> ElementRod<'a> {
         Ok(ElementRod {
             config,
             param,
-            local_to_global: compute_local_to_global(&base.information, &base.equations, cell)?,
+            local_to_global: compute_local_to_global(&base.emap, &base.equations, cell)?,
             stiffness,
             uu:Vector::new(2*ndim),
         })

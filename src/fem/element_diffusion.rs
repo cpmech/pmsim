@@ -47,7 +47,7 @@ impl<'a> ElementDiffusion<'a> {
         cell_id: CellId,
     ) -> Result<Self, StrError> {
         // local-to-global mapping
-        let local_to_global = compute_local_to_global(&base.information, &base.equations, &mesh.cells[cell_id])?;
+        let local_to_global = compute_local_to_global(&base.emap, &base.equations, &mesh.cells[cell_id])?;
 
         // pad for numerical integration
         let ndim = mesh.ndim;

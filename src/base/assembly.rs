@@ -7,8 +7,8 @@ use russell_sparse::{CooMatrix, Sym};
 const SYMMETRY_CHECK_TOLERANCE: f64 = 1e-12;
 
 /// Computes local-to-global maps needed for the assembly process
-pub fn compute_local_to_global(info: &ElementDofsMap, eqs: &Equations, cell: &Cell) -> Result<Vec<usize>, StrError> {
-    let info = info.get(cell)?;
+pub fn compute_local_to_global(emap: &ElementDofsMap, eqs: &Equations, cell: &Cell) -> Result<Vec<usize>, StrError> {
+    let info = emap.get(cell)?;
     let mut local_to_global = vec![0; info.n_equation];
     for m in 0..cell.points.len() {
         for (dof, local) in &info.dofs[m] {

@@ -79,10 +79,10 @@ impl FemState {
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
         for cell in &mesh.cells {
-            let e_type = base.attributes.get(cell.attribute).unwrap(); // already checked by Data
-            let ngauss_opt = base.attributes.ngauss(cell.attribute).unwrap();
+            let elem = base.amap.get(cell.attribute).unwrap(); // already checked by Data
+            let ngauss_opt = base.amap.ngauss(cell.attribute).unwrap();
             let ngauss = Gauss::new_or_sized(cell.kind, ngauss_opt)?.npoint();
-            match e_type {
+            match elem {
                 Elem::Diffusion(..) => {
                     has_diffusion = true;
                 }
