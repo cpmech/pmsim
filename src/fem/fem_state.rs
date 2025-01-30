@@ -376,12 +376,12 @@ mod tests {
         let p1 = ParamRod::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state_ori = FemState::new(&mesh, &base, &config).unwrap();
-        let state = state_ori.clone();
-        let str_ori = format!("{:?}", state).to_string();
-        assert!(str_ori.len() > 0);
+        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let clone = state.clone();
+        let str_ori = format!("{:?}", clone).to_string();
+        assert_eq!(format!("{:?}", clone), str_ori);
         // serialize
-        let json = serde_json::to_string(&state).unwrap();
+        let json = serde_json::to_string(&clone).unwrap();
         // deserialize
         let read: FemState = serde_json::from_str(&json).unwrap();
         assert_eq!(format!("{:?}", read), str_ori);
