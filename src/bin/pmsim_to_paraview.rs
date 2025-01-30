@@ -1,5 +1,5 @@
 use gemlab::mesh::Mesh;
-use pmsim::fem::{FemState, FileIo};
+use pmsim::fem::{FemBase, FemState, FileIo};
 use pmsim::StrError;
 use structopt::StructOpt;
 
@@ -24,6 +24,10 @@ fn main() -> Result<(), StrError> {
     let path_mesh = file_io.path_mesh();
     let mesh = Mesh::read_json(&path_mesh)?;
 
+    // load the FemBase
+    let path_base = file_io.path_base();
+    let base = FemBase::read_json(&path_base)?;
+
     // write VTU files
     for index in &file_io.indices {
         // load state
@@ -31,7 +35,7 @@ fn main() -> Result<(), StrError> {
         let state = FemState::read_json(&path_state)?;
 
         // write file
-        file_io.write_vtu(&mesh, &state, *index)?;
+        file_io.write_vtu(&mesh, &base, &state, *index)?;
     }
 
     // write PVD file

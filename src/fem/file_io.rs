@@ -1,4 +1,4 @@
-use crate::base::{Equations, DEFAULT_OUT_DIR};
+use crate::base::DEFAULT_OUT_DIR;
 use crate::fem::{FemBase, FemState};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -28,9 +28,6 @@ pub struct FileIo {
 
     /// Holds the simulation times corresponding to each output file
     pub times: Vec<f64>,
-
-    /// Holds equation numbers (DOF numbers)
-    pub(crate) equations: Equations,
 }
 
 impl FileIo {
@@ -43,10 +40,6 @@ impl FileIo {
             output_count: 0,
             indices: Vec::new(),
             times: Vec::new(),
-            equations: Equations {
-                all: Vec::new(),
-                n_equation: 0,
-            },
         }
     }
 
@@ -89,7 +82,6 @@ impl FileIo {
         self.output_count = 0;
         self.indices = Vec::new();
         self.times = Vec::new();
-        self.equations = base.equations.clone();
         Ok(())
     }
 

@@ -1,4 +1,4 @@
-use super::FileIo;
+use super::{FemBase, FileIo};
 use crate::base::Dof;
 use crate::fem::FemState;
 use crate::StrError;
@@ -12,7 +12,7 @@ impl FileIo {
     /// Writes a file associated with a single time station to perform visualization with ParaView
     ///
     /// The files will be indexed with `index` corresponding to each time station.
-    pub fn write_vtu(&self, mesh: &Mesh, state: &FemState, index: usize) -> Result<(), StrError> {
+    pub fn write_vtu(&self, mesh: &Mesh, base: &FemBase, state: &FemState, index: usize) -> Result<(), StrError> {
         if !self.active {
             return Err("FileIo must be activated first");
         }
@@ -26,7 +26,7 @@ impl FileIo {
 
         // auxiliary information
         let mut enabled_dofs = HashSet::new();
-        for map in &self.equations.all {
+        for map in &base.equations.all {
             for dof in map.keys() {
                 enabled_dofs.insert(*dof);
             }
@@ -130,15 +130,15 @@ impl FileIo {
             )
             .unwrap();
             for point in &mesh.points {
-                let ux = match self.equations.eq(point.id, Dof::Ux).ok() {
+                let ux = match base.equations.eq(point.id, Dof::Ux).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
-                let uy = match self.equations.eq(point.id, Dof::Uy).ok() {
+                let uy = match base.equations.eq(point.id, Dof::Uy).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
-                let uz = match self.equations.eq(point.id, Dof::Uz).ok() {
+                let uz = match base.equations.eq(point.id, Dof::Uz).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
@@ -154,7 +154,7 @@ impl FileIo {
             )
             .unwrap();
             for point in &mesh.points {
-                let value = match self.equations.eq(point.id, *dof).ok() {
+                let value = match base.equations.eq(point.id, *dof).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
@@ -230,7 +230,7 @@ mod tests {
         let state = FemState::new(&mesh, &base, &config).unwrap();
         let file_io = FileIo::new();
         assert_eq!(
-            file_io.write_vtu(&mesh, &state, 0).err(),
+            file_io.write_vtu(&mesh, &base, &state, 0).err(),
             Some("FileIo must be activated first")
         );
     }
@@ -256,7 +256,7 @@ mod tests {
         let fn_stem = "test_write_vtu_works";
         let mut file_io = FileIo::new();
         file_io.activate(&mesh, &base, fn_stem, None).unwrap();
-        file_io.write_vtu(&mesh, &state, index).unwrap();
+        file_io.write_vtu(&mesh, &base, &state, index).unwrap();
 
         let fn_path = file_io.path_vtu(index);
         let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
