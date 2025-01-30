@@ -43,7 +43,7 @@ use std::fmt;
 /// fn main() -> Result<(), StrError> {
 ///     let mesh = Samples::one_tri6();
 ///     let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-///     let att = Attributes::from([(1, Elem::PorousSldLiq(p1))]);
+///     let amap = Attributes::from([(1, Elem::PorousSldLiq(p1))]);
 ///     let emap = ElementDofsMap::new(&mesh, &att)?;
 ///     let mut eqs = Equations::new(&mesh, &emap)?;
 ///     assert_eq!(
@@ -150,8 +150,8 @@ mod tests {
         let mut mesh_wrong = mesh.clone();
         mesh_wrong.cells[0].attribute = 100; // << never do this!
         let p1 = ParamSolid::sample_linear_elastic();
-        let att = Attributes::from([(1, Elem::Solid(p1))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::Solid(p1))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(
             Equations::new(&mesh_wrong, &emap).err(),
             Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
@@ -186,8 +186,8 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let att = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
 
         // check point dofs
@@ -231,8 +231,8 @@ mod tests {
         //                     {3}
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let att = Attributes::from([(1, Elem::Solid(p1))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::Solid(p1))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
@@ -255,8 +255,8 @@ mod tests {
         // 0------------1------------4
         let mesh = Samples::two_tri3_one_qua4();
         let p = ParamPorousLiq::sample_brooks_corey_constant();
-        let att = Attributes::from([(1, Elem::PorousLiq(p)), (2, Elem::PorousLiq(p))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::PorousLiq(p)), (2, Elem::PorousLiq(p))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
@@ -304,8 +304,8 @@ mod tests {
         //                   {Uy→31}
         let mesh = SampleMeshes::column_two_layers_qua9();
         let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-        let att = Attributes::from([(1, Elem::PorousSldLiq(p)), (2, Elem::PorousSldLiq(p))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::PorousSldLiq(p)), (2, Elem::PorousSldLiq(p))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         let eqs = Equations::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),

@@ -47,8 +47,8 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let att = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
-        assert_eq!(att.all.len(), 3);
+        let amap = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
+        assert_eq!(amap.all.len(), 3);
     }
 
     #[test]
@@ -56,14 +56,14 @@ mod tests {
         let mut mesh = Samples::one_tri3();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(1);
-        let att = Attributes::from([(1, Elem::Solid(p1))]);
-        assert_eq!(att.get(mesh.cells[0].attribute).unwrap().name(), "Solid");
+        let amap = Attributes::from([(1, Elem::Solid(p1))]);
+        assert_eq!(amap.get(mesh.cells[0].attribute).unwrap().name(), "Solid");
         mesh.cells[0].attribute = 2;
         assert_eq!(
-            att.get(mesh.cells[0].attribute).err(),
+            amap.get(mesh.cells[0].attribute).err(),
             Some("cannot find CellAttribute in Attributes map")
         );
-        assert_eq!(att.name(1).unwrap(), "Solid");
-        assert_eq!(att.ngauss(1).unwrap(), Some(1));
+        assert_eq!(amap.name(1).unwrap(), "Solid");
+        assert_eq!(amap.ngauss(1).unwrap(), Some(1));
     }
 }

@@ -470,15 +470,15 @@ mod tests {
     fn new_map_handles_errors() {
         let mesh = Samples::one_tri6();
         let p2 = ParamSolid::sample_linear_elastic();
-        let att = Attributes::from([(2, Elem::Solid(p2))]);
+        let amap = Attributes::from([(2, Elem::Solid(p2))]);
         assert_eq!(
-            ElementDofsMap::new(&mesh, &att).err(),
+            ElementDofsMap::new(&mesh, &amap).err(),
             Some("cannot find CellAttribute in Attributes map")
         );
         let p1 = ParamRod::sample();
-        let att = Attributes::from([(1, Elem::Rod(p1))]);
+        let amap = Attributes::from([(1, Elem::Rod(p1))]);
         assert_eq!(
-            ElementDofsMap::new(&mesh, &att).err(),
+            ElementDofsMap::new(&mesh, &amap).err(),
             Some("cannot set Rod or Beam with a non-Lin GeoClass")
         );
     }
@@ -488,8 +488,8 @@ mod tests {
         let mesh = Samples::three_tri3();
         let mut mesh_wrong = mesh.clone();
         let p1 = ParamSolid::sample_linear_elastic();
-        let att = Attributes::from([(1, Elem::Solid(p1))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::Solid(p1))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(emap.get(&mesh.cells[0]).unwrap().n_equation, 6);
         mesh_wrong.cells[0].attribute = 100; // never do this
         assert_eq!(
@@ -512,8 +512,8 @@ mod tests {
         //                     {3}
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let att = Attributes::from([(1, Elem::Solid(p1))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::Solid(p1))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
@@ -536,8 +536,8 @@ mod tests {
         // 0------------1------------4
         let mesh = Samples::two_tri3_one_qua4();
         let p = ParamPorousLiq::sample_brooks_corey_constant();
-        let att = Attributes::from([(1, Elem::PorousLiq(p)), (2, Elem::PorousLiq(p))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::PorousLiq(p)), (2, Elem::PorousLiq(p))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\
@@ -568,8 +568,8 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let att = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
-        let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+        let amap = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(
             format!("{}", emap),
             "Elements: DOFs and local equation numbers\n\

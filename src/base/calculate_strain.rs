@@ -108,8 +108,8 @@ mod tests {
 
             // local-to-global map
             let p1 = ParamSolid::sample_linear_elastic();
-            let att = Attributes::from([(1, Elem::Solid(p1))]);
-            let emap = ElementDofsMap::new(&mesh, &att).unwrap();
+            let amap = Attributes::from([(1, Elem::Solid(p1))]);
+            let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
             let eqs = Equations::new(&mesh, &emap).unwrap();
             let l2g = compute_local_to_global(&emap, &eqs, cell).unwrap();
 
