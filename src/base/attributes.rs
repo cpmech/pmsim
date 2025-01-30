@@ -41,6 +41,7 @@ mod tests {
     use super::Attributes;
     use crate::base::{Elem, ParamBeam, ParamPorousSldLiq, ParamSolid};
     use gemlab::mesh::Samples;
+    use std::collections::HashMap;
 
     #[test]
     fn from_works() {
@@ -65,5 +66,21 @@ mod tests {
         );
         assert_eq!(amap.name(1).unwrap(), "Solid");
         assert_eq!(amap.ngauss(1).unwrap(), Some(1));
+    }
+
+    #[test]
+    fn derive_works() {
+        let p1 = ParamSolid::sample_linear_elastic();
+        let amap = Attributes {
+            all: HashMap::from([(1, Elem::Solid(p1))]),
+        };
+        let clone = amap.clone();
+        let str_ori = format!("{:?}", amap).to_string();
+        assert_eq!(format!("{:?}", clone), str_ori);
+        // serialize
+        let json = serde_json::to_string(&amap).unwrap();
+        // deserialize
+        let read: Attributes = serde_json::from_str(&json).unwrap();
+        assert_eq!(format!("{:?}", read), str_ori);
     }
 }
