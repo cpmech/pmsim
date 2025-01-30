@@ -141,10 +141,10 @@ fn main() -> Result<(), StrError> {
             },
             ngauss: None,
         };
-        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(param1))])?;
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
 
         // total number of DOF
-        let ndof = fem.equations.n_equation;
+        let ndof = base.equations.n_equation;
         let n_str = format!("{:0>5}", ndof);
 
         // println!("4. NDOF = {}", ndof);
@@ -217,7 +217,7 @@ fn main() -> Result<(), StrError> {
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // FEM state
-        let mut state = FemState::new(&fem, &config)?;
+        let mut state = FemState::new(&mesh, &base, &config)?;
 
         // File IO
         let mut file_io = FileIo::new();
@@ -225,7 +225,7 @@ fn main() -> Result<(), StrError> {
         // println!("5. running simulation");
 
         // solution
-        let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+        let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
         match solver.solve(&mut state, &mut file_io) {
             Err(e) => {
@@ -241,12 +241,12 @@ fn main() -> Result<(), StrError> {
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = fem.equations.eq(ref_point_id, Dof::Ux).unwrap();
+        let eq = base.equations.eq(ref_point_id, Dof::Ux).unwrap();
         let numerical_ur = state.uu[eq];
         let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
-        let eq = fem.equations.eq(study_point, Dof::Uy).unwrap();
+        let eq = base.equations.eq(study_point, Dof::Uy).unwrap();
         let numerical_ur = state.uu[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 

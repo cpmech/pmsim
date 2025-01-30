@@ -54,7 +54,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
         },
         ngauss: None,
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -69,10 +69,10 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     config.set_plane_stress(0.25);
 
     // elements
-    let mut elements = Elements::new(&fem, &config)?;
+    let mut elements = Elements::new(&mesh, &base, &config)?;
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
@@ -91,7 +91,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-12);
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // check displacements

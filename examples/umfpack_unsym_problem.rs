@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, StressStrain};
-use pmsim::fem::{BcDistributedArray, BcPrescribedArray, Elements, FemMesh, FemState, LinearSystem};
+use pmsim::fem::{BcDistributedArray, BcPrescribedArray, Elements, FemBase, FemState, LinearSystem};
 use russell_lab::*;
 use russell_sparse::prelude::*;
 
@@ -43,14 +43,14 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
         },
         ngauss: None,
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(param1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // prescribed values
-    let prescribed_values = BcPrescribedArray::new(&fem, &essential)?;
+    let prescribed_values = BcPrescribedArray::new(&base, &essential)?;
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -66,20 +66,20 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
         .umfpack_enforce_unsymmetric_strategy = true;
 
     // elements
-    let mut elements = Elements::new(&fem, &config)?;
+    let mut elements = Elements::new(&mesh, &base, &config)?;
 
     // boundaries
-    let mut boundaries = BcDistributedArray::new(&fem, &config, &natural)?;
+    let mut boundaries = BcDistributedArray::new(&mesh, &base, &config, &natural)?;
 
     // FEM state
-    let state = FemState::new(&fem, &config)?;
+    let state = FemState::new(&mesh, &base, &config)?;
 
     // compute jacobians
     elements.calc_jacobians(&state)?;
     boundaries.calc_jacobians(&state)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&fem, &config, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries)?;
 
     // assemble jacobian matrix
     let kk = lin_sys.jacobian.get_coo_mut()?;

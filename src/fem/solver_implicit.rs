@@ -1,7 +1,8 @@
 use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray};
-use super::{Elements, FemMesh, FemState, FileIo, LinearSystem};
+use super::{Elements, FemBase, FemState, FileIo, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
+use gemlab::mesh::Mesh;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
 /// Implements the implicit finite element method solver
@@ -28,7 +29,8 @@ pub struct SolverImplicit<'a> {
 impl<'a> SolverImplicit<'a> {
     /// Allocates a new instance
     pub fn new(
-        fem: &'a FemMesh,
+        mesh: &Mesh,
+        base: &'a FemBase,
         config: &'a Config,
         essential: &'a Essential,
         natural: &'a Natural,
@@ -37,11 +39,11 @@ impl<'a> SolverImplicit<'a> {
             println!("ERROR: {}", msg);
             return Err("cannot allocate simulation because config.validate() failed");
         }
-        let bc_concentrated = BcConcentratedArray::new(fem, natural)?;
-        let bc_distributed = BcDistributedArray::new(fem, config, natural)?;
-        let bc_prescribed = BcPrescribedArray::new(fem, essential)?;
-        let elements = Elements::new(fem, config)?;
-        let linear_system = LinearSystem::new(fem, config, &bc_prescribed, &elements, &bc_distributed)?;
+        let bc_concentrated = BcConcentratedArray::new(base, natural)?;
+        let bc_distributed = BcDistributedArray::new(mesh, base, config, natural)?;
+        let bc_prescribed = BcPrescribedArray::new(base, essential)?;
+        let elements = Elements::new(mesh, base, config)?;
+        let linear_system = LinearSystem::new(base, config, &bc_prescribed, &elements, &bc_distributed)?;
         Ok(SolverImplicit {
             config,
             bc_concentrated,
@@ -244,8 +246,8 @@ impl<'a> SolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverImplicit;
-    use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, Pbc};
-    use crate::fem::{FemMesh, FemState, FileIo};
+    use crate::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, Pbc};
+    use crate::fem::{FemBase, FemState, FileIo};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
 
@@ -254,7 +256,7 @@ mod tests {
         let mesh = Samples::one_hex8();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
-        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 
@@ -262,7 +264,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_dt_min(-1.0);
         assert_eq!(
-            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
         let config = Config::new(&mesh);
@@ -271,7 +273,7 @@ mod tests {
         let mut essential = Essential::new();
         essential.points(&[123], Dof::Ux, 0.0);
         assert_eq!(
-            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let essential = Essential::new();
@@ -280,16 +282,17 @@ mod tests {
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, 0.0);
         assert_eq!(
-            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let natural = Natural::new();
 
         // error due to elements
         assert_eq!(
-            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("requested number of integration points is not available for Hex class")
         );
+        p1.ngauss = None;
 
         // error due to boundaries
         let mut natural = Natural::new();
@@ -299,18 +302,8 @@ mod tests {
         };
         natural.edge(&edge, Nbc::Qn, 0.0);
         assert_eq!(
-            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
+            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
-        );
-        let natural = Natural::new();
-
-        // error due to linear_system
-        let empty_mesh = new_empty_mesh_2d();
-        let config = Config::new(&empty_mesh);
-        let fem = FemMesh::new(&empty_mesh, [(1, Elem::Solid(p1))]).unwrap();
-        assert_eq!(
-            SolverImplicit::new(&fem, &config, &essential, &natural).err(),
-            Some("nrow must be ≥ 1")
         );
     }
 
@@ -318,13 +311,13 @@ mod tests {
     fn run_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_dt(|_| -1.0); // wrong
         let essential = Essential::new();
         let natural = Natural::new();
-        let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural).unwrap();
-        let mut state = FemState::new(&fem, &config).unwrap();
+        let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
+        let mut state = FemState::new(&mesh, &base, &config).unwrap();
         let mut file_io = FileIo::new();
         assert_eq!(
             solver.solve(&mut state, &mut file_io).err(),

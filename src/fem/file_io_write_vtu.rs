@@ -217,7 +217,7 @@ impl FileIo {
 #[cfg(test)]
 mod tests {
     use crate::base::{Config, Elem, ParamSolid};
-    use crate::fem::{FemMesh, FemState, FileIo};
+    use crate::fem::{FemBase, FemState, FileIo};
     use gemlab::mesh::Samples;
     use std::fs;
 
@@ -225,9 +225,9 @@ mod tests {
     fn write_vtu_captures_errors() {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state = FemState::new(&fem, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &config).unwrap();
         let file_io = FileIo::new();
         assert_eq!(
             file_io.write_vtu(&mesh, &state, 0).err(),
@@ -239,9 +239,9 @@ mod tests {
     fn write_vtu_works() {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&fem, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
@@ -255,7 +255,7 @@ mod tests {
         let index = 0;
         let fn_stem = "test_write_vtu_works";
         let mut file_io = FileIo::new();
-        file_io.activate(&fem, fn_stem, None).unwrap();
+        file_io.activate(&mesh, &base, fn_stem, None).unwrap();
         file_io.write_vtu(&mesh, &state, index).unwrap();
 
         let fn_path = file_io.path_vtu(index);
@@ -304,13 +304,13 @@ mod tests {
     fn write_pvd_works() {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state = FemState::new(&fem, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &config).unwrap();
         let fn_stem = "test_write_pvd_works";
         let mut file_io = FileIo::new();
 
-        file_io.activate(&fem, fn_stem, None).unwrap();
+        file_io.activate(&mesh, &base, fn_stem, None).unwrap();
         file_io.write_state(&state).unwrap();
         file_io.write_pvd().unwrap();
 

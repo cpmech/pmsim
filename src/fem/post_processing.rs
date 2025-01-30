@@ -1,8 +1,8 @@
-use super::{FemMesh, FemState};
+use super::{FemBase, FemState};
 use crate::base::Dof;
 use crate::StrError;
 use gemlab::integ::Gauss;
-use gemlab::mesh::{At, CellId, Features, PointId};
+use gemlab::mesh::{At, CellId, Features, Mesh, PointId};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{mat_vec_mul, Matrix, Vector};
@@ -12,8 +12,11 @@ use std::collections::HashMap;
 ///
 /// This structure also implements the extrapolation from Gauss points to nodes.
 pub struct PostProc<'a> {
-    /// Holds the FEM mesh, parameters, attributes, and DOF numbers
-    fem: &'a FemMesh<'a>,
+    /// Holds the mesh
+    mesh: &'a Mesh,
+
+    /// Holds the material parameters, element attributes, and equation numbers
+    base: &'a FemBase,
 
     /// Holds all Gauss points data
     all_gauss: HashMap<CellId, Gauss>,
@@ -27,9 +30,10 @@ pub struct PostProc<'a> {
 
 impl<'a> PostProc<'a> {
     /// Allocates a new instance
-    pub fn new(fem: &'a FemMesh) -> Self {
+    pub fn new(mesh: &'a Mesh, base: &'a FemBase) -> Self {
         PostProc {
-            fem,
+            mesh,
+            base,
             all_gauss: HashMap::new(),
             all_pads: HashMap::new(),
             all_extrap_mat: HashMap::new(),
@@ -70,7 +74,7 @@ impl<'a> PostProc<'a> {
     ///
     /// Returns a vector (nnode) with the stress components `σij` at each node
     pub fn stress_nodal(&mut self, cell_id: CellId, state: &FemState, i: usize, j: usize) -> Result<Vector, StrError> {
-        let nnode = self.fem.mesh.cells[cell_id].points.len();
+        let nnode = self.mesh.cells[cell_id].points.len();
         let sij_point = self.stress(cell_id, state, i, j)?;
         let mut sxx_nodal = Vector::new(nnode);
         let ee = self.get_extrap_mat(cell_id)?;
@@ -88,25 +92,25 @@ impl<'a> PostProc<'a> {
     ///
     /// Returns an array with ngauss (number of integration points) vectors, where each vector has a dimension equal to space_ndim.
     pub fn gauss_coords(&mut self, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
-        let cell = &self.fem.mesh.cells[cell_id];
-        let ngauss_opt = self.fem.attributes.ngauss(cell.attribute)?;
+        let cell = &self.mesh.cells[cell_id];
+        let ngauss_opt = self.base.attributes.ngauss(cell.attribute)?;
         let gauss = self
             .all_gauss
             .entry(cell_id)
             .or_insert(Gauss::new_or_sized(cell.kind, ngauss_opt)?);
-        let mut pad = self.all_pads.entry(cell_id).or_insert(self.fem.mesh.get_pad(cell_id));
+        let mut pad = self.all_pads.entry(cell_id).or_insert(self.mesh.get_pad(cell_id));
         get_points_coords(&mut pad, &gauss)
     }
 
     /// Computes the extrapolation matrix
     fn get_extrap_mat(&mut self, cell_id: CellId) -> Result<&Matrix, StrError> {
-        let cell = &self.fem.mesh.cells[cell_id];
-        let ngauss_opt = self.fem.attributes.ngauss(cell.attribute)?;
+        let cell = &self.mesh.cells[cell_id];
+        let ngauss_opt = self.base.attributes.ngauss(cell.attribute)?;
         let gauss = self
             .all_gauss
             .entry(cell_id)
             .or_insert(Gauss::new_or_sized(cell.kind, ngauss_opt)?);
-        let mut pad = self.all_pads.entry(cell_id).or_insert(self.fem.mesh.get_pad(cell_id));
+        let mut pad = self.all_pads.entry(cell_id).or_insert(self.mesh.get_pad(cell_id));
         let ee = self
             .all_extrap_mat
             .entry(cell_id)
@@ -151,14 +155,14 @@ impl<'a> PostProc<'a> {
         let point_ids = features.search_point_ids(At::Y(y), filter)?;
         let mut id_x_pairs: Vec<_> = point_ids
             .iter()
-            .map(|id| (*id, self.fem.mesh.points[*id].coords[0]))
+            .map(|id| (*id, self.mesh.points[*id].coords[0]))
             .collect();
         id_x_pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         // extract dof values
         let dd: Vec<_> = id_x_pairs
             .iter()
-            .map(|(id, _)| state.uu[self.fem.equations.eq(*id, dof).unwrap()])
+            .map(|(id, _)| state.uu[self.base.equations.eq(*id, dof).unwrap()])
             .collect();
 
         // unzip id_x_pairs
@@ -175,7 +179,7 @@ impl<'a> PostProc<'a> {
 mod tests {
     use super::PostProc;
     use crate::base::{Config, Dof, Elem, ParamDiffusion};
-    use crate::fem::{FemMesh, FemState};
+    use crate::fem::{FemBase, FemState};
     use gemlab::mesh::{Features, Samples};
     use gemlab::util::any_x;
 
@@ -184,16 +188,16 @@ mod tests {
         let mesh = Samples::one_tri6();
         let features = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&fem, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &config).unwrap();
         state.uu[0] = 1.0;
         state.uu[1] = 2.0;
         state.uu[2] = 3.0;
         state.uu[3] = 4.0;
         state.uu[4] = 5.0;
         state.uu[5] = 6.0;
-        let output = PostProc::new(&fem);
+        let output = PostProc::new(&mesh, &base);
         let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);

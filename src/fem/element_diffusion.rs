@@ -1,9 +1,9 @@
-use super::{ElementTrait, FemMesh, FemState};
+use super::{ElementTrait, FemBase, FemState};
 use crate::base::{compute_local_to_global, Config, ParamDiffusion};
 use crate::material::ModelConductivity;
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
-use gemlab::mesh::Cell;
+use gemlab::mesh::{CellId, Mesh};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::{t2_dot_vec, Tensor2};
@@ -12,9 +12,6 @@ use russell_tensor::{t2_dot_vec, Tensor2};
 pub struct ElementDiffusion<'a> {
     /// Global configuration
     pub config: &'a Config<'a>,
-
-    /// The cell corresponding to this element
-    pub cell: &'a Cell,
 
     /// Material parameters
     pub param: &'a ParamDiffusion,
@@ -43,20 +40,21 @@ pub struct ElementDiffusion<'a> {
 impl<'a> ElementDiffusion<'a> {
     /// Allocates a new instance
     pub fn new(
-        fem: &'a FemMesh,
+        mesh: &Mesh,
+        base: &FemBase,
         config: &'a Config,
-        cell: &'a Cell,
         param: &'a ParamDiffusion,
+        cell_id: CellId,
     ) -> Result<Self, StrError> {
         // local-to-global mapping
-        let local_to_global = compute_local_to_global(&fem.information, &fem.equations, cell)?;
+        let local_to_global = compute_local_to_global(&base.information, &base.equations, &mesh.cells[cell_id])?;
 
         // pad for numerical integration
-        let ndim = fem.mesh.ndim;
-        let pad = fem.mesh.get_pad(cell.id);
+        let ndim = mesh.ndim;
+        let pad = mesh.get_pad(cell_id);
 
         // integration points
-        let gauss = Gauss::new_or_sized(cell.kind, param.ngauss)?;
+        let gauss = Gauss::new_or_sized(pad.kind, param.ngauss)?;
 
         // material model
         let model = ModelConductivity::new(&config.ideal, &param.conductivity)?;
@@ -70,7 +68,6 @@ impl<'a> ElementDiffusion<'a> {
         // allocate new instance
         Ok(ElementDiffusion {
             config,
-            cell,
             param,
             local_to_global,
             pad,
@@ -101,7 +98,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Calculates the residual vector
     fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let ndim = self.config.ndim;
-        let npoint = self.cell.points.len();
+        let nnode = self.pad.xxt.ncol();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
@@ -111,13 +108,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         integ::vec_03_vb(residual, &mut args, |w, _, nn, bb| {
             // interpolate T at integration point
             let mut tt = 0.0;
-            for m in 0..npoint {
+            for m in 0..nnode {
                 tt += nn[m] * state.uu[l2g[m]];
             }
             // interpolate ∇T at integration point
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
-                for m in 0..npoint {
+                for m in 0..nnode {
                     self.grad_tt[i] += bb.get(m, i) * state.uu[l2g[m]];
                 }
             }
@@ -144,7 +141,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             integ::vec_01_ns(residual, &mut args, |_, nn| {
                 // interpolate T and T★ to integration point
                 let (mut tt, mut tt_star) = (0.0, 0.0);
-                for m in 0..npoint {
+                for m in 0..nnode {
                     tt += nn[m] * state.uu[l2g[m]];
                     tt_star += nn[m] * state.uu_star[l2g[m]];
                 }
@@ -163,7 +160,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let ndim = self.config.ndim;
-        let npoint = self.cell.points.len();
+        let nnode = self.pad.xxt.ncol();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
@@ -173,7 +170,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {
             // interpolate T at integration point
             let mut tt = 0.0;
-            for m in 0..npoint {
+            for m in 0..nnode {
                 tt += nn[m] * state.uu[l2g[m]];
             }
             // compute conductivity tensor at integration point
@@ -189,13 +186,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             integ::mat_02_bvn(jacobian, &mut args, |hk, _, nn, bb| {
                 // interpolate T at integration point
                 let mut tt = 0.0;
-                for m in 0..npoint {
+                for m in 0..nnode {
                     tt += nn[m] * state.uu[l2g[m]];
                 }
                 // interpolate ∇T at integration point
                 for i in 0..ndim {
                     self.grad_tt[i] = 0.0;
-                    for m in 0..npoint {
+                    for m in 0..nnode {
                         self.grad_tt[i] += bb.get(m, i) * state.uu[l2g[m]];
                     }
                 }
@@ -239,10 +236,9 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 mod tests {
     use super::ElementDiffusion;
     use crate::base::{Conductivity, Config, Elem, ParamDiffusion};
-    use crate::fem::{ElementTrait, FemMesh, FemState};
+    use crate::fem::{ElementTrait, FemBase, FemState};
     use gemlab::integ;
-    use gemlab::mesh::{Cell, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::Samples;
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
@@ -267,12 +263,12 @@ mod tests {
         } else {
             ParamDiffusion::sample()
         };
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&fem, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -321,22 +317,11 @@ mod tests {
         let mesh = Samples::one_tri3();
         let mut p1 = ParamDiffusion::sample();
         p1.ngauss = Some(123); // wrong
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).err(),
+            ElementDiffusion::new(&mesh, &base, &config, &p1, 0).err(),
             Some("requested number of integration points is not available for Tri class")
-        );
-        p1.ngauss = None;
-        let wrong_cell = Cell {
-            id: 0,
-            attribute: 2, // wrong
-            kind: GeoKind::Tri3,
-            points: vec![0, 1, 2],
-        };
-        assert_eq!(
-            ElementDiffusion::new(&fem, &config, &wrong_cell, &p1).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
 
@@ -353,12 +338,12 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&fem, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -389,9 +374,9 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1_new).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();
@@ -404,7 +389,7 @@ mod tests {
 
         let mut config = Config::new(&mesh);
         config.transient = true;
-        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
         state.dt = 0.0; // wrong
         assert_eq!(
             elem.calc_residual(&mut residual, &state).err(),
@@ -429,12 +414,12 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&fem, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
@@ -469,9 +454,9 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&fem, &config, &mesh.cells[0], &p1_new).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
 
         // check residual vector
         elem.calc_residual(&mut residual, &state).unwrap();

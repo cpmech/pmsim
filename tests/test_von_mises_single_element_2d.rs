@@ -70,7 +70,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
@@ -92,14 +92,14 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_n_max_iterations(20);
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
-    file_io.activate(&fem, NAME, None)?;
+    file_io.activate(&mesh, &base, NAME, None)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // verify the results

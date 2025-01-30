@@ -85,7 +85,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -100,17 +100,17 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     config.set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // check
-    let eq = fem.equations.eq(ref_point, Dof::T).unwrap();
+    let eq = base.equations.eq(ref_point, Dof::T).unwrap();
     let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",

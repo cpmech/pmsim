@@ -1,7 +1,7 @@
 use gemlab::prelude::*;
 use pmsim::base::{Conductivity, Config, Dof, Elem, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
 use pmsim::fem::{
-    BcDistributedArray, BcPrescribedArray, Elements, FemMesh, FemState, FileIo, LinearSystem, SolverImplicit,
+    BcDistributedArray, BcPrescribedArray, Elements, FemBase, FemState, FileIo, LinearSystem, SolverImplicit,
 };
 use russell_lab::*;
 
@@ -60,7 +60,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         source: Some(source),
         ngauss: None,
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -80,13 +80,13 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // elements
-    let mut elements = Elements::new(&fem, &config)?;
+    let mut elements = Elements::new(&mesh, &base, &config)?;
 
     // boundaries
-    let mut boundaries = BcDistributedArray::new(&fem, &config, &natural)?;
+    let mut boundaries = BcDistributedArray::new(&mesh, &base, &config, &natural)?;
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // check residual of first element
     state.uu.fill(0.0);
@@ -125,10 +125,10 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     mat_approx_eq(&elements.all[1].jacobian, &bhatti_kk1, 1e-12);
 
     // prescribed values
-    let prescribed_values = BcPrescribedArray::new(&fem, &essential)?;
+    let prescribed_values = BcPrescribedArray::new(&&base, &essential)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&fem, &config, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries)?;
 
     // fix state.uu (must do this before calculating residuals)
     for eq in &prescribed_values.equations {
@@ -261,7 +261,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         source: Some(source),
         ngauss: None,
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
     let config = Config::new(&mesh);
 
     // essential boundary conditions
@@ -277,13 +277,13 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // check U vector

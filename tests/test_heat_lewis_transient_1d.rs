@@ -59,7 +59,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let essential = Essential::new();
@@ -74,13 +74,13 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     config.set_transient(true).set_dt(|_| 0.1).set_t_fin(t_fin);
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // check
@@ -96,8 +96,8 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     .concat();
     println!("");
     for p in &selected {
-        let x = fem.mesh.points[*p].coords[0];
-        let eq = fem.equations.eq(*p, Dof::T).unwrap();
+        let x = mesh.points[*p].coords[0];
+        let eq = base.equations.eq(*p, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(state.t, x));
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
@@ -111,7 +111,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
 
         // get temperature values along x
-        let post = PostProc::new(&fem);
+        let post = PostProc::new(&mesh, &base);
         let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
 
         // plot

@@ -1,4 +1,4 @@
-use super::FemMesh;
+use super::FemBase;
 use crate::base::Essential;
 use crate::StrError;
 use russell_lab::Vector;
@@ -47,12 +47,12 @@ impl<'a> BcPrescribed<'a> {
 
 impl<'a> BcPrescribedArray<'a> {
     /// Allocates a new instance
-    pub fn new(fem: &'a FemMesh, essential: &'a Essential) -> Result<Self, StrError> {
+    pub fn new(base: &FemBase, essential: &'a Essential) -> Result<Self, StrError> {
         let mut all = Vec::new();
-        let mut flags = vec![false; fem.equations.n_equation];
+        let mut flags = vec![false; base.equations.n_equation];
         let mut equations = Vec::new();
         for ((point_id, dof), (value, f_index)) in &essential.all {
-            let eq = fem.equations.eq(*point_id, *dof)?;
+            let eq = base.equations.eq(*point_id, *dof)?;
             let function = match f_index {
                 Some(index) => Some(&essential.functions[*index]),
                 None => None,
@@ -81,7 +81,7 @@ mod tests {
     use super::BcPrescribedArray;
     use crate::base::{Dof, Elem, Essential, ParamBeam, ParamDiffusion};
     use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
-    use crate::fem::FemMesh;
+    use crate::fem::FemBase;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
     use gemlab::shapes::GeoKind;
     use russell_lab::Vector;
@@ -90,19 +90,19 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
         let mut essential = Essential::new();
         essential.points(&[100], Dof::Ux, 0.0);
         assert_eq!(
-            BcPrescribedArray::new(&fem, &essential).err(),
+            BcPrescribedArray::new(&base, &essential).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
 
         let mut essential = Essential::new();
         essential.points(&[0], Dof::T, 0.0);
         assert_eq!(
-            BcPrescribedArray::new(&fem, &essential).err(),
+            BcPrescribedArray::new(&base, &essential).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
     }
@@ -111,13 +111,13 @@ mod tests {
     fn set_values_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.points(&[0], Dof::T, 110.0);
-        let mut duu = Vector::new(fem.equations.n_equation);
-        let mut uu = Vector::new(fem.equations.n_equation);
+        let mut duu = Vector::new(base.equations.n_equation);
+        let mut uu = Vector::new(base.equations.n_equation);
         uu.fill(100.0);
-        let values = BcPrescribedArray::new(&fem, &essential).unwrap();
+        let values = BcPrescribedArray::new(&base, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         assert_eq!(duu.as_data(), &[10.0, 0.0, 0.0]);
         assert_eq!(uu.as_data(), &[110.0, 100.0, 100.0]);
@@ -137,7 +137,7 @@ mod tests {
             ],
         };
         let p1 = ParamBeam::sample();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Beam(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Beam(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 1.0)
@@ -146,9 +146,9 @@ mod tests {
             .points(&[0], Dof::Rx, 4.0)
             .points(&[0], Dof::Ry, 5.0)
             .points(&[0], Dof::Rz, 6.0);
-        let mut duu = Vector::new(fem.equations.n_equation);
-        let mut uu = Vector::new(fem.equations.n_equation);
-        let values = BcPrescribedArray::new(&fem, &essential).unwrap();
+        let mut duu = Vector::new(base.equations.n_equation);
+        let mut uu = Vector::new(base.equations.n_equation);
+        let values = BcPrescribedArray::new(&base, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
@@ -181,7 +181,7 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let fem = FemMesh::new(
+        let base = FemBase::new(
             &mesh,
             [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
         )
@@ -217,9 +217,9 @@ mod tests {
             .points(&[10], Dof::Ux, 26.0)
             .points(&[10], Dof::Uy, 27.0)
             .points(&[10], Dof::Rz, 28.0);
-        let mut duu = Vector::new(fem.equations.n_equation);
-        let mut uu = Vector::new(fem.equations.n_equation);
-        let values = BcPrescribedArray::new(&fem, &essential).unwrap();
+        let mut duu = Vector::new(base.equations.n_equation);
+        let mut uu = Vector::new(base.equations.n_equation);
+        let values = BcPrescribedArray::new(&base, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[            // point
@@ -243,7 +243,7 @@ mod tests {
     fn set_values_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let fem = FemMesh::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 1.0)
@@ -258,9 +258,9 @@ mod tests {
             .points(&[2], Dof::Uy, 10.0)
             .points(&[2], Dof::Pl, 11.0)
             .points(&[2], Dof::Pg, 12.0);
-        let mut duu = Vector::new(fem.equations.n_equation);
-        let mut uu = Vector::new(fem.equations.n_equation);
-        let values = BcPrescribedArray::new(&fem, &essential).unwrap();
+        let mut duu = Vector::new(base.equations.n_equation);
+        let mut uu = Vector::new(base.equations.n_equation);
+        let values = BcPrescribedArray::new(&base, &essential).unwrap();
         values.apply(&mut duu, &mut uu, 0.0);
         #[rustfmt::skip]
         let correct = &[
@@ -288,10 +288,10 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let fem = FemMesh::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.points(&[0, 4], Dof::Pl, 0.0);
-        let values = BcPrescribedArray::new(&fem, &essential).unwrap();
+        let values = BcPrescribedArray::new(&base, &essential).unwrap();
         assert_eq!(values.flags, &[true, false, false, false, true]);
         let mut eqs = values.equations.clone();
         eqs.sort();
@@ -308,13 +308,13 @@ mod tests {
         //                   1 {2}
         //                     {3}
         let p1 = ParamSolid::sample_linear_elastic();
-        let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 0.0)
             .points(&[0], Dof::Uy, 0.0)
             .points(&[1, 2], Dof::Uy, 0.0);
-        let values = BcPrescribedArray::new(&fem, &essential).unwrap();
+        let values = BcPrescribedArray::new(&base, &essential).unwrap();
         assert_eq!(
             values.flags,
             //   0     1      2     3      4     5      6      7      8      9

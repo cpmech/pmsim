@@ -46,7 +46,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
 
     // parameters
     #[rustfmt::skip]
-    let fem = FemMesh::new(&mesh, [
+    let base = FemBase::new(&mesh, [
         (1, Elem::Rod(ParamRod { area: 4_000.0, young: 200_000.0, density: 1.0, ngauss: None })),
         (2, Elem::Rod(ParamRod { area: 3_000.0, young: 200_000.0, density: 1.0, ngauss: None })),
         (3, Elem::Rod(ParamRod { area: 2_000.0, young:  70_000.0, density: 1.0, ngauss: None })),
@@ -64,13 +64,13 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // check displacements

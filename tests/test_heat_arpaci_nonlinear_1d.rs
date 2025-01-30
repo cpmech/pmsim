@@ -65,7 +65,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
         source: Some(SOURCE),
         ngauss: None,
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -78,13 +78,13 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // analytical solution
@@ -101,7 +101,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = fem.equations.eq(ref_id, Dof::T)?;
+    let ref_eq = base.equations.eq(ref_id, Dof::T)?;
     let ref_tt = state.uu[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
@@ -109,7 +109,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // plot
     if SAVE_FIGURE {
         // get temperature values along x
-        let post = PostProc::new(&fem);
+        let post = PostProc::new(&mesh, &base);
         let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::T, 0.0, any_x)?;
 
         // compute plot data

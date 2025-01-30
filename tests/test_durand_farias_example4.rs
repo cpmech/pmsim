@@ -38,7 +38,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         stress_strain: StressStrain::LinearElastic { young: E, poisson: NU },
         ngauss: Some(NGAUSS),
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -55,17 +55,17 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // results
-    let mut post = PostProc::new(&fem);
+    let mut post = PostProc::new(&mesh, &base);
     let mut gauss_x = Vec::new();
     let mut gauss_y = Vec::new();
     let mut gauss_syy = Vec::new();

@@ -53,7 +53,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         },
         ngauss: Some(4),
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     /*
     const UY: [f64; 15] = [
@@ -96,13 +96,13 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         .set_n_max_iterations(20);
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // analysis

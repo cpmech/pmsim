@@ -1,6 +1,7 @@
 use crate::base::{Equations, DEFAULT_OUT_DIR};
-use crate::fem::{FemMesh, FemState};
+use crate::fem::{FemBase, FemState};
 use crate::StrError;
+use gemlab::mesh::Mesh;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs::{self, File};
@@ -59,7 +60,8 @@ impl FileIo {
     ///   None means that the default directory will be used; see [DEFAULT_OUT_DIR]
     pub fn activate(
         &mut self,
-        fem: &FemMesh,
+        mesh: &Mesh,
+        base: &FemBase,
         filename_stem: &str,
         output_directory: Option<&str>,
     ) -> Result<(), StrError> {
@@ -74,7 +76,7 @@ impl FileIo {
 
         // write the mesh
         let path = format!("{}/{}-mesh.json", out_dir, filename_stem);
-        fem.mesh.write_json(&path)?;
+        mesh.write_json(&path)?;
 
         // set structure
         self.active = true;
@@ -83,7 +85,7 @@ impl FileIo {
         self.output_count = 0;
         self.indices = Vec::new();
         self.times = Vec::new();
-        self.equations = fem.equations.clone();
+        self.equations = base.equations.clone();
         Ok(())
     }
 
@@ -146,8 +148,8 @@ impl FileIo {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let fem = File::open(path).map_err(|_| "cannot open JSON file")?;
-        let buffered = BufReader::new(fem);
+        let data = File::open(path).map_err(|_| "cannot open JSON file")?;
+        let buffered = BufReader::new(data);
         let summary = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
         Ok(summary)
     }

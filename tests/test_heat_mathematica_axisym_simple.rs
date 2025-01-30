@@ -58,7 +58,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -73,13 +73,13 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     config.set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
     // println!("{}", state.uu);
 
@@ -87,7 +87,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
-        let eq = fem.equations.eq(point.id, Dof::T).unwrap();
+        let eq = base.equations.eq(point.id, Dof::T).unwrap();
         let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);

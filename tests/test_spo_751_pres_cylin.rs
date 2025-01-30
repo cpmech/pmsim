@@ -45,7 +45,7 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let fem = FemMesh::new(&mesh, [(1, Elem::Solid(param1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -60,21 +60,21 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     config.set_incremental(P1.len());
 
     // FEM state
-    let mut state = FemState::new(&fem, &config)?;
+    let mut state = FemState::new(&mesh, &base, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
-    file_io.activate(&fem, NAME, None)?;
+    file_io.activate(&mesh, &base, NAME, None)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&fem, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // compute error
     let ana = ElastPlaneStrainPresCylin::new(R1, R2, P1[P1.len() - 1], P2, YOUNG, POISSON)?;
     let r = mesh.points[ref_point_id].coords[0];
     assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-    let eq = fem.equations.eq(ref_point_id, Dof::Ux).unwrap();
+    let eq = base.equations.eq(ref_point_id, Dof::Ux).unwrap();
     let numerical_ur = state.uu[eq];
     let error = f64::abs(numerical_ur - ana.ur(r));
     println!("\nnumerical_ur = {:?}, error = {:?}", numerical_ur, error);
