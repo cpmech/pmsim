@@ -340,4 +340,21 @@ mod tests {
              26: [(Ux, 62), (Uy, 63)]\n"
         );
     }
+
+    #[test]
+    fn derive_works() {
+        let mesh = Samples::three_tri3();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let amap = Attributes::from([(1, Elem::Solid(p1))]);
+        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
+        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let clone = eqs.clone();
+        let str_ori = format!("{:?}", eqs).to_string();
+        assert_eq!(format!("{:?}", clone), str_ori);
+        // serialize
+        let json = serde_json::to_string(&eqs).unwrap();
+        // deserialize
+        let read: Equations = serde_json::from_str(&json).unwrap();
+        assert_eq!(format!("{}", read), format!("{}", eqs));
+    }
 }
