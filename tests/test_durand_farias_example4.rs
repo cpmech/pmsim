@@ -79,19 +79,19 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
                 x_min = gcs[p][0];
             }
         }
-        let syy = post.gauss_stress(cell_id, &state, 1, 1)?;
+        let sig = post.gauss_stress(cell_id, &state)?;
         for p in 0..ngauss {
             if f64::abs(gcs[p][0] - x_min) < 1e-3 {
                 gauss_x.push(gcs[p][0]);
                 gauss_y.push(gcs[p][1]);
-                gauss_syy.push(syy[p]);
+                gauss_syy.push(sig.get(p, 0));
             }
         }
     }
 
     // extrapolated results
     let cell_ids = features.get_cells_via_2d_edges(&left);
-    let nodal = post.nodal_stresses(&cell_ids, &state, |_, x, _| x < 1e-3)?;
+    let nodal = post.nodal_stresses(&cell_ids, &state, |_, x, _, _| x < 1e-3)?;
 
     // verification
     let ana = FlexibleFooting2d {

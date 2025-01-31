@@ -624,26 +624,30 @@ mod tests {
         assert_eq!(res[0].as_data(), &[0.5, 0.5]);
     }
 
+    fn load_states_and_solutions(file_io: &FileIo) -> [(FemState, Tensor2, Tensor2); 3] {
+        let state_h = PostProc::read_state(&file_io, 0).unwrap();
+        let state_v = PostProc::read_state(&file_io, 1).unwrap();
+        let state_s = PostProc::read_state(&file_io, 2).unwrap();
+
+        let ndim = state_h.gauss[0].stress(0).unwrap().vector().dim() / 2;
+
+        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+
+        [
+            (state_h, stress_h, strain_h),
+            (state_v, stress_v, strain_v),
+            (state_s, stress_s, strain_s),
+        ]
+    }
+
     #[test]
     fn gauss_stress_and_strain_work() {
         let (file_io, mesh, base) =
             PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
-
-        let state_h = PostProc::read_state(&file_io, 0).unwrap();
-        let state_v = PostProc::read_state(&file_io, 1).unwrap();
-        let state_s = PostProc::read_state(&file_io, 2).unwrap();
-
-        let ndim = mesh.ndim;
-        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-
-        for (state, sig_ref, eps_ref) in &[
-            (state_h, stress_h, strain_h),
-            (state_v, stress_v, strain_v),
-            (state_s, stress_s, strain_s),
-        ] {
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.gauss_stress(0, &state).unwrap();
             let eps = post.gauss_strain(0, &state).unwrap();
             let ngauss = sig.nrow();
@@ -663,7 +667,28 @@ mod tests {
     }
 
     #[test]
-    fn nodal_stress_and_strain_work() {}
+    fn nodal_stress_and_strain_work() {
+        let (file_io, mesh, base) =
+            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+            let sig = post.nodal_stress(0, &state).unwrap();
+            let eps = post.nodal_strain(0, &state).unwrap();
+            let nnode = sig.nrow();
+            for p in 0..nnode {
+                // stress
+                approx_eq(sig.get(p, 0), sig_ref.get(0, 0), 1e-14);
+                approx_eq(sig.get(p, 1), sig_ref.get(1, 1), 1e-14);
+                approx_eq(sig.get(p, 2), sig_ref.get(2, 2), 1e-14);
+                approx_eq(sig.get(p, 3), sig_ref.get(0, 1), 1e-14);
+                // strain
+                approx_eq(eps.get(p, 0), eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.get(p, 1), eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.get(p, 2), eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.get(p, 3), eps_ref.get(0, 1), 1e-15);
+            }
+        }
+    }
 
     #[test]
     fn nodal_strain_comp_works() {}
