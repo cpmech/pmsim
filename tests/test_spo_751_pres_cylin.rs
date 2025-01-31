@@ -80,12 +80,28 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     println!("\nnumerical_ur = {:?}, error = {:?}", numerical_ur, error);
     // approx_eq(numerical_ur, ana.ur(r), 1.29e-4);
 
-    // results
-    // let summary = FileIoSummary::read_json(file_io.path_mesh())?;
-    // for index in &summary.indices{
-    //     let s = FemState::read_json(&format!("{}/{}"))
+    // post-processing
+    post_processing()
+}
 
-    // }
+fn post_processing() -> Result<(), StrError> {
+    // load essential files
+    let (file_io, mesh, base) = PostProc::read_essential(DEFAULT_OUT_DIR, NAME)?;
+
+    // boundaries
+    let features = Features::new(&mesh, false);
+    let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
+    // let inner_cell = inner_circle.all[0].
+
+    // loop over time stations
+    for index in &file_io.indices {
+        // load state
+        let state = PostProc::read_state(&file_io, *index)?;
+        assert_eq!(file_io.times[*index], state.t);
+
+        // get stress
+    }
+
     Ok(())
 }
 

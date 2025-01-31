@@ -461,32 +461,121 @@ mod tests {
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
     use crate::base::{Config, Dof, Elem, ParamDiffusion, ParamSolid, StressStrain};
-    use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState};
+    use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
     use gemlab::mesh::{Features, Mesh, Samples};
     use gemlab::util::any_x;
     use russell_lab::{vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
-    #[test]
-    fn values_along_x_works() {
-        let mesh = Samples::one_tri6();
-        let features = Features::new(&mesh, false);
-        let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
-        let config = Config::new(&mesh);
+    /// Generates displacement, stress, and strain state given displacements
+    #[allow(unused)]
+    fn generate_state(param: &ParamSolid, mesh: &Mesh, base: &FemBase, config: &Config, duu: &Vector) -> FemState {
+        // update displacement
         let mut state = FemState::new(&mesh, &base, &config).unwrap();
-        state.uu[0] = 1.0;
-        state.uu[1] = 2.0;
-        state.uu[2] = 3.0;
-        state.uu[3] = 4.0;
-        state.uu[4] = 5.0;
-        state.uu[5] = 6.0;
-        let output = PostProc::new(&mesh, &base);
-        let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
-        assert_eq!(ids, &[0, 3, 1]);
-        assert_eq!(xx, &[0.0, 0.5, 1.0]);
-        assert_eq!(dd, &[1.0, 4.0, 2.0]);
+        vec_copy(&mut state.duu, &duu).unwrap();
+        vec_update(&mut state.uu, 1.0, &duu).unwrap();
+
+        // update stress
+        let ncell = mesh.cells.len();
+        let mut elements = Vec::with_capacity(ncell);
+        for cell_id in 0..mesh.cells.len() {
+            let mut elem = ElementSolid::new(&mesh, &base, &config, &param, cell_id).unwrap();
+            elem.initialize_internal_values(&mut state).unwrap();
+            elem.update_secondary_values(&mut state).unwrap();
+            elements.push(elem);
+        }
+        state
     }
+
+    /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 2D (plane strain)
+    ///
+    /// ```text
+    ///       4---.__
+    ///      / \     `--.___3    [#] indicates id
+    ///     /   \          / \   (#) indicates attribute
+    ///    /     \  [1]   /   \
+    ///   /  [0]  \ (1)  / [2] \
+    ///  /   (1)   \    /  (1)  \
+    /// 0---.__     \  /      ___2
+    ///        `--.__\/__.---'
+    ///               1
+    /// ```
+    #[allow(unused)]
+    fn generate_artificial_2d(young: f64, poisson: f64, strain: f64) {
+        let mesh = Samples::three_tri3();
+        let p1 = ParamSolid {
+            density: 1.0,
+            stress_strain: StressStrain::LinearElastic { young, poisson },
+            ngauss: None,
+        };
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut config = Config::new(&mesh);
+        config.update_model_settings(1).save_strain = true;
+
+        let mut file_io = FileIo::new();
+        file_io.activate(&mesh, &base, "artificial-elastic-2d", None).unwrap();
+
+        let duu_h = generate_horizontal_displacement_field(&mesh, strain);
+        let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
+        file_io.write_state(&state).unwrap();
+
+        let duu_v = generate_vertical_displacement_field(&mesh, strain);
+        let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
+        state.t = 1.0;
+        file_io.write_state(&state).unwrap();
+
+        let duu_s = generate_shear_displacement_field(&mesh, strain);
+        let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
+        state.t = 2.0;
+        file_io.write_state(&state).unwrap();
+
+        file_io.write_self().unwrap();
+    }
+
+    #[test]
+    fn read_essential_works() {
+        // generate files (uncomment the next line)
+        // generate_artificial_2d(1500.0, 0.25, 0.0123);
+
+        // read files
+        let (file_io, mesh, base) =
+            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
+        assert_eq!(file_io.indices, &[0, 1, 2]);
+        assert_eq!(file_io.times, &[0.0, 1.0, 2.0]);
+        assert_eq!(mesh.ndim, 2);
+        assert_eq!(mesh.points.len(), 5);
+        assert_eq!(mesh.cells.len(), 3);
+        assert_eq!(base.amap.get(1).unwrap().name(), "Solid");
+        assert_eq!(base.emap.get(&mesh.cells[0]).unwrap().n_equation, 6);
+        assert_eq!(base.equations.n_equation, 10);
+    }
+
+    #[test]
+    fn read_state_works() {}
+
+    #[test]
+    fn new_works() {}
+
+    #[test]
+    fn gauss_coords_works() {}
+
+    #[test]
+    fn gauss_stress_works() {}
+
+    #[test]
+    fn gauss_strain_works() {}
+
+    #[test]
+    fn nodal_stress_comp_works() {}
+
+    #[test]
+    fn nodal_strain_comp_works() {}
+
+    #[test]
+    fn nodal_stresses_works() {}
+
+    #[test]
+    fn nodal_strains_works() {}
 
     fn check_extrapolation(
         param: &ParamSolid,
@@ -548,7 +637,7 @@ mod tests {
     }
 
     #[test]
-    fn extrapolate_2d_works() {
+    fn extrapolate_tensor_2d_works() {
         let young = 1.0;
         let poisson = 0.25;
         let p1 = ParamSolid {
@@ -578,5 +667,26 @@ mod tests {
         check_extrapolation(&p1, &mesh, &base, &config, &duu_h, &strain_h, &stress_h, 1e-15, 1e-14);
         check_extrapolation(&p1, &mesh, &base, &config, &duu_v, &strain_v, &stress_v, 1e-15, 1e-14);
         check_extrapolation(&p1, &mesh, &base, &config, &duu_s, &strain_s, &stress_s, 1e-15, 1e-14);
+    }
+
+    #[test]
+    fn values_along_x_works() {
+        let mesh = Samples::one_tri6();
+        let features = Features::new(&mesh, false);
+        let p1 = ParamDiffusion::sample();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let config = Config::new(&mesh);
+        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        state.uu[0] = 1.0;
+        state.uu[1] = 2.0;
+        state.uu[2] = 3.0;
+        state.uu[3] = 4.0;
+        state.uu[4] = 5.0;
+        state.uu[5] = 6.0;
+        let output = PostProc::new(&mesh, &base);
+        let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
+        assert_eq!(ids, &[0, 3, 1]);
+        assert_eq!(xx, &[0.0, 0.5, 1.0]);
+        assert_eq!(dd, &[1.0, 4.0, 2.0]);
     }
 }
