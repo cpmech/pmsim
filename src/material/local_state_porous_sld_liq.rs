@@ -24,6 +24,9 @@ pub struct LocalStatePorousSldLiq {
 
     /// Holds the drying (vs wetting) flag
     pub drying: bool,
+
+    /// (optional) Holds the strain tensor ε
+    pub strain: Option<Tensor2>,
 }
 
 impl LocalStatePorousSldLiq {
@@ -36,7 +39,13 @@ impl LocalStatePorousSldLiq {
             liquid_saturation: 1.0,
             porosity: 0.5,
             drying: true,
+            strain: None,
         }
+    }
+
+    /// Enables the recording of strain
+    pub fn enable_strain(&mut self) {
+        self.strain = Some(Tensor2::new(self.stress.mandel()));
     }
 
     /// Copy data from another state into this state
@@ -48,7 +57,4 @@ impl LocalStatePorousSldLiq {
         self.porosity = other.porosity;
         self.drying = other.drying;
     }
-
-    /// Resets the algorithmic variables such as the Lagrange multiplier
-    pub fn reset_algorithmic_variables(&mut self) {}
 }

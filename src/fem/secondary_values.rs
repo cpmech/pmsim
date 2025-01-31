@@ -107,4 +107,45 @@ impl SecondaryValues {
             Ok(&self.porous_sld_liq_gas[p].stress)
         }
     }
+
+    /// Returns the strain tensor at an integration point
+    ///
+    /// Note: the recording of strains must be enabled in [crate::base::Config] first.
+    /// For example:
+    ///
+    /// ````text
+    /// config.update_model_settings(cell_attribute).save_strain = true;
+    /// ```
+    ///
+    /// # Input
+    ///
+    /// * `p` -- index of the integration point
+    pub fn strain(&self, p: usize) -> Result<&Tensor2, StrError> {
+        if self.ngauss == 0 {
+            return Err("secondary values have not been allocated yet");
+        }
+        if p >= self.ngauss {
+            return Err("index of integration point is out of bounds");
+        }
+        if self.solid.len() == self.ngauss {
+            Ok(self.solid[p]
+                .strain
+                .as_ref()
+                .ok_or("the recording of strains must be enabled first")?)
+        } else if self.porous_liq.len() == self.ngauss {
+            Err("strain is not available in PorousLiq")
+        } else if self.porous_liq_gas.len() == self.ngauss {
+            Err("strain is not available for PorousLiqGas")
+        } else if self.porous_sld_liq.len() == self.ngauss {
+            Ok(self.porous_sld_liq[p]
+                .strain
+                .as_ref()
+                .ok_or("the recording of strains must be enabled first")?)
+        } else {
+            Ok(self.porous_sld_liq_gas[p]
+                .strain
+                .as_ref()
+                .ok_or("the recording of strains must be enabled first")?)
+        }
+    }
 }

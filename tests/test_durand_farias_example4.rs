@@ -79,7 +79,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
                 x_min = gcs[p][0];
             }
         }
-        let syy = post.stress(cell_id, &state, 1, 1)?;
+        let syy = post.gauss_stress(cell_id, &state, 1, 1)?;
         for p in 0..ngauss {
             if f64::abs(gcs[p][0] - x_min) < 1e-3 {
                 gauss_x.push(gcs[p][0]);
@@ -91,7 +91,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
 
     // extrapolated results
     let cell_ids = features.get_cells_via_2d_edges(&left);
-    let nodal = post.extrapolate_stress_2d(&cell_ids, &state, |_, x, _| x < 1e-3)?;
+    let nodal = post.nodal_stresses(&cell_ids, &state, |_, x, _| x < 1e-3)?;
 
     // verification
     let ana = FlexibleFooting2d {
@@ -102,16 +102,16 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         young: E,
         poisson: NU,
     };
-    for i in 0..nodal.x.len() {
-        let x = nodal.x[i];
-        let y = nodal.y[i];
+    for i in 0..nodal.xx.len() {
+        let x = nodal.xx[i];
+        let y = nodal.yy[i];
         println!(
             "{:8.3} =? {:8.3}   #   {:8.3} =? {:8.3}   #   {:8.3} =? {:8.3}",
-            nodal.sxx[i],
+            nodal.txx[i],
             ana.stress(x, y).get(0, 0),
-            nodal.syy[i],
+            nodal.tyy[i],
             ana.stress(x, y).get(1, 1),
-            nodal.sxy[i],
+            nodal.txy[i],
             ana.stress(x, y).get(0, 1)
         );
     }
@@ -142,8 +142,8 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
             .set_marker_style("s")
             .set_marker_size(5.0)
             .set_line_style("None");
-        let ll: Vec<_> = nodal.y.iter().map(|y| y / B).collect();
-        let ss: Vec<_> = nodal.syy.iter().map(|sy| -sy / QN).collect();
+        let ll: Vec<_> = nodal.yy.iter().map(|y| y / B).collect();
+        let ss: Vec<_> = nodal.tyy.iter().map(|sy| -sy / QN).collect();
         curve_nodal.draw(&ss, &ll);
 
         plot.set_title("Durand and Farias Fig 15")
