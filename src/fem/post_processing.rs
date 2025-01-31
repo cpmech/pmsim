@@ -467,9 +467,6 @@ mod tests {
     use russell_lab::{vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
-    // strain magnitude (either ε_xx, ε_yy, or ε_xy)
-    const STRAIN: f64 = 4.56;
-
     #[test]
     fn values_along_x_works() {
         let mesh = Samples::one_tri6();
@@ -551,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn extrapolate_stress_2d_works() {
+    fn extrapolate_2d_works() {
         let young = 1.0;
         let poisson = 0.25;
         let p1 = ParamSolid {
@@ -559,6 +556,9 @@ mod tests {
             stress_strain: StressStrain::LinearElastic { young, poisson },
             ngauss: None,
         };
+
+        // strain magnitude (either ε_xx, ε_yy, or ε_xy)
+        const STRAIN: f64 = 4.56;
 
         let mesh = Samples::three_tri3();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
