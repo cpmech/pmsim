@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use gemlab::prelude::*;
+use plotpy::{Curve, Plot};
 use pmsim::analytical::ElastPlaneStrainPresCylin;
 use pmsim::prelude::*;
 use pmsim::util::verify_results;
@@ -90,16 +91,41 @@ fn post_processing() -> Result<(), StrError> {
 
     // boundaries
     let features = Features::new(&mesh, false);
+    let inner_point = features.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
     let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
-    // let inner_cell = inner_circle.all[0].
+    let inner_cell = features.get_cells_via_2d_edges(&inner_circle)[0];
+
+    // post-processor
+    let mut post = PostProc::new(&mesh, &base);
 
     // loop over time stations
+    let mut radial_disp = vec![0.0; file_io.indices.len()];
+    let mut inner_pressure: Vec<_> = P1.iter().map(|p| *p).collect();
     for index in &file_io.indices {
         // load state
         let state = PostProc::read_state(&file_io, *index)?;
         assert_eq!(file_io.times[*index], state.t);
 
+        // radial displacement
+        let eq = base.equations.eq(inner_point, Dof::Ux)?;
+        radial_disp[*index] = state.uu[eq];
+
         // get stress
+        let res = post.nodal_stresses(&[inner_cell], &state, |_, x, y, _| {
+            f64::abs(x * x + y * y - R1 * R1) < 1e-3
+        })?;
+        for i in 0..res.ids.len() {
+            approx_eq(res.txx[i], -P1[*index], 0.06);
+        }
+    }
+
+    if SAVE_FIGURE {
+        let mut curve1 = Curve::new();
+        curve1.draw(&radial_disp, &inner_pressure);
+        let mut plot = Plot::new();
+        plot.add(&curve1)
+            .grid_labels_legend("$u_r$", "P")
+            .save(&format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME))?;
     }
 
     Ok(())
