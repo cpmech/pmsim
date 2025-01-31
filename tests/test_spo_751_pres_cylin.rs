@@ -92,39 +92,52 @@ fn post_processing() -> Result<(), StrError> {
     // boundaries
     let features = Features::new(&mesh, false);
     let inner_point = features.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
+    let outer_point = features.search_point_ids(At::XY(R2, 0.0), any_x)?[0];
     let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
+    let outer_circle = features.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
     let inner_cell = features.get_cells_via_2d_edges(&inner_circle)[0];
+    let outer_cell = features.get_cells_via_2d_edges(&outer_circle)[0];
 
     // post-processor
     let mut post = PostProc::new(&mesh, &base);
 
     // loop over time stations
-    let mut radial_disp = vec![0.0; file_io.indices.len()];
-    let mut inner_pressure: Vec<_> = P1.iter().map(|p| *p).collect();
+    let mut inner_ur = vec![0.0; file_io.indices.len()];
+    let mut outer_ur = vec![0.0; file_io.indices.len()];
+    let mut inner_pp: Vec<_> = P1.iter().map(|p| *p).collect();
     for index in &file_io.indices {
         // load state
         let state = PostProc::read_state(&file_io, *index)?;
         assert_eq!(file_io.times[*index], state.t);
 
         // radial displacement
-        let eq = base.equations.eq(inner_point, Dof::Ux)?;
-        radial_disp[*index] = state.uu[eq];
+        let eq1 = base.equations.eq(inner_point, Dof::Ux)?;
+        let eq2 = base.equations.eq(outer_point, Dof::Ux)?;
+        inner_ur[*index] = state.uu[eq1];
+        outer_ur[*index] = state.uu[eq2];
 
-        // get stress
-        let res = post.nodal_stresses(&[inner_cell], &state, |_, x, y, _| {
+        // check stresses
+        let res1 = post.nodal_stresses(&[inner_cell], &state, |_, x, y, _| {
             f64::abs(x * x + y * y - R1 * R1) < 1e-3
         })?;
-        for i in 0..res.ids.len() {
-            approx_eq(res.txx[i], -P1[*index], 0.06);
+        let res2 = post.nodal_stresses(&[outer_cell], &state, |_, x, y, _| {
+            f64::abs(x * x + y * y - R2 * R2) < 1e-3
+        })?;
+        for i in 0..res1.ids.len() {
+            approx_eq(res1.txx[i], -P1[*index], 0.06);
+        }
+        for i in 0..res2.ids.len() {
+            approx_eq(res2.txx[i], P2, 0.061);
         }
     }
 
+    // plot
     if SAVE_FIGURE {
         let mut curve1 = Curve::new();
-        curve1.draw(&radial_disp, &inner_pressure);
+        curve1.draw(&outer_ur, &inner_pp);
         let mut plot = Plot::new();
         plot.add(&curve1)
-            .grid_labels_legend("$u_r$", "P")
+            .grid_labels_legend("outer $u_r$", "inner $P$")
             .save(&format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME))?;
     }
 
