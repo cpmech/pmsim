@@ -26,7 +26,7 @@ use russell_tensor::{Mandel, Tensor2};
 ///
 /// 1. Davis and Selvadurai (1996) Elasticity and Geomechanics,
 ///    Cambridge University Press, 201p
-pub struct FlexibleFooting2d {
+pub struct ElastPlaneStrainFlexibleFoot {
     /// Half-width of the flexible footing
     pub bb: f64,
 
@@ -46,7 +46,7 @@ pub struct FlexibleFooting2d {
     pub poisson: f64,
 }
 
-impl FlexibleFooting2d {
+impl ElastPlaneStrainFlexibleFoot {
     /// Calculates the stress field due the footing loading
     pub fn stress(&self, x: f64, y: f64) -> Tensor2 {
         assert!(x >= 0.0 && y >= 0.0 && y <= self.hh);
@@ -128,7 +128,7 @@ impl FlexibleFooting2d {
 
 #[cfg(test)]
 mod tests {
-    use super::FlexibleFooting2d;
+    use super::ElastPlaneStrainFlexibleFoot;
     use crate::base::DEFAULT_TEST_DIR;
     use plotpy::{Curve, Plot};
     use russell_lab::approx_eq;
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn stress_works() {
-        let ana = FlexibleFooting2d {
+        let ana = ElastPlaneStrainFlexibleFoot {
             bb: 2.5,
             hh: 37.5,
             ww: 37.5,
