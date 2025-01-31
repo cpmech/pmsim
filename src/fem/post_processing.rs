@@ -464,8 +464,12 @@ mod tests {
     use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
     use gemlab::mesh::{Features, Mesh, Samples};
     use gemlab::util::any_x;
-    use russell_lab::{vec_approx_eq, vec_copy, vec_update, Vector};
+    use russell_lab::{approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::{Mandel, Tensor2};
+
+    const YOUNG: f64 = 1500.0;
+    const POISSON: f64 = 0.25;
+    const STRAIN: f64 = 0.0123;
 
     /// Generates displacement, stress, and strain state given displacements
     #[allow(unused)]
@@ -501,11 +505,14 @@ mod tests {
     ///               1
     /// ```
     #[allow(unused)]
-    fn generate_artificial_2d(young: f64, poisson: f64, strain: f64) {
+    fn generate_artificial_2d() {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid {
             density: 1.0,
-            stress_strain: StressStrain::LinearElastic { young, poisson },
+            stress_strain: StressStrain::LinearElastic {
+                young: YOUNG,
+                poisson: POISSON,
+            },
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
@@ -515,16 +522,16 @@ mod tests {
         let mut file_io = FileIo::new();
         file_io.activate(&mesh, &base, "artificial-elastic-2d", None).unwrap();
 
-        let duu_h = generate_horizontal_displacement_field(&mesh, strain);
+        let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
         file_io.write_state(&state).unwrap();
 
-        let duu_v = generate_vertical_displacement_field(&mesh, strain);
+        let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
         state.t = 1.0;
         file_io.write_state(&state).unwrap();
 
-        let duu_s = generate_shear_displacement_field(&mesh, strain);
+        let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
         state.t = 2.0;
         file_io.write_state(&state).unwrap();
@@ -535,8 +542,7 @@ mod tests {
     #[test]
     fn read_essential_and_state_work() {
         // generate files (uncomment the next line)
-        let (young, poisson, strain) = (1500.0, 0.25, 0.0123);
-        // generate_artificial_2d(young, poisson, strain);
+        // generate_artificial_2d();
 
         // read essential
         let (file_io, mesh, base) =
@@ -555,9 +561,9 @@ mod tests {
         let state_h = PostProc::read_state(&file_io, 0).unwrap();
         let state_v = PostProc::read_state(&file_io, 1).unwrap();
         let state_s = PostProc::read_state(&file_io, 2).unwrap();
-        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(young, poisson, ndim, strain);
-        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(young, poisson, ndim, strain);
-        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(young, poisson, ndim, strain);
+        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         for id in 0..3 {
             vec_approx_eq(state_h.gauss[id].solid[0].stress.vector(), stress_h.vector(), 1e-14);
             vec_approx_eq(state_v.gauss[id].solid[0].stress.vector(), stress_v.vector(), 1e-14);
@@ -581,16 +587,31 @@ mod tests {
     }
 
     #[test]
-    fn new_works() {}
+    fn gauss_coords_works() {
+        let mesh = Samples::one_qua4();
+        let mut p1 = ParamSolid::sample_linear_elastic();
+        p1.ngauss = Some(1);
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        let res = post.gauss_coords(0).unwrap();
+        assert_eq!(res[0].as_data(), &[0.5, 0.5]);
+    }
 
     #[test]
-    fn gauss_coords_works() {}
-
-    #[test]
-    fn gauss_stress_works() {}
-
-    #[test]
-    fn gauss_strain_works() {}
+    fn gauss_stress_and_strain_work() {
+        let (file_io, mesh, base) =
+            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let state_h = PostProc::read_state(&file_io, 0).unwrap();
+        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, mesh.ndim, STRAIN);
+        let mut post = PostProc::new(&mesh, &base);
+        let stresses = post.gauss_stress(0, &state_h, 0, 0).unwrap();
+        let strains = post.gauss_strain(0, &state_h, 0, 0).unwrap();
+        let ngauss = stresses.dim();
+        for p in 0..ngauss {
+            approx_eq(stresses[p], stress_h.get(0, 0), 1e-14);
+            approx_eq(strains[p], strain_h.get(0, 0), 1e-15);
+        }
+    }
 
     #[test]
     fn nodal_stress_comp_works() {}
