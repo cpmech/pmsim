@@ -6,7 +6,7 @@ use russell_lab::*;
 
 const NAME: &str = "test_durand_farias_example4";
 const GENERATE_MESH: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 // constants
 const B: f64 = 2.5; // half-width of the flexible footing
@@ -20,9 +20,8 @@ const NGAUSS: usize = 4; // number of gauss points
 #[test]
 fn test_durand_farias_example4() -> Result<(), StrError> {
     // mesh
-    let att = 1;
     let kind = GeoKind::Qua4;
-    let mesh = generate_or_read_mesh(att, kind, GENERATE_MESH);
+    let mesh = generate_or_read_mesh(1, kind, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -65,33 +64,11 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
 
     // results
     let mut post = PostProc::new(&mesh, &base);
-    let mut gauss_x = Vec::new();
-    let mut gauss_y = Vec::new();
-    let mut gauss_syy = Vec::new();
-    for edge in &left.all {
-        let attached_cells = features.get_cells_via_2d_edge(edge);
-        let cell_id = attached_cells[0]; // only one cell because the edge is on boundary
-        let gcs = post.gauss_coords(cell_id)?;
-        let ngauss = gcs.len();
-        let mut x_min = gcs[0][0];
-        for p in 0..ngauss {
-            if gcs[p][0] < x_min {
-                x_min = gcs[p][0];
-            }
-        }
-        let sig = post.gauss_stress(cell_id, &state)?;
-        for p in 0..ngauss {
-            if f64::abs(gcs[p][0] - x_min) < 1e-3 {
-                gauss_x.push(gcs[p][0]);
-                gauss_y.push(gcs[p][1]);
-                gauss_syy.push(sig.get(p, 0));
-            }
-        }
-    }
-
-    // extrapolated results
-    let cell_ids = features.get_cells_via_2d_edges(&left);
-    let nodal = post.nodal_stresses(&cell_ids, &state, |_, x, _, _| x < 1e-3)?;
+    let left_cells = features.get_cells_via_2d_edges(&left);
+    let (min, max) = mesh.get_cell_bounding_box(mesh.cells[left_cells[0]].id);
+    let hdx = (max[0] - min[0]) / 2.0;
+    let gauss = post.gauss_stresses(&left_cells, &state, |_, x, _, _| x < hdx)?;
+    let nodal = post.nodal_stresses(&left_cells, &state, |_, x, _, _| x < hdx)?;
 
     // verification
     let ana = FlexibleFooting2d {
@@ -102,11 +79,13 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         young: E,
         poisson: NU,
     };
+    let thin_line = format!("{:─^1$}", "", 6 * 8 + 4 * 3 + 5 * 2);
+    println!("\nVERIFICATION\n{}", thin_line);
     for i in 0..nodal.xx.len() {
         let x = nodal.xx[i];
         let y = nodal.yy[i];
         println!(
-            "{:8.3} =? {:8.3}   #   {:8.3} =? {:8.3}   #   {:8.3} =? {:8.3}",
+            "{:8.3} =? {:8.3}  │  {:8.3} =? {:8.3}  │  {:8.3} =? {:8.3}",
             nodal.txx[i],
             ana.stress(x, y).get(0, 0),
             nodal.tyy[i],
@@ -114,7 +93,11 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
             nodal.txy[i],
             ana.stress(x, y).get(0, 1)
         );
+        approx_eq(f64::abs(nodal.txx[i] - ana.stress(x, y).get(0, 0)) / QN, 0.0, 0.25);
+        approx_eq(f64::abs(nodal.tyy[i] - ana.stress(x, y).get(1, 1)) / QN, 0.0, 0.23);
+        approx_eq(f64::abs(nodal.txy[i] - ana.stress(x, y).get(0, 1)) / QN, 0.0, 0.09);
     }
+    println!("{}\n", thin_line);
 
     // figure
     if SAVE_FIGURE {
@@ -132,8 +115,8 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
             .set_marker_style("o")
             .set_marker_void(true)
             .set_line_style("None");
-        let ll: Vec<_> = gauss_y.iter().map(|y| y / B).collect();
-        let ss: Vec<_> = gauss_syy.iter().map(|sy| -sy / QN).collect();
+        let ll: Vec<_> = gauss.yy.iter().map(|y| y / B).collect();
+        let ss: Vec<_> = gauss.tyy.iter().map(|sy| -sy / QN).collect();
         curve_gauss.draw(&ss, &ll);
 
         let mut curve_nodal = Curve::new();
