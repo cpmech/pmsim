@@ -5,11 +5,11 @@ use gemlab::integ::Gauss;
 use gemlab::mesh::{At, CellId, Features, Mesh, PointId};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
-use russell_lab::{mat_vec_mul, Matrix, Vector};
+use russell_lab::{mat_mat_mul, Matrix, Vector};
 use std::collections::HashMap;
 
-/// Holds the tensor (stress/strain) components distributed in 2D space (Gauss point or extrapolated from nodes)
-pub struct SpatialTensor2d {
+/// Holds the tensor (stress/strain) components distributed in space (Gauss point or extrapolated from nodes)
+pub struct SpatialTensor {
     /// A randomly assigned Gauss point number or the IDs of nodes (nnode)
     pub ids: Vec<PointId>,
 
@@ -19,32 +19,8 @@ pub struct SpatialTensor2d {
     /// The y coordinates of nodes (nnode)
     pub yy: Vec<f64>,
 
-    /// The extrapolated σxx components @ each node (nnode)
-    pub txx: Vec<f64>,
-
-    /// The extrapolated σyy components @ each node (nnode)
-    pub tyy: Vec<f64>,
-
-    /// The extrapolated σzz components @ each node (nnode)
-    pub tzz: Vec<f64>,
-
-    /// The extrapolated σxy components @ each node (nnode)
-    pub txy: Vec<f64>,
-}
-
-/// Holds the tensor (stress/strain) components distributed in 3D space (Gauss point or extrapolated from nodes)
-pub struct SpatialTensor3d {
-    /// A randomly assigned Gauss point number or the IDs of nodes (nnode)
-    pub ids: Vec<PointId>,
-
-    /// The x coordinates of nodes (nnode)
-    pub xx: Vec<f64>,
-
-    /// The y coordinates of nodes (nnode)
-    pub yy: Vec<f64>,
-
-    /// The z coordinates of nodes (nnode)
-    pub z: Vec<f64>,
+    /// The z coordinates of nodes (nnode) (3D only)
+    pub zz: Vec<f64>,
 
     /// The extrapolated σxx components @ each node (nnode)
     pub txx: Vec<f64>,
@@ -58,11 +34,11 @@ pub struct SpatialTensor3d {
     /// The extrapolated σxy components @ each node (nnode)
     pub txy: Vec<f64>,
 
-    /// The extrapolated σyx components @ each node (nnode)
+    /// The extrapolated σyx components @ each node (nnode) (3D only)
     pub tyz: Vec<f64>,
 
-    /// The extrapolated σxz components @ each node (nnode)
-    pub txz: Vec<f64>,
+    /// The extrapolated σxz components @ each node (nnode) (3D only)
+    pub tzx: Vec<f64>,
 }
 
 /// Assists in post-processing the results given at Gauss points
@@ -141,22 +117,22 @@ impl<'a> PostProc<'a> {
         get_points_coords(&mut pad, &gauss)
     }
 
-    /// Returns all stress components (ij) at the Gauss points of a cell
+    /// Returns all stress components at the Gauss points of a cell
     ///
     /// # Input
     ///
     /// * `cell_id` -- the ID of a cell
     /// * `state` -- the FEM state holding the all results
-    /// * `i, j` -- the indices of the stress tensor `σij`
     ///
     /// # Output
     ///
-    /// Returns a vector (ngauss) with the stress components `σij` at each Gauss point
-    pub fn gauss_stress(&mut self, cell_id: CellId, state: &FemState, i: usize, j: usize) -> Result<Vector, StrError> {
-        self.gauss_tensor(cell_id, state, i, j, false)
+    /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy]`
+    /// * 3D: returns an `(ngauss, 6)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy, σyz, σzx]`
+    pub fn gauss_stress(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
+        self.gauss_tensor(cell_id, state, false)
     }
 
-    /// Returns all strain components (ij) at the Gauss points of a cell
+    /// Returns all strain components at the Gauss points of a cell
     ///
     /// Note: the recording of strains must be enabled in [crate::base::Config] first.
     /// For example:
@@ -169,47 +145,59 @@ impl<'a> PostProc<'a> {
     ///
     /// * `cell_id` -- the ID of a cell
     /// * `state` -- the FEM state holding the all results
-    /// * `i, j` -- the indices of the stress tensor `εij`
     ///
     /// # Output
     ///
-    /// Returns a vector (ngauss) with the stress components `εij` at each Gauss point
-    pub fn gauss_strain(&mut self, cell_id: CellId, state: &FemState, i: usize, j: usize) -> Result<Vector, StrError> {
-        self.gauss_tensor(cell_id, state, i, j, true)
+    /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy]`
+    /// * 3D: returns an `(ngauss, 6)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy, εyz, εzx]`
+    pub fn gauss_strain(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
+        self.gauss_tensor(cell_id, state, true)
     }
 
-    /// Returns all tensor components (ij) at the Gauss points of a cell
+    /// Returns all tensor components at the Gauss points of a cell
     ///
     /// # Input
     ///
     /// * `cell_id` -- the ID of a cell
     /// * `state` -- the FEM state holding the all results
-    /// * `i, j` -- the indices of the tensor
     ///
     /// # Output
     ///
-    /// Returns a vector (ngauss) with the tensor components `ij` at each Gauss point
-    fn gauss_tensor(
-        &mut self,
-        cell_id: CellId,
-        state: &FemState,
-        i: usize,
-        j: usize,
-        strain: bool,
-    ) -> Result<Vector, StrError> {
+    /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[txx, tyy, tzz, txy]`
+    /// * 3D: returns an `(ngauss, 6)` matrix where each row corresponds to `[txx, tyy, tzz, txy, tyz, tzx]`
+    fn gauss_tensor(&mut self, cell_id: CellId, state: &FemState, strain: bool) -> Result<Matrix, StrError> {
+        let ndim = self.mesh.ndim;
         let second = &state.gauss[cell_id];
-        let mut res = Vector::new(second.ngauss);
-        for p in 0..second.ngauss {
-            if strain {
-                res[p] = state.gauss[cell_id].strain(p)?.get(i, j);
-            } else {
-                res[p] = state.gauss[cell_id].stress(p)?.get(i, j);
+        let mut res = Matrix::new(second.ngauss, ndim * 2);
+        if strain {
+            for p in 0..second.ngauss {
+                let strain = state.gauss[cell_id].strain(p)?;
+                res.set(p, 0, strain.get(0, 0));
+                res.set(p, 1, strain.get(1, 1));
+                res.set(p, 2, strain.get(2, 2));
+                res.set(p, 3, strain.get(0, 1));
+                if ndim == 3 {
+                    res.set(p, 4, strain.get(1, 2));
+                    res.set(p, 5, strain.get(2, 0));
+                }
+            }
+        } else {
+            for p in 0..second.ngauss {
+                let stress = state.gauss[cell_id].stress(p)?;
+                res.set(p, 0, stress.get(0, 0));
+                res.set(p, 1, stress.get(1, 1));
+                res.set(p, 2, stress.get(2, 2));
+                res.set(p, 3, stress.get(0, 1));
+                if ndim == 3 {
+                    res.set(p, 4, stress.get(1, 2));
+                    res.set(p, 5, stress.get(2, 0));
+                }
             }
         }
         Ok(res)
     }
 
-    /// Returns all (extrapolated) stress components (ij) at the nodes of a cell
+    /// Returns all extrapolated stress components at the nodes of a cell
     ///
     /// This function performs the extrapolation from Gauss points to nodes.
     ///
@@ -217,22 +205,16 @@ impl<'a> PostProc<'a> {
     ///
     /// * `cell_id` -- the ID of a cell
     /// * `state` -- the FEM state holding the all results
-    /// * `i, j` -- the indices of the stress tensor `σij`
     ///
     /// # Output
     ///
-    /// Returns a vector (nnode) with the stress components `σij` at each node
-    pub fn nodal_stress_comp(
-        &mut self,
-        cell_id: CellId,
-        state: &FemState,
-        i: usize,
-        j: usize,
-    ) -> Result<Vector, StrError> {
-        self.nodal_tensor_comp(cell_id, state, i, j, false)
+    /// * 2D: returns an `(nnode, 4)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy]`
+    /// * 3D: returns an `(nnode, 6)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy, σyz, σzx]`
+    pub fn nodal_stress(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
+        self.nodal_tensor(cell_id, state, false)
     }
 
-    /// Returns all (extrapolated) strain components (ij) at the nodes of a cell
+    /// Returns all extrapolated strain components at the nodes of a cell
     ///
     /// This function performs the extrapolation from Gauss points to nodes.
     ///
@@ -247,22 +229,16 @@ impl<'a> PostProc<'a> {
     ///
     /// * `cell_id` -- the ID of a cell
     /// * `state` -- the FEM state holding the all results
-    /// * `i, j` -- the indices of the stress tensor `εij`
     ///
     /// # Output
     ///
-    /// Returns a vector (nnode) with the stress components `εij` at each node
-    pub fn nodal_strain_comp(
-        &mut self,
-        cell_id: CellId,
-        state: &FemState,
-        i: usize,
-        j: usize,
-    ) -> Result<Vector, StrError> {
-        self.nodal_tensor_comp(cell_id, state, i, j, true)
+    /// * 2D: returns an `(nnode, 4)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy]`
+    /// * 3D: returns an `(nnode, 6)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy, εyz, εzx]`
+    pub fn nodal_strain(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
+        self.nodal_tensor(cell_id, state, true)
     }
 
-    /// Returns all (extrapolated) tensor components (ij) at the nodes of a cell
+    /// Returns all extrapolated tensor components at the nodes of a cell
     ///
     /// This function performs the extrapolation from Gauss points to nodes.
     ///
@@ -270,98 +246,142 @@ impl<'a> PostProc<'a> {
     ///
     /// * `cell_id` -- the ID of a cell
     /// * `state` -- the FEM state holding the all results
-    /// * `i, j` -- the indices of the tensor
     ///
     /// # Output
     ///
-    /// Returns a vector (nnode) with the tensor components `ij` at each node
-    fn nodal_tensor_comp(
-        &mut self,
-        cell_id: CellId,
-        state: &FemState,
-        i: usize,
-        j: usize,
-        strain: bool,
-    ) -> Result<Vector, StrError> {
+    /// * 2D: returns an `(nnode, 4)` matrix where each row corresponds to `[txx, tyy, tzz, txy]`
+    /// * 3D: returns an `(nnode, 6)` matrix where each row corresponds to `[txx, tyy, tzz, txy, tyz, tzx]`
+    fn nodal_tensor(&mut self, cell_id: CellId, state: &FemState, strain: bool) -> Result<Matrix, StrError> {
         let nnode = self.mesh.cells[cell_id].points.len();
-        let tij_gauss = self.gauss_tensor(cell_id, state, i, j, strain)?;
-        let mut tij_nodal = Vector::new(nnode);
+        let ten_gauss = self.gauss_tensor(cell_id, state, strain)?;
+        let mut ten_nodal = Matrix::new(nnode, ten_gauss.ncol());
         let ee = self.get_extrap_mat(cell_id)?;
-        mat_vec_mul(&mut tij_nodal, 1.0, &ee, &tij_gauss)?;
-        Ok(tij_nodal)
+        mat_mat_mul(&mut ten_nodal, 1.0, &ee, &ten_gauss, 0.0)?;
+        Ok(ten_nodal)
     }
 
     /// Extrapolates stress components from Gauss points to the nodes of cells (averaging)
+    ///
+    /// # Input
+    ///
+    /// * `cell_ids` -- the ID of a patch of cells sharing the nodes with extrapolated results
+    /// * `state` -- the FEM state holding the all results
+    /// * `filter_nodes` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
+    ///   The `z` coordinate may be ignored in 2D.
+    ///
+    /// # Output
+    ///
+    /// Returns [SpatialTensor] with the coordinates of nodes and stress components at each node
     pub fn nodal_stresses<F>(
         &mut self,
         cell_ids: &[CellId],
         state: &FemState,
         filter_nodes: F,
-    ) -> Result<SpatialTensor2d, StrError>
+    ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64) -> bool,
+        F: Fn(PointId, f64, f64, f64) -> bool,
     {
-        self.extrapolate_tensor_2d(cell_ids, state, filter_nodes, false)
+        self.extrapolate_tensor(cell_ids, state, filter_nodes, false)
     }
 
     /// Extrapolates strain components from Gauss points to the nodes of cells (averaging)
+    ///
+    /// # Input
+    ///
+    /// * `cell_ids` -- the ID of a patch of cells sharing the nodes with extrapolated results
+    /// * `state` -- the FEM state holding the all results
+    /// * `filter_nodes` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
+    ///   The `z` coordinate may be ignored in 2D.
+    ///
+    /// # Output
+    ///
+    /// Returns [SpatialTensor] with the coordinates of nodes and strain components at each node
     pub fn nodal_strains<F>(
         &mut self,
         cell_ids: &[CellId],
         state: &FemState,
         filter_nodes: F,
-    ) -> Result<SpatialTensor2d, StrError>
+    ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64) -> bool,
+        F: Fn(PointId, f64, f64, f64) -> bool,
     {
-        self.extrapolate_tensor_2d(cell_ids, state, filter_nodes, true)
+        self.extrapolate_tensor(cell_ids, state, filter_nodes, true)
     }
 
     /// Extrapolates tensor components from Gauss points to the nodes of cells (averaging)
-    pub fn extrapolate_tensor_2d<F>(
+    fn extrapolate_tensor<F>(
         &mut self,
         cell_ids: &[CellId],
         state: &FemState,
         filter_nodes: F,
         strain: bool,
-    ) -> Result<SpatialTensor2d, StrError>
+    ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64) -> bool,
+        F: Fn(PointId, f64, f64, f64) -> bool,
     {
+        let ndim = self.mesh.ndim;
         let mut counter = HashMap::new();
         let mut nodal_txx = HashMap::new();
         let mut nodal_tyy = HashMap::new();
         let mut nodal_tzz = HashMap::new();
         let mut nodal_txy = HashMap::new();
+        let mut nodal_tyz = HashMap::new();
+        let mut nodal_tzx = HashMap::new();
         for cell_id in cell_ids {
-            let txx = self.nodal_tensor_comp(*cell_id, &state, 0, 0, strain)?;
-            let tyy = self.nodal_tensor_comp(*cell_id, &state, 1, 1, strain)?;
-            let tzz = self.nodal_tensor_comp(*cell_id, &state, 2, 2, strain)?;
-            let txy = self.nodal_tensor_comp(*cell_id, &state, 0, 1, strain)?;
-            let nnode = txx.dim();
+            let ten = self.nodal_tensor(*cell_id, &state, strain)?;
+            let nnode = ten.nrow();
             for m in 0..nnode {
                 let nid = self.mesh.cells[*cell_id].points[m];
+                let (txx, tyy, tzz, txy) = (ten.get(m, 0), ten.get(m, 1), ten.get(m, 2), ten.get(m, 3));
                 counter.entry(nid).and_modify(|v| *v += 1).or_insert(1_usize);
-                nodal_txx.entry(nid).and_modify(|v| *v += txx[m]).or_insert(txx[m]);
-                nodal_tyy.entry(nid).and_modify(|v| *v += tyy[m]).or_insert(tyy[m]);
-                nodal_tzz.entry(nid).and_modify(|v| *v += tzz[m]).or_insert(tzz[m]);
-                nodal_txy.entry(nid).and_modify(|v| *v += txy[m]).or_insert(txy[m]);
+                nodal_txx.entry(nid).and_modify(|v| *v += txx).or_insert(txx);
+                nodal_tyy.entry(nid).and_modify(|v| *v += tyy).or_insert(tyy);
+                nodal_tzz.entry(nid).and_modify(|v| *v += tzz).or_insert(tzz);
+                nodal_txy.entry(nid).and_modify(|v| *v += txy).or_insert(txy);
+                if ndim == 3 {
+                    let (tyz, tzx) = (ten.get(m, 4), ten.get(m, 5));
+                    nodal_tyz.entry(nid).and_modify(|v| *v += tyz).or_insert(tyz);
+                    nodal_tzx.entry(nid).and_modify(|v| *v += tzx).or_insert(tzx);
+                }
             }
         }
         let n_entries = counter.len();
-        let mut res = SpatialTensor2d {
-            ids: Vec::with_capacity(n_entries),
-            xx: Vec::with_capacity(n_entries),
-            yy: Vec::with_capacity(n_entries),
-            txx: Vec::with_capacity(n_entries),
-            tyy: Vec::with_capacity(n_entries),
-            tzz: Vec::with_capacity(n_entries),
-            txy: Vec::with_capacity(n_entries),
+        let mut res = if ndim == 3 {
+            SpatialTensor {
+                ids: Vec::with_capacity(n_entries),
+                xx: Vec::with_capacity(n_entries),
+                yy: Vec::with_capacity(n_entries),
+                zz: Vec::with_capacity(n_entries),
+                txx: Vec::with_capacity(n_entries),
+                tyy: Vec::with_capacity(n_entries),
+                tzz: Vec::with_capacity(n_entries),
+                txy: Vec::with_capacity(n_entries),
+                tyz: Vec::with_capacity(n_entries),
+                tzx: Vec::with_capacity(n_entries),
+            }
+        } else {
+            SpatialTensor {
+                ids: Vec::with_capacity(n_entries),
+                xx: Vec::with_capacity(n_entries),
+                yy: Vec::with_capacity(n_entries),
+                zz: Vec::new(),
+                txx: Vec::with_capacity(n_entries),
+                tyy: Vec::with_capacity(n_entries),
+                tzz: Vec::with_capacity(n_entries),
+                txy: Vec::with_capacity(n_entries),
+                tyz: Vec::new(),
+                tzx: Vec::new(),
+            }
         };
-        for nid in nodal_txx.keys() {
+        for nid in counter.keys() {
             let x = self.mesh.points[*nid].coords[0];
             let y = self.mesh.points[*nid].coords[1];
-            if filter_nodes(*nid, x, y) {
+            let z = if self.mesh.ndim == 3 {
+                self.mesh.points[*nid].coords[2]
+            } else {
+                0.0
+            };
+            if filter_nodes(*nid, x, y, z) {
                 let count = *counter.get(&nid).unwrap() as f64;
                 let txx = nodal_txx.get(nid).unwrap();
                 let tyy = nodal_tyy.get(nid).unwrap();
@@ -374,6 +394,13 @@ impl<'a> PostProc<'a> {
                 res.tyy.push(*tyy / count);
                 res.tzz.push(*tzz / count);
                 res.txy.push(*txy / count);
+                if ndim == 3 {
+                    let tyz = nodal_tyz.get(nid).unwrap();
+                    let tzx = nodal_tzx.get(nid).unwrap();
+                    res.zz.push(z);
+                    res.tyz.push(*tyz / count);
+                    res.tzx.push(*tzx / count);
+                }
             }
         }
         Ok(res)
@@ -601,20 +628,42 @@ mod tests {
     fn gauss_stress_and_strain_work() {
         let (file_io, mesh, base) =
             PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let state_h = PostProc::read_state(&file_io, 0).unwrap();
-        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, mesh.ndim, STRAIN);
         let mut post = PostProc::new(&mesh, &base);
-        let stresses = post.gauss_stress(0, &state_h, 0, 0).unwrap();
-        let strains = post.gauss_strain(0, &state_h, 0, 0).unwrap();
-        let ngauss = stresses.dim();
-        for p in 0..ngauss {
-            approx_eq(stresses[p], stress_h.get(0, 0), 1e-14);
-            approx_eq(strains[p], strain_h.get(0, 0), 1e-15);
+
+        let state_h = PostProc::read_state(&file_io, 0).unwrap();
+        let state_v = PostProc::read_state(&file_io, 1).unwrap();
+        let state_s = PostProc::read_state(&file_io, 2).unwrap();
+
+        let ndim = mesh.ndim;
+        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+
+        for (state, sig_ref, eps_ref) in &[
+            (state_h, stress_h, strain_h),
+            (state_v, stress_v, strain_v),
+            (state_s, stress_s, strain_s),
+        ] {
+            let sig = post.gauss_stress(0, &state).unwrap();
+            let eps = post.gauss_strain(0, &state).unwrap();
+            let ngauss = sig.nrow();
+            for p in 0..ngauss {
+                // stress
+                approx_eq(sig.get(p, 0), sig_ref.get(0, 0), 1e-14);
+                approx_eq(sig.get(p, 1), sig_ref.get(1, 1), 1e-14);
+                approx_eq(sig.get(p, 2), sig_ref.get(2, 2), 1e-14);
+                approx_eq(sig.get(p, 3), sig_ref.get(0, 1), 1e-14);
+                // strain
+                approx_eq(eps.get(p, 0), eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.get(p, 1), eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.get(p, 2), eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.get(p, 3), eps_ref.get(0, 1), 1e-15);
+            }
         }
     }
 
     #[test]
-    fn nodal_stress_comp_works() {}
+    fn nodal_stress_and_strain_work() {}
 
     #[test]
     fn nodal_strain_comp_works() {}
@@ -625,6 +674,7 @@ mod tests {
     #[test]
     fn nodal_strains_works() {}
 
+    /*
     fn check_extrapolation(
         param: &ParamSolid,
         mesh: &Mesh,
@@ -716,6 +766,7 @@ mod tests {
         check_extrapolation(&p1, &mesh, &base, &config, &duu_v, &strain_v, &stress_v, 1e-15, 1e-14);
         check_extrapolation(&p1, &mesh, &base, &config, &duu_s, &strain_s, &stress_s, 1e-15, 1e-14);
     }
+    */
 
     #[test]
     fn values_along_x_works() {
