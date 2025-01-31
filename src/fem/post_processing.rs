@@ -533,11 +533,12 @@ mod tests {
     }
 
     #[test]
-    fn read_essential_works() {
+    fn read_essential_and_state_work() {
         // generate files (uncomment the next line)
-        // generate_artificial_2d(1500.0, 0.25, 0.0123);
+        let (young, poisson, strain) = (1500.0, 0.25, 0.0123);
+        // generate_artificial_2d(young, poisson, strain);
 
-        // read files
+        // read essential
         let (file_io, mesh, base) =
             PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
         assert_eq!(file_io.indices, &[0, 1, 2]);
@@ -548,10 +549,36 @@ mod tests {
         assert_eq!(base.amap.get(1).unwrap().name(), "Solid");
         assert_eq!(base.emap.get(&mesh.cells[0]).unwrap().n_equation, 6);
         assert_eq!(base.equations.n_equation, 10);
-    }
 
-    #[test]
-    fn read_state_works() {}
+        // read state
+        let ndim = mesh.ndim;
+        let state_h = PostProc::read_state(&file_io, 0).unwrap();
+        let state_v = PostProc::read_state(&file_io, 1).unwrap();
+        let state_s = PostProc::read_state(&file_io, 2).unwrap();
+        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(young, poisson, ndim, strain);
+        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(young, poisson, ndim, strain);
+        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(young, poisson, ndim, strain);
+        for id in 0..3 {
+            vec_approx_eq(state_h.gauss[id].solid[0].stress.vector(), stress_h.vector(), 1e-14);
+            vec_approx_eq(state_v.gauss[id].solid[0].stress.vector(), stress_v.vector(), 1e-14);
+            vec_approx_eq(state_s.gauss[id].solid[0].stress.vector(), stress_s.vector(), 1e-14);
+            vec_approx_eq(
+                state_h.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
+                strain_h.vector(),
+                1e-15,
+            );
+            vec_approx_eq(
+                state_v.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
+                strain_v.vector(),
+                1e-15,
+            );
+            vec_approx_eq(
+                state_s.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
+                strain_s.vector(),
+                1e-15,
+            );
+        }
+    }
 
     #[test]
     fn new_works() {}
