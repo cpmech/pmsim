@@ -492,7 +492,7 @@ mod tests {
     use gemlab::mesh::{Features, Mesh, Samples};
     use gemlab::util::any_x;
     use russell_lab::{approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
-    use russell_tensor::{Mandel, Tensor2};
+    use russell_tensor::Tensor2;
 
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
@@ -675,123 +675,44 @@ mod tests {
             let sig = post.nodal_stress(0, &state).unwrap();
             let eps = post.nodal_strain(0, &state).unwrap();
             let nnode = sig.nrow();
-            for p in 0..nnode {
+            for m in 0..nnode {
                 // stress
-                approx_eq(sig.get(p, 0), sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.get(p, 1), sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.get(p, 2), sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.get(p, 3), sig_ref.get(0, 1), 1e-14);
+                approx_eq(sig.get(m, 0), sig_ref.get(0, 0), 1e-14);
+                approx_eq(sig.get(m, 1), sig_ref.get(1, 1), 1e-14);
+                approx_eq(sig.get(m, 2), sig_ref.get(2, 2), 1e-14);
+                approx_eq(sig.get(m, 3), sig_ref.get(0, 1), 1e-14);
                 // strain
-                approx_eq(eps.get(p, 0), eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.get(p, 1), eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.get(p, 2), eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.get(p, 3), eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.get(m, 0), eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.get(m, 1), eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.get(m, 2), eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.get(m, 3), eps_ref.get(0, 1), 1e-15);
             }
         }
     }
 
     #[test]
-    fn nodal_strain_comp_works() {}
-
-    #[test]
-    fn nodal_stresses_works() {}
-
-    #[test]
-    fn nodal_strains_works() {}
-
-    /*
-    fn check_extrapolation(
-        param: &ParamSolid,
-        mesh: &Mesh,
-        base: &FemBase,
-        config: &Config,
-        duu: &Vector,
-        strain_correct: &Tensor2,
-        stress_correct: &Tensor2,
-        tol_strain: f64,
-        tol_stress: f64,
-    ) {
-        // update displacement
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
-        vec_copy(&mut state.duu, &duu).unwrap();
-        vec_update(&mut state.uu, 1.0, &duu).unwrap();
-
-        // update stress
-        let ncell = mesh.cells.len();
-        let mut elements = Vec::with_capacity(ncell);
-        for cell_id in 0..mesh.cells.len() {
-            let mut elem = ElementSolid::new(&mesh, &base, &config, &param, cell_id).unwrap();
-            elem.initialize_internal_values(&mut state).unwrap();
-            elem.update_secondary_values(&mut state).unwrap();
-            elements.push(elem);
-        }
-
-        // perform extrapolation
+    fn nodal_stresses_and_strains_work() {
+        let (file_io, mesh, base) =
+            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
-        let cell_ids: Vec<_> = (0..ncell).into_iter().collect();
-        let nodal_stress = post.nodal_stresses(&cell_ids, &state, |_, _, _| true).unwrap();
-        let nodal_strain = post.nodal_strains(&cell_ids, &state, |_, _, _| true).unwrap();
-
-        // check the results
-        for i in 0..nodal_stress.ids.len() {
-            // strain
-            let strain = Tensor2::from_matrix(
-                &[
-                    [nodal_strain.txx[i], nodal_strain.txy[i], 0.0],
-                    [nodal_strain.txy[i], nodal_strain.tyy[i], 0.0],
-                    [0.0, 0.0, nodal_strain.tzz[i]],
-                ],
-                Mandel::Symmetric2D,
-            )
-            .unwrap();
-            vec_approx_eq(strain.vector(), strain_correct.vector(), tol_strain);
-            // stress
-            let stress = Tensor2::from_matrix(
-                &[
-                    [nodal_stress.txx[i], nodal_stress.txy[i], 0.0],
-                    [nodal_stress.txy[i], nodal_stress.tyy[i], 0.0],
-                    [0.0, 0.0, nodal_stress.tzz[i]],
-                ],
-                Mandel::Symmetric2D,
-            )
-            .unwrap();
-            vec_approx_eq(stress.vector(), stress_correct.vector(), tol_stress);
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+            let sig = post.nodal_stresses(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
+            let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
+            let nnode = sig.txx.len();
+            for m in 0..nnode {
+                // stress
+                approx_eq(sig.txx[m], sig_ref.get(0, 0), 1e-14);
+                approx_eq(sig.tyy[m], sig_ref.get(1, 1), 1e-14);
+                approx_eq(sig.tzz[m], sig_ref.get(2, 2), 1e-14);
+                approx_eq(sig.txy[m], sig_ref.get(0, 1), 1e-14);
+                // strain
+                approx_eq(eps.txx[m], eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.tyy[m], eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.tzz[m], eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.txy[m], eps_ref.get(0, 1), 1e-15);
+            }
         }
     }
-
-    #[test]
-    fn extrapolate_tensor_2d_works() {
-        let young = 1.0;
-        let poisson = 0.25;
-        let p1 = ParamSolid {
-            density: 1.0,
-            stress_strain: StressStrain::LinearElastic { young, poisson },
-            ngauss: None,
-        };
-
-        // strain magnitude (either ε_xx, ε_yy, or ε_xy)
-        const STRAIN: f64 = 4.56;
-
-        let mesh = Samples::three_tri3();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let mut config = Config::new(&mesh);
-        config.update_model_settings(1).save_strain = true;
-
-        // displacement fields and solutions
-        let ndim = mesh.ndim;
-        let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
-        let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
-        let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
-        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(young, poisson, ndim, STRAIN);
-        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(young, poisson, ndim, STRAIN);
-        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(young, poisson, ndim, STRAIN);
-
-        // test
-        check_extrapolation(&p1, &mesh, &base, &config, &duu_h, &strain_h, &stress_h, 1e-15, 1e-14);
-        check_extrapolation(&p1, &mesh, &base, &config, &duu_v, &strain_v, &stress_v, 1e-15, 1e-14);
-        check_extrapolation(&p1, &mesh, &base, &config, &duu_s, &strain_s, &stress_s, 1e-15, 1e-14);
-    }
-    */
 
     #[test]
     fn values_along_x_works() {
