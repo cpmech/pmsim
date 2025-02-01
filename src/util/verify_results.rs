@@ -127,7 +127,7 @@ pub fn verify_results(
                 let local_state = &secondary_values.solid[ip];
                 for i in 0..tensor_vec_dim {
                     let a = local_state.stress.vector()[i];
-                    let b = if i > 3 {
+                    let b = if i > 2 {
                         compare.stresses[e][ip][i] * SQRT_2 // convert to Mandel
                     } else {
                         compare.stresses[e][ip][i]
