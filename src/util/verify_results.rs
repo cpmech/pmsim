@@ -6,12 +6,15 @@ use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
 
 /// Calculates the error and returns true (fail) if the difference is greater than the tolerance
-fn failed(a: f64, b: f64, tol: f64, verbose: bool) -> bool {
+fn failed(a: f64, b: f64, tol: f64, verbose: usize) -> bool {
     let diff = f64::abs(a - b);
     let fail = diff > tol;
-    if verbose {
+    if verbose == 1 {
         let mrk = if fail { "❌" } else { "➖" };
         print!("{:15.6e}{} ", diff, mrk);
+    } else if verbose == 2 {
+        let mrk = if fail { "❌" } else { "➖" };
+        print!("{:9.2e} vs {:9.2e}({:9.2e}{}) ", a, b, diff, mrk);
     }
     fail
 }
@@ -25,7 +28,10 @@ fn failed(a: f64, b: f64, tol: f64, verbose: bool) -> bool {
 /// * `ref_filename` -- The filename of the file with the reference results (located in `data/results`)
 /// * `tol_displacement` -- A tolerance to compare displacements
 /// * `tol_stress` -- A tolerance to compare stresses
-/// * `verbose` -- Enables the verbose mode
+/// * `verbose` -- Enables the verbose mode:
+///   - 0 => no output
+///   - 1 => shows error
+///   - 2 => shows values and error
 ///
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
 pub fn verify_results(
@@ -35,7 +41,7 @@ pub fn verify_results(
     ref_filename: &str,
     tol_displacement: f64,
     tol_stress: f64,
-    verbose: bool,
+    verbose: usize,
 ) -> Result<bool, StrError> {
     // constants
     let dofs = [Dof::Ux, Dof::Uy, Dof::Uz];
@@ -56,10 +62,10 @@ pub fn verify_results(
     // compare results
     let mut all_good = true;
     let summary = FileIo::read_json(&file_io.path_summary())?;
+    if summary.indices.len() != reference.all.len() {
+        return Err("the number of steps must match the reference's number of steps");
+    }
     for step in &summary.indices {
-        if *step >= reference.all.len() {
-            return Err("the number of load steps must match the reference data");
-        }
         let compare = &reference.all[*step];
         if npoint != compare.displacement.len() {
             return Err("the number of points in the mesh must equal the corresponding number in the reference data");
@@ -73,7 +79,7 @@ pub fn verify_results(
         // load state
         let fem_state = FemState::read_json(&file_io.path_state(*step))?;
 
-        if verbose {
+        if verbose > 0 {
             println!(
                 "\nSTEP # {} ===============================================================",
                 step
@@ -81,7 +87,7 @@ pub fn verify_results(
         }
 
         // check displacements
-        if verbose {
+        if verbose > 0 {
             println!("ERROR ON DISPLACEMENTS");
         }
         for p in 0..npoint {
@@ -96,13 +102,15 @@ pub fn verify_results(
                     all_good = false;
                 }
             }
-            if verbose {
+            if verbose > 0 {
                 println!();
             }
         }
 
         // check stresses
-        println!("ERROR ON STRESSES");
+        if verbose > 0 {
+            println!("ERROR ON STRESSES");
+        }
         for e in 0..ncell {
             let ngauss = compare.stresses[e].len();
             if ngauss < 1 {
@@ -126,7 +134,9 @@ pub fn verify_results(
                         all_good = false;
                     }
                 }
-                println!();
+                if verbose > 0 {
+                    println!();
+                }
             }
         }
     }

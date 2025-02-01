@@ -118,7 +118,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         "spo_754_footing.json",
         tol_displacement,
         tol_stress,
-        true,
+        1,
     )?;
     assert!(all_good);
 

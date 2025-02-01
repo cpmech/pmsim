@@ -112,7 +112,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         "spo_von_mises_single_element_2d.json",
         tol_displacement,
         tol_stress,
-        true,
+        1,
     )?;
     assert!(all_good);
 
