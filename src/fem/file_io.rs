@@ -68,8 +68,8 @@ impl FileIo {
         fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
 
         // write the mesh
-        let path = format!("{}/{}-mesh.json", out_dir, filename_stem);
-        mesh.write_json(&path)?;
+        let path = format!("{}/{}-mesh.msh", out_dir, filename_stem);
+        mesh.write_text_file(&path)?;
 
         // write the FEM base
         let path = format!("{}/{}-base.json", out_dir, filename_stem);
@@ -88,7 +88,7 @@ impl FileIo {
     /// Generates the filename path for the mesh file
     pub fn path_mesh(&self) -> String {
         if self.active {
-            format!("{}/{}-mesh.json", self.output_dir, self.filename_stem)
+            format!("{}/{}-mesh.msh", self.output_dir, self.filename_stem)
         } else {
             "".to_string()
         }
