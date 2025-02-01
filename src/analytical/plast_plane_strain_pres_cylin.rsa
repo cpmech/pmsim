@@ -1,0 +1,162 @@
+use crate::StrError;
+use russell_lab::math::SQRT_3;
+
+/// Solution of the elastic plane-strain version of the pressurized cylinder
+///
+/// The solution is given by Ref #1, starting from page 245.
+///
+/// ```text
+///              , - - ,
+///          , '         ' ,
+///        ,                 ,
+///       ,      .-'''-.      ,
+///      ,      / ↖ ↑ ↗ \      ,
+///      ,     |  ← P →  |     ,
+///      ,      \ ↙ ↓ ↘ /      ,
+///       ,      `-...-'      ,
+///        ,                 ,
+///          ,            , '
+///            ' - , ,  '
+/// ```
+///
+/// # Reference
+///
+/// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
+///    Theory and applications, Wiley, 791p
+pub struct PlastPlaneStrainPresCylin {
+    // input
+    a: f64,  // Inner radius
+    b: f64,  // Outer radius
+    E: f64,  // Young's modulus
+    ν: f64,  // Poisson's coefficient
+    σy: f64, // Uniaxial yield stress
+
+    // derived data
+    coef: f64, // auxiliary
+    Y: f64,    // auxiliary
+    P0: f64,   // Pressure at the elastic/plastic transition (TODO: check this)
+    Plim: f64, // limiting pressure
+}
+
+impl PlastPlaneStrainPresCylin {
+    /// Allocates a new instance
+    ///
+    /// # Input
+    ///
+    /// * `a` -- inner radius
+    /// * `b` -- outer radius
+    /// * `pp` -- pressure (magnitude)
+    /// * `E` -- Young's modulus
+    /// * `ν` -- Poisson's coefficient
+    /// * `sy` --uniaxial yield stress
+    ///
+    pub fn new(a: f64, b: f64, pp: f64, E: f64, ν: f64, σy: f64) -> Result<Self, StrError> {
+        if a <= 1e-10 {
+            return Err("a must be > 1e-10");
+        }
+        if b < a {
+            return Err("b must be > a");
+        }
+        if pp < 0.0 {
+            return Err("the magnitude of the pressure must be positive");
+        }
+        let coef = a * a / (b * b);
+        let Y = 2.0 * σy / SQRT_3;
+        let P0 = Y * (1.0 - coef) / 2.0;
+        let Plim = Y * f64::ln(b / a);
+        Ok(PlastPlaneStrainPresCylin {
+            a,
+            b,
+            E,
+            ν,
+            σy,
+            coef,
+            Y,
+            P0,
+            Plim,
+        })
+    }
+
+    /// Calculates the radial stress
+    pub fn sr(&self, r: f64) -> f64 {
+        assert!(r >= self.a && r <= self.b);
+        0.0
+    }
+
+    /// Calculates the hoop stress
+    pub fn sh(&self, r: f64) -> f64 {
+        assert!(r >= self.a && r <= self.b);
+        0.0
+    }
+
+    /// Calculates the out-of-plane longitudinal stress
+    pub fn sz(&self, r: f64) -> f64 {
+        assert!(r >= self.a && r <= self.b);
+        0.0
+    }
+
+    /// Calculates the radial displacement
+    pub fn ur(&self, r: f64) -> f64 {
+        assert!(r >= self.a && r <= self.b);
+        0.0
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::PlastPlaneStrainPresCylin;
+    use crate::base::DEFAULT_TEST_DIR;
+    use plotpy::{linspace, Curve, Plot};
+    use russell_lab::approx_eq;
+
+    const SAVE_FIGURE: bool = false;
+
+    const E: f64 = 1500.0;
+    const NU: f64 = 0.25;
+
+    #[test]
+    fn formulae_are_correct_1() {
+        let (r1, r2) = (1.0, 2.0);
+        let (p1, p2) = (200.0, 100.0);
+        let ana = PlastPlaneStrainPresCylin::new(r1, r2, p1, p2, E, NU).unwrap();
+
+        approx_eq(ana.sr(r1), -p1, 1e-15);
+        approx_eq(ana.sr(r2), -p2, 1e-15);
+        assert!(ana.ur(r1) > 0.0);
+        assert_eq!(ana.ur(r2), 0.0);
+    }
+
+    #[test]
+    fn formulae_are_correct_2() {
+        let (r1, r2) = (1.0, 2.0);
+        let p = 200.0;
+        let ana = PlastPlaneStrainPresCylin::new(r1, r2, p, 0.0, E, NU).unwrap();
+
+        approx_eq(ana.sr(r1), -p, 1e-15);
+        approx_eq(ana.sr(r2), 0.0, 1e-15);
+        approx_eq(ana.sh(r1), (5.0 / 3.0) * p, 1e-15);
+        assert!(ana.ur(r1) > 0.0);
+        assert!(ana.ur(r2) > 0.0);
+
+        if SAVE_FIGURE {
+            let rr = linspace(r1, r2, 201);
+            let xx: Vec<_> = rr.iter().map(|r| *r / r2).collect();
+            let yy1: Vec<_> = rr.iter().map(|r| ana.sr(*r) / p).collect();
+            let yy2: Vec<_> = rr.iter().map(|r| ana.sh(*r) / p).collect();
+            let mut curve1 = Curve::new();
+            let mut curve2 = Curve::new();
+            curve1.set_label("$\\sigma_r/p$");
+            curve2.set_label("$\\sigma_\\theta/p$");
+            curve1.draw(&xx, &yy1);
+            curve2.draw(&xx, &yy2);
+            let mut plot = Plot::new();
+            plot.add(&curve1)
+                .add(&curve2)
+                .grid_labels_legend("dimensionless distance, $r/r_2$", "dimensionless stress")
+                .save(&format!("{}/press_cylin_plane_strain_2.svg", DEFAULT_TEST_DIR))
+                .unwrap();
+        }
+    }
+}

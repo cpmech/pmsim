@@ -73,7 +73,7 @@ impl<'a> PostProc<'a> {
 
         // load the mesh
         let path_mesh = file_io.path_mesh();
-        let mesh = Mesh::from_text_file(&path_mesh)?;
+        let mesh = Mesh::read(&path_mesh)?;
 
         // load the FemBase
         let path_base = file_io.path_base();

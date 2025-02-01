@@ -40,7 +40,7 @@ use russell_lab::*;
 // result in k(T_inf) = kᵣ as required by the analytical solution.
 
 const NAME: &str = "test_heat_arpaci_nonlinear_1d";
-
+const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 
 #[test]
@@ -52,7 +52,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     const BETA: f64 = 0.01;
 
     // mesh
-    let mesh = generate_or_read_mesh(L, false);
+    let mesh = generate_or_read_mesh(L, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -146,7 +146,7 @@ fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua4).unwrap();
 
         // write mesh
-        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
+        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
         mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
@@ -154,6 +154,6 @@ fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
+        Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
 }

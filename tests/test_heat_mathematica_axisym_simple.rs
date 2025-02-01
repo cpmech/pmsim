@@ -36,6 +36,7 @@ use pmsim::{prelude::*, StrError};
 // Constant conductivity kx = ky = 10.0
 
 const NAME: &str = "test_heat_mathematica_axisym_simple";
+const GENERATE_MESH: bool = false;
 
 #[test]
 fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
@@ -43,7 +44,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let (rin, rout, h) = (1.0, 2.0, 0.1);
 
     // mesh
-    let mesh = generate_or_read_mesh(rin, rout, h, false);
+    let mesh = generate_or_read_mesh(rin, rout, h, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -104,7 +105,7 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         block.set_ndiv(&[10, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
-        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
+        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
         mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
@@ -112,6 +113,6 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
+        Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
 }

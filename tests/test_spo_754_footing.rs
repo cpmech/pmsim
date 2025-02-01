@@ -12,7 +12,7 @@ const SAVE_FIGURE: bool = true;
 #[test]
 fn test_spo_754_footing() -> Result<(), StrError> {
     // mesh
-    let mesh = Mesh::from_text_file(&format!("data/meshes/{}.msh", NAME))?;
+    let mesh = Mesh::read(&format!("data/meshes/{}.msh", NAME))?;
     if SAVE_FIGURE {
         mesh.check_all()?;
         let mut opt = Figure::new();

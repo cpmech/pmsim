@@ -69,7 +69,7 @@ impl FileIo {
 
         // write the mesh
         let path = format!("{}/{}-mesh.msh", out_dir, filename_stem);
-        mesh.write_text_file(&path)?;
+        mesh.write(&path)?;
 
         // write the FEM base
         let path = format!("{}/{}-base.json", out_dir, filename_stem);

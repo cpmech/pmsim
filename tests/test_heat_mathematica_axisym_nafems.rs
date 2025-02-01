@@ -54,6 +54,7 @@ use pmsim::{prelude::*, StrError};
 // Constant conductivity kx = ky = 52
 
 const NAME: &str = "test_heat_mathematica_axisym_nafems";
+const GENERATE_MESH: bool = false;
 const REF_POINT_MARKER: PointMarker = -1;
 
 #[test]
@@ -63,8 +64,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     let (ya, yb, h) = (0.04, 0.1, 0.14);
 
     // mesh
-    let generate = false;
-    let mesh = generate_or_read_mesh(rin, rref, rout, ya, yb, h, generate);
+    let mesh = generate_or_read_mesh(rin, rref, rout, ya, yb, h, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -139,7 +139,7 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         mesh.points[ref_points[0]].marker = REF_POINT_MARKER;
 
         // write mesh
-        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
+        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // reference point
         let mut circle = Canvas::new();
@@ -168,6 +168,6 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
+        Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
 }

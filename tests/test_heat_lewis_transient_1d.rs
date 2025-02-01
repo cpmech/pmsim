@@ -36,13 +36,13 @@ use russell_lab::*;
 // Coefficient ρ = 1
 
 const NAME: &str = "test_heat_lewis_transient_1d";
-
+const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 
 #[test]
 fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     // mesh
-    let mesh = generate_or_read_mesh(false);
+    let mesh = generate_or_read_mesh(GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -143,7 +143,7 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
         // write mesh
-        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
+        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
         mesh.draw(None, &format!("{}/{}_mesh.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
@@ -151,6 +151,6 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
+        Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
 }

@@ -173,7 +173,7 @@ fn generate_or_read_mesh(att: usize, kind: GeoKind, generate: bool) -> Mesh {
         }
 
         // write mesh
-        mesh.write_json(&format!("{}/{}_{}.json", DEFAULT_TEST_DIR, NAME, k_str))
+        mesh.write(&format!("{}/{}_{}.msh", DEFAULT_TEST_DIR, NAME, k_str))
             .unwrap();
 
         // write VTU
@@ -184,6 +184,6 @@ fn generate_or_read_mesh(att: usize, kind: GeoKind, generate: bool) -> Mesh {
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}_{}.json", NAME, k_str)).unwrap()
+        Mesh::read(&format!("data/meshes/{}_{}.msh", NAME, k_str)).unwrap()
     }
 }

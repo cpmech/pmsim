@@ -34,6 +34,7 @@ use pmsim::StrError;
 // NOTE: using 4 integration points because it gives better results with Qua8
 
 const NAME: &str = "test_solid_felippa_thick_cylinder_axisym";
+const GENERATE_MESH: bool = false;
 
 #[test]
 fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
@@ -42,7 +43,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // mesh
     let (rin, rout, thickness) = (4.0, 10.0, 2.0);
-    let mesh = generate_or_read_mesh(rin, rout, thickness, false);
+    let mesh = generate_or_read_mesh(rin, rout, thickness, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -114,7 +115,7 @@ fn generate_or_read_mesh(rin: f64, rout: f64, thickness: f64, generate: bool) ->
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
         // write mesh
-        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
+        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
         mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
@@ -122,6 +123,6 @@ fn generate_or_read_mesh(rin: f64, rout: f64, thickness: f64, generate: bool) ->
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
+        Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
 }
