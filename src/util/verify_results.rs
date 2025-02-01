@@ -33,6 +33,8 @@ fn failed(a: f64, b: f64, tol: f64, verbose: usize) -> bool {
 ///   - 1 => shows error
 ///   - 2 => shows values and error
 ///
+/// **Note:** The first pmsim's file with index 0 is ignored.
+///
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
 pub fn verify_results(
     mesh: &Mesh,
@@ -62,11 +64,11 @@ pub fn verify_results(
     // compare results
     let mut all_good = true;
     let summary = FileIo::read_json(&file_io.path_summary())?;
-    if summary.indices.len() != reference.all.len() {
-        return Err("the number of steps must match the reference's number of steps");
+    if summary.indices.len() != reference.all.len() + 1 {
+        return Err("the number of steps must equal the reference's number of steps + 1");
     }
-    for step in &summary.indices {
-        let compare = &reference.all[*step];
+    for step in 1..summary.indices.len() {
+        let compare = &reference.all[step - 1];
         if npoint != compare.displacement.len() {
             return Err("the number of points in the mesh must equal the corresponding number in the reference data");
         }
@@ -77,7 +79,7 @@ pub fn verify_results(
         }
 
         // load state
-        let fem_state = FemState::read_json(&file_io.path_state(*step))?;
+        let fem_state = FemState::read_json(&file_io.path_state(step))?;
 
         if verbose > 0 {
             println!(
