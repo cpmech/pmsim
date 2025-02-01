@@ -19,7 +19,7 @@ fn main() -> Result<(), StrError> {
     let options = Options::from_args();
 
     // load data
-    let (file_io, mesh, base) = PostProc::read_essential(&options.out_dir, &options.fn_stem)?;
+    let (file_io, mesh, base) = PostProc::read_summary(&options.out_dir, &options.fn_stem)?;
 
     // write VTU files
     for index in &file_io.indices {

@@ -86,8 +86,8 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
 }
 
 fn post_processing() -> Result<(), StrError> {
-    // load essential files
-    let (file_io, mesh, base) = PostProc::read_essential(DEFAULT_OUT_DIR, NAME)?;
+    // load summary and associated files
+    let (file_io, mesh, base) = PostProc::read_summary(DEFAULT_OUT_DIR, NAME)?;
 
     // boundaries
     let features = Features::new(&mesh, false);

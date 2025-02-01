@@ -62,11 +62,14 @@ pub struct PostProc<'a> {
 }
 
 impl<'a> PostProc<'a> {
-    /// Reads the essential files for post-processing
-    pub fn read_essential(out_dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
+    /// Reads the summary and associated files for post-processing
+    pub fn read_summary(out_dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
         // load FileIo
         let full_path = format!("{}/{}-summary.json", out_dir, fn_stem);
-        let file_io = FileIo::read_json(&full_path)?;
+        let mut file_io = FileIo::read_json(&full_path)?;
+
+        // update output_dir because the files may have been moved
+        file_io.output_dir = out_dir.to_string();
 
         // load the mesh
         let path_mesh = file_io.path_mesh();
@@ -673,8 +676,7 @@ mod tests {
         // generate_artificial_2d();
 
         // read essential
-        let (file_io, mesh, base) =
-            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         assert_eq!(file_io.indices, &[0, 1, 2]);
         assert_eq!(file_io.times, &[0.0, 1.0, 2.0]);
         assert_eq!(mesh.ndim, 2);
@@ -745,8 +747,7 @@ mod tests {
 
     #[test]
     fn gauss_stress_and_strain_work() {
-        let (file_io, mesh, base) =
-            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.gauss_stress(0, &state).unwrap();
@@ -769,8 +770,7 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_strains_work() {
-        let (file_io, mesh, base) =
-            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.gauss_stresses(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
@@ -793,8 +793,7 @@ mod tests {
 
     #[test]
     fn nodal_stress_and_strain_work() {
-        let (file_io, mesh, base) =
-            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.nodal_stress(0, &state).unwrap();
@@ -817,8 +816,7 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_strains_work() {
-        let (file_io, mesh, base) =
-            PostProc::read_essential("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.nodal_stresses(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();

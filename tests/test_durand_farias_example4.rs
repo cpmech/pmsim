@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
-use pmsim::analytical::FlexibleFooting2d;
+use pmsim::analytical::ElastPlaneStrainFlexibleFoot;
 use pmsim::prelude::*;
 use russell_lab::*;
 
@@ -71,7 +71,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let nodal = post.nodal_stresses(&left_cells, &state, |_, x, _, _| x < hdx)?;
 
     // verification
-    let ana = FlexibleFooting2d {
+    let ana = ElastPlaneStrainFlexibleFoot {
         bb: B,
         hh: H,
         ww: W,
