@@ -131,7 +131,20 @@ impl PlastPlaneStrainPresCylin {
         Ok(c_root)
     }
 
-    pub fn plot_results(&self, pps: &[f64]) -> Plot {
+    /// Generates a Plot with the results
+    ///
+    /// # Input
+    ///
+    /// * `pps` -- a series of P values to plot the stresses
+    /// * `callback` -- a `(plot, index)` function to add extra (e.g. numerical) results.
+    ///   The index is:
+    ///     * 0 for the P vs ub plot
+    ///     * 1 for the σθ vs r plot
+    ///     * 2 for the σr vs r plot
+    pub fn plot_results<F>(&self, pps: &[f64], callback: F) -> Plot
+    where
+        F: Fn(&mut Plot, usize),
+    {
         let mut curve = Curve::new();
         let ppp = linspace(0.0, self.get_pp_lim() - 1e-10, 201);
         let uub: Vec<_> = ppp.iter().map(|pp| self.calc_ub(*pp).unwrap()).collect();
@@ -140,8 +153,9 @@ impl PlastPlaneStrainPresCylin {
         let mut plot = Plot::new();
         plot.set_gridspec("grid", 2, 4, "hspace=0.25,wspace=1.0")
             .set_subplot_grid("grid", "0", "0:3")
-            .add(&curve)
-            .grid_labels_legend("Radial displacement at outer face $u_b$", "Internal pressure $P$");
+            .add(&curve);
+        callback(&mut plot, 0);
+        plot.grid_labels_legend("Radial displacement at outer face $u_b$", "Internal pressure $P$");
 
         let rr = linspace(self.a, self.b, 201);
         let mut ssr = vec![0.0; rr.len()];
@@ -173,13 +187,15 @@ impl PlastPlaneStrainPresCylin {
             .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
             .draw();
 
-        plot.set_subplot_grid("grid", "0", "3")
-            .add(&leg)
-            .set_hide_axes(true)
-            .set_subplot_grid("grid", "1", "0:2")
-            .grid_and_labels("Radial coordinate $r$", "Hoop stress $\\sigma_\\theta$");
-        plot.set_subplot_grid("grid", "1", "2:4")
-            .grid_and_labels("Radial coordinate $r$", "Radial stress $\\sigma_r$");
+        plot.set_subplot_grid("grid", "0", "3").add(&leg).set_hide_axes(true);
+
+        plot.set_subplot_grid("grid", "1", "0:2");
+        callback(&mut plot, 1);
+        plot.grid_and_labels("Radial coordinate $r$", "Hoop stress $\\sigma_\\theta$");
+
+        plot.set_subplot_grid("grid", "1", "2:4");
+        callback(&mut plot, 2);
+        plot.grid_and_labels("Radial coordinate $r$", "Radial stress $\\sigma_r$");
 
         plot
     }
@@ -212,7 +228,7 @@ mod tests {
         approx_eq(ana.calc_c(ana.pp_lim - 1e-13).unwrap(), b, 1e-3);
 
         if SAVE_FIGURE {
-            let mut plot = ana.plot_results(&[0.1, 0.18]);
+            let mut plot = ana.plot_results(&[0.1, 0.18], |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
                 .save(&format!("{}/plast_plane_strain_pres_cylin.svg", DEFAULT_TEST_DIR))
                 .unwrap();
