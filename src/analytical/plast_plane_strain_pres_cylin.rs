@@ -1,4 +1,5 @@
 use crate::StrError;
+use plotpy::{linspace, Curve, Legend, Plot};
 use russell_lab::RootFinder;
 
 /// Solution of the elastic plane-strain version of the pressurized cylinder
@@ -129,6 +130,59 @@ impl PlastPlaneStrainPresCylin {
         })?;
         Ok(c_root)
     }
+
+    pub fn plot_results(&self, pps: &[f64]) -> Plot {
+        let mut curve = Curve::new();
+        let ppp = linspace(0.0, self.get_pp_lim() - 1e-10, 201);
+        let uub: Vec<_> = ppp.iter().map(|pp| self.calc_ub(*pp).unwrap()).collect();
+        curve.set_label("analytical").draw(&uub, &ppp);
+
+        let mut plot = Plot::new();
+        plot.set_gridspec("grid", 2, 4, "hspace=0.25,wspace=1.0")
+            .set_subplot_grid("grid", "0", "0:3")
+            .add(&curve)
+            .grid_labels_legend("Radial displacement at outer face $u_b$", "Internal pressure $P$");
+
+        let rr = linspace(self.a, self.b, 201);
+        let mut ssr = vec![0.0; rr.len()];
+        let mut ssh = vec![0.0; rr.len()];
+        for pp in pps {
+            for i in 0..rr.len() {
+                let (sr, sh) = self.calc_sr_sh(rr[i], *pp).unwrap();
+                ssr[i] = sr;
+                ssh[i] = sh;
+            }
+            let mut curve_a = Curve::new();
+            let mut curve_b = Curve::new();
+            curve_a.draw(&rr, &ssh);
+            curve_b.draw(&rr, &ssr);
+            plot.set_subplot_grid("grid", "1", "0:2").add(&curve_a);
+            plot.set_subplot_grid("grid", "1", "2:4").add(&curve_b);
+            let mut empty = Curve::new();
+            let str = format!(" P = {}", pp);
+            empty.set_label(&str).draw(&[0], &[0]);
+            plot.set_subplot_grid("grid", "0", "3")
+                .add(&empty)
+                .set_range(1.0, 2.0, 1.0, 2.0);
+        }
+
+        let mut leg = Legend::new();
+        leg.set_num_col(1)
+            .set_handle_len(2.5)
+            .set_outside(true)
+            .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
+            .draw();
+
+        plot.set_subplot_grid("grid", "0", "3")
+            .add(&leg)
+            .set_hide_axes(true)
+            .set_subplot_grid("grid", "1", "0:2")
+            .grid_and_labels("Radial coordinate $r$", "Hoop stress $\\sigma_\\theta$");
+        plot.set_subplot_grid("grid", "1", "2:4")
+            .grid_and_labels("Radial coordinate $r$", "Radial stress $\\sigma_r$");
+
+        plot
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -137,10 +191,9 @@ impl PlastPlaneStrainPresCylin {
 mod tests {
     use super::PlastPlaneStrainPresCylin;
     use crate::base::DEFAULT_TEST_DIR;
-    use plotpy::{linspace, Curve, Plot};
     use russell_lab::{approx_eq, math::SQRT_3};
 
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     #[test]
     fn formulae_are_correct_1() {
@@ -159,60 +212,8 @@ mod tests {
         approx_eq(ana.calc_c(ana.pp_lim - 1e-13).unwrap(), b, 1e-3);
 
         if SAVE_FIGURE {
-            let mut curve1 = Curve::new();
-            curve1.set_label("Pressure vs displacement");
-            let pp_vals = linspace(0.0, ana.get_pp_lim() - 1e-10, 201);
-            let ub_vals: Vec<_> = pp_vals.iter().map(|pp| ana.calc_ub(*pp).unwrap()).collect();
-            curve1.draw(&ub_vals, &pp_vals);
-
-            let pp = 0.1;
-            let str = format!("P = {}", pp);
-            let rr_vals = linspace(a, b, 201);
-            let mut sr_vals = vec![0.0; rr_vals.len()];
-            let mut sh_vals = vec![0.0; rr_vals.len()];
-            for i in 0..rr_vals.len() {
-                let (sr, sh) = ana.calc_sr_sh(rr_vals[i], pp).unwrap();
-                sr_vals[i] = sr;
-                sh_vals[i] = sh;
-            }
-            let mut curve2a = Curve::new();
-            let mut curve3a = Curve::new();
-            curve2a.set_label(&str);
-            curve3a.set_label(&str);
-            curve2a.draw(&rr_vals, &sh_vals);
-            curve3a.draw(&rr_vals, &sr_vals);
-
-            let pp = 0.18;
-            let str = format!("P = {}", pp);
-            let rr_vals = linspace(a, b, 201);
-            let mut sr_vals = vec![0.0; rr_vals.len()];
-            let mut sh_vals = vec![0.0; rr_vals.len()];
-            for i in 0..rr_vals.len() {
-                let (sr, sh) = ana.calc_sr_sh(rr_vals[i], pp).unwrap();
-                sr_vals[i] = sr;
-                sh_vals[i] = sh;
-            }
-            let mut curve2b = Curve::new();
-            let mut curve3b = Curve::new();
-            curve2b.set_label(&str);
-            curve3b.set_label(&str);
-            curve2b.draw(&rr_vals, &sh_vals);
-            curve3b.draw(&rr_vals, &sr_vals);
-
-            let mut plot = Plot::new();
-            plot.set_gridspec("grid", 2, 2, "hspace=0.25,wspace=0.3")
-                .set_subplot_grid("grid", "0", ":")
-                .add(&curve1)
-                .grid_labels_legend("radial displacement at outer face $u_b$", "internal pressure $P$")
-                .set_subplot_grid("grid", "1", "0")
-                .add(&curve2a)
-                .add(&curve2b)
-                .grid_labels_legend("radial coordinate $r$", "hoop stress $\\sigma_\\theta$")
-                .set_subplot_grid("grid", "1", "1")
-                .add(&curve3a)
-                .add(&curve3b)
-                .grid_labels_legend("radial coordinate $r$", "radial stress $\\sigma_r$")
-                .set_figure_size_points(600.0, 450.0)
+            let mut plot = ana.plot_results(&[0.1, 0.18]);
+            plot.set_figure_size_points(600.0, 450.0)
                 .save(&format!("{}/plast_plane_strain_pres_cylin.svg", DEFAULT_TEST_DIR))
                 .unwrap();
         }
