@@ -111,14 +111,16 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     // verify the results
     let tol_displacement = 1e-1;
     let tol_stress = 1e+3;
-    verify_results(
+    let all_good = verify_results(
         &mesh,
+        &base,
         &file_io,
         "spo_754_footing.json",
         tol_displacement,
         tol_stress,
         true,
     )?;
+    assert!(all_good);
 
     Ok(())
 }

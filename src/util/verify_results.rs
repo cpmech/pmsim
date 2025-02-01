@@ -1,9 +1,20 @@
-use crate::fem::{FemState, FileIo};
+use crate::base::Dof;
+use crate::fem::{FemBase, FemState, FileIo};
 use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::approx_eq;
 use russell_tensor::SQRT_2;
+
+/// Calculates the error and returns true (fail) if the difference is greater than the tolerance
+fn failed(a: f64, b: f64, tol: f64, verbose: bool) -> bool {
+    let diff = f64::abs(a - b);
+    let fail = diff > tol;
+    if verbose {
+        let mrk = if fail { "❌" } else { "➖" };
+        print!("{:15.6e}{} ", diff, mrk);
+    }
+    fail
+}
 
 /// Compares the FEM results (displacement, stress, strain) against reference data
 ///
@@ -15,15 +26,19 @@ use russell_tensor::SQRT_2;
 /// * `tol_displacement` -- A tolerance to compare displacements
 /// * `tol_stress` -- A tolerance to compare stresses
 /// * `verbose` -- Enables the verbose mode
+///
+/// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
 pub fn verify_results(
     mesh: &Mesh,
+    base: &FemBase,
     file_io: &FileIo,
     ref_filename: &str,
     tol_displacement: f64,
     tol_stress: f64,
     verbose: bool,
-) -> Result<(), StrError> {
+) -> Result<bool, StrError> {
     // constants
+    let dofs = [Dof::Ux, Dof::Uy, Dof::Uz];
     let ndim = mesh.ndim;
     let tensor_vec_dim = 2 * ndim;
     let npoint = mesh.points.len();
@@ -39,6 +54,7 @@ pub fn verify_results(
     let reference = ReferenceDataSet::read_json(format!("data/results/{}", ref_filename).as_str())?;
 
     // compare results
+    let mut all_good = true;
     let summary = FileIo::read_json(&file_io.path_summary())?;
     for step in &summary.indices {
         if *step >= reference.all.len() {
@@ -58,7 +74,10 @@ pub fn verify_results(
         let fem_state = FemState::read_json(&file_io.path_state(*step))?;
 
         if verbose {
-            println!("\nSTEP # {} ===================================================", step);
+            println!(
+                "\nSTEP # {} ===============================================================",
+                step
+            );
         }
 
         // check displacements
@@ -70,12 +89,12 @@ pub fn verify_results(
                 return Err("the space dimension (ndim) must equal the reference data ndim");
             }
             for i in 0..ndim {
-                let a = fem_state.uu[ndim * p + i];
+                let eq = base.equations.eq(p, dofs[i]).unwrap();
+                let a = fem_state.uu[eq];
                 let b = compare.displacement[p][i];
-                if verbose {
-                    print!("{:13.6e} ", f64::abs(a - b));
+                if failed(a, b, tol_displacement, verbose) {
+                    all_good = false;
                 }
-                approx_eq(a, b, tol_displacement);
             }
             if verbose {
                 println!();
@@ -103,14 +122,13 @@ pub fn verify_results(
                     } else {
                         compare.stresses[e][ip][i]
                     };
-                    if verbose {
-                        print!("{:13.6e} ", f64::abs(a - b));
+                    if failed(a, b, tol_stress, verbose) {
+                        all_good = false;
                     }
-                    approx_eq(a, b, tol_stress);
                 }
                 println!();
             }
         }
     }
-    Ok(())
+    Ok(all_good)
 }
