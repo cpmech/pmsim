@@ -3,7 +3,7 @@ use russell_lab::RootFinder;
 
 /// Solution of the elastic plane-strain version of the pressurized cylinder
 ///
-/// The solution is given by Ref #1, starting from page 245.
+/// The solution is given by Ref #1, starting from page 245. See also Ref #2 Chapter 5.
 ///
 /// ```text
 ///              , - - ,
@@ -19,10 +19,11 @@ use russell_lab::RootFinder;
 ///            ' - , ,  '
 /// ```
 ///
-/// # Reference
+/// # References
 ///
-/// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
-///    Theory and applications, Wiley, 791p
+/// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational Methods for Plasticity,
+///    Theory and Applications, Wiley, 791p
+/// 2. Hill R (1950) The Mathematical Theory of Plasticity, Oxford University Press.
 pub struct PlastPlaneStrainPresCylin {
     a: f64,       // inner radius
     b: f64,       // outer radius
@@ -66,8 +67,8 @@ impl PlastPlaneStrainPresCylin {
         self.pp_lim
     }
 
-    /// Calculates the radial displacement (ub) at the outer face
-    pub fn outer_ur(&self, pp: f64) -> Result<f64, StrError> {
+    /// Calculates the radial displacement (ub = ur(b)) at the outer face
+    pub fn calc_ub(&self, pp: f64) -> Result<f64, StrError> {
         if pp < 0.0 {
             return Err("the magnitude of the pressure must be positive");
         }
@@ -86,6 +87,30 @@ impl PlastPlaneStrainPresCylin {
             self.yy * c * c * omp / (ee * self.b)
         };
         Ok(ub)
+    }
+
+    /// Calculates the radial and hoop stress components
+    pub fn calc_sr_sh(&self, r: f64, pp: f64) -> Result<(f64, f64), StrError> {
+        if pp < 0.0 {
+            return Err("the magnitude of the pressure must be positive");
+        }
+        if pp >= self.pp_lim - 1e-11 {
+            return Err("P must be < P_lim - 1e-11");
+        }
+        if r < self.a || r > self.b {
+            return Err("the radius must be such that a ≤ r ≤ b");
+        }
+        let c = if pp > self.pp0 { self.calc_c(pp)? } else { self.a };
+        if r > c {
+            // elastic (the outer part hasn't suffered plastic yielding yet)
+            let m = 0.5 * self.yy * c * c / (self.b * self.b);
+            let d = self.b * self.b / (r * r);
+            Ok((-m * (d - 1.0), m * (d + 1.0)))
+        } else {
+            // plastic
+            let d = 0.5 * c * c / (self.b * self.b) - f64::ln(c / r);
+            Ok((self.yy * (d - 0.5), self.yy * (d + 0.5)))
+        }
     }
 
     /// Calculates the elastic-to-plastic radius
@@ -134,14 +159,60 @@ mod tests {
         approx_eq(ana.calc_c(ana.pp_lim - 1e-13).unwrap(), b, 1e-3);
 
         if SAVE_FIGURE {
-            let pp_vals = linspace(0.0, ana.get_pp_lim() - 1e-10, 201);
-            let ub_vals: Vec<_> = pp_vals.iter().map(|pp| ana.outer_ur(*pp).unwrap()).collect();
-
             let mut curve1 = Curve::new();
+            curve1.set_label("Pressure vs displacement");
+            let pp_vals = linspace(0.0, ana.get_pp_lim() - 1e-10, 201);
+            let ub_vals: Vec<_> = pp_vals.iter().map(|pp| ana.calc_ub(*pp).unwrap()).collect();
             curve1.draw(&ub_vals, &pp_vals);
+
+            let pp = 0.1;
+            let str = format!("P = {}", pp);
+            let rr_vals = linspace(a, b, 201);
+            let mut sr_vals = vec![0.0; rr_vals.len()];
+            let mut sh_vals = vec![0.0; rr_vals.len()];
+            for i in 0..rr_vals.len() {
+                let (sr, sh) = ana.calc_sr_sh(rr_vals[i], pp).unwrap();
+                sr_vals[i] = sr;
+                sh_vals[i] = sh;
+            }
+            let mut curve2a = Curve::new();
+            let mut curve3a = Curve::new();
+            curve2a.set_label(&str);
+            curve3a.set_label(&str);
+            curve2a.draw(&rr_vals, &sh_vals);
+            curve3a.draw(&rr_vals, &sr_vals);
+
+            let pp = 0.18;
+            let str = format!("P = {}", pp);
+            let rr_vals = linspace(a, b, 201);
+            let mut sr_vals = vec![0.0; rr_vals.len()];
+            let mut sh_vals = vec![0.0; rr_vals.len()];
+            for i in 0..rr_vals.len() {
+                let (sr, sh) = ana.calc_sr_sh(rr_vals[i], pp).unwrap();
+                sr_vals[i] = sr;
+                sh_vals[i] = sh;
+            }
+            let mut curve2b = Curve::new();
+            let mut curve3b = Curve::new();
+            curve2b.set_label(&str);
+            curve3b.set_label(&str);
+            curve2b.draw(&rr_vals, &sh_vals);
+            curve3b.draw(&rr_vals, &sr_vals);
+
             let mut plot = Plot::new();
-            plot.add(&curve1)
+            plot.set_gridspec("grid", 2, 2, "hspace=0.25,wspace=0.3")
+                .set_subplot_grid("grid", "0", ":")
+                .add(&curve1)
                 .grid_labels_legend("radial displacement at outer face $u_b$", "internal pressure $P$")
+                .set_subplot_grid("grid", "1", "0")
+                .add(&curve2a)
+                .add(&curve2b)
+                .grid_labels_legend("radial coordinate $r$", "hoop stress $\\sigma_\\theta$")
+                .set_subplot_grid("grid", "1", "1")
+                .add(&curve3a)
+                .add(&curve3b)
+                .grid_labels_legend("radial coordinate $r$", "radial stress $\\sigma_r$")
+                .set_figure_size_points(600.0, 450.0)
                 .save(&format!("{}/plast_plane_strain_pres_cylin.svg", DEFAULT_TEST_DIR))
                 .unwrap();
         }
