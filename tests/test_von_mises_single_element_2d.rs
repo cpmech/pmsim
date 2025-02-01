@@ -1,7 +1,7 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
 use pmsim::prelude::*;
-use pmsim::util::verify_results;
+use pmsim::util::compare_results;
 use russell_lab::*;
 
 // von Mises plasticity with a single-element
@@ -114,7 +114,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // compare the results with Ref #1
     let tol_displacement = 1e-13;
     let tol_stress = 1e-10;
-    let all_good = verify_results(
+    let all_good = compare_results(
         &mesh,
         &base,
         &file_io,

@@ -5,8 +5,8 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
 
-/// Calculates the error and returns true (fail) if the difference is greater than the tolerance
-fn failed(a: f64, b: f64, tol: f64, verbose: usize) -> bool {
+/// Queries whether A failed to compare with B or not
+fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> bool {
     let diff = f64::abs(a - b);
     let fail = diff > tol;
     if verbose == 1 {
@@ -36,7 +36,7 @@ fn failed(a: f64, b: f64, tol: f64, verbose: usize) -> bool {
 /// **Note:** The first pmsim's file with index 0 is ignored.
 ///
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
-pub fn verify_results(
+pub fn compare_results(
     mesh: &Mesh,
     base: &FemBase,
     file_io: &FileIo,
@@ -100,7 +100,7 @@ pub fn verify_results(
                 let eq = base.equations.eq(p, dofs[i]).unwrap();
                 let a = fem_state.uu[eq];
                 let b = compare.displacement[p][i];
-                if failed(a, b, tol_displacement, verbose) {
+                if query_failed(a, b, tol_displacement, verbose) {
                     all_good = false;
                 }
             }
@@ -132,7 +132,7 @@ pub fn verify_results(
                     } else {
                         compare.stresses[e][ip][i]
                     };
-                    if failed(a, b, tol_stress, verbose) {
+                    if query_failed(a, b, tol_stress, verbose) {
                         all_good = false;
                     }
                 }

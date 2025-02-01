@@ -3,7 +3,7 @@
 use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
-use pmsim::util::verify_results;
+use pmsim::util::compare_results;
 use russell_lab::*;
 
 const NAME: &str = "test_spo_754_footing";
@@ -111,7 +111,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     // verify the results
     let tol_displacement = 1e-1;
     let tol_stress = 1e+3;
-    let all_good = verify_results(
+    let all_good = compare_results(
         &mesh,
         &base,
         &file_io,

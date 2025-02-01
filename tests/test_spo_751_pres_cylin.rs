@@ -2,7 +2,7 @@ use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::analytical::ElastPlaneStrainPresCylin;
 use pmsim::prelude::*;
-use pmsim::util::verify_results;
+use pmsim::util::compare_results;
 use russell_lab::*;
 
 // This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
@@ -97,7 +97,7 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     // compare the results with Ref #1
     let tol_displacement = 1e-12;
     let tol_stress = 1e-14;
-    let all_good = verify_results(
+    let all_good = compare_results(
         &mesh,
         &base,
         &file_io,
