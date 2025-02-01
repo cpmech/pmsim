@@ -6,6 +6,10 @@ use russell_lab::*;
 
 // von Mises plasticity with a single-element
 //
+// This test runs a plane-strain compression of a single element represented
+// by the von Mises model. The results are compared with the code HYPLAS
+// discussed in Ref #1.
+//
 // TEST GOAL
 //
 // Verifies the plane-strain implementation of the von Mises model.
@@ -36,6 +40,11 @@ use russell_lab::*;
 // * Static non-linear plane-strain simulation
 // * Young: E = 1500, Poisson: ν = 0.25
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
+//
+// # Reference
+//
+// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
+//    Theory and applications, Wiley, 791p
 
 const NAME: &str = "test_von_mises_single_element_2d";
 
@@ -102,7 +111,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
-    // verify the results
+    // compare the results with Ref #1
     let tol_displacement = 1e-13;
     let tol_stress = 1e-10;
     let all_good = verify_results(
@@ -115,7 +124,5 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         1,
     )?;
     assert!(all_good);
-
-    // check stresses
     Ok(())
 }

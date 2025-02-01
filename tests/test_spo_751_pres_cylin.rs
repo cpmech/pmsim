@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::analytical::ElastPlaneStrainPresCylin;
@@ -7,8 +5,33 @@ use pmsim::prelude::*;
 use pmsim::util::verify_results;
 use russell_lab::*;
 
+// This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
+//
+// Nonetheless, here we use a quarter-ring geometry instead of a 1/12 slice.
+//
+// y ^
+//   |
+//   ***=---__
+//   |        '*._
+//   |            *._
+//   |               *.
+//   ***=-__           *.
+//   .      '-.          *
+//             *.         *
+//   .           *         *
+//                *         *
+//   .             *         *
+//                 #         #
+//   o -   -   -   # ------- # --> x
+//               rmin       rmax
+//
+// # Reference
+//
+// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
+//    Theory and applications, Wiley, 791p
+
 const NAME: &str = "test_spo_751_pres_cylin";
-const GENERATE_MESH: bool = true;
+const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = true;
 
 const R1: f64 = 100.0; // inner radius
@@ -23,7 +46,7 @@ const NGAUSS: usize = 4; // number of gauss points
 fn test_spo_751_press_cylin() -> Result<(), StrError> {
     // mesh
     let kind = GeoKind::Qua4;
-    let mesh = generate_or_read_mesh(1, kind, GENERATE_MESH);
+    let mesh = generate_or_read_mesh(kind, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -71,6 +94,20 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
+    // compare the results with Ref #1
+    let tol_displacement = 1e-12;
+    let tol_stress = 1e-14;
+    let all_good = verify_results(
+        &mesh,
+        &base,
+        &file_io,
+        "spo_751_pres_cylin.json",
+        tol_displacement,
+        tol_stress,
+        1,
+    )?;
+    assert!(all_good);
+
     // compute error
     let ana = ElastPlaneStrainPresCylin::new(R1, R2, P1[P1.len() - 1], P2, YOUNG, POISSON)?;
     let r = mesh.points[ref_point_id].coords[0];
@@ -104,7 +141,7 @@ fn post_processing() -> Result<(), StrError> {
     // loop over time stations
     let mut inner_ur = vec![0.0; file_io.indices.len()];
     let mut outer_ur = vec![0.0; file_io.indices.len()];
-    let mut inner_pp: Vec<_> = P1.iter().map(|p| *p).collect();
+    let inner_pp: Vec<_> = P1.iter().map(|p| *p).collect();
     for index in &file_io.indices {
         // load state
         let state = PostProc::read_state(&file_io, *index)?;
@@ -145,7 +182,7 @@ fn post_processing() -> Result<(), StrError> {
 }
 
 /// Generate or read mesh
-fn generate_or_read_mesh(att: usize, kind: GeoKind, generate: bool) -> Mesh {
+fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
     let k_str = kind.to_string();
 
     if generate {
