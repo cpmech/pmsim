@@ -28,7 +28,7 @@ use russell_lab::*;
 // * Vertically restrain the bottom edge
 // * Horizontally restrain the left edge
 // * Apply a vertical displacement -δy on the top edge
-// * δd is computed such that the first loading will
+// * δy is computed such that the first loading will
 //   bring the stress point to the yield surface
 //
 // CONFIGURATION AND PARAMETERS
