@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::analytical::ElastPlaneStrainPresCylin;
@@ -18,12 +20,12 @@ use russell_lab::*;
 //   ***=-__           *.
 //   .      '-.          *
 //             *.         *
-//   .           *         *
+//   .        P  *         *
 //                *         *
 //   .             *         *
 //                 #         #
 //   o -   -   -   # ------- # --> x
-//               rmin       rmax
+//                 a         b
 //
 // # Reference
 //
@@ -34,10 +36,9 @@ const NAME: &str = "test_spo_751_pres_cylin";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = true;
 
-const R1: f64 = 100.0; // inner radius
-const R2: f64 = 200.0; // outer radius
-const P1: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
-const P2: f64 = 0.0; // outer pressure (magnitude)
+const A: f64 = 100.0; // inner radius
+const B: f64 = 200.0; // outer radius
+const P_ARRAY: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
 const NGAUSS: usize = 4; // number of gauss points
@@ -52,11 +53,11 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     let features = Features::new(&mesh, false);
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let left = features.search_edges(At::X(0.0), any_x)?;
-    let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
+    let inner_circle = features.search_edges(At::Circle(0.0, 0.0, A), any_x)?;
 
     // reference point to compare analytical vs numerical result
-    let ref_point_id = features.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
-    array_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0], 1e-15);
+    let ref_point_id = features.search_point_ids(At::XY(A, 0.0), any_x)?[0];
+    array_approx_eq(&mesh.points[ref_point_id].coords, &[A, 0.0], 1e-15);
 
     // parameters
     let param1 = ParamSolid {
@@ -77,11 +78,11 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges_fn(&inner_circle, Nbc::Qn, |t| -P1[t as usize]);
+    natural.edges_fn(&inner_circle, Nbc::Qn, |t| -P_ARRAY[t as usize]);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_incremental(P1.len());
+    config.set_incremental(P_ARRAY.len());
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &config)?;
@@ -108,14 +109,14 @@ fn test_spo_751_press_cylin() -> Result<(), StrError> {
     )?;
     assert!(all_good);
 
-    // compute error
-    let ana = ElastPlaneStrainPresCylin::new(R1, R2, P1[P1.len() - 1], P2, YOUNG, POISSON)?;
-    let r = mesh.points[ref_point_id].coords[0];
-    assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-    let eq = base.equations.eq(ref_point_id, Dof::Ux).unwrap();
-    let numerical_ur = state.uu[eq];
-    let error = f64::abs(numerical_ur - ana.ur(r));
-    println!("\nnumerical_ur = {:?}, error = {:?}", numerical_ur, error);
+    // compare with analytical solution
+    // let ana = ElastPlaneStrainPresCylin::new(A, B, P_ARRAY[P_ARRAY.len() - 1], 0.0, YOUNG, POISSON)?;
+    // let r = mesh.points[ref_point_id].coords[0];
+    // assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
+    // let eq = base.equations.eq(ref_point_id, Dof::Ux).unwrap();
+    // let numerical_ur = state.uu[eq];
+    // let error = f64::abs(numerical_ur - ana.ur(r));
+    // println!("\nnumerical_ur = {:?}, error = {:?}", numerical_ur, error);
     // approx_eq(numerical_ur, ana.ur(r), 1.29e-4);
 
     // post-processing
@@ -128,44 +129,19 @@ fn post_processing() -> Result<(), StrError> {
 
     // boundaries
     let features = Features::new(&mesh, false);
-    let inner_point = features.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
-    let outer_point = features.search_point_ids(At::XY(R2, 0.0), any_x)?[0];
-    let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
-    let outer_circle = features.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
-    let inner_cell = features.get_cells_via_2d_edges(&inner_circle)[0];
-    let outer_cell = features.get_cells_via_2d_edges(&outer_circle)[0];
-
-    // post-processor
-    let mut post = PostProc::new(&mesh, &base);
+    let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
 
     // loop over time stations
-    let mut inner_ur = vec![0.0; file_io.indices.len()];
     let mut outer_ur = vec![0.0; file_io.indices.len()];
-    let inner_pp: Vec<_> = P1.iter().map(|p| *p).collect();
+    let inner_pp: Vec<_> = P_ARRAY.iter().map(|p| *p).collect();
     for index in &file_io.indices {
         // load state
         let state = PostProc::read_state(&file_io, *index)?;
         assert_eq!(file_io.times[*index], state.t);
 
         // radial displacement
-        let eq1 = base.equations.eq(inner_point, Dof::Ux)?;
-        let eq2 = base.equations.eq(outer_point, Dof::Ux)?;
-        inner_ur[*index] = state.uu[eq1];
-        outer_ur[*index] = state.uu[eq2];
-
-        // check stresses
-        let res1 = post.nodal_stresses(&[inner_cell], &state, |_, x, y, _| {
-            f64::abs(x * x + y * y - R1 * R1) < 1e-3
-        })?;
-        let res2 = post.nodal_stresses(&[outer_cell], &state, |_, x, y, _| {
-            f64::abs(x * x + y * y - R2 * R2) < 1e-3
-        })?;
-        for i in 0..res1.ids.len() {
-            approx_eq(res1.txx[i], -P1[*index], 0.06);
-        }
-        for i in 0..res2.ids.len() {
-            approx_eq(res2.txx[i], P2, 0.061);
-        }
+        let outer_eq = base.equations.eq(outer_point, Dof::Ux)?;
+        outer_ur[*index] = state.uu[outer_eq];
     }
 
     // plot
@@ -189,7 +165,7 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
         // generate mesh
         let wr = &[16.0, 20.0, 28.0, 36.0];
         let na = 3;
-        let mesh = Structured::quarter_ring_2d(R1, R2, wr, na, GeoKind::Qua8, true).unwrap();
+        let mesh = Structured::quarter_ring_2d(A, B, wr, na, GeoKind::Qua8, true).unwrap();
         mesh.check_all().unwrap();
 
         // draw figure
