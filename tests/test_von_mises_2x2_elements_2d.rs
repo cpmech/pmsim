@@ -1,5 +1,6 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
+use pmsim::fem::SolverImplicitNew;
 use pmsim::prelude::*;
 use pmsim::util::compare_results;
 use russell_lab::*;
@@ -122,7 +123,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     file_io.activate(&mesh, &base, NAME, None)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicitNew::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // compare the results with Ref #1
@@ -135,7 +136,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
         "spo_von_mises_2x2_elements_2d.json",
         tol_displacement,
         tol_stress,
-        1,
+        0,
     )?;
     assert!(all_good);
     Ok(())
