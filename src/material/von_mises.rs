@@ -131,6 +131,9 @@ impl StressStrainTrait for VonMises {
         let sigma_d = sigma.invariant_sigma_d();
         let sigma_d_trial = sigma_d + lambda * 3.0 * gg;
         let norm_s = sigma_d * SQRT_2_BY_3;
+        if norm_s < 1e-10 {
+            return Err("von Mises stiffness cannot be computed with zero deviatoric norm (norm_s < 1e-10)");
+        }
         let d = 3.0 * gg + hh;
         let a = 2.0 * gg * (1.0 - lambda * 3.0 * gg / sigma_d_trial);
         let b = 6.0 * gg * gg * (lambda / sigma_d_trial - 1.0 / d) / (norm_s * norm_s);
@@ -185,9 +188,12 @@ impl StressStrainTrait for VonMises {
             vec[i] = sigma_m_trial * I[i] + beta * s_trial[i];
         }
 
+        // update internal variable
+        let z = &mut state.int_vars[I_Z];
+        *z += self.hh * lambda;
+
         // elastoplastic update
         state.elastic = false;
-        state.int_vars[I_Z] = state.stress.invariant_sigma_d();
         state.int_vars[I_LAMBDA] = lambda;
         Ok(())
     }

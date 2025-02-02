@@ -23,6 +23,7 @@
     "nafems",
     "ngauss",
     "Nonlin",
+    "numpy",
     "Paraview",
     "Peric",
     "plast",

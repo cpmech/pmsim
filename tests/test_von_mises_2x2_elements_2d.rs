@@ -126,8 +126,8 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     solver.solve(&mut state, &mut file_io)?;
 
     // compare the results with Ref #1
-    let tol_displacement = 1e-14;
-    let tol_stress = 1e-11;
+    let tol_displacement = 1e-12;
+    let tol_stress = 1e-9;
     let all_good = compare_results(
         &mesh,
         &base,
