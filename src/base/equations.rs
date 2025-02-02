@@ -44,7 +44,7 @@ use std::fmt;
 ///     let mesh = Samples::one_tri6();
 ///     let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
 ///     let amap = Attributes::from([(1, Elem::PorousSldLiq(p1))]);
-///     let emap = ElementDofsMap::new(&mesh, &att)?;
+///     let emap = ElementDofsMap::new(&mesh, &amap)?;
 ///     let mut eqs = Equations::new(&mesh, &emap)?;
 ///     assert_eq!(
 ///         format!("{}", eqs),

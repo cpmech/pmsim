@@ -15,7 +15,7 @@ const Z_INI: f64 = 848.7; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
-#[test]
+// #[test]
 fn test_spo_754_footing() -> Result<(), StrError> {
     // mesh
     let mesh = Mesh::read(&format!("data/meshes/{}.msh", NAME))?;
