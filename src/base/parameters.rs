@@ -384,48 +384,6 @@ impl StressStrain {
         }
     }
 
-    /// Returns the Young's modulus (if available)
-    pub fn young(&self) -> Option<f64> {
-        match self {
-            Self::LinearElastic { young, poisson: _ } => Some(*young),
-            Self::VonMises {
-                young,
-                poisson: _,
-                hh: _,
-                z_ini: _,
-            } => Some(*young),
-            Self::DruckerPrager {
-                young,
-                poisson: _,
-                c: _,
-                phi: _,
-                hh: _,
-            } => Some(*young),
-            Self::CamClay { .. } => None,
-        }
-    }
-
-    /// Returns the Poisson's coefficient (if available)
-    pub fn poisson(&self) -> Option<f64> {
-        match self {
-            Self::LinearElastic { young: _, poisson } => Some(*poisson),
-            Self::VonMises {
-                young: _,
-                poisson,
-                hh: _,
-                z_ini: _,
-            } => Some(*poisson),
-            Self::DruckerPrager {
-                young: _,
-                poisson,
-                c: _,
-                phi: _,
-                hh: _,
-            } => Some(*poisson),
-            Self::CamClay { .. } => None,
-        }
-    }
-
     /// Returns LinearElastic sample parameters
     pub fn sample_linear_elastic() -> Self {
         Self::LinearElastic {
@@ -687,15 +645,11 @@ mod tests {
         let correct = "LinearElastic { young: 1500.0, poisson: 0.25 }";
         assert_eq!(format!("{:?}", q), correct);
         assert_eq!(p.n_int_var(), 0);
-        assert_eq!(p.young(), Some(1500.0));
-        assert_eq!(p.poisson(), Some(0.25));
 
         let p = StressStrain::sample_von_mises();
         let correct = "VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z_ini: 9.0 }";
         assert_eq!(format!("{:?}", p), correct);
         assert_eq!(p.n_int_var(), 2);
-        assert_eq!(p.young(), Some(1500.0));
-        assert_eq!(p.poisson(), Some(0.25));
     }
 
     #[test]

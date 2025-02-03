@@ -13,6 +13,7 @@ mod essential;
 mod idealization;
 mod natural;
 mod parameters;
+mod parameters_new;
 mod sample_meshes;
 mod testing;
 
@@ -29,6 +30,7 @@ pub use essential::*;
 pub use idealization::*;
 pub use natural::*;
 pub use parameters::*;
+pub use parameters_new::*;
 pub use sample_meshes::*;
 
 #[allow(unused_imports)]
