@@ -1,5 +1,5 @@
 use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemBase, FemState};
-use crate::base::{assemble_matrix, assemble_vector, Config, Elem};
+use crate::base::{assemble_matrix, assemble_vector, mat_add_local_to_global, vec_add_local_to_global, Config, Elem};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{deriv1_central5, Matrix, Vector};
@@ -69,6 +69,27 @@ impl<'a> GenericElement<'a> {
         self.actual.calc_jacobian(&mut self.jacobian, state)
     }
 
+    /// Calculates the residual vector and adds it to the global residual vector
+    pub fn calc_and_add_to_global_residual(
+        &mut self,
+        rr_global: &mut Vector,
+        state: &FemState,
+    ) -> Result<(), StrError> {
+        self.actual.calc_residual(&mut self.residual, state)?;
+        vec_add_local_to_global(rr_global, &self.residual, &self.actual.local_to_global());
+        Ok(())
+    }
+
+    /// Calculates the Jacobian matrix and adds it to the global Jacobian matrix
+    pub fn calc_and_add_to_global_jacobian(
+        &mut self,
+        kk_global: &mut CooMatrix,
+        state: &FemState,
+    ) -> Result<(), StrError> {
+        self.actual.calc_jacobian(&mut self.jacobian, state)?;
+        mat_add_local_to_global(kk_global, &self.jacobian, &self.actual.local_to_global())
+    }
+
     /// Calculates the Jacobian matrix using finite differences
     ///
     /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
@@ -133,6 +154,22 @@ impl<'a> Elements<'a> {
     /// Computes the Jacobian matrices
     pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
+    }
+
+    /// Calculates all residual vectors and assemble them into the global residual vector
+    pub fn calc_and_assemble_residuals(&mut self, rr: &mut Vector, state: &FemState) -> Result<(), StrError> {
+        for i in 0..self.all.len() {
+            self.all[i].calc_and_add_to_global_residual(rr, state)?;
+        }
+        Ok(())
+    }
+
+    /// Calculates all Jacobian matrices and assemble them into the global Jacobian matrix
+    pub fn calc_and_assemble_jacobians(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
+        for i in 0..self.all.len() {
+            self.all[i].calc_and_add_to_global_jacobian(kk, state)?;
+        }
+        Ok(())
     }
 
     /// Assembles residual vectors
@@ -214,11 +251,14 @@ impl<'a> Elements<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Elements, GenericElement};
-    use crate::base::{Conductivity, Config, Elem, ParamBeam, ParamPorousLiqGas};
+    use crate::base::{Conductivity, Config, Elem, ParamBeam, ParamPorousLiqGas, StressStrain};
     use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::{FemBase, FemState};
-    use gemlab::mesh::Samples;
-    use russell_lab::mat_approx_eq;
+    use gemlab::integ;
+    use gemlab::mesh::{Mesh, Samples};
+    use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix, Vector};
+    use russell_sparse::{CooMatrix, Sym};
+    use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn new_handles_errors() {
@@ -407,5 +447,76 @@ mod tests {
         let base = FemBase::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
         GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
+    }
+
+    #[test]
+    fn calc_and_assemble_rr_and_kk_work() {
+        // mesh and parameters
+        //       {8} 4---.__
+        //       {9}/ \     `--.___3 {6}   [#] indicates id
+        //         /   \          / \{7}   (#) indicates attribute
+        //        /     \  [1]   /   \     {#} indicates equation number
+        //       /  [0]  \ (1)  / [2] \
+        // {0}  /   (1)   \    /  (1)  \
+        // {1} 0---.__     \  /      ___2 {4}
+        //            `--.__\/__.---'     {5}
+        //                   1 {2}
+        //                     {3}
+        let mesh = Samples::three_tri3();
+        let young = 1500.0;
+        let poisson = 0.25;
+        let p1 = ParamSolid {
+            density: 1.0,
+            stress_strain: StressStrain::LinearElastic { young, poisson },
+            ngauss: None,
+        };
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let config = Config::new(&mesh);
+        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+
+        // calculate solution (c vectors = contributions to R) and set state
+        let neq = mesh.points.len() * 2; // 2 DOF per node
+        let mut rr_correct = Vector::new(neq);
+        let mut kk_correct = Matrix::new(neq, neq);
+        let l2g = [[0, 1, 2, 3, 8, 9], [2, 3, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7]];
+        for e in 0..3 {
+            let delta = (e + 1) as f64;
+            let sigma = Tensor2::from_matrix(
+                &[
+                    [1.0 + delta, 3.0 + delta, 0.0],
+                    [3.0 + delta, 2.0 + delta, 0.0],
+                    [0.0, 0.0, delta],
+                ],
+                Mandel::Symmetric2D,
+            )
+            .unwrap();
+            for state in &mut state.gauss[e].solid {
+                state.stress.set_tensor(1.0, &sigma);
+            }
+            let mut pad = Mesh::get_pad(&mesh, e);
+            let ana = integ::AnalyticalTri3::new(&mut pad);
+            let c = ana.vec_04_tb(&sigma, false);
+            for l in 0..6 {
+                rr_correct[l2g[e][l]] += c[l];
+            }
+            let kk = ana.mat_10_bdb(young, poisson, false, 1.0).unwrap();
+            for l in 0..6 {
+                for m in 0..6 {
+                    kk_correct.add(l2g[e][l], l2g[e][m], kk.get(l, m));
+                }
+            }
+        }
+
+        // elements
+        let mut elements = Elements::new(&mesh, &base, &config).unwrap();
+        let neq = base.equations.n_equation;
+        let nnz_sup = 3 * neq * neq;
+        let mut rr = Vector::new(neq);
+        let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
+        elements.calc_and_assemble_residuals(&mut rr, &state).unwrap();
+        elements.calc_and_assemble_jacobians(&mut kk, &state).unwrap();
+        let kk_mat = kk.as_dense();
+        vec_approx_eq(&rr, &rr_correct, 1e-14);
+        mat_approx_eq(&kk_mat, &kk_correct, 1e-12);
     }
 }
