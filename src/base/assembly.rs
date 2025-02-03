@@ -46,6 +46,101 @@ pub fn assemble_vector(rr_global: &mut Vector, r_local: &Vector, local_to_global
     }
 }
 
+/// Adds local vector to global vector (assembly process)
+///
+/// # Output
+///
+/// * `rr_global` -- is the global vector R with length = `n_equation`
+///
+/// # Input
+///
+/// * `r_local` -- is the local vector r with length = `n_equation_local`
+/// * `local_to_global` -- is an array holding all equation numbers.
+///
+/// # Panics
+///
+/// This function will panic if the indices are out-of-bounds
+pub fn vec_add_local_to_global(rr_global: &mut Vector, r_local: &Vector, local_to_global: &[usize]) {
+    let n_equation_local = r_local.dim();
+    for l in 0..n_equation_local {
+        let g = local_to_global[l];
+        rr_global[g] += r_local[l];
+    }
+}
+
+/// Adds local Jacobian matrix to global Jacobian matrix (assembly process)
+///
+/// # Output
+///
+/// * `kk_global` -- is the global square matrix K with dims = (`n_equation`,`n_equation`)
+///
+/// # Input
+///
+/// * `kk_local` -- is the local square matrix K with dims = (`n_equation_local`,`n_equation_local`)
+/// * `local_to_global` -- is an array holding all equation numbers.
+///
+/// **Note:** This function checks for the symmetry of the local matrix, if the global matrix should be symmetric.
+///
+/// # Panics
+///
+/// This function will panic if the indices are out-of-bounds
+pub fn mat_add_local_to_global(
+    kk_global: &mut CooMatrix,
+    kk_local: &Matrix,
+    local_to_global: &[usize],
+) -> Result<(), StrError> {
+    let n_equation_local = kk_local.dims().0;
+
+    // check symmetry of local matrices
+    let sym = kk_global.get_info().3;
+    let symmetric = sym != Sym::No;
+    if symmetric {
+        for l in 0..n_equation_local {
+            for ll in (l + 1)..n_equation_local {
+                if f64::abs(kk_local.get(l, ll) - kk_local.get(ll, l)) > SYMMETRY_CHECK_TOLERANCE {
+                    return Err("local matrix is not symmetric");
+                }
+            }
+        }
+    }
+
+    // assemble
+    match sym {
+        Sym::YesLower => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                for ll in 0..n_equation_local {
+                    let gg = local_to_global[ll];
+                    if g >= gg {
+                        kk_global.put(g, gg, kk_local.get(l, ll)).unwrap();
+                    }
+                }
+            }
+        }
+        Sym::YesUpper => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                for ll in 0..n_equation_local {
+                    let gg = local_to_global[ll];
+                    if g <= gg {
+                        kk_global.put(g, gg, kk_local.get(l, ll)).unwrap();
+                    }
+                }
+            }
+        }
+        Sym::YesFull | Sym::No => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                for ll in 0..n_equation_local {
+                    let gg = local_to_global[ll];
+                    kk_global.put(g, gg, kk_local.get(l, ll)).unwrap();
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Assembles local matrix into global matrix
 ///
 /// # Output
@@ -139,7 +234,7 @@ pub fn assemble_matrix(
 
 #[cfg(test)]
 mod tests {
-    use super::{assemble_matrix, assemble_vector};
+    use super::{assemble_matrix, assemble_vector, mat_add_local_to_global, vec_add_local_to_global};
     use crate::base::{compute_local_to_global, Attributes, Elem, ElementDofsMap, Equations};
     use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
     use gemlab::{mesh::Samples, shapes::GeoKind};
@@ -260,6 +355,29 @@ mod tests {
         assemble_vector(&mut ff, &f1, &l2g[1], &prescribed);
         assemble_vector(&mut ff, &f2, &l2g[2], &prescribed);
         assert_eq!(ff.as_data(), &[10.0, 312111.0, /*prescribed*/ 0.0, 332300.0, 2414.0]);
+    }
+
+    #[test]
+    fn vec_add_local_to_global_works() {
+        //       {4} 4---.__
+        //          / \     `--.___3 {3}  [#] indicates id
+        //         /   \          / \     (#) indicates attribute
+        //        /     \  [1]   /   \    {#} indicates equation id
+        //       /  [0]  \ (1)  / [2] \
+        //      /   (1)   \    /  (1)  \
+        // {0} 0---.__     \  /      ___2 {2}
+        //            `--.__\/__.---'
+        //               {1} 1
+        let l2g = vec![vec![0, 1, 4], vec![1, 3, 4], vec![1, 2, 3]];
+        let neq = 5;
+        let mut ff = Vector::new(neq);
+        let f0 = Vector::from(&[1.0, 2.0, 3.0]);
+        let f1 = Vector::from(&[10.0, 20.0, 30.0]);
+        let f2 = Vector::from(&[100.0, 200.0, 300.0]);
+        vec_add_local_to_global(&mut ff, &f0, &l2g[0]);
+        vec_add_local_to_global(&mut ff, &f1, &l2g[1]);
+        vec_add_local_to_global(&mut ff, &f2, &l2g[2]);
+        assert_eq!(ff.as_data(), &[1.0, 112.0, 200.0, 320.0, 33.0]);
     }
 
     #[test]
@@ -391,6 +509,134 @@ mod tests {
         assemble_matrix(&mut kk, &k0, &l2g[0], &prescribed).unwrap();
         assemble_matrix(&mut kk, &k1, &l2g[1], &prescribed).unwrap();
         assemble_matrix(&mut kk, &k2, &l2g[2], &prescribed).unwrap();
+        let mat = kk.as_dense();
+        mat_approx_eq(&mat, kk_correct, 1e-15);
+    }
+
+    #[test]
+    fn mat_add_local_to_global_works_unsymmetric() {
+        //       {4} 4---.__
+        //          / \     `--.___3 {3}  [#] indicates id
+        //         /   \          / \     (#) indicates attribute
+        //        /     \  [1]   /   \    {#} indicates equation id
+        //       /  [0]  \ (1)  / [2] \
+        //      /   (1)   \    /  (1)  \
+        // {0} 0---.__     \  /      ___2 {2}
+        //            `--.__\/__.---'
+        //               {1} 1
+        let l2g = vec![vec![0, 1, 4], vec![1, 3, 4], vec![1, 2, 3]];
+        let neq = 5;
+        let nnz_sup = 3 * 3 * 3;
+        let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
+        #[rustfmt::skip]
+        let k0 = Matrix::from(&[
+            [1.0, 4.0, 6.0],
+            [7.0, 2.0, 5.0],
+            [9.0, 8.0, 3.0],
+        ]);
+        #[rustfmt::skip]
+        let k1 = Matrix::from(&[
+            [100.0, 400.0, 600.0],
+            [700.0, 200.0, 500.0],
+            [900.0, 800.0, 300.0],
+        ]);
+        #[rustfmt::skip]
+        let k2 = Matrix::from(&[
+            [1000.0, 4000.0, 6000.0],
+            [7000.0, 2000.0, 5000.0],
+            [9000.0, 8000.0, 3000.0],
+        ]);
+        mat_add_local_to_global(&mut kk, &k0, &l2g[0]).unwrap();
+        mat_add_local_to_global(&mut kk, &k1, &l2g[1]).unwrap();
+        mat_add_local_to_global(&mut kk, &k2, &l2g[2]).unwrap();
+        let mat = kk.as_dense();
+        #[rustfmt::skip]
+        let correct = &[
+            [1.0,   4.0,     0.0,    0.0,   6.0], // 0
+            [7.0, 1102.0, 4000.0, 6400.0, 605.0], // 1
+            [0.0, 7000.0, 2000.0, 5000.0,   0.0], // 2
+            [0.0, 9700.0, 8000.0, 3200.0, 500.0], // 3
+            [9.0,  908.0,    0.0,  800.0, 303.0], // 4
+        ];
+        mat_approx_eq(&mat, correct, 1e-15);
+    }
+
+    #[test]
+    fn mat_add_local_to_global_works_symmetric() {
+        //       {4} 4---.__
+        //          / \     `--.___3 {3}  [#] indicates id
+        //         /   \          / \     (#) indicates attribute
+        //        /     \  [1]   /   \    {#} indicates equation id
+        //       /  [0]  \ (1)  / [2] \
+        //      /   (1)   \    /  (1)  \
+        // {0} 0---.__     \  /      ___2 {2}
+        //            `--.__\/__.---'
+        //               {1} 1
+        let l2g = vec![vec![0, 1, 4], vec![1, 3, 4], vec![1, 2, 3]];
+        let neq = 5;
+        let nnz_sup = 3 * 3 * 3;
+        const WRONG: f64 = 1234.0;
+        #[rustfmt::skip]
+        let k0_wrong = Matrix::from(&[
+            [1.0,   4.0, 6.0],
+            [4.0,   2.0, 5.0],
+            [WRONG, 5.0, 3.0],
+        ]);
+        #[rustfmt::skip]
+        let k0 = Matrix::from(&[
+            [1.0, 4.0, 6.0],
+            [4.0, 2.0, 5.0],
+            [6.0, 5.0, 3.0],
+        ]);
+        #[rustfmt::skip]
+        let k1 = Matrix::from(&[
+            [100.0, 400.0, 600.0],
+            [400.0, 200.0, 500.0],
+            [600.0, 500.0, 300.0],
+        ]);
+        #[rustfmt::skip]
+        let k2 = Matrix::from(&[
+            [1000.0, 4000.0, 6000.0],
+            [4000.0, 2000.0, 5000.0],
+            [6000.0, 5000.0, 3000.0],
+        ]);
+
+        #[rustfmt::skip]
+        let kk_correct = &[
+            [1.0,    4.0,    0.0,    0.0,   6.0], // 0
+            [4.0, 1102.0, 4000.0, 6400.0, 605.0], // 1
+            [0.0, 4000.0, 2000.0, 5000.0,   0.0], // 2
+            [0.0, 6400.0, 5000.0, 3200.0, 500.0], // 3
+            [6.0,  605.0,    0.0,  500.0, 303.0], // 4
+        ];
+
+        // capture non-symmetric local matrix
+        let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::YesLower).unwrap();
+        assert_eq!(
+            mat_add_local_to_global(&mut kk, &k0_wrong, &l2g[0]).err(),
+            Some("local matrix is not symmetric")
+        );
+
+        // lower
+        mat_add_local_to_global(&mut kk, &k0, &l2g[0]).unwrap();
+        mat_add_local_to_global(&mut kk, &k1, &l2g[1]).unwrap();
+        mat_add_local_to_global(&mut kk, &k2, &l2g[2]).unwrap();
+        let mat = kk.as_dense();
+        mat_approx_eq(&mat, kk_correct, 1e-15);
+
+        // upper
+        let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::YesUpper).unwrap();
+        mat_add_local_to_global(&mut kk, &k0, &l2g[0]).unwrap();
+        mat_add_local_to_global(&mut kk, &k1, &l2g[1]).unwrap();
+        mat_add_local_to_global(&mut kk, &k2, &l2g[2]).unwrap();
+        let mat = kk.as_dense();
+        mat_approx_eq(&mat, kk_correct, 1e-15);
+
+        // full
+        let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::YesFull).unwrap();
+        mat_add_local_to_global(&mut kk, &k0, &l2g[0]).unwrap();
+        mat_add_local_to_global(&mut kk, &k1, &l2g[1]).unwrap();
+        mat_add_local_to_global(&mut kk, &k2, &l2g[2]).unwrap();
         let mat = kk.as_dense();
         mat_approx_eq(&mat, kk_correct, 1e-15);
     }
