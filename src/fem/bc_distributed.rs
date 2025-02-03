@@ -20,11 +20,13 @@ pub struct BcDistributed<'a> {
     /// Integration (Gauss) points
     gauss: Gauss,
 
-    /// Residual vector
-    residual: Vector,
+    /// Holds the ϕ vector (local contribution to the global residual R)
+    phi: Vector,
 
-    /// Optional Jacobian matrix (e.g., from convection model)
-    jacobian: Option<Matrix>,
+    /// Holds the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
+    ///
+    /// This optional Jacobian matrix appears, e.g., in convection problems
+    kke: Option<Matrix>,
 
     /// Local-to-global mapping
     ///
@@ -100,8 +102,8 @@ impl<'a> BcDistributed<'a> {
             config,
             pad,
             gauss,
-            residual: Vector::new(n_local_eq),
-            jacobian: if nbc.contributes_to_jacobian_matrix() {
+            phi: Vector::new(n_local_eq),
+            kke: if nbc.contributes_to_jacobian_matrix() {
                 Some(Matrix::new(n_local_eq, n_local_eq))
             } else {
                 None
@@ -113,10 +115,10 @@ impl<'a> BcDistributed<'a> {
         })
     }
 
-    /// Calculates the residual vector at given time
-    pub fn calc_residual(&mut self, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the ϕ vector (local contribution to the global residual R)
+    pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
         let (ndim, nnode) = self.pad.xxt.dims();
-        let res = &mut self.residual;
+        let res = &mut self.phi;
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
@@ -177,11 +179,11 @@ impl<'a> BcDistributed<'a> {
         }
     }
 
-    /// Calculates the Jacobian matrix at given time
-    pub fn calc_jacobian(&mut self, _state: &FemState) -> Result<(), StrError> {
+    /// Calculates the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
+    pub fn calc_kke(&mut self, _state: &FemState) -> Result<(), StrError> {
         match self.nbc {
             Nbc::Cv(cc) => {
-                let kk = self.jacobian.as_mut().unwrap();
+                let kk = self.kke.as_mut().unwrap();
                 let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
                 args.alpha = self.config.ideal.thickness;
                 args.axisymmetric = self.config.ideal.axisymmetric;
@@ -198,7 +200,7 @@ impl<'a> BcDistributed<'a> {
 
     /// Tells whether this BC needs the calculation of a Jacobian matrix or not
     pub fn with_jacobian(&self) -> bool {
-        self.jacobian.is_some()
+        self.kke.is_some()
     }
 
     /// Returns whether the local Jacobian matrix (if any) is symmetric or not
@@ -249,42 +251,42 @@ impl<'a> BcDistributedArray<'a> {
         Ok(BcDistributedArray { all })
     }
 
-    /// Computes the residual vectors
-    pub fn calc_residuals(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
+    /// Calculates all ϕ vectors (local contribution to the global residual R)
+    pub fn calc_all_phi(&mut self, state: &FemState) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.calc_phi(&state)).collect()
     }
 
-    /// Computes the Jacobian matrices
-    pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
+    /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u)
+    pub fn calc_all_kke(&mut self, state: &FemState) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.calc_kke(&state)).collect()
     }
 
-    /// Assembles residual vectors
+    /// Assembles the global residual vector
     ///
     /// **Notes:**
     ///
-    /// 1. You must call calc residuals first
+    /// 1. You must call [BcDistributedArray::calc_all_phi()] first
     /// 2. The global vector R will **not** be cleared
     ///
-    /// **Important:** You must call the Boundaries assemble_residuals after Elements
-    pub fn assemble_residuals(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
+    /// **Important:** You must assemble the Boundaries after Elements
+    pub fn assemble_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         self.all
             .iter()
-            .for_each(|e| assemble_vector(rr, &e.residual, &e.local_to_global, &prescribed));
+            .for_each(|e| assemble_vector(rr, &e.phi, &e.local_to_global, &prescribed));
     }
 
     /// Assembles jacobian matrices
     ///
     /// **Notes:**
     ///
-    /// 1. You must call calc jacobians first
+    /// 1. You must call [BcDistributedArray::calc_all_kke()] first
     /// 2. The CooMatrix position in the global matrix K will **not** be reset
     ///
-    /// **Important:** You must call the Boundaries assemble_jacobians after Elements
-    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
+    /// **Important:** You must assemble the Boundaries after Elements
+    pub fn assemble_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         // do not call reset here because it is called by elements
         for e in &self.all {
-            if let Some(jj) = &e.jacobian {
+            if let Some(jj) = &e.kke {
                 assemble_matrix(kk, &jj, &e.local_to_global, &prescribed)?;
             }
         }
@@ -360,62 +362,62 @@ mod tests {
         // Qn
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         // Qx
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0, 0.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         // Qy
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         // Qz
 
@@ -428,9 +430,9 @@ mod tests {
         let state = FemState::new(&mesh, &base, &config).unwrap();
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qz, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[0.0, 0.0, -Q / 2.0, 0.0, 0.0, -Q / 2.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
     }
 
     #[test]
@@ -447,13 +449,13 @@ mod tests {
         const Q: f64 = -10.0;
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Ql, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[-Q / 6.0, -Q / 6.0, 2.0 * -Q / 3.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qg, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, correct, 1e-14);
     }
 
     #[test]
@@ -474,9 +476,9 @@ mod tests {
         // flux: not present in Bhatti's example but we can check the flux BC here
         const L: f64 = 0.3;
         let mut bry = BcDistributed::new(&mesh, &base, &config, edge.kind, &edge.points, Nbc::Qt, Q, None).unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[-Q * L / 2.0, -Q * L / 2.0];
-        vec_approx_eq(&bry.residual, correct, 1e-14);
+        vec_approx_eq(&bry.phi, correct, 1e-14);
 
         // convection BC
         let mut bry = BcDistributed::new(
@@ -490,10 +492,10 @@ mod tests {
             None,
         )
         .unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, &[-81.0, -81.0], 1e-15);
-        bry.calc_jacobian(&state).unwrap();
-        let jac = bry.jacobian.ok_or("error").unwrap();
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, &[-81.0, -81.0], 1e-15);
+        bry.calc_kke(&state).unwrap();
+        let jac = bry.kke.ok_or("error").unwrap();
         let jac_correct = Matrix::from(&[
             [2.7, 1.35], //
             [1.35, 2.7], //
@@ -532,9 +534,9 @@ mod tests {
             None,
         )
         .unwrap();
-        bry.calc_residual(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
         let correct = &[-Q * L / 6.0, -Q * L / 6.0, 2.0 * -Q * L / 3.0];
-        vec_approx_eq(&bry.residual, correct, 1e-10);
+        vec_approx_eq(&bry.phi, correct, 1e-10);
 
         // convection BC
         let mut bry = BcDistributed::new(
@@ -548,16 +550,16 @@ mod tests {
             None,
         )
         .unwrap();
-        bry.calc_residual(&state).unwrap();
-        vec_approx_eq(&bry.residual, &[-5.5, -5.5, -22.0], 1e-14);
-        bry.calc_jacobian(&state).unwrap();
+        bry.calc_phi(&state).unwrap();
+        vec_approx_eq(&bry.phi, &[-5.5, -5.5, -22.0], 1e-14);
+        bry.calc_kke(&state).unwrap();
         #[rustfmt::skip]
         let correct = &[
             [ 0.22,  -0.055,  0.11],
             [-0.055,  0.22 ,  0.11],
             [ 0.11,   0.11 ,  0.88],
         ];
-        if let Some(jj) = bry.jacobian {
+        if let Some(jj) = bry.kke {
             mat_approx_eq(&jj, correct, 1e-15);
         }
     }
@@ -577,7 +579,7 @@ mod tests {
         natural.edge(&edge, Nbc::Cv(40.0), 20.0);
         let mut elements = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
         let state = FemState::new(&mesh, &base, &config).unwrap();
-        elements.calc_residuals(&state).unwrap();
-        elements.calc_jacobians(&state).unwrap();
+        elements.calc_all_phi(&state).unwrap();
+        elements.calc_all_kke(&state).unwrap();
     }
 }

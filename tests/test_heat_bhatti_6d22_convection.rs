@@ -137,12 +137,12 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // compute all ϕ vectors
     elements.calc_all_phi(&state)?;
-    boundaries.calc_residuals(&state)?;
+    boundaries.calc_all_phi(&state)?;
 
     // assemble R
     let rr = &mut lin_sys.residual;
     elements.assemble_rr(rr, &prescribed_values.flags);
-    boundaries.assemble_residuals(rr, &prescribed_values.flags);
+    boundaries.assemble_rr(rr, &prescribed_values.flags);
     println!("rr =\n{}", rr);
     let bhatti_rr = &[
         2627.5555555555547,
@@ -165,12 +165,12 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // compute jacobians
     elements.calc_all_kke(&state)?;
-    boundaries.calc_jacobians(&state)?;
+    boundaries.calc_all_kke(&state)?;
 
     // assemble jacobians matrices
     let kk = lin_sys.jacobian.get_coo_mut()?;
     elements.assemble_kk(kk, &prescribed_values.flags)?;
-    boundaries.assemble_jacobians(kk, &prescribed_values.flags)?;
+    boundaries.assemble_kk(kk, &prescribed_values.flags)?;
     let kk_mat = kk.as_dense();
     // println!("kk =\n{:.4}", kk_mat);
 
@@ -231,9 +231,9 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     vec_copy(&mut state.uu, &uu_new)?;
     rr.fill(0.0);
     elements.calc_all_phi(&state)?;
-    boundaries.calc_residuals(&state)?;
+    boundaries.calc_all_phi(&state)?;
     elements.assemble_rr(rr, &prescribed_values.flags);
-    boundaries.assemble_residuals(rr, &prescribed_values.flags);
+    boundaries.assemble_rr(rr, &prescribed_values.flags);
     println!("rr_new =\n{:?}", rr);
     let norm_rr = vec_norm(rr, Norm::Max);
     println!("norm_rr = {:?}", norm_rr);

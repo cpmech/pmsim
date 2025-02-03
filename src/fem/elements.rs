@@ -171,7 +171,7 @@ impl<'a> Elements<'a> {
     /// 1. You must call [Elements::calc_all_phi()] first
     /// 2. The global vector R will be cleared (with zeros) at the beginning
     ///
-    /// **Important:** You must call the Boundaries assemble_residuals after Elements
+    /// **Important:** You must assemble the Boundaries after Elements
     pub fn assemble_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         rr.fill(0.0); // << important
         self.all
@@ -186,7 +186,7 @@ impl<'a> Elements<'a> {
     /// 1. You must call [Elements::calc_all_kke()] first
     /// 2. The CooMatrix position in the global matrix K will be reset at the beginning
     ///
-    /// **Important:** You must call the Boundaries assemble_jacobians after Elements
+    /// **Important:** You must assemble the Boundaries after Elements
     pub fn assemble_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         kk.reset(); // << important
         for e in &self.all {

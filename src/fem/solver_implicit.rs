@@ -120,17 +120,17 @@ impl<'a> SolverImplicit<'a> {
             let mut max_rr = 0.0;
 
             // From here on, time t corresponds to the new (updated) time; thus the boundary
-            // conditions will yield update residuals. On the other hand, the primary variables
+            // conditions will yield updated residuals. On the other hand, the primary variables
             // (except the prescribed values) and secondary variables are still on the old time.
             // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..config.n_max_iterations {
                 // calculate all ϕ vectors (at the new time)
                 self.elements.calc_all_phi(&state)?;
-                self.bc_distributed.calc_residuals(&state)?;
+                self.bc_distributed.calc_all_phi(&state)?;
 
                 // assemble ϕ vectors into the global residual R
                 self.elements.assemble_rr(rr, prescribed);
-                self.bc_distributed.assemble_residuals(rr, prescribed);
+                self.bc_distributed.assemble_rr(rr, prescribed);
 
                 // add concentrated loads
                 self.bc_concentrated.add_to_residual(rr, state.t);
@@ -157,11 +157,11 @@ impl<'a> SolverImplicit<'a> {
                 if iteration == 0 || !config.constant_tangent {
                     // calculate all Ke matrices (local Jacobian)
                     self.elements.calc_all_kke(&state)?;
-                    self.bc_distributed.calc_jacobians(&state)?;
+                    self.bc_distributed.calc_all_kke(&state)?;
 
                     // assemble Ke matrices into the global Jacobian matrix
                     self.elements.assemble_kk(kk.get_coo_mut()?, prescribed)?;
-                    self.bc_distributed.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
+                    self.bc_distributed.assemble_kk(kk.get_coo_mut()?, prescribed)?;
 
                     // augment global Jacobian matrix
                     for eq in &self.bc_prescribed.equations {
