@@ -1,5 +1,6 @@
 use super::{FemBase, FemState};
-use crate::base::{assemble_matrix, assemble_vector, Config, Natural, Nbc};
+use crate::base::{assemble_matrix, assemble_vector, mat_add_local_to_global, vec_add_local_to_global};
+use crate::base::{Config, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
 use gemlab::mesh::Mesh;
@@ -193,6 +194,24 @@ impl<'a> BcDistributed<'a> {
         }
     }
 
+    /// Calculates the ϕ vector (local contribution to the residual R) and adds it to R
+    pub fn calc_phi_and_update_rr(&mut self, rr_global: &mut Vector, state: &FemState) -> Result<(), StrError> {
+        self.calc_phi(state)?;
+        vec_add_local_to_global(rr_global, &self.phi, &self.local_to_global);
+        Ok(())
+    }
+
+    /// Calculates the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u) and adds it to K
+    pub fn calc_kke_and_update_kk(&mut self, kk_global: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
+        if self.kke.is_some() {
+            self.calc_kke(state)?;
+            if let Some(kke) = self.kke.as_ref() {
+                mat_add_local_to_global(kk_global, kke, &self.local_to_global)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Returns the number of local equations
     pub fn n_local_eq(&self) -> usize {
         self.local_to_global.len()
@@ -261,6 +280,22 @@ impl<'a> BcDistributedArray<'a> {
         self.all.iter_mut().map(|e| e.calc_kke(&state)).collect()
     }
 
+    /// Calculates all ϕ vectors (local contribution to the residual R) and adds them to R
+    pub fn calc_phi_and_add_to_rr(&mut self, rr: &mut Vector, state: &FemState) -> Result<(), StrError> {
+        for i in 0..self.all.len() {
+            self.all[i].calc_phi_and_update_rr(rr, state)?;
+        }
+        Ok(())
+    }
+
+    /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
+    pub fn calc_kke_and_add_to_kk(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
+        for i in 0..self.all.len() {
+            self.all[i].calc_kke_and_update_kk(kk, state)?;
+        }
+        Ok(())
+    }
+
     /// Assembles the residual vector
     ///
     /// **Notes:**
@@ -302,9 +337,11 @@ mod tests {
     use crate::base::{Config, Elem, Natural, Nbc, SampleMeshes};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::{FemBase, FemState};
-    use gemlab::mesh::{Edge, Face, Features, Samples};
+    use gemlab::mesh::{At, Edge, Face, Features, Samples};
     use gemlab::shapes::GeoKind;
-    use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix};
+    use gemlab::util::any_x;
+    use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix, Vector};
+    use russell_sparse::{CooMatrix, Sym};
 
     #[test]
     fn new_captures_errors() {
@@ -581,5 +618,59 @@ mod tests {
         let state = FemState::new(&mesh, &base, &config).unwrap();
         elements.calc_phi(&state).unwrap();
         elements.calc_kke(&state).unwrap();
+    }
+
+    #[test]
+    fn calc_and_add_methods_work() {
+        // 1.0  3-----------2-----------5
+        //      |(-4)       |(-3)       |(-6)
+        //      |    [0]    |    [1]    |
+        //      |    (1)    |    (2)    |
+        //      |(-1)       |(-2)       |(-5)
+        // 0.0  0-----------1-----------4  → x
+        //     0.0         1.0         2.0
+        let mesh = Samples::two_qua4();
+        let features = Features::new(&mesh, false);
+        let top = features.search_edges(At::Y(1.0), any_x).unwrap();
+
+        let param = ParamSolid::sample_linear_elastic();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(param)), (2, Elem::Solid(param))]).unwrap();
+        let config = Config::new(&mesh);
+        let state = FemState::new(&mesh, &base, &config).unwrap();
+
+        const Q: f64 = 25.0;
+
+        let mut natural = Natural::new();
+        natural.edges(&top, Nbc::Qn, -Q);
+
+        let mut bry = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
+
+        let neq = base.equations.n_equation;
+        let mut rr = Vector::new(neq);
+        bry.calc_phi_and_add_to_rr(&mut rr, &state).unwrap();
+        // note the negative sign
+        //                 ↓
+        // →    ⌠              ⌠    →
+        // rᵐ = │ ... dΩ   ─   │ Nᵐ v dΓ
+        //      ⌡              ⌡
+        //      Ωₑ             Γₑ
+        //                \_____________/
+        //                we compute this
+        #[rustfmt::skip]
+        let correct = [
+            0.0, 0.0,           // 0
+            0.0, 0.0,           // 1
+            0.0, Q/2.0 + Q/2.0, // 2
+            0.0, Q/2.0,         // 3
+            0.0, 0.0,           // 4
+            0.0, Q/2.0,         // 5
+        ];
+        vec_approx_eq(&rr, &correct, 1e-15);
+
+        let nnz_sup = 2 * neq * neq;
+        let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
+        bry.calc_kke_and_add_to_kk(&mut kk, &state).unwrap();
+        let correct = Matrix::new(neq, neq); // null
+        assert_eq!(kk.as_dense().as_data(), correct.as_data());
     }
 }

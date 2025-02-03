@@ -442,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn calc_and_assemble_rr_and_kk_work() {
+    fn calc_and_add_methods_work() {
         // mesh and parameters
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
