@@ -82,7 +82,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     let mut lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries)?;
 
     // assemble jacobian matrix
-    let kk = lin_sys.jacobian.get_coo_mut()?;
+    let kk = lin_sys.kk.get_coo_mut()?;
     elements.add_to_kk(kk, &prescribed_values.flags)?;
     boundaries.add_to_kk(kk, &prescribed_values.flags)?;
 
@@ -92,7 +92,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     }
 
     // done
-    Ok(lin_sys.jacobian)
+    Ok(lin_sys.kk)
 }
 
 fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Result<(), StrError> {

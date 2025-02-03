@@ -25,16 +25,16 @@ pub struct LinearSystem<'a> {
     ///    `nnz = n_prescribed + Σ (ndof_local × ndof_local) + Σ (ndof_local_boundary × ndof_local_boundary)`
     pub nnz_sup: usize,
 
-    /// residual vector
-    pub residual: Vector,
+    /// Holds the residual vector R
+    pub rr: Vector,
 
-    /// Global Jacobian matrix
-    pub jacobian: SparseMatrix,
+    /// Holds the global Jacobian matrix K
+    pub kk: SparseMatrix,
 
-    /// Linear solver
+    /// Holds the linear solver
     pub solver: LinSolver<'a>,
 
-    /// Minus delta U vector (the solution of the linear system)
+    /// Holds the "minus-delta-U" vector (the solution of the linear system)
     pub mdu: Vector,
 }
 
@@ -104,8 +104,8 @@ impl<'a> LinearSystem<'a> {
         Ok(LinearSystem {
             n_equation,
             nnz_sup,
-            residual: Vector::new(n_equation),
-            jacobian: SparseMatrix::new_coo(n_equation, n_equation, nnz_sup, sym)?,
+            rr: Vector::new(n_equation),
+            kk: SparseMatrix::new_coo(n_equation, n_equation, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,
             mdu: Vector::new(n_equation),
         })
@@ -188,7 +188,7 @@ mod tests {
         let lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries).unwrap();
         assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
         assert_eq!(
-            lin_sys.jacobian.get_info(),
+            lin_sys.kk.get_info(),
             (
                 n_equation_global,
                 n_equation_global,
@@ -205,7 +205,7 @@ mod tests {
         let lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries).unwrap();
         assert_eq!(lin_sys.nnz_sup, nnz_correct_triangle);
         assert_eq!(
-            lin_sys.jacobian.get_info(),
+            lin_sys.kk.get_info(),
             (
                 n_equation_global,
                 n_equation_global,
@@ -223,7 +223,7 @@ mod tests {
         let lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries).unwrap();
         assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
         assert_eq!(
-            lin_sys.jacobian.get_info(),
+            lin_sys.kk.get_info(),
             (
                 n_equation_global,
                 n_equation_global,

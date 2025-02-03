@@ -59,8 +59,8 @@ impl<'a> SolverImplicit<'a> {
         // accessors
         let config = &self.config;
         let prescribed = &self.bc_prescribed.flags;
-        let rr = &mut self.linear_system.residual;
-        let kk = &mut self.linear_system.jacobian;
+        let rr = &mut self.linear_system.rr;
+        let kk = &mut self.linear_system.kk;
         let mdu = &mut self.linear_system.mdu;
 
         // residual vector

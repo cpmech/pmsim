@@ -140,7 +140,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     boundaries.calc_phi(&state)?;
 
     // assemble R
-    let rr = &mut lin_sys.residual;
+    let rr = &mut lin_sys.rr;
     elements.add_to_rr(rr, &prescribed_values.flags);
     boundaries.add_to_rr(rr, &prescribed_values.flags);
     println!("rr =\n{}", rr);
@@ -168,7 +168,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     boundaries.calc_kke(&state)?;
 
     // assemble jacobians matrices
-    let kk = lin_sys.jacobian.get_coo_mut()?;
+    let kk = lin_sys.kk.get_coo_mut()?;
     elements.add_to_kk(kk, &prescribed_values.flags)?;
     boundaries.add_to_kk(kk, &prescribed_values.flags)?;
     let kk_mat = kk.as_dense();
@@ -199,7 +199,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     }
 
     // solve linear system
-    let jj = &mut lin_sys.jacobian;
+    let jj = &mut lin_sys.kk;
     let mdu = &mut lin_sys.mdu;
     lin_sys.solver.actual.factorize(jj, None)?;
     lin_sys.solver.actual.solve(mdu, jj, &rr, false)?;
