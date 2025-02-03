@@ -129,7 +129,9 @@ pub mod porous_liq {}
 
 pub mod porous_liq_gas {}
 
-pub mod porous_sld_liq {}
+pub mod porous_sld_liq {
+    // TODO: how to reuse LinElastic and VonMises here?
+}
 
 pub mod porous_sld_liq_gas {}
 
