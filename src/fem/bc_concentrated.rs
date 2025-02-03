@@ -24,8 +24,8 @@ pub struct BcConcentratedArray<'a> {
 }
 
 impl<'a> BcConcentrated<'a> {
-    /// Adds the concentrated load value at given time to the global residual
-    pub fn add_to_residual(&self, residual: &mut Vector, time: f64) {
+    /// Adds the concentrated load value at given time to the residual R
+    pub fn add_to_rr(&self, residual: &mut Vector, time: f64) {
         let value = match self.function {
             Some(f) => (f)(time),
             None => self.value,
@@ -54,9 +54,9 @@ impl<'a> BcConcentratedArray<'a> {
         Ok(BcConcentratedArray { all })
     }
 
-    /// Adds all concentrated load values at given time to the global residual
-    pub fn add_to_residual(&self, residual: &mut Vector, time: f64) {
-        self.all.iter().for_each(|e| e.add_to_residual(residual, time));
+    /// Adds all concentrated load values at given time to the residual R
+    pub fn add_to_rr(&self, residual: &mut Vector, time: f64) {
+        self.all.iter().for_each(|e| e.add_to_rr(residual, time));
     }
 }
 
@@ -95,7 +95,7 @@ mod tests {
         natural.points(&[2], Pbc::Fz, -20.0);
         let b_points = BcConcentratedArray::new(&base, &natural).unwrap();
         let mut residual = Vector::new(4 * 3);
-        b_points.add_to_residual(&mut residual, 0.0);
+        b_points.add_to_rr(&mut residual, 0.0);
         assert_eq!(
             residual.as_data(),
             &[

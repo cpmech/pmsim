@@ -125,15 +125,15 @@ impl<'a> SolverImplicit<'a> {
             // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..config.n_max_iterations {
                 // calculate all ϕ vectors (at the new time)
-                self.elements.calc_all_phi(&state)?;
-                self.bc_distributed.calc_all_phi(&state)?;
+                self.elements.calc_phi(&state)?;
+                self.bc_distributed.calc_phi(&state)?;
 
-                // assemble ϕ vectors into the global residual R
-                self.elements.assemble_rr(rr, prescribed);
-                self.bc_distributed.assemble_rr(rr, prescribed);
+                // add ϕ vectors to the residual R
+                self.elements.add_to_rr(rr, prescribed);
+                self.bc_distributed.add_to_rr(rr, prescribed);
 
-                // add concentrated loads
-                self.bc_concentrated.add_to_residual(rr, state.t);
+                // add concentrated loads to the residual R
+                self.bc_concentrated.add_to_rr(rr, state.t);
 
                 // check convergence on residual
                 max_rr_prev = max_rr;
@@ -156,12 +156,12 @@ impl<'a> SolverImplicit<'a> {
                 // compute Jacobian matrix
                 if iteration == 0 || !config.constant_tangent {
                     // calculate all Ke matrices (local Jacobian)
-                    self.elements.calc_all_kke(&state)?;
-                    self.bc_distributed.calc_all_kke(&state)?;
+                    self.elements.calc_kke(&state)?;
+                    self.bc_distributed.calc_kke(&state)?;
 
-                    // assemble Ke matrices into the global Jacobian matrix
-                    self.elements.assemble_kk(kk.get_coo_mut()?, prescribed)?;
-                    self.bc_distributed.assemble_kk(kk.get_coo_mut()?, prescribed)?;
+                    // add all Ke matrices to the global Jacobian matrix
+                    self.elements.add_to_kk(kk.get_coo_mut()?, prescribed)?;
+                    self.bc_distributed.add_to_kk(kk.get_coo_mut()?, prescribed)?;
 
                     // augment global Jacobian matrix
                     for eq in &self.bc_prescribed.equations {

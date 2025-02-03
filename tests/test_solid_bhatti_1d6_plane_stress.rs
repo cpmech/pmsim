@@ -78,7 +78,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     let mut file_io = FileIo::new();
 
     // check Jacobian matrix of first element
-    elements.calc_all_kke(&state)?;
+    elements.calc_kke(&state)?;
     #[rustfmt::skip]
     let bhatti_kk0 = Matrix::from(&[
       [ 9.765625000000001e+02,  0.000000000000000e+00, -9.765625000000001e+02,  2.604166666666667e+02,  0.000000000000000e+00, -2.604166666666667e+02],

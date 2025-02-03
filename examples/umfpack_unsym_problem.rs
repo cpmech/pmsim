@@ -75,16 +75,16 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     let state = FemState::new(&mesh, &base, &config)?;
 
     // compute jacobians
-    elements.calc_all_kke(&state)?;
-    boundaries.calc_all_kke(&state)?;
+    elements.calc_kke(&state)?;
+    boundaries.calc_kke(&state)?;
 
     // linear system
     let mut lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries)?;
 
     // assemble jacobian matrix
     let kk = lin_sys.jacobian.get_coo_mut()?;
-    elements.assemble_kk(kk, &prescribed_values.flags)?;
-    boundaries.assemble_kk(kk, &prescribed_values.flags)?;
+    elements.add_to_kk(kk, &prescribed_values.flags)?;
+    boundaries.add_to_kk(kk, &prescribed_values.flags)?;
 
     // augment global Jacobian matrix
     for eq in &prescribed_values.equations {

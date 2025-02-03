@@ -226,7 +226,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
          └           ┘"
     );
 
-    // assemble modified global residual vector
+    // assemble modified residual vector
     let mut rr_global = Vector::new(neq);
     assemble_vector(&mut rr_global, &rr_local, &elem.local_to_global, &prescribed);
     println!("modified global R = \n{}", rr_global);

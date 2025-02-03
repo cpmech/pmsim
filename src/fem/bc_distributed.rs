@@ -20,7 +20,7 @@ pub struct BcDistributed<'a> {
     /// Integration (Gauss) points
     gauss: Gauss,
 
-    /// Holds the ϕ vector (local contribution to the global residual R)
+    /// Holds the ϕ vector (local contribution to the residual R)
     phi: Vector,
 
     /// Holds the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
@@ -115,7 +115,7 @@ impl<'a> BcDistributed<'a> {
         })
     }
 
-    /// Calculates the ϕ vector (local contribution to the global residual R)
+    /// Calculates the ϕ vector (local contribution to the residual R)
     pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
         let (ndim, nnode) = self.pad.xxt.dims();
         let res = &mut self.phi;
@@ -251,17 +251,17 @@ impl<'a> BcDistributedArray<'a> {
         Ok(BcDistributedArray { all })
     }
 
-    /// Calculates all ϕ vectors (local contribution to the global residual R)
-    pub fn calc_all_phi(&mut self, state: &FemState) -> Result<(), StrError> {
+    /// Calculates all ϕ vectors (local contribution to the residual R)
+    pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_phi(&state)).collect()
     }
 
     /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u)
-    pub fn calc_all_kke(&mut self, state: &FemState) -> Result<(), StrError> {
+    pub fn calc_kke(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_kke(&state)).collect()
     }
 
-    /// Assembles the global residual vector
+    /// Assembles the residual vector
     ///
     /// **Notes:**
     ///
@@ -269,7 +269,7 @@ impl<'a> BcDistributedArray<'a> {
     /// 2. The global vector R will **not** be cleared
     ///
     /// **Important:** You must assemble the Boundaries after Elements
-    pub fn assemble_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
+    pub fn add_to_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         self.all
             .iter()
             .for_each(|e| assemble_vector(rr, &e.phi, &e.local_to_global, &prescribed));
@@ -283,7 +283,7 @@ impl<'a> BcDistributedArray<'a> {
     /// 2. The CooMatrix position in the global matrix K will **not** be reset
     ///
     /// **Important:** You must assemble the Boundaries after Elements
-    pub fn assemble_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
+    pub fn add_to_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         // do not call reset here because it is called by elements
         for e in &self.all {
             if let Some(jj) = &e.kke {
@@ -579,7 +579,7 @@ mod tests {
         natural.edge(&edge, Nbc::Cv(40.0), 20.0);
         let mut elements = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
         let state = FemState::new(&mesh, &base, &config).unwrap();
-        elements.calc_all_phi(&state).unwrap();
-        elements.calc_all_kke(&state).unwrap();
+        elements.calc_phi(&state).unwrap();
+        elements.calc_kke(&state).unwrap();
     }
 }

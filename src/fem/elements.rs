@@ -10,7 +10,7 @@ pub struct GenericElement<'a> {
     /// Connects to the "actual" implementation of local equations
     pub actual: Box<dyn ElementTrait + 'a>,
 
-    /// Holds the ϕ vector (local contribution to the global residual R)
+    /// Holds the ϕ vector (local contribution to the residual R)
     pub phi: Vector,
 
     /// Holds the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
@@ -30,7 +30,7 @@ pub struct Elements<'a> {
 
 /// Holds auxiliary arguments for the computation of numerical Jacobian matrices
 struct ArgsForNumericalJacobian<'a> {
-    /// Holds the ϕ vector (local contribution to the global residual R)
+    /// Holds the ϕ vector (local contribution to the residual R)
     pub phi: &'a mut Vector,
 
     /// Holds the current state
@@ -59,7 +59,7 @@ impl<'a> GenericElement<'a> {
         })
     }
 
-    /// Calculates the ϕ vector (local contribution to the global residual R)
+    /// Calculates the ϕ vector (local contribution to the residual R)
     pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
         self.actual.calc_residual(&mut self.phi, state)
     }
@@ -69,7 +69,7 @@ impl<'a> GenericElement<'a> {
         self.actual.calc_jacobian(&mut self.kke, state)
     }
 
-    /// Calculates the ϕ vector (local contribution to the global residual R) and adds it to R
+    /// Calculates the ϕ vector (local contribution to the residual R) and adds it to R
     pub fn calc_phi_and_update_rr(&mut self, rr_global: &mut Vector, state: &FemState) -> Result<(), StrError> {
         self.actual.calc_residual(&mut self.phi, state)?;
         vec_add_local_to_global(rr_global, &self.phi, &self.actual.local_to_global());
@@ -138,18 +138,18 @@ impl<'a> Elements<'a> {
         return true;
     }
 
-    /// Calculates all ϕ vectors (local contribution to the global residual R)
-    pub fn calc_all_phi(&mut self, state: &FemState) -> Result<(), StrError> {
+    /// Calculates all ϕ vectors (local contribution to the residual R)
+    pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_phi(&state)).collect()
     }
 
     /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u)
-    pub fn calc_all_kke(&mut self, state: &FemState) -> Result<(), StrError> {
+    pub fn calc_kke(&mut self, state: &FemState) -> Result<(), StrError> {
         self.all.iter_mut().map(|e| e.calc_kke(&state)).collect()
     }
 
-    /// Calculates all ϕ vectors (local contribution to the global residual R) and adds them to R
-    pub fn calc_all_phi_and_update_rr(&mut self, rr: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates all ϕ vectors (local contribution to the residual R) and adds them to R
+    pub fn calc_phi_and_add_to_rr(&mut self, rr: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for i in 0..self.all.len() {
             self.all[i].calc_phi_and_update_rr(rr, state)?;
         }
@@ -157,14 +157,14 @@ impl<'a> Elements<'a> {
     }
 
     /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
-    pub fn calc_all_kke_and_update_kk(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
+    pub fn calc_kke_and_add_to_kk(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
         for i in 0..self.all.len() {
             self.all[i].calc_kke_and_update_kk(kk, state)?;
         }
         Ok(())
     }
 
-    /// Assembles the global residual vector
+    /// Assembles the residual vector
     ///
     /// **Notes:**
     ///
@@ -172,7 +172,7 @@ impl<'a> Elements<'a> {
     /// 2. The global vector R will be cleared (with zeros) at the beginning
     ///
     /// **Important:** You must assemble the Boundaries after Elements
-    pub fn assemble_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
+    pub fn add_to_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         rr.fill(0.0); // << important
         self.all
             .iter()
@@ -187,7 +187,7 @@ impl<'a> Elements<'a> {
     /// 2. The CooMatrix position in the global matrix K will be reset at the beginning
     ///
     /// **Important:** You must assemble the Boundaries after Elements
-    pub fn assemble_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
+    pub fn add_to_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         kk.reset(); // << important
         for e in &self.all {
             assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), &prescribed)?;
@@ -505,8 +505,8 @@ mod tests {
         let nnz_sup = 3 * neq * neq;
         let mut rr = Vector::new(neq);
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
-        elements.calc_all_phi_and_update_rr(&mut rr, &state).unwrap();
-        elements.calc_all_kke_and_update_kk(&mut kk, &state).unwrap();
+        elements.calc_phi_and_add_to_rr(&mut rr, &state).unwrap();
+        elements.calc_kke_and_add_to_kk(&mut kk, &state).unwrap();
         let kk_mat = kk.as_dense();
         vec_approx_eq(&rr, &rr_correct, 1e-14);
         mat_approx_eq(&kk_mat, &kk_correct, 1e-12);

@@ -25,7 +25,7 @@ pub struct LinearSystem<'a> {
     ///    `nnz = n_prescribed + Σ (ndof_local × ndof_local) + Σ (ndof_local_boundary × ndof_local_boundary)`
     pub nnz_sup: usize,
 
-    /// Global residual vector
+    /// residual vector
     pub residual: Vector,
 
     /// Global Jacobian matrix

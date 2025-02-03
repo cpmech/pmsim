@@ -92,11 +92,11 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     state.uu.fill(0.0);
     // with state = 0, ϕ is equal to -b (negative of integral of source term)
     let neg_b = Vector::from(&[250.0, 312.5, 312.5, 250.0, -1125., -1000.0, -1125., -1250.0]);
-    elements.calc_all_phi(&state)?;
+    elements.calc_phi(&state)?;
     vec_approx_eq(&elements.all[0].phi, &neg_b, 1e-12);
 
     // check Jacobian of first element (independent of state)
-    elements.calc_all_kke(&state)?;
+    elements.calc_kke(&state)?;
     #[rustfmt::skip]
     let bhatti_kk0 = Matrix::from(&[
         [38.515873015873005  , 23.194444444444443  , 21.46825396825396   , 22.02777777777777   , -20.317460317460306 , -30.91269841269842  , -14.682539682539685 , -39.293650793650784],
@@ -136,13 +136,13 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     }
 
     // compute all ϕ vectors
-    elements.calc_all_phi(&state)?;
-    boundaries.calc_all_phi(&state)?;
+    elements.calc_phi(&state)?;
+    boundaries.calc_phi(&state)?;
 
     // assemble R
     let rr = &mut lin_sys.residual;
-    elements.assemble_rr(rr, &prescribed_values.flags);
-    boundaries.assemble_rr(rr, &prescribed_values.flags);
+    elements.add_to_rr(rr, &prescribed_values.flags);
+    boundaries.add_to_rr(rr, &prescribed_values.flags);
     println!("rr =\n{}", rr);
     let bhatti_rr = &[
         2627.5555555555547,
@@ -164,13 +164,13 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     println!("norm_rr = {:?}", norm_rr);
 
     // compute jacobians
-    elements.calc_all_kke(&state)?;
-    boundaries.calc_all_kke(&state)?;
+    elements.calc_kke(&state)?;
+    boundaries.calc_kke(&state)?;
 
     // assemble jacobians matrices
     let kk = lin_sys.jacobian.get_coo_mut()?;
-    elements.assemble_kk(kk, &prescribed_values.flags)?;
-    boundaries.assemble_kk(kk, &prescribed_values.flags)?;
+    elements.add_to_kk(kk, &prescribed_values.flags)?;
+    boundaries.add_to_kk(kk, &prescribed_values.flags)?;
     let kk_mat = kk.as_dense();
     // println!("kk =\n{:.4}", kk_mat);
 
@@ -230,10 +230,10 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // set state with new U vector and check R
     vec_copy(&mut state.uu, &uu_new)?;
     rr.fill(0.0);
-    elements.calc_all_phi(&state)?;
-    boundaries.calc_all_phi(&state)?;
-    elements.assemble_rr(rr, &prescribed_values.flags);
-    boundaries.assemble_rr(rr, &prescribed_values.flags);
+    elements.calc_phi(&state)?;
+    boundaries.calc_phi(&state)?;
+    elements.add_to_rr(rr, &prescribed_values.flags);
+    boundaries.add_to_rr(rr, &prescribed_values.flags);
     println!("rr_new =\n{:?}", rr);
     let norm_rr = vec_norm(rr, Norm::Max);
     println!("norm_rr = {:?}", norm_rr);
