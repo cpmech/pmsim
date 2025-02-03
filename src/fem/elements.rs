@@ -10,11 +10,11 @@ pub struct GenericElement<'a> {
     /// Connects to the "actual" implementation of local equations
     pub actual: Box<dyn ElementTrait + 'a>,
 
-    /// Implements the residual vector
-    pub residual: Vector,
+    /// Holds the ϕ vector (local contribution to the global residual R)
+    pub phi: Vector,
 
-    /// Implements the Jacobian matrix
-    pub jacobian: Matrix,
+    /// Holds the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
+    pub kke: Matrix,
 }
 
 /// Holds a collection of (generic) finite elements
@@ -30,8 +30,8 @@ pub struct Elements<'a> {
 
 /// Holds auxiliary arguments for the computation of numerical Jacobian matrices
 struct ArgsForNumericalJacobian<'a> {
-    /// Holds the residual vector
-    pub residual: &'a mut Vector,
+    /// Holds the ϕ vector (local contribution to the global residual R)
+    pub phi: &'a mut Vector,
 
     /// Holds the current state
     pub state: &'a mut FemState,
@@ -54,49 +54,41 @@ impl<'a> GenericElement<'a> {
         let neq = base.n_local_eq(cell).unwrap();
         Ok(GenericElement {
             actual,
-            residual: Vector::new(neq),
-            jacobian: Matrix::new(neq, neq),
+            phi: Vector::new(neq),
+            kke: Matrix::new(neq, neq),
         })
     }
 
-    /// Calculates the residual vector
-    pub fn calc_residual(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.actual.calc_residual(&mut self.residual, state)
+    /// Calculates the ϕ vector (local contribution to the global residual R)
+    pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
+        self.actual.calc_residual(&mut self.phi, state)
     }
 
-    /// Calculates the Jacobian matrix
-    pub fn calc_jacobian(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.actual.calc_jacobian(&mut self.jacobian, state)
+    /// Calculates the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
+    pub fn calc_kke(&mut self, state: &FemState) -> Result<(), StrError> {
+        self.actual.calc_jacobian(&mut self.kke, state)
     }
 
-    /// Calculates the residual vector and adds it to the global residual vector
-    pub fn calc_and_add_to_global_residual(
-        &mut self,
-        rr_global: &mut Vector,
-        state: &FemState,
-    ) -> Result<(), StrError> {
-        self.actual.calc_residual(&mut self.residual, state)?;
-        vec_add_local_to_global(rr_global, &self.residual, &self.actual.local_to_global());
+    /// Calculates the ϕ vector (local contribution to the global residual R) and adds it to R
+    pub fn calc_phi_and_update_rr(&mut self, rr_global: &mut Vector, state: &FemState) -> Result<(), StrError> {
+        self.actual.calc_residual(&mut self.phi, state)?;
+        vec_add_local_to_global(rr_global, &self.phi, &self.actual.local_to_global());
         Ok(())
     }
 
-    /// Calculates the Jacobian matrix and adds it to the global Jacobian matrix
-    pub fn calc_and_add_to_global_jacobian(
-        &mut self,
-        kk_global: &mut CooMatrix,
-        state: &FemState,
-    ) -> Result<(), StrError> {
-        self.actual.calc_jacobian(&mut self.jacobian, state)?;
-        mat_add_local_to_global(kk_global, &self.jacobian, &self.actual.local_to_global())
+    /// Calculates the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u) and adds it to K
+    pub fn calc_kke_and_update_kk(&mut self, kk_global: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
+        self.actual.calc_jacobian(&mut self.kke, state)?;
+        mat_add_local_to_global(kk_global, &self.kke, &self.actual.local_to_global())
     }
 
-    /// Calculates the Jacobian matrix using finite differences
+    /// Calculates the local Jacobian matrix using finite differences
     ///
     /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
     pub fn numerical_jacobian(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        let neq = self.residual.dim();
+        let neq = self.phi.dim();
         let mut args = ArgsForNumericalJacobian {
-            residual: &mut self.residual,
+            phi: &mut self.phi,
             state,
         };
         for i in 0..neq {
@@ -109,13 +101,13 @@ impl<'a> GenericElement<'a> {
                     a.state.duu[j] = u - original_uu;
                     self.actual.backup_secondary_values(a.state);
                     self.actual.update_secondary_values(&mut a.state).unwrap();
-                    self.actual.calc_residual(&mut a.residual, &a.state).unwrap();
+                    self.actual.calc_residual(&mut a.phi, &a.state).unwrap();
                     self.actual.restore_secondary_values(&mut a.state);
                     a.state.uu[j] = original_uu;
                     a.state.duu[j] = original_duu;
-                    Ok(a.residual[i])
+                    Ok(a.phi[i])
                 });
-                self.jacobian.set(i, j, res.unwrap());
+                self.kke.set(i, j, res.unwrap());
             }
         }
         Ok(())
@@ -146,59 +138,59 @@ impl<'a> Elements<'a> {
         return true;
     }
 
-    /// Computes the residual vectors
-    pub fn calc_residuals(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_residual(&state)).collect()
+    /// Calculates all ϕ vectors (local contribution to the global residual R)
+    pub fn calc_all_phi(&mut self, state: &FemState) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.calc_phi(&state)).collect()
     }
 
-    /// Computes the Jacobian matrices
-    pub fn calc_jacobians(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_jacobian(&state)).collect()
+    /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u)
+    pub fn calc_all_kke(&mut self, state: &FemState) -> Result<(), StrError> {
+        self.all.iter_mut().map(|e| e.calc_kke(&state)).collect()
     }
 
-    /// Calculates all residual vectors and assemble them into the global residual vector
-    pub fn calc_and_assemble_residuals(&mut self, rr: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates all ϕ vectors (local contribution to the global residual R) and adds them to R
+    pub fn calc_all_phi_and_update_rr(&mut self, rr: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for i in 0..self.all.len() {
-            self.all[i].calc_and_add_to_global_residual(rr, state)?;
+            self.all[i].calc_phi_and_update_rr(rr, state)?;
         }
         Ok(())
     }
 
-    /// Calculates all Jacobian matrices and assemble them into the global Jacobian matrix
-    pub fn calc_and_assemble_jacobians(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
+    /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
+    pub fn calc_all_kke_and_update_kk(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
         for i in 0..self.all.len() {
-            self.all[i].calc_and_add_to_global_jacobian(kk, state)?;
+            self.all[i].calc_kke_and_update_kk(kk, state)?;
         }
         Ok(())
     }
 
-    /// Assembles residual vectors
+    /// Assembles the global residual vector
     ///
     /// **Notes:**
     ///
-    /// 1. You must call calc residuals first
+    /// 1. You must call [Elements::calc_all_phi()] first
     /// 2. The global vector R will be cleared (with zeros) at the beginning
     ///
     /// **Important:** You must call the Boundaries assemble_residuals after Elements
-    pub fn assemble_residuals(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
+    pub fn assemble_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
         rr.fill(0.0); // << important
         self.all
             .iter()
-            .for_each(|e| assemble_vector(rr, &e.residual, &e.actual.local_to_global(), &prescribed));
+            .for_each(|e| assemble_vector(rr, &e.phi, &e.actual.local_to_global(), &prescribed));
     }
 
     /// Assembles jacobian matrices
     ///
     /// **Notes:**
     ///
-    /// 1. You must call calc jacobians first
+    /// 1. You must call [Elements::calc_all_kke()] first
     /// 2. The CooMatrix position in the global matrix K will be reset at the beginning
     ///
     /// **Important:** You must call the Boundaries assemble_jacobians after Elements
-    pub fn assemble_jacobians(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
+    pub fn assemble_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
         kk.reset(); // << important
         for e in &self.all {
-            assemble_matrix(kk, &e.jacobian, &e.actual.local_to_global(), &prescribed)?;
+            assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), &prescribed)?;
         }
         Ok(())
     }
@@ -322,10 +314,10 @@ mod tests {
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
-        ele.calc_jacobian(&state).unwrap();
-        let jj_ana = ele.jacobian.clone();
+        ele.calc_kke(&state).unwrap();
+        let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
-        mat_approx_eq(&jj_ana, &ele.jacobian, 1e-11);
+        mat_approx_eq(&jj_ana, &ele.kke, 1e-11);
 
         // transient simulation
         let mut config = Config::new(&mesh);
@@ -340,10 +332,10 @@ mod tests {
         state.uu_star[0] = beta_1 * state.uu[0] + beta_2 * state.uu[0];
         state.uu_star[1] = beta_1 * state.uu[1] + beta_2 * state.uu[1];
         state.uu_star[2] = beta_1 * state.uu[2] + beta_2 * state.uu[2];
-        ele.calc_jacobian(&state).unwrap();
-        let jj_ana = ele.jacobian.clone();
+        ele.calc_kke(&state).unwrap();
+        let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
-        mat_approx_eq(&jj_ana, &ele.jacobian, 1e-10);
+        mat_approx_eq(&jj_ana, &ele.kke, 1e-10);
 
         // variable conductivity
         let p1 = ParamDiffusion {
@@ -355,12 +347,12 @@ mod tests {
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
-        ele.calc_jacobian(&state).unwrap();
-        let jj_ana = ele.jacobian.clone();
+        ele.calc_kke(&state).unwrap();
+        let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
         // println!("ana: J = \n{}", ele.jacobian);
         // println!("num: J = \n{}", num_jacobian);
-        mat_approx_eq(&jj_ana, &ele.jacobian, 1e-7);
+        mat_approx_eq(&jj_ana, &ele.kke, 1e-7);
         // note that the "stiffness" is now unsymmetric
         // println!("difference = {:?}", num_jacobian[0][2] - num_jacobian[2][0]);
     }
@@ -387,14 +379,14 @@ mod tests {
         ele.actual.update_secondary_values(&mut state).unwrap();
         println!("uu =\n{}", state.uu);
 
-        ele.calc_jacobian(&state).unwrap();
-        let jj_ana = ele.jacobian.clone();
+        ele.calc_kke(&state).unwrap();
+        let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
 
         println!("J(ana)=\n{:.2}", jj_ana);
-        println!("J(num)=\n{:.2}", ele.jacobian);
+        println!("J(num)=\n{:.2}", ele.kke);
 
-        mat_approx_eq(&jj_ana, &ele.jacobian, 1e-8);
+        mat_approx_eq(&jj_ana, &ele.kke, 1e-8);
     }
 
     // ----------------- temporary ----------------------------------------
@@ -513,8 +505,8 @@ mod tests {
         let nnz_sup = 3 * neq * neq;
         let mut rr = Vector::new(neq);
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
-        elements.calc_and_assemble_residuals(&mut rr, &state).unwrap();
-        elements.calc_and_assemble_jacobians(&mut kk, &state).unwrap();
+        elements.calc_all_phi_and_update_rr(&mut rr, &state).unwrap();
+        elements.calc_all_kke_and_update_kk(&mut kk, &state).unwrap();
         let kk_mat = kk.as_dense();
         vec_approx_eq(&rr, &rr_correct, 1e-14);
         mat_approx_eq(&kk_mat, &kk_correct, 1e-12);

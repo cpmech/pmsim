@@ -88,15 +88,15 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &config)?;
 
-    // check residual of first element
+    // check ϕ vector of first element
     state.uu.fill(0.0);
-    // with state = 0, the residual is equal to -b (negative of integral of source term)
+    // with state = 0, ϕ is equal to -b (negative of integral of source term)
     let neg_b = Vector::from(&[250.0, 312.5, 312.5, 250.0, -1125., -1000.0, -1125., -1250.0]);
-    elements.calc_residuals(&state)?;
-    vec_approx_eq(&elements.all[0].residual, &neg_b, 1e-12);
+    elements.calc_all_phi(&state)?;
+    vec_approx_eq(&elements.all[0].phi, &neg_b, 1e-12);
 
     // check Jacobian of first element (independent of state)
-    elements.calc_jacobians(&state)?;
+    elements.calc_all_kke(&state)?;
     #[rustfmt::skip]
     let bhatti_kk0 = Matrix::from(&[
         [38.515873015873005  , 23.194444444444443  , 21.46825396825396   , 22.02777777777777   , -20.317460317460306 , -30.91269841269842  , -14.682539682539685 , -39.293650793650784],
@@ -108,7 +108,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         [-14.682539682539685 , -28.015873015873005 , -20.63492063492062  , -33.49206349206349  , -5.079365079365089  , 3.650793650793652   , 95.07936507936506   , 3.174603174603193  ],
         [-39.293650793650784 , -33.65079365079365  , -28.412698412698408 , -46.67460317460315  , -23.174603174603188 , 42.06349206349206   , 3.1746031746031935  , 125.96825396825392 ],
     ]);
-    mat_approx_eq(&elements.all[0].jacobian, &bhatti_kk0, 1e-13);
+    mat_approx_eq(&elements.all[0].kke, &bhatti_kk0, 1e-13);
 
     // check Jacobian of second element (independent of state)
     #[rustfmt::skip]
@@ -122,7 +122,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         [-21.269841269841265 , -42.22222222222221  , -27.460317460317462 , -85.55555555555557  , -36.50793650793649  , 14.60317460317459   , 133.01587301587304  , 65.39682539682536  ],
         [-91.98412698412692  , -55.3174603174603   , -56.031746031745996 , -129.36507936507928 , -92.6984126984127   , 101.11111111111107  , 65.39682539682536   , 258.8888888888888  ],
     ]);
-    mat_approx_eq(&elements.all[1].jacobian, &bhatti_kk1, 1e-12);
+    mat_approx_eq(&elements.all[1].kke, &bhatti_kk1, 1e-12);
 
     // prescribed values
     let prescribed_values = BcPrescribedArray::new(&&base, &essential)?;
@@ -130,18 +130,18 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // linear system
     let mut lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries)?;
 
-    // fix state.uu (must do this before calculating residuals)
+    // fix state.uu (must do this before calculating R)
     for eq in &prescribed_values.equations {
         state.uu[*eq] = 110.0;
     }
 
-    // compute residuals
-    elements.calc_residuals(&state)?;
+    // compute all ϕ vectors
+    elements.calc_all_phi(&state)?;
     boundaries.calc_residuals(&state)?;
 
-    // assemble residuals
+    // assemble R
     let rr = &mut lin_sys.residual;
-    elements.assemble_residuals(rr, &prescribed_values.flags);
+    elements.assemble_rr(rr, &prescribed_values.flags);
     boundaries.assemble_residuals(rr, &prescribed_values.flags);
     println!("rr =\n{}", rr);
     let bhatti_rr = &[
@@ -164,12 +164,12 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     println!("norm_rr = {:?}", norm_rr);
 
     // compute jacobians
-    elements.calc_jacobians(&state)?;
+    elements.calc_all_kke(&state)?;
     boundaries.calc_jacobians(&state)?;
 
     // assemble jacobians matrices
     let kk = lin_sys.jacobian.get_coo_mut()?;
-    elements.assemble_jacobians(kk, &prescribed_values.flags)?;
+    elements.assemble_kk(kk, &prescribed_values.flags)?;
     boundaries.assemble_jacobians(kk, &prescribed_values.flags)?;
     let kk_mat = kk.as_dense();
     // println!("kk =\n{:.4}", kk_mat);
@@ -227,12 +227,12 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     ]);
     vec_approx_eq(&uu_new, &tt_bhatti, 1e-12);
 
-    // set state with new U vector and check the residuals
+    // set state with new U vector and check R
     vec_copy(&mut state.uu, &uu_new)?;
     rr.fill(0.0);
-    elements.calc_residuals(&state)?;
+    elements.calc_all_phi(&state)?;
     boundaries.calc_residuals(&state)?;
-    elements.assemble_residuals(rr, &prescribed_values.flags);
+    elements.assemble_rr(rr, &prescribed_values.flags);
     boundaries.assemble_residuals(rr, &prescribed_values.flags);
     println!("rr_new =\n{:?}", rr);
     let norm_rr = vec_norm(rr, Norm::Max);

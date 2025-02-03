@@ -124,12 +124,12 @@ impl<'a> SolverImplicit<'a> {
             // (except the prescribed values) and secondary variables are still on the old time.
             // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..config.n_max_iterations {
-                // compute residuals (for the new time)
-                self.elements.calc_residuals(&state)?;
+                // calculate all ϕ vectors (at the new time)
+                self.elements.calc_all_phi(&state)?;
                 self.bc_distributed.calc_residuals(&state)?;
 
-                // assemble residuals
-                self.elements.assemble_residuals(rr, prescribed);
+                // assemble ϕ vectors into the global residual R
+                self.elements.assemble_rr(rr, prescribed);
                 self.bc_distributed.assemble_residuals(rr, prescribed);
 
                 // add concentrated loads
@@ -155,12 +155,12 @@ impl<'a> SolverImplicit<'a> {
 
                 // compute Jacobian matrix
                 if iteration == 0 || !config.constant_tangent {
-                    // compute local Jacobian matrices
-                    self.elements.calc_jacobians(&state)?;
+                    // calculate all Ke matrices (local Jacobian)
+                    self.elements.calc_all_kke(&state)?;
                     self.bc_distributed.calc_jacobians(&state)?;
 
-                    // assemble local Jacobian matrices into the global Jacobian matrix
-                    self.elements.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
+                    // assemble Ke matrices into the global Jacobian matrix
+                    self.elements.assemble_kk(kk.get_coo_mut()?, prescribed)?;
                     self.bc_distributed.assemble_jacobians(kk.get_coo_mut()?, prescribed)?;
 
                     // augment global Jacobian matrix
