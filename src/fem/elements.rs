@@ -1,5 +1,5 @@
 use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemBase, FemState};
-use crate::base::{assemble_matrix, assemble_vector, mat_add_local_to_global, vec_add_local_to_global, Config, Elem};
+use crate::base::{assemble_matrix, assemble_vector, Config, Elem};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{deriv1_central5, Matrix, Vector};
@@ -69,19 +69,6 @@ impl<'a> GenericElement<'a> {
         self.actual.calc_jacobian(&mut self.kke, state)
     }
 
-    /// Calculates the ϕ vector (local contribution to the residual R) and adds it to R
-    pub fn calc_phi_and_update_rr(&mut self, rr_global: &mut Vector, state: &FemState) -> Result<(), StrError> {
-        self.actual.calc_residual(&mut self.phi, state)?;
-        vec_add_local_to_global(rr_global, &self.phi, &self.actual.local_to_global());
-        Ok(())
-    }
-
-    /// Calculates the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u) and adds it to K
-    pub fn calc_kke_and_update_kk(&mut self, kk_global: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
-        self.actual.calc_jacobian(&mut self.kke, state)?;
-        mat_add_local_to_global(kk_global, &self.kke, &self.actual.local_to_global())
-    }
-
     /// Calculates the local Jacobian matrix using finite differences
     ///
     /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
@@ -138,59 +125,26 @@ impl<'a> Elements<'a> {
         return true;
     }
 
-    /// Calculates all ϕ vectors (local contribution to the residual R)
-    pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_phi(&state)).collect()
-    }
-
-    /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u)
-    pub fn calc_kke(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_kke(&state)).collect()
-    }
-
     /// Calculates all ϕ vectors (local contribution to the residual R) and adds them to R
-    pub fn calc_phi_and_add_to_rr(&mut self, rr: &mut Vector, state: &FemState) -> Result<(), StrError> {
-        for i in 0..self.all.len() {
-            self.all[i].calc_phi_and_update_rr(rr, state)?;
+    ///
+    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
+    /// i.e., it allows the generation of the reduced system.
+    pub fn assemble_phi(&mut self, rr: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+        for e in &mut self.all {
+            e.calc_phi(state)?;
+            assemble_vector(rr, &e.phi, &e.actual.local_to_global(), ignore);
         }
         Ok(())
     }
 
     /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
-    pub fn calc_kke_and_add_to_kk(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
-        for i in 0..self.all.len() {
-            self.all[i].calc_kke_and_update_kk(kk, state)?;
-        }
-        Ok(())
-    }
-
-    /// Assembles the residual vector
     ///
-    /// **Notes:**
-    ///
-    /// 1. You must call [Elements::calc_all_phi()] first
-    /// 2. The global vector R will be cleared (with zeros) at the beginning
-    ///
-    /// **Important:** You must assemble the Boundaries after Elements
-    pub fn add_to_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
-        rr.fill(0.0); // << important
-        self.all
-            .iter()
-            .for_each(|e| assemble_vector(rr, &e.phi, &e.actual.local_to_global(), &prescribed));
-    }
-
-    /// Assembles jacobian matrices
-    ///
-    /// **Notes:**
-    ///
-    /// 1. You must call [Elements::calc_all_kke()] first
-    /// 2. The CooMatrix position in the global matrix K will be reset at the beginning
-    ///
-    /// **Important:** You must assemble the Boundaries after Elements
-    pub fn add_to_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
-        kk.reset(); // << important
-        for e in &self.all {
-            assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), &prescribed)?;
+    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
+    /// i.e., it allows the generation of the reduced system.
+    pub fn assemble_kke(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+        for e in &mut self.all {
+            e.calc_kke(state)?;
+            assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore)?;
         }
         Ok(())
     }
@@ -508,8 +462,9 @@ mod tests {
         let nnz_sup = 3 * neq * neq;
         let mut rr = Vector::new(neq);
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
-        elements.calc_phi_and_add_to_rr(&mut rr, &state).unwrap();
-        elements.calc_kke_and_add_to_kk(&mut kk, &state).unwrap();
+        let ignore = vec![false; neq];
+        elements.assemble_phi(&mut rr, &state, &ignore).unwrap();
+        elements.assemble_kke(&mut kk, &state, &ignore).unwrap();
         let kk_mat = kk.as_dense();
         vec_approx_eq(&rr, &rr_correct, 1e-14);
         mat_approx_eq(&kk_mat, &kk_correct, 1e-12);

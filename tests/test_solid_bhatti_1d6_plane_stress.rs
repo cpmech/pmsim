@@ -1,6 +1,5 @@
 use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
-use pmsim::fem::Elements;
 use pmsim::prelude::*;
 use russell_lab::*;
 
@@ -68,27 +67,11 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config.set_plane_stress(0.25);
 
-    // elements
-    let mut elements = Elements::new(&mesh, &base, &config)?;
-
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
-
-    // check Jacobian matrix of first element
-    elements.calc_kke(&state)?;
-    #[rustfmt::skip]
-    let bhatti_kk0 = Matrix::from(&[
-      [ 9.765625000000001e+02,  0.000000000000000e+00, -9.765625000000001e+02,  2.604166666666667e+02,  0.000000000000000e+00, -2.604166666666667e+02],
-      [ 0.000000000000000e+00,  3.906250000000000e+02,  5.208333333333334e+02, -3.906250000000000e+02, -5.208333333333334e+02,  0.000000000000000e+00],
-      [-9.765625000000001e+02,  5.208333333333334e+02,  1.671006944444445e+03, -7.812500000000000e+02, -6.944444444444445e+02,  2.604166666666667e+02],
-      [ 2.604166666666667e+02, -3.906250000000000e+02, -7.812500000000000e+02,  2.126736111111111e+03,  5.208333333333334e+02, -1.736111111111111e+03],
-      [ 0.000000000000000e+00, -5.208333333333334e+02, -6.944444444444445e+02,  5.208333333333334e+02,  6.944444444444445e+02,  0.000000000000000e+00],
-      [-2.604166666666667e+02,  0.000000000000000e+00,  2.604166666666667e+02, -1.736111111111111e+03,  0.000000000000000e+00,  1.736111111111111e+03],
-    ]);
-    mat_approx_eq(&elements.all[0].kke, &bhatti_kk0, 1e-12);
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;

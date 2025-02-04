@@ -62,7 +62,7 @@ impl<'a> SolverImplicitLag<'a> {
     pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
-        let prescribed = &self.bc_prescribed.flags;
+        let ignore = &self.bc_prescribed.flags;
         let rr = &mut self.linear_system.rr;
         let kk = &mut self.linear_system.kk;
         let mdu = &mut self.linear_system.mdu;
@@ -119,8 +119,8 @@ impl<'a> SolverImplicitLag<'a> {
                 rr.fill(0.0);
 
                 // calculate all ϕ vectors (at the new time) and add them to R
-                self.elements.calc_phi_and_add_to_rr(rr, state)?;
-                self.bc_distributed.calc_phi_and_add_to_rr(rr, state)?;
+                self.elements.assemble_phi(rr, state, ignore)?;
+                self.bc_distributed.assemble_phi(rr, state, ignore)?;
 
                 // add concentrated loads to the residual R
                 self.bc_concentrated.add_to_rr(rr, state.t);
@@ -159,13 +159,10 @@ impl<'a> SolverImplicitLag<'a> {
                     // reset pointer in K matrix == clear all values
                     kk.reset()?;
 
-                    // calculate all Ke matrices (local Jacobian) and add them to K
-                    self.elements.calc_kke(&state)?;
-                    self.bc_distributed.calc_kke(&state)?;
-
-                    // add all Ke matrices to the global Jacobian matrix
-                    self.elements.add_to_kk(kk.get_coo_mut()?, prescribed)?;
-                    self.bc_distributed.add_to_kk(kk.get_coo_mut()?, prescribed)?;
+                    // calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
+                    let kk_coo = kk.get_coo_mut()?;
+                    self.elements.assemble_kke(kk_coo, state, ignore)?;
+                    self.bc_distributed.assemble_kke(kk_coo, state, ignore)?;
 
                     // add Aᵀ and A matrices to K
                     for p in 0..self.bc_prescribed.equations.len() {

@@ -58,7 +58,7 @@ impl<'a> SolverImplicit<'a> {
     pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
-        let prescribed = &self.bc_prescribed.flags;
+        let ignore = &self.bc_prescribed.flags;
         let rr = &mut self.linear_system.rr;
         let kk = &mut self.linear_system.kk;
         let mdu = &mut self.linear_system.mdu;
@@ -69,7 +69,7 @@ impl<'a> SolverImplicit<'a> {
 
         // collect the unknown equations
         let unknown_equations: Vec<_> = (0..neq)
-            .filter_map(|eq| if prescribed[eq] { None } else { Some(eq) })
+            .filter_map(|eq| if ignore[eq] { None } else { Some(eq) })
             .collect();
 
         // message
@@ -124,13 +124,12 @@ impl<'a> SolverImplicit<'a> {
             // (except the prescribed values) and secondary variables are still on the old time.
             // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..config.n_max_iterations {
-                // calculate all ϕ vectors (at the new time)
-                self.elements.calc_phi(&state)?;
-                self.bc_distributed.calc_phi(&state)?;
+                // clear residuals vector
+                rr.fill(0.0);
 
-                // add ϕ vectors to the residual R
-                self.elements.add_to_rr(rr, prescribed);
-                self.bc_distributed.add_to_rr(rr, prescribed);
+                // calculate all ϕ vectors (at the new time) and add them to R
+                self.elements.assemble_phi(rr, state, ignore)?;
+                self.bc_distributed.assemble_phi(rr, state, ignore)?;
 
                 // add concentrated loads to the residual R
                 self.bc_concentrated.add_to_rr(rr, state.t);
@@ -155,13 +154,13 @@ impl<'a> SolverImplicit<'a> {
 
                 // compute Jacobian matrix
                 if iteration == 0 || !config.constant_tangent {
-                    // calculate all Ke matrices (local Jacobian)
-                    self.elements.calc_kke(&state)?;
-                    self.bc_distributed.calc_kke(&state)?;
+                    // reset pointer in K matrix == clear all values
+                    kk.reset()?;
 
-                    // add all Ke matrices to the global Jacobian matrix
-                    self.elements.add_to_kk(kk.get_coo_mut()?, prescribed)?;
-                    self.bc_distributed.add_to_kk(kk.get_coo_mut()?, prescribed)?;
+                    // calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
+                    let kk_coo = kk.get_coo_mut()?;
+                    self.elements.assemble_kke(kk_coo, state, ignore)?;
+                    self.bc_distributed.assemble_kke(kk_coo, state, ignore)?;
 
                     // augment global Jacobian matrix
                     for eq in &self.bc_prescribed.equations {

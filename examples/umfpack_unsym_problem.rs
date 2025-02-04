@@ -50,7 +50,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // prescribed values
-    let prescribed_values = BcPrescribedArray::new(&base, &essential)?;
+    let bc_prescribed = BcPrescribedArray::new(&base, &essential)?;
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -74,20 +74,17 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // FEM state
     let state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // compute jacobians
-    elements.calc_kke(&state)?;
-    boundaries.calc_kke(&state)?;
-
     // linear system
-    let mut lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&base, &config, &bc_prescribed, &elements, &boundaries)?;
 
     // assemble jacobian matrix
     let kk = lin_sys.kk.get_coo_mut()?;
-    elements.add_to_kk(kk, &prescribed_values.flags)?;
-    boundaries.add_to_kk(kk, &prescribed_values.flags)?;
+    let ignore = &bc_prescribed.flags;
+    elements.assemble_kke(kk, &state, &ignore)?;
+    boundaries.assemble_kke(kk, &state, &ignore)?;
 
     // augment global Jacobian matrix
-    for eq in &prescribed_values.equations {
+    for eq in &bc_prescribed.equations {
         kk.put(*eq, *eq, 1.0).unwrap();
     }
 

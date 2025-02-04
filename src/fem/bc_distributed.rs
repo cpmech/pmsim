@@ -1,5 +1,5 @@
 use super::{FemBase, FemState};
-use crate::base::{assemble_matrix, assemble_vector, mat_add_local_to_global, vec_add_local_to_global};
+use crate::base::{assemble_matrix, assemble_vector};
 use crate::base::{Config, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -194,24 +194,6 @@ impl<'a> BcDistributed<'a> {
         }
     }
 
-    /// Calculates the ϕ vector (local contribution to the residual R) and adds it to R
-    pub fn calc_phi_and_update_rr(&mut self, rr_global: &mut Vector, state: &FemState) -> Result<(), StrError> {
-        self.calc_phi(state)?;
-        vec_add_local_to_global(rr_global, &self.phi, &self.local_to_global);
-        Ok(())
-    }
-
-    /// Calculates the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u) and adds it to K
-    pub fn calc_kke_and_update_kk(&mut self, kk_global: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
-        if self.kke.is_some() {
-            self.calc_kke(state)?;
-            if let Some(kke) = self.kke.as_ref() {
-                mat_add_local_to_global(kk_global, kke, &self.local_to_global)?;
-            }
-        }
-        Ok(())
-    }
-
     /// Returns the number of local equations
     pub fn n_local_eq(&self) -> usize {
         self.local_to_global.len()
@@ -270,59 +252,27 @@ impl<'a> BcDistributedArray<'a> {
         Ok(BcDistributedArray { all })
     }
 
-    /// Calculates all ϕ vectors (local contribution to the residual R)
-    pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_phi(&state)).collect()
-    }
-
-    /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u)
-    pub fn calc_kke(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.all.iter_mut().map(|e| e.calc_kke(&state)).collect()
-    }
-
     /// Calculates all ϕ vectors (local contribution to the residual R) and adds them to R
-    pub fn calc_phi_and_add_to_rr(&mut self, rr: &mut Vector, state: &FemState) -> Result<(), StrError> {
-        for i in 0..self.all.len() {
-            self.all[i].calc_phi_and_update_rr(rr, state)?;
+    ///
+    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
+    /// i.e., it allows the generation of the reduced system.
+    pub fn assemble_phi(&mut self, rr: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+        for e in &mut self.all {
+            e.calc_phi(state)?;
+            assemble_vector(rr, &e.phi, &e.local_to_global, ignore);
         }
         Ok(())
     }
 
     /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
-    pub fn calc_kke_and_add_to_kk(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
-        for i in 0..self.all.len() {
-            self.all[i].calc_kke_and_update_kk(kk, state)?;
-        }
-        Ok(())
-    }
-
-    /// Assembles the residual vector
     ///
-    /// **Notes:**
-    ///
-    /// 1. You must call [BcDistributedArray::calc_all_phi()] first
-    /// 2. The global vector R will **not** be cleared
-    ///
-    /// **Important:** You must assemble the Boundaries after Elements
-    pub fn add_to_rr(&self, rr: &mut Vector, prescribed: &Vec<bool>) {
-        self.all
-            .iter()
-            .for_each(|e| assemble_vector(rr, &e.phi, &e.local_to_global, &prescribed));
-    }
-
-    /// Assembles jacobian matrices
-    ///
-    /// **Notes:**
-    ///
-    /// 1. You must call [BcDistributedArray::calc_all_kke()] first
-    /// 2. The CooMatrix position in the global matrix K will **not** be reset
-    ///
-    /// **Important:** You must assemble the Boundaries after Elements
-    pub fn add_to_kk(&self, kk: &mut CooMatrix, prescribed: &Vec<bool>) -> Result<(), StrError> {
-        // do not call reset here because it is called by elements
-        for e in &self.all {
-            if let Some(jj) = &e.kke {
-                assemble_matrix(kk, &jj, &e.local_to_global, &prescribed)?;
+    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
+    /// i.e., it allows the generation of the reduced system.
+    pub fn assemble_kke(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+        for e in &mut self.all {
+            e.calc_kke(state)?;
+            if let Some(kke) = e.kke.as_mut() {
+                assemble_matrix(kk, kke, &e.local_to_global, ignore)?;
             }
         }
         Ok(())
@@ -606,27 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn calc_methods_work() {
-        let mesh = Samples::one_tri3();
-        let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
-        let essential = Essential::new();
-        let config = Config::new(&mesh);
-        let mut natural = Natural::new();
-        let edge = Edge {
-            kind: GeoKind::Lin2,
-            points: vec![0, 2],
-        };
-
-        natural.edge(&edge, Nbc::Cv(40.0), 20.0);
-        let mut elements = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        elements.calc_phi(&state).unwrap();
-        elements.calc_kke(&state).unwrap();
-    }
-
-    #[test]
-    fn calc_and_add_methods_work() {
+    fn assemble_methods_work() {
         // 1.0  3-----------2-----------5
         //      |(-4)       |(-3)       |(-6)
         //      |    [0]    |    [1]    |
@@ -653,7 +583,8 @@ mod tests {
 
         let neq = base.equations.n_equation;
         let mut rr = Vector::new(neq);
-        bry.calc_phi_and_add_to_rr(&mut rr, &state).unwrap();
+        let ignore = vec![false; neq];
+        bry.assemble_phi(&mut rr, &state, &ignore).unwrap();
         // note the negative sign
         //                 ↓
         // →    ⌠              ⌠    →
@@ -675,7 +606,7 @@ mod tests {
 
         let nnz_sup = 2 * neq * neq;
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
-        bry.calc_kke_and_add_to_kk(&mut kk, &state).unwrap();
+        bry.assemble_kke(&mut kk, &state, &ignore).unwrap();
         let correct = Matrix::new(neq, neq); // null
         assert_eq!(kk.as_dense().as_data(), correct.as_data());
     }

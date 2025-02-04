@@ -43,7 +43,7 @@ impl<'a> LinearSystem<'a> {
     pub fn new(
         base: &FemBase,
         config: &Config,
-        prescribed_values: &BcPrescribedArray,
+        prescribed: &BcPrescribedArray,
         elements: &Elements,
         boundaries: &BcDistributedArray,
     ) -> Result<Self, StrError> {
@@ -73,7 +73,7 @@ impl<'a> LinearSystem<'a> {
         };
 
         // estimate the number of non-zero values
-        let mut nnz_sup = prescribed_values.equations.len();
+        let mut nnz_sup = prescribed.equations.len();
         let sym = config.lin_sol_genie.get_sym(symmetric);
 
         // elements always have a Jacobian matrix (all must be symmetric to use symmetry)

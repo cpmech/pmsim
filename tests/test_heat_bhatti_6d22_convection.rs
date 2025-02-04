@@ -88,15 +88,50 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // check ϕ vector of first element
-    state.uu.fill(0.0);
-    // with state = 0, ϕ is equal to -b (negative of integral of source term)
-    let neg_b = Vector::from(&[250.0, 312.5, 312.5, 250.0, -1125., -1000.0, -1125., -1250.0]);
-    elements.calc_phi(&state)?;
-    vec_approx_eq(&elements.all[0].phi, &neg_b, 1e-12);
+    // prescribed values
+    let bc_prescribed = BcPrescribedArray::new(&&base, &essential)?;
+
+    // linear system
+    let mut lin_sys = LinearSystem::new(&base, &config, &bc_prescribed, &elements, &boundaries)?;
+
+    // fix state.uu (must do this before calculating R)
+    for eq in &bc_prescribed.equations {
+        state.uu[*eq] = 110.0;
+    }
+
+    // assemble R
+    let ignore = &bc_prescribed.flags;
+    let rr = &mut lin_sys.rr;
+    elements.assemble_phi(rr, &state, &ignore)?;
+    boundaries.assemble_phi(rr, &state, &ignore)?;
+    println!("rr =\n{}", rr);
+    let bhatti_rr = &[
+        2627.5555555555547,
+        -2762.079365079365,
+        2665.757936507936,
+        -4411.396825396825,
+        11968.138888888885,
+        -12021.999999999995,
+        7456.9999999999945,
+        -20924.99999999999,
+        0.0,
+        0.0,
+        0.0,
+        -5732.301587301586,
+        -30884.92063492062,
+    ];
+    vec_approx_eq(&rr, bhatti_rr, 1e-10);
+    let norm_rr = vec_norm(rr, Norm::Max);
+    println!("norm_rr = {:?}", norm_rr);
+
+    // assemble jacobians matrices
+    let kk = lin_sys.kk.get_coo_mut()?;
+    elements.assemble_kke(kk, &state, &ignore)?;
+    boundaries.assemble_kke(kk, &state, &ignore)?;
+    let kk_mat = kk.as_dense();
+    // println!("kk =\n{:.4}", kk_mat);
 
     // check Jacobian of first element (independent of state)
-    elements.calc_kke(&state)?;
     #[rustfmt::skip]
     let bhatti_kk0 = Matrix::from(&[
         [38.515873015873005  , 23.194444444444443  , 21.46825396825396   , 22.02777777777777   , -20.317460317460306 , -30.91269841269842  , -14.682539682539685 , -39.293650793650784],
@@ -124,56 +159,6 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     ]);
     mat_approx_eq(&elements.all[1].kke, &bhatti_kk1, 1e-12);
 
-    // prescribed values
-    let prescribed_values = BcPrescribedArray::new(&&base, &essential)?;
-
-    // linear system
-    let mut lin_sys = LinearSystem::new(&base, &config, &prescribed_values, &elements, &boundaries)?;
-
-    // fix state.uu (must do this before calculating R)
-    for eq in &prescribed_values.equations {
-        state.uu[*eq] = 110.0;
-    }
-
-    // compute all ϕ vectors
-    elements.calc_phi(&state)?;
-    boundaries.calc_phi(&state)?;
-
-    // assemble R
-    let rr = &mut lin_sys.rr;
-    elements.add_to_rr(rr, &prescribed_values.flags);
-    boundaries.add_to_rr(rr, &prescribed_values.flags);
-    println!("rr =\n{}", rr);
-    let bhatti_rr = &[
-        2627.5555555555547,
-        -2762.079365079365,
-        2665.757936507936,
-        -4411.396825396825,
-        11968.138888888885,
-        -12021.999999999995,
-        7456.9999999999945,
-        -20924.99999999999,
-        0.0,
-        0.0,
-        0.0,
-        -5732.301587301586,
-        -30884.92063492062,
-    ];
-    vec_approx_eq(&rr, bhatti_rr, 1e-10);
-    let norm_rr = vec_norm(rr, Norm::Max);
-    println!("norm_rr = {:?}", norm_rr);
-
-    // compute jacobians
-    elements.calc_kke(&state)?;
-    boundaries.calc_kke(&state)?;
-
-    // assemble jacobians matrices
-    let kk = lin_sys.kk.get_coo_mut()?;
-    elements.add_to_kk(kk, &prescribed_values.flags)?;
-    boundaries.add_to_kk(kk, &prescribed_values.flags)?;
-    let kk_mat = kk.as_dense();
-    // println!("kk =\n{:.4}", kk_mat);
-
     // check global Jacobian matrix
     #[rustfmt::skip]
     let bhatti_kk = Matrix::from(&[
@@ -194,7 +179,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     mat_approx_eq(&kk_mat, &bhatti_kk, 1e-12);
 
     // augment global Jacobian matrix
-    for eq in &prescribed_values.equations {
+    for eq in &bc_prescribed.equations {
         kk.put(*eq, *eq, 1.0)?;
     }
 
@@ -230,10 +215,8 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // set state with new U vector and check R
     vec_copy(&mut state.uu, &uu_new)?;
     rr.fill(0.0);
-    elements.calc_phi(&state)?;
-    boundaries.calc_phi(&state)?;
-    elements.add_to_rr(rr, &prescribed_values.flags);
-    boundaries.add_to_rr(rr, &prescribed_values.flags);
+    elements.assemble_phi(rr, &state, &ignore)?;
+    boundaries.assemble_phi(rr, &state, &ignore)?;
     println!("rr_new =\n{:?}", rr);
     let norm_rr = vec_norm(rr, Norm::Max);
     println!("norm_rr = {:?}", norm_rr);
