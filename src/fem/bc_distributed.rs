@@ -46,6 +46,9 @@ pub struct BcDistributed<'a> {
 
 /// Implements an array of BcDistributed
 pub struct BcDistributedArray<'a> {
+    /// Global configuration
+    config: &'a Config<'a>,
+
     /// All values
     pub all: Vec<BcDistributed<'a>>,
 }
@@ -249,7 +252,7 @@ impl<'a> BcDistributedArray<'a> {
                 function,
             )?);
         }
-        Ok(BcDistributedArray { all })
+        Ok(BcDistributedArray { config, all })
     }
 
     /// Calculates all ϕ vectors (local contribution to the residual R) and adds them to R
@@ -269,10 +272,11 @@ impl<'a> BcDistributedArray<'a> {
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows the generation of the reduced system.
     pub fn assemble_kke(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+        let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.all {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_mut() {
-                assemble_matrix(kk, kke, &e.local_to_global, ignore)?;
+                assemble_matrix(kk, kke, &e.local_to_global, ignore, tol)?;
             }
         }
         Ok(())

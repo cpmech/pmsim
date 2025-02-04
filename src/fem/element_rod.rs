@@ -353,16 +353,17 @@ mod tests {
         let (neq_global, nnz) = (6, 3 * neq * neq);
 
         let mut kk = CooMatrix::new(neq_global, neq_global, nnz, Sym::No).unwrap();
-        let prescribed = vec![false; neq_global];
+        let ignore = vec![false; neq_global];
 
+        let tol = Some(1e-14);
         rod0.calc_jacobian(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod0.local_to_global, &prescribed).unwrap();
+        assemble_matrix(&mut kk, &jacobian, &rod0.local_to_global, &ignore, tol).unwrap();
 
         rod1.calc_jacobian(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod1.local_to_global, &prescribed).unwrap();
+        assemble_matrix(&mut kk, &jacobian, &rod1.local_to_global, &ignore, tol).unwrap();
 
         rod2.calc_jacobian(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod2.local_to_global, &prescribed).unwrap();
+        assemble_matrix(&mut kk, &jacobian, &rod2.local_to_global, &ignore, tol).unwrap();
 
         let kk_mat = kk.as_dense();
         assert_eq!(

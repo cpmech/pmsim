@@ -4,8 +4,6 @@ use gemlab::mesh::Cell;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::{CooMatrix, Sym};
 
-const SYMMETRY_CHECK_TOLERANCE: f64 = 1e-12;
-
 /// Computes local-to-global maps needed for the assembly process
 pub fn compute_local_to_global(emap: &ElementDofsMap, eqs: &Equations, cell: &Cell) -> Result<Vec<usize>, StrError> {
     let info = emap.get(cell)?;
@@ -74,16 +72,19 @@ pub fn assemble_matrix(
     kke: &Matrix,
     local_to_global: &[usize],
     ignore: &[bool],
+    symmetry_check_tolerance: Option<f64>,
 ) -> Result<(), StrError> {
     let n_equation_local = kke.dims().0;
     // check symmetry of local matrices
     let sym = kk.get_info().3;
     let symmetric = sym != Sym::No;
     if symmetric {
-        for l in 0..n_equation_local {
-            for ll in (l + 1)..n_equation_local {
-                if f64::abs(kke.get(l, ll) - kke.get(ll, l)) > SYMMETRY_CHECK_TOLERANCE {
-                    return Err("local matrix is not symmetric");
+        if let Some(tol) = symmetry_check_tolerance {
+            for l in 0..n_equation_local {
+                for ll in (l + 1)..n_equation_local {
+                    if f64::abs(kke.get(l, ll) - kke.get(ll, l)) > tol {
+                        return Err("local matrix is not symmetric");
+                    }
                 }
             }
         }
@@ -323,9 +324,10 @@ mod tests {
         ]);
         let mut ignore = vec![false; neq];
         ignore[2] = true;
-        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore).unwrap();
+        let tol = Some(1e-12);
+        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore, tol).unwrap();
         let mat = kk.as_dense();
         #[rustfmt::skip]
         let correct = &[
@@ -380,6 +382,7 @@ mod tests {
 
         let mut ignore = vec![false; neq];
         ignore[2] = true;
+        let tol = Some(1e-12);
 
         #[rustfmt::skip]
         let kk_correct = &[
@@ -393,30 +396,30 @@ mod tests {
         // capture non-symmetric local matrix
         let mut kk = CooMatrix::new(neq, neq, nnz, Sym::YesLower).unwrap();
         assert_eq!(
-            assemble_matrix(&mut kk, &k0_wrong, &l2g[0], &ignore).err(),
+            assemble_matrix(&mut kk, &k0_wrong, &l2g[0], &ignore, tol).err(),
             Some("local matrix is not symmetric")
         );
 
         // lower
-        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore).unwrap();
+        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore, tol).unwrap();
         let mat = kk.as_dense();
         mat_approx_eq(&mat, kk_correct, 1e-15);
 
         // upper
         let mut kk = CooMatrix::new(neq, neq, nnz, Sym::YesUpper).unwrap();
-        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore).unwrap();
+        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore, tol).unwrap();
         let mat = kk.as_dense();
         mat_approx_eq(&mat, kk_correct, 1e-15);
 
         // full
         let mut kk = CooMatrix::new(neq, neq, nnz, Sym::YesFull).unwrap();
-        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore).unwrap();
+        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore, tol).unwrap();
         let mat = kk.as_dense();
         mat_approx_eq(&mat, kk_correct, 1e-15);
     }
@@ -455,9 +458,10 @@ mod tests {
             [9000.0, 8000.0, 3000.0],
         ]);
         let ignore = vec![false; neq];
-        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore).unwrap();
+        let tol = Some(1e-12);
+        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore, tol).unwrap();
         let mat = kk.as_dense();
         #[rustfmt::skip]
         let correct = &[
@@ -520,34 +524,35 @@ mod tests {
         ];
 
         let ignore = vec![false; neq];
+        let tol = Some(1e-12);
 
         // capture non-symmetric local matrix
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::YesLower).unwrap();
         assert_eq!(
-            assemble_matrix(&mut kk, &k0_wrong, &l2g[0], &ignore).err(),
+            assemble_matrix(&mut kk, &k0_wrong, &l2g[0], &ignore, tol).err(),
             Some("local matrix is not symmetric")
         );
 
         // lower
-        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore).unwrap();
+        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore, tol).unwrap();
         let mat = kk.as_dense();
         mat_approx_eq(&mat, kk_correct, 1e-15);
 
         // upper
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::YesUpper).unwrap();
-        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore).unwrap();
+        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore, tol).unwrap();
         let mat = kk.as_dense();
         mat_approx_eq(&mat, kk_correct, 1e-15);
 
         // full
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::YesFull).unwrap();
-        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore).unwrap();
-        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore).unwrap();
+        assemble_matrix(&mut kk, &k0, &l2g[0], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k1, &l2g[1], &ignore, tol).unwrap();
+        assemble_matrix(&mut kk, &k2, &l2g[2], &ignore, tol).unwrap();
         let mat = kk.as_dense();
         mat_approx_eq(&mat, kk_correct, 1e-15);
     }

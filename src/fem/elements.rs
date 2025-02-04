@@ -142,9 +142,10 @@ impl<'a> Elements<'a> {
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows the generation of the reduced system.
     pub fn assemble_kke(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+        let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.all {
             e.calc_kke(state)?;
-            assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore)?;
+            assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore, tol)?;
         }
         Ok(())
     }

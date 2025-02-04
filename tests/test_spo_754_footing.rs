@@ -1,7 +1,4 @@
-#![allow(unused)]
-
 use gemlab::prelude::*;
-use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
 use pmsim::util::compare_results;
 use russell_lab::*;
@@ -15,7 +12,7 @@ const Z_INI: f64 = 848.7; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
-// #[test]
+#[test]
 fn test_spo_754_footing() -> Result<(), StrError> {
     // mesh
     let mesh = Mesh::read(&format!("data/meshes/{}.msh", NAME))?;
@@ -37,7 +34,6 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let left = features.search_edges(At::X(0.0), any_x)?;
     let right = features.search_edges(At::X(500.0), any_x)?;
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
-    let top = features.search_edges(At::Y(500.0), any_x)?;
     let footing = features.search_edges(At::Y(500.0), |x| x[0] <= 50.0)?;
     // let mut foot_ids = features.get_points_via_2d_edges(&footing);
     // let ids: Vec<_> = foot_ids.iter().map(|id| 1 + id).collect();
@@ -57,25 +53,24 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     };
     let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
-    /*
+    // displacement control
     const UY: [f64; 15] = [
-        0.0,     //  0
-        -0.0001,  //  1
-        -0.00015, //  2
-        -0.0002,  //  3
-        -0.00025, //  4
-        -0.00035, //  5
-        -0.00045, //  6
-        -0.00055, //  7
-        -0.00065, //  8
-        -0.00075, //  9
-        -0.00080, // 10
-        -0.00090, // 11
-        -0.00110, // 12
-        -0.00140, // 13
-        -0.002,   // 14
+        0.0,    // 0   t =  0.0
+        -0.01,  // 1   t =  1.0
+        -0.015, // 2   t =  2.0
+        -0.02,  // 3   t =  3.0
+        -0.025, // 4   t =  4.0
+        -0.035, // 5   t =  5.0
+        -0.045, // 6   t =  6.0
+        -0.055, // 7   t =  7.0
+        -0.065, // 8   t =  8.0
+        -0.075, // 9   t =  9.0
+        -0.08,  // 10  t = 10.0
+        -0.09,  // 11  t = 11.0
+        -0.11,  // 12  t = 12.0
+        -0.14,  // 13  t = 13.0
+        -0.2,   // 14  t = 14.0
     ];
-    */
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -83,7 +78,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges(&footing, Dof::Uy, -0.01);
+        .edges_fn(&footing, Dof::Uy, |t| UY[t as usize]);
     // println!("{}", essential);
 
     // natural boundary conditions
@@ -93,13 +88,11 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(true)
-        .set_tol_rr(1e-6)
-        .set_t_ini(0.0)
-        .set_dt(|_| 1.0)
-        .set_dt_out(|_| 1.0)
-        .set_t_fin(1.0)
+        .set_tol_rr(1e-7)
+        .set_incremental(UY.len())
         // .set_constant_tangent(true)
-        .set_ignore_jacobian_symmetry(true)
+        // .set_ignore_jacobian_symmetry(true)
+        .set_symmetry_check_tolerance(Some(1e-5))
         .set_n_max_iterations(20);
 
     // FEM state
@@ -113,21 +106,18 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
-    /*
     // verify the results
-    let tol_displacement = 1e-14;
-    let tol_stress = 1e-8;
+    let tol_displacement = 1e-10;
+    let tol_stress = 5e-5;
     let all_good = compare_results(
         &mesh,
         &base,
         &file_io,
-        "spo_754_footing_elast.json",
+        "spo_754_footing.json",
         tol_displacement,
         tol_stress,
-        2,
+        0,
     )?;
     assert!(all_good);
-    */
-
     Ok(())
 }

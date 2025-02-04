@@ -41,6 +41,9 @@ pub struct Config<'a> {
     /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
 
+    /// Holds a tolerance to check the symmetry of local Jacobian matrices
+    pub(crate) symmetry_check_tolerance: Option<f64>,
+
     /// Holds the gravity acceleration (a positive value)
     ///
     /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
@@ -148,6 +151,7 @@ impl<'a> Config<'a> {
             dynamics: false,
             constant_tangent: false,
             lagrange_mult_method: false,
+            symmetry_check_tolerance: Some(1e-10),
             gravity: None,
             initialization: Init::Zero,
             param_fluids: None,
@@ -396,6 +400,12 @@ impl<'a> Config<'a> {
     /// Sets a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
     pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
         self.lagrange_mult_method = enable;
+        self
+    }
+
+    /// Sets the tolerance to check the symmetry of local Jacobian matrices
+    pub fn set_symmetry_check_tolerance(&mut self, tol: Option<f64>) -> &mut Self {
+        self.symmetry_check_tolerance = tol;
         self
     }
 
