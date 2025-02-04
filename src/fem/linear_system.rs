@@ -22,7 +22,7 @@ pub struct LinearSystem<'a> {
     /// 5. The least upper bound (supremum) of nnz, indicated here by `nnz_sup`, is equal to the
     ///    sum of all the number of entries in the local matrices (interior and boundary) plus the
     ///    number of prescribed equations since we will put ones on the diagonal of the global matrix; thus
-    ///    `nnz = n_prescribed + Σ (ndof_local × ndof_local) + Σ (ndof_local_boundary × ndof_local_boundary)`
+    ///    `nnz ≤ n_prescribed + Σ (ndof_local × ndof_local) + Σ (ndof_local_boundary × ndof_local_boundary)`
     pub nnz_sup: usize,
 
     /// Holds the residual vector R
