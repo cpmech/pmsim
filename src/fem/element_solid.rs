@@ -246,7 +246,7 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Elem, ParamSolid, StressStrain};
+    use crate::base::{Config, Elem, Essential, ParamSolid, StressStrain};
     use crate::fem::{ElementTrait, FemBase, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
@@ -280,9 +280,10 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         // set stress state
         let (s00, s11, s01) = (1.0, 2.0, 3.0);
@@ -354,6 +355,7 @@ mod tests {
             let id = 0;
             let cell = &mesh.cells[id];
             let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+            let essential = Essential::new();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -363,7 +365,7 @@ mod tests {
 
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &config).unwrap();
+            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
             vec_copy(&mut state.duu, &duu_h).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -379,7 +381,7 @@ mod tests {
 
             // check stress update (vertical displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &config).unwrap();
+            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
             vec_copy(&mut state.duu, &duu_v).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -395,7 +397,7 @@ mod tests {
 
             // check stress update (shear displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &config).unwrap();
+            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
             vec_copy(&mut state.duu, &duu_s).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -450,6 +452,7 @@ mod tests {
             let id = 0;
             let cell = &mesh.cells[id];
             let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+            let essential = Essential::new();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -457,7 +460,7 @@ mod tests {
 
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &config).unwrap();
+            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
             vec_copy(&mut state.duu, &duu_h).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -468,7 +471,7 @@ mod tests {
 
             // check stress update (vertical displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &config).unwrap();
+            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
             vec_copy(&mut state.duu, &duu_v).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -479,7 +482,7 @@ mod tests {
 
             // check stress update (shear displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &config).unwrap();
+            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
             vec_copy(&mut state.duu, &duu_s).unwrap();
             vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
@@ -521,6 +524,7 @@ mod tests {
             ngauss: Some(ngauss),
         };
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
 
         // configuration
         let mut config = Config::new(&mesh);
@@ -533,7 +537,7 @@ mod tests {
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
 
         // NOTE: since the stress is zero, the residual is due to the body force only
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 4 * 2;
         let mut residual = Vector::new(neq);
         elem.initialize_internal_values(&mut state).unwrap();

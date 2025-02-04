@@ -109,13 +109,14 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
+        .set_lagrange_mult_method(false)
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)
         .set_n_max_iterations(20);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

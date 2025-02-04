@@ -72,7 +72,7 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     let mut boundaries = BcDistributedArray::new(&mesh, &base, &config, &natural)?;
 
     // FEM state
-    let state = FemState::new(&mesh, &base, &config)?;
+    let state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // compute jacobians
     elements.calc_kke(&state)?;

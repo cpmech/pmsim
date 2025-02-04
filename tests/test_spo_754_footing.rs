@@ -92,24 +92,25 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
+        .set_lagrange_mult_method(true)
         .set_tol_rr(1e-6)
         .set_t_ini(0.0)
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(1.0)
         // .set_constant_tangent(true)
-        // .set_ignore_jacobian_symmetry(true)
+        .set_ignore_jacobian_symmetry(true)
         .set_n_max_iterations(20);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
     file_io.activate(&mesh, &base, NAME, None)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicitLag::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     /*

@@ -82,10 +82,10 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_incremental(P_ARRAY.len());
+    config.set_lagrange_mult_method(false).set_incremental(P_ARRAY.len());
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

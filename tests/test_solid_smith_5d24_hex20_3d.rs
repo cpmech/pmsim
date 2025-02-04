@@ -81,7 +81,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

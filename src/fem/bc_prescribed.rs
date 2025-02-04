@@ -43,6 +43,14 @@ impl<'a> BcPrescribed<'a> {
         duu[self.eq] = value - uu[self.eq];
         uu[self.eq] = value;
     }
+
+    /// Returns the prescribed value @ specified time
+    pub fn value(&self, time: f64) -> f64 {
+        match self.function {
+            Some(f) => (f)(time),
+            None => self.value,
+        }
+    }
 }
 
 impl<'a> BcPrescribedArray<'a> {

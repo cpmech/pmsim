@@ -591,7 +591,7 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Dof, Elem, ParamDiffusion, ParamSolid, StressStrain};
+    use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
     use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
     use gemlab::mesh::{Features, Mesh, Samples};
     use gemlab::util::any_x;
@@ -606,7 +606,8 @@ mod tests {
     #[allow(unused)]
     fn generate_state(param: &ParamSolid, mesh: &Mesh, base: &FemBase, config: &Config, duu: &Vector) -> FemState {
         // update displacement
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let essential = Essential::new();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         vec_copy(&mut state.duu, &duu).unwrap();
         vec_update(&mut state.uu, 1.0, &duu).unwrap();
 
@@ -843,8 +844,9 @@ mod tests {
         let features = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         state.uu[0] = 1.0;
         state.uu[1] = 2.0;
         state.uu[2] = 3.0;

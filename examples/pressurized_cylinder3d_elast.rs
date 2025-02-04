@@ -217,7 +217,7 @@ fn main() -> Result<(), StrError> {
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // FEM state
-        let mut state = FemState::new(&mesh, &base, &config)?;
+        let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
         // File IO
         let mut file_io = FileIo::new();

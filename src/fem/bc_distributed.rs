@@ -334,7 +334,7 @@ impl<'a> BcDistributedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::{BcDistributed, BcDistributedArray};
-    use crate::base::{Config, Elem, Natural, Nbc, SampleMeshes};
+    use crate::base::{Config, Elem, Essential, Natural, Nbc, SampleMeshes};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::{FemBase, FemState};
     use gemlab::mesh::{At, Edge, Face, Features, Samples};
@@ -391,8 +391,9 @@ mod tests {
 
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         const Q: f64 = 25.0;
 
@@ -464,7 +465,7 @@ mod tests {
 
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qz, Q, None).unwrap();
         bry.calc_phi(&state).unwrap();
@@ -480,8 +481,9 @@ mod tests {
 
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
         let base = FemBase::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         const Q: f64 = -10.0;
 
@@ -505,8 +507,9 @@ mod tests {
 
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         const Q: f64 = 10.0;
 
@@ -554,8 +557,9 @@ mod tests {
 
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         const Q: f64 = 5e6;
 
@@ -606,6 +610,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut natural = Natural::new();
         let edge = Edge {
@@ -615,7 +620,7 @@ mod tests {
 
         natural.edge(&edge, Nbc::Cv(40.0), 20.0);
         let mut elements = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         elements.calc_phi(&state).unwrap();
         elements.calc_kke(&state).unwrap();
     }
@@ -635,8 +640,9 @@ mod tests {
 
         let param = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(param)), (2, Elem::Solid(param))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         const Q: f64 = 25.0;
 

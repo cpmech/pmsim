@@ -235,7 +235,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Conductivity, Config, Elem, ParamDiffusion};
+    use crate::base::{Conductivity, Config, Elem, Essential, ParamDiffusion};
     use crate::fem::{ElementTrait, FemBase, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
@@ -264,11 +264,12 @@ mod tests {
             ParamDiffusion::sample()
         };
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -339,11 +340,12 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.uu[0] = tt_field(mesh.points[0].coords[0]);
         state.uu[1] = tt_field(mesh.points[1].coords[0]);
@@ -415,11 +417,12 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);

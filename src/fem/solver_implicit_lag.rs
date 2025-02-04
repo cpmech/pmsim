@@ -1,12 +1,15 @@
 use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray};
-use super::{Elements, FemBase, FemState, FileIo, LinearSystem};
+use super::{Elements, FemBase, FemState, FileIo, LinearSystemLag};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
 /// Implements the implicit finite element method solver
-pub struct SolverImplicit<'a> {
+pub struct SolverImplicitLag<'a> {
+    /// Holds the material parameters, element attributes, and equation numbers
+    pub base: &'a FemBase,
+
     /// Holds configuration parameters
     pub config: &'a Config<'a>,
 
@@ -23,10 +26,10 @@ pub struct SolverImplicit<'a> {
     pub elements: Elements<'a>,
 
     /// Holds variables to solve the global linear system
-    pub linear_system: LinearSystem<'a>,
+    pub linear_system: LinearSystemLag<'a>,
 }
 
-impl<'a> SolverImplicit<'a> {
+impl<'a> SolverImplicitLag<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
@@ -43,8 +46,9 @@ impl<'a> SolverImplicit<'a> {
         let bc_distributed = BcDistributedArray::new(mesh, base, config, natural)?;
         let bc_prescribed = BcPrescribedArray::new(base, essential)?;
         let elements = Elements::new(mesh, base, config)?;
-        let linear_system = LinearSystem::new(base, config, &bc_prescribed, &elements, &bc_distributed)?;
-        Ok(SolverImplicit {
+        let linear_system = LinearSystemLag::new(base, config, &bc_prescribed, &elements, &bc_distributed)?;
+        Ok(SolverImplicitLag {
+            base,
             config,
             bc_concentrated,
             bc_distributed,
@@ -64,13 +68,8 @@ impl<'a> SolverImplicit<'a> {
         let mdu = &mut self.linear_system.mdu;
 
         // residual vector
-        let neq = rr.dim();
-        let mut rr0 = Vector::new(neq);
-
-        // collect the unknown equations
-        let unknown_equations: Vec<_> = (0..neq)
-            .filter_map(|eq| if prescribed[eq] { None } else { Some(eq) })
-            .collect();
+        let neq_total = rr.dim(); // n_equation + n_lagrange
+        let mut rr0 = Vector::new(neq_total);
 
         // message
         if !config.linear_problem {
@@ -99,14 +98,6 @@ impl<'a> SolverImplicit<'a> {
                 vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
 
-            // reset cumulated primary values
-            state.duu.fill(0.0);
-
-            // set prescribed U and ΔU at the new time
-            if self.bc_prescribed.equations.len() > 0 {
-                self.bc_prescribed.apply(&mut state.duu, &mut state.uu, state.t);
-            }
-
             // reset algorithmic variables
             if !config.linear_problem {
                 self.elements.reset_algorithmic_variables(state);
@@ -124,16 +115,26 @@ impl<'a> SolverImplicit<'a> {
             // (except the prescribed values) and secondary variables are still on the old time.
             // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..config.n_max_iterations {
-                // calculate all ϕ vectors (at the new time)
-                self.elements.calc_phi(&state)?;
-                self.bc_distributed.calc_phi(&state)?;
+                // clear residuals vector
+                rr.fill(0.0);
 
-                // add ϕ vectors to the residual R
-                self.elements.add_to_rr(rr, prescribed);
-                self.bc_distributed.add_to_rr(rr, prescribed);
+                // calculate all ϕ vectors (at the new time) and add them to R
+                self.elements.calc_phi_and_add_to_rr(rr, state)?;
+                self.bc_distributed.calc_phi_and_add_to_rr(rr, state)?;
 
                 // add concentrated loads to the residual R
                 self.bc_concentrated.add_to_rr(rr, state.t);
+
+                // add Lagrange multiplier contributions to R
+                let first_eq_lag = self.base.equations.n_equation;
+                for p in 0..self.bc_prescribed.equations.len() {
+                    let i = self.bc_prescribed.equations[p];
+                    let j = first_eq_lag + p;
+                    let lambda = state.uu[j];
+                    let c = self.bc_prescribed.all[p].value(state.t);
+                    rr[i] += lambda; // Aᵀ λ => 1 * λ
+                    rr[j] = state.uu[i] - c; // A u - c => 1 * u - c
+                }
 
                 // check convergence on residual
                 max_rr_prev = max_rr;
@@ -155,7 +156,10 @@ impl<'a> SolverImplicit<'a> {
 
                 // compute Jacobian matrix
                 if iteration == 0 || !config.constant_tangent {
-                    // calculate all Ke matrices (local Jacobian)
+                    // reset pointer in K matrix == clear all values
+                    kk.reset()?;
+
+                    // calculate all Ke matrices (local Jacobian) and add them to K
                     self.elements.calc_kke(&state)?;
                     self.bc_distributed.calc_kke(&state)?;
 
@@ -163,9 +167,12 @@ impl<'a> SolverImplicit<'a> {
                     self.elements.add_to_kk(kk.get_coo_mut()?, prescribed)?;
                     self.bc_distributed.add_to_kk(kk.get_coo_mut()?, prescribed)?;
 
-                    // augment global Jacobian matrix
-                    for eq in &self.bc_prescribed.equations {
-                        kk.put(*eq, *eq, 1.0).unwrap();
+                    // add Aᵀ and A matrices to K
+                    for p in 0..self.bc_prescribed.equations.len() {
+                        let i = self.bc_prescribed.equations[p];
+                        let j = first_eq_lag + p;
+                        kk.put(i, j, 1.0)?; // Aᵀ
+                        kk.put(j, i, 1.0)?; // A
                     }
 
                     // factorize global Jacobian matrix
@@ -187,16 +194,16 @@ impl<'a> SolverImplicit<'a> {
                 // updates
                 if config.transient {
                     // update U, V, and ΔU vectors
-                    for i in &unknown_equations {
-                        state.uu[*i] -= mdu[*i];
-                        state.vv[*i] = beta_1 * state.uu[*i] - state.uu_star[*i];
-                        state.duu[*i] -= mdu[*i];
+                    for i in 0..neq_total {
+                        state.uu[i] -= mdu[i];
+                        state.vv[i] = beta_1 * state.uu[i] - state.uu_star[i];
+                        state.duu[i] -= mdu[i];
                     }
                 } else {
                     // update U and ΔU vectors
-                    for i in &unknown_equations {
-                        state.uu[*i] -= mdu[*i];
-                        state.duu[*i] -= mdu[*i];
+                    for i in 0..neq_total {
+                        state.uu[i] -= mdu[i];
+                        state.duu[i] -= mdu[i];
                     }
                 }
 
@@ -245,7 +252,7 @@ impl<'a> SolverImplicit<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::SolverImplicit;
+    use super::SolverImplicitLag;
     use crate::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemBase, FemState, FileIo};
     use gemlab::mesh::{Edge, Samples};
@@ -264,7 +271,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_dt_min(-1.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverImplicitLag::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
         let config = Config::new(&mesh);
@@ -273,7 +280,7 @@ mod tests {
         let mut essential = Essential::new();
         essential.points(&[123], Dof::Ux, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverImplicitLag::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let essential = Essential::new();
@@ -282,14 +289,14 @@ mod tests {
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverImplicitLag::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         let natural = Natural::new();
 
         // error due to elements
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverImplicitLag::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("requested number of integration points is not available for Hex class")
         );
         p1.ngauss = None;
@@ -302,7 +309,7 @@ mod tests {
         };
         natural.edge(&edge, Nbc::Qn, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverImplicitLag::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -316,7 +323,7 @@ mod tests {
         config.set_dt(|_| -1.0); // wrong
         let essential = Essential::new();
         let natural = Natural::new();
-        let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
+        let mut solver = SolverImplicitLag::new(&mesh, &base, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let mut file_io = FileIo::new();
         assert_eq!(

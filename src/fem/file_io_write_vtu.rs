@@ -216,7 +216,7 @@ impl FileIo {
 
 #[cfg(test)]
 mod tests {
-    use crate::base::{Config, Elem, ParamSolid};
+    use crate::base::{Config, Elem, Essential, ParamSolid};
     use crate::fem::{FemBase, FemState, FileIo};
     use gemlab::mesh::Samples;
     use std::fs;
@@ -226,8 +226,9 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let file_io = FileIo::new();
         assert_eq!(
             file_io.write_vtu(&mesh, &base, &state, 0).err(),
@@ -240,8 +241,9 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
@@ -305,8 +307,9 @@ mod tests {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let fn_stem = "test_write_pvd_works";
         let mut file_io = FileIo::new();
 

@@ -69,7 +69,7 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

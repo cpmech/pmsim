@@ -1,5 +1,5 @@
 use super::{FemBase, SecondaryValues};
-use crate::base::{Config, Elem};
+use crate::base::{Config, Elem, Essential};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::Mesh;
@@ -60,7 +60,7 @@ pub struct FemState {
 
 impl FemState {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &FemBase, config: &Config) -> Result<FemState, StrError> {
+    pub fn new(mesh: &Mesh, base: &FemBase, essential: &Essential, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
         let ncell = mesh.cells.len();
         if ncell == 0 {
@@ -127,24 +127,25 @@ impl FemState {
         }
 
         // constants
-        let n_equation = base.equations.n_equation;
+        let neq_total = if config.lagrange_mult_method {
+            let n_lagrange = essential.n_prescribed();
+            base.equations.n_equation + n_lagrange
+        } else {
+            base.equations.n_equation
+        };
 
         // primary variables
         let t = config.t_ini;
         let dt = (config.dt)(t);
-        let duu = Vector::new(n_equation);
-        let uu = Vector::new(n_equation);
+        let duu = Vector::new(neq_total);
+        let uu = Vector::new(neq_total);
         let (uu_star, vv, vv_star) = if config.transient || config.dynamics {
-            (
-                Vector::new(n_equation),
-                Vector::new(n_equation),
-                Vector::new(n_equation),
-            )
+            (Vector::new(neq_total), Vector::new(neq_total), Vector::new(neq_total))
         } else {
             (Vector::new(0), Vector::new(0), Vector::new(0))
         };
         let (aa, aa_star) = if config.dynamics {
-            (Vector::new(n_equation), Vector::new(n_equation))
+            (Vector::new(neq_total), Vector::new(neq_total))
         } else {
             (Vector::new(0), Vector::new(0))
         };
@@ -204,7 +205,7 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{new_empty_mesh_2d, Config, Elem};
+    use crate::base::{new_empty_mesh_2d, Config, Elem, Essential};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use crate::fem::FemBase;
@@ -215,9 +216,10 @@ mod tests {
         let mesh = new_empty_mesh_2d();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &base, &config).err(),
+            FemState::new(&mesh, &base, &essential, &config).err(),
             Some("there are no cells in the mesh")
         );
 
@@ -232,7 +234,7 @@ mod tests {
         .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &base, &config).err(),
+            FemState::new(&mesh, &base, &essential, &config).err(),
             Some("cannot combine Diffusion elements with other elements")
         );
 
@@ -244,7 +246,7 @@ mod tests {
         .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &base, &config).err(),
+            FemState::new(&mesh, &base, &essential, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
 
@@ -256,7 +258,7 @@ mod tests {
         .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &base, &config).err(),
+            FemState::new(&mesh, &base, &essential, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
     }
@@ -272,8 +274,9 @@ mod tests {
             [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
         )
         .unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.dt, 1.0);
         assert_eq!(state.duu.dim(), base.equations.n_equation);
@@ -285,9 +288,10 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.transient = true;
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.equations.n_equation);
         assert_eq!(state.uu.dim(), base.equations.n_equation);
@@ -303,8 +307,9 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.equations.n_equation);
         assert_eq!(state.uu.dim(), base.equations.n_equation);
@@ -320,8 +325,9 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
         let base = FemBase::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.equations.n_equation);
         assert_eq!(state.uu.dim(), base.equations.n_equation);
@@ -332,8 +338,9 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
         let base = FemBase::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.equations.n_equation);
         assert_eq!(state.uu.dim(), base.equations.n_equation);
@@ -344,8 +351,9 @@ mod tests {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.equations.n_equation);
         assert_eq!(state.uu.dim(), base.equations.n_equation);
@@ -357,9 +365,10 @@ mod tests {
         let p1 = ParamRod::sample();
         let p2 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Solid(p2))]).unwrap();
+        let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.dynamics = true;
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.equations.n_equation);
         assert_eq!(state.uu.dim(), base.equations.n_equation);
@@ -375,8 +384,9 @@ mod tests {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let clone = state.clone();
         let str_ori = format!("{:?}", clone).to_string();
         assert_eq!(format!("{:?}", clone), str_ori);

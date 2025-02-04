@@ -76,7 +76,7 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

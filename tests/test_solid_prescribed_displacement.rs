@@ -67,7 +67,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     // element and state
     let config = Config::new(&mesh);
     let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // update state with prescribed displacements
     values.apply(&mut state.duu, &mut state.uu, 1.0);
@@ -194,7 +194,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     // element and state
     let config = Config::new(&mesh);
     let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // update state with prescribed displacements
     values.apply(&mut state.duu, &mut state.uu, 1.0);

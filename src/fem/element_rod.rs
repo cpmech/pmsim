@@ -136,7 +136,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, Elem, ParamRod};
+    use crate::base::{assemble_matrix, Config, Elem, Essential, ParamRod};
     use crate::fem::{ElementTrait, FemBase, FemState};
     use gemlab::mesh::{Cell, Mesh, Point};
     use gemlab::shapes::GeoKind;
@@ -192,10 +192,11 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 4;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -231,10 +232,11 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 6;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -273,10 +275,11 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 6;
         let mut residual = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
@@ -337,6 +340,7 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
+        let essential = Essential::new();
 
         let config = Config::new(&mesh);
         let mut rod0 = ElementRod::new(&mesh, &base, &config, &p1, 0).unwrap();
@@ -345,7 +349,7 @@ mod tests {
         let neq = 4;
         let mut jacobian = Matrix::new(neq, neq);
 
-        let state = FemState::new(&mesh, &base, &config).unwrap();
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let (neq_global, nnz) = (6, 3 * neq * neq);
 
         let mut kk = CooMatrix::new(neq_global, neq_global, nnz, Sym::No).unwrap();

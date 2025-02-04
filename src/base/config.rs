@@ -38,6 +38,9 @@ pub struct Config<'a> {
     /// Holds a flag indicating Pseudo-Newton method with constant-tangent operator
     pub(crate) constant_tangent: bool,
 
+    /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
+    pub(crate) lagrange_mult_method: bool,
+
     /// Holds the gravity acceleration (a positive value)
     ///
     /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
@@ -144,6 +147,7 @@ impl<'a> Config<'a> {
             transient: false,
             dynamics: false,
             constant_tangent: false,
+            lagrange_mult_method: false,
             gravity: None,
             initialization: Init::Zero,
             param_fluids: None,
@@ -386,6 +390,12 @@ impl<'a> Config<'a> {
     /// Sets a flag indicating Pseudo-Newton method with constant-tangent operator
     pub fn set_constant_tangent(&mut self, enable: bool) -> &mut Self {
         self.constant_tangent = enable;
+        self
+    }
+
+    /// Sets a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
+    pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
+        self.lagrange_mult_method = enable;
         self
     }
 
@@ -632,6 +642,7 @@ mod tests {
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
         assert_eq!(config.constant_tangent, false);
+        assert_eq!(config.lagrange_mult_method, false);
         assert_eq!(config.ideal.thickness, 1.0);
         assert_eq!(config.ideal.plane_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);

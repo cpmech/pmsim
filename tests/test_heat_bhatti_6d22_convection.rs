@@ -86,7 +86,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let mut boundaries = BcDistributedArray::new(&mesh, &base, &config, &natural)?;
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // check ϕ vector of first element
     state.uu.fill(0.0);
@@ -277,7 +277,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

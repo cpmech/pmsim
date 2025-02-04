@@ -110,6 +110,11 @@ impl<'a> Essential<'a> {
         self.functions.push(Box::new(f));
         self
     }
+
+    /// Returns the number of prescribed DOFs (global equations)
+    pub(crate) fn n_prescribed(&self) -> usize {
+        self.all.len()
+    }
 }
 
 impl<'a> fmt::Display for Essential<'a> {

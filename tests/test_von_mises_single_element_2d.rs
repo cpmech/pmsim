@@ -101,7 +101,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_n_max_iterations(20);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

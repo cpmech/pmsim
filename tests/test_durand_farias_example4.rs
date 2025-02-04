@@ -53,7 +53,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

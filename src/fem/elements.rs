@@ -243,7 +243,7 @@ impl<'a> Elements<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Elements, GenericElement};
-    use crate::base::{Conductivity, Config, Elem, ParamBeam, ParamPorousLiqGas, StressStrain};
+    use crate::base::{Conductivity, Config, Elem, Essential, ParamBeam, ParamPorousLiqGas, StressStrain};
     use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::{FemBase, FemState};
     use gemlab::integ;
@@ -304,11 +304,12 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
@@ -323,7 +324,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.transient = true;
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
@@ -362,11 +363,12 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
 
         // linear displacement field
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         state.duu[0] = 1.0 + mesh.points[0].coords[0];
         state.duu[1] = 2.0 + mesh.points[0].coords[1];
         state.duu[2] = 1.0 + mesh.points[1].coords[0];
@@ -463,8 +465,9 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &base, &config).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         // calculate solution (c vectors = contributions to R) and set state
         let neq = mesh.points.len() * 2; // 2 DOF per node

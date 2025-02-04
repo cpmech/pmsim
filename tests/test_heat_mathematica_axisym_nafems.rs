@@ -100,7 +100,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     config.set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

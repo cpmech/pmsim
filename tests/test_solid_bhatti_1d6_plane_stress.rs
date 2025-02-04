@@ -72,7 +72,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     let mut elements = Elements::new(&mesh, &base, &config)?;
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

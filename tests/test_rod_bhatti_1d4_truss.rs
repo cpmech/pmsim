@@ -64,7 +64,7 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();

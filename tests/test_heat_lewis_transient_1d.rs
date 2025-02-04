@@ -74,7 +74,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     config.set_transient(true).set_dt(|_| 0.1).set_t_fin(t_fin);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &config)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
