@@ -58,18 +58,25 @@ impl<'a> SolverImplicit<'a> {
     pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
         // accessors
         let config = &self.config;
-        let ignore = &self.bc_prescribed.flags;
         let rr = &mut self.linear_system.rr;
         let kk = &mut self.linear_system.kk;
         let mdu = &mut self.linear_system.mdu;
 
+        // array to ignore prescribed equations when building the reduced system
+        let ndof = self.bc_prescribed.flags.len(); // number of DOFs = n_equation without Lagrange multipliers
+        let ignore = if config.lagrange_mult_method {
+            &vec![false; ndof]
+        } else {
+            &self.bc_prescribed.flags
+        };
+
         // residual vector
-        let neq = rr.dim();
-        let mut rr0 = Vector::new(neq);
+        let neq_total = rr.dim();
+        let mut rr0 = Vector::new(neq_total);
 
         // collect the unknown equations
-        let unknown_equations: Vec<_> = (0..neq)
-            .filter_map(|eq| if ignore[eq] { None } else { Some(eq) })
+        let unknown_equations: Vec<_> = (0..neq_total)
+            .filter(|&eq| config.lagrange_mult_method || !ignore[eq])
             .collect();
 
         // message
@@ -103,8 +110,10 @@ impl<'a> SolverImplicit<'a> {
             state.duu.fill(0.0);
 
             // set prescribed U and ΔU at the new time
-            if self.bc_prescribed.equations.len() > 0 {
-                self.bc_prescribed.apply(&mut state.duu, &mut state.uu, state.t);
+            if !config.lagrange_mult_method {
+                if self.bc_prescribed.equations.len() > 0 {
+                    self.bc_prescribed.apply(&mut state.duu, &mut state.uu, state.t);
+                }
             }
 
             // reset algorithmic variables
@@ -134,6 +143,18 @@ impl<'a> SolverImplicit<'a> {
                 // add concentrated loads to the residual R
                 self.bc_concentrated.add_to_rr(rr, state.t);
 
+                // add Lagrange multiplier contributions to R
+                if config.lagrange_mult_method {
+                    for p in 0..self.bc_prescribed.equations.len() {
+                        let i = self.bc_prescribed.equations[p];
+                        let j = ndof + p;
+                        let lambda = state.uu[j];
+                        let c = self.bc_prescribed.all[p].value(state.t);
+                        rr[i] += lambda; // Aᵀ λ => 1 * λ
+                        rr[j] = state.uu[i] - c; // A u - c => 1 * u - c
+                    }
+                }
+
                 // check convergence on residual
                 max_rr_prev = max_rr;
                 if iteration == 0 {
@@ -162,9 +183,20 @@ impl<'a> SolverImplicit<'a> {
                     self.elements.assemble_kke(kk_coo, state, ignore)?;
                     self.bc_distributed.assemble_kke(kk_coo, state, ignore)?;
 
-                    // augment global Jacobian matrix
-                    for eq in &self.bc_prescribed.equations {
-                        kk.put(*eq, *eq, 1.0).unwrap();
+                    // modify K
+                    if config.lagrange_mult_method {
+                        // add Aᵀ and A matrices to K
+                        for p in 0..self.bc_prescribed.equations.len() {
+                            let i = self.bc_prescribed.equations[p];
+                            let j = ndof + p;
+                            kk.put(i, j, 1.0)?; // Aᵀ
+                            kk.put(j, i, 1.0)?; // A
+                        }
+                    } else {
+                        // augment global Jacobian matrix (put ones on the diagonal)
+                        for eq in &self.bc_prescribed.equations {
+                            kk.put(*eq, *eq, 1.0).unwrap();
+                        }
                     }
 
                     // factorize global Jacobian matrix

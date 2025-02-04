@@ -109,7 +109,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_lagrange_mult_method(false)
+        .set_lagrange_mult_method(true)
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)
@@ -136,7 +136,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
         "spo_von_mises_2x2_elements_2d.json",
         tol_displacement,
         tol_stress,
-        0,
+        1,
     )?;
     assert!(all_good);
     Ok(())

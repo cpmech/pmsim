@@ -110,7 +110,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     file_io.activate(&mesh, &base, NAME, None)?;
 
     // solution
-    let mut solver = SolverImplicitLag::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     /*

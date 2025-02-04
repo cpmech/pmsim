@@ -190,7 +190,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     lin_sys.solver.actual.solve(mdu, jj, &rr, false)?;
 
     // update U vector
-    let mut uu_new = Vector::new(lin_sys.n_equation);
+    let mut uu_new = Vector::new(lin_sys.neq_total);
     vec_add(&mut uu_new, 1.0, &state.uu, -1.0, &mdu)?;
     println!("uu_new =\n{}", uu_new);
 
