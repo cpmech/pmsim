@@ -14,33 +14,60 @@ pub struct SpatialTensor {
     /// Maps the node ID to the index in the associated data arrays (xx, yy, txx, tyy, ...)
     ///
     /// In the case of Gauss data, the ID will be a randomly assigned number.
-    pub ids: HashMap<PointId, usize>,
+    ///
+    /// (nnode or ngauss)
+    pub id2k: HashMap<PointId, usize>,
 
-    /// The x coordinates of nodes (nnode)
+    /// Maps the index in the associated data arrays (xx, yy, txx, tyy, ...) to the node ID
+    ///
+    /// In the case of Gauss data, the ID will be a randomly assigned number.
+    ///
+    /// (nnode or ngauss)
+    pub k2id: Vec<PointId>,
+
+    /// The x coordinates of nodes
+    ///
+    /// (nnode or ngauss)
     pub xx: Vec<f64>,
 
-    /// The y coordinates of nodes (nnode)
+    /// The y coordinates of nodes
+    ///
+    /// (nnode or ngauss)
     pub yy: Vec<f64>,
 
-    /// The z coordinates of nodes (nnode) (3D only)
+    /// The z coordinates of nodes (3D only)
+    ///
+    /// (nnode or ngauss)
     pub zz: Vec<f64>,
 
-    /// The extrapolated σxx components @ each node (nnode)
+    /// The extrapolated σxx components @ each node
+    ///
+    /// (nnode or ngauss)
     pub txx: Vec<f64>,
 
-    /// The extrapolated σyy components @ each node (nnode)
+    /// The extrapolated σyy components @ each node
+    ///
+    /// (nnode or ngauss)
     pub tyy: Vec<f64>,
 
-    /// The extrapolated σzz components @ each node (nnode)
+    /// The extrapolated σzz components @ each node
+    ///
+    /// (nnode or ngauss)
     pub tzz: Vec<f64>,
 
-    /// The extrapolated σxy components @ each node (nnode)
+    /// The extrapolated σxy components @ each node
+    ///
+    /// (nnode or ngauss)
     pub txy: Vec<f64>,
 
-    /// The extrapolated σyx components @ each node (nnode) (3D only)
+    /// The extrapolated σyx components @ each node (3D only)
+    ///
+    /// (nnode or ngauss)
     pub tyz: Vec<f64>,
 
-    /// The extrapolated σxz components @ each node (nnode) (3D only)
+    /// The extrapolated σxz components @ each node (3D only)
+    ///
+    /// (nnode or ngauss)
     pub tzx: Vec<f64>,
 }
 
@@ -266,7 +293,8 @@ impl<'a> PostProc<'a> {
         F: Fn(PointId, f64, f64, f64) -> bool,
     {
         let mut res = SpatialTensor {
-            ids: HashMap::new(),
+            id2k: HashMap::new(),
+            k2id: Vec::new(),
             xx: Vec::new(),
             yy: Vec::new(),
             zz: Vec::new(),
@@ -282,13 +310,14 @@ impl<'a> PostProc<'a> {
             let ten = self.gauss_tensor(*cell_id, state, strain)?;
             let ngauss = ten.nrow();
             for p in 0..ngauss {
-                let id = res.ids.len();
+                let id = res.id2k.len();
                 let ndim = coords[p].dim();
                 let x = coords[p][0];
                 let y = coords[p][1];
                 let z = if ndim == 3 { coords[p][2] } else { 0.0 };
                 if filter(id, x, y, z) {
-                    res.ids.insert(id, res.xx.len());
+                    res.id2k.insert(id, res.xx.len());
+                    res.k2id.push(id);
                     res.xx.push(x);
                     res.yy.push(y);
                     res.txx.push(ten.get(p, 0));
@@ -457,7 +486,8 @@ impl<'a> PostProc<'a> {
         let n_entries = counter.len();
         let mut res = if ndim == 3 {
             SpatialTensor {
-                ids: HashMap::with_capacity(n_entries),
+                id2k: HashMap::with_capacity(n_entries),
+                k2id: Vec::with_capacity(n_entries),
                 xx: Vec::with_capacity(n_entries),
                 yy: Vec::with_capacity(n_entries),
                 zz: Vec::with_capacity(n_entries),
@@ -470,7 +500,8 @@ impl<'a> PostProc<'a> {
             }
         } else {
             SpatialTensor {
-                ids: HashMap::with_capacity(n_entries),
+                id2k: HashMap::with_capacity(n_entries),
+                k2id: Vec::with_capacity(n_entries),
                 xx: Vec::with_capacity(n_entries),
                 yy: Vec::with_capacity(n_entries),
                 zz: Vec::new(),
@@ -496,7 +527,8 @@ impl<'a> PostProc<'a> {
                 let tyy = nodal_tyy.get(nid).unwrap();
                 let tzz = nodal_tzz.get(nid).unwrap();
                 let txy = nodal_txy.get(nid).unwrap();
-                res.ids.insert(*nid, res.xx.len());
+                res.id2k.insert(*nid, res.xx.len());
+                res.k2id.push(*nid);
                 res.xx.push(x);
                 res.yy.push(y);
                 res.txx.push(*txx / count);
@@ -781,20 +813,21 @@ mod tests {
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.gauss_stresses(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
             let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
-            let nt = sig.txx.len();
-            for i in 0..nt {
+            let nk = sig.txx.len();
+            for k in 0..nk {
                 // ids. for Gauss points, the IDs coincide with the indices
-                assert_eq!(*sig.ids.get(&i).unwrap(), i);
+                assert_eq!(*sig.id2k.get(&k).unwrap(), k);
+                assert_eq!(sig.k2id[k], k);
                 // stress
-                approx_eq(sig.txx[i], sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.tyy[i], sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.tzz[i], sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.txy[i], sig_ref.get(0, 1), 1e-14);
+                approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
+                approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
+                approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
+                approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
                 // strain
-                approx_eq(eps.txx[i], eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.tyy[i], eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.tzz[i], eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.txy[i], eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
             }
         }
     }
@@ -829,19 +862,41 @@ mod tests {
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.nodal_stresses(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
             let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
-            let nt = sig.txx.len();
-            for i in 0..nt {
+            let nk = sig.txx.len();
+            for k in 0..nk {
                 // stress
-                approx_eq(sig.txx[i], sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.tyy[i], sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.tzz[i], sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.txy[i], sig_ref.get(0, 1), 1e-14);
+                approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
+                approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
+                approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
+                approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
                 // strain
-                approx_eq(eps.txx[i], eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.tyy[i], eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.tzz[i], eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.txy[i], eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
             }
+        }
+    }
+
+    #[test]
+    fn ids_from_nodal_stresses_and_strain_are_consistent() {
+        let mesh = Samples::one_tri3();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        let essential = Essential::new();
+        let config = Config::new(&mesh);
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let res = post.nodal_stresses(&[0], &state, |_, _, _, _| true).unwrap();
+        for k in 0..res.xx.len() {
+            let nid = match (res.xx[k], res.yy[k]) {
+                (0.0, 0.0) => 0,
+                (1.0, 0.0) => 1,
+                (0.5, 0.85) => 2,
+                _ => unreachable!("THIS SHOULD BE UNREACHABLE"),
+            };
+            assert_eq!(res.k2id[k], nid);
+            assert_eq!(*res.id2k.get(&nid).unwrap(), k);
         }
     }
 
