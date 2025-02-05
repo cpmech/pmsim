@@ -5,7 +5,7 @@ use pmsim::base::{Dof, DEFAULT_OUT_DIR};
 use pmsim::fem::PostProc;
 use pmsim::StrError;
 use russell_lab::math::SQRT_3;
-use russell_lab::{argsort_f64, Matrix};
+use russell_lab::Matrix;
 
 const RESULTS_NAME: &str = "spo_754_footing";
 const DRAW_MESH: bool = false;
@@ -36,15 +36,14 @@ pub fn main() -> Result<(), StrError> {
         let state = PostProc::read_state(&file_io, *index)?;
         let uy = state.uu[eq_corner];
         normalized_settlement.push(-uy / width);
-        let res = post.nodal_stresses(&footing_cells, &state, |_, _, y, _| y == max[1])?;
-        let ks = argsort_f64(&res.xx);
+        let res = post.nodal_stresses(&footing_cells, &state, |_, y, _| y == max[1])?;
         let mut area = 0.0;
         if *index == 0 {
-            x_coords = ks.iter().map(|k| res.xx[*k]).collect();
+            x_coords = res.xx.clone();
         }
-        all_syy.push(ks.iter().map(|k| res.tyy[*k] / cohesion).collect());
-        for i in 1..ks.len() {
-            area += (res.xx[ks[i]] - res.xx[ks[i - 1]]) * (res.tyy[ks[i]] + res.tyy[ks[i - 1]]) / 2.0;
+        all_syy.push(res.tyy.iter().map(|sy| *sy / cohesion).collect());
+        for i in 1..res.xx.len() {
+            area += (res.xx[i] - res.xx[i - 1]) * (res.tyy[i] + res.tyy[i - 1]) / 2.0;
         }
         normalized_pressure.push(-2.0 * area / cohesion);
     }

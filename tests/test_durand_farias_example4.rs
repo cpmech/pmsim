@@ -67,8 +67,8 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let left_cells = features.get_cells_via_2d_edges(&left);
     let (min, max) = mesh.get_cell_bounding_box(mesh.cells[left_cells[0]].id);
     let hdx = (max[0] - min[0]) / 2.0;
-    let gauss = post.gauss_stresses(&left_cells, &state, |_, x, _, _| x < hdx)?;
-    let nodal = post.nodal_stresses(&left_cells, &state, |_, x, _, _| x < hdx)?;
+    let gauss = post.gauss_stresses(&left_cells, &state, |x, _, _| x < hdx)?;
+    let nodal = post.nodal_stresses(&left_cells, &state, |x, _, _| x < hdx)?;
 
     // verification
     let ana = ElastPlaneStrainFlexibleFoot {

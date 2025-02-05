@@ -239,7 +239,7 @@ impl<'a> PostProc<'a> {
     ///
     /// * `cell_ids` -- the cell IDs
     /// * `state` -- the FEM state holding the all results
-    /// * `filter` -- a `(id, x, y, z) -> bool` function that returns `true` to keep the results
+    /// * `filter` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
     ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Output
@@ -252,7 +252,7 @@ impl<'a> PostProc<'a> {
         filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64, f64) -> bool,
+        F: Fn(f64, f64, f64) -> bool,
     {
         self.gauss_tensors(cell_ids, state, filter, false)
     }
@@ -263,7 +263,7 @@ impl<'a> PostProc<'a> {
     ///
     /// * `cell_ids` -- the cell IDs
     /// * `state` -- the FEM state holding the all results
-    /// * `filter` -- a `(id, x, y, z) -> bool` function that returns `true` to keep the results
+    /// * `filter` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
     ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Output
@@ -276,7 +276,7 @@ impl<'a> PostProc<'a> {
         filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64, f64) -> bool,
+        F: Fn(f64, f64, f64) -> bool,
     {
         self.gauss_tensors(cell_ids, state, filter, true)
     }
@@ -290,7 +290,7 @@ impl<'a> PostProc<'a> {
         strain: bool,
     ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64, f64) -> bool,
+        F: Fn(f64, f64, f64) -> bool,
     {
         let mut res = SpatialTensor {
             id2k: HashMap::new(),
@@ -315,7 +315,7 @@ impl<'a> PostProc<'a> {
                 let x = coords[p][0];
                 let y = coords[p][1];
                 let z = if ndim == 3 { coords[p][2] } else { 0.0 };
-                if filter(id, x, y, z) {
+                if filter(x, y, z) {
                     res.id2k.insert(id, res.xx.len());
                     res.k2id.push(id);
                     res.xx.push(x);
@@ -404,7 +404,7 @@ impl<'a> PostProc<'a> {
     ///
     /// * `cell_ids` -- the ID of a patch of cells sharing the nodes with extrapolated results
     /// * `state` -- the FEM state holding the all results
-    /// * `filter` -- a `(id, x, y, z) -> bool` function that returns `true` to keep the results
+    /// * `filter` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
     ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Output
@@ -417,7 +417,7 @@ impl<'a> PostProc<'a> {
         filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64, f64) -> bool,
+        F: Fn(f64, f64, f64) -> bool,
     {
         self.extrapolate_tensor(cell_ids, state, filter, false)
     }
@@ -428,12 +428,14 @@ impl<'a> PostProc<'a> {
     ///
     /// * `cell_ids` -- the ID of a patch of cells sharing the nodes with extrapolated results
     /// * `state` -- the FEM state holding the all results
-    /// * `filter` -- a `(id, x, y, z) -> bool` function that returns `true` to keep the results
+    /// * `filter` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
     ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Output
     ///
-    /// Returns [SpatialTensor] with the coordinates of nodes and strain components at each node
+    /// Returns [SpatialTensor] with the coordinates of nodes and strain components at each node.
+    ///
+    /// **Note:** The arrays will ordered such that the coordinates are sorted by `x → y → z`.
     pub fn nodal_strains<F>(
         &mut self,
         cell_ids: &[CellId],
@@ -441,7 +443,7 @@ impl<'a> PostProc<'a> {
         filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64, f64) -> bool,
+        F: Fn(f64, f64, f64) -> bool,
     {
         self.extrapolate_tensor(cell_ids, state, filter, true)
     }
@@ -455,8 +457,9 @@ impl<'a> PostProc<'a> {
         strain: bool,
     ) -> Result<SpatialTensor, StrError>
     where
-        F: Fn(PointId, f64, f64, f64) -> bool,
+        F: Fn(f64, f64, f64) -> bool,
     {
+        // perform extrapolation and store the results in temporary maps
         let ndim = self.mesh.ndim;
         let mut counter = HashMap::new();
         let mut nodal_txx = HashMap::new();
@@ -467,7 +470,7 @@ impl<'a> PostProc<'a> {
         let mut nodal_tzx = HashMap::new();
         for cell_id in cell_ids {
             let ten = self.nodal_tensor(*cell_id, &state, strain)?;
-            let nnode = ten.nrow();
+            let nnode = ten.nrow(); // = cell.points.len()
             for m in 0..nnode {
                 let nid = self.mesh.cells[*cell_id].points[m];
                 let (txx, tyy, tzz, txy) = (ten.get(m, 0), ten.get(m, 1), ten.get(m, 2), ten.get(m, 3));
@@ -483,7 +486,51 @@ impl<'a> PostProc<'a> {
                 }
             }
         }
+        // collect the node coordinates and apply the coordinates filter
         let n_entries = counter.len();
+        let mut k2id = HashMap::new();
+        let mut xx = Vec::with_capacity(n_entries);
+        let mut yy = Vec::with_capacity(n_entries);
+        let mut zz = if ndim == 3 {
+            Vec::with_capacity(n_entries)
+        } else {
+            Vec::new()
+        };
+        for nid in counter.keys() {
+            let x = self.mesh.points[*nid].coords[0];
+            let y = self.mesh.points[*nid].coords[1];
+            let z = if self.mesh.ndim == 3 {
+                self.mesh.points[*nid].coords[2]
+            } else {
+                0.0
+            };
+            if filter(x, y, z) {
+                k2id.insert(xx.len(), *nid);
+                xx.push(x);
+                yy.push(y);
+                if ndim == 3 {
+                    zz.push(z);
+                }
+            }
+        }
+        // sort nodes by x → y → z
+        let sorted_indices: Vec<_> = if ndim == 3 {
+            let mut indexed_data: Vec<_> = xx.iter().zip(&yy).zip(&zz).enumerate().collect();
+            indexed_data.sort_by(|a, b| {
+                let x_sorted = a.1 .0 .0.partial_cmp(&b.1 .0 .0).unwrap_or(std::cmp::Ordering::Greater); // treat NaN as greater
+                let y_sorted = x_sorted.then(a.1 .0 .1.partial_cmp(&b.1 .0 .1).unwrap_or(std::cmp::Ordering::Greater));
+                y_sorted.then(a.1 .1.partial_cmp(&b.1 .1).unwrap_or(std::cmp::Ordering::Greater))
+            });
+            indexed_data.iter().map(|(idx, _)| *idx).collect()
+        } else {
+            let mut indexed_data: Vec<_> = xx.iter().zip(&yy).enumerate().collect();
+            indexed_data.sort_by(|a, b| {
+                let x_sorted = a.1 .0.partial_cmp(&b.1 .0).unwrap_or(std::cmp::Ordering::Greater); // treat NaN as greater
+                x_sorted.then(a.1 .1.partial_cmp(&b.1 .1).unwrap_or(std::cmp::Ordering::Greater))
+            });
+            indexed_data.iter().map(|(idx, _)| *idx).collect()
+        };
+        // average the results
         let mut res = if ndim == 3 {
             SpatialTensor {
                 id2k: HashMap::with_capacity(n_entries),
@@ -513,35 +560,27 @@ impl<'a> PostProc<'a> {
                 tzx: Vec::new(),
             }
         };
-        for nid in counter.keys() {
-            let x = self.mesh.points[*nid].coords[0];
-            let y = self.mesh.points[*nid].coords[1];
-            let z = if self.mesh.ndim == 3 {
-                self.mesh.points[*nid].coords[2]
-            } else {
-                0.0
-            };
-            if filter(*nid, x, y, z) {
-                let count = *counter.get(&nid).unwrap() as f64;
-                let txx = nodal_txx.get(nid).unwrap();
-                let tyy = nodal_tyy.get(nid).unwrap();
-                let tzz = nodal_tzz.get(nid).unwrap();
-                let txy = nodal_txy.get(nid).unwrap();
-                res.id2k.insert(*nid, res.xx.len());
-                res.k2id.push(*nid);
-                res.xx.push(x);
-                res.yy.push(y);
-                res.txx.push(*txx / count);
-                res.tyy.push(*tyy / count);
-                res.tzz.push(*tzz / count);
-                res.txy.push(*txy / count);
-                if ndim == 3 {
-                    let tyz = nodal_tyz.get(nid).unwrap();
-                    let tzx = nodal_tzx.get(nid).unwrap();
-                    res.zz.push(z);
-                    res.tyz.push(*tyz / count);
-                    res.tzx.push(*tzx / count);
-                }
+        for k in &sorted_indices {
+            let nid = k2id.get(k).unwrap();
+            let count = *counter.get(&nid).unwrap() as f64;
+            let txx = nodal_txx.get(nid).unwrap();
+            let tyy = nodal_tyy.get(nid).unwrap();
+            let tzz = nodal_tzz.get(nid).unwrap();
+            let txy = nodal_txy.get(nid).unwrap();
+            res.id2k.insert(*nid, res.xx.len());
+            res.k2id.push(*nid);
+            res.xx.push(xx[*k]);
+            res.yy.push(yy[*k]);
+            res.txx.push(*txx / count);
+            res.tyy.push(*tyy / count);
+            res.tzz.push(*tzz / count);
+            res.txy.push(*txy / count);
+            if ndim == 3 {
+                let tyz = nodal_tyz.get(nid).unwrap();
+                let tzx = nodal_tzx.get(nid).unwrap();
+                res.zz.push(zz[*k]);
+                res.tyz.push(*tyz / count);
+                res.tzx.push(*tzx / count);
             }
         }
         Ok(res)
@@ -811,8 +850,8 @@ mod tests {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.gauss_stresses(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
-            let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
+            let sig = post.gauss_stresses(&[0, 1, 2], &state, |_, _, _| true).unwrap();
+            let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let nk = sig.txx.len();
             for k in 0..nk {
                 // ids. for Gauss points, the IDs coincide with the indices
@@ -860,8 +899,8 @@ mod tests {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.nodal_stresses(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
-            let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
+            let sig = post.nodal_stresses(&[0, 1, 2], &state, |_, _, _| true).unwrap();
+            let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let nk = sig.txx.len();
             for k in 0..nk {
                 // stress
@@ -875,6 +914,11 @@ mod tests {
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
                 approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
             }
+            // check sorting
+            println!("x = {:?}", sig.xx);
+            println!("y = {:?}", sig.yy);
+            assert_eq!(&sig.xx, &[0.0, 0.5, 1.2, 1.8, 2.2]);
+            assert_eq!(&sig.yy, &[0.2, 1.2, 0.0, 1.0, 0.1]);
         }
     }
 
@@ -887,7 +931,7 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let res = post.nodal_stresses(&[0], &state, |_, _, _, _| true).unwrap();
+        let res = post.nodal_stresses(&[0], &state, |_, _, _| true).unwrap();
         for k in 0..res.xx.len() {
             let nid = match (res.xx[k], res.yy[k]) {
                 (0.0, 0.0) => 0,
@@ -898,6 +942,20 @@ mod tests {
             assert_eq!(res.k2id[k], nid);
             assert_eq!(*res.id2k.get(&nid).unwrap(), k);
         }
+    }
+
+    #[test]
+    fn nodal_stresses_yields_sorted_arrays() {
+        let mesh = Samples::one_qua4();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        let essential = Essential::new();
+        let config = Config::new(&mesh);
+        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let res = post.nodal_stresses(&[0], &state, |_, _, _| true).unwrap();
+        // TODO
+        println!("{:?}", res);
     }
 
     #[test]

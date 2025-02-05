@@ -148,7 +148,7 @@ fn post_processing() -> Result<(), StrError> {
         // get stresses
         let pp = P_ARRAY[*index];
         if pp == 0.1 || pp == 0.18 {
-            let res = post.gauss_stresses(&lower_cells, &state, |_, x, y, _| {
+            let res = post.gauss_stresses(&lower_cells, &state, |x, y, _| {
                 let alpha = f64::atan2(y, x) * 180.0 / PI;
                 alpha < 15.0
             })?;
