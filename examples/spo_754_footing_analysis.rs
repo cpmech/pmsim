@@ -1,9 +1,11 @@
 use gemlab::mesh::{At, Features, Figure, Mesh};
 use gemlab::util::any_x;
-use plotpy::Canvas;
+use plotpy::{Canvas, Curve, Legend, Plot};
 use pmsim::base::{Dof, DEFAULT_OUT_DIR};
 use pmsim::fem::PostProc;
 use pmsim::StrError;
+use russell_lab::math::SQRT_3;
+use russell_lab::{argsort_f64, Matrix};
 
 const RESULTS_NAME: &str = "spo_754_footing";
 const DRAW_MESH: bool = false;
@@ -21,21 +23,77 @@ pub fn main() -> Result<(), StrError> {
     let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
     let footing_cells = features.get_cells_via_2d_edges(&footing);
 
-    let mut settlement = Vec::new();
-    let mut sy_sets = Vec::new();
+    let width = 100.0; // 2*B
+    let z_ini = 848.7 * 100.0; // multiply by 100 because we used cm in the mesh
+    let cohesion = z_ini / SQRT_3;
+
+    let mut normalized_settlement = Vec::new();
+    let mut normalized_pressure = Vec::new();
+    let mut x_coords = Vec::new();
+    let mut all_syy = Vec::<Vec<f64>>::new();
     let eq_corner = base.equations.eq(corner_id, Dof::Uy)?;
     for index in &file_io.indices {
         let state = PostProc::read_state(&file_io, *index)?;
         let uy = state.uu[eq_corner];
-        settlement.push(uy);
-        let nodal_sy = post.nodal_stresses(&footing_cells, &state, |_, _, y, _| y == max[1])?;
-        sy_sets.push(nodal_sy);
+        normalized_settlement.push(-uy / width);
+        let res = post.nodal_stresses(&footing_cells, &state, |_, _, y, _| y == max[1])?;
+        let ks = argsort_f64(&res.xx);
+        let mut area = 0.0;
+        if *index == 0 {
+            x_coords = ks.iter().map(|k| res.xx[*k]).collect();
+        }
+        all_syy.push(ks.iter().map(|k| res.tyy[*k] / cohesion).collect());
+        for i in 1..ks.len() {
+            area += (res.xx[ks[i]] - res.xx[ks[i - 1]]) * (res.tyy[ks[i]] + res.tyy[ks[i - 1]]) / 2.0;
+        }
+        normalized_pressure.push(-2.0 * area / cohesion);
     }
-    println!("settlement = {:?}", settlement);
-    // println!("sy_values = {:?}", sy_values);
-    for sy_values in &sy_sets {
-        println!("{:?}", sy_values.ids);
+
+    let ref_xy = Matrix::from_text_file("data/figures/spo_754_footing/spo_754_footing_load_displacement.tsv")?;
+    let ref_x = ref_xy.extract_column(0);
+    let ref_y = ref_xy.extract_column(1);
+
+    let mut plot = Plot::new();
+    let mut curve_ana = Curve::new();
+    let mut curve_num = Curve::new();
+    let mut curve_ref = Curve::new();
+    curve_ana
+        .set_line_style(":")
+        .set_line_color("green")
+        .set_label("slip-line theory: 5.14")
+        .draw(&[0.0, 0.002], &[5.14, 5.14]);
+    curve_ref
+        .set_label("de Souza Neto et al.")
+        .set_line_style("None")
+        .set_marker_style("D")
+        .set_marker_void(true)
+        .draw(&ref_x, &ref_y);
+    curve_num
+        .set_label("pmsim")
+        .draw(&normalized_settlement, &normalized_pressure);
+    plot.set_subplot(1, 2, 1)
+        .set_gaps(0.25, 0.2)
+        .add(&curve_ana)
+        .add(&curve_num)
+        .add(&curve_ref)
+        .set_rotation_ticks_x(90.0)
+        .grid_labels_legend("normalized settlement: $-u_y/B$", "normalized pressure: $-P/c$");
+    plot.set_subplot(1, 2, 2);
+    for index in &file_io.indices {
+        let mut curve = Curve::new();
+        curve
+            .set_label(&format!("t = {}", file_io.times[*index]))
+            .draw(&x_coords, &all_syy[*index]);
+        plot.add(&curve);
     }
+    let mut leg = Legend::new();
+    leg.set_num_col(5).set_outside(true).draw();
+    plot.add(&leg)
+        .grid_and_labels("$x$", "$\\sigma_y/c$")
+        .set_figure_size_points(800.0, 350.0)
+        .set_align_labels()
+        .save("/tmp/pmsim/spo_754_footing_stress.svg")
+        .unwrap();
 
     Ok(())
 }
