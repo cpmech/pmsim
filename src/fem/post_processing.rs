@@ -9,6 +9,7 @@ use russell_lab::{mat_mat_mul, Matrix, Vector};
 use std::collections::HashMap;
 
 /// Holds the tensor (stress/strain) components distributed in space (Gauss point or extrapolated from nodes)
+#[derive(Clone, Debug)]
 pub struct SpatialTensor {
     /// A randomly assigned Gauss point number or the IDs of nodes (nnode)
     pub ids: Vec<PointId>,
