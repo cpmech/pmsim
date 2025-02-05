@@ -11,8 +11,10 @@ use std::collections::HashMap;
 /// Holds the tensor (stress/strain) components distributed in space (Gauss point or extrapolated from nodes)
 #[derive(Clone, Debug)]
 pub struct SpatialTensor {
-    /// A randomly assigned Gauss point number or the IDs of nodes (nnode)
-    pub ids: Vec<PointId>,
+    /// Maps the node ID to the index in the associated data arrays (xx, yy, txx, tyy, ...)
+    ///
+    /// In the case of Gauss data, the ID will be a randomly assigned number.
+    pub ids: HashMap<PointId, usize>,
 
     /// The x coordinates of nodes (nnode)
     pub xx: Vec<f64>,
@@ -264,7 +266,7 @@ impl<'a> PostProc<'a> {
         F: Fn(PointId, f64, f64, f64) -> bool,
     {
         let mut res = SpatialTensor {
-            ids: Vec::new(),
+            ids: HashMap::new(),
             xx: Vec::new(),
             yy: Vec::new(),
             zz: Vec::new(),
@@ -286,7 +288,7 @@ impl<'a> PostProc<'a> {
                 let y = coords[p][1];
                 let z = if ndim == 3 { coords[p][2] } else { 0.0 };
                 if filter(id, x, y, z) {
-                    res.ids.push(id);
+                    res.ids.insert(id, res.xx.len());
                     res.xx.push(x);
                     res.yy.push(y);
                     res.txx.push(ten.get(p, 0));
@@ -455,7 +457,7 @@ impl<'a> PostProc<'a> {
         let n_entries = counter.len();
         let mut res = if ndim == 3 {
             SpatialTensor {
-                ids: Vec::with_capacity(n_entries),
+                ids: HashMap::with_capacity(n_entries),
                 xx: Vec::with_capacity(n_entries),
                 yy: Vec::with_capacity(n_entries),
                 zz: Vec::with_capacity(n_entries),
@@ -468,7 +470,7 @@ impl<'a> PostProc<'a> {
             }
         } else {
             SpatialTensor {
-                ids: Vec::with_capacity(n_entries),
+                ids: HashMap::with_capacity(n_entries),
                 xx: Vec::with_capacity(n_entries),
                 yy: Vec::with_capacity(n_entries),
                 zz: Vec::new(),
@@ -494,7 +496,7 @@ impl<'a> PostProc<'a> {
                 let tyy = nodal_tyy.get(nid).unwrap();
                 let tzz = nodal_tzz.get(nid).unwrap();
                 let txy = nodal_txy.get(nid).unwrap();
-                res.ids.push(*nid);
+                res.ids.insert(*nid, res.xx.len());
                 res.xx.push(x);
                 res.yy.push(y);
                 res.txx.push(*txx / count);
@@ -781,6 +783,8 @@ mod tests {
             let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _, _| true).unwrap();
             let nt = sig.txx.len();
             for i in 0..nt {
+                // ids. for Gauss points, the IDs coincide with the indices
+                assert_eq!(*sig.ids.get(&i).unwrap(), i);
                 // stress
                 approx_eq(sig.txx[i], sig_ref.get(0, 0), 1e-14);
                 approx_eq(sig.tyy[i], sig_ref.get(1, 1), 1e-14);
