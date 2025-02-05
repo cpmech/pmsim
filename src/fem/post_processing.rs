@@ -63,6 +63,8 @@ pub struct PostProc<'a> {
 
 impl<'a> PostProc<'a> {
     /// Reads the summary and associated files for post-processing
+    ///
+    /// Returns `(file_io, mesh, base)`
     pub fn read_summary(out_dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
         // load FileIo
         let full_path = format!("{}/{}-summary.json", out_dir, fn_stem);
