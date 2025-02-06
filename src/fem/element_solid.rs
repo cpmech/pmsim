@@ -297,7 +297,8 @@ mod tests {
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
         // check residual vector
-        let neq = 3 * 2;
+        let nnode = mesh.cells[0].kind.nnode();
+        let neq = nnode * mesh.ndim;
         let mut residual = Vector::new(neq);
         elem.calc_residual(&mut residual, &state).unwrap();
         let sigma = Tensor2::from_matrix(
@@ -318,7 +319,59 @@ mod tests {
     }
 
     #[test]
-    fn update_state_works_plane_strain() {
+    fn element_solid_works_3d() {
+        // mesh and parameters
+        let mesh = Samples::one_tet4();
+        let young = 10_000.0; // kPa
+        let poisson = 0.2; // [-]
+        let p1 = ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: StressStrain::LinearElastic { young, poisson },
+            ngauss: None,
+        };
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
+        let config = Config::new(&mesh);
+        let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+
+        // set stress state
+        let (s00, s11, s22, s01, s12, s20) = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
+        for state in &mut state.gauss[0].solid {
+            state.stress.sym_set(0, 0, s00);
+            state.stress.sym_set(1, 1, s11);
+            state.stress.sym_set(2, 2, s22);
+            state.stress.sym_set(0, 1, s01);
+            state.stress.sym_set(1, 2, s12);
+            state.stress.sym_set(2, 0, s20);
+        }
+
+        // analytical solver
+        let mut ana = integ::AnalyticalTet4::new(&elem.pad);
+
+        // check residual vector
+        let nnode = mesh.cells[0].kind.nnode();
+        let neq = nnode * mesh.ndim;
+        let mut residual = Vector::new(neq);
+        elem.calc_residual(&mut residual, &state).unwrap();
+        #[rustfmt::skip]
+        let sigma = Tensor2::from_matrix(&[
+            [s00, s01, s20],
+            [s01, s11, s12],
+            [s20, s12, s22],
+        ], Mandel::Symmetric).unwrap();
+        let correct = ana.vec_04_tb(&sigma);
+        vec_approx_eq(&residual, &correct, 1e-15);
+
+        // check Jacobian matrix
+        let mut jacobian = Matrix::new(neq, neq);
+        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        let correct = ana.mat_10_bdb(young, poisson).unwrap();
+        mat_approx_eq(&jacobian, &correct, 1e-12);
+    }
+
+    #[test]
+    fn update_state_works_plane_strain_and_3d() {
         // parameters
         let young = 1.0;
         let poisson = 0.25;
