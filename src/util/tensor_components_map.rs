@@ -151,7 +151,19 @@ mod tests {
     }
 
     #[test]
-    fn test_add_tensor_increment() {
+    fn test_add_tensor_tzx_error() {
+        let mut nodal_tensors = TensorComponentsMap::new(2);
+        let nid = 1;
+        let result = nodal_tensors.add_tensor(nid, 1.0, 2.0, 3.0, 4.0, None, Some(6.0));
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "the tensor must be 3D to add the tzx component"
+        );
+    }
+
+    #[test]
+    fn test_add_tensor_increment_2d() {
         let mut nodal_tensors = TensorComponentsMap::new(2);
         let nid = 1;
         nodal_tensors.add_tensor(nid, 1.0, 2.0, 3.0, 4.0, None, None).unwrap();
@@ -162,5 +174,25 @@ mod tests {
         assert_eq!(*nodal_tensors.tyy.get(&nid).unwrap(), 4.0);
         assert_eq!(*nodal_tensors.tzz.get(&nid).unwrap(), 6.0);
         assert_eq!(*nodal_tensors.txy.get(&nid).unwrap(), 8.0);
+    }
+
+    #[test]
+    fn test_add_tensor_increment_3d() {
+        let mut nodal_tensors = TensorComponentsMap::new(3);
+        let nid = 1;
+        nodal_tensors
+            .add_tensor(nid, 1.0, 2.0, 3.0, 4.0, Some(5.0), Some(6.0))
+            .unwrap();
+        nodal_tensors
+            .add_tensor(nid, 1.0, 2.0, 3.0, 4.0, Some(5.0), Some(6.0))
+            .unwrap();
+
+        assert_eq!(*nodal_tensors.counter.get(&nid).unwrap(), 2);
+        assert_eq!(*nodal_tensors.txx.get(&nid).unwrap(), 2.0);
+        assert_eq!(*nodal_tensors.tyy.get(&nid).unwrap(), 4.0);
+        assert_eq!(*nodal_tensors.tzz.get(&nid).unwrap(), 6.0);
+        assert_eq!(*nodal_tensors.txy.get(&nid).unwrap(), 8.0);
+        assert_eq!(*nodal_tensors.tyz.as_ref().unwrap().get(&nid).unwrap(), 10.0);
+        assert_eq!(*nodal_tensors.tzx.as_ref().unwrap().get(&nid).unwrap(), 12.0);
     }
 }
