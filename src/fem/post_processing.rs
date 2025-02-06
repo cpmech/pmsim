@@ -1,12 +1,12 @@
 use super::{FemBase, FemState, FileIo};
 use crate::base::Dof;
-use crate::util::SpatialTensor;
+use crate::util::{SpatialTensor, TensorComponentsMap};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::{At, CellId, Features, Mesh, PointId};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
-use russell_lab::{argsort2_f64, argsort3_f64, mat_mat_mul, Matrix, Vector};
+use russell_lab::{mat_mat_mul, Matrix, Vector};
 use std::collections::HashMap;
 
 /// Assists in post-processing the results given at Gauss points
@@ -397,119 +397,47 @@ impl<'a> PostProc<'a> {
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        // perform extrapolation and store the results in temporary maps
+        // perform the extrapolation and store the results in a temporary map
         let ndim = self.mesh.ndim;
-        let mut counter = HashMap::new();
-        let mut nodal_txx = HashMap::new();
-        let mut nodal_tyy = HashMap::new();
-        let mut nodal_tzz = HashMap::new();
-        let mut nodal_txy = HashMap::new();
-        let mut nodal_tyz = HashMap::new();
-        let mut nodal_tzx = HashMap::new();
+        let mut map = TensorComponentsMap::new(ndim);
         for cell_id in cell_ids {
-            let ten = self.nodal_tensor(*cell_id, &state, strain)?;
-            let nnode = ten.nrow(); // = cell.points.len()
-            for m in 0..nnode {
-                let nid = self.mesh.cells[*cell_id].points[m];
-                let (txx, tyy, tzz, txy) = (ten.get(m, 0), ten.get(m, 1), ten.get(m, 2), ten.get(m, 3));
-                counter.entry(nid).and_modify(|v| *v += 1).or_insert(1_usize);
-                nodal_txx.entry(nid).and_modify(|v| *v += txx).or_insert(txx);
-                nodal_tyy.entry(nid).and_modify(|v| *v += tyy).or_insert(tyy);
-                nodal_tzz.entry(nid).and_modify(|v| *v += tzz).or_insert(tzz);
-                nodal_txy.entry(nid).and_modify(|v| *v += txy).or_insert(txy);
-                if ndim == 3 {
-                    let (tyz, tzx) = (ten.get(m, 4), ten.get(m, 5));
-                    nodal_tyz.entry(nid).and_modify(|v| *v += tyz).or_insert(tyz);
-                    nodal_tzx.entry(nid).and_modify(|v| *v += tzx).or_insert(tzx);
-                }
-            }
-        }
-        // collect the node coordinates and apply the coordinates filter
-        let n_entries = counter.len();
-        let mut k2id = HashMap::new();
-        let mut xx = Vec::with_capacity(n_entries);
-        let mut yy = Vec::with_capacity(n_entries);
-        let mut zz = if ndim == 3 {
-            Vec::with_capacity(n_entries)
-        } else {
-            Vec::new()
-        };
-        for nid in counter.keys() {
-            let x = self.mesh.points[*nid].coords[0];
-            let y = self.mesh.points[*nid].coords[1];
-            let z = if self.mesh.ndim == 3 {
-                self.mesh.points[*nid].coords[2]
-            } else {
-                0.0
-            };
-            if filter(x, y, z) {
-                k2id.insert(xx.len(), *nid);
-                xx.push(x);
-                yy.push(y);
-                if ndim == 3 {
-                    zz.push(z);
-                }
-            }
-        }
-        // sort nodes by x → y → z
-        let sorted_indices = if ndim == 3 {
-            argsort3_f64(&xx, &yy, &zz)
-        } else {
-            argsort2_f64(&xx, &yy)
-        };
-        // average the results
-        let mut res = if ndim == 3 {
-            SpatialTensor {
-                id2k: HashMap::with_capacity(n_entries),
-                k2id: Vec::with_capacity(n_entries),
-                xx: Vec::with_capacity(n_entries),
-                yy: Vec::with_capacity(n_entries),
-                zz: Vec::with_capacity(n_entries),
-                txx: Vec::with_capacity(n_entries),
-                tyy: Vec::with_capacity(n_entries),
-                tzz: Vec::with_capacity(n_entries),
-                txy: Vec::with_capacity(n_entries),
-                tyz: Vec::with_capacity(n_entries),
-                tzx: Vec::with_capacity(n_entries),
-            }
-        } else {
-            SpatialTensor {
-                id2k: HashMap::with_capacity(n_entries),
-                k2id: Vec::with_capacity(n_entries),
-                xx: Vec::with_capacity(n_entries),
-                yy: Vec::with_capacity(n_entries),
-                zz: Vec::new(),
-                txx: Vec::with_capacity(n_entries),
-                tyy: Vec::with_capacity(n_entries),
-                tzz: Vec::with_capacity(n_entries),
-                txy: Vec::with_capacity(n_entries),
-                tyz: Vec::new(),
-                tzx: Vec::new(),
-            }
-        };
-        for k in &sorted_indices {
-            let nid = k2id.get(k).unwrap();
-            let count = *counter.get(&nid).unwrap() as f64;
-            let txx = nodal_txx.get(nid).unwrap();
-            let tyy = nodal_tyy.get(nid).unwrap();
-            let tzz = nodal_tzz.get(nid).unwrap();
-            let txy = nodal_txy.get(nid).unwrap();
-            res.id2k.insert(*nid, res.xx.len());
-            res.k2id.push(*nid);
-            res.xx.push(xx[*k]);
-            res.yy.push(yy[*k]);
-            res.txx.push(*txx / count);
-            res.tyy.push(*tyy / count);
-            res.tzz.push(*tzz / count);
-            res.txy.push(*txy / count);
+            let tt = self.nodal_tensor(*cell_id, &state, strain)?;
+            let nnode = tt.nrow(); // = cell.points.len()
             if ndim == 3 {
-                let tyz = nodal_tyz.get(nid).unwrap();
-                let tzx = nodal_tzx.get(nid).unwrap();
-                res.zz.push(zz[*k]);
-                res.tyz.push(*tyz / count);
-                res.tzx.push(*tzx / count);
+                for m in 0..nnode {
+                    map.add_tensor(
+                        self.mesh.cells[*cell_id].points[m],
+                        tt.get(m, 0),
+                        tt.get(m, 1),
+                        tt.get(m, 2),
+                        tt.get(m, 3),
+                        Some(tt.get(m, 4)),
+                        Some(tt.get(m, 5)),
+                    )
+                    .unwrap();
+                }
+            } else {
+                for m in 0..nnode {
+                    map.add_tensor(
+                        self.mesh.cells[*cell_id].points[m],
+                        tt.get(m, 0),
+                        tt.get(m, 1),
+                        tt.get(m, 2),
+                        tt.get(m, 3),
+                        None,
+                        None,
+                    )
+                    .unwrap();
+                }
             }
         }
+
+        // collect the sorted and filtered node coordinates
+        let unsorted_ids: Vec<_> = map.counter.keys().copied().collect();
+        let sorted_ids = self.mesh.get_sorted_points(&unsorted_ids, filter);
+
+        // average the results
+        let res = SpatialTensor::from_map(&self.mesh, &map, &sorted_ids);
         Ok(res)
     }
 

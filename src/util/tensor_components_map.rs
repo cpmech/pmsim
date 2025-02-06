@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 /// Implements a map to store the addition of tensor components
 pub(crate) struct TensorComponentsMap {
-    ndim: usize,
+    pub ndim: usize,
     pub counter: HashMap<PointId, usize>,
     pub txx: HashMap<PointId, f64>,
     pub tyy: HashMap<PointId, f64>,
