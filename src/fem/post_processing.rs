@@ -5,7 +5,7 @@ use gemlab::integ::Gauss;
 use gemlab::mesh::{At, CellId, Features, Mesh, PointId};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
-use russell_lab::{mat_mat_mul, Matrix, Vector};
+use russell_lab::{argsort2_f64, argsort3_f64, mat_mat_mul, Matrix, Vector};
 use std::collections::HashMap;
 
 /// Holds the tensor (stress/strain) components distributed in space (Gauss point or extrapolated from nodes)
@@ -514,21 +514,10 @@ impl<'a> PostProc<'a> {
             }
         }
         // sort nodes by x → y → z
-        let sorted_indices: Vec<_> = if ndim == 3 {
-            let mut indexed_data: Vec<_> = xx.iter().zip(&yy).zip(&zz).enumerate().collect();
-            indexed_data.sort_by(|a, b| {
-                let x_sorted = a.1 .0 .0.partial_cmp(&b.1 .0 .0).unwrap_or(std::cmp::Ordering::Greater); // treat NaN as greater
-                let y_sorted = x_sorted.then(a.1 .0 .1.partial_cmp(&b.1 .0 .1).unwrap_or(std::cmp::Ordering::Greater));
-                y_sorted.then(a.1 .1.partial_cmp(&b.1 .1).unwrap_or(std::cmp::Ordering::Greater))
-            });
-            indexed_data.iter().map(|(idx, _)| *idx).collect()
+        let sorted_indices = if ndim == 3 {
+            argsort3_f64(&xx, &yy, &zz)
         } else {
-            let mut indexed_data: Vec<_> = xx.iter().zip(&yy).enumerate().collect();
-            indexed_data.sort_by(|a, b| {
-                let x_sorted = a.1 .0.partial_cmp(&b.1 .0).unwrap_or(std::cmp::Ordering::Greater); // treat NaN as greater
-                x_sorted.then(a.1 .1.partial_cmp(&b.1 .1).unwrap_or(std::cmp::Ordering::Greater))
-            });
-            indexed_data.iter().map(|(idx, _)| *idx).collect()
+            argsort2_f64(&xx, &yy)
         };
         // average the results
         let mut res = if ndim == 3 {
