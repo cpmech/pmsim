@@ -32,7 +32,25 @@ pub struct PostProc<'a> {
 impl<'a> PostProc<'a> {
     /// Reads the summary and associated files for post-processing
     ///
-    /// Returns `(file_io, mesh, base)`
+    /// This function loads the summary JSON file, and reads the Mesh and
+    /// FemBase data from their respective files.
+    ///
+    /// # Input
+    ///
+    /// * `out_dir` -- the output directory where the summary and associated files are located.
+    /// * `fn_stem` -- the filename stem used to construct the full path to the summary file.
+    ///
+    /// # Returns
+    ///
+    /// Returns `(file_io, mesh, base)` where:
+    ///
+    /// * `file_io` -- the file I/O handler with updated output directory.
+    /// * `mesh` -- the mesh data read from the file.
+    /// * `base` -- the FemBase data read from the file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any of the files cannot be read or parsed.
     pub fn read_summary(out_dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
         // load FileIo
         let full_path = format!("{}/{}-summary.json", out_dir, fn_stem);
