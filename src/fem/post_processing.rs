@@ -6,7 +6,7 @@ use gemlab::integ::Gauss;
 use gemlab::mesh::{At, CellId, Features, Mesh, PointId};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
-use russell_lab::{mat_mat_mul, Matrix, Vector};
+use russell_lab::{argsort2_f64, argsort3_f64, mat_mat_mul, Matrix, Vector};
 use std::collections::HashMap;
 
 /// Assists in post-processing the results given at Gauss points
@@ -267,6 +267,8 @@ impl<'a> PostProc<'a> {
     ///
     /// A `SpatialTensor` instance containing the coordinates of nodes and stress components at each node.
     ///
+    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
+    ///
     /// # Errors
     ///
     /// Returns an error if the stress components cannot be retrieved.
@@ -296,6 +298,8 @@ impl<'a> PostProc<'a> {
     /// # Returns
     ///
     /// A `SpatialTensor` instance containing the coordinates of nodes and strain components at each node.
+    ///
+    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
     ///
     /// # Errors
     ///
@@ -328,6 +332,8 @@ impl<'a> PostProc<'a> {
     ///
     /// A `SpatialTensor` instance containing the coordinates of nodes and tensor components at each node.
     ///
+    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
+    ///
     /// # Errors
     ///
     /// Returns an error if the tensor components cannot be retrieved.
@@ -341,46 +347,62 @@ impl<'a> PostProc<'a> {
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        let mut res = SpatialTensor {
-            id2k: HashMap::new(),
-            k2id: Vec::new(),
-            xx: Vec::new(),
-            yy: Vec::new(),
-            zz: Vec::new(),
-            txx: Vec::new(),
-            tyy: Vec::new(),
-            tzz: Vec::new(),
-            txy: Vec::new(),
-            tyz: Vec::new(),
-            tzx: Vec::new(),
+        // collect the coordinates
+        let ndim = self.mesh.ndim;
+        let n_entries = cell_ids.len() * 32;
+        let mut accepted: Vec<(CellId, usize)> = Vec::with_capacity(n_entries); // tracks accepted Gauss points
+        let mut xx = Vec::with_capacity(n_entries);
+        let mut yy = Vec::with_capacity(n_entries);
+        let mut zz = if ndim == 3 {
+            Vec::with_capacity(n_entries)
+        } else {
+            Vec::new()
         };
         for cell_id in cell_ids {
             let coords = self.gauss_coords(*cell_id)?;
-            let ten = self.gauss_tensor(*cell_id, state, strain)?;
-            let ngauss = ten.nrow();
+            let ngauss = coords.len();
             for p in 0..ngauss {
-                let id = res.id2k.len();
-                let ndim = coords[p].dim();
                 let x = coords[p][0];
                 let y = coords[p][1];
                 let z = if ndim == 3 { coords[p][2] } else { 0.0 };
                 if filter(x, y, z) {
-                    res.id2k.insert(id, res.xx.len());
-                    res.k2id.push(id);
-                    res.xx.push(x);
-                    res.yy.push(y);
+                    xx.push(x);
+                    yy.push(y);
                     if ndim == 3 {
-                        res.zz.push(z);
+                        zz.push(z);
                     }
-                    res.txx.push(ten.get(p, 0));
-                    res.tyy.push(ten.get(p, 1));
-                    res.tzz.push(ten.get(p, 2));
-                    res.txy.push(ten.get(p, 3));
-                    if ndim == 3 {
-                        res.tyz.push(ten.get(p, 4));
-                        res.tzx.push(ten.get(p, 5));
-                    }
+                    accepted.push((*cell_id, p));
                 }
+            }
+        }
+
+        // sort the accepted Gauss points
+        let sorted_indices = if ndim == 3 {
+            argsort3_f64(&xx, &yy, &zz)
+        } else {
+            argsort2_f64(&xx, &yy)
+        };
+
+        // retrieve the tensor components at Gauss points
+        let capacity = sorted_indices.len();
+        let mut res = SpatialTensor::new(ndim, capacity);
+        for index in &sorted_indices {
+            let (cell_id, p) = accepted[*index];
+            let tt = self.gauss_tensor(cell_id, state, strain)?;
+            let id = res.id2k.len();
+            let k = res.k2id.len();
+            res.id2k.insert(id, k);
+            res.k2id.push(id);
+            res.txx.push(tt.get(p, 0));
+            res.tyy.push(tt.get(p, 1));
+            res.tzz.push(tt.get(p, 2));
+            res.txy.push(tt.get(p, 3));
+            res.xx.push(xx[*index]);
+            res.yy.push(yy[*index]);
+            if ndim == 3 {
+                res.zz.push(zz[*index]);
+                res.tyz.push(tt.get(p, 4));
+                res.tzx.push(tt.get(p, 5));
             }
         }
         Ok(res)
@@ -718,9 +740,11 @@ mod tests {
     use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
     use gemlab::mesh::{Features, Mesh, Samples};
     use gemlab::util::any_x;
+    use plotpy::{Curve, Text};
     use russell_lab::{approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::Tensor2;
 
+    const SAVE_FIGURE: bool = false;
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
     const STRAIN: f64 = 0.0123;
@@ -896,10 +920,17 @@ mod tests {
     fn gauss_stresses_and_strains_work() {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
+        let mut curve = Curve::new();
+        let mut text = Text::new();
+        if SAVE_FIGURE {
+            curve.set_line_style("None").set_marker_style("*");
+        }
+        let mut first = true;
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.gauss_stresses(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let nk = sig.txx.len();
+            let mut x_prev = sig.xx[0];
             for k in 0..nk {
                 // ids. for Gauss points, the IDs coincide with the indices
                 assert_eq!(*sig.id2k.get(&k).unwrap(), k);
@@ -914,7 +945,31 @@ mod tests {
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
                 approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
+                // coordinates
+                assert_eq!(sig.xx[k], eps.xx[k]);
+                if first && SAVE_FIGURE {
+                    println!("x = {:?}, y = {:?}", sig.xx[k], sig.yy[k]);
+                    curve.draw(&[sig.xx[k]], &[sig.yy[k]]);
+                    text.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", k));
+                }
+                if k > 0 {
+                    assert!(sig.xx[k] > x_prev);
+                    x_prev = sig.xx[k];
+                }
             }
+            first = false;
+        }
+        if SAVE_FIGURE {
+            mesh.draw(
+                None,
+                "/tmp/pmsim/test_gauss_stresses_and_strains_work.svg",
+                |plot, before| {
+                    if !before {
+                        plot.add(&curve).add(&text);
+                    }
+                },
+            )
+            .unwrap();
         }
     }
 
