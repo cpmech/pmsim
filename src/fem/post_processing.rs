@@ -37,16 +37,16 @@ impl<'a> PostProc<'a> {
     ///
     /// # Arguments
     ///
-    /// * `out_dir` -- the output directory where the summary and associated files are located.
-    /// * `fn_stem` -- the filename stem used to construct the full path to the summary file.
+    /// * `out_dir` - The output directory where the summary and associated files are located.
+    /// * `fn_stem` - The filename stem used to construct the full path to the summary file.
     ///
     /// # Returns
     ///
     /// Returns `(file_io, mesh, base)` where:
     ///
-    /// * `file_io` -- the file I/O handler with updated output directory.
-    /// * `mesh` -- the mesh data read from the file.
-    /// * `base` -- the FemBase data read from the file.
+    /// * `file_io` - The file I/O handler with updated output directory.
+    /// * `mesh` - The mesh data read from the file.
+    /// * `base` - The FemBase data read from the file.
     ///
     /// # Errors
     ///
@@ -78,8 +78,8 @@ impl<'a> PostProc<'a> {
     ///
     /// # Arguments
     ///
-    /// * `file_io` -- The file I/O handler containing the paths to the state files.
-    /// * `index` -- The index of the time station for which the state data is to be read.
+    /// * `file_io` - The file I/O handler containing the paths to the state files.
+    /// * `index` - The index of the time station for which the state data is to be read.
     ///
     /// # Returns
     ///
@@ -95,11 +95,19 @@ impl<'a> PostProc<'a> {
 
     /// Allocates a new instance
     ///
+    /// This function initializes a new `PostProc` instance with the provided mesh and FemBase.
+    /// It also initializes the internal data structures for storing Gauss points, scratchpads,
+    /// and extrapolation matrices.
+    ///
     /// # Arguments
     ///
-    /// * `mesh` -- A reference to the `Mesh` instance containing the mesh data.
-    /// * `base` -- A reference to the `FemBase` instance containing the material parameters,
+    /// * `mesh` - A reference to the `Mesh` instance containing the mesh data.
+    /// * `base` - A reference to the `FemBase` instance containing the material parameters,
     ///            element attributes, and equation numbers.
+    ///
+    /// # Returns
+    ///
+    /// A new `PostProc` instance.
     pub fn new(mesh: &'a Mesh, base: &'a FemBase) -> Self {
         PostProc {
             mesh,
@@ -112,13 +120,19 @@ impl<'a> PostProc<'a> {
 
     /// Returns the real coordinates of all Gauss points of a cell
     ///
-    /// # Input
+    /// This function retrieves the real coordinates of all Gauss points for a given cell.
     ///
-    /// * `cell_id` -- the ID of a cell
+    /// # Arguments
     ///
-    /// # Output
+    /// * `cell_id` - The ID of the cell.
     ///
-    /// Returns an array with ngauss (number of integration points) vectors, where each vector has a dimension equal to space_ndim.
+    /// # Returns
+    ///
+    /// A vector (ngauss) of vectors (space_ndim), where each inner vector represents the coordinates of a Gauss point.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Gauss points cannot be retrieved.
     pub fn gauss_coords(&mut self, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
         let cell = &self.mesh.cells[cell_id];
         let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
@@ -132,53 +146,80 @@ impl<'a> PostProc<'a> {
 
     /// Returns all stress components at the Gauss points of a cell
     ///
-    /// # Input
+    /// This function retrieves all stress components at the Gauss points for a given cell.
     ///
-    /// * `cell_id` -- the ID of a cell
-    /// * `state` -- the FEM state holding the all results
+    /// # Arguments
     ///
-    /// # Output
+    /// * `cell_id` - The ID of the cell.
+    /// * `state` - The FEM state holding all results.
+    ///
+    /// # Returns
+    ///
+    /// A matrix (ngauss, 2 space_ndim) containing the stress components at each Gauss point.
+    /// For example:
     ///
     /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy]`
     /// * 3D: returns an `(ngauss, 6)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy, σyz, σzx]`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stress components cannot be retrieved.
     pub fn gauss_stress(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
         self.gauss_tensor(cell_id, state, false)
     }
 
     /// Returns all strain components at the Gauss points of a cell
     ///
-    /// Note: the recording of strains must be enabled in [crate::base::Config] first.
+    /// This function retrieves all strain components at the Gauss points for a given cell.
+    ///
+    /// Note: The recording of strains must be enabled in [crate::base::Config] first.
     /// For example:
     ///
     /// ```text
     /// config.update_model_settings(cell_attribute).save_strain = true;
     /// ```
     ///
-    /// # Input
+    /// # Arguments
     ///
-    /// * `cell_id` -- the ID of a cell
-    /// * `state` -- the FEM state holding the all results
+    /// * `cell_id` - The ID of the cell.
+    /// * `state` - The FEM state holding all results.
     ///
-    /// # Output
+    /// # Returns
+    ///
+    /// A matrix (ngauss, 2 space_ndim) containing the strain components at each Gauss point.
+    /// For example:
     ///
     /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy]`
     /// * 3D: returns an `(ngauss, 6)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy, εyz, εzx]`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the strain components cannot be retrieved.
     pub fn gauss_strain(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
         self.gauss_tensor(cell_id, state, true)
     }
 
     /// Returns all tensor components at the Gauss points of a cell
     ///
-    /// # Input
+    /// This function retrieves all tensor components (stress or strain) at the Gauss points for a given cell.
     ///
-    /// * `cell_id` -- the ID of a cell
-    /// * `state` -- the FEM state holding the all results
-    /// * `strain` -- returns strains instead of stresses
+    /// # Arguments
     ///
-    /// # Output
+    /// * `cell_id` - The ID of the cell.
+    /// * `state` - The FEM state holding all results.
+    /// * `strain` - A boolean indicating whether to return strains instead of stresses.
+    ///
+    /// # Returns
+    ///
+    /// A matrix (ngauss, 2 space_ndim) containing the tensor components at each Gauss point.
+    /// For example:
     ///
     /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[txx, tyy, tzz, txy]`
     /// * 3D: returns an `(ngauss, 6)` matrix where each row corresponds to `[txx, tyy, tzz, txy, tyz, tzx]`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tensor components cannot be retrieved.
     fn gauss_tensor(&mut self, cell_id: CellId, state: &FemState, strain: bool) -> Result<Matrix, StrError> {
         let ndim = self.mesh.ndim;
         let second = &state.gauss[cell_id];
