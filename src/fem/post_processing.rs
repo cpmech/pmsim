@@ -78,8 +78,8 @@ impl<'a> PostProc<'a> {
     ///
     /// # Arguments
     ///
-    /// * `file_io` - The file I/O handler containing the paths to the state files.
-    /// * `index` - The index of the time station for which the state data is to be read.
+    /// * `file_io` -- The file I/O handler containing the paths to the state files.
+    /// * `index` -- The index of the time station for which the state data is to be read.
     ///
     /// # Returns
     ///
@@ -94,6 +94,12 @@ impl<'a> PostProc<'a> {
     }
 
     /// Allocates a new instance
+    ///
+    /// # Arguments
+    ///
+    /// * `mesh` -- A reference to the `Mesh` instance containing the mesh data.
+    /// * `base` -- A reference to the `FemBase` instance containing the material parameters,
+    ///            element attributes, and equation numbers.
     pub fn new(mesh: &'a Mesh, base: &'a FemBase) -> Self {
         PostProc {
             mesh,
