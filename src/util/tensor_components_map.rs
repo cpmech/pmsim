@@ -2,23 +2,24 @@ use crate::StrError;
 use gemlab::mesh::PointId;
 use std::collections::HashMap;
 
-/// A structure to store and manage tensor components at nodes.
+/// Implements a map to store the addition of tensor components
 pub(crate) struct TensorComponentsMap {
-    counter: HashMap<PointId, usize>,
-    txx: HashMap<PointId, f64>,
-    tyy: HashMap<PointId, f64>,
-    tzz: HashMap<PointId, f64>,
-    txy: HashMap<PointId, f64>,
-    tyz: Option<HashMap<PointId, f64>>,
-    tzx: Option<HashMap<PointId, f64>>,
+    ndim: usize,
+    pub counter: HashMap<PointId, usize>,
+    pub txx: HashMap<PointId, f64>,
+    pub tyy: HashMap<PointId, f64>,
+    pub tzz: HashMap<PointId, f64>,
+    pub txy: HashMap<PointId, f64>,
+    pub tyz: HashMap<PointId, f64>,
+    pub tzx: HashMap<PointId, f64>,
 }
 
 impl TensorComponentsMap {
-    /// Creates a new `TensorComponentsMap` instance.
+    /// Creates a new `TensorComponentsMap` instance
     ///
     /// # Arguments
     ///
-    /// * `ndim` - The number of dimensions (2 or 3).
+    /// * `ndim` -- The number of dimensions (2 or 3).
     ///
     /// # Returns
     ///
@@ -26,27 +27,28 @@ impl TensorComponentsMap {
     pub fn new(ndim: usize) -> Self {
         assert!(ndim == 2 || ndim == 3);
         TensorComponentsMap {
+            ndim,
             counter: HashMap::new(),
             txx: HashMap::new(),
             tyy: HashMap::new(),
             tzz: HashMap::new(),
             txy: HashMap::new(),
-            tyz: if ndim == 3 { Some(HashMap::new()) } else { None },
-            tzx: if ndim == 3 { Some(HashMap::new()) } else { None },
+            tyz: HashMap::new(),
+            tzx: HashMap::new(),
         }
     }
 
-    /// Adds tensor components for a given node.
+    /// Adds tensor components for a given node
     ///
     /// # Arguments
     ///
-    /// * `nid` - The node ID.
-    /// * `txx` - The xx tensor component.
-    /// * `tyy` - The yy tensor component.
-    /// * `tzz` - The zz tensor component.
-    /// * `txy` - The xy tensor component.
-    /// * `tyz` - The yz tensor component (optional).
-    /// * `tzx` - The zx tensor component (optional).
+    /// * `nid` -- The node ID.
+    /// * `txx` -- The xx tensor component.
+    /// * `tyy` -- The yy tensor component.
+    /// * `tzz` -- The zz tensor component.
+    /// * `txy` -- The xy tensor component.
+    /// * `tyz` -- The yz tensor component (optional).
+    /// * `tzx` -- The zx tensor component (optional).
     ///
     /// # Errors
     ///
@@ -61,10 +63,10 @@ impl TensorComponentsMap {
         tyz: Option<f64>,
         tzx: Option<f64>,
     ) -> Result<(), StrError> {
-        if tyz.is_some() && self.tyz.is_none() {
+        if tyz.is_some() && self.ndim == 2 {
             return Err("the tensor must be 3D to add the tyz component");
         }
-        if tzx.is_some() && self.tzx.is_none() {
+        if tzx.is_some() && self.ndim == 2 {
             return Err("the tensor must be 3D to add the tzx component");
         }
         self.counter.entry(nid).and_modify(|v| *v += 1).or_insert(1);
@@ -73,20 +75,10 @@ impl TensorComponentsMap {
         self.tzz.entry(nid).and_modify(|v| *v += tzz).or_insert(tzz);
         self.txy.entry(nid).and_modify(|v| *v += txy).or_insert(txy);
         if let Some(value) = tyz {
-            self.tyz
-                .as_mut()
-                .unwrap()
-                .entry(nid)
-                .and_modify(|v| *v += value)
-                .or_insert(value);
+            self.tyz.entry(nid).and_modify(|v| *v += value).or_insert(value);
         }
         if let Some(value) = tzx {
-            self.tzx
-                .as_mut()
-                .unwrap()
-                .entry(nid)
-                .and_modify(|v| *v += value)
-                .or_insert(value);
+            self.tzx.entry(nid).and_modify(|v| *v += value).or_insert(value);
         }
         Ok(())
     }
@@ -96,18 +88,7 @@ impl TensorComponentsMap {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn test_nodal_tensors_new() {
-        let nodal_tensors_2d = TensorComponentsMap::new(2);
-        assert!(nodal_tensors_2d.tyz.is_none());
-        assert!(nodal_tensors_2d.tzx.is_none());
-
-        let nodal_tensors_3d = TensorComponentsMap::new(3);
-        assert!(nodal_tensors_3d.tyz.is_some());
-        assert!(nodal_tensors_3d.tzx.is_some());
-    }
+    use super::TensorComponentsMap;
 
     #[test]
     fn test_add_tensor_2d() {
@@ -135,8 +116,8 @@ mod tests {
         assert_eq!(*nodal_tensors.tyy.get(&nid).unwrap(), 2.0);
         assert_eq!(*nodal_tensors.tzz.get(&nid).unwrap(), 3.0);
         assert_eq!(*nodal_tensors.txy.get(&nid).unwrap(), 4.0);
-        assert_eq!(*nodal_tensors.tyz.as_ref().unwrap().get(&nid).unwrap(), 5.0);
-        assert_eq!(*nodal_tensors.tzx.as_ref().unwrap().get(&nid).unwrap(), 6.0);
+        assert_eq!(*nodal_tensors.tyz.get(&nid).unwrap(), 5.0);
+        assert_eq!(*nodal_tensors.tzx.get(&nid).unwrap(), 6.0);
     }
 
     #[test]
@@ -193,7 +174,7 @@ mod tests {
         assert_eq!(*nodal_tensors.tyy.get(&nid).unwrap(), 22.0);
         assert_eq!(*nodal_tensors.tzz.get(&nid).unwrap(), 33.0);
         assert_eq!(*nodal_tensors.txy.get(&nid).unwrap(), 44.0);
-        assert_eq!(*nodal_tensors.tyz.as_ref().unwrap().get(&nid).unwrap(), 55.0);
-        assert_eq!(*nodal_tensors.tzx.as_ref().unwrap().get(&nid).unwrap(), 66.0);
+        assert_eq!(*nodal_tensors.tyz.get(&nid).unwrap(), 55.0);
+        assert_eq!(*nodal_tensors.tzx.get(&nid).unwrap(), 66.0);
     }
 }
