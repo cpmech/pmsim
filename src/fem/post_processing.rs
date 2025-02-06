@@ -35,7 +35,7 @@ impl<'a> PostProc<'a> {
     /// This function loads the summary JSON file, and reads the Mesh and
     /// FemBase data from their respective files.
     ///
-    /// # Input
+    /// # Arguments
     ///
     /// * `out_dir` -- the output directory where the summary and associated files are located.
     /// * `fn_stem` -- the filename stem used to construct the full path to the summary file.
@@ -72,6 +72,22 @@ impl<'a> PostProc<'a> {
     }
 
     /// Reads a JSON file with the FEM state at a given index (time station)
+    ///
+    /// This function loads the FEM state data from a JSON file corresponding to the specified
+    /// time station index. The path to the state file is constructed using the `FileIo` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `file_io` - The file I/O handler containing the paths to the state files.
+    /// * `index` - The index of the time station for which the state data is to be read.
+    ///
+    /// # Returns
+    ///
+    /// A `FemState` instance containing the state data for the specified time station.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the state file cannot be read or parsed.
     pub fn read_state(file_io: &FileIo, index: usize) -> Result<FemState, StrError> {
         let path_state = file_io.path_state(index);
         FemState::read_json(&path_state)
@@ -128,7 +144,7 @@ impl<'a> PostProc<'a> {
     /// Note: the recording of strains must be enabled in [crate::base::Config] first.
     /// For example:
     ///
-    /// ````text
+    /// ```text
     /// config.update_model_settings(cell_attribute).save_strain = true;
     /// ```
     ///
@@ -315,7 +331,7 @@ impl<'a> PostProc<'a> {
     /// Note: the recording of strains must be enabled in [crate::base::Config] first.
     /// For example:
     ///
-    /// ````text
+    /// ```text
     /// config.update_model_settings(cell_attribute).save_strain = true;
     /// ```
     ///
