@@ -464,7 +464,7 @@ impl<'a> PostProc<'a> {
         let nnode = self.mesh.cells[cell_id].points.len();
         let ten_gauss = self.gauss_tensor(cell_id, state, strain)?;
         let mut ten_nodal = Matrix::new(nnode, ten_gauss.ncol());
-        let ee = self.get_extrap_mat(cell_id)?;
+        let ee = self.get_extrap_matrix(cell_id)?;
         mat_mat_mul(&mut ten_nodal, 1.0, &ee, &ten_gauss, 0.0)?;
         Ok(ten_nodal)
     }
@@ -630,7 +630,7 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the extrapolation matrix cannot be computed.
-    fn get_extrap_mat(&mut self, cell_id: CellId) -> Result<&Matrix, StrError> {
+    fn get_extrap_matrix(&mut self, cell_id: CellId) -> Result<&Matrix, StrError> {
         let cell = &self.mesh.cells[cell_id];
         let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
         let gauss = self
