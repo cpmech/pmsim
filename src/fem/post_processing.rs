@@ -254,16 +254,22 @@ impl<'a> PostProc<'a> {
 
     /// Returns all stress components at the Gauss points of a patch of cells
     ///
-    /// # Input
+    /// This function retrieves all stress components at the Gauss points for a given patch of cells.
     ///
-    /// * `cell_ids` -- the cell IDs
-    /// * `state` -- the FEM state holding the all results
-    /// * `filter` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
-    ///   The `z` coordinate may be ignored in 2D.
+    /// # Arguments
     ///
-    /// # Output
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///              The `z` coordinate may be ignored in 2D.
     ///
-    /// Returns [SpatialTensor] with the coordinates of nodes and stress components at each node
+    /// # Returns
+    ///
+    /// A `SpatialTensor` instance containing the coordinates of nodes and stress components at each node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stress components cannot be retrieved.
     pub fn gauss_stresses<F>(
         &mut self,
         cell_ids: &[CellId],
@@ -278,16 +284,22 @@ impl<'a> PostProc<'a> {
 
     /// Returns all strain components at the Gauss points of a patch of cells
     ///
-    /// # Input
+    /// This function retrieves all strain components at the Gauss points for a given patch of cells.
     ///
-    /// * `cell_ids` -- the cell IDs
-    /// * `state` -- the FEM state holding the all results
-    /// * `filter` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
-    ///   The `z` coordinate may be ignored in 2D.
+    /// # Arguments
     ///
-    /// # Output
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///              The `z` coordinate may be ignored in 2D.
     ///
-    /// Returns [SpatialTensor] with the coordinates of nodes and strain components at each node
+    /// # Returns
+    ///
+    /// A `SpatialTensor` instance containing the coordinates of nodes and strain components at each node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the strain components cannot be retrieved.
     pub fn gauss_strains<F>(
         &mut self,
         cell_ids: &[CellId],
@@ -301,6 +313,24 @@ impl<'a> PostProc<'a> {
     }
 
     /// Returns all tensor components at the Gauss points of a patch of cells
+    ///
+    /// This function retrieves all tensor components (stress or strain) at the Gauss points for a given patch of cells.
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///              The `z` coordinate may be ignored in 2D.
+    /// * `strain` - A boolean indicating whether to return strains instead of stresses.
+    ///
+    /// # Returns
+    ///
+    /// A `SpatialTensor` instance containing the coordinates of nodes and tensor components at each node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tensor components cannot be retrieved.
     fn gauss_tensors<F>(
         &mut self,
         cell_ids: &[CellId],
@@ -339,12 +369,14 @@ impl<'a> PostProc<'a> {
                     res.k2id.push(id);
                     res.xx.push(x);
                     res.yy.push(y);
+                    if ndim == 3 {
+                        res.zz.push(z);
+                    }
                     res.txx.push(ten.get(p, 0));
                     res.tyy.push(ten.get(p, 1));
                     res.tzz.push(ten.get(p, 2));
                     res.txy.push(ten.get(p, 3));
                     if ndim == 3 {
-                        res.zz.push(z);
                         res.tyz.push(ten.get(p, 4));
                         res.tzx.push(ten.get(p, 5));
                     }
@@ -356,41 +388,55 @@ impl<'a> PostProc<'a> {
 
     /// Returns all extrapolated stress components at the nodes of a cell
     ///
-    /// This function performs the extrapolation from Gauss points to nodes.
+    /// This function retrieves the stress components at the nodes for a given cell by extrapolating
+    /// the stress components from the Gauss points.
     ///
-    /// # Input
+    /// # Arguments
     ///
-    /// * `cell_id` -- the ID of a cell
-    /// * `state` -- the FEM state holding the all results
+    /// * `cell_id` - The ID of the cell.
+    /// * `state` - A reference to the `FemState` instance holding all results.
     ///
-    /// # Output
+    /// # Returns
+    ///
+    /// A matrix containing the stress components at each node.
     ///
     /// * 2D: returns an `(nnode, 4)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy]`
     /// * 3D: returns an `(nnode, 6)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy, σyz, σzx]`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stress components cannot be retrieved.
     pub fn nodal_stress(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
         self.nodal_tensor(cell_id, state, false)
     }
 
-    /// Returns all extrapolated strain components at the nodes of a cell
+    /// Returns the extrapolated strain components at the nodes of a cell
     ///
-    /// This function performs the extrapolation from Gauss points to nodes.
+    /// This function retrieves the strain components at the nodes for a given cell by extrapolating
+    /// the strain components from the Gauss points.
     ///
-    /// Note: the recording of strains must be enabled in [crate::base::Config] first.
+    /// Note: The recording of strains must be enabled in [crate::base::Config] first.
     /// For example:
     ///
     /// ```text
     /// config.update_model_settings(cell_attribute).save_strain = true;
     /// ```
     ///
-    /// # Input
+    /// # Arguments
     ///
-    /// * `cell_id` -- the ID of a cell
-    /// * `state` -- the FEM state holding the all results
+    /// * `cell_id` - The ID of the cell.
+    /// * `state` - A reference to the `FemState` instance holding all results.
     ///
-    /// # Output
+    /// # Returns
+    ///
+    /// A matrix containing the strain components at each node.
     ///
     /// * 2D: returns an `(nnode, 4)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy]`
     /// * 3D: returns an `(nnode, 6)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy, εyz, εzx]`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the strain components cannot be retrieved.
     pub fn nodal_strain(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
         self.nodal_tensor(cell_id, state, true)
     }
@@ -399,15 +445,21 @@ impl<'a> PostProc<'a> {
     ///
     /// This function performs the extrapolation from Gauss points to nodes.
     ///
-    /// # Input
+    /// # Arguments
     ///
-    /// * `cell_id` -- the ID of a cell
-    /// * `state` -- the FEM state holding the all results
+    /// * `cell_id` - The ID of the cell.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `strain` - A boolean indicating whether to return strains instead of stresses.
     ///
-    /// # Output
+    /// # Returns
     ///
+    /// A matrix containing the tensor components at each node.
     /// * 2D: returns an `(nnode, 4)` matrix where each row corresponds to `[txx, tyy, tzz, txy]`
     /// * 3D: returns an `(nnode, 6)` matrix where each row corresponds to `[txx, tyy, tzz, txy, tyz, tzx]`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tensor components cannot be retrieved.
     fn nodal_tensor(&mut self, cell_id: CellId, state: &FemState, strain: bool) -> Result<Matrix, StrError> {
         let nnode = self.mesh.cells[cell_id].points.len();
         let ten_gauss = self.gauss_tensor(cell_id, state, strain)?;
@@ -419,16 +471,26 @@ impl<'a> PostProc<'a> {
 
     /// Extrapolates stress components from Gauss points to the nodes of cells (averaging)
     ///
-    /// # Input
+    /// This function extrapolates the stress components from the Gauss points to the nodes of the given cells.
     ///
-    /// * `cell_ids` -- the ID of a patch of cells sharing the nodes with extrapolated results
-    /// * `state` -- the FEM state holding the all results
-    /// * `filter` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
-    ///   The `z` coordinate may be ignored in 2D.
+    /// **Note:** The stress components are averaged at nodes shared by multiple cells.
     ///
-    /// # Output
+    /// # Arguments
     ///
-    /// Returns [SpatialTensor] with the coordinates of nodes and stress components at each node
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells sharing the nodes with extrapolated results.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///              The `z` coordinate may be ignored in 2D.
+    ///
+    /// # Returns
+    ///
+    /// A `SpatialTensor` instance containing the coordinates of nodes and stress components at each node.
+    ///
+    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stress components cannot be retrieved.
     pub fn nodal_stresses<F>(
         &mut self,
         cell_ids: &[CellId],
@@ -443,18 +505,26 @@ impl<'a> PostProc<'a> {
 
     /// Extrapolates strain components from Gauss points to the nodes of cells (averaging)
     ///
-    /// # Input
+    /// This function extrapolates the strain components from the Gauss points to the nodes of the given cells.
     ///
-    /// * `cell_ids` -- the ID of a patch of cells sharing the nodes with extrapolated results
-    /// * `state` -- the FEM state holding the all results
-    /// * `filter` -- a `(x, y, z) -> bool` function that returns `true` to keep the results
-    ///   The `z` coordinate may be ignored in 2D.
+    /// **Note:** The stress components are averaged at nodes shared by multiple cells.
     ///
-    /// # Output
+    /// # Arguments
     ///
-    /// Returns [SpatialTensor] with the coordinates of nodes and strain components at each node.
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells sharing the nodes with extrapolated results.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///              The `z` coordinate may be ignored in 2D.
     ///
-    /// **Note:** The arrays will ordered such that the coordinates are sorted by `x → y → z`.
+    /// # Returns
+    ///
+    /// A `SpatialTensor` instance containing the coordinates of nodes and strain components at each node.
+    ///
+    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the strain components cannot be retrieved.
     pub fn nodal_strains<F>(
         &mut self,
         cell_ids: &[CellId],
@@ -468,6 +538,28 @@ impl<'a> PostProc<'a> {
     }
 
     /// Extrapolates tensor components from Gauss points to the nodes of cells (averaging)
+    ///
+    /// This function extrapolates the tensor components (stress or strain) from the Gauss points to the nodes of the given cells.
+    ///
+    /// **Note:** The stress components are averaged at nodes shared by multiple cells.
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells sharing the nodes with extrapolated results.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///              The `z` coordinate may be ignored in 2D.
+    /// * `strain` - A boolean indicating whether to return strains instead of stresses.
+    ///
+    /// # Returns
+    ///
+    /// A `SpatialTensor` instance containing the coordinates of nodes and tensor components at each node.
+    ///
+    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tensor components cannot be retrieved.
     fn extrapolate_tensor<F>(
         &mut self,
         cell_ids: &[CellId],
@@ -523,6 +615,21 @@ impl<'a> PostProc<'a> {
     }
 
     /// Computes the extrapolation matrix
+    ///
+    /// This function computes the extrapolation matrix for a given cell. The extrapolation matrix
+    /// is used to extrapolate tensor components from Gauss points to the nodes of the cell.
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_id` - The ID of the cell for which the extrapolation matrix is to be computed.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the extrapolation matrix for the specified cell.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the extrapolation matrix cannot be computed.
     fn get_extrap_mat(&mut self, cell_id: CellId) -> Result<&Matrix, StrError> {
         let cell = &self.mesh.cells[cell_id];
         let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
@@ -538,28 +645,32 @@ impl<'a> PostProc<'a> {
         Ok(ee)
     }
 
-    /// Extracts primary values along x
+    /// Extracts primary values along the x-axis at a constant y-coordinate
     ///
-    /// Returns the DOF values (e.g., T) corresponding to the points with constant y coordinate
+    /// This function extracts the degrees of freedom (DOF) values (e.g., temperature) corresponding
+    /// to the points with a constant y-coordinate along the x-axis.
     ///
     /// **Important:** If you need values at points on the interior of the mesh,
-    /// then you have to pass the Extract::All option when allocating a new Find instance.
+    /// then you have to pass the `Extract::All` option when allocating a new `Features` instance.
     ///
-    /// # Input
+    /// # Arguments
     ///
-    /// * `state` -- state for which the {U} values are extracted
-    /// * `dof` -- the desired DOF, e.g., T
-    /// * `y` -- the constant elevation
-    /// * `filter` -- fn(x) -> bool that returns true to **keep** the coordinate just found
-    ///   (yields only the elements for which the closure returns true)
+    /// * `features` - A reference to the `Features` instance containing the mesh features.
+    /// * `state` - A reference to the `FemState` instance holding the state data.
+    /// * `dof` - The desired degree of freedom (DOF), e.g., temperature.
+    /// * `y` - The constant y-coordinate at which the values are to be extracted.
+    /// * `filter` - A closure that takes the coordinates `[x, y, z]` and returns `true` to keep the coordinate.
     ///
-    /// # Output
+    /// # Returns
     ///
-    /// Returns `(ids, xx, dd)`, where:
+    /// A tuple `(ids, xx, dd)` where:
+    /// * `ids` - A vector containing the IDs of the points along the x-axis.
+    /// * `xx` - A vector containing the x-coordinates of the points.
+    /// * `dd` - A vector containing the DOF values (e.g., temperature) along the x-axis corresponding to the `ids` and `xx`.
     ///
-    /// * `ids` -- contains the IDs of the points along x
-    /// * `xx` -- are the x-coordinates
-    /// * `dd` -- are the DOF values (e.g., temperature) along x and corresponding to the `ids` and `xx`
+    /// # Errors
+    ///
+    /// Returns an error if the values cannot be extracted.
     pub fn values_along_x<F>(
         &self,
         features: &Features,
