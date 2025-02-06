@@ -1004,6 +1004,7 @@ mod tests {
             let sig = post.nodal_stresses(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let nk = sig.txx.len();
+            let mut x_prev = sig.xx[0];
             for k in 0..nk {
                 // stress
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
@@ -1015,49 +1016,28 @@ mod tests {
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
                 approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
+                // coordinates
+                assert_eq!(sig.xx[k], eps.xx[k]);
+                if k > 0 {
+                    assert!(sig.xx[k] > x_prev);
+                    x_prev = sig.xx[k];
+                }
             }
+            // check ids
+            assert_eq!(&sig.k2id, &[0, 4, 1, 3, 2]);
+            assert_eq!(&eps.k2id, &[0, 4, 1, 3, 2]);
+            sig.k2id
+                .iter()
+                .map(|id| sig.id2k.get(id).unwrap())
+                .for_each(|k| assert_eq!(k, k));
+            eps.k2id
+                .iter()
+                .map(|id| eps.id2k.get(id).unwrap())
+                .for_each(|k| assert_eq!(k, k));
             // check sorting
-            println!("x = {:?}", sig.xx);
-            println!("y = {:?}", sig.yy);
             assert_eq!(&sig.xx, &[0.0, 0.5, 1.2, 1.8, 2.2]);
             assert_eq!(&sig.yy, &[0.2, 1.2, 0.0, 1.0, 0.1]);
         }
-    }
-
-    #[test]
-    fn ids_from_nodal_stresses_and_strain_are_consistent() {
-        let mesh = Samples::one_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let mut post = PostProc::new(&mesh, &base);
-        let essential = Essential::new();
-        let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let res = post.nodal_stresses(&[0], &state, |_, _, _| true).unwrap();
-        for k in 0..res.xx.len() {
-            let nid = match (res.xx[k], res.yy[k]) {
-                (0.0, 0.0) => 0,
-                (1.0, 0.0) => 1,
-                (0.5, 0.85) => 2,
-                _ => unreachable!("THIS SHOULD BE UNREACHABLE"),
-            };
-            assert_eq!(res.k2id[k], nid);
-            assert_eq!(*res.id2k.get(&nid).unwrap(), k);
-        }
-    }
-
-    #[test]
-    fn nodal_stresses_yields_sorted_arrays() {
-        let mesh = Samples::one_qua4();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let mut post = PostProc::new(&mesh, &base);
-        let essential = Essential::new();
-        let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let res = post.nodal_stresses(&[0], &state, |_, _, _| true).unwrap();
-        // TODO
-        println!("{:?}", res);
     }
 
     #[test]
