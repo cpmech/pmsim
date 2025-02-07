@@ -40,11 +40,12 @@ impl PlastPlaneStrainPresCylin {
     ///
     /// # Input
     ///
-    /// `a` -- inner radius
-    /// `b` -- outer radius
-    /// `young` -- Young's modulus
-    /// `poisson` -- Poisson's' coefficient
-    /// `yy` -- uniaxial strength
+    /// * `a` -- inner radius
+    /// * `b` -- outer radius
+    /// * `young` -- Young's modulus
+    /// * `poisson` -- Poisson's' coefficient
+    /// * `yy` -- uniaxial strength `Y`. Note: this solution is based on Tresca's yield criterion.
+    ///   For von Mises, the yield strength should be `Y = (2/√3) Y_VM`
     pub fn new(a: f64, b: f64, young: f64, poisson: f64, yy: f64) -> Result<Self, StrError> {
         if a <= 1e-10 {
             return Err("a must be > 1e-10");
