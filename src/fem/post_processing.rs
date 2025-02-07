@@ -1091,8 +1091,8 @@ mod tests {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
         let mut curve_sig = Curve::new();
-        let mut text_sig = Text::new();
         let mut curve_eps = Curve::new();
+        let mut text_sig = Text::new();
         let mut text_eps = Text::new();
         if SAVE_FIGURE {
             curve_sig.set_line_style("None").set_marker_style("*");
@@ -1187,40 +1187,61 @@ mod tests {
     fn gauss_stresses_and_strains_work_3d() {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
-        let mut curve = Curve::new();
-        let mut text = Text::new();
+        let mut curve_sig = Curve::new();
+        let mut curve_eps = Curve::new();
+        let mut text_sig = Text::new();
+        let mut text_eps = Text::new();
         if SAVE_FIGURE {
-            curve.set_line_style("None").set_marker_style("*");
+            curve_sig.set_line_style("None").set_marker_style("*");
+            curve_eps
+                .set_line_style("None")
+                .set_marker_style("o")
+                .set_marker_void(true)
+                .set_marker_size(20.0);
+            text_eps.set_align_horizontal("right").set_align_vertical("top");
         }
         let mut first = true;
+        let mut coords_sig = String::new();
+        let mut coords_eps = String::new();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.gauss_stresses(&[0, 1], &state, |_, _, _| true).unwrap();
-            let eps = post.gauss_strains(&[0, 1], &state, |_, _, _| true).unwrap();
-            let nk = sig.txx.len();
-            let mut z_prev = sig.zz[0];
-            for k in 0..nk {
-                // ids. for Gauss points, the IDs coincide with the indices
+            // stress (filtered)
+            let sig = post
+                .gauss_stresses(&[0, 1], &state, |x, y, _| !(x < 0.5 && y < 0.5))
+                .unwrap();
+            for k in 0..sig.k2id.len() {
                 assert_eq!(*sig.id2k.get(&k).unwrap(), k);
                 assert_eq!(sig.k2id[k], k);
-                // stress
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
                 approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
                 approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
                 approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
-                // strain
+                approx_eq(sig.tyz[k], sig_ref.get(1, 2), 1e-14);
+                approx_eq(sig.tzx[k], sig_ref.get(2, 0), 1e-14);
+                if first {
+                    write!(&mut coords_sig, "{:.5},{:.5},{:.5}\n", sig.xx[k], sig.yy[k], sig.zz[k]).unwrap();
+                    if SAVE_FIGURE {
+                        curve_sig.draw_3d(&[sig.xx[k]], &[sig.yy[k]], &[sig.zz[k]]);
+                        text_sig.draw_3d(sig.xx[k] + 0.02, sig.yy[k], sig.zz[k], &format!("{}", k));
+                    }
+                }
+            }
+            // strain (unfiltered)
+            let eps = post.gauss_strains(&[0, 1], &state, |_, _, _| true).unwrap();
+            for k in 0..eps.k2id.len() {
+                assert_eq!(*eps.id2k.get(&k).unwrap(), k);
+                assert_eq!(eps.k2id[k], k);
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
                 approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
-                // coordinates
-                if first && SAVE_FIGURE {
-                    println!("{}, x = {:?}, y = {:?}, z = {:?}", k, sig.xx[k], sig.yy[k], sig.zz[k]);
-                    curve.draw_3d(&[sig.xx[k]], &[sig.yy[k]], &[sig.zz[k]]);
-                    text.draw_3d(sig.xx[k] + 0.02, sig.yy[k], sig.zz[k], &format!("{}", k));
-                }
-                if k > 0 {
-                    assert!(sig.zz[k] >= z_prev - 1e-6);
-                    z_prev = sig.zz[k];
+                approx_eq(eps.tyz[k], eps_ref.get(1, 2), 1e-14);
+                approx_eq(eps.tzx[k], eps_ref.get(2, 0), 1e-14);
+                if first {
+                    write!(&mut coords_eps, "{:.5},{:.5},{:.5}\n", eps.xx[k], eps.yy[k], eps.zz[k]).unwrap();
+                    if SAVE_FIGURE {
+                        curve_eps.draw_3d(&[eps.xx[k]], &[eps.yy[k]], &[eps.zz[k]]);
+                        text_eps.draw_3d(eps.xx[k] - 0.02, eps.yy[k], eps.zz[k], &format!("{}", k));
+                    }
                 }
             }
             first = false;
@@ -1231,13 +1252,48 @@ mod tests {
                 "/tmp/pmsim/test_gauss_stresses_and_strains_work_3d.svg",
                 |plot, before| {
                     if !before {
-                        plot.add(&curve).add(&text);
+                        plot.add(&curve_sig).add(&text_sig);
+                        plot.add(&curve_eps).add(&text_eps);
                         plot.set_figure_size_points(800.0, 800.0);
                     }
                 },
             )
             .unwrap();
         }
+        assert_eq!(
+            coords_sig,
+            "0.78868,0.21132,0.21132\n\
+             0.21132,0.78868,0.21132\n\
+             0.78868,0.78868,0.21132\n\
+             0.78868,0.21132,0.78868\n\
+             0.21132,0.78868,0.78868\n\
+             0.78868,0.78868,0.78868\n\
+             0.78868,0.21132,1.21132\n\
+             0.21132,0.78868,1.21132\n\
+             0.78868,0.78868,1.21132\n\
+             0.78868,0.21132,1.78868\n\
+             0.21132,0.78868,1.78868\n\
+             0.78868,0.78868,1.78868\n"
+        );
+        assert_eq!(
+            coords_eps,
+            "0.21132,0.21132,0.21132\n\
+             0.78868,0.21132,0.21132\n\
+             0.21132,0.78868,0.21132\n\
+             0.78868,0.78868,0.21132\n\
+             0.21132,0.21132,0.78868\n\
+             0.78868,0.21132,0.78868\n\
+             0.21132,0.78868,0.78868\n\
+             0.78868,0.78868,0.78868\n\
+             0.21132,0.21132,1.21132\n\
+             0.78868,0.21132,1.21132\n\
+             0.21132,0.78868,1.21132\n\
+             0.78868,0.78868,1.21132\n\
+             0.21132,0.21132,1.78868\n\
+             0.78868,0.21132,1.78868\n\
+             0.21132,0.78868,1.78868\n\
+             0.78868,0.78868,1.78868\n"
+        );
     }
 
     #[test]
