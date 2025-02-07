@@ -755,7 +755,7 @@ mod tests {
     use russell_lab::{approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::Tensor2;
 
-    const SAVE_FIGURE: bool = false;
+    const SAVE_FIGURE: bool = true;
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
     const STRAIN: f64 = 0.0123;
@@ -1226,11 +1226,17 @@ mod tests {
     fn nodal_stresses_and_strains_work_2d() {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
+        let mut curve = Curve::new();
+        let mut text = Text::new();
+        if SAVE_FIGURE {
+            curve.set_line_style("None").set_marker_style("o");
+        }
+        let mut first = true;
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.nodal_stresses(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let nk = sig.txx.len();
-            let mut x_prev = sig.xx[0];
+            let mut y_prev = sig.yy[0];
             for k in 0..nk {
                 // stress
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
@@ -1245,13 +1251,18 @@ mod tests {
                 // coordinates
                 assert_eq!(sig.xx[k], eps.xx[k]);
                 if k > 0 {
-                    assert!(sig.xx[k] > x_prev);
-                    x_prev = sig.xx[k];
+                    assert!(sig.yy[k] > y_prev);
+                    y_prev = sig.yy[k];
+                }
+                if first && SAVE_FIGURE {
+                    println!("x = {:?}, y = {:?}", sig.xx[k], sig.yy[k]);
+                    curve.draw(&[sig.xx[k]], &[sig.yy[k]]);
+                    text.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", sig.k2id[k]));
                 }
             }
             // check ids
-            assert_eq!(&sig.k2id, &[0, 4, 1, 3, 2]);
-            assert_eq!(&eps.k2id, &[0, 4, 1, 3, 2]);
+            assert_eq!(&sig.k2id, &[1, 2, 0, 3, 4]);
+            assert_eq!(&eps.k2id, &sig.k2id);
             sig.k2id
                 .iter()
                 .map(|id| sig.id2k.get(id).unwrap())
@@ -1261,8 +1272,21 @@ mod tests {
                 .map(|id| eps.id2k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
             // check sorting
-            assert_eq!(&sig.xx, &[0.0, 0.5, 1.2, 1.8, 2.2]);
-            assert_eq!(&sig.yy, &[0.2, 1.2, 0.0, 1.0, 0.1]);
+            assert_eq!(&sig.xx, &[1.2, 2.2, 0.0, 1.8, 0.5]);
+            assert_eq!(&sig.yy, &[0.0, 0.1, 0.2, 1.0, 1.2]);
+            first = false;
+        }
+        if SAVE_FIGURE {
+            mesh.draw(
+                None,
+                "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg",
+                |plot, before| {
+                    if !before {
+                        plot.add(&curve).add(&text);
+                    }
+                },
+            )
+            .unwrap();
         }
     }
 
