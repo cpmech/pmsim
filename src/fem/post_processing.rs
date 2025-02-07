@@ -1320,6 +1320,33 @@ mod tests {
     }
 
     #[test]
+    fn nodal_stress_and_strain_work_3d() {
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+            let sig = post.nodal_stress(0, &state).unwrap();
+            let eps = post.nodal_strain(0, &state).unwrap();
+            let nnode = sig.nrow();
+            for m in 0..nnode {
+                // stress
+                approx_eq(sig.get(m, 0), sig_ref.get(0, 0), 1e-13);
+                approx_eq(sig.get(m, 1), sig_ref.get(1, 1), 1e-13);
+                approx_eq(sig.get(m, 2), sig_ref.get(2, 2), 1e-13);
+                approx_eq(sig.get(m, 3), sig_ref.get(0, 1), 1e-13);
+                approx_eq(sig.get(m, 4), sig_ref.get(1, 2), 1e-13);
+                approx_eq(sig.get(m, 5), sig_ref.get(2, 0), 1e-13);
+                // strain
+                approx_eq(eps.get(m, 0), eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.get(m, 1), eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.get(m, 2), eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.get(m, 3), eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.get(m, 4), eps_ref.get(1, 2), 1e-15);
+                approx_eq(eps.get(m, 5), eps_ref.get(2, 0), 1e-15);
+            }
+        }
+    }
+
+    #[test]
     fn nodal_stresses_and_strains_work_2d() {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
