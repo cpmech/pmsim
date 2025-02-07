@@ -30,7 +30,8 @@ pub fn main() -> Result<(), StrError> {
     let mut normalized_settlement = Vec::new();
     let mut normalized_pressure = Vec::new();
     let mut x_coords = Vec::new();
-    let mut all_syy = Vec::<Vec<f64>>::new();
+    let mut selected_syy = Vec::<Vec<f64>>::new();
+    let selected_indices = &[1, 2, 4, 6, file_io.indices.len() - 1];
     let eq_corner = base.equations.eq(corner_id, Dof::Uy)?;
     for index in &file_io.indices {
         let state = PostProc::read_state(&file_io, *index)?;
@@ -41,7 +42,9 @@ pub fn main() -> Result<(), StrError> {
         if *index == 0 {
             x_coords = res.xx.clone();
         }
-        all_syy.push(res.tyy.iter().map(|sy| *sy / cohesion).collect());
+        if selected_indices.contains(index) {
+            selected_syy.push(res.tyy.iter().map(|sy| *sy / cohesion).collect());
+        }
         for i in 1..res.xx.len() {
             area += (res.xx[i] - res.xx[i - 1]) * (res.tyy[i] + res.tyy[i - 1]) / 2.0;
         }
@@ -78,15 +81,19 @@ pub fn main() -> Result<(), StrError> {
         .set_rotation_ticks_x(90.0)
         .grid_labels_legend("normalized settlement: $-u_y/B$", "normalized pressure: $-P/c$");
     plot.set_subplot(1, 2, 2);
-    for index in &file_io.indices {
+    for (i, index) in selected_indices.iter().enumerate() {
         let mut curve = Curve::new();
         curve
-            .set_label(&format!("t = {}", file_io.times[*index]))
-            .draw(&x_coords, &all_syy[*index]);
+            .set_label(&format!(" t = {}", *index))
+            .draw(&x_coords, &selected_syy[i]);
         plot.add(&curve);
     }
     let mut leg = Legend::new();
-    leg.set_num_col(5).set_outside(true).draw();
+    leg.set_num_col(5)
+        .set_handle_len(1.5)
+        .set_outside(true)
+        .set_x_coords(&[0.0, -0.15, 1.0, 0.102])
+        .draw();
     plot.add(&leg)
         .grid_and_labels("$x$", "$\\sigma_y/c$")
         .set_figure_size_points(800.0, 350.0)
