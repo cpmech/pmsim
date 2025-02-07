@@ -754,6 +754,7 @@ mod tests {
     use russell_lab::math::SQRT_3;
     use russell_lab::{approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::Tensor2;
+    use std::fmt::Write;
 
     const SAVE_FIGURE: bool = true;
     const YOUNG: f64 = 1500.0;
@@ -1089,41 +1090,57 @@ mod tests {
     fn gauss_stresses_and_strains_work_2d() {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
-        let mut curve = Curve::new();
-        let mut text = Text::new();
+        let mut curve_sig = Curve::new();
+        let mut text_sig = Text::new();
+        let mut curve_eps = Curve::new();
+        let mut text_eps = Text::new();
         if SAVE_FIGURE {
-            curve.set_line_style("None").set_marker_style("*");
+            curve_sig.set_line_style("None").set_marker_style("*");
+            curve_eps
+                .set_line_style("None")
+                .set_marker_style("o")
+                .set_marker_void(true)
+                .set_marker_size(20.0);
+            text_eps.set_align_horizontal("right").set_align_vertical("top");
         }
         let mut first = true;
+        let mut coords_sig = String::new();
+        let mut coords_eps = String::new();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.gauss_stresses(&[0, 1, 2], &state, |_, _, _| true).unwrap();
-            let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
-            let nk = sig.txx.len();
-            let mut y_prev = sig.yy[0];
-            for k in 0..nk {
-                // ids. for Gauss points, the IDs coincide with the indices
+            // stress (filtered)
+            let sig = post
+                .gauss_stresses(&[0, 1, 2], &state, |x, y, _| !(x < 0.5 && y < 0.5))
+                .unwrap();
+            for k in 0..sig.k2id.len() {
                 assert_eq!(*sig.id2k.get(&k).unwrap(), k);
                 assert_eq!(sig.k2id[k], k);
-                // stress
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
                 approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
                 approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
                 approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
-                // strain
+                if first {
+                    write!(&mut coords_sig, "{:.5},{:.5}\n", sig.xx[k], sig.yy[k]).unwrap();
+                    if SAVE_FIGURE {
+                        curve_sig.draw(&[sig.xx[k]], &[sig.yy[k]]);
+                        text_sig.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", k));
+                    }
+                }
+            }
+            // strain (unfiltered)
+            let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
+            for k in 0..eps.k2id.len() {
+                assert_eq!(*eps.id2k.get(&k).unwrap(), k);
+                assert_eq!(eps.k2id[k], k);
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
                 approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
-                // coordinates
-                assert_eq!(sig.xx[k], eps.xx[k]);
-                if first && SAVE_FIGURE {
-                    println!("x = {:?}, y = {:?}", sig.xx[k], sig.yy[k]);
-                    curve.draw(&[sig.xx[k]], &[sig.yy[k]]);
-                    text.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", k));
-                }
-                if k > 0 {
-                    assert!(sig.yy[k] >= y_prev);
-                    y_prev = sig.yy[k];
+                if first {
+                    write!(&mut coords_eps, "{:.5},{:.5}\n", eps.xx[k], eps.yy[k]).unwrap();
+                    if SAVE_FIGURE {
+                        curve_eps.draw(&[eps.xx[k]], &[eps.yy[k]]);
+                        text_eps.draw(eps.xx[k] - 0.02, eps.yy[k], &format!("{}", k));
+                    }
                 }
             }
             first = false;
@@ -1134,12 +1151,36 @@ mod tests {
                 "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg",
                 |plot, before| {
                     if !before {
-                        plot.add(&curve).add(&text);
+                        plot.add(&curve_sig).add(&text_sig);
+                        plot.add(&curve_eps).add(&text_eps);
                     }
                 },
             )
             .unwrap();
         }
+        assert_eq!(
+            coords_sig,
+            "1.46667,0.18333\n\
+             0.88333,0.23333\n\
+             1.96667,0.23333\n\
+             1.18333,0.36667\n\
+             1.76667,0.68333\n\
+             0.53333,0.83333\n\
+             1.48333,0.86667\n\
+             0.83333,0.96667\n"
+        );
+        assert_eq!(
+            coords_eps,
+            "1.46667,0.18333\n\
+             0.88333,0.23333\n\
+             1.96667,0.23333\n\
+             0.28333,0.33333\n\
+             1.18333,0.36667\n\
+             1.76667,0.68333\n\
+             0.53333,0.83333\n\
+             1.48333,0.86667\n\
+             0.83333,0.96667\n"
+        );
     }
 
     #[test]
