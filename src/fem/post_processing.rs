@@ -756,7 +756,7 @@ mod tests {
     use russell_tensor::Tensor2;
     use std::fmt::Write;
 
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
     const STRAIN: f64 = 0.0123;
@@ -1376,8 +1376,6 @@ mod tests {
                 approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
                 approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
                 approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
-                // approx_eq(sig.tyz[k], sig_ref.get(1, 2), 1e-14);
-                // approx_eq(sig.tzx[k], sig_ref.get(2, 0), 1e-14);
                 if first {
                     write!(&mut coords_sig, "{:.5},{:.5}\n", sig.xx[k], sig.yy[k]).unwrap();
                     if SAVE_FIGURE {
@@ -1398,8 +1396,6 @@ mod tests {
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
                 approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
-                // approx_eq(eps.tyz[k], eps_ref.get(1, 2), 1e-15);
-                // approx_eq(eps.tzx[k], eps_ref.get(2, 0), 1e-15);
                 if first {
                     write!(&mut coords_eps, "{:.5},{:.5}\n", eps.xx[k], eps.yy[k]).unwrap();
                     if SAVE_FIGURE {
@@ -1442,6 +1438,118 @@ mod tests {
              0.00000,0.20000\n\
              1.80000,1.00000\n\
              0.50000,1.20000\n"
+        );
+    }
+
+    #[test]
+    fn nodal_stresses_and_strains_work_3d() {
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        let mut curve_sig = Curve::new();
+        let mut curve_eps = Curve::new();
+        let mut text_sig = Text::new();
+        let mut text_eps = Text::new();
+        if SAVE_FIGURE {
+            curve_sig.set_line_style("None").set_marker_style("*");
+            curve_eps
+                .set_line_style("None")
+                .set_marker_style("o")
+                .set_marker_void(true)
+                .set_marker_size(20.0);
+            text_eps.set_align_horizontal("right").set_align_vertical("top");
+        }
+        let mut first = true;
+        let mut coords_sig = String::new();
+        let mut coords_eps = String::new();
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+            // stress (filtered)
+            let sig = post
+                .nodal_stresses(&[0, 1], &state, |x, y, _| !(x < 0.5 && y < 0.5))
+                .unwrap();
+            for k in 0..sig.xx.len() {
+                approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-13);
+                approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-13);
+                approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-13);
+                approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-13);
+                approx_eq(sig.tyz[k], sig_ref.get(1, 2), 1e-13);
+                approx_eq(sig.tzx[k], sig_ref.get(2, 0), 1e-13);
+                if first {
+                    write!(&mut coords_sig, "{:.5},{:.5},{:.5}\n", sig.xx[k], sig.yy[k], sig.zz[k]).unwrap();
+                    if SAVE_FIGURE {
+                        curve_sig.draw_3d(&[sig.xx[k]], &[sig.yy[k]], &[sig.zz[k]]);
+                        text_sig.draw_3d(sig.xx[k] + 0.02, sig.yy[k], sig.zz[k], &format!("{}", sig.k2id[k]));
+                    }
+                }
+            }
+            assert_eq!(&sig.k2id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
+            sig.k2id
+                .iter()
+                .map(|id| sig.id2k.get(id).unwrap())
+                .for_each(|k| assert_eq!(k, k));
+            // strain (unfiltered)
+            let eps = post.nodal_strains(&[0, 1], &state, |_, _, _| true).unwrap();
+            for k in 0..eps.xx.len() {
+                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.tyz[k], eps_ref.get(1, 2), 1e-15);
+                approx_eq(eps.tzx[k], eps_ref.get(2, 0), 1e-15);
+                if first {
+                    write!(&mut coords_eps, "{:.5},{:.5},{:.5}\n", eps.xx[k], eps.yy[k], eps.zz[k]).unwrap();
+                    if SAVE_FIGURE {
+                        curve_eps.draw_3d(&[eps.xx[k]], &[eps.yy[k]], &[eps.zz[k]]);
+                        text_eps.draw_3d(eps.xx[k] - 0.02, eps.yy[k], eps.zz[k], &format!("{}", eps.k2id[k]));
+                    }
+                }
+            }
+            assert_eq!(&eps.k2id, &[0, 1, 3, 2, 4, 5, 7, 6, 8, 9, 11, 10]);
+            eps.k2id
+                .iter()
+                .map(|id| eps.id2k.get(id).unwrap())
+                .for_each(|k| assert_eq!(k, k));
+            first = false;
+        }
+        if SAVE_FIGURE {
+            mesh.draw(
+                None,
+                "/tmp/pmsim/test_nodal_stresses_and_strains_work_3d.svg",
+                |plot, before| {
+                    if !before {
+                        plot.add(&curve_sig).add(&text_sig);
+                        plot.add(&curve_eps).add(&text_eps);
+                        plot.set_figure_size_points(800.0, 800.0);
+                    }
+                },
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            coords_sig,
+            "1.00000,0.00000,0.00000\n\
+             0.00000,1.00000,0.00000\n\
+             1.00000,1.00000,0.00000\n\
+             1.00000,0.00000,1.00000\n\
+             0.00000,1.00000,1.00000\n\
+             1.00000,1.00000,1.00000\n\
+             1.00000,0.00000,2.00000\n\
+             0.00000,1.00000,2.00000\n\
+             1.00000,1.00000,2.00000\n"
+        );
+        assert_eq!(
+            coords_eps,
+            "0.00000,0.00000,0.00000\n\
+             1.00000,0.00000,0.00000\n\
+             0.00000,1.00000,0.00000\n\
+             1.00000,1.00000,0.00000\n\
+             0.00000,0.00000,1.00000\n\
+             1.00000,0.00000,1.00000\n\
+             0.00000,1.00000,1.00000\n\
+             1.00000,1.00000,1.00000\n\
+             0.00000,0.00000,2.00000\n\
+             1.00000,0.00000,2.00000\n\
+             0.00000,1.00000,2.00000\n\
+             1.00000,1.00000,2.00000\n"
         );
     }
 
