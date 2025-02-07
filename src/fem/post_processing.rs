@@ -1350,54 +1350,69 @@ mod tests {
     fn nodal_stresses_and_strains_work_2d() {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
-        let mut curve = Curve::new();
-        let mut text = Text::new();
+        let mut curve_sig = Curve::new();
+        let mut curve_eps = Curve::new();
+        let mut text_sig = Text::new();
+        let mut text_eps = Text::new();
         if SAVE_FIGURE {
-            curve.set_line_style("None").set_marker_style("o");
+            curve_sig.set_line_style("None").set_marker_style("*");
+            curve_eps
+                .set_line_style("None")
+                .set_marker_style("o")
+                .set_marker_void(true)
+                .set_marker_size(20.0);
+            text_eps.set_align_horizontal("right").set_align_vertical("top");
         }
         let mut first = true;
+        let mut coords_sig = String::new();
+        let mut coords_eps = String::new();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.nodal_stresses(&[0, 1, 2], &state, |_, _, _| true).unwrap();
-            let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
-            let nk = sig.txx.len();
-            let mut y_prev = sig.yy[0];
-            for k in 0..nk {
-                // stress
+            // stress (filtered)
+            let sig = post
+                .nodal_stresses(&[0, 1, 2], &state, |x, y, _| !(x < 0.5 && y < 0.5))
+                .unwrap();
+            for k in 0..sig.xx.len() {
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
                 approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
                 approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
                 approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
-                // strain
-                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
-                // coordinates
-                assert_eq!(sig.xx[k], eps.xx[k]);
-                if k > 0 {
-                    assert!(sig.yy[k] > y_prev);
-                    y_prev = sig.yy[k];
-                }
-                if first && SAVE_FIGURE {
-                    println!("x = {:?}, y = {:?}", sig.xx[k], sig.yy[k]);
-                    curve.draw(&[sig.xx[k]], &[sig.yy[k]]);
-                    text.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", sig.k2id[k]));
+                // approx_eq(sig.tyz[k], sig_ref.get(1, 2), 1e-14);
+                // approx_eq(sig.tzx[k], sig_ref.get(2, 0), 1e-14);
+                if first {
+                    write!(&mut coords_sig, "{:.5},{:.5}\n", sig.xx[k], sig.yy[k]).unwrap();
+                    if SAVE_FIGURE {
+                        curve_sig.draw(&[sig.xx[k]], &[sig.yy[k]]);
+                        text_sig.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", sig.k2id[k]));
+                    }
                 }
             }
-            // check ids
-            assert_eq!(&sig.k2id, &[1, 2, 0, 3, 4]);
-            assert_eq!(&eps.k2id, &sig.k2id);
+            assert_eq!(&sig.k2id, &[1, 2, 3, 4]);
             sig.k2id
                 .iter()
                 .map(|id| sig.id2k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
+            // strain (unfiltered)
+            let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
+            for k in 0..eps.xx.len() {
+                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
+                // approx_eq(eps.tyz[k], eps_ref.get(1, 2), 1e-15);
+                // approx_eq(eps.tzx[k], eps_ref.get(2, 0), 1e-15);
+                if first {
+                    write!(&mut coords_eps, "{:.5},{:.5}\n", eps.xx[k], eps.yy[k]).unwrap();
+                    if SAVE_FIGURE {
+                        curve_eps.draw(&[eps.xx[k]], &[eps.yy[k]]);
+                        text_eps.draw(eps.xx[k] - 0.02, eps.yy[k], &format!("{}", eps.k2id[k]));
+                    }
+                }
+            }
+            assert_eq!(&eps.k2id, &[1, 2, 0, 3, 4]);
             eps.k2id
                 .iter()
                 .map(|id| eps.id2k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
-            // check sorting
-            assert_eq!(&sig.xx, &[1.2, 2.2, 0.0, 1.8, 0.5]);
-            assert_eq!(&sig.yy, &[0.0, 0.1, 0.2, 1.0, 1.2]);
             first = false;
         }
         if SAVE_FIGURE {
@@ -1406,12 +1421,28 @@ mod tests {
                 "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg",
                 |plot, before| {
                     if !before {
-                        plot.add(&curve).add(&text);
+                        plot.add(&curve_sig).add(&text_sig);
+                        plot.add(&curve_eps).add(&text_eps);
                     }
                 },
             )
             .unwrap();
         }
+        assert_eq!(
+            coords_sig,
+            "1.20000,0.00000\n\
+             2.20000,0.10000\n\
+             1.80000,1.00000\n\
+             0.50000,1.20000\n"
+        );
+        assert_eq!(
+            coords_eps,
+            "1.20000,0.00000\n\
+             2.20000,0.10000\n\
+             0.00000,0.20000\n\
+             1.80000,1.00000\n\
+             0.50000,1.20000\n"
+        );
     }
 
     #[test]
