@@ -80,8 +80,8 @@ impl PlastPlaneStrainPresCylin {
         let ee = self.young;
         let ub = if pp <= self.pp0 {
             // elastic
-            let r = self.b * self.b / (self.a * self.a);
-            2.0 * pp * self.b * omp / (ee * (r - 1.0))
+            let m = self.b * self.b / (self.a * self.a);
+            2.0 * pp * self.b * omp / (ee * (m - 1.0))
         } else {
             // plastic
             let c = self.calc_c(pp)?;
