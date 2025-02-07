@@ -3,7 +3,7 @@ use crate::base::Dof;
 use crate::util::{SpatialTensor, TensorComponentsMap};
 use crate::StrError;
 use gemlab::integ::Gauss;
-use gemlab::mesh::{At, CellId, Features, Mesh, PointId};
+use gemlab::mesh::{At, CellId, Features, Mesh, PointId, TOL_COMPARE_POINTS};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{argsort2_f64, argsort3_f64, mat_mat_mul, Matrix, Vector};
@@ -377,10 +377,20 @@ impl<'a> PostProc<'a> {
         }
 
         // sort the accepted Gauss points
+        let (min, max) = self.mesh.get_limits();
         let sorted_indices = if ndim == 3 {
-            argsort3_f64(&xx, &yy, &zz)
+            let tol = &[
+                TOL_COMPARE_POINTS * (max[0] - min[0]),
+                TOL_COMPARE_POINTS * (max[1] - min[1]),
+                TOL_COMPARE_POINTS * (max[2] - min[2]),
+            ];
+            argsort3_f64(&zz, &yy, &xx, tol)
         } else {
-            argsort2_f64(&xx, &yy)
+            let tol = &[
+                TOL_COMPARE_POINTS * (max[0] - min[0]),
+                TOL_COMPARE_POINTS * (max[1] - min[1]),
+            ];
+            argsort2_f64(&yy, &xx, tol)
         };
 
         // retrieve the tensor components at Gauss points
@@ -741,6 +751,7 @@ mod tests {
     use gemlab::mesh::{Features, Mesh, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
+    use russell_lab::math::SQRT_3;
     use russell_lab::{approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::Tensor2;
 
@@ -986,6 +997,26 @@ mod tests {
         assert_eq!(res[0].as_data(), &[0.5, 0.5]);
     }
 
+    #[test]
+    fn gauss_coords_works_3d() {
+        let mesh = Samples::one_hex8();
+        let mut p1 = ParamSolid::sample_linear_elastic();
+        p1.ngauss = Some(8);
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        let res = post.gauss_coords(0).unwrap();
+        let a = (1.0 - 1.0 / SQRT_3) / 2.0;
+        let b = (1.0 + 1.0 / SQRT_3) / 2.0;
+        vec_approx_eq(&res[0], &[a, a, a], 1e-15);
+        vec_approx_eq(&res[1], &[b, a, a], 1e-15);
+        vec_approx_eq(&res[2], &[a, b, a], 1e-15);
+        vec_approx_eq(&res[3], &[b, b, a], 1e-15);
+        vec_approx_eq(&res[4], &[a, a, b], 1e-15);
+        vec_approx_eq(&res[5], &[b, a, b], 1e-15);
+        vec_approx_eq(&res[6], &[a, b, b], 1e-15);
+        vec_approx_eq(&res[7], &[b, b, b], 1e-15);
+    }
+
     fn load_states_and_solutions(file_io: &FileIo) -> [(FemState, Tensor2, Tensor2); 3] {
         let state_h = PostProc::read_state(&file_io, 0).unwrap();
         let state_v = PostProc::read_state(&file_io, 1).unwrap();
@@ -1028,6 +1059,33 @@ mod tests {
     }
 
     #[test]
+    fn gauss_stress_and_strain_work_3d() {
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+            let sig = post.gauss_stress(0, &state).unwrap();
+            let eps = post.gauss_strain(0, &state).unwrap();
+            let ngauss = sig.nrow();
+            for p in 0..ngauss {
+                // stress
+                approx_eq(sig.get(p, 0), sig_ref.get(0, 0), 1e-14);
+                approx_eq(sig.get(p, 1), sig_ref.get(1, 1), 1e-14);
+                approx_eq(sig.get(p, 2), sig_ref.get(2, 2), 1e-14);
+                approx_eq(sig.get(p, 3), sig_ref.get(0, 1), 1e-14);
+                approx_eq(sig.get(p, 4), sig_ref.get(1, 2), 1e-14);
+                approx_eq(sig.get(p, 5), sig_ref.get(2, 0), 1e-14);
+                // strain
+                approx_eq(eps.get(p, 0), eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.get(p, 1), eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.get(p, 2), eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.get(p, 3), eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.get(p, 4), eps_ref.get(1, 2), 1e-15);
+                approx_eq(eps.get(p, 5), eps_ref.get(2, 0), 1e-15);
+            }
+        }
+    }
+
+    #[test]
     fn gauss_stresses_and_strains_work_2d() {
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut post = PostProc::new(&mesh, &base);
@@ -1041,7 +1099,7 @@ mod tests {
             let sig = post.gauss_stresses(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
             let nk = sig.txx.len();
-            let mut x_prev = sig.xx[0];
+            let mut y_prev = sig.yy[0];
             for k in 0..nk {
                 // ids. for Gauss points, the IDs coincide with the indices
                 assert_eq!(*sig.id2k.get(&k).unwrap(), k);
@@ -1064,8 +1122,8 @@ mod tests {
                     text.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", k));
                 }
                 if k > 0 {
-                    assert!(sig.xx[k] > x_prev);
-                    x_prev = sig.xx[k];
+                    assert!(sig.yy[k] >= y_prev);
+                    y_prev = sig.yy[k];
                 }
             }
             first = false;
@@ -1073,10 +1131,67 @@ mod tests {
         if SAVE_FIGURE {
             mesh.draw(
                 None,
-                "/tmp/pmsim/test_gauss_stresses_and_strains_work.svg",
+                "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg",
                 |plot, before| {
                     if !before {
                         plot.add(&curve).add(&text);
+                    }
+                },
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn gauss_stresses_and_strains_work_3d() {
+        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let mut post = PostProc::new(&mesh, &base);
+        let mut curve = Curve::new();
+        let mut text = Text::new();
+        if SAVE_FIGURE {
+            curve.set_line_style("None").set_marker_style("*");
+        }
+        let mut first = true;
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+            let sig = post.gauss_stresses(&[0, 1], &state, |_, _, _| true).unwrap();
+            let eps = post.gauss_strains(&[0, 1], &state, |_, _, _| true).unwrap();
+            let nk = sig.txx.len();
+            let mut z_prev = sig.zz[0];
+            for k in 0..nk {
+                // ids. for Gauss points, the IDs coincide with the indices
+                assert_eq!(*sig.id2k.get(&k).unwrap(), k);
+                assert_eq!(sig.k2id[k], k);
+                // stress
+                approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
+                approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
+                approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
+                approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
+                // strain
+                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
+                // coordinates
+                if first && SAVE_FIGURE {
+                    println!("{}, x = {:?}, y = {:?}, z = {:?}", k, sig.xx[k], sig.yy[k], sig.zz[k]);
+                    curve.draw_3d(&[sig.xx[k]], &[sig.yy[k]], &[sig.zz[k]]);
+                    text.draw_3d(sig.xx[k] + 0.02, sig.yy[k], sig.zz[k], &format!("{}", k));
+                }
+                if k > 0 {
+                    assert!(sig.zz[k] >= z_prev - 1e-6);
+                    z_prev = sig.zz[k];
+                }
+            }
+            first = false;
+        }
+        if SAVE_FIGURE {
+            mesh.draw(
+                None,
+                "/tmp/pmsim/test_gauss_stresses_and_strains_work_3d.svg",
+                |plot, before| {
+                    if !before {
+                        plot.add(&curve).add(&text);
+                        plot.set_figure_size_points(800.0, 800.0);
                     }
                 },
             )
