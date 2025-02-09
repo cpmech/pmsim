@@ -176,19 +176,19 @@ fn main() -> Result<(), StrError> {
 
             // figure settings
             let mut fig = Figure::new();
-            fig.point_ids = false;
-            fig.canvas_points.set_marker_size(2.5).set_marker_line_color("black");
-            fig.figure_size = Some((800.0, 800.0));
-            fig.point_dots = if ndof < 3100 { true } else { false };
-
-            // draw figure
-            mesh.draw(Some(fig), &path_mesh, |plot, before| {
-                if !before {
-                    plot.add(&cylin_in);
-                    plot.add(&cylin_out);
-                    plot.add(&curve);
-                }
-            })?;
+            fig.size(800.0, 800.0)
+                .canvas_points()
+                .set_marker_size(2.5)
+                .set_marker_line_color("black");
+            fig.show_point_dots(if ndof < 3100 { true } else { false })
+                .extra(|plot, before| {
+                    if !before {
+                        plot.add(&cylin_in);
+                        plot.add(&cylin_out);
+                        plot.add(&curve);
+                    }
+                })
+                .draw(&mesh, &path_mesh)?;
         }
 
         // essential boundary conditions

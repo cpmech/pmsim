@@ -18,15 +18,9 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let mesh = Mesh::read(&format!("data/meshes/{}.msh", NAME))?;
     if SAVE_FIGURE {
         mesh.check_all()?;
-        let mut opt = Figure::new();
-        opt.with_point_marker = false;
-        // opt.point_dots = true;
-        opt.point_ids = true;
-        opt.cell_ids = true;
-        opt.figure_size = Some((1000.0, 1000.0));
-        mesh.draw(Some(opt), &format!("/tmp/pmsim/{}.svg", NAME), |plot, _| {
-            plot.set_range(0.0, 0.5, 4.5, 5.0);
-        })?;
+        let mut fig = Figure::new();
+        fig.size(1000.0, 1000.0)
+            .draw(&mesh, &format!("/tmp/pmsim/{}.svg", NAME))?;
     }
 
     // features

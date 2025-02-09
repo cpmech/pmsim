@@ -148,20 +148,19 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
 
         // configure plot
         let mut fig = Figure::new();
-        fig.point_dots = true;
-        fig.figure_size = Some((400.0, 600.0));
-        fig.canvas_points.set_marker_size(3.0).set_marker_line_color("none");
+        fig.show_point_ids(true)
+            .size(400.0, 600.0)
+            .canvas_points()
+            .set_marker_size(3.0)
+            .set_marker_line_color("None");
 
         // generate figure
-        mesh.draw(
-            Some(fig),
-            &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME),
-            |plot, before| {
-                if !before {
-                    plot.add(&circle);
-                }
-            },
-        )
+        fig.extra(|plot, before| {
+            if !before {
+                plot.add(&circle);
+            }
+        })
+        .draw(&mesh, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME))
         .unwrap();
 
         // return generated mesh

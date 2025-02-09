@@ -234,19 +234,12 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
 
         // draw figure
         if SAVE_FIGURE {
-            let mut opt = Figure::new();
-            opt.with_point_marker = false;
-            // opt.point_dots = true;
-            opt.point_ids = true;
-            opt.cell_ids = true;
-            opt.with_cell_att = false;
-            opt.figure_size = Some((1000.0, 1000.0));
-            mesh.draw(
-                Some(opt),
-                &format!("{}/mesh_{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str),
-                |_, _| {},
-            )
-            .unwrap();
+            let mut fig = Figure::new();
+            fig.show_point_ids(true)
+                .show_cell_ids(true)
+                .size(1000.0, 1000.0)
+                .draw(&mesh, &format!("{}/mesh_{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))
+                .unwrap();
         }
 
         // write mesh

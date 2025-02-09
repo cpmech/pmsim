@@ -106,14 +106,16 @@ pub fn main() -> Result<(), StrError> {
 
 fn draw_mesh(mesh: &Mesh) -> Result<(), StrError> {
     let mut fig = Figure::new();
-    fig.figure_size = Some((800.0, 800.0));
-    mesh.draw(Some(fig), "/tmp/pmsim/mesh_spo_754_footing_full.svg", |_, _| {})?;
+    fig.size(800.0, 800.0)
+        .draw(&mesh, "/tmp/pmsim/mesh_spo_754_footing_full.svg")?;
 
+    /*
     let mut fig = Figure::new();
-    fig.figure_size = Some((800.0, 800.0));
-    mesh.draw(Some(fig), "/tmp/pmsim/mesh_spo_754_footing_zoom1.jpg", |plot, _| {
-        plot.set_range(0.0, 100.0, 400.0, 500.0).set_hide_axes(true);
-    })?;
+    fig.size(800.0, 800.0)
+        .extra(|plot, _| {
+            plot.set_range(0.0, 100.0, 400.0, 500.0).set_hide_axes(true);
+        })
+        .draw(&mesh, "/tmp/pmsim/mesh_spo_754_footing_zoom1.jpg")?;
 
     let mut fig = Figure::new();
     fig.canvas_point_ids.set_rotation(45.0).set_color("black");
@@ -137,7 +139,7 @@ fn draw_mesh(mesh: &Mesh) -> Result<(), StrError> {
     let mut fig = Figure::new();
     fig.canvas_point_ids.set_rotation(45.0).set_color("black");
     fig.point_ids = true;
-    fig.figure_size = Some((800.0, 400.0));
+    fig.size(800.0, 400.0);
     mesh.draw(
         Some(fig),
         "/tmp/pmsim/mesh_spo_754_footing_zoom3.jpg",
@@ -154,4 +156,6 @@ fn draw_mesh(mesh: &Mesh) -> Result<(), StrError> {
             }
         },
     )
+    */
+    Ok(())
 }

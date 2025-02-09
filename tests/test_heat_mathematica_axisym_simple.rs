@@ -108,8 +108,8 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
-        mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
-            .unwrap();
+        let mut fig = Figure::new();
+        fig.draw(&mesh, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME)).unwrap();
         mesh
     } else {
         // read mesh

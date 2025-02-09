@@ -146,7 +146,8 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // write figure
-        mesh.draw(None, &format!("{}/{}_mesh.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
+        let mut fig = Figure::new();
+        fig.draw(&mesh, &format!("{}/{}_mesh.svg", DEFAULT_TEST_DIR, NAME))
             .unwrap();
         mesh
     } else {

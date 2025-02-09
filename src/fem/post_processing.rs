@@ -748,7 +748,7 @@ mod tests {
     };
     use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
     use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
-    use gemlab::mesh::{Features, Mesh, Samples};
+    use gemlab::mesh::{Features, Figure, Mesh, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
     use russell_lab::math::SQRT_3;
@@ -1146,16 +1146,14 @@ mod tests {
             first = false;
         }
         if SAVE_FIGURE {
-            mesh.draw(
-                None,
-                "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg",
-                |plot, before| {
-                    if !before {
-                        plot.add(&curve_sig).add(&text_sig);
-                        plot.add(&curve_eps).add(&text_eps);
-                    }
-                },
-            )
+            let mut fig = Figure::new();
+            fig.extra(|plot, before| {
+                if !before {
+                    plot.add(&curve_sig).add(&text_sig);
+                    plot.add(&curve_eps).add(&text_eps);
+                }
+            })
+            .draw(&mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -1247,17 +1245,15 @@ mod tests {
             first = false;
         }
         if SAVE_FIGURE {
-            mesh.draw(
-                None,
-                "/tmp/pmsim/test_gauss_stresses_and_strains_work_3d.svg",
-                |plot, before| {
-                    if !before {
-                        plot.add(&curve_sig).add(&text_sig);
-                        plot.add(&curve_eps).add(&text_eps);
-                        plot.set_figure_size_points(800.0, 800.0);
-                    }
-                },
-            )
+            let mut fig = Figure::new();
+            fig.extra(|plot, before| {
+                if !before {
+                    plot.add(&curve_sig).add(&text_sig);
+                    plot.add(&curve_eps).add(&text_eps);
+                    plot.set_figure_size_points(800.0, 800.0);
+                }
+            })
+            .draw(&mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_3d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -1412,16 +1408,14 @@ mod tests {
             first = false;
         }
         if SAVE_FIGURE {
-            mesh.draw(
-                None,
-                "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg",
-                |plot, before| {
-                    if !before {
-                        plot.add(&curve_sig).add(&text_sig);
-                        plot.add(&curve_eps).add(&text_eps);
-                    }
-                },
-            )
+            let mut fig = Figure::new();
+            fig.extra(|plot, before| {
+                if !before {
+                    plot.add(&curve_sig).add(&text_sig);
+                    plot.add(&curve_eps).add(&text_eps);
+                }
+            })
+            .draw(&mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -1511,17 +1505,15 @@ mod tests {
             first = false;
         }
         if SAVE_FIGURE {
-            mesh.draw(
-                None,
-                "/tmp/pmsim/test_nodal_stresses_and_strains_work_3d.svg",
-                |plot, before| {
-                    if !before {
-                        plot.add(&curve_sig).add(&text_sig);
-                        plot.add(&curve_eps).add(&text_eps);
-                        plot.set_figure_size_points(800.0, 800.0);
-                    }
-                },
-            )
+            let mut fig = Figure::new();
+            fig.extra(|plot, before| {
+                if !before {
+                    plot.add(&curve_sig).add(&text_sig);
+                    plot.add(&curve_eps).add(&text_eps);
+                    plot.set_figure_size_points(800.0, 800.0);
+                }
+            })
+            .draw(&mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_3d.svg")
             .unwrap();
         }
         assert_eq!(

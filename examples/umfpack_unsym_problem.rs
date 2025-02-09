@@ -23,8 +23,8 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     // draw mesh
     if SAVE_FIGURE {
         let mut fig = Figure::new();
-        fig.figure_size = Some((800.0, 800.0));
-        mesh.draw(Some(fig), &format!("{}/{}.svg", OUT_DIR, name), |_, _| {})?;
+        fig.size(800.0, 800.0)
+            .draw(&mesh, &format!("{}/{}.svg", OUT_DIR, name))?;
     }
 
     // features
