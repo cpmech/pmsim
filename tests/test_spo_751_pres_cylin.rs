@@ -233,14 +233,12 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
         mesh.check_all().unwrap();
 
         // draw figure
-        if SAVE_FIGURE {
-            let mut fig = Figure::new();
-            fig.show_point_ids(true)
-                .show_cell_ids(true)
-                .size(1000.0, 1000.0)
-                .draw(&mesh, &format!("{}/mesh_{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))
-                .unwrap();
-        }
+        let mut fig = Figure::new();
+        fig.show_point_ids(true)
+            .show_cell_ids(true)
+            .size(600.0, 600.0)
+            .draw(&mesh, &format!("{}/mesh_{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))
+            .unwrap();
 
         // write mesh
         mesh.write(&format!("{}/{}_{}.msh", DEFAULT_TEST_DIR, NAME, k_str))
