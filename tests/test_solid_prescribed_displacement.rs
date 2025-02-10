@@ -259,19 +259,8 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
         state.uu[i] -= mdu[i];
         state.duu[i] -= mdu[i];
     }
-    assert_eq!(
-        format!("{:.6}", state.duu), // = ΔU from direct approach
-        "┌           ┐\n\
-         │  0.000000 │\n\
-         │  0.000000 │\n\
-         │  0.625000 │\n\
-         │  0.000000 │\n\
-         │  0.625000 │\n\
-         │ -1.875000 │\n\
-         │ -0.000000 │\n\
-         │ -1.875000 │\n\
-         └           ┘"
-    );
+    let duu_expected = vec![0.0, 0.0, 0.625, 0.0, 0.625, -1.875, 0.0, -1.875];
+    vec_approx_eq(&state.duu, &duu_expected, 1e-15);
 
     // must reset ΔU corresponding to prescribed values because
     // it has been used to update the stress already!
