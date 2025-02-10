@@ -41,6 +41,9 @@ pub struct Config<'a> {
     /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
 
+    /// Uses the alternative method to calculate the B matrix (the alternative method is the "standard" method)
+    pub(crate) alt_bb_matrix_method: bool,
+
     /// Holds a tolerance to check the symmetry of local Jacobian matrices
     pub(crate) symmetry_check_tolerance: Option<f64>,
 
@@ -151,6 +154,7 @@ impl<'a> Config<'a> {
             dynamics: false,
             constant_tangent: false,
             lagrange_mult_method: false,
+            alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-10),
             gravity: None,
             initialization: Init::Zero,
@@ -400,6 +404,12 @@ impl<'a> Config<'a> {
     /// Sets a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
     pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
         self.lagrange_mult_method = enable;
+        self
+    }
+
+    /// Uses the alternative method to calculate the B matrix (the alternative method is the "standard" method)
+    pub fn set_alt_bb_matrix_method(&mut self, enable: bool) -> &mut Self {
+        self.alt_bb_matrix_method = enable;
         self
     }
 

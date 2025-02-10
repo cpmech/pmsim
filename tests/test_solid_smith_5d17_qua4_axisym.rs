@@ -93,7 +93,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric();
+    config.set_alt_bb_matrix_method(true).set_axisymmetric();
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;

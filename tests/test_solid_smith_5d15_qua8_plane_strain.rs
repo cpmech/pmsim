@@ -83,7 +83,10 @@ fn test_solid_smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
     natural.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config
+        .set_alt_bb_matrix_method(true)
+        .set_symmetry_check_tolerance(Some(1e-9));
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;

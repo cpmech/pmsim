@@ -172,9 +172,15 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
-        integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
-            self.model.actual.stiffness(dd, &state.gauss[self.cell_id].solid[p])
-        })
+        if self.config.alt_bb_matrix_method {
+            integ::mat_10_bdb_alt(jacobian, &mut args, |dd, p, _, _| {
+                self.model.actual.stiffness(dd, &state.gauss[self.cell_id].solid[p])
+            })
+        } else {
+            integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
+                self.model.actual.stiffness(dd, &state.gauss[self.cell_id].solid[p])
+            })
+        }
     }
 
     /// Updates secondary values such as stresses and internal variables
@@ -253,7 +259,41 @@ mod tests {
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;
     use russell_lab::{mat_approx_eq, vec_approx_eq, vec_copy, vec_update, Matrix, Vector};
-    use russell_tensor::{Mandel, Tensor2};
+
+    fn get_sample<'a>(
+        d3: bool,
+        young: f64,
+        poisson: f64,
+        alt_bb_matrix: bool,
+    ) -> (Mesh, ParamSolid, FemBase, Config<'a>, FemState) {
+        // mesh and parameters
+        let mesh = if d3 { Samples::one_tet4() } else { Samples::one_tri3() };
+        let p1 = ParamSolid {
+            density: 2.7, // Mg/m²
+            stress_strain: StressStrain::LinearElastic { young, poisson },
+            ngauss: None,
+        };
+
+        // base, essential, config, and state
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let essential = Essential::new();
+        let mut config = Config::new(&mesh);
+        config.set_alt_bb_matrix_method(alt_bb_matrix);
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+
+        // set stress state
+        for state in &mut state.gauss[0].solid {
+            state.stress.sym_set(0, 0, 1.0);
+            state.stress.sym_set(1, 1, 2.0);
+            state.stress.sym_set(2, 2, 3.0);
+            state.stress.sym_set(0, 1, 4.0);
+            if d3 {
+                state.stress.sym_set(1, 2, 5.0);
+                state.stress.sym_set(2, 0, 6.0);
+            }
+        }
+        (mesh, p1, base, config, state)
+    }
 
     #[test]
     fn new_handles_errors() {
@@ -269,105 +309,141 @@ mod tests {
     }
 
     #[test]
-    fn element_solid_works_2d() {
-        // mesh and parameters
-        let mesh = Samples::one_tri3();
-        let young = 10_000.0; // kPa
-        let poisson = 0.2; // [-]
-        let p1 = ParamSolid {
-            density: 2.7, // Mg/m²
-            stress_strain: StressStrain::LinearElastic { young, poisson },
-            ngauss: None,
-        };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let essential = Essential::new();
-        let config = Config::new(&mesh);
+    fn calc_phi_works_2d() {
+        // allocate element
+        let young = 10_000.0;
+        let poisson = 0.2;
+        let (mesh, p1, base, config, state) = get_sample(false, young, poisson, false);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
-        // set stress state
-        let (s00, s11, s01) = (1.0, 2.0, 3.0);
-        for state in &mut state.gauss[0].solid {
-            state.stress.sym_set(0, 0, s00);
-            state.stress.sym_set(1, 1, s11);
-            state.stress.sym_set(0, 1, s01);
-        }
+        // allocate local phi vector
+        let nnode = mesh.cells[0].kind.nnode();
+        let neq = nnode * mesh.ndim;
+        let mut phi = Vector::new(neq);
 
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
-        // check residual vector
-        let nnode = mesh.cells[0].kind.nnode();
-        let neq = nnode * mesh.ndim;
-        let mut residual = Vector::new(neq);
-        elem.calc_residual(&mut residual, &state).unwrap();
-        let sigma = Tensor2::from_matrix(
-            &[[s00, s01, 0.0], [s01, s11, 0.0], [0.0, 0.0, s11]],
-            Mandel::Symmetric2D,
-        )
-        .unwrap();
-        let correct = ana.vec_04_tb(&sigma, false);
-        vec_approx_eq(&residual, &correct, 1e-15);
-
-        // check Jacobian matrix
-        let mut jacobian = Matrix::new(neq, neq);
-        elem.calc_jacobian(&mut jacobian, &state).unwrap();
-        let correct = ana
-            .mat_10_bdb(young, poisson, config.ideal.plane_stress, config.ideal.thickness)
-            .unwrap();
-        mat_approx_eq(&jacobian, &correct, 1e-12);
+        // check phi vector
+        elem.calc_residual(&mut phi, &state).unwrap();
+        let sigma = &state.gauss[0].solid[0].stress;
+        let correct = ana.vec_04_tb(sigma, false);
+        vec_approx_eq(&phi, &correct, 1e-15);
     }
 
     #[test]
-    fn element_solid_works_3d() {
-        // mesh and parameters
-        let mesh = Samples::one_tet4();
-        let young = 10_000.0; // kPa
-        let poisson = 0.2; // [-]
-        let p1 = ParamSolid {
-            density: 2.7, // Mg/m²
-            stress_strain: StressStrain::LinearElastic { young, poisson },
-            ngauss: None,
-        };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let essential = Essential::new();
-        let config = Config::new(&mesh);
+    fn calc_jacobian_works_2d() {
+        // allocate element
+        let young = 10_000.0;
+        let poisson = 0.2;
+        let (mesh, p1, base, config, state) = get_sample(false, young, poisson, false);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
-        // set stress state
-        let (s00, s11, s22, s01, s12, s20) = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
-        for state in &mut state.gauss[0].solid {
-            state.stress.sym_set(0, 0, s00);
-            state.stress.sym_set(1, 1, s11);
-            state.stress.sym_set(2, 2, s22);
-            state.stress.sym_set(0, 1, s01);
-            state.stress.sym_set(1, 2, s12);
-            state.stress.sym_set(2, 0, s20);
-        }
+        // allocate local K matrix
+        let nnode = mesh.cells[0].kind.nnode();
+        let neq = nnode * mesh.ndim;
+        let mut kk = Matrix::new(neq, neq);
+
+        // analytical solver
+        let ana = integ::AnalyticalTri3::new(&elem.pad);
+
+        // check Jacobian matrix
+        elem.calc_jacobian(&mut kk, &state).unwrap();
+        let correct = ana
+            .mat_10_bdb(young, poisson, config.ideal.plane_stress, config.ideal.thickness)
+            .unwrap();
+        mat_approx_eq(&kk, &correct, 1e-12);
+    }
+
+    #[test]
+    fn calc_jacobian_alt_works_2d() {
+        // allocate element
+        let young = 10_000.0;
+        let poisson = 0.2;
+        let (mesh, p1, base, config, state) = get_sample(false, young, poisson, true);
+        let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
+
+        // allocate local K matrix
+        let nnode = mesh.cells[0].kind.nnode();
+        let neq = nnode * mesh.ndim;
+        let mut kk = Matrix::new(neq, neq);
+
+        // analytical solver
+        let ana = integ::AnalyticalTri3::new(&elem.pad);
+
+        // check Jacobian matrix
+        elem.calc_jacobian(&mut kk, &state).unwrap();
+        let correct = ana
+            .mat_10_bdb(young, poisson, config.ideal.plane_stress, config.ideal.thickness)
+            .unwrap();
+        mat_approx_eq(&kk, &correct, 1e-12);
+    }
+
+    #[test]
+    fn calc_phi_works_3d() {
+        // allocate element
+        let young = 10_000.0;
+        let poisson = 0.2;
+        let (mesh, p1, base, config, state) = get_sample(true, young, poisson, false);
+        let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
+
+        // allocate local phi vector
+        let nnode = mesh.cells[0].kind.nnode();
+        let neq = nnode * mesh.ndim;
+        let mut phi = Vector::new(neq);
+
+        // analytical solver
+        let ana = integ::AnalyticalTet4::new(&elem.pad);
+
+        // check phi vector
+        elem.calc_residual(&mut phi, &state).unwrap();
+        let sigma = &state.gauss[0].solid[0].stress;
+        let correct = ana.vec_04_tb(sigma);
+        vec_approx_eq(&phi, &correct, 1e-15);
+    }
+
+    #[test]
+    fn calc_jacobian_works_3d() {
+        // allocate element
+        let young = 10_000.0;
+        let poisson = 0.2;
+        let (mesh, p1, base, config, state) = get_sample(true, young, poisson, false);
+        let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
+
+        // allocate local K matrix
+        let nnode = mesh.cells[0].kind.nnode();
+        let neq = nnode * mesh.ndim;
+        let mut kk = Matrix::new(neq, neq);
 
         // analytical solver
         let mut ana = integ::AnalyticalTet4::new(&elem.pad);
 
-        // check residual vector
+        // check Jacobian matrix
+        elem.calc_jacobian(&mut kk, &state).unwrap();
+        let correct = ana.mat_10_bdb(young, poisson).unwrap();
+        mat_approx_eq(&kk, &correct, 1e-12);
+    }
+
+    #[test]
+    fn calc_jacobian_alt_works_3d() {
+        // allocate element
+        let young = 10_000.0;
+        let poisson = 0.2;
+        let (mesh, p1, base, config, state) = get_sample(true, young, poisson, true);
+        let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
+
+        // allocate local K matrix
         let nnode = mesh.cells[0].kind.nnode();
         let neq = nnode * mesh.ndim;
-        let mut residual = Vector::new(neq);
-        elem.calc_residual(&mut residual, &state).unwrap();
-        #[rustfmt::skip]
-        let sigma = Tensor2::from_matrix(&[
-            [s00, s01, s20],
-            [s01, s11, s12],
-            [s20, s12, s22],
-        ], Mandel::Symmetric).unwrap();
-        let correct = ana.vec_04_tb(&sigma);
-        vec_approx_eq(&residual, &correct, 1e-15);
+        let mut kk = Matrix::new(neq, neq);
+
+        // analytical solver
+        let mut ana = integ::AnalyticalTet4::new(&elem.pad);
 
         // check Jacobian matrix
-        let mut jacobian = Matrix::new(neq, neq);
-        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        elem.calc_jacobian(&mut kk, &state).unwrap();
         let correct = ana.mat_10_bdb(young, poisson).unwrap();
-        mat_approx_eq(&jacobian, &correct, 1e-12);
+        mat_approx_eq(&kk, &correct, 1e-12);
     }
 
     #[test]
