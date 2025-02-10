@@ -120,7 +120,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, NAME, None)?;
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -133,7 +133,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
-        "spo_von_mises_2x2_elements_2d.json",
+        &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,
         1,

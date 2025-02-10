@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn reference_dataset_works() {
-        let filename = "data/results/spo_von_mises_single_element_2d.json";
+        let filename = "data/spo/test_von_mises_single_element_2d_ref.json";
         let reference = ReferenceDataSet::read_json(filename).unwrap();
         assert!(reference.all.len() > 0);
         assert_eq!(reference.n_point(), 4);

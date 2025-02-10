@@ -6,6 +6,7 @@ use russell_lab::*;
 
 const NAME: &str = "spo_755_tensile";
 const DRAW_MESH_AND_EXIT: bool = true;
+const VERBOSE_LEVEL: usize = 0;
 
 const YOUNG: f64 = 206.9; // Young's modulus
 const POISSON: f64 = 0.29; // Poisson's coefficient
@@ -130,7 +131,7 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, NAME, None)?;
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -144,10 +145,10 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
-        "spo_755_tensile_perf_plast.json",
+        &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,
-        2,
+        VERBOSE_LEVEL,
     )?;
     assert!(all_good);
     */

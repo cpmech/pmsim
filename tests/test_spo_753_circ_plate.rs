@@ -5,6 +5,7 @@ use russell_lab::*;
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
+const VERBOSE_LEVEL: usize = 0;
 
 const P_ARRAY: [f64; 13] = [
     0.0, 100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
@@ -72,7 +73,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, NAME, None)?;
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -87,10 +88,10 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
-        "spo_753_circ_plate.json",
+        &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,
-        2,
+        VERBOSE_LEVEL,
     )?;
     assert!(all_good);
     Ok(())

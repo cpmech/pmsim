@@ -1,4 +1,3 @@
-use crate::base::DEFAULT_OUT_DIR;
 use crate::fem::{FemBase, FemState};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -14,14 +13,14 @@ pub struct FileIo {
     /// Holds a flag to activate the file generation
     pub(crate) active: bool,
 
-    /// Defines the output directory
-    pub(crate) output_dir: String,
+    /// Defines the directory with the results
+    pub(crate) dir: String,
 
     /// Defines the filename stem
-    pub(crate) filename_stem: String,
+    pub(crate) fn_stem: String,
 
-    /// Holds the count of files written
-    output_count: usize,
+    /// Holds the number of files written
+    counter: usize,
 
     /// Holds the indices of the output files
     pub indices: Vec<usize>,
@@ -35,9 +34,9 @@ impl FileIo {
     pub fn new() -> Self {
         FileIo {
             active: false,
-            output_dir: String::new(),
-            filename_stem: String::new(),
-            output_count: 0,
+            dir: String::new(),
+            fn_stem: String::new(),
+            counter: 0,
             indices: Vec::new(),
             times: Vec::new(),
         }
@@ -47,39 +46,27 @@ impl FileIo {
     ///
     /// # Input
     ///
-    /// * `fem` -- the FEM mesh, attributes, and DOF numbers
-    /// * `filename_stem` -- the last part of the filename without extension, e.g., "my_simulation"
-    /// * `output_directory` -- the directory to save the output files.
-    ///   None means that the default directory will be used; see [DEFAULT_OUT_DIR]
-    pub fn activate(
-        &mut self,
-        mesh: &Mesh,
-        base: &FemBase,
-        filename_stem: &str,
-        output_directory: Option<&str>,
-    ) -> Result<(), StrError> {
-        // output directory
-        let out_dir = match output_directory {
-            Some(d) => d,
-            None => DEFAULT_OUT_DIR,
-        };
-
+    /// * `mesh` -- The mesh.
+    /// * `base` -- The material parameters, element attributes, and equation numbers.
+    /// * `dir` - The directory to save the summary and associated files.
+    /// * `fn_stem` - The filename stem used to construct the full path to the summary file.
+    pub fn activate(&mut self, mesh: &Mesh, base: &FemBase, dir: &str, fn_stem: &str) -> Result<(), StrError> {
         // create directory
-        fs::create_dir_all(out_dir).map_err(|_| "cannot create output directory")?;
+        fs::create_dir_all(dir).map_err(|_| "cannot create output directory")?;
 
         // write the mesh
-        let path = format!("{}/{}-mesh.msh", out_dir, filename_stem);
+        let path = format!("{}/{}-mesh.msh", dir, fn_stem);
         mesh.write(&path)?;
 
         // write the FEM base
-        let path = format!("{}/{}-base.json", out_dir, filename_stem);
+        let path = format!("{}/{}-base.json", dir, fn_stem);
         base.write_json(&path)?;
 
         // set structure
         self.active = true;
-        self.output_dir = out_dir.to_string();
-        self.filename_stem = filename_stem.to_string();
-        self.output_count = 0;
+        self.dir = dir.to_string();
+        self.fn_stem = fn_stem.to_string();
+        self.counter = 0;
         self.indices = Vec::new();
         self.times = Vec::new();
         Ok(())
@@ -88,7 +75,7 @@ impl FileIo {
     /// Generates the filename path for the mesh file
     pub fn path_mesh(&self) -> String {
         if self.active {
-            format!("{}/{}-mesh.msh", self.output_dir, self.filename_stem)
+            format!("{}/{}-mesh.msh", self.dir, self.fn_stem)
         } else {
             "".to_string()
         }
@@ -97,7 +84,7 @@ impl FileIo {
     /// Generates the filename path for the base file
     pub fn path_base(&self) -> String {
         if self.active {
-            format!("{}/{}-base.json", self.output_dir, self.filename_stem)
+            format!("{}/{}-base.json", self.dir, self.fn_stem)
         } else {
             "".to_string()
         }
@@ -106,7 +93,7 @@ impl FileIo {
     /// Generates the filename path for the summary file
     pub fn path_summary(&self) -> String {
         if self.active {
-            format!("{}/{}-summary.json", self.output_dir, self.filename_stem)
+            format!("{}/{}-summary.json", self.dir, self.fn_stem)
         } else {
             "".to_string()
         }
@@ -115,7 +102,7 @@ impl FileIo {
     /// Generates the filename path for the state files
     pub fn path_state(&self, index: usize) -> String {
         if self.active {
-            format!("{}/{}-{:0>20}.json", self.output_dir, self.filename_stem, index)
+            format!("{}/{}-{:0>20}.json", self.dir, self.fn_stem, index)
         } else {
             "".to_string()
         }
@@ -126,7 +113,7 @@ impl FileIo {
     /// The VTU file is associated with a single time station.
     pub fn path_vtu(&self, index: usize) -> String {
         if self.active {
-            format!("{}/{}-{:0>20}.vtu", self.output_dir, self.filename_stem, index)
+            format!("{}/{}-{:0>20}.vtu", self.dir, self.fn_stem, index)
         } else {
             "".to_string()
         }
@@ -137,7 +124,7 @@ impl FileIo {
     /// The PVD file is summary for all time stations.
     pub fn path_pvd(&self) -> String {
         if self.active {
-            format!("{}/{}.pvd", self.output_dir, self.filename_stem,)
+            format!("{}/{}.pvd", self.dir, self.fn_stem,)
         } else {
             "".to_string()
         }
@@ -180,13 +167,13 @@ impl FileIo {
     pub(crate) fn write_state(&mut self, state: &FemState) -> Result<(), StrError> {
         if self.active {
             // save the state
-            let path = self.path_state(self.output_count);
+            let path = self.path_state(self.counter);
             state.write_json(&path)?;
 
             // update counters
-            self.indices.push(self.output_count);
+            self.indices.push(self.counter);
             self.times.push(state.t);
-            self.output_count += 1;
+            self.counter += 1;
         }
         Ok(())
     }

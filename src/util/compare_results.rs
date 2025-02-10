@@ -25,7 +25,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> bool {
 ///
 /// * `mesh` -- The mesh
 /// * `file_io` -- The file output struct
-/// * `ref_filename` -- The filename of the file with the reference results (located in `data/results`)
+/// * `ref_full_path` -- The full path of the file with the reference results
 /// * `tol_displacement` -- A tolerance to compare displacements
 /// * `tol_stress` -- A tolerance to compare stresses
 /// * `verbose` -- Enables the verbose mode:
@@ -40,7 +40,7 @@ pub fn compare_results(
     mesh: &Mesh,
     base: &FemBase,
     file_io: &FileIo,
-    ref_filename: &str,
+    ref_full_path: &str,
     tol_displacement: f64,
     tol_stress: f64,
     verbose: usize,
@@ -59,7 +59,7 @@ pub fn compare_results(
     }
 
     // load reference results
-    let reference = ReferenceDataSet::read_json(format!("data/results/{}", ref_filename).as_str())?;
+    let reference = ReferenceDataSet::read_json(ref_full_path)?;
 
     // compare results
     let mut all_good = true;

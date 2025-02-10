@@ -37,7 +37,7 @@ impl<'a> PostProc<'a> {
     ///
     /// # Arguments
     ///
-    /// * `out_dir` - The output directory where the summary and associated files are located.
+    /// * `dir` - The directory where the summary and associated files are located.
     /// * `fn_stem` - The filename stem used to construct the full path to the summary file.
     ///
     /// # Returns
@@ -51,13 +51,13 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if any of the files cannot be read or parsed.
-    pub fn read_summary(out_dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
+    pub fn read_summary(dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
         // load FileIo
-        let full_path = format!("{}/{}-summary.json", out_dir, fn_stem);
+        let full_path = format!("{}/{}-summary.json", dir, fn_stem);
         let mut file_io = FileIo::read_json(&full_path)?;
 
         // update output_dir because the files may have been moved
-        file_io.output_dir = out_dir.to_string();
+        file_io.dir = dir.to_string();
 
         // load the mesh
         let path_mesh = file_io.path_mesh();
@@ -811,7 +811,9 @@ mod tests {
         config.update_model_settings(1).save_strain = true;
 
         let mut file_io = FileIo::new();
-        file_io.activate(&mesh, &base, "artificial-elastic-2d", None).unwrap();
+        file_io
+            .activate(&mesh, &base, "/tmp/pmsim", "artificial-elastic-2d")
+            .unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
@@ -872,7 +874,9 @@ mod tests {
         config.update_model_settings(2).save_strain = true;
 
         let mut file_io = FileIo::new();
-        file_io.activate(&mesh, &base, "artificial-elastic-3d", None).unwrap();
+        file_io
+            .activate(&mesh, &base, "/tmp/pmsim", "artificial-elastic-3d")
+            .unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);

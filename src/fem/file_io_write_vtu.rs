@@ -257,7 +257,7 @@ mod tests {
         let index = 0;
         let fn_stem = "test_write_vtu_works";
         let mut file_io = FileIo::new();
-        file_io.activate(&mesh, &base, fn_stem, None).unwrap();
+        file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
         file_io.write_vtu(&mesh, &base, &state, index).unwrap();
 
         let fn_path = file_io.path_vtu(index);
@@ -313,7 +313,7 @@ mod tests {
         let fn_stem = "test_write_pvd_works";
         let mut file_io = FileIo::new();
 
-        file_io.activate(&mesh, &base, fn_stem, None).unwrap();
+        file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
         file_io.write_state(&state).unwrap();
         file_io.write_pvd().unwrap();
 
@@ -324,7 +324,7 @@ mod tests {
             r#"<?xml version="1.0"?>
 <VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
 <Collection>
-<DataSet timestep="0.0" file="/tmp/pmsim/results/test_write_pvd_works-00000000000000000000.vtu" />
+<DataSet timestep="0.0" file="/tmp/pmsim/test_write_pvd_works-00000000000000000000.vtu" />
 </Collection>
 </VTKFile>
 "#

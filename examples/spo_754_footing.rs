@@ -3,8 +3,7 @@ use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::Stopwatch;
 
-const MESH_NAME: &str = "spo_754_footing";
-const RESULTS_NAME: &str = "spo_754_footing";
+const NAME: &str = "spo_754_footing";
 
 const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.48; // Poisson's coefficient
@@ -17,7 +16,7 @@ pub fn main() -> Result<(), StrError> {
     let mut sw = Stopwatch::new();
 
     // mesh
-    let mesh = Mesh::read(&format!("data/spo/{}.msh", MESH_NAME))?;
+    let mesh = Mesh::read(&format!("data/spo/{}.msh", NAME))?;
 
     // features
     let features = Features::new(&mesh, false);
@@ -86,7 +85,7 @@ pub fn main() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, RESULTS_NAME, None)?;
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;

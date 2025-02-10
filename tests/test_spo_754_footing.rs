@@ -5,6 +5,7 @@ use russell_lab::*;
 
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
+const VERBOSE_LEVEL: usize = 0;
 
 const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.48; // Poisson's coefficient
@@ -97,7 +98,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, NAME, None)?;
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -110,10 +111,10 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
-        "spo_754_footing.json",
+        &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,
-        0,
+        VERBOSE_LEVEL,
     )?;
     assert!(all_good);
     Ok(())

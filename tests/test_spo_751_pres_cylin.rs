@@ -34,6 +34,7 @@ use russell_lab::*;
 const NAME: &str = "spo_751_pres_cylin";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
+const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
@@ -89,7 +90,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, NAME, None)?;
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -102,10 +103,10 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
-        "spo_751_pres_cylin.json",
+        &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,
-        0,
+        VERBOSE_LEVEL,
     )?;
     assert!(all_good);
 
@@ -115,7 +116,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
 
 fn post_processing() -> Result<(), StrError> {
     // load summary and associated files
-    let (file_io, mesh, base) = PostProc::read_summary(DEFAULT_OUT_DIR, NAME)?;
+    let (file_io, mesh, base) = PostProc::read_summary("/tmp/pmsim", NAME)?;
     let mut post = PostProc::new(&mesh, &base);
 
     // boundaries

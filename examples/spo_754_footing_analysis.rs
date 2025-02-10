@@ -1,16 +1,16 @@
 use gemlab::mesh::{At, Features};
 use gemlab::util::any_x;
 use plotpy::{Curve, Legend, Plot};
-use pmsim::base::{Dof, DEFAULT_OUT_DIR};
+use pmsim::base::Dof;
 use pmsim::fem::PostProc;
 use pmsim::StrError;
 use russell_lab::math::SQRT_3;
 use russell_lab::Matrix;
 
-const RESULTS_NAME: &str = "spo_754_footing";
+const NAME: &str = "spo_754_footing";
 
 pub fn main() -> Result<(), StrError> {
-    let (file_io, mesh, base) = PostProc::read_summary(DEFAULT_OUT_DIR, RESULTS_NAME)?;
+    let (file_io, mesh, base) = PostProc::read_summary("/tmp/pmsim", NAME)?;
     let mut post = PostProc::new(&mesh, &base);
 
     let (min, max) = mesh.get_limits();
