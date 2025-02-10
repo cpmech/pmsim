@@ -8,15 +8,22 @@ use std::path::Path;
 
 /// Holds reference results for comparisons and tests
 #[derive(Serialize, Deserialize)]
-pub struct ReferenceIterationInfo {
+pub(crate) struct ReferenceIterationInfo {
     number: usize,
     ratio: f64,
     residual: f64,
 }
 
-/// Holds reference results for comparisons and tests
+/// Holds SPO reference results for comparisons and tests
+///
+/// SPO stands for de Souza Neto, Peric, and Owen from Reference #1.
+///
+/// # Reference
+///
+/// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
+///    Theory and applications, Wiley, 791p
 #[derive(Serialize, Deserialize)]
-pub struct ReferenceData {
+pub(crate) struct ReferenceData {
     /// Holds the load factor
     load_factor: f64,
 
@@ -43,7 +50,7 @@ pub struct ReferenceData {
 
 /// Holds reference results for comparisons and tests
 #[derive(Serialize, Deserialize)]
-pub struct ReferenceDataSet {
+pub(crate) struct ReferenceDataSet {
     pub all: Vec<ReferenceData>,
 }
 
