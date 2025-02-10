@@ -1,7 +1,7 @@
 use gemlab::prelude::*;
 use plotpy::Text;
 use pmsim::prelude::*;
-use pmsim::util::compare_results;
+use pmsim::util::{compare_results, ReferenceDataType};
 use russell_lab::*;
 
 const MESH_NAME: &str = "spo_755_tensile";
@@ -92,6 +92,7 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
+        ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,

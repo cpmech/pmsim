@@ -2,7 +2,7 @@ use gemlab::prelude::*;
 use plotpy::Curve;
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresSphere};
 use pmsim::prelude::*;
-use pmsim::util::compare_results;
+use pmsim::util::{compare_results, ReferenceDataType};
 use russell_lab::math::PI;
 use russell_lab::*;
 
@@ -109,6 +109,7 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
+        ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,

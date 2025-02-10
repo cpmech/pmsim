@@ -2,7 +2,7 @@ use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::analytical::PlastCircularPlateAxisym;
 use pmsim::prelude::*;
-use pmsim::util::compare_results;
+use pmsim::util::{compare_results, ReferenceDataType};
 use russell_lab::*;
 
 const NAME: &str = "spo_753_circ_plate";
@@ -93,6 +93,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
+        RefData::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,

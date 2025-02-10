@@ -1,4 +1,4 @@
-use super::{ReferenceDataSPOArray, ReferenceDataTrait};
+use super::{ReferenceData, ReferenceDataType};
 use crate::base::Dof;
 use crate::fem::{FemBase, FemState, FileIo};
 use crate::StrError;
@@ -27,7 +27,8 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 ///
 /// * `mesh` -- The mesh
 /// * `file_io` -- The file output struct
-/// * `ref_full_path` -- The full path of the file with the reference results
+/// * `ref_type` -- The type (origin) of the reference data
+/// * `ref_path` -- The full path of the file with the reference results
 /// * `tol_displacement` -- A tolerance to compare displacements
 /// * `tol_stress` -- A tolerance to compare stresses
 /// * `verbose` -- Enables the verbose mode:
@@ -42,7 +43,8 @@ pub fn compare_results(
     mesh: &Mesh,
     base: &FemBase,
     file_io: &FileIo,
-    ref_full_path: &str,
+    ref_type: ReferenceDataType,
+    ref_path: &str,
     tol_displacement: f64,
     tol_stress: f64,
     verbose: usize,
@@ -61,11 +63,11 @@ pub fn compare_results(
     }
 
     // load reference results
-    let reference = ReferenceDataSPOArray::read_json(ref_full_path)?;
-    if npoint != reference.npoint() {
+    let dat = ReferenceData::load(ref_type, ref_path)?;
+    if npoint != dat.actual.npoint() {
         return Err("the number of points in the mesh must equal the corresponding number in the reference data");
     }
-    if ncell != reference.ncell() {
+    if ncell != dat.actual.ncell() {
         return Err("the number of elements in the mesh must be equal to the reference number of elements (stresses)");
     }
 
@@ -76,7 +78,7 @@ pub fn compare_results(
     // compare results
     let mut all_good = true;
     let summary = FileIo::read_json(&file_io.path_summary())?;
-    if summary.indices.len() != reference.nstep() + 1 {
+    if summary.indices.len() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
     for index in 1..summary.indices.len() {
@@ -101,7 +103,7 @@ pub fn compare_results(
             for i in 0..ndim {
                 let eq = base.equations.eq(p, dofs[i]).unwrap();
                 let a = fem_state.uu[eq];
-                let b = reference.displacement(step, p, i);
+                let b = dat.actual.displacement(step, p, i);
                 let (fail, diff) = query_failed(a, b, tol_displacement, verbose);
                 diff_displacement_max = f64::max(diff_displacement_max, diff);
                 if fail {
@@ -118,7 +120,7 @@ pub fn compare_results(
             println!("ERROR ON STRESSES");
         }
         for e in 0..ncell {
-            let ngauss = reference.ngauss(step, e);
+            let ngauss = dat.actual.ngauss(step, e);
             if ngauss < 1 {
                 return Err("there must be at least on integration point in reference data (stress)");
             }
@@ -128,9 +130,9 @@ pub fn compare_results(
                 for i in 0..tensor_vec_dim {
                     let a = local_state.stress.vector()[i];
                     let b = if i > 2 {
-                        reference.stresses(step, e, ip, i) * SQRT_2 // convert to Mandel
+                        dat.actual.stresses(step, e, ip, i) * SQRT_2 // convert to Mandel
                     } else {
-                        reference.stresses(step, e, ip, i)
+                        dat.actual.stresses(step, e, ip, i)
                     };
                     let (fail, diff) = query_failed(a, b, tol_stress, verbose);
                     diff_stress_max = f64::max(diff_stress_max, diff);

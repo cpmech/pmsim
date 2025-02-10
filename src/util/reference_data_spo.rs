@@ -8,27 +8,20 @@ use std::path::Path;
 
 /// Holds reference results for comparisons and tests
 #[derive(Serialize, Deserialize)]
-struct ReferenceIterationInfo {
+struct IterationInfo {
     number: usize,
     ratio: f64,
     residual: f64,
 }
 
 /// Holds SPO reference results for comparisons and tests
-///
-/// SPO stands for de Souza Neto, Peric, and Owen from Reference #1.
-///
-/// # Reference
-///
-/// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
-///    Theory and applications, Wiley, 791p
 #[derive(Serialize, Deserialize)]
-struct ReferenceDataSPO {
+struct DataSPO {
     /// Holds the load factor
     load_factor: f64,
 
     /// Holds the information about iterations
-    iterations: Vec<ReferenceIterationInfo>,
+    iterations: Vec<IterationInfo>,
 
     /// Holds the displacements
     ///
@@ -48,14 +41,21 @@ struct ReferenceDataSPO {
     plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][ngauss][3]
 }
 
-/// Implements an array of ReferenceDataSPO
+/// Implements an array of SPO reference data
+///
+/// SPO stands for de Souza Neto, Peric, and Owen from Reference #1.
+///
+/// # Reference
+///
+/// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
+///    Theory and applications, Wiley, 791p
 #[derive(Serialize, Deserialize)]
-pub(crate) struct ReferenceDataSPOArray {
+pub(crate) struct ReferenceDataSPO {
     /// Holds the data from all loading steps `[nstep]`
-    all: Vec<ReferenceDataSPO>,
+    all: Vec<DataSPO>,
 }
 
-impl ReferenceDataSPOArray {
+impl ReferenceDataSPO {
     /// Reads a JSON file containing the results
     ///
     /// # Input
@@ -73,7 +73,7 @@ impl ReferenceDataSPOArray {
     }
 }
 
-impl ReferenceDataTrait for ReferenceDataSPOArray {
+impl ReferenceDataTrait for ReferenceDataSPO {
     fn nstep(&self) -> usize {
         self.all.len()
     }
@@ -105,12 +105,12 @@ impl ReferenceDataTrait for ReferenceDataSPOArray {
 
 #[cfg(test)]
 mod tests {
-    use super::ReferenceDataSPOArray;
+    use super::ReferenceDataSPO;
 
     #[test]
     fn reference_dataset_works() {
         let filename = "data/spo/test_von_mises_single_element_2d_ref.json";
-        let reference = ReferenceDataSPOArray::read_json(filename).unwrap();
+        let reference = ReferenceDataSPO::read_json(filename).unwrap();
         assert!(reference.all.len() > 0);
     }
 }

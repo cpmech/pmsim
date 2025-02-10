@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use pmsim::prelude::*;
-use pmsim::util::compare_results;
+use pmsim::util::{compare_results, ReferenceDataType};
 use russell_lab::*;
 
 const NAME: &str = "spo_754_footing";
@@ -111,6 +111,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         &mesh,
         &base,
         &file_io,
+        ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,
