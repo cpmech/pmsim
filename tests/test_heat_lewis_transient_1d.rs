@@ -142,13 +142,18 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         block.set_ndiv(&[10, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
-        // write mesh
-        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
-
-        // write figure
+        // draw figure
         let mut fig = Figure::new();
-        fig.draw(&mesh, &format!("{}/{}_mesh.svg", DEFAULT_TEST_DIR, NAME))
+        fig.show_point_ids(true)
+            .show_cell_ids(true)
+            .show_cell_att(false)
+            .range_2d(-1.0, 21.0, -0.5, 1.5)
+            .size(600.0, 100.0)
+            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
+
+        // write mesh
+        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh
