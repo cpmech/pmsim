@@ -1,3 +1,4 @@
+use super::ReferenceDataTrait;
 use crate::StrError;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
@@ -8,36 +9,36 @@ use std::path::Path;
 /// Holds reference results for comparisons and tests
 #[derive(Serialize, Deserialize)]
 pub struct ReferenceIterationInfo {
-    pub number: usize,
-    pub ratio: f64,
-    pub residual: f64,
+    number: usize,
+    ratio: f64,
+    residual: f64,
 }
 
 /// Holds reference results for comparisons and tests
 #[derive(Serialize, Deserialize)]
 pub struct ReferenceData {
     /// Holds the load factor
-    pub load_factor: f64,
+    load_factor: f64,
 
     /// Holds the information about iterations
-    pub iterations: Vec<ReferenceIterationInfo>,
+    iterations: Vec<ReferenceIterationInfo>,
 
     /// Holds the displacements
     ///
     /// Size: `[npoint][ndim]`
-    pub displacement: Vec<Vec<f64>>,
+    displacement: Vec<Vec<f64>>,
 
     /// Holds the stresses (standard components)
     /// Size: `[nele][ngauss][n_components]`
-    pub stresses: Vec<Vec<Vec<f64>>>,
+    stresses: Vec<Vec<Vec<f64>>>,
 
     /// Holds the elastic strains (standard components)
     ///
     /// Size: `[nele][ngauss][n_components]`
-    pub elastic_strains: Vec<Vec<Vec<f64>>>,
+    elastic_strains: Vec<Vec<Vec<f64>>>,
 
     /// Holds (plastic_loading, apex_return, acc_plastic_strain)
-    pub plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][ngauss][3]
+    plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][ngauss][3]
 }
 
 /// Holds reference results for comparisons and tests
@@ -97,6 +98,22 @@ impl ReferenceDataSet {
         } else {
             0
         }
+    }
+}
+
+impl ReferenceDataTrait for ReferenceData {
+    /// Returns the displacements
+    ///
+    /// Size: `[npoint][ndim]`
+    fn displacement(&self) -> &Vec<Vec<f64>> {
+        &self.displacement
+    }
+
+    /// Returns the stresses (standard components)
+    ///
+    /// Size: `[nele][ngauss][n_components]`
+    fn stresses(&self) -> &Vec<Vec<Vec<f64>>> {
+        &self.stresses
     }
 }
 

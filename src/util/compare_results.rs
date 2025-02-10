@@ -5,6 +5,18 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
 
+pub(crate) trait ReferenceDataTrait {
+    /// Returns the displacements
+    ///
+    /// Size: `[npoint][ndim]`
+    fn displacement(&self) -> &Vec<Vec<f64>>;
+
+    /// Returns the stresses (standard components)
+    ///
+    /// Size: `[nele][ngauss][n_components]`
+    fn stresses(&self) -> &Vec<Vec<Vec<f64>>>;
+}
+
 /// Queries whether A failed to compare with B or not
 ///
 /// Returns `(fail, diff)`
@@ -75,10 +87,10 @@ pub fn compare_results(
     }
     for step in 1..summary.indices.len() {
         let compare = &reference.all[step - 1];
-        if npoint != compare.displacement.len() {
+        if npoint != compare.displacement().len() {
             return Err("the number of points in the mesh must equal the corresponding number in the reference data");
         }
-        if ncell != compare.stresses.len() {
+        if ncell != compare.stresses().len() {
             return Err(
                 "the number of elements in the mesh must be equal to the reference number of elements (stresses)",
             );
@@ -99,13 +111,13 @@ pub fn compare_results(
             println!("ERROR ON DISPLACEMENTS");
         }
         for p in 0..npoint {
-            if ndim != compare.displacement[p].len() {
+            if ndim != compare.displacement()[p].len() {
                 return Err("the space dimension (ndim) must equal the reference data ndim");
             }
             for i in 0..ndim {
                 let eq = base.equations.eq(p, dofs[i]).unwrap();
                 let a = fem_state.uu[eq];
-                let b = compare.displacement[p][i];
+                let b = compare.displacement()[p][i];
                 let (fail, diff) = query_failed(a, b, tol_displacement, verbose);
                 diff_displacement_max = f64::max(diff_displacement_max, diff);
                 if fail {
@@ -122,11 +134,11 @@ pub fn compare_results(
             println!("ERROR ON STRESSES");
         }
         for e in 0..ncell {
-            let ngauss = compare.stresses[e].len();
+            let ngauss = compare.stresses()[e].len();
             if ngauss < 1 {
                 return Err("there must be at least on integration point in reference data (stress)");
             }
-            let ref_tensor_vec_dim = compare.stresses[e][0].len();
+            let ref_tensor_vec_dim = compare.stresses()[e][0].len();
             if tensor_vec_dim != ref_tensor_vec_dim {
                 return Err("the number of stress components must equal the reference number of stress components");
             }
@@ -136,9 +148,9 @@ pub fn compare_results(
                 for i in 0..tensor_vec_dim {
                     let a = local_state.stress.vector()[i];
                     let b = if i > 2 {
-                        compare.stresses[e][ip][i] * SQRT_2 // convert to Mandel
+                        compare.stresses()[e][ip][i] * SQRT_2 // convert to Mandel
                     } else {
-                        compare.stresses[e][ip][i]
+                        compare.stresses()[e][ip][i]
                     };
                     let (fail, diff) = query_failed(a, b, tol_stress, verbose);
                     diff_stress_max = f64::max(diff_stress_max, diff);
