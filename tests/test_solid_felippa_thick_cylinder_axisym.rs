@@ -114,12 +114,15 @@ fn generate_or_read_mesh(rin: f64, rout: f64, thickness: f64, generate: bool) ->
         block.set_ndiv(&[2, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
-        // write mesh
-        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
-
-        // write figure
+        // draw figure
         let mut fig = Figure::new();
-        fig.draw(&mesh, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME)).unwrap();
+        fig.show_point_ids(true)
+            .show_cell_ids(true)
+            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .unwrap();
+
+        // write mesh
+        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh
