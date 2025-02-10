@@ -88,7 +88,6 @@ impl ElastPlaneStrainPresCylin {
 #[cfg(test)]
 mod tests {
     use super::ElastPlaneStrainPresCylin;
-    use crate::base::DEFAULT_TEST_DIR;
     use plotpy::{linspace, Curve, Plot};
     use russell_lab::approx_eq;
 
@@ -136,7 +135,7 @@ mod tests {
             plot.add(&curve1)
                 .add(&curve2)
                 .grid_labels_legend("dimensionless distance, $r/r_2$", "dimensionless stress")
-                .save(&format!("{}/press_cylin_plane_strain_2.svg", DEFAULT_TEST_DIR))
+                .save("/tmp/pmsim/test_elast_plane_strain_pres_cylin.svg")
                 .unwrap();
         }
     }

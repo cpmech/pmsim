@@ -132,7 +132,7 @@ mod tests {
     use plotpy::{Curve, Plot};
     use russell_lab::approx_eq;
 
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     #[test]
     fn stress_works() {
