@@ -12,14 +12,6 @@ use crate::StrError;
 ///    Element Method, Wiley, Fifth Edition, 664p
 /// 2. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 ///    Theory and applications, Wiley, 791p
-///
-/// # Examples
-///
-/// ```
-/// use pmsim::util::ReferenceDataType;
-///
-/// let data_type = ReferenceDataType::SPO;
-/// ```
 pub enum ReferenceDataType {
     /// Reference data from Smith, Griffiths, and Margetts (2014)
     SGM,
@@ -35,23 +27,6 @@ pub enum ReferenceDataType {
 ///
 /// The reference data can be used to validate finite element implementations
 /// by comparing numerical results with published solutions.
-///
-/// # Examples
-///
-/// ```
-/// use pmsim::util::{ReferenceData, ReferenceDataType};
-///
-/// let ref_data = ReferenceData::load(
-///     ReferenceDataType::SPO,
-///     "path/to/reference_data.json"
-/// )?;
-///
-/// // Get number of timesteps
-/// let nstep = ref_data.actual.nstep();
-///
-/// // Access displacement at point 0, x-direction, first timestep
-/// let ux = ref_data.actual.displacement(0, 0, 0);
-/// ```
 pub trait ReferenceDataTrait {
     /// Returns the number of load increments or timesteps in the reference solution
     fn nstep(&self) -> usize;
@@ -106,17 +81,6 @@ pub trait ReferenceDataTrait {
 ///
 /// This struct wraps different implementations of reference data providers,
 /// allowing uniform access to reference solutions regardless of their source.
-///
-/// # Examples
-///
-/// ```
-/// use pmsim::util::{ReferenceData, ReferenceDataType};
-///
-/// let ref_data = ReferenceData::load(
-///     ReferenceDataType::SPO,
-///     "path/to/reference_data.json"
-/// )?;
-/// ```
 pub struct ReferenceData<'a> {
     /// The concrete implementation of the reference data provider
     pub actual: Box<dyn ReferenceDataTrait + 'a>,
@@ -127,15 +91,15 @@ impl<'a> ReferenceData<'a> {
     ///
     /// # Arguments
     ///
-    /// * `typ` - The type of reference data to load
+    /// * `ref_type` - The type of reference data to load
     /// * `full_path` - Full path to the JSON file containing the reference data
     ///
     /// # Returns
     ///
     /// A new `ReferenceData` instance on success, or an error if the file
     /// cannot be read or parsed
-    pub fn load(typ: ReferenceDataType, full_path: &str) -> Result<Self, StrError> {
-        let actual: Box<dyn ReferenceDataTrait> = match typ {
+    pub fn load(ref_type: ReferenceDataType, full_path: &str) -> Result<Self, StrError> {
+        let actual: Box<dyn ReferenceDataTrait> = match ref_type {
             ReferenceDataType::SGM => panic!("TODO"),
             ReferenceDataType::SPO => Box::new(ReferenceDataSPO::read_json(full_path)?),
         };
