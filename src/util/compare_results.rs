@@ -6,7 +6,9 @@ use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
 
 /// Queries whether A failed to compare with B or not
-fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> bool {
+///
+/// Returns `(fail, diff)`
+fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
     let diff = f64::abs(a - b);
     let fail = diff > tol;
     if verbose == 1 {
@@ -16,7 +18,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> bool {
         let mrk = if fail { "❌" } else { "➖" };
         print!("{:9.2e} vs {:9.2e}({:9.2e}{}) ", a, b, diff, mrk);
     }
-    fail
+    (fail, diff)
 }
 
 /// Compares the FEM results (displacement, stress, strain) against reference data
@@ -61,6 +63,10 @@ pub fn compare_results(
     // load reference results
     let reference = ReferenceDataSet::read_json(ref_full_path)?;
 
+    // stats
+    let mut diff_displacement_max = f64::MIN;
+    let mut diff_stress_max = f64::MIN;
+
     // compare results
     let mut all_good = true;
     let summary = FileIo::read_json(&file_io.path_summary())?;
@@ -100,7 +106,9 @@ pub fn compare_results(
                 let eq = base.equations.eq(p, dofs[i]).unwrap();
                 let a = fem_state.uu[eq];
                 let b = compare.displacement[p][i];
-                if query_failed(a, b, tol_displacement, verbose) {
+                let (fail, diff) = query_failed(a, b, tol_displacement, verbose);
+                diff_displacement_max = f64::max(diff_displacement_max, diff);
+                if fail {
                     all_good = false;
                 }
             }
@@ -132,7 +140,9 @@ pub fn compare_results(
                     } else {
                         compare.stresses[e][ip][i]
                     };
-                    if query_failed(a, b, tol_stress, verbose) {
+                    let (fail, diff) = query_failed(a, b, tol_stress, verbose);
+                    diff_stress_max = f64::max(diff_stress_max, diff);
+                    if fail {
                         all_good = false;
                     }
                 }
@@ -141,6 +151,11 @@ pub fn compare_results(
                 }
             }
         }
+    }
+    if verbose > 0 {
+        println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
+        println!("diff_stress_max       = {:9.2e}", diff_stress_max);
+        println!();
     }
     Ok(all_good)
 }
