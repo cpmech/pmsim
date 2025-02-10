@@ -14,10 +14,8 @@ use russell_tensor::{Mandel, Tensor2, SQRT_2_BY_3, SQRT_3_BY_2};
 //                                                                   //
 ///////////////////////////////////////////////////////////////////////
 
-const FILE_STEM: &str = "test_elastic_in_elastoplastic";
-
-const SAVE_FIGURE: bool = true;
-
+const NAME: &str = "test_elastic_in_elastoplastic";
+const SAVE_FIGURE: bool = false;
 const N_STEP: usize = 4;
 
 #[test]
@@ -217,7 +215,7 @@ fn do_plot(
         plot.set_yrange(-1.0, 1.0);
     });
     plotter.set_figure_size(800.0, 1000.0);
-    plotter.save(&format!("/tmp/pmsim/{}_{}.svg", FILE_STEM, index))
+    plotter.save(&format!("/tmp/pmsim/{}_{}.svg", NAME, index))
 }
 
 // Generates stresses and strain increments to "walk" on the octahedral plane along three directions
