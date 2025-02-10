@@ -1,4 +1,4 @@
-use super::ReferenceDataSPO;
+use super::{ReferenceDataSGM, ReferenceDataSPO};
 use crate::StrError;
 
 /// Specifies the source of reference data for validation purposes
@@ -100,7 +100,7 @@ impl<'a> ReferenceData<'a> {
     /// cannot be read or parsed
     pub fn load(ref_type: ReferenceDataType, full_path: &str) -> Result<Self, StrError> {
         let actual: Box<dyn ReferenceDataTrait> = match ref_type {
-            ReferenceDataType::SGM => panic!("TODO"),
+            ReferenceDataType::SGM => Box::new(ReferenceDataSGM::read_json(full_path)?),
             ReferenceDataType::SPO => Box::new(ReferenceDataSPO::read_json(full_path)?),
         };
         Ok(ReferenceData { actual })

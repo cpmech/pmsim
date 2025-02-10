@@ -1,5 +1,7 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*};
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
+use pmsim::util::{compare_results, ReferenceDataType};
 use russell_lab::*;
 
 // Smith's Example 5.17 (Figure 5.17) on page 187
@@ -42,8 +44,10 @@ use russell_lab::*;
 // Plane-strain
 // NOTE: using 9 integration points
 
+const VERBOSE_LEVEL: usize = 0;
+
 #[test]
-fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
+fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d17_qua4();
 
@@ -96,6 +100,7 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
+    file_io.activate(&mesh, &base, "/tmp/pmsim/", "test_solid_smith_5d17_qua4_axisym")?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -132,5 +137,20 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
     ]);
     let e0 = &solver.elements.all[0];
     mat_approx_eq(&e0.kke, &kk_e0_ref, 1e-5);
+
+    // compare the results with the reference
+    let tol_displacement = 7e-10;
+    let tol_stress = 8e-8;
+    let all_good = compare_results(
+        &mesh,
+        &base,
+        &file_io,
+        ReferenceDataType::SGM,
+        "data/sgm/sgm_5d17_ref.json",
+        tol_displacement,
+        tol_stress,
+        VERBOSE_LEVEL,
+    )?;
+    assert!(all_good);
     Ok(())
 }

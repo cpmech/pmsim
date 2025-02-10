@@ -6,41 +6,26 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-/// Stores iteration information for nonlinear solutions
+/// Stores reference results from Smith, Griffiths, and Margetts (2008)
 ///
-/// This structure holds convergence data for each nonlinear iteration,
-/// including the iteration number, convergence ratio, and residual norm.
-#[derive(Serialize, Deserialize)]
-struct IterationInfo {
-    /// The iteration counter
-    number: usize,
-
-    /// The convergence ratio between consecutive iterations
-    ratio: f64,
-
-    /// The residual norm
-    residual: f64,
-}
-
-/// Stores reference results from de Souza Neto, Peric, and Owen (2008)
+/// This structure contains field variables (displacements, stresses)
 ///
-/// This structure contains all the field variables (displacements, stresses, strains)
-/// at a specific load step, along with convergence information.
-///
-/// The data is organized to match the format used in the reference book:
-/// "Computational Methods for Plasticity: Theory and Applications" (2008).
+/// The data is organized to match the format used in the code described in reference book:
+/// "Programming the Finite Element Method" by Smith, Griffiths, and Margetts. (2014)"
 ///
 /// # Reference
 ///
-/// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
-///    Theory and applications, Wiley, 791p
+/// 1. Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+///    Element Method, Wiley, Fifth Edition, 664p
 #[derive(Serialize, Deserialize)]
-struct DataSPO {
-    /// The load factor for this step
-    load_factor: f64,
+struct DataSGM {
+    /// Status message
+    status: String,
 
-    /// Information about nonlinear iterations
-    iterations: Vec<IterationInfo>,
+    /// Stiffness matrices
+    ///
+    /// Data structure: `[ncell][ncomp][ncomp]`
+    stiffness: Vec<Vec<Vec<f64>>>,
 
     /// Nodal displacement components
     ///
@@ -48,6 +33,9 @@ struct DataSPO {
     /// * `npoint` - Number of mesh points/nodes
     /// * `ndim` - Number of spatial dimensions (2 or 3)
     displacement: Vec<Vec<f64>>,
+
+    /// Note message
+    note: String,
 
     /// Stress components at Gauss points
     ///
@@ -58,24 +46,6 @@ struct DataSPO {
     ///   * 2D: `[σxx, σyy, σzz, σxy]`
     ///   * 3D: `[σxx, σyy, σzz, σxy, σyz, σzx]`
     stresses: Vec<Vec<Vec<f64>>>,
-
-    /// Elastic strain components at Gauss points
-    ///
-    /// Data structure: `[ncell][ngauss][ncomp]`
-    /// * `ncell` - Number of cells/elements
-    /// * `ngauss` - Number of Gauss points per cell
-    /// * `ncomp` - Number of strain components in Voigt notation (note that `γij = 2 εij`)
-    ///   * 2D: `[εxx, εyy, εzz, γxy]`
-    ///   * 3D: `[εxx, εyy, εzz, γxy, γyz, γzx]`
-    elastic_strains: Vec<Vec<Vec<f64>>>,
-
-    /// Plasticity data at Gauss points
-    ///
-    /// Data structure: `[ncell][ngauss][3]`
-    /// * Index 0: Plastic loading flag (1.0 = loading, 0.0 = not loading)
-    /// * Index 1: Apex return flag (1.0 = apex return performed)
-    /// * Index 2: Accumulated plastic strain
-    plast_apex_epbar: Vec<Vec<Vec<f64>>>,
 }
 
 /// Implements reference data from de Souza Neto, Peric, and Owen (2008)
@@ -87,14 +57,14 @@ struct DataSPO {
 /// The data is typically used to validate finite element implementations by
 /// comparing numerical results with the published solutions.
 #[derive(Serialize, Deserialize)]
-pub(crate) struct ReferenceDataSPO {
+pub(crate) struct ReferenceDataSGM {
     /// Data from all loading steps
     ///
     /// The vector index corresponds to the load step number
-    all: Vec<DataSPO>,
+    all: Vec<DataSGM>,
 }
 
-impl ReferenceDataSPO {
+impl ReferenceDataSGM {
     /// Reads reference data from a JSON file
     ///
     /// # Arguments
@@ -103,7 +73,7 @@ impl ReferenceDataSPO {
     ///
     /// # Returns
     ///
-    /// Returns a new `ReferenceDataSPO` instance on success
+    /// Returns a new `ReferenceDataSGM` instance on success
     ///
     /// # Errors
     ///
@@ -122,7 +92,7 @@ impl ReferenceDataSPO {
     }
 }
 
-impl ReferenceDataTrait for ReferenceDataSPO {
+impl ReferenceDataTrait for ReferenceDataSGM {
     fn nstep(&self) -> usize {
         self.all.len()
     }
@@ -154,29 +124,34 @@ impl ReferenceDataTrait for ReferenceDataSPO {
 
 #[cfg(test)]
 mod tests {
-    use super::ReferenceDataSPO;
+    use super::ReferenceDataSGM;
     use crate::util::ReferenceDataTrait;
 
-    const TEST_FILE: &str = "data/spo/test_von_mises_single_element_2d_ref.json";
+    const TEST_FILE: &str = "data/sgm/sgm_5d17_ref.json";
 
     #[test]
     fn test_read_json_works() {
-        let reference = ReferenceDataSPO::read_json(TEST_FILE).unwrap();
+        let reference = ReferenceDataSGM::read_json(TEST_FILE).unwrap();
         assert!(reference.all.len() > 0);
+        assert_eq!(
+            reference.all[0].status,
+            "There are   12 equations and the skyline storage is   58"
+        );
+        assert_eq!(reference.all[0].note, "number of integration points (nip) =  9");
     }
 
     #[test]
     fn test_read_json_handles_errors() {
         // Non-existent file
-        assert!(ReferenceDataSPO::read_json("nonexistent.json").is_err());
+        assert!(ReferenceDataSGM::read_json("nonexistent.json").is_err());
 
         // Invalid JSON file
-        assert!(ReferenceDataSPO::read_json("Cargo.toml").is_err());
+        assert!(ReferenceDataSGM::read_json("Cargo.toml").is_err());
     }
 
     #[test]
     fn test_reference_data_trait_implementation() {
-        let reference = ReferenceDataSPO::read_json(TEST_FILE).unwrap();
+        let reference = ReferenceDataSGM::read_json(TEST_FILE).unwrap();
 
         // Test basic properties
         assert!(reference.nstep() > 0);
@@ -210,13 +185,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "reference data must contain at least one entry")]
     fn test_empty_reference_data_panics() {
-        let empty_data = ReferenceDataSPO { all: vec![] };
+        let empty_data = ReferenceDataSGM { all: vec![] };
         empty_data.npoint(); // Should panic
     }
 
     #[test]
     fn test_data_consistency() {
-        let reference = ReferenceDataSPO::read_json(TEST_FILE).unwrap();
+        let reference = ReferenceDataSGM::read_json(TEST_FILE).unwrap();
         let step = 0;
 
         // Check that dimensions are consistent
