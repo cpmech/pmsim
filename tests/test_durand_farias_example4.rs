@@ -135,7 +135,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
             .add(&curve_nodal)
             .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
 
-        plot.save(&format!("{}/{}_{}.svg", DEFAULT_TEST_DIR, NAME, kind.to_string()))?;
+        plot.save(&format!("/tmp/pmsim/{}_{}.svg", NAME, kind.to_string()))?;
     }
     Ok(())
 }
@@ -164,18 +164,15 @@ fn generate_or_read_mesh(att: usize, kind: GeoKind, generate: bool) -> Mesh {
         mesh.check_all().unwrap();
 
         // draw figure
-        if SAVE_FIGURE {
-            let mut fig = Figure::new();
-            fig.show_point_ids(true)
-                .show_cell_ids(true)
-                .size(1000.0, 1000.0)
-                .draw(&mesh, &format!("{}/mesh_{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))
-                .unwrap();
-        }
+        let mut fig = Figure::new();
+        fig.show_point_ids(true)
+            .show_cell_ids(true)
+            .size(1000.0, 1000.0)
+            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}_{}.svg", NAME, k_str))
+            .unwrap();
 
         // write mesh
-        mesh.write(&format!("{}/{}_{}.msh", DEFAULT_TEST_DIR, NAME, k_str))
-            .unwrap();
+        mesh.write(&format!("/tmp/pmsim/{}_{}.msh", NAME, k_str)).unwrap();
 
         // return mesh
         mesh
