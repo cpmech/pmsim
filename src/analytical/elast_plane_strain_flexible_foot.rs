@@ -129,11 +129,10 @@ impl ElastPlaneStrainFlexibleFoot {
 #[cfg(test)]
 mod tests {
     use super::ElastPlaneStrainFlexibleFoot;
-    use crate::base::DEFAULT_TEST_DIR;
     use plotpy::{Curve, Plot};
     use russell_lab::approx_eq;
 
-    const SAVE_FIGURE: bool = false;
+    const SAVE_FIGURE: bool = true;
 
     #[test]
     fn stress_works() {
@@ -184,7 +183,7 @@ mod tests {
             plot.grid_labels_legend("x", "Normalized stress: $-\\sigma_v/q_n$");
 
             plot.set_figure_size_points(800.0, 300.0)
-                .save(&format!("{}/flexible_footing_2d_stress.svg", DEFAULT_TEST_DIR))
+                .save("/tmp/pmsim/test_elast_plane_strain_flexible_foot.svg")
                 .unwrap();
         }
     }
