@@ -1,26 +1,9 @@
+use super::{ReferenceDataSet, ReferenceDataTrait};
 use crate::base::Dof;
 use crate::fem::{FemBase, FemState, FileIo};
-use crate::util::ReferenceDataSet;
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
-
-pub(crate) trait ReferenceDataTrait {
-    /// Returns the number of points
-    fn npoint(&self) -> usize;
-
-    /// Returns the number of cells/elements
-    fn ncell(&self) -> usize;
-
-    /// Returns the displacement component of point p, dimension i
-    fn displacement(&self, p: usize, i: usize) -> f64;
-
-    /// Returns the number of Gauss points of element/cell e
-    fn ngauss(&self, e: usize) -> usize;
-
-    /// Returns the stress component of element/cell e, gauss point ip, component i
-    fn stresses(&self, e: usize, ip: usize, i: usize) -> f64;
-}
 
 /// Queries whether A failed to compare with B or not
 ///
