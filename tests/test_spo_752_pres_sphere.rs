@@ -34,9 +34,9 @@ use russell_lab::*;
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const NAME: &str = "test_spo_752_pres_sphere";
-const NAME_MESH: &str = "test_spo_751_pres_cylin"; // same as 751
-const SAVE_FIGURE: bool = true;
+const NAME: &str = "spo_752_pres_sphere";
+const NAME_MESH: &str = "spo_751_pres_cylin"; // same as 751
+const SAVE_FIGURE: bool = false;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
@@ -50,7 +50,7 @@ const NGAUSS: usize = 4; // number of gauss points
 fn test_spo_752_pres_sphere() -> Result<(), StrError> {
     // mesh
     let kind = GeoKind::Qua4;
-    let mesh = Mesh::read(&format!("data/meshes/{}_{}.msh", NAME_MESH, kind.to_string())).unwrap();
+    let mesh = Mesh::read(&format!("data/spo/{}_{}.msh", NAME_MESH, kind.to_string())).unwrap();
 
     // features
     let features = Features::new(&mesh, false);
@@ -177,7 +177,7 @@ fn post_processing() -> Result<(), StrError> {
 
     // plot
     if SAVE_FIGURE {
-        let spo = Matrix::from_text_file("data/figures/spo_752_pres_sphere/spo_752_pres_sphere_pp_vs_ub.tsv")?;
+        let spo = Matrix::from_text_file("data/spo/spo_752_pres_sphere_pp_vs_ub.tsv")?;
         let spo_x = spo.extract_column(0);
         let spo_y = spo.extract_column(1);
         let mut plot = ana.plot_results(&[0.15, 0.30], |plot, index| {
@@ -232,7 +232,7 @@ fn post_processing() -> Result<(), StrError> {
             }
         });
         plot.set_figure_size_points(600.0, 450.0)
-            .save(&format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME))?;
+            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
     }
 
     Ok(())

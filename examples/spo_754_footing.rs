@@ -3,7 +3,7 @@ use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::Stopwatch;
 
-const MESH_NAME: &str = "test_spo_754_footing";
+const MESH_NAME: &str = "spo_754_footing";
 const RESULTS_NAME: &str = "spo_754_footing";
 
 const YOUNG: f64 = 1e7; // Young's modulus
@@ -17,7 +17,7 @@ pub fn main() -> Result<(), StrError> {
     let mut sw = Stopwatch::new();
 
     // mesh
-    let mesh = Mesh::read(&format!("data/meshes/{}.msh", MESH_NAME))?;
+    let mesh = Mesh::read(&format!("data/spo/{}.msh", MESH_NAME))?;
 
     // features
     let features = Features::new(&mesh, false);

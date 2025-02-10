@@ -47,7 +47,7 @@ pub fn main() -> Result<(), StrError> {
         normalized_pressure.push(-2.0 * area / cohesion);
     }
 
-    let ref_xy = Matrix::from_text_file("data/figures/spo_754_footing/spo_754_footing_load_displacement.tsv")?;
+    let ref_xy = Matrix::from_text_file("data/spo/spo_754_footing_load_displacement.tsv")?;
     let ref_x = ref_xy.extract_column(0);
     let ref_y = ref_xy.extract_column(1);
 

@@ -31,7 +31,7 @@ use russell_lab::*;
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const NAME: &str = "test_spo_751_pres_cylin";
+const NAME: &str = "spo_751_pres_cylin";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 
@@ -215,7 +215,7 @@ fn post_processing() -> Result<(), StrError> {
             }
         });
         plot.set_figure_size_points(600.0, 450.0)
-            .save(&format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME))?;
+            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
     }
 
     Ok(())
@@ -237,21 +237,19 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
         fig.show_point_ids(true)
             .show_cell_ids(true)
             .size(600.0, 600.0)
-            .draw(&mesh, &format!("{}/mesh_{}_{}.svg", DEFAULT_TEST_DIR, NAME, k_str))
+            .draw(&mesh, &format!("/tmp/pmsim/{}_{}.svg", NAME, k_str))
             .unwrap();
 
         // write mesh
-        mesh.write(&format!("{}/{}_{}.msh", DEFAULT_TEST_DIR, NAME, k_str))
-            .unwrap();
+        mesh.write(&format!("/tmp/pmsim/{}_{}.msh", NAME, k_str)).unwrap();
 
         // write VTU
-        mesh.write_vtu(&format!("{}/{}_{}.vtu", DEFAULT_TEST_DIR, NAME, k_str))
-            .unwrap();
+        mesh.write_vtu(&format!("/tmp/pmsim/{}_{}.vtu", NAME, k_str)).unwrap();
 
         // return mesh
         mesh
     } else {
         // read mesh
-        Mesh::read(&format!("data/meshes/{}_{}.msh", NAME, k_str)).unwrap()
+        Mesh::read(&format!("data/spo/{}_{}.msh", NAME, k_str)).unwrap()
     }
 }

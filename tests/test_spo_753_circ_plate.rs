@@ -3,8 +3,8 @@ use pmsim::prelude::*;
 use pmsim::util::compare_results;
 use russell_lab::*;
 
-const NAME: &str = "test_spo_753_circ_plate";
-const SAVE_FIGURE: bool = false;
+const NAME: &str = "spo_753_circ_plate";
+const DRAW_MESH_AND_EXIT: bool = false;
 
 const P_ARRAY: [f64; 13] = [
     0.0, 100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
@@ -18,12 +18,15 @@ const NGAUSS: usize = 4; // number of gauss points
 #[test]
 fn test_spo_753_circ_plate() -> Result<(), StrError> {
     // mesh
-    let mesh = Mesh::read(&format!("data/meshes/{}.msh", NAME))?;
-    if SAVE_FIGURE {
+    let mesh = Mesh::read(&format!("data/spo/{}.msh", NAME))?;
+    if DRAW_MESH_AND_EXIT {
         mesh.check_all()?;
         let mut fig = Figure::new();
-        fig.size(1000.0, 1000.0)
-            .draw(&mesh, &format!("/tmp/pmsim/{}.svg", NAME))?;
+        return fig
+            .show_point_ids(true)
+            .size(600.0, 100.0)
+            .range_2d(-0.5, 10.5, -0.2, 1.2)
+            .draw(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME));
     }
 
     // features

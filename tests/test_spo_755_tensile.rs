@@ -4,8 +4,8 @@ use pmsim::prelude::*;
 use pmsim::util::compare_results;
 use russell_lab::*;
 
-const NAME: &str = "test_spo_755_tensile";
-const DRAW_MESH: bool = true;
+const NAME: &str = "spo_755_tensile";
+const DRAW_MESH_AND_EXIT: bool = true;
 
 const YOUNG: f64 = 206.9; // Young's modulus
 const POISSON: f64 = 0.29; // Poisson's coefficient
@@ -16,8 +16,8 @@ const NGAUSS: usize = 4; // number of gauss points
 #[test]
 fn test_spo_755_tensile() -> Result<(), StrError> {
     // mesh
-    let mesh = Mesh::read(&format!("data/meshes/{}.msh", NAME))?;
-    if DRAW_MESH {
+    let mesh = Mesh::read(&format!("data/spo/{}.msh", NAME))?;
+    if DRAW_MESH_AND_EXIT {
         mesh.check_all()?;
         let spo_fixities = [
             (1, "10"),
@@ -63,7 +63,8 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
             (451, "01"),
         ];
         let mut fig = Figure::new();
-        fig.size(600.0, 1200.0)
+        return fig
+            .size(600.0, 1200.0)
             .extra(|plot, before| {
                 if !before {
                     let mut text = Text::new();
@@ -76,8 +77,7 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
                     plot.add(&text);
                 }
             })
-            .draw(&mesh, &format!("/tmp/pmsim/{}.svg", NAME))?;
-        return Ok(());
+            .draw(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME));
     }
 
     // features

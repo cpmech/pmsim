@@ -3,7 +3,7 @@ use pmsim::prelude::*;
 use pmsim::util::compare_results;
 use russell_lab::*;
 
-const NAME: &str = "test_spo_754_footing";
+const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
 
 const YOUNG: f64 = 1e7; // Young's modulus
@@ -15,7 +15,7 @@ const NGAUSS: usize = 4; // number of gauss points
 #[test]
 fn test_spo_754_footing() -> Result<(), StrError> {
     // mesh
-    let mesh = Mesh::read(&format!("data/meshes/{}.msh", NAME))?;
+    let mesh = Mesh::read(&format!("data/spo/{}.msh", NAME))?;
     if DRAW_MESH_AND_EXIT {
         mesh.check_all()?;
         let mut fig = Figure::new();
@@ -23,7 +23,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
             .size(800.0, 800.0)
             .zoom_2d(15.0, 69.0, 448.0, 502.0, 0.5, 0.5, 0.5, 0.5)
             .range_2d(-10.0, 600.0, -10.0, 600.0)
-            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME));
+            .draw(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME));
     }
 
     // features
