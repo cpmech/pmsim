@@ -215,7 +215,6 @@ impl PlastPlaneStrainPresSphere {
 #[cfg(test)]
 mod tests {
     use super::PlastPlaneStrainPresSphere;
-    use crate::base::DEFAULT_TEST_DIR;
     use russell_lab::approx_eq;
 
     const SAVE_FIGURE: bool = false;
@@ -239,7 +238,7 @@ mod tests {
         if SAVE_FIGURE {
             let mut plot = ana.plot_results(&[0.15, 0.3], |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
-                .save(&format!("{}/plast_plane_strain_pres_sphere.svg", DEFAULT_TEST_DIR))
+                .save("/tmp/pmsim/plast_plane_strain_pres_sphere.svg")
                 .unwrap();
         }
     }

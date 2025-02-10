@@ -207,7 +207,6 @@ impl PlastPlaneStrainPresCylin {
 #[cfg(test)]
 mod tests {
     use super::PlastPlaneStrainPresCylin;
-    use crate::base::DEFAULT_TEST_DIR;
     use russell_lab::{approx_eq, math::SQRT_3};
 
     const SAVE_FIGURE: bool = false;
@@ -231,7 +230,7 @@ mod tests {
         if SAVE_FIGURE {
             let mut plot = ana.plot_results(&[0.1, 0.18], |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
-                .save(&format!("{}/plast_plane_strain_pres_cylin.svg", DEFAULT_TEST_DIR))
+                .save("/tmp/pmsim/test_plast_plane_strain_pres_cylin.svg")
                 .unwrap();
         }
     }
