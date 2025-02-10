@@ -138,9 +138,6 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         assert_eq!(ref_points.len(), 1);
         mesh.points[ref_points[0]].marker = REF_POINT_MARKER;
 
-        // write mesh
-        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
-
         // reference point
         let mut circle = Canvas::new();
         circle.set_face_color("red").set_edge_color("red");
@@ -148,8 +145,7 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
 
         // configure plot
         let mut fig = Figure::new();
-        fig.show_point_ids(true)
-            .size(400.0, 600.0)
+        fig.size(400.0, 600.0)
             .canvas_points()
             .set_marker_size(3.0)
             .set_marker_line_color("None");
@@ -160,10 +156,11 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
                 plot.add(&circle);
             }
         })
-        .draw(&mesh, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME))
+        .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
         .unwrap();
 
-        // return generated mesh
+        // write mesh
+        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh
