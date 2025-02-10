@@ -29,12 +29,12 @@ pub struct ReferenceData {
     displacement: Vec<Vec<f64>>,
 
     /// Holds the stresses (standard components)
-    /// Size: `[nele][ngauss][n_components]`
+    /// Size: `[ncell][ngauss][n_components]`
     stresses: Vec<Vec<Vec<f64>>>,
 
     /// Holds the elastic strains (standard components)
     ///
-    /// Size: `[nele][ngauss][n_components]`
+    /// Size: `[ncell][ngauss][n_components]`
     elastic_strains: Vec<Vec<Vec<f64>>>,
 
     /// Holds (plastic_loading, apex_return, acc_plastic_strain)
@@ -81,39 +81,32 @@ impl ReferenceDataSet {
         serde_json::to_writer_pretty(&mut file, &self).map_err(|_| "cannot write file")?;
         Ok(())
     }
-
-    /// Returns the number of mesh points (nodes)
-    pub fn n_point(&self) -> usize {
-        if self.all.len() > 0 {
-            self.all[0].displacement.len()
-        } else {
-            0
-        }
-    }
-
-    /// Returns the number of elements
-    pub fn n_element(&self) -> usize {
-        if self.all.len() > 0 {
-            self.all[0].stresses.len()
-        } else {
-            0
-        }
-    }
 }
 
 impl ReferenceDataTrait for ReferenceData {
-    /// Returns the displacements
-    ///
-    /// Size: `[npoint][ndim]`
-    fn displacement(&self) -> &Vec<Vec<f64>> {
-        &self.displacement
+    /// Returns the number of points
+    fn npoint(&self) -> usize {
+        self.displacement.len()
     }
 
-    /// Returns the stresses (standard components)
-    ///
-    /// Size: `[nele][ngauss][n_components]`
-    fn stresses(&self) -> &Vec<Vec<Vec<f64>>> {
-        &self.stresses
+    /// Returns the number of cells/elements
+    fn ncell(&self) -> usize {
+        self.stresses.len()
+    }
+
+    /// Returns the displacement component of point p, dimension i
+    fn displacement(&self, p: usize, i: usize) -> f64 {
+        self.displacement[p][i]
+    }
+
+    /// Returns the number of Gauss points of element/cell e
+    fn ngauss(&self, e: usize) -> usize {
+        self.stresses[e].len()
+    }
+
+    /// Returns the stress component of element/cell e, gauss point ip, component i
+    fn stresses(&self, e: usize, ip: usize, i: usize) -> f64 {
+        self.stresses[e][ip][i]
     }
 }
 
@@ -128,7 +121,5 @@ mod tests {
         let filename = "data/spo/test_von_mises_single_element_2d_ref.json";
         let reference = ReferenceDataSet::read_json(filename).unwrap();
         assert!(reference.all.len() > 0);
-        assert_eq!(reference.n_point(), 4);
-        assert_eq!(reference.n_element(), 1);
     }
 }
