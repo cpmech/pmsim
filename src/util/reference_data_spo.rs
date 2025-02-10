@@ -6,61 +6,105 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
-/// Holds reference results for comparisons and tests
+/// Stores iteration information for nonlinear solutions
+///
+/// This structure holds convergence data for each nonlinear iteration,
+/// including the iteration number, convergence ratio, and residual norm.
 #[derive(Serialize, Deserialize)]
 struct IterationInfo {
+    /// The iteration counter
     number: usize,
+
+    /// The convergence ratio between consecutive iterations
     ratio: f64,
+
+    /// The residual norm
     residual: f64,
 }
 
-/// Holds SPO reference results for comparisons and tests
+/// Stores reference results from de Souza Neto, Peric, and Owen (2008)
+///
+/// This structure contains all the field variables (displacements, stresses, strains)
+/// at a specific load step, along with convergence information.
+///
+/// The data is organized to match the format used in the reference book:
+/// "Computational Methods for Plasticity: Theory and Applications" (2008).
 #[derive(Serialize, Deserialize)]
 struct DataSPO {
-    /// Holds the load factor
+    /// The load factor for this step
     load_factor: f64,
 
-    /// Holds the information about iterations
+    /// Information about nonlinear iterations
     iterations: Vec<IterationInfo>,
 
-    /// Holds the displacements
+    /// Nodal displacement components
     ///
-    /// Size: `[npoint][ndim]`
+    /// Data structure: `[npoint][ndim]`
+    /// * `npoint` - Number of mesh points/nodes
+    /// * `ndim` - Number of spatial dimensions (2 or 3)
     displacement: Vec<Vec<f64>>,
 
-    /// Holds the stresses (standard components)
-    /// Size: `[ncell][ngauss][n_components]`
+    /// Stress components at Gauss points
+    ///
+    /// Data structure: `[ncell][ngauss][ncomp]`
+    /// * `ncell` - Number of cells/elements
+    /// * `ngauss` - Number of Gauss points per cell
+    /// * `ncomp` - Number of stress components in Voigt notation
+    ///   * 2D: `[σxx, σyy, σzz, σxy]`
+    ///   * 3D: `[σxx, σyy, σzz, σxy, σyz, σzx]`
     stresses: Vec<Vec<Vec<f64>>>,
 
-    /// Holds the elastic strains (standard components)
+    /// Elastic strain components at Gauss points
     ///
-    /// Size: `[ncell][ngauss][n_components]`
+    /// Data structure: `[ncell][ngauss][ncomp]`
+    /// * `ncell` - Number of cells/elements
+    /// * `ngauss` - Number of Gauss points per cell
+    /// * `ncomp` - Number of strain components in Voigt notation (note that `γij = 2 εij`)
+    ///   * 2D: `[εxx, εyy, εzz, γxy]`
+    ///   * 3D: `[εxx, εyy, εzz, γxy, γyz, γzx]`
     elastic_strains: Vec<Vec<Vec<f64>>>,
 
-    /// Holds (plastic_loading, apex_return, acc_plastic_strain)
-    plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][ngauss][3]
+    /// Plasticity data at Gauss points
+    ///
+    /// Data structure: `[ncell][ngauss][3]`
+    /// * Index 0: Plastic loading flag (1.0 = loading, 0.0 = not loading)
+    /// * Index 1: Apex return flag (1.0 = apex return performed)
+    /// * Index 2: Accumulated plastic strain
+    plast_apex_epbar: Vec<Vec<Vec<f64>>>,
 }
 
-/// Implements an array of SPO reference data
+/// Implements reference data from de Souza Neto, Peric, and Owen (2008)
 ///
-/// SPO stands for de Souza Neto, Peric, and Owen from Reference #1.
+/// This structure provides access to reference solutions published in:
+/// de Souza Neto EA, Peric D, Owen DRJ (2008) Computational Methods for Plasticity:
+/// Theory and Applications, Wiley, 791p.
 ///
-/// # Reference
-///
-/// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
-///    Theory and applications, Wiley, 791p
+/// The data is typically used to validate finite element implementations by
+/// comparing numerical results with the published solutions.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ReferenceDataSPO {
-    /// Holds the data from all loading steps `[nstep]`
+    /// Data from all loading steps
+    ///
+    /// The vector index corresponds to the load step number
     all: Vec<DataSPO>,
 }
 
 impl ReferenceDataSPO {
-    /// Reads a JSON file containing the results
+    /// Reads reference data from a JSON file
     ///
-    /// # Input
+    /// # Arguments
     ///
-    /// * `full_path` -- may be a String, &str, or Path
+    /// * `full_path` - Path to the JSON file. May be a String, &str, or Path
+    ///
+    /// # Returns
+    ///
+    /// Returns a new `ReferenceDataSPO` instance on success
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// * The file cannot be found
+    /// * The JSON data cannot be deserialized
     pub(crate) fn read_json<P>(full_path: &P) -> Result<Self, StrError>
     where
         P: AsRef<OsStr> + ?Sized,

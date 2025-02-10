@@ -22,6 +22,7 @@
     "jacobians",
     "llambda",
     "nafems",
+    "ncomp",
     "ngauss",
     "Nonlin",
     "nstep",
