@@ -1,5 +1,10 @@
 use super::ReferenceDataTrait;
+use crate::StrError;
 use serde::{Deserialize, Serialize};
+use std::ffi::OsStr;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 
 /// Holds reference results for comparisons and tests
 #[derive(Serialize, Deserialize)]
@@ -18,7 +23,7 @@ struct ReferenceIterationInfo {
 /// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 ///    Theory and applications, Wiley, 791p
 #[derive(Serialize, Deserialize)]
-pub(crate) struct ReferenceDataSPO {
+struct ReferenceDataSPO {
     /// Holds the load factor
     load_factor: f64,
 
@@ -43,29 +48,69 @@ pub(crate) struct ReferenceDataSPO {
     plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][ngauss][3]
 }
 
-impl ReferenceDataTrait for ReferenceDataSPO {
-    /// Returns the number of points
+/// Implements an array of ReferenceDataSPO
+#[derive(Serialize, Deserialize)]
+pub(crate) struct ReferenceDataSPOArray {
+    /// Holds the data from all loading steps `[nstep]`
+    all: Vec<ReferenceDataSPO>,
+}
+
+impl ReferenceDataSPOArray {
+    /// Reads a JSON file containing the results
+    ///
+    /// # Input
+    ///
+    /// * `full_path` -- may be a String, &str, or Path
+    pub(crate) fn read_json<P>(full_path: &P) -> Result<Self, StrError>
+    where
+        P: AsRef<OsStr> + ?Sized,
+    {
+        let path = Path::new(full_path).to_path_buf();
+        let file = File::open(&path).map_err(|_| "file not found")?;
+        let reader = BufReader::new(file);
+        let data = serde_json::from_reader(reader).map_err(|_| "deserialize failed")?;
+        Ok(data)
+    }
+}
+
+impl ReferenceDataTrait for ReferenceDataSPOArray {
+    fn nstep(&self) -> usize {
+        self.all.len()
+    }
+
     fn npoint(&self) -> usize {
-        self.displacement.len()
+        assert!(self.all.len() > 0, "reference data must contain at least one entry");
+        self.all[0].displacement.len()
     }
 
-    /// Returns the number of cells/elements
     fn ncell(&self) -> usize {
-        self.stresses.len()
+        assert!(self.all.len() > 0, "reference data must contain at least one entry");
+        self.all[0].stresses.len()
     }
 
-    /// Returns the displacement component of point p, dimension i
-    fn displacement(&self, p: usize, i: usize) -> f64 {
-        self.displacement[p][i]
+    fn displacement(&self, step: usize, p: usize, i: usize) -> f64 {
+        self.all[step].displacement[p][i]
     }
 
-    /// Returns the number of Gauss points of element/cell e
-    fn ngauss(&self, e: usize) -> usize {
-        self.stresses[e].len()
+    fn ngauss(&self, step: usize, e: usize) -> usize {
+        self.all[step].stresses[e].len()
     }
 
-    /// Returns the stress component of element/cell e, gauss point ip, component i
-    fn stresses(&self, e: usize, ip: usize, i: usize) -> f64 {
-        self.stresses[e][ip][i]
+    fn stresses(&self, step: usize, e: usize, ip: usize, i: usize) -> f64 {
+        self.all[step].stresses[e][ip][i]
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::ReferenceDataSPOArray;
+
+    #[test]
+    fn reference_dataset_works() {
+        let filename = "data/spo/test_von_mises_single_element_2d_ref.json";
+        let reference = ReferenceDataSPOArray::read_json(filename).unwrap();
+        assert!(reference.all.len() > 0);
     }
 }
