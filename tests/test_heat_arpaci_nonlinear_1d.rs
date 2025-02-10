@@ -145,12 +145,16 @@ fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
         block.set_ndiv(&[10, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua4).unwrap();
 
-        // write mesh
-        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
-
-        // write figure
+        // draw figure
         let mut fig = Figure::new();
-        fig.draw(&mesh, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME)).unwrap();
+        fig.show_point_ids(true)
+            .show_cell_ids(true)
+            .show_cell_att(true)
+            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .unwrap();
+
+        // write mesh
+        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh
