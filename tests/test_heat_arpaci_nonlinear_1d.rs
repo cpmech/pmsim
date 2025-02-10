@@ -149,7 +149,6 @@ fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
         let mut fig = Figure::new();
         fig.show_point_ids(true)
             .show_cell_ids(true)
-            .show_cell_att(true)
             .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
 

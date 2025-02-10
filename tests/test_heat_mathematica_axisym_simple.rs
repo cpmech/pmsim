@@ -105,11 +105,17 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         block.set_ndiv(&[10, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
-        mesh.write(&format!("{}/{}.msh", DEFAULT_TEST_DIR, NAME)).unwrap();
-
-        // write figure
+        // draw figure
         let mut fig = Figure::new();
-        fig.draw(&mesh, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME)).unwrap();
+        fig.show_point_ids(true)
+            .show_cell_ids(true)
+            .range_2d(0.95, 2.05, -0.05, 0.15)
+            .size(600.0, 100.0)
+            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .unwrap();
+
+        // write mesh
+        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh
