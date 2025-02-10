@@ -24,6 +24,7 @@
     "nafems",
     "ncomp",
     "ngauss",
+    "nocapture",
     "Nonlin",
     "nstep",
     "numpy",
