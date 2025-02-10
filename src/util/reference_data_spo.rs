@@ -150,11 +150,82 @@ impl ReferenceDataTrait for ReferenceDataSPO {
 #[cfg(test)]
 mod tests {
     use super::ReferenceDataSPO;
+    use super::ReferenceDataTrait;
+
+    const TEST_FILE: &str = "data/spo/test_von_mises_single_element_2d_ref.json";
 
     #[test]
-    fn reference_dataset_works() {
-        let filename = "data/spo/test_von_mises_single_element_2d_ref.json";
-        let reference = ReferenceDataSPO::read_json(filename).unwrap();
+    fn test_read_json_works() {
+        let reference = ReferenceDataSPO::read_json(TEST_FILE).unwrap();
         assert!(reference.all.len() > 0);
+    }
+
+    #[test]
+    fn test_read_json_handles_errors() {
+        // Non-existent file
+        assert!(ReferenceDataSPO::read_json("nonexistent.json").is_err());
+
+        // Invalid JSON file
+        assert!(ReferenceDataSPO::read_json("Cargo.toml").is_err());
+    }
+
+    #[test]
+    fn test_reference_data_trait_implementation() {
+        let reference = ReferenceDataSPO::read_json(TEST_FILE).unwrap();
+
+        // Test basic properties
+        assert!(reference.nstep() > 0);
+        assert!(reference.npoint() > 0);
+        assert!(reference.ncell() > 0);
+
+        // Test data access for first step
+        let step = 0;
+        let point = 0;
+        let cell = 0;
+        let gauss = 0;
+
+        // Test displacement access
+        let ux = reference.displacement(step, point, 0);
+        let uy = reference.displacement(step, point, 1);
+        assert!(!ux.is_nan());
+        assert!(!uy.is_nan());
+
+        // Test number of Gauss points
+        let ngauss = reference.ngauss(step, cell);
+        assert!(ngauss > 0);
+
+        // Test stress components
+        for i in 0..4 {
+            // 2D case has 4 components
+            let stress = reference.stresses(step, cell, gauss, i);
+            assert!(!stress.is_nan());
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "reference data must contain at least one entry")]
+    fn test_empty_reference_data_panics() {
+        let empty_data = ReferenceDataSPO { all: vec![] };
+        empty_data.npoint(); // Should panic
+    }
+
+    #[test]
+    fn test_data_consistency() {
+        let reference = ReferenceDataSPO::read_json(TEST_FILE).unwrap();
+        let step = 0;
+
+        // Check that dimensions are consistent
+        let npoint = reference.npoint();
+        let ncell = reference.ncell();
+
+        // Verify displacement vector dimensions
+        assert_eq!(reference.all[step].displacement.len(), npoint);
+        assert!(reference.all[step].displacement[0].len() >= 2); // At least 2D
+
+        // Verify stress tensor dimensions
+        assert_eq!(reference.all[step].stresses.len(), ncell);
+        let ngauss = reference.ngauss(step, 0);
+        assert_eq!(reference.all[step].stresses[0].len(), ngauss);
+        assert!(reference.all[step].stresses[0][0].len() >= 4); // At least 4 components in 2D
     }
 }
