@@ -1,10 +1,13 @@
 use gemlab::prelude::*;
+use plotpy::{Curve, Plot};
+use pmsim::analytical::PlastCircularPlateAxisym;
 use pmsim::prelude::*;
 use pmsim::util::compare_results;
 use russell_lab::*;
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
+const SAVE_FIGURE: bool = true;
 const VERBOSE_LEVEL: usize = 0;
 
 const P_ARRAY: [f64; 13] = [
@@ -79,7 +82,8 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
-    return Ok(());
+    // post-processing
+    post_processing()?;
 
     // verify the results
     let tol_displacement = 1e-1;
@@ -94,5 +98,56 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         VERBOSE_LEVEL,
     )?;
     assert!(all_good);
+    Ok(())
+}
+
+fn post_processing() -> Result<(), StrError> {
+    // load summary and associated files
+    let (file_io, mesh, base) = PostProc::read_summary("/tmp/pmsim", NAME)?;
+    let post = PostProc::new(&mesh, &base);
+
+    // boundaries
+    let features = Features::new(&mesh, false);
+    let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
+    let eq_uy = base.equations.eq(center, Dof::Uy)?;
+
+    // analytical solution
+    let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);
+
+    // load results
+    let mut deflection = vec![0.0; file_io.indices.len()];
+    let load: Vec<_> = P_ARRAY.iter().map(|p| *p).collect();
+    for index in &file_io.indices {
+        let state = PostProc::read_state(&file_io, *index)?;
+        deflection[*index] = -state.uu[eq_uy];
+    }
+
+    // plot
+    if SAVE_FIGURE {
+        let ref_xy = Matrix::from_text_file("data/spo/spo_753_plate_deflection_load.tsv")?;
+        let ref_x = ref_xy.extract_column(0);
+        let ref_y = ref_xy.extract_column(1);
+        let mut plot = Plot::new();
+        let mut curve_ref = Curve::new();
+        curve_ref
+            .set_label("de Souza Neto et al.")
+            .set_line_style("None")
+            .set_marker_style("D")
+            .set_marker_void(true)
+            .draw(&ref_x, &ref_y);
+        let mut curve_num = Curve::new();
+        curve_num
+            .set_line_style("--")
+            .set_marker_style("o")
+            .set_marker_void(true)
+            .set_label("numerical")
+            .draw(&deflection, &load);
+        plot.set_horiz_line(ana.get_pp_lim(), "green", ":", 1.0)
+            .add(&curve_num)
+            .add(&curve_ref)
+            .grid_labels_legend("Central deflection", "Distributed load intensity")
+            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+    }
+
     Ok(())
 }
