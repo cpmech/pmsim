@@ -124,6 +124,7 @@ fn post_processing() -> Result<(), StrError> {
     let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let lower_cells = features.get_cells_via_2d_edges(&bottom);
+    let eq_ux = base.equations.eq(outer_point, Dof::Ux)?;
 
     // analytical solution
     let ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
@@ -142,8 +143,7 @@ fn post_processing() -> Result<(), StrError> {
         assert_eq!(file_io.times[*index], state.t);
 
         // radial displacement
-        let outer_eq = base.equations.eq(outer_point, Dof::Ux)?;
-        let ub_num = state.uu[outer_eq];
+        let ub_num = state.uu[eq_ux];
         outer_ur[*index] = ub_num;
 
         // get stresses
