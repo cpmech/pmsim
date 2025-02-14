@@ -755,9 +755,20 @@ impl<'a> PostProc<'a> {
         state: &FemState,
     ) -> Result<(Vec<PointId>, Vec<Vec<f64>>, Vec<f64>), StrError> {
         // find points along path of edges
-        let (_, point_ids) = edges.any_path();
+        let (_, mut point_ids) = edges.any_path();
+        let npoint = point_ids.len();
+        if npoint < 2 {
+            return Err("not enough points along the path of edges");
+        }
 
-        // TODO: find direction with y_min then x_min
+        // find direction with y_min then x_min
+        let xa = &self.mesh.points[point_ids[0]].coords;
+        let xb = &self.mesh.points[point_ids[npoint - 1]].coords;
+        if xb[1] < xa[1] {
+            point_ids.reverse();
+        } else if f64::abs(xb[1] - xa[1]) < TOL_COMPARE_POINTS && xb[0] < xa[0] {
+            point_ids.reverse();
+        }
 
         // extract coordinates
         let coords: Vec<_> = point_ids
@@ -788,7 +799,8 @@ mod tests {
     };
     use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
     use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
-    use gemlab::mesh::{At, Features, Figure, Mesh, Samples};
+    use gemlab::mesh::{At, Cell, Edges, Features, Figure, Mesh, Point, Samples};
+    use gemlab::shapes::GeoKind;
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
     use russell_lab::math::SQRT_3;
@@ -1635,8 +1647,7 @@ mod tests {
     }
 
     #[test]
-    fn values_along_edges_work() {
-        // ```text
+    fn values_along_edges_work_1() {
         // 2.0  14------16------13------20------18
         //       |               |               |
         //       |               |               |
@@ -1652,7 +1663,6 @@ mod tests {
         // 0.0   0-------4-------1------10-------8
         //
         //      0.0     0.5     1.0     1.5     2.0
-        // ```
         let (file_io, mesh, base) =
             PostProc::read_summary("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
         let post = PostProc::new(&mesh, &base);
@@ -1667,5 +1677,130 @@ mod tests {
 
         let ux_correct: Vec<_> = coords.iter().map(|x| STRAIN * x[0]).collect();
         array_approx_eq(&dd, &ux_correct, 1e-15);
+    }
+
+    #[rustfmt::skip]
+    fn sample_mesh_2() -> Mesh {
+        // swapped some points => not Bhatti's mesh
+        //
+        //       0.0    0.015    0.03
+        // 0.03   6-------1-------0
+        //        |               |
+        //        |               3
+        //        |               |
+        // 0.015  2            _.'4-------5------11 0.015
+        //        |        _.-'                   |
+        //        |    _.-12                      7 0.0075
+        //        |_.-'                           |
+        // 0.0   10---------------9---------------8 0.0
+        //       0.0             0.03            0.06
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id:  0, marker: 0, coords: vec![0.03,  0.03  ] },
+                Point { id:  1, marker: 0, coords: vec![0.015, 0.03  ] },
+                Point { id:  2, marker: 0, coords: vec![0.0,   0.015 ] },
+                Point { id:  3, marker: 0, coords: vec![0.03,  0.0225] },
+                Point { id:  4, marker: 0, coords: vec![0.03,  0.015 ] },
+                Point { id:  5, marker: 0, coords: vec![0.045, 0.015 ] },
+                Point { id:  6, marker: 0, coords: vec![0.0,   0.03  ] },
+                Point { id:  7, marker: 0, coords: vec![0.06,  0.0075] },
+                Point { id:  8, marker: 0, coords: vec![0.06,  0.0   ] },
+                Point { id:  9, marker: 0, coords: vec![0.03,  0.0   ] },
+                Point { id: 10, marker: 0, coords: vec![0.0,   0.0   ] },
+                Point { id: 11, marker: 0, coords: vec![0.06,  0.015 ] },
+                Point { id: 12, marker: 0, coords: vec![0.015, 0.0075] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute: 1, kind: GeoKind::Qua8, points: vec![10, 4, 0, 6, 12, 3, 1, 2] },
+                Cell { id: 1, attribute: 1, kind: GeoKind::Qua8, points: vec![10, 8, 11, 4,  9, 7, 5, 12] },
+            ],
+        }
+    }
+
+    #[test]
+    fn values_along_edges_work_2() {
+        // generate the mesh
+        let mesh = sample_mesh_2();
+
+        // check and draw the mesh
+        // mesh.check_all().unwrap();
+        // let mut fig = Figure::new();
+        // fig.show_point_ids(true);
+        // fig.draw(&mesh, "/tmp/pmsim/test_values_along_edges_work_2.svg").unwrap();
+
+        // extract features
+        let feat = Features::new(&mesh, true);
+
+        // allocate FEM data
+        let p1 = ParamDiffusion::sample();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let config = Config::new(&mesh);
+        let essential = Essential::new();
+
+        // generate FEM state with each node having T = 100 + ID
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let npoint = mesh.points.len();
+        for p in 0..npoint {
+            state.uu[p] = 100.0 + (p as f64);
+        }
+
+        // allocate post-processor
+        let post = PostProc::new(&mesh, &base);
+
+        // top edges
+        let edges = Edges {
+            all: vec![feat.get_edge(0, 4), feat.get_edge(0, 6), feat.get_edge(4, 11)],
+        };
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        assert_eq!(ids, &[11, 5, 4, 3, 0, 1, 6]);
+        array_approx_eq(&dd, &[111.0, 105.0, 104.0, 103.0, 100.0, 101.0, 106.0], 1e-15);
+
+        // middle horizontal edge
+        let edges = Edges {
+            all: vec![feat.get_edge(4, 11)],
+        };
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        assert_eq!(ids, &[4, 5, 11]);
+        array_approx_eq(&dd, &[104.0, 105.0, 111.0], 1e-15);
+
+        // bottom horizontal edge
+        let edges = Edges {
+            all: vec![feat.get_edge(8, 10)],
+        };
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        assert_eq!(ids, &[10, 9, 8]);
+        array_approx_eq(&dd, &[110.0, 109.0, 108.0], 1e-15);
+
+        // left vertical edge
+        let edges = Edges {
+            all: vec![feat.get_edge(6, 10)],
+        };
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        assert_eq!(ids, &[10, 2, 6]);
+        array_approx_eq(&dd, &[110.0, 102.0, 106.0], 1e-15);
+
+        // right vertical edge
+        let edges = Edges {
+            all: vec![feat.get_edge(8, 11)],
+        };
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        assert_eq!(ids, &[8, 7, 11]);
+        array_approx_eq(&dd, &[108.0, 107.0, 111.0], 1e-15);
+
+        // diagonal edge
+        let edges = Edges {
+            all: vec![feat.get_edge(4, 10)],
+        };
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        assert_eq!(ids, &[10, 12, 4]);
+        array_approx_eq(&dd, &[110.0, 112.0, 104.0], 1e-15);
+
+        // empty
+        let edges = Edges { all: vec![] };
+        assert_eq!(
+            post.values_along_edges(&edges, Dof::T, &state).err(),
+            Some("not enough points along the path of edges")
+        );
     }
 }
