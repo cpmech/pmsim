@@ -4,6 +4,7 @@ use pmsim::analytical::PlastCircularPlateAxisym;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use russell_lab::*;
+use std::collections::HashMap;
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
@@ -13,6 +14,8 @@ const VERBOSE_LEVEL: usize = 0;
 const P_ARRAY: [f64; 13] = [
     0.0, 100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
 ];
+const RADIUS: f64 = 10.0;
+const THICKNESS: f64 = 1.0;
 const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.24; // Poisson's coefficient
 const Z_INI: f64 = 16000.0; // Initial size of yield surface
@@ -119,41 +122,106 @@ fn post_processing() -> Result<(), StrError> {
     let nstep_max = 11; // In SPO's book, they do not show the results for the last two load steps
     let mut deflection = vec![0.0; nstep_max];
     let load: Vec<_> = (0..nstep_max).into_iter().map(|i| P_ARRAY[i]).collect();
+    let mut ll = Vec::new(); // normalized coordinate x/R
+    let mut yy_p100 = Vec::new(); // normalized deflection w/h @ P = 100
+    let mut yy_p200 = Vec::new(); // normalized deflection w/h @ P = 200
+    let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
     for index in 0..nstep_max {
         let state = PostProc::read_state(&file_io, index)?;
         deflection[index] = -state.uu[eq_uy];
-
         let pp = P_ARRAY[index];
         if pp == 100.0 {
-            // post.values_along_x(&bottom, &state, Dof::Uy, |_, _| true)?;
-            println!("pp = {}", pp);
+            let (_, cc, dd) = post.values_along_edges(&bottom, Dof::Uy, &state).unwrap();
+            ll = cc.iter().map(|x| x[0] / RADIUS).collect::<Vec<_>>();
+            yy_p100 = dd.iter().map(|uy| -uy / THICKNESS).collect::<Vec<_>>();
+        }
+        if pp == 200.0 {
+            let (_, _, dd) = post.values_along_edges(&bottom, Dof::Uy, &state).unwrap();
+            yy_p200 = dd.iter().map(|uy| -uy / THICKNESS).collect::<Vec<_>>();
+        }
+        if pp == 250.0 {
+            let (_, _, dd) = post.values_along_edges(&bottom, Dof::Uy, &state).unwrap();
+            yy_p250 = dd.iter().map(|uy| -uy / THICKNESS).collect::<Vec<_>>();
         }
     }
 
     // plot
     if SAVE_FIGURE {
-        let ref_xy = Matrix::from_text_file("data/spo/spo_753_plate_deflection_load.tsv")?;
-        let ref_x = ref_xy.extract_column(0);
-        let ref_y = ref_xy.extract_column(1);
-        let mut plot = Plot::new();
-        let mut curve_ref = Curve::new();
-        curve_ref
-            .set_label("de Souza Neto et al.")
+        let labels = &["x", "p100", "p200", "p250"];
+        let ref1 = Matrix::from_text_file("data/spo/spo_753_plate_deflection_load.tsv")?;
+        let ref2: HashMap<String, Vec<f64>> = read_table("data/spo/spo_753_profiles.tsv", Some(labels))?;
+        let mut curve_p_w_ref = Curve::new();
+        curve_p_w_ref
+            .set_label("de Souza Neto et al. (SPO)")
             .set_line_style("None")
             .set_marker_style("D")
             .set_marker_void(true)
-            .draw(&ref_x, &ref_y);
-        let mut curve_num = Curve::new();
-        curve_num
-            .set_line_style("--")
+            .set_marker_line_color("orange")
+            .draw(&ref1.extract_column(0), &ref1.extract_column(1));
+        let mut curve_p_w = Curve::new();
+        curve_p_w
+            .set_line_style("-")
+            .set_line_color("black")
             .set_marker_style(".")
             .set_marker_color("black")
             .set_label("pmsim")
             .draw(&deflection, &load);
-        plot.set_horiz_line(ana.get_pp_lim(), "green", ":", 1.0)
-            .add(&curve_num)
-            .add(&curve_ref)
+        let mut curve_w_l_p100_ref = Curve::new();
+        curve_w_l_p100_ref
+            .set_label("P=100 (SPO)")
+            .set_line_style("-")
+            .set_marker_style("None")
+            .draw(&ref2["x"], &ref2["p100"]);
+        let mut curve_w_l_p200_ref = Curve::new();
+        curve_w_l_p200_ref
+            .set_label("P=200 (SPO)")
+            .set_line_style("-")
+            .set_marker_style("None")
+            .draw(&ref2["x"], &ref2["p200"]);
+        let mut curve_w_l_p250_ref = Curve::new();
+        curve_w_l_p250_ref
+            .set_label("P=250 (SPO)")
+            .set_line_style("-")
+            .set_marker_style("None")
+            .draw(&ref2["x"], &ref2["p250"]);
+        let mut curve_w_l_p100 = Curve::new();
+        curve_w_l_p100
+            .set_line_style("None")
+            .set_marker_style("o")
+            .set_marker_void(true)
+            .set_marker_line_color("black")
+            .draw(&ll, &yy_p100);
+        let mut curve_w_l_p200 = Curve::new();
+        curve_w_l_p200
+            .set_line_style("None")
+            .set_marker_style("o")
+            .set_marker_void(true)
+            .set_marker_line_color("black")
+            .draw(&ll, &yy_p200);
+        let mut curve_w_l_p250 = Curve::new();
+        curve_w_l_p250
+            .set_line_style("None")
+            .set_marker_style("o")
+            .set_marker_void(true)
+            .set_marker_line_color("black")
+            .draw(&ll, &yy_p250);
+        let mut plot = Plot::new();
+        plot.set_subplot(1, 2, 1)
+            .set_horiz_line(ana.get_pp_lim(), "green", ":", 1.0)
+            .add(&curve_p_w)
+            .add(&curve_p_w_ref)
             .grid_labels_legend("Central deflection", "Distributed load intensity")
+            .set_subplot(1, 2, 2)
+            .set_yrange(0.0, 0.6)
+            .set_inv_y()
+            .add(&curve_w_l_p100_ref)
+            .add(&curve_w_l_p200_ref)
+            .add(&curve_w_l_p250_ref)
+            .add(&curve_w_l_p100)
+            .add(&curve_w_l_p200)
+            .add(&curve_w_l_p250)
+            .grid_labels_legend("Normalized coordinate $x/R$", "Normalized deflection $w/h$")
+            .set_figure_size_points(600.0, 250.0)
             .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
     }
 
