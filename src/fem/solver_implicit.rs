@@ -66,6 +66,10 @@ impl<'a> SolverImplicit<'a> {
                             Ok(_) => (),
                             Err(e) => println!("ERROR-ON-ERROR: cannot write state due to: {}", e),
                         }
+                        match file_io.write_self() {
+                            Ok(_) => (),
+                            Err(e) => println!("ERROR-ON-ERROR: cannot write summary due to: {}", e),
+                        }
                         return Err(err);
                     }
                 }
