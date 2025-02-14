@@ -83,6 +83,31 @@ impl SecondaryValues {
         self.ngauss = ngauss;
     }
 
+    /// Returns the LocalState at an integration point
+    ///
+    /// # Input
+    ///
+    /// * `p` -- index of the integration point
+    pub fn get_local_state(&self, p: usize) -> Result<&LocalState, StrError> {
+        if self.ngauss == 0 {
+            return Err("secondary values have not been allocated yet");
+        }
+        if p >= self.ngauss {
+            return Err("index of integration point is out of bounds");
+        }
+        if self.solid.len() == self.ngauss {
+            Ok(&self.solid[p])
+        } else if self.porous_liq.len() == self.ngauss {
+            Err("LocalState is not available in PorousLiq")
+        } else if self.porous_liq_gas.len() == self.ngauss {
+            Err("LocalState is not available for PorousLiqGas")
+        } else if self.porous_sld_liq.len() == self.ngauss {
+            Err("LocalState is not available in PorousSldLiq")
+        } else {
+            Err("LocalState is not available in PorousSldLiqGas")
+        }
+    }
+
     /// Returns the stress tensor at an integration point
     ///
     /// # Input
