@@ -164,7 +164,11 @@ impl PlastPlaneStrainPresSphere {
             .set_subplot_grid("grid", "0", "0:3")
             .add(&curve);
         callback(&mut plot, 0);
-        plot.grid_labels_legend("Radial displacement at outer face $u_b$", "Internal pressure $P$");
+
+        let mut leg1 = Legend::new();
+        leg1.set_location("lower right").draw();
+        plot.add(&leg1)
+            .grid_and_labels("Radial displacement at outer face $u_b$", "Internal pressure $P$");
 
         let rr = linspace(self.a, self.b, 201);
         let mut ssr = vec![0.0; rr.len()];
@@ -189,14 +193,14 @@ impl PlastPlaneStrainPresSphere {
                 .set_range(1.0, 2.0, 1.0, 2.0);
         }
 
-        let mut leg = Legend::new();
-        leg.set_num_col(1)
+        let mut leg2 = Legend::new();
+        leg2.set_num_col(1)
             .set_handle_len(2.5)
             .set_outside(true)
             .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
             .draw();
 
-        plot.set_subplot_grid("grid", "0", "3").add(&leg).set_hide_axes(true);
+        plot.set_subplot_grid("grid", "0", "3").add(&leg2).set_hide_axes(true);
 
         plot.set_subplot_grid("grid", "1", "0:2");
         callback(&mut plot, 1);
