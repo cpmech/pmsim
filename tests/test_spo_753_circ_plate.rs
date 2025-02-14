@@ -8,7 +8,7 @@ use russell_lab::*;
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
 const SAVE_FIGURE: bool = true;
-const VERBOSE_LEVEL: usize = 1;
+const VERBOSE_LEVEL: usize = 0;
 
 const P_ARRAY: [f64; 13] = [
     0.0, 100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
@@ -28,8 +28,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let features = Features::new(&mesh, false);
     let left = features.search_edges(At::X(0.0), any_x)?;
     let top = features.search_edges(At::Y(1.0), any_x)?;
-    let right_corner = features.search_point_ids(At::XY(10.0, 0.0), any_x)?;
-    assert_eq!(right_corner.len(), 1);
+    let right_corner = features.search_point_ids(At::XY(10.0, 0.0), any_x)?[0];
 
     // draw mesh
     if DRAW_MESH_AND_EXIT {
@@ -37,7 +36,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         println!("top = {:?}", features.get_points_via_2d_edges(&top));
         let ids_left = features.get_points_via_2d_edges(&left);
         let ids_top = features.get_points_via_2d_edges(&top);
-        return draw_mesh(&mesh, &ids_left, &ids_top, &right_corner);
+        return draw_mesh(&mesh, &ids_left, &ids_top, right_corner);
     }
 
     // parameters
@@ -55,10 +54,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
-        .point(right_corner[0], Dof::Uy, 0.0);
-    // println!("{}", essential);
+    essential.edges(&left, Dof::Ux, 0.0).point(right_corner, Dof::Uy, 0.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -112,6 +108,7 @@ fn post_processing() -> Result<(), StrError> {
 
     // boundaries
     let features = Features::new(&mesh, false);
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
     let eq_uy = base.equations.eq(center, Dof::Uy)?;
 
@@ -125,6 +122,12 @@ fn post_processing() -> Result<(), StrError> {
     for index in 0..nstep_max {
         let state = PostProc::read_state(&file_io, index)?;
         deflection[index] = -state.uu[eq_uy];
+
+        let pp = P_ARRAY[index];
+        if pp == 100.0 {
+            // post.values_along_x(&bottom, &state, Dof::Uy, |_, _| true)?;
+            println!("pp = {}", pp);
+        }
     }
 
     // plot
@@ -157,7 +160,7 @@ fn post_processing() -> Result<(), StrError> {
     Ok(())
 }
 
-fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: &[PointId]) -> Result<(), StrError> {
+fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: PointId) -> Result<(), StrError> {
     mesh.check_all()?;
     let spo_fixities = [(1, "10"), (2, "10"), (8, "01"), (13, "10"), (22, "10"), (25, "10")];
     let spo_loadings = [2, 6, 7, 9, 10, 12, 24, 31, 37, 42, 44];
@@ -198,7 +201,7 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: &[Poi
     spo_top.sort();
     assert_eq!(&left, &spo_left);
     assert_eq!(&top, &spo_loadings.iter().map(|x| x - 1).collect::<Vec<_>>());
-    assert_eq!(&right_corner, &spo_right_corner);
+    assert_eq!(&spo_right_corner, &[right_corner]);
     let mut fig = Figure::new();
     fig.range_2d(-0.5, 10.5, -0.5, 1.5)
         .size(600.0, 200.0)

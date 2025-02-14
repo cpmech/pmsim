@@ -3,7 +3,7 @@ use crate::base::Dof;
 use crate::util::{SpatialTensor, TensorComponentsMap};
 use crate::StrError;
 use gemlab::integ::Gauss;
-use gemlab::mesh::{At, CellId, Features, Mesh, PointId, TOL_COMPARE_POINTS};
+use gemlab::mesh::{At, CellId, Edges, Features, Mesh, PointId, TOL_COMPARE_POINTS};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{argsort2_f64, argsort3_f64, mat_mat_mul, Matrix, Vector};
@@ -734,6 +734,46 @@ impl<'a> PostProc<'a> {
         // results
         Ok((ids, xx, dd))
     }
+
+    /// Returns the primary values (DOFs) along a set of edges
+    ///
+    /// Returns `(ll, uu)` where:
+    ///
+    /// * `ll` -- The normalized coordinates along the edges.
+    /// * `uu` -- The values of the DOF along the edges.
+    ///
+    /// # Returns
+    ///
+    /// A tuple `(ids, xx, dd)` where:
+    /// * `ids` - A vector containing the IDs of the points along the x-axis.
+    /// * `coords` - A vector containing the coordinates of the points.
+    /// * `dd` - A vector containing the DOF values (e.g., temperature) along the x-axis corresponding to the `ids` and `xx`.
+    pub fn values_along_edges(
+        &self,
+        edges: &Edges,
+        dof: Dof,
+        state: &FemState,
+    ) -> Result<(Vec<PointId>, Vec<Vec<f64>>, Vec<f64>), StrError> {
+        // find points along path of edges
+        let (_, point_ids) = edges.any_path();
+
+        // TODO: find direction with y_min then x_min
+
+        // extract coordinates
+        let coords: Vec<_> = point_ids
+            .iter()
+            .map(|id| self.mesh.points[*id].coords.clone())
+            .collect();
+
+        // extract dof values
+        let dd: Vec<_> = point_ids
+            .iter()
+            .map(|id| state.uu[self.base.equations.eq(*id, dof).unwrap()])
+            .collect();
+
+        // results
+        Ok((point_ids, coords, dd))
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -748,11 +788,11 @@ mod tests {
     };
     use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
     use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
-    use gemlab::mesh::{Features, Figure, Mesh, Samples};
+    use gemlab::mesh::{At, Features, Figure, Mesh, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
     use russell_lab::math::SQRT_3;
-    use russell_lab::{approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
+    use russell_lab::{approx_eq, array_approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::Tensor2;
     use std::fmt::Write;
 
@@ -795,9 +835,33 @@ mod tests {
     ///        `--.__\/__.---'
     ///               1
     /// ```
+    ///
+    /// OR
+    ///
+    /// ```text
+    /// 2.0  14------16------13------20------18
+    ///       |               |               |
+    ///       |               |               |
+    /// 1.5  17      [2]     15      [3]     19
+    ///       |               |               |
+    ///       |               |               |
+    /// 1.0   3-------6-------2------12-------9
+    ///       |               |               |
+    ///       |               |               |
+    /// 0.5   7      [0]      5      [1]     11
+    ///       |               |               |
+    ///       |               |               |
+    /// 0.0   0-------4-------1------10-------8
+    ///
+    ///      0.0     0.5     1.0     1.5     2.0
+    /// ```
     #[allow(unused)]
-    fn generate_artificial_2d() {
-        let mesh = Samples::three_tri3();
+    fn generate_artificial_2d(qua8: bool) {
+        let (mesh, name) = if qua8 {
+            (Samples::block_2d_four_qua8(), "artificial-elastic-2d-qua8")
+        } else {
+            (Samples::three_tri3(), "artificial-elastic-2d")
+        };
         let p1 = ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::LinearElastic {
@@ -811,9 +875,7 @@ mod tests {
         config.update_model_settings(1).save_strain = true;
 
         let mut file_io = FileIo::new();
-        file_io
-            .activate(&mesh, &base, "/tmp/pmsim", "artificial-elastic-2d")
-            .unwrap();
+        file_io.activate(&mesh, &base, "/tmp/pmsim", name).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
@@ -897,8 +959,9 @@ mod tests {
 
     #[test]
     fn read_essential_and_state_work_2d() {
-        // generate files (uncomment the next line)
-        // generate_artificial_2d();
+        // generate files (uncomment the next two lines)
+        // generate_artificial_2d(false);
+        // generate_artificial_2d(true);
 
         // read essential
         let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
@@ -1569,5 +1632,40 @@ mod tests {
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
         assert_eq!(dd, &[1.0, 4.0, 2.0]);
+    }
+
+    #[test]
+    fn values_along_edges_work() {
+        // ```text
+        // 2.0  14------16------13------20------18
+        //       |               |               |
+        //       |               |               |
+        // 1.5  17      [2]     15      [3]     19
+        //       |               |               |
+        //       |               |               |
+        // 1.0   3-------6-------2------12-------9
+        //       |               |               |
+        //       |               |               |
+        // 0.5   7      [0]      5      [1]     11
+        //       |               |               |
+        //       |               |               |
+        // 0.0   0-------4-------1------10-------8
+        //
+        //      0.0     0.5     1.0     1.5     2.0
+        // ```
+        let (file_io, mesh, base) =
+            PostProc::read_summary("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
+        let post = PostProc::new(&mesh, &base);
+        let features = Features::new(&mesh, false);
+        let top = features.search_edges(At::Y(2.0), any_x).unwrap();
+
+        let state = PostProc::read_state(&file_io, 0).unwrap();
+        let (ids, coords, dd) = post.values_along_edges(&top, Dof::Ux, &state).unwrap();
+
+        assert_eq!(ids, &[14, 16, 13, 20, 18]);
+        assert_eq!(coords, &[[0.0, 2.0], [0.5, 2.0], [1.0, 2.0], [1.5, 2.0], [2.0, 2.0]]);
+
+        let ux_correct: Vec<_> = coords.iter().map(|x| STRAIN * x[0]).collect();
+        array_approx_eq(&dd, &ux_correct, 1e-15);
     }
 }
