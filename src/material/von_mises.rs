@@ -188,6 +188,12 @@ impl StressStrainTrait for VonMises {
             vec[i] = sigma_m_trial * I[i] + beta * s_trial[i];
         }
 
+        // check for zero deviatoric stress
+        let norm_s = state.stress.invariant_sigma_d();
+        if norm_s < 1e-10 {
+            return Err("von Mises plastic update must not lead to zero deviatoric norm (norm_s < 1e-10)");
+        }
+
         // update internal variable
         let z = &mut state.int_vars[I_Z];
         *z += self.hh * lambda;
