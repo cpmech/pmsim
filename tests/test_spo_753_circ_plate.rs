@@ -5,6 +5,7 @@ use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::base::read_data;
+use russell_lab::{approx_eq, array_approx_eq};
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
@@ -145,10 +146,19 @@ fn post_processing() -> Result<(), StrError> {
         }
     }
 
+    // load reference results
+    let ref1 = read_data("data/spo/spo_753_plate_deflection_load.tsv", &["deflection", "load"])?;
+    let ref2 = read_data("data/spo/spo_753_profiles.tsv", &["x", "p100", "p200", "p250"])?;
+
+    // compare the results with Ref #1
+    // (imprecision is due to the data bing scanned and digitized)
+    array_approx_eq(&deflection, &ref1["deflection"], 0.0045);
+    approx_eq(yy_p100[0], ref2["p100"][0], 0.0006);
+    approx_eq(yy_p200[0], ref2["p200"][0], 0.0009);
+    approx_eq(yy_p250[0], ref2["p250"][0], 0.006);
+
     // plot
     if SAVE_FIGURE {
-        let ref1 = read_data("data/spo/spo_753_plate_deflection_load.tsv", &["x", "y"])?;
-        let ref2 = read_data("data/spo/spo_753_profiles.tsv", &["x", "p100", "p200", "p250"])?;
         let mut curve_p_w_ref = Curve::new();
         curve_p_w_ref
             .set_label("de Souza Neto et al. (SPO)")
@@ -156,7 +166,7 @@ fn post_processing() -> Result<(), StrError> {
             .set_marker_style("D")
             .set_marker_void(true)
             .set_marker_line_color("orange")
-            .draw(&ref1["x"], &ref1["y"]);
+            .draw(&ref1["deflection"], &ref1["load"]);
         let mut curve_p_w = Curve::new();
         curve_p_w
             .set_line_style("-")
