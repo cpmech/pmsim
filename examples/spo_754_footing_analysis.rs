@@ -5,7 +5,7 @@ use pmsim::base::Dof;
 use pmsim::fem::PostProc;
 use pmsim::StrError;
 use russell_lab::math::SQRT_3;
-use russell_lab::Matrix;
+use russell_lab::read_data;
 
 const NAME: &str = "spo_754_footing";
 
@@ -47,9 +47,7 @@ pub fn main() -> Result<(), StrError> {
         normalized_pressure.push(-2.0 * area / cohesion);
     }
 
-    let ref_xy = Matrix::from_text_file("data/spo/spo_754_footing_load_displacement.tsv")?;
-    let ref_x = ref_xy.extract_column(0);
-    let ref_y = ref_xy.extract_column(1);
+    let ref_xy = read_data("data/spo/spo_754_footing_load_displacement.tsv", &["x", "y"])?;
 
     let mut plot = Plot::new();
     let mut curve_ana = Curve::new();
@@ -65,12 +63,12 @@ pub fn main() -> Result<(), StrError> {
         .set_line_style("None")
         .set_marker_style("D")
         .set_marker_void(true)
-        .draw(&ref_x, &ref_y);
+        .draw(&ref_xy["x"], &ref_xy["y"]);
     curve_num
         .set_label("pmsim")
         .draw(&normalized_settlement, &normalized_pressure);
     plot.set_subplot(1, 2, 1)
-        .set_gaps(0.25, 0.2)
+        .set_gaps(0.28, 0.2)
         .add(&curve_ana)
         .add(&curve_num)
         .add(&curve_ref)
@@ -80,20 +78,19 @@ pub fn main() -> Result<(), StrError> {
     for (i, index) in selected_indices.iter().enumerate() {
         let mut curve = Curve::new();
         curve
-            .set_label(&format!(" t = {}", *index))
+            .set_label(&format!("t={}", *index))
             .draw(&x_coords, &selected_syy[i]);
         plot.add(&curve);
     }
     let mut leg = Legend::new();
     leg.set_num_col(5)
-        .set_handle_len(1.5)
+        .set_handle_len(1.2)
         .set_outside(true)
-        .set_x_coords(&[0.0, -0.15, 1.0, 0.102])
+        .set_x_coords(&[0.0, -0.28, 1.0, 0.102])
         .draw();
     plot.add(&leg)
         .grid_and_labels("$x$", "$\\sigma_y/c$")
-        .set_figure_size_points(800.0, 350.0)
-        .set_align_labels()
+        .set_figure_size_points(600.0, 250.0)
         .save("/tmp/pmsim/spo_754_footing_stress.svg")
         .unwrap();
 

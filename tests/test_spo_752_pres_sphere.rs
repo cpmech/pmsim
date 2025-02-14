@@ -3,8 +3,10 @@ use plotpy::Curve;
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresSphere};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
+use pmsim::StrError;
+use russell_lab::array_approx_eq;
+use russell_lab::base::read_data;
 use russell_lab::math::PI;
-use russell_lab::*;
 
 // This test runs the Example 7.5.2 (aka 752) on page 247 of Ref #1 (aka SPO's book)
 //
@@ -179,9 +181,7 @@ fn post_processing() -> Result<(), StrError> {
 
     // plot
     if SAVE_FIGURE {
-        let spo = Matrix::from_text_file("data/spo/spo_752_pres_sphere_pp_vs_ub.tsv")?;
-        let spo_x = spo.extract_column(0);
-        let spo_y = spo.extract_column(1);
+        let spo = read_data("data/spo/spo_752_pres_sphere_pp_vs_ub.tsv", &["x", "y"])?;
         let mut plot = ana.plot_results(&[0.15, 0.30], |plot, index| {
             if index == 0 {
                 let mut curve_spo = Curve::new();
@@ -190,7 +190,7 @@ fn post_processing() -> Result<(), StrError> {
                     .set_line_style("None")
                     .set_marker_style("D")
                     .set_marker_void(true)
-                    .draw(&spo_x, &spo_y);
+                    .draw(&spo["x"], &spo["y"]);
                 plot.add(&curve_spo);
                 let mut curve = Curve::new();
                 curve

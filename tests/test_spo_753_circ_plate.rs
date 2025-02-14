@@ -3,8 +3,8 @@ use plotpy::{Curve, Plot, Text};
 use pmsim::analytical::PlastCircularPlateAxisym;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
-use russell_lab::*;
-use std::collections::HashMap;
+use pmsim::StrError;
+use russell_lab::base::read_data;
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
@@ -147,9 +147,8 @@ fn post_processing() -> Result<(), StrError> {
 
     // plot
     if SAVE_FIGURE {
-        let labels = &["x", "p100", "p200", "p250"];
-        let ref1 = Matrix::from_text_file("data/spo/spo_753_plate_deflection_load.tsv")?;
-        let ref2: HashMap<String, Vec<f64>> = read_table("data/spo/spo_753_profiles.tsv", Some(labels))?;
+        let ref1 = read_data("data/spo/spo_753_plate_deflection_load.tsv", &["x", "y"])?;
+        let ref2 = read_data("data/spo/spo_753_profiles.tsv", &["x", "p100", "p200", "p250"])?;
         let mut curve_p_w_ref = Curve::new();
         curve_p_w_ref
             .set_label("de Souza Neto et al. (SPO)")
@@ -157,7 +156,7 @@ fn post_processing() -> Result<(), StrError> {
             .set_marker_style("D")
             .set_marker_void(true)
             .set_marker_line_color("orange")
-            .draw(&ref1.extract_column(0), &ref1.extract_column(1));
+            .draw(&ref1["x"], &ref1["y"]);
         let mut curve_p_w = Curve::new();
         curve_p_w
             .set_line_style("-")
@@ -210,7 +209,7 @@ fn post_processing() -> Result<(), StrError> {
             .set_horiz_line(ana.get_pp_lim(), "green", ":", 1.0)
             .add(&curve_p_w)
             .add(&curve_p_w_ref)
-            .grid_labels_legend("Central deflection", "Distributed load intensity")
+            .grid_labels_legend("Central deflection $w$", "Distributed load intensity $P$")
             .set_subplot(1, 2, 2)
             .set_yrange(0.0, 0.6)
             .set_inv_y()
