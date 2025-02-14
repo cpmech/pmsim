@@ -81,7 +81,7 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
             Some(0.0),
         );
         general_full.initialize_int_vars(&mut state_general_full)?;
-        general_full.update_stress(&mut state_general_full, &depsilon)?;
+        general_full.update_stress(&mut state_general_full, &depsilon, 0, 0)?;
         data_general_full.push(
             &state_general_full.stress,
             Some(state_general_full.strain.as_ref().unwrap()),
@@ -124,7 +124,7 @@ fn update_with_steps(
     let mut depsilon = Tensor2::new(state.stress.mandel());
     depsilon.update(1.0 / (n_step as f64), &depsilon_total);
     for _ in 0..n_step {
-        model.update_stress(state, &depsilon)?;
+        model.update_stress(state, &depsilon, 0, 0)?;
         state.strain.as_mut().unwrap().update(1.0, &depsilon);
         states.push(state.clone())
     }

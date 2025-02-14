@@ -1,12 +1,13 @@
 use gemlab::prelude::*;
 use plotpy::Curve;
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresSphere};
+use pmsim::material::{Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::array_approx_eq;
 use russell_lab::base::read_data;
-use russell_lab::math::PI;
+use russell_lab::math::{PI, SQRT_2_BY_3};
 
 // This test runs the Example 7.5.2 (aka 752) on page 247 of Ref #1 (aka SPO's book)
 //
@@ -38,12 +39,12 @@ use russell_lab::math::PI;
 
 const NAME_MESH: &str = "spo_751_pres_cylin"; // same as 751
 const SAVE_FIGURE: bool = true;
-const VERBOSE_LEVEL: usize = 2;
+const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 const P_ARRAY_COLLAPSE: [f64; 5] = [0.0, 0.15, 0.3, 0.33, 0.33269]; // inner pressure
-const P_ARRAY_RESIDUAL: [f64; 4] = [0.0, 0.15, 0.28, 0.25]; // inner pressure
+const P_ARRAY_RESIDUAL: [f64; 4] = [0.0, 0.15, 0.28, 0.22]; // inner pressure
 const PA_COLLAPSE: f64 = 0.15;
 const PB_COLLAPSE: f64 = 0.30;
 const PA_RESIDUAL: f64 = 0.15;
@@ -115,7 +116,11 @@ fn run_spo_752(
     config
         .set_axisymmetric()
         .set_tol_rr(1e-5)
-        .set_lagrange_mult_method(true);
+        // .set_n_max_iterations(10)
+        .set_constant_tangent(false)
+        .set_lagrange_mult_method(true)
+        .update_model_settings(1)
+        .set_save_strain(true);
     if collapse {
         config.set_incremental(P_ARRAY_COLLAPSE.len());
     } else {
@@ -288,5 +293,36 @@ fn post_processing(collapse: bool, name: &str) -> Result<(), StrError> {
             .save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
 
+    Ok(())
+}
+
+#[test]
+fn test_spo_752_pres_sphere_debug() -> Result<(), StrError> {
+    // read summary and associated files
+    let name = "spo_752_pres_sphere_resid_stress";
+    let (file_io, _, _) = PostProc::read_summary("/tmp/pmsim", name)?;
+
+    // loop over time stations
+    let mut local_states = Vec::new();
+    for index in &file_io.indices {
+        let state = PostProc::read_state(&file_io, *index)?;
+        local_states.push(state.gauss[0].get_local_state(0)?.clone());
+    }
+
+    let data = PlotterData::from_states(&local_states);
+    let mut plotter = Plotter::new();
+    plotter
+        .add_2x2(&data, false, |curve, _, _| {
+            curve.set_marker_style("o");
+        })
+        .unwrap();
+    let p = local_states.len() - 1;
+    let radius_0 = local_states[0].int_vars[0] * SQRT_2_BY_3;
+    let radius_1 = local_states[p].int_vars[0] * SQRT_2_BY_3;
+    plotter.set_oct_circle(radius_0, |_| {});
+    plotter.set_oct_circle(radius_1, |canvas| {
+        canvas.set_line_style("-");
+    });
+    plotter.save("/tmp/pmsim/spo_752_pres_sphere_resid_stress_local_state.svg")?;
     Ok(())
 }

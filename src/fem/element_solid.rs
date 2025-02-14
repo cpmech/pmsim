@@ -174,11 +174,15 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         args.axisymmetric = self.config.ideal.axisymmetric;
         if self.config.alt_bb_matrix_method {
             integ::mat_10_bdb_alt(jacobian, &mut args, |dd, p, _, _| {
-                self.model.actual.stiffness(dd, &state.gauss[self.cell_id].solid[p])
+                self.model
+                    .actual
+                    .stiffness(dd, &state.gauss[self.cell_id].solid[p], self.cell_id, p)
             })
         } else {
             integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
-                self.model.actual.stiffness(dd, &state.gauss[self.cell_id].solid[p])
+                self.model
+                    .actual
+                    .stiffness(dd, &state.gauss[self.cell_id].solid[p], self.cell_id, p)
             })
         }
     }
@@ -198,9 +202,12 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 &mut self.pad,
             )?;
             // perform stress-update
-            self.model
-                .actual
-                .update_stress(&mut state.gauss[self.cell_id].solid[p], &self.delta_strain)?;
+            self.model.actual.update_stress(
+                &mut state.gauss[self.cell_id].solid[p],
+                &self.delta_strain,
+                self.cell_id,
+                p,
+            )?;
         }
         if self.save_strain {
             for p in 0..self.gauss.npoint() {

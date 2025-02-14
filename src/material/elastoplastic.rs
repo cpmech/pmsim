@@ -1,6 +1,7 @@
 use super::{LocalState, PlasticityTrait, PlotterData, Settings, StressStrainTrait, VonMises};
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
+use gemlab::mesh::CellId;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
 use russell_ode::{OdeSolver, Params, System};
 use russell_tensor::{t2_ddot_t4_ddot_t2, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4};
@@ -524,12 +525,24 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     }
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+    fn stiffness(
+        &mut self,
+        _dd: &mut Tensor4,
+        _state: &LocalState,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
         Err("TODO")
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(
+        &mut self,
+        state: &mut LocalState,
+        delta_strain: &Tensor2,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
         // set Δε in arguments struct
         self.args.depsilon.set_tensor(1.0, delta_strain);
 
@@ -685,7 +698,7 @@ mod tests {
         t4_ddot_t2(&mut depsilon, 1.0, &cc, &dsigma); // Δε = C : Δσ
 
         // perform the update
-        model.update_stress(state, &depsilon).unwrap(); // update stress
+        model.update_stress(state, &depsilon, 0, 0).unwrap(); // update stress
         state.strain.as_mut().unwrap().update(1.0, &depsilon); // update strain (for plotting)
         (depsilon.invariant_eps_v(), depsilon.invariant_eps_d())
     }

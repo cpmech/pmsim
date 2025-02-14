@@ -1,6 +1,7 @@
 use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
 use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
+use gemlab::mesh::CellId;
 use russell_lab::Vector;
 use russell_tensor::deriv1_invariant_sigma_d;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
@@ -114,7 +115,13 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
+    fn stiffness(
+        &mut self,
+        dd: &mut Tensor4,
+        state: &LocalState,
+        cell_id: CellId,
+        gauss_id: usize,
+    ) -> Result<(), StrError> {
         // handle elastic case
         if state.elastic {
             dd.set_tensor(1.0, self.lin_elasticity.get_modulus()); // D ← Dₑ
@@ -132,6 +139,7 @@ impl StressStrainTrait for VonMises {
         let sigma_d_trial = sigma_d + lambda * 3.0 * gg;
         let norm_s = sigma_d * SQRT_2_BY_3;
         if norm_s < 1e-10 {
+            println!("cell_id = {:?}, gauss_id = {:?}", cell_id, gauss_id);
             return Err("von Mises stiffness cannot be computed with zero deviatoric norm (norm_s < 1e-10)");
         }
         let d = 3.0 * gg + hh;
@@ -153,7 +161,13 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(
+        &mut self,
+        state: &mut LocalState,
+        delta_strain: &Tensor2,
+        cell_id: CellId,
+        gauss_id: usize,
+    ) -> Result<(), StrError> {
         // reset flags
         state.elastic = true; // aka, unloading
         state.int_vars[I_LAMBDA] = 0.0; // algorithmic Lagrange multiplier
@@ -191,6 +205,7 @@ impl StressStrainTrait for VonMises {
         // check for zero deviatoric stress
         let norm_s = state.stress.invariant_sigma_d();
         if norm_s < 1e-10 {
+            println!("cell_id = {:?}, gauss_id = {:?}", cell_id, gauss_id);
             return Err("von Mises plastic update must not lead to zero deviatoric norm (norm_s < 1e-10)");
         }
 
@@ -295,7 +310,7 @@ mod tests {
 
         // update
         let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
-        model.update_stress(&mut state, &delta_strain).unwrap();
+        model.update_stress(&mut state, &delta_strain, 0, 0).unwrap();
         state
     }
 
@@ -366,7 +381,7 @@ mod tests {
 
             // elastoplastic update
             let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
-            model.update_stress(&mut state, &delta_strain).unwrap();
+            model.update_stress(&mut state, &delta_strain, 0, 0).unwrap();
             let sigma_m_2 = state.stress.invariant_sigma_m();
             let sigma_d_2 = state.stress.invariant_sigma_d();
 
@@ -425,11 +440,11 @@ mod tests {
         let mut delta_strain = Tensor2::new(mandel);
         delta_strain.vector_mut()[0] = 0.9999 * eps_x;
         delta_strain.vector_mut()[1] = 0.9999 * eps_y;
-        model.update_stress(&mut state, &delta_strain).unwrap();
+        model.update_stress(&mut state, &delta_strain, 0, 0).unwrap();
 
         // first modulus: elastic stiffness
         let mut dd = Tensor4::new(mandel);
-        model.stiffness(&mut dd, &state).unwrap();
+        model.stiffness(&mut dd, &state, 0, 0).unwrap();
         let dd_spo = &[
             [1.800000000000000E+03, 6.000000000000000E+02, 0.000000000000000E+00],
             [6.000000000000000E+02, 1.800000000000000E+03, 0.000000000000000E+00],
@@ -442,10 +457,10 @@ mod tests {
         // second update: elastoplastic behavior
         delta_strain.vector_mut()[0] = (2.0 - 0.9999) * eps_x;
         delta_strain.vector_mut()[1] = (2.0 - 0.9999) * eps_y;
-        model.update_stress(&mut state, &delta_strain).unwrap();
+        model.update_stress(&mut state, &delta_strain, 0, 0).unwrap();
 
         // second modulus: elastoplastic stiffness
-        model.stiffness(&mut dd, &state).unwrap();
+        model.stiffness(&mut dd, &state, 0, 0).unwrap();
         let dd_spo = &[
             [1.389940828402367E+03, 9.248520710059172E+02, -2.081794007857600E-15],
             [9.248520710059172E+02, 1.262130177514793E+03, 2.914511611000640E-15],

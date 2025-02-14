@@ -1,6 +1,7 @@
 use super::{Elastoplastic, LinearElastic, LocalState, Settings, VonMises};
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
+use gemlab::mesh::CellId;
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Specifies the essential functions for stress-strain models
@@ -23,10 +24,22 @@ pub trait StressStrainTrait: Send {
     fn reset_algorithmic_variables(&self, state: &mut LocalState);
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
+    fn stiffness(
+        &mut self,
+        dd: &mut Tensor4,
+        state: &LocalState,
+        cell_id: CellId,
+        gauss_id: usize,
+    ) -> Result<(), StrError>;
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError>;
+    fn update_stress(
+        &mut self,
+        state: &mut LocalState,
+        delta_strain: &Tensor2,
+        cell_id: CellId,
+        gauss_id: usize,
+    ) -> Result<(), StrError>;
 }
 
 /// Holds the actual stress-strain model implementation

@@ -1,6 +1,7 @@
 use super::{LocalState, Settings, StressStrainTrait};
 use crate::base::{Idealization, StressStrain, NZ_LINEAR_ELASTIC};
 use crate::StrError;
+use gemlab::mesh::CellId;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 
 /// Implements a linear elastic model
@@ -45,13 +46,25 @@ impl StressStrainTrait for LinearElastic {
     fn reset_algorithmic_variables(&self, _state: &mut LocalState) {}
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+    fn stiffness(
+        &mut self,
+        dd: &mut Tensor4,
+        _state: &LocalState,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
         dd.set_tensor(1.0, self.model.get_modulus());
         Ok(())
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(
+        &mut self,
+        state: &mut LocalState,
+        delta_strain: &Tensor2,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
         let dd = self.model.get_modulus();
         t4_ddot_t2_update(&mut state.stress, 1.0, dd, delta_strain, 1.0); // σ += D : Δε
         Ok(())
