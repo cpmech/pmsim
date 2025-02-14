@@ -355,7 +355,8 @@ impl<'a> Config<'a> {
     // getters -----------------------------------------------------------------------------------
 
     /// Returns the initial overburden stress (negative means compression)
-    pub fn initial_overburden_stress(&self) -> f64 {
+    #[allow(dead_code)]
+    pub(crate) fn initial_overburden_stress(&self) -> f64 {
         match self.initialization {
             Init::Geostatic(overburden) => overburden,
             _ => 0.0,
@@ -363,7 +364,7 @@ impl<'a> Config<'a> {
     }
 
     /// Returns the extra model settings
-    pub fn model_settings(&self, cell_attribute: CellAttribute) -> Settings {
+    pub(crate) fn model_settings(&self, cell_attribute: CellAttribute) -> Settings {
         match self.model_settings.get(&cell_attribute) {
             Some(s) => s.clone(),
             None => Settings::new(),
