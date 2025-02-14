@@ -56,6 +56,22 @@ impl<'a> SolverImplicit<'a> {
 
     /// Solves the associated system of partial differential equations
     pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
+        // helper macro to save the state before returning an error
+        macro_rules! run {
+            ($e:expr) => {
+                match $e {
+                    Ok(val) => val,
+                    Err(err) => {
+                        match file_io.write_state(state) {
+                            Ok(_) => (),
+                            Err(e) => println!("ERROR-ON-ERROR: cannot write state due to: {}", e),
+                        }
+                        return Err(err);
+                    }
+                }
+            };
+        }
+
         // accessors
         let config = &self.config;
         let rr = &mut self.linear_system.rr;
@@ -101,7 +117,7 @@ impl<'a> SolverImplicit<'a> {
             state.t += state.dt;
 
             // old state variables
-            let (beta_1, beta_2) = config.betas_transient(state.dt)?;
+            let (beta_1, beta_2) = run!(config.betas_transient(state.dt));
             if config.transient {
                 vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
             }
@@ -137,8 +153,8 @@ impl<'a> SolverImplicit<'a> {
                 rr.fill(0.0);
 
                 // calculate all ϕ vectors (at the new time) and add them to R
-                self.elements.assemble_phi(rr, state, ignore)?;
-                self.bc_distributed.assemble_phi(rr, state, ignore)?;
+                run!(self.elements.assemble_phi(rr, state, ignore));
+                run!(self.bc_distributed.assemble_phi(rr, state, ignore));
 
                 // add concentrated loads to the residual R
                 self.bc_concentrated.add_to_rr(rr, state.t);
@@ -162,7 +178,7 @@ impl<'a> SolverImplicit<'a> {
                     if !config.linear_problem {
                         config.print_iteration(iteration, max_rr_prev, max_rr);
                     }
-                    vec_copy(&mut rr0, rr)?;
+                    vec_copy(&mut rr0, rr).unwrap();
                 } else {
                     max_rr = vec_max_scaled(rr, &rr0); // << scaled
                     if !config.linear_problem {
@@ -176,12 +192,12 @@ impl<'a> SolverImplicit<'a> {
                 // compute Jacobian matrix
                 if iteration == 0 || !config.constant_tangent {
                     // reset pointer in K matrix == clear all values
-                    kk.reset()?;
+                    kk.reset().unwrap();
 
                     // calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
-                    let kk_coo = kk.get_coo_mut()?;
-                    self.elements.assemble_kke(kk_coo, state, ignore)?;
-                    self.bc_distributed.assemble_kke(kk_coo, state, ignore)?;
+                    let kk_coo = kk.get_coo_mut().unwrap();
+                    run!(self.elements.assemble_kke(kk_coo, state, ignore));
+                    run!(self.bc_distributed.assemble_kke(kk_coo, state, ignore));
 
                     // modify K
                     if config.lagrange_mult_method {
@@ -189,8 +205,8 @@ impl<'a> SolverImplicit<'a> {
                         for p in 0..self.bc_prescribed.equations.len() {
                             let i = self.bc_prescribed.equations[p];
                             let j = ndof + p;
-                            kk.put(i, j, 1.0)?; // Aᵀ
-                            kk.put(j, i, 1.0)?; // A
+                            kk.put(i, j, 1.0).unwrap(); // Aᵀ
+                            kk.put(j, i, 1.0).unwrap(); // A
                         }
                     } else {
                         // augment global Jacobian matrix (put ones on the diagonal)
@@ -200,20 +216,22 @@ impl<'a> SolverImplicit<'a> {
                     }
 
                     // factorize global Jacobian matrix
-                    self.linear_system
+                    run!(self
+                        .linear_system
                         .solver
                         .actual
-                        .factorize(kk, Some(config.lin_sol_params))?;
+                        .factorize(kk, Some(config.lin_sol_params)));
 
                     // Debug K matrix
-                    config.debug_save_kk_matrix(kk)?;
+                    config.debug_save_kk_matrix(kk).unwrap();
                 }
 
                 // solve linear system
-                self.linear_system
+                run!(self
+                    .linear_system
                     .solver
                     .actual
-                    .solve(mdu, &kk, &rr, config.verbose_lin_sys_solve)?;
+                    .solve(mdu, &kk, &rr, config.verbose_lin_sys_solve));
 
                 // updates
                 if config.transient {
@@ -241,7 +259,7 @@ impl<'a> SolverImplicit<'a> {
                 }
 
                 // update secondary variables
-                self.elements.update_secondary_values(state)?;
+                run!(self.elements.update_secondary_values(state));
 
                 // exit if linear problem
                 if config.linear_problem {
