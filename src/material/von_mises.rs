@@ -19,6 +19,9 @@ const I: &[f64; 9] = &IDENTITY2;
 /// Defines an alias to P_SYMDEV
 const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 
+/// Tolerance to detect elastic regime
+const F_TOL: f64 = 1e-6;
+
 /// Implements the von Mises plasticity model
 ///
 /// **Note:** This model works in 2D (plane-strain only) or 3D.
@@ -64,6 +67,9 @@ impl VonMises {
                 hh,
                 z_ini,
             } => {
+                if z_ini <= F_TOL {
+                    return Err("von Mises initial size of the yield surface must > 1e-6");
+                }
                 let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
                 let (kk, gg) = lin_elasticity.get_bulk_shear();
                 Ok(VonMises {
@@ -178,7 +184,7 @@ impl StressStrainTrait for VonMises {
 
         // elastic update
         let f_trial = self.yield_function(state)?;
-        if f_trial <= 0.0 {
+        if f_trial / self.z_ini <= F_TOL {
             return Ok(());
         }
 
@@ -203,10 +209,10 @@ impl StressStrainTrait for VonMises {
         }
 
         // check for zero deviatoric stress
-        let norm_s = state.stress.invariant_sigma_d();
-        if norm_s < 1e-10 {
+        let sigma_d = state.stress.invariant_sigma_d();
+        if sigma_d < 1e-10 {
             println!("cell_id = {:?}, gauss_id = {:?}", cell_id, gauss_id);
-            return Err("von Mises plastic update must not lead to zero deviatoric norm (norm_s < 1e-10)");
+            return Err("von Mises plastic update must not lead to zero sigma_d (sigma_d < 1e-10)");
         }
 
         // update internal variable
