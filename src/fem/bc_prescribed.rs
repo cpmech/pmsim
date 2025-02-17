@@ -49,7 +49,7 @@ impl<'a> BcPrescribedArray<'a> {
     /// Allocates a new instance
     pub fn new(base: &FemBase, essential: &'a Essential) -> Result<Self, StrError> {
         let mut all = Vec::new();
-        let mut flags = vec![false; base.equations.ndof()];
+        let mut flags = vec![false; base.equations.size()];
         let mut equations = Vec::new();
         for ((point_id, dof), (value, f_index)) in &essential.all {
             let eq = base.equations.eq(*point_id, *dof)?;

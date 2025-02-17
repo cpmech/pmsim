@@ -99,9 +99,9 @@ impl<'a> LinearSystem<'a> {
 
         // equation (DOF) numbers
         let neq_total = if config.lagrange_mult_method {
-            base.equations.ndof() + n_prescribed
+            base.equations.size() + n_prescribed
         } else {
-            base.equations.ndof()
+            base.equations.size()
         };
 
         // estimate the number of non-zero values

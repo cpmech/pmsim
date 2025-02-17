@@ -585,7 +585,7 @@ mod tests {
 
         let mut bry = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
 
-        let neq = base.equations.ndof();
+        let neq = base.equations.size();
         let mut rr = Vector::new(neq);
         let ignore = vec![false; neq];
         bry.assemble_phi(&mut rr, &state, &ignore).unwrap();

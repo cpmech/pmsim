@@ -24,7 +24,7 @@ impl FileIo {
         }
 
         // auxiliary information
-        let enabled_dofs = base.equations.get_enabled_dofs();
+        let enabled_dofs = base.equations.enabled();
         let not_displacement_dof: Vec<_> = enabled_dofs
             .iter()
             .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
@@ -335,7 +335,7 @@ mod tests {
         // Applies liquid pressure proportional to the y coordinate
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            if base.equations.has_dof(p, Dof::Pl) {
+            if base.equations.contains(p, Dof::Pl) {
                 let eq = base.equations.eq(p, Dof::Pl).unwrap();
                 state.uu[eq] = 100.0 * (1.0 + y);
             }

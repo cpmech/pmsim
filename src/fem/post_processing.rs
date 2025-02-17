@@ -986,7 +986,7 @@ mod tests {
         assert_eq!(base.emap.get(&mesh.cells[0]).unwrap().n_equation, 6); // 3 * 2 (nnode * ndim)
         assert_eq!(base.emap.get(&mesh.cells[1]).unwrap().n_equation, 6);
         assert_eq!(base.emap.get(&mesh.cells[2]).unwrap().n_equation, 6);
-        assert_eq!(base.equations.ndof(), 10);
+        assert_eq!(base.equations.size(), 10);
 
         // read state
         let ndim = mesh.ndim;
@@ -1034,7 +1034,7 @@ mod tests {
         assert_eq!(base.amap.get(2).unwrap().name(), "Solid");
         assert_eq!(base.emap.get(&mesh.cells[0]).unwrap().n_equation, 24); // 8 * 3 (nnode * ndim)
         assert_eq!(base.emap.get(&mesh.cells[1]).unwrap().n_equation, 24);
-        assert_eq!(base.equations.ndof(), 36); // 12 * 3 (nnode_total * ndim)
+        assert_eq!(base.equations.size(), 36); // 12 * 3 (nnode_total * ndim)
 
         // read state
         let ndim = mesh.ndim;

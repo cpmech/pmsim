@@ -116,12 +116,12 @@ impl AllDofs {
     }
 
     /// Returns whether a point has a specific DOF or not
-    pub fn has_dof(&self, point_id: PointId, dof: Dof) -> bool {
+    pub fn contains(&self, point_id: PointId, dof: Dof) -> bool {
         self.list[point_id].contains_key(&dof)
     }
 
     /// Returns the total number of DOFs
-    pub fn ndof(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.ndof
     }
 
@@ -136,15 +136,15 @@ impl AllDofs {
         Ok(*eq)
     }
 
-    /// Returns the DOF keys of a point (sorted according to the enum)
-    pub fn get_keys(&self, point_id: PointId) -> Vec<Dof> {
+    /// Returns the DOF keys of a point (sorted according to the enum value)
+    pub fn keys(&self, point_id: PointId) -> Vec<Dof> {
         let mut keys: Vec<_> = self.list[point_id].keys().copied().collect();
         keys.sort();
         keys
     }
 
-    /// Returns a list with all enabled DOFs (sorted according to the enum)
-    pub fn get_enabled_dofs(&self) -> Vec<Dof> {
+    /// Returns a list with all enabled DOFs (sorted according to the enum value)
+    pub fn enabled(&self) -> Vec<Dof> {
         let mut unique = HashSet::new();
         for map in &self.list {
             for dof in map.keys() {
@@ -252,17 +252,17 @@ mod tests {
         );
 
         // check keys
-        let keys0 = dofs.get_keys(0); // remember: DOFs are enums and thus Rx,Ry,Rz come before Pl,Pg
-        let keys2 = dofs.get_keys(2);
-        let keys4 = dofs.get_keys(4);
-        let keys6 = dofs.get_keys(6);
+        let keys0 = dofs.keys(0); // remember: DOFs are enums and thus Rx,Ry,Rz come before Pl,Pg
+        let keys2 = dofs.keys(2);
+        let keys4 = dofs.keys(4);
+        let keys6 = dofs.keys(6);
         assert_eq!(&keys0, &vec![Dof::Ux, Dof::Uy, Dof::Pl]);
         assert_eq!(&keys2, &vec![Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl]);
         assert_eq!(&keys4, &vec![Dof::Ux, Dof::Uy]);
         assert_eq!(&keys6, &vec![Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl]);
 
         // check get_enabled_dofs
-        assert_eq!(dofs.get_enabled_dofs(), vec![Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl]);
+        assert_eq!(dofs.enabled(), vec![Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl]);
     }
 
     #[test]

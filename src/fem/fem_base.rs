@@ -94,7 +94,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        assert_eq!(base.equations.ndof(), 6);
+        assert_eq!(base.equations.size(), 6);
     }
 
     #[test]
