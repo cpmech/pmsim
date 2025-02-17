@@ -63,18 +63,23 @@ use std::fmt;
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AllDofs {
-    /// Holds all points DOFs and numbers
+    /// Holds all DOFs and respective global numbers for all points
     ///
-    /// **Notes:**
+    /// Example:
     ///
-    /// 1. The array has a length equal to npoint
-    /// 2. The inner maps have variable lengths according to the number of DOFs at the point
-    all: Vec<HashMap<Dof, usize>>,
+    /// ```text
+    /// [
+    ///     {(Ux, 0), (Uy, 1), (Pl,2)}, // point 0
+    ///     {(Ux, 3), (Uy, 4)},         // point 1
+    /// ]
+    /// ```
+    ///
+    ///
+    /// (npoint)
+    list: Vec<HashMap<Dof, usize>>,
 
-    /// Holds the total number of global equations
-    ///
-    /// **Note:** This is equal to the total number of DOFs
-    n_equation: usize,
+    /// Holds the total number of DOFs
+    ndof: usize,
 }
 
 impl AllDofs {
@@ -94,38 +99,38 @@ impl AllDofs {
             }
         }
 
-        // compute all point DOF numbers
-        let mut all = vec![HashMap::new(); npoint];
-        let mut n_equation = 0; // equals the total number of DOFs
+        // assign numbers to all DOFs
+        let mut list = vec![HashMap::new(); npoint];
+        let mut ndof = 0; // total number of DOFs
         for point_id in 0..npoint {
             let mut sorted_dofs: Vec<_> = memo_point_dofs[point_id].iter().collect();
             sorted_dofs.sort();
             for dof in sorted_dofs {
-                all[point_id].insert(*dof, n_equation);
-                n_equation += 1;
+                list[point_id].insert(*dof, ndof);
+                ndof += 1;
             }
         }
 
         // done
-        Ok(AllDofs { all, n_equation })
+        Ok(AllDofs { list, ndof })
     }
 
     /// Returns whether a point has a specific DOF or not
     pub fn has_dof(&self, point_id: PointId, dof: Dof) -> bool {
-        self.all[point_id].contains_key(&dof)
+        self.list[point_id].contains_key(&dof)
     }
 
     /// Returns the total number of DOFs
     pub fn ndof(&self) -> usize {
-        self.n_equation
+        self.ndof
     }
 
     /// Returns the (global) equation number of a (PointId,DOF) pair
     pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
-        if point_id >= self.all.len() {
+        if point_id >= self.list.len() {
             return Err("cannot find equation number because PointId is out-of-bounds");
         }
-        let eq = self.all[point_id]
+        let eq = self.list[point_id]
             .get(&dof)
             .ok_or("cannot find equation number corresponding to (PointId,DOF)")?;
         Ok(*eq)
@@ -133,7 +138,7 @@ impl AllDofs {
 
     /// Returns the DOF keys of a point (sorted according to the enum)
     pub fn get_keys(&self, point_id: PointId) -> Vec<Dof> {
-        let mut keys: Vec<_> = self.all[point_id].keys().copied().collect();
+        let mut keys: Vec<_> = self.list[point_id].keys().copied().collect();
         keys.sort();
         keys
     }
@@ -141,7 +146,7 @@ impl AllDofs {
     /// Returns a list with all enabled DOFs (sorted according to the enum)
     pub fn get_enabled_dofs(&self) -> Vec<Dof> {
         let mut unique = HashSet::new();
-        for map in &self.all {
+        for map in &self.list {
             for dof in map.keys() {
                 unique.insert(*dof);
             }
@@ -156,8 +161,8 @@ impl fmt::Display for AllDofs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Points: DOF keys and global numbers\n").unwrap();
         write!(f, "===================================\n").unwrap();
-        for point_id in 0..self.all.len() {
-            let mut dof_eqn: Vec<_> = self.all[point_id].iter().collect();
+        for point_id in 0..self.list.len() {
+            let mut dof_eqn: Vec<_> = self.list[point_id].iter().collect();
             dof_eqn.sort_by(|a, b| a.0.partial_cmp(b.0).unwrap());
             write!(f, "{:?}: {:?}\n", point_id, dof_eqn).unwrap();
         }
@@ -189,7 +194,7 @@ mod tests {
     }
 
     fn check_dofs(dofs: &AllDofs, p: PointId, correct: &[(Dof, usize)]) {
-        let mut dofs: Vec<_> = dofs.all[p].iter().map(|(d, n)| (*d, *n)).collect();
+        let mut dofs: Vec<_> = dofs.list[p].iter().map(|(d, n)| (*d, *n)).collect();
         dofs.sort();
         assert_eq!(dofs, correct);
     }
