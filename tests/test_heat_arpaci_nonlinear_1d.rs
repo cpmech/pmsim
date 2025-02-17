@@ -101,7 +101,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = base.equations.eq(ref_id, Dof::T)?;
+    let ref_eq = base.dofs.eq(ref_id, Dof::T)?;
     let ref_tt = state.uu[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);

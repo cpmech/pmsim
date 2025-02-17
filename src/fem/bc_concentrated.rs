@@ -40,7 +40,7 @@ impl<'a> BcConcentratedArray<'a> {
     pub fn new(base: &FemBase, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.at_points.len() + 1);
         for (point_id, pbc, value, f_index) in &natural.at_points {
-            let eq = base.equations.eq(*point_id, pbc.dof())?;
+            let eq = base.dofs.eq(*point_id, pbc.dof())?;
             let function = match f_index {
                 Some(index) => Some(&natural.functions[*index]),
                 None => None,

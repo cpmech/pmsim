@@ -113,7 +113,7 @@ fn post_processing() -> Result<(), StrError> {
     let features = Features::new(&mesh, false);
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
-    let eq_uy = base.equations.eq(center, Dof::Uy)?;
+    let eq_uy = base.dofs.eq(center, Dof::Uy)?;
 
     // analytical solution
     let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);

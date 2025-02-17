@@ -17,7 +17,7 @@ pub struct FemBase {
     pub emap: ElementDofsMap,
 
     /// Holds all DOF numbers
-    pub equations: AllDofs,
+    pub dofs: AllDofs,
 }
 
 impl FemBase {
@@ -25,8 +25,8 @@ impl FemBase {
     pub fn new<const N: usize>(mesh: &Mesh, arr: [(CellAttribute, Elem); N]) -> Result<Self, StrError> {
         let amap = Attributes::from(arr);
         let emap = ElementDofsMap::new(&mesh, &amap)?;
-        let equations = AllDofs::new(&mesh, &emap).unwrap(); // cannot fail
-        Ok(FemBase { amap, emap, equations })
+        let dofs = AllDofs::new(&mesh, &emap).unwrap(); // cannot fail
+        Ok(FemBase { amap, emap, dofs })
     }
 
     /// Returns the number of local equations
@@ -94,7 +94,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        assert_eq!(base.equations.size(), 6);
+        assert_eq!(base.dofs.size(), 6);
     }
 
     #[test]
@@ -130,6 +130,6 @@ mod tests {
         let read: FemBase = serde_json::from_str(&json).unwrap();
         assert_eq!(format!("{:?}", read.amap), format!("{:?}", base.amap));
         assert_eq!(format!("{:?}", read.emap), format!("{:?}", base.emap));
-        assert_eq!(format!("{}", read.equations), format!("{}", base.equations));
+        assert_eq!(format!("{}", read.dofs), format!("{}", base.dofs));
     }
 }

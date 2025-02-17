@@ -28,7 +28,7 @@ pub fn main() -> Result<(), StrError> {
     let mut x_coords = Vec::new();
     let mut selected_syy = Vec::<Vec<f64>>::new();
     let selected_indices = &[1, 2, 4, 6, file_io.indices.len() - 1];
-    let eq_corner = base.equations.eq(corner_id, Dof::Uy)?;
+    let eq_corner = base.dofs.eq(corner_id, Dof::Uy)?;
     for index in &file_io.indices {
         let state = PostProc::read_state(&file_io, *index)?;
         let uy = state.uu[eq_corner];

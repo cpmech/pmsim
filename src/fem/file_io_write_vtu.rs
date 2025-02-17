@@ -24,7 +24,7 @@ impl FileIo {
         }
 
         // auxiliary information
-        let enabled_dofs = base.equations.enabled();
+        let enabled_dofs = base.dofs.enabled();
         let not_displacement_dof: Vec<_> = enabled_dofs
             .iter()
             .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
@@ -124,15 +124,15 @@ impl FileIo {
             )
             .unwrap();
             for point in &mesh.points {
-                let ux = match base.equations.eq(point.id, Dof::Ux).ok() {
+                let ux = match base.dofs.eq(point.id, Dof::Ux).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
-                let uy = match base.equations.eq(point.id, Dof::Uy).ok() {
+                let uy = match base.dofs.eq(point.id, Dof::Uy).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
-                let uz = match base.equations.eq(point.id, Dof::Uz).ok() {
+                let uz = match base.dofs.eq(point.id, Dof::Uz).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
@@ -148,7 +148,7 @@ impl FileIo {
             )
             .unwrap();
             for point in &mesh.points {
-                let value = match base.equations.eq(point.id, *dof).ok() {
+                let value = match base.dofs.eq(point.id, *dof).ok() {
                     Some(eq) => state.uu[eq],
                     None => 0.0,
                 };
@@ -245,7 +245,7 @@ mod tests {
         let npoint = mesh.points.len();
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            let eq = base.equations.eq(p, Dof::Ux).unwrap();
+            let eq = base.dofs.eq(p, Dof::Ux).unwrap();
             state.uu[eq] = strain * y;
         }
 
@@ -328,15 +328,15 @@ mod tests {
         let npoint = mesh.points.len();
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            let eq = base.equations.eq(p, Dof::Ux).unwrap();
+            let eq = base.dofs.eq(p, Dof::Ux).unwrap();
             state.uu[eq] = strain * y;
         }
 
         // Applies liquid pressure proportional to the y coordinate
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            if base.equations.contains(p, Dof::Pl) {
-                let eq = base.equations.eq(p, Dof::Pl).unwrap();
+            if base.dofs.contains(p, Dof::Pl) {
+                let eq = base.dofs.eq(p, Dof::Pl).unwrap();
                 state.uu[eq] = 100.0 * (1.0 + y);
             }
         }

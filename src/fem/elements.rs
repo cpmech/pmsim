@@ -459,7 +459,7 @@ mod tests {
 
         // elements
         let mut elements = Elements::new(&mesh, &base, &config).unwrap();
-        let neq = base.equations.size();
+        let neq = base.dofs.size();
         let nnz_sup = 3 * neq * neq;
         let mut rr = Vector::new(neq);
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();

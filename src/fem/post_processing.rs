@@ -725,7 +725,7 @@ impl<'a> PostProc<'a> {
         // extract dof values
         let dd: Vec<_> = id_x_pairs
             .iter()
-            .map(|(id, _)| state.uu[self.base.equations.eq(*id, dof).unwrap()])
+            .map(|(id, _)| state.uu[self.base.dofs.eq(*id, dof).unwrap()])
             .collect();
 
         // unzip id_x_pairs
@@ -779,7 +779,7 @@ impl<'a> PostProc<'a> {
         // extract dof values
         let dd: Vec<_> = point_ids
             .iter()
-            .map(|id| state.uu[self.base.equations.eq(*id, dof).unwrap()])
+            .map(|id| state.uu[self.base.dofs.eq(*id, dof).unwrap()])
             .collect();
 
         // results
@@ -986,7 +986,7 @@ mod tests {
         assert_eq!(base.emap.get(&mesh.cells[0]).unwrap().n_equation, 6); // 3 * 2 (nnode * ndim)
         assert_eq!(base.emap.get(&mesh.cells[1]).unwrap().n_equation, 6);
         assert_eq!(base.emap.get(&mesh.cells[2]).unwrap().n_equation, 6);
-        assert_eq!(base.equations.size(), 10);
+        assert_eq!(base.dofs.size(), 10);
 
         // read state
         let ndim = mesh.ndim;
@@ -1034,7 +1034,7 @@ mod tests {
         assert_eq!(base.amap.get(2).unwrap().name(), "Solid");
         assert_eq!(base.emap.get(&mesh.cells[0]).unwrap().n_equation, 24); // 8 * 3 (nnode * ndim)
         assert_eq!(base.emap.get(&mesh.cells[1]).unwrap().n_equation, 24);
-        assert_eq!(base.equations.size(), 36); // 12 * 3 (nnode_total * ndim)
+        assert_eq!(base.dofs.size(), 36); // 12 * 3 (nnode_total * ndim)
 
         // read state
         let ndim = mesh.ndim;

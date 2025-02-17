@@ -96,7 +96,7 @@ impl<'a> BcDistributed<'a> {
         let mut local_to_global = vec![0; n_local_eq];
         for m in 0..nnode {
             for (dof, local) in &dofs[m] {
-                let global = base.equations.eq(points[m], *dof)?;
+                let global = base.dofs.eq(points[m], *dof)?;
                 local_to_global[*local] = global;
             }
         }
@@ -585,7 +585,7 @@ mod tests {
 
         let mut bry = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
 
-        let neq = base.equations.size();
+        let neq = base.dofs.size();
         let mut rr = Vector::new(neq);
         let ignore = vec![false; neq];
         bry.assemble_phi(&mut rr, &state, &ignore).unwrap();

@@ -201,7 +201,7 @@ fn post_processing(collapse: bool, name: &str) -> Result<(), StrError> {
         assert_eq!(file_io.times[*index], state.t);
 
         // radial displacement
-        let outer_eq = base.equations.eq(outer_point, Dof::Ux)?;
+        let outer_eq = base.dofs.eq(outer_point, Dof::Ux)?;
         let ub_num = state.uu[outer_eq];
         outer_ur[*index] = ub_num;
 
