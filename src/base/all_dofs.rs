@@ -36,7 +36,7 @@ use std::fmt;
 /// ```
 /// use gemlab::mesh::Samples;
 /// use gemlab::StrError;
-/// use pmsim::base::{Attributes, Dof, Equations, Elem, ElementDofsMap};
+/// use pmsim::base::{AllDofs, Attributes, Dof, Elem, ElementDofsMap};
 /// use pmsim::base::ParamPorousSldLiq;
 /// use std::collections::HashMap;
 ///
@@ -45,11 +45,11 @@ use std::fmt;
 ///     let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
 ///     let amap = Attributes::from([(1, Elem::PorousSldLiq(p1))]);
 ///     let emap = ElementDofsMap::new(&mesh, &amap)?;
-///     let mut eqs = Equations::new(&mesh, &emap)?;
+///     let mut dofs = AllDofs::new(&mesh, &emap)?;
 ///     assert_eq!(
-///         format!("{}", eqs),
-/// r#"Points: DOFs and global equation numbers
-/// ========================================
+///         format!("{}", dofs),
+/// r#"Points: DOF keys and global numbers
+/// ===================================
 /// 0: [(Ux, 0), (Uy, 1), (Pl, 2)]
 /// 1: [(Ux, 3), (Uy, 4), (Pl, 5)]
 /// 2: [(Ux, 6), (Uy, 7), (Pl, 8)]
@@ -124,8 +124,8 @@ impl AllDofs {
 
 impl fmt::Display for AllDofs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Points: DOFs and global equation numbers\n").unwrap();
-        write!(f, "========================================\n").unwrap();
+        write!(f, "Points: DOF keys and global numbers\n").unwrap();
+        write!(f, "===================================\n").unwrap();
         for point_id in 0..self.all.len() {
             let mut dof_eqn: Vec<_> = self.all[point_id].iter().collect();
             dof_eqn.sort_by(|a, b| a.0.partial_cmp(b.0).unwrap());
@@ -236,8 +236,8 @@ mod tests {
         let eqs = AllDofs::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
-            "Points: DOFs and global equation numbers\n\
-             ========================================\n\
+            "Points: DOF keys and global numbers\n\
+             ===================================\n\
              0: [(Ux, 0), (Uy, 1)]\n\
              1: [(Ux, 2), (Uy, 3)]\n\
              2: [(Ux, 4), (Uy, 5)]\n\
@@ -260,8 +260,8 @@ mod tests {
         let eqs = AllDofs::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
-            "Points: DOFs and global equation numbers\n\
-             ========================================\n\
+            "Points: DOF keys and global numbers\n\
+             ===================================\n\
              0: [(Pl, 0)]\n\
              1: [(Pl, 1)]\n\
              2: [(Pl, 2)]\n\
@@ -309,8 +309,8 @@ mod tests {
         let eqs = AllDofs::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
-            "Points: DOFs and global equation numbers\n\
-             ========================================\n\
+            "Points: DOF keys and global numbers\n\
+             ===================================\n\
              0: [(Ux, 0), (Uy, 1), (Pl, 2)]\n\
              1: [(Ux, 3), (Uy, 4), (Pl, 5)]\n\
              2: [(Ux, 6), (Uy, 7), (Pl, 8)]\n\

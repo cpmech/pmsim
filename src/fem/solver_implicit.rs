@@ -4,7 +4,7 @@ use crate::base::{Config, Essential, Natural};
 use crate::fem::ConvergenceControl;
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::{vec_add, vec_norm, Norm, Vector};
+use russell_lab::vec_add;
 
 /// Implements the implicit finite element method solver
 pub struct SolverImplicit<'a> {
