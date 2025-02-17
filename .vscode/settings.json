@@ -21,6 +21,7 @@
     "IFEM",
     "jacobians",
     "llambda",
+    "mduᵢ",
     "nafems",
     "ncomp",
     "ngauss",

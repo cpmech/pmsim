@@ -1,15 +1,11 @@
 use super::FemBase;
 use crate::base::Essential;
 use crate::StrError;
-use russell_lab::Vector;
 
 /// Assists in calculating a prescribed value boundary condition
 ///
 /// This data structure corresponds to a single Essential (Dirichlet) boundary condition
 pub struct BcPrescribed<'a> {
-    /// Equation corresponding to the prescribed value
-    eq: usize,
-
     /// Specified BC value (overridden by the function, if not None)
     value: f64,
 
@@ -40,16 +36,6 @@ pub struct BcPrescribedArray<'a> {
 }
 
 impl<'a> BcPrescribed<'a> {
-    /// Sets prescribed value in the solution vector
-    pub fn set_value(&self, duu: &mut Vector, uu: &mut Vector, time: f64) {
-        let value = match self.function {
-            Some(f) => (f)(time),
-            None => self.value,
-        };
-        duu[self.eq] = value - uu[self.eq];
-        uu[self.eq] = value;
-    }
-
     /// Returns the prescribed value @ specified time
     pub fn value(&self, time: f64) -> f64 {
         match self.function {
@@ -72,7 +58,6 @@ impl<'a> BcPrescribedArray<'a> {
                 None => None,
             };
             all.push(BcPrescribed {
-                eq,
                 value: *value,
                 function,
             });
@@ -82,9 +67,14 @@ impl<'a> BcPrescribedArray<'a> {
         Ok(BcPrescribedArray { all, flags, equations })
     }
 
-    /// Sets all prescribed values in the solution vector
-    pub fn apply(&self, duu: &mut Vector, uu: &mut Vector, time: f64) {
-        self.all.iter().for_each(|e| e.set_value(duu, uu, time));
+    /// Checks if there is a non-zero prescribed value at time t
+    pub fn has_non_zero_values(&self, t: f64) -> bool {
+        for bc in &self.all {
+            if bc.value(t) != 0.0 {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -98,7 +88,6 @@ mod tests {
     use crate::fem::FemBase;
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
     use gemlab::shapes::GeoKind;
-    use russell_lab::Vector;
 
     #[test]
     fn new_captures_errors() {
@@ -122,23 +111,21 @@ mod tests {
     }
 
     #[test]
-    fn set_values_works_diffusion() {
+    fn bc_prescribed_array_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
         essential.points(&[0], Dof::T, 110.0);
-        let mut duu = Vector::new(base.equations.n_equation);
-        let mut uu = Vector::new(base.equations.n_equation);
-        uu.fill(100.0);
-        let values = BcPrescribedArray::new(&base, &essential).unwrap();
-        values.apply(&mut duu, &mut uu, 0.0);
-        assert_eq!(duu.as_data(), &[10.0, 0.0, 0.0]);
-        assert_eq!(uu.as_data(), &[110.0, 100.0, 100.0]);
+        let array = BcPrescribedArray::new(&base, &essential).unwrap();
+        assert_eq!(array.flags, &[true, false, false]);
+        assert_eq!(array.equations, &[0]);
+        assert_eq!(array.has_non_zero_values(0.0), true);
+        assert_eq!(array.all[0].value(0.0), 110.0);
     }
 
     #[test]
-    fn set_values_works_beam_3d() {
+    fn bc_prescribed_array_works_beam_3d() {
         #[rustfmt::skip]
         let mesh = Mesh {
             ndim: 3,
@@ -160,21 +147,22 @@ mod tests {
             .points(&[0], Dof::Rx, 4.0)
             .points(&[0], Dof::Ry, 5.0)
             .points(&[0], Dof::Rz, 6.0);
-        let mut duu = Vector::new(base.equations.n_equation);
-        let mut uu = Vector::new(base.equations.n_equation);
-        let values = BcPrescribedArray::new(&base, &essential).unwrap();
-        values.apply(&mut duu, &mut uu, 0.0);
-        #[rustfmt::skip]
-        let correct = &[
-            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, //  0 Ux,Uy,Uz, Rx,Ry,Rz
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, //  1 Ux,Uy,Uz, Rx,Ry,Rz
-        ];
-        assert_eq!(duu.as_data(), correct);
-        assert_eq!(uu.as_data(), correct);
+        let array = BcPrescribedArray::new(&base, &essential).unwrap();
+        assert_eq!(
+            array.flags,
+            &[
+                true, true, true, true, true, true, //        0 Ux,Uy,Uz, Rx,Ry,Rz
+                false, false, false, false, false, false, //  1 Ux,Uy,Uz, Rx,Ry,Rz
+            ]
+        );
+        assert_eq!(array.has_non_zero_values(0.0), true);
+        let mut eqs = array.equations.clone();
+        eqs.sort();
+        assert_eq!(&eqs, &[0, 1, 2, 3, 4, 5]);
     }
 
     #[test]
-    fn set_values_works_mixed() {
+    fn bc_prescribed_array_works_mixed() {
         //                     {Ux→15}
         //    {Ux→21}          {Uy→16}
         //    {Uy→22}  {Ux→19} {Rz→17}
@@ -231,12 +219,9 @@ mod tests {
             .points(&[10], Dof::Ux, 26.0)
             .points(&[10], Dof::Uy, 27.0)
             .points(&[10], Dof::Rz, 28.0);
-        let mut duu = Vector::new(base.equations.n_equation);
-        let mut uu = Vector::new(base.equations.n_equation);
-        let values = BcPrescribedArray::new(&base, &essential).unwrap();
-        values.apply(&mut duu, &mut uu, 0.0);
+        let _array = BcPrescribedArray::new(&base, &essential).unwrap();
         #[rustfmt::skip]
-        let correct = &[            // point
+        let _correct = &[            // point
              0.0,  1.0,  2.0,       //  0 (Ux, 0) (Uy, 1) (Pl,2)
              3.0,  4.0,             //  1 (Ux, 3) (Uy, 4)
              5.0,  6.0,  7.0,  8.0, //  2 (Ux, 5) (Uy, 6) (Rz,7) (Pl,8)
@@ -249,12 +234,10 @@ mod tests {
             24.0, 25.0,             //  9 (Ux,24) (Uy,25)
             26.0, 27.0, 28.0,       // 10 (Ux,26) (Uy,27) (Rz,28)
         ];
-        assert_eq!(duu.as_data(), correct);
-        assert_eq!(uu.as_data(), correct);
     }
 
     #[test]
-    fn set_values_works_porous_sld_liq_gas() {
+    fn bc_prescribed_array_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
@@ -272,12 +255,9 @@ mod tests {
             .points(&[2], Dof::Uy, 10.0)
             .points(&[2], Dof::Pl, 11.0)
             .points(&[2], Dof::Pg, 12.0);
-        let mut duu = Vector::new(base.equations.n_equation);
-        let mut uu = Vector::new(base.equations.n_equation);
-        let values = BcPrescribedArray::new(&base, &essential).unwrap();
-        values.apply(&mut duu, &mut uu, 0.0);
+        let _array = BcPrescribedArray::new(&base, &essential).unwrap();
         #[rustfmt::skip]
-        let correct = &[
+        let _correct = &[
             1.0,  2.0,  3.0,  4.0, // 0 Ux,Uy,Pl,Pg
             5.0,  6.0,  7.0,  8.0, // 1 Ux,Uy,Pl,Pg
             9.0, 10.0, 11.0, 12.0, // 2 Ux,Uy,Pl,Pg
@@ -285,12 +265,10 @@ mod tests {
             0.0,  0.0,             // 4 Ux,Uy
             0.0,  0.0,             // 5 Ux,Uy
         ];
-        assert_eq!(duu.as_data(), correct);
-        assert_eq!(uu.as_data(), correct);
     }
 
     #[test]
-    fn prescribed_arrays_are_correct() {
+    fn bc_prescribed_array_works_triangles() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
         //         /   \          / \     (#) indicates attribute

@@ -11,7 +11,7 @@ use std::fmt;
 pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
 
 /// Defines the smallest allowed tolerance (Control)
-pub const CONTROL_MIN_TOL: f64 = 1e-15;
+pub const CONTROL_MIN_TOL: f64 = 1e-12;
 
 /// Defines the smallest allowed theta{1,2} (Control)
 pub const CONTROL_MIN_THETA: f64 = 0.0001;
@@ -114,8 +114,15 @@ pub struct Config<'a> {
     /// Holds the maximum number of iterations
     pub(crate) n_max_iterations: usize,
 
-    /// Holds the tolerance for the scaled residual vector
-    pub(crate) tol_rr: f64,
+    /// Holds the absolute tolerance for the global residual vector
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub(crate) tol_rr_abs: f64,
+
+    /// Holds the relative tolerance for the corrective (augmented) displacement vector (mdu)
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub(crate) tol_mdu_rel: f64,
 
     /// Holds the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub(crate) theta: f64,
@@ -174,7 +181,8 @@ impl<'a> Config<'a> {
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_rr: 1e-10,
+            tol_rr_abs: 1e-10,
+            tol_mdu_rel: 1e-8,
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
@@ -246,10 +254,16 @@ impl<'a> Config<'a> {
                 self.dt_min, CONTROL_MIN_DT_MIN
             ));
         }
-        if self.tol_rr < CONTROL_MIN_TOL {
+        if self.tol_rr_abs < CONTROL_MIN_TOL {
             return Some(format!(
-                "tol_rel_residual = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rr, CONTROL_MIN_TOL
+                "tol_rr_abs = {:?} is incorrect; it must be ≥ {:e}",
+                self.tol_rr_abs, CONTROL_MIN_TOL
+            ));
+        }
+        if self.tol_mdu_rel < CONTROL_MIN_TOL {
+            return Some(format!(
+                "tol_mdu_rel = {:?} is incorrect; it must be ≥ {:e}",
+                self.tol_mdu_rel, CONTROL_MIN_TOL
             ));
         }
         if self.theta < CONTROL_MIN_THETA || self.theta > 1.0 {
@@ -283,55 +297,6 @@ impl<'a> Config<'a> {
         let beta_1 = 1.0 / (self.theta * dt);
         let beta_2 = (1.0 - self.theta) / self.theta;
         Ok((beta_1, beta_2))
-    }
-
-    /// Prints the header of the table with timestep and iteration data
-    pub(crate) fn print_header(&self) {
-        if self.verbose_timesteps || self.verbose_iterations {
-            println!("Legend:");
-            println!("✅ : converged");
-            println!("👍 : converging");
-            println!("🥵 : diverging");
-            println!("😱 : found NaN or Inf");
-            println!("❋  : non-scaled max(R)");
-            println!("?  : no info abut convergence");
-            println!("{:>8} {:>13} {:>13} {:>5} {:>9}  ", "", "", "", "", "    _ ");
-            println!(
-                "{:>8} {:>13} {:>13} {:>5} {:>9}  ",
-                "timestep", "t", "Δt", "iter", "max(R)"
-            );
-        }
-    }
-
-    /// Prints timestep data
-    pub(crate) fn print_timestep(&self, timestep: usize, t: f64, dt: f64) {
-        if !self.verbose_timesteps {
-            return;
-        }
-        let n = timestep + 1;
-        println!("{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}  ", n, t, dt, ".", ".");
-    }
-
-    /// Prints iteration data
-    pub(crate) fn print_iteration(&self, it: usize, max_rr_prev: f64, max_rr: f64) {
-        if !self.verbose_iterations {
-            return; // skip if not verbose
-        }
-        let l = if !max_rr.is_finite() {
-            "😱" // found NaN or Inf
-        } else if it == 0 {
-            "❋ " // non-scaled max residual
-        } else if max_rr < self.tol_rr {
-            "✅" // converged
-        } else if it == 1 {
-            "? " // no info about convergence (cannot compare max_rr with max_rr_prev yet)
-        } else if max_rr > max_rr_prev {
-            "🥵" // diverging
-        } else {
-            "👍" // converging
-        };
-        let n = it + 1;
-        println!("{:>8} {:>13} {:>13} {:>5} {:>9.2e}{}", ".", ".", ".", n, max_rr, l);
     }
 
     /// Saves the global K matrix for debugging
@@ -578,9 +543,19 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the tolerance for the scaled residual vector
-    pub fn set_tol_rr(&mut self, tol_rr: f64) -> &mut Self {
-        self.tol_rr = tol_rr;
+    /// Sets the absolute tolerance for the global residual vector
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub fn set_tol_rr_abs(&mut self, tol_absolute: f64) -> &mut Self {
+        self.tol_rr_abs = tol_absolute;
+        self
+    }
+
+    /// Sets the relative tolerance for the corrective (augmented) displacement vector (mdu)
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub fn set_tol_mdu_rel(&mut self, tol_relative: f64) -> &mut Self {
+        self.tol_mdu_rel = tol_relative;
         self
     }
 
@@ -808,12 +783,19 @@ mod tests {
         );
         config.dt_min = 1e-3;
 
-        config.tol_rr = 0.0;
+        config.tol_rr_abs = 0.0;
         assert_eq!(
             config.validate(),
-            Some("tol_rel_residual = 0.0 is incorrect; it must be ≥ 1e-15".to_string())
+            Some("tol_rr_abs = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
         );
-        config.tol_rr = 1e-8;
+        config.tol_rr_abs = 1e-8;
+
+        config.tol_mdu_rel = 0.0;
+        assert_eq!(
+            config.validate(),
+            Some("tol_mdu_rel = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
+        );
+        config.tol_mdu_rel = 1e-8;
 
         config.theta = 0.0;
         assert_eq!(
@@ -856,67 +838,6 @@ mod tests {
 
         config.initialization = Init::Zero;
         assert_eq!(config.validate(), None);
-    }
-
-    #[test]
-    fn print_methods_work() {
-        // NOTE:
-        // We need to run this test manually to check the output (with our eyes)
-
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS HEADER) ####################################");
-        config.verbose_timesteps = true;
-        config.verbose_iterations = true;
-        config.print_header();
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
-        config.verbose_timesteps = false;
-        config.verbose_iterations = false;
-        config.print_header();
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP) ##################################");
-        config.verbose_timesteps = true;
-        config.print_timestep(123, 0.1, 0.01);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
-        config.verbose_timesteps = false;
-        config.print_timestep(123, 0.1, 0.01);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NaN) #############################");
-        config.verbose_iterations = true;
-        config.print_iteration(3, 123.0, f64::NAN);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NON-SCALED) ######################");
-        config.print_iteration(0, 123.0, 123.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: CONVERGED) #######################");
-        config.print_iteration(1, 123.0, 0.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NO INFO) #########################");
-        config.print_iteration(1, 123.0, 1.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: DIVERGING) #######################");
-        config.print_iteration(3, 123.0, 246.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: CONVERGING) ######################");
-        config.print_iteration(3, 123.0, 100.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
-        config.verbose_iterations = false;
-        config.print_iteration(3, 123.0, 100.0);
-        println!("############################################################ TO HERE");
     }
 
     #[test]

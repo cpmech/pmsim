@@ -70,7 +70,6 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         .set_axisymmetric()
         .set_incremental(P_ARRAY.len())
         .set_lagrange_mult_method(true)
-        .set_tol_rr(1e-6)
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_n_max_iterations(20);
 

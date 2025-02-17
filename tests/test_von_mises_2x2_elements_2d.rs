@@ -137,7 +137,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,
-        1,
+        0,
     )?;
     assert!(all_good);
     Ok(())

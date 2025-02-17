@@ -3,6 +3,7 @@
 mod bc_concentrated;
 mod bc_distributed;
 mod bc_prescribed;
+mod convergence_control;
 mod element_diffusion;
 mod element_rod;
 mod element_solid;
@@ -20,6 +21,7 @@ mod solver_implicit;
 pub use bc_concentrated::*;
 pub use bc_distributed::*;
 pub use bc_prescribed::*;
+pub use convergence_control::*;
 pub use element_diffusion::*;
 pub use element_rod::*;
 pub use element_solid::*;

@@ -1,9 +1,10 @@
 use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray};
 use super::{Elements, FemBase, FemState, FileIo, LinearSystem};
 use crate::base::{Config, Essential, Natural};
+use crate::fem::ConvergenceControl;
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::{vec_add, vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
+use russell_lab::{vec_add, vec_norm, Norm, Vector};
 
 /// Implements the implicit finite element method solver
 pub struct SolverImplicit<'a> {
@@ -92,17 +93,11 @@ impl<'a> SolverImplicit<'a> {
 
         // residual vector
         let neq_total = rr.dim();
-        let mut rr0 = Vector::new(neq_total);
 
         // collect the unknown equations
         let unknown_equations: Vec<_> = (0..neq_total)
             .filter(|&eq| config.lagrange_mult_method || !ignore[eq])
             .collect();
-
-        // message
-        if !config.linear_problem {
-            config.print_header();
-        }
 
         // initialize internal variables
         self.elements.initialize_internal_values(state)?;
@@ -110,6 +105,10 @@ impl<'a> SolverImplicit<'a> {
         // first output (must occur initialize_internal_values)
         file_io.write_state(state)?;
         let mut t_out = state.t + (config.dt_out)(state.t);
+
+        // allocate convergence control
+        let mut control = ConvergenceControl::new(config, rr.dim());
+        control.print_header();
 
         // time loop
         for timestep in 0..config.n_max_time_steps {
@@ -131,8 +130,8 @@ impl<'a> SolverImplicit<'a> {
 
             // set prescribed U and ΔU at the new time
             if !config.lagrange_mult_method {
-                if self.bc_prescribed.equations.len() > 0 {
-                    self.bc_prescribed.apply(&mut state.duu, &mut state.uu, state.t);
+                if self.bc_prescribed.has_non_zero_values(state.t) {
+                    return Err("the Lagrange multiplier method is required for non-zero prescribed values");
                 }
             }
 
@@ -142,11 +141,7 @@ impl<'a> SolverImplicit<'a> {
             }
 
             // message
-            config.print_timestep(timestep, state.t, state.dt);
-
-            // previous and current max (scaled) R values
-            let mut max_rr_prev: f64;
-            let mut max_rr = 0.0;
+            control.print_timestep(timestep, state.t, state.dt);
 
             // From here on, time t corresponds to the new (updated) time; thus the boundary
             // conditions will yield updated residuals. On the other hand, the primary variables
@@ -176,21 +171,10 @@ impl<'a> SolverImplicit<'a> {
                 }
 
                 // check convergence on residual
-                max_rr_prev = max_rr;
-                if iteration == 0 {
-                    max_rr = vec_norm(rr, Norm::Max); // << non-scaled
-                    if !config.linear_problem {
-                        config.print_iteration(iteration, max_rr_prev, max_rr);
-                    }
-                    vec_copy(&mut rr0, rr).unwrap();
-                } else {
-                    max_rr = vec_max_scaled(rr, &rr0); // << scaled
-                    if !config.linear_problem {
-                        config.print_iteration(iteration, max_rr_prev, max_rr);
-                    }
-                    if max_rr < config.tol_rr {
-                        break;
-                    }
+                run!(control.analyze_rr(iteration, rr));
+                if control.converged_on_norm_rr() {
+                    control.print_iteration();
+                    break;
                 }
 
                 // compute Jacobian matrix
@@ -236,6 +220,14 @@ impl<'a> SolverImplicit<'a> {
                     .solver
                     .actual
                     .solve(mdu, &kk, &rr, config.verbose_lin_sys_solve));
+
+                // check convergence on corrective displacement
+                run!(control.analyze_mdu(iteration, mdu));
+                control.print_iteration();
+                if control.converged_on_rel_mdu() {
+                    println!("Converged on ΔU");
+                    break;
+                }
 
                 // updates
                 if config.transient {

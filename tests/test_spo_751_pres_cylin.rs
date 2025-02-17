@@ -1,6 +1,7 @@
 use gemlab::prelude::*;
 use plotpy::Curve;
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
+use pmsim::material::{Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use russell_lab::math::{PI, SQRT_3};
@@ -38,6 +39,7 @@ const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
+                      // const P_ARRAY: [f64; 4] = [0.0, 0.1, 0.14, 0.0];
 const P_ARRAY: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
@@ -63,6 +65,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     // parameters
     let param1 = ParamSolid {
         density: 1.0,
+        // stress_strain: StressStrain::LinearElastic {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
@@ -83,7 +86,12 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(false).set_incremental(P_ARRAY.len());
+    config
+        .set_tol_mdu_rel(1e-10)
+        .set_lagrange_mult_method(false)
+        .set_incremental(P_ARRAY.len())
+        .update_model_settings(1)
+        .set_save_strain(true);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
@@ -91,6 +99,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     // File IO
     let mut file_io = FileIo::new();
     file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    // file_io.activate(&mesh, &base, "/tmp/pmsim", "spo_751_pres_cylin_resid_stress")?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -104,6 +113,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         &base,
         &file_io,
         ReferenceDataType::SPO,
+        // "data/spo/spo_751_pres_cylin_resid_stress_ref.json",
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
         tol_stress,
@@ -112,7 +122,8 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     assert!(all_good);
 
     // post-processing
-    post_processing()
+    // post_processing();
+    Ok(())
 }
 
 fn post_processing() -> Result<(), StrError> {
@@ -254,4 +265,41 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
         // read mesh
         Mesh::read(&format!("data/spo/{}_{}.msh", NAME, k_str)).unwrap()
     }
+}
+
+#[test]
+fn test_spo_751_pres_cylin_debug() -> Result<(), StrError> {
+    // read summary and associated files
+    let name = "spo_751_pres_cylin_resid_stress";
+    let (file_io, _, _) = PostProc::read_summary("/tmp/pmsim", name)?;
+
+    // loop over time stations
+    let cell_id = 0;
+    let gauss_id = 1;
+    let mut local_states = Vec::new();
+    for index in &file_io.indices {
+        let state = PostProc::read_state(&file_io, *index)?;
+        println!(
+            "t = {:?}",
+            state.gauss[cell_id].stress(gauss_id).unwrap().vector().as_data()
+        );
+        local_states.push(state.gauss[cell_id].get_local_state(gauss_id)?.clone());
+    }
+
+    let data = PlotterData::from_states(&local_states);
+    let mut plotter = Plotter::new();
+    plotter
+        .add_2x2(&data, false, |curve, _, _| {
+            curve.set_marker_style("o");
+        })
+        .unwrap();
+    let p = local_states.len() - 1;
+    // let radius_0 = local_states[0].int_vars[0] * SQRT_2_BY_3;
+    // let radius_1 = local_states[p].int_vars[0] * SQRT_2_BY_3;
+    // plotter.set_oct_circle(radius_0, |_| {});
+    // plotter.set_oct_circle(radius_1, |canvas| {
+    //     canvas.set_line_style("-");
+    // });
+    plotter.save("/tmp/pmsim/spo_751_pres_cylin_resid_stress_local_state.svg")?;
+    Ok(())
 }

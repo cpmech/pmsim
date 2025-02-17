@@ -73,7 +73,6 @@ pub fn main() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(true)
-        .set_tol_rr(1e-7)
         .set_incremental(UY.len())
         // .set_constant_tangent(true)
         // .set_ignore_jacobian_symmetry(true)

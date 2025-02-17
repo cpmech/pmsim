@@ -69,7 +69,6 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(true)
-        .set_tol_rr(1e-7)
         .set_incremental(UY_PERF_PLAST.len())
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_n_max_iterations(20);

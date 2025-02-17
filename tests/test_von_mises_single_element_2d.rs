@@ -95,6 +95,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
+        .set_lagrange_mult_method(true)
         .set_dt(|_| 1.0)
         .set_dt_out(|_| 1.0)
         .set_t_fin(N_STEPS as f64)

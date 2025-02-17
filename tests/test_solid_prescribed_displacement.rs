@@ -69,8 +69,17 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
+    // pub fn apply(&self, duu: &mut Vector, uu: &mut Vector, time: f64) {
+    // self.all.iter().for_each(|e| e.set_value(duu, uu, time));
+    // }
+
     // update state with prescribed displacements
-    values.apply(&mut state.duu, &mut state.uu, 1.0);
+    for p in 0..values.equations.len() {
+        let value = values.all[p].value(1.0);
+        let eq = values.equations[p];
+        state.duu[eq] = value - state.uu[eq];
+        state.uu[eq] = value;
+    }
     println!("\nU = \n{:.6}", state.uu);
     println!("ΔU = \n{:.6}", state.duu);
 
@@ -197,7 +206,12 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // update state with prescribed displacements
-    values.apply(&mut state.duu, &mut state.uu, 1.0);
+    for p in 0..values.equations.len() {
+        let value = values.all[p].value(1.0);
+        let eq = values.equations[p];
+        state.duu[eq] = value - state.uu[eq];
+        state.uu[eq] = value;
+    }
     println!("\nU = \n{:.6}", state.uu);
     println!("ΔU = \n{:.6}", state.duu);
 

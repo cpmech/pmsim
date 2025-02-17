@@ -245,7 +245,8 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         ngauss: None,
     };
     let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.set_lagrange_mult_method(true);
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -270,7 +271,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     solver.solve(&mut state, &mut file_io)?;
 
     // check U vector
-    let tt_bhatti = Vector::from(&[
+    let tt_bhatti = &[
         156.440502466202,
         150.75605418729847,
         149.19646294563637,
@@ -284,7 +285,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         110.0,
         144.67542222443012,
         129.13200798820264,
-    ]);
-    vec_approx_eq(&state.uu, &tt_bhatti, 1e-12);
+    ];
+    array_approx_eq(&state.uu.as_data()[..13], tt_bhatti, 1e-12);
     Ok(())
 }

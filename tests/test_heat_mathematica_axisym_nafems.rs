@@ -97,7 +97,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric();
+    config.set_axisymmetric().set_lagrange_mult_method(true);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;

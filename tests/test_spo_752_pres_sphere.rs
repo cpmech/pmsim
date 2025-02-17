@@ -39,12 +39,12 @@ use russell_lab::math::{PI, SQRT_2_BY_3};
 
 const NAME_MESH: &str = "spo_751_pres_cylin"; // same as 751
 const SAVE_FIGURE: bool = true;
-const VERBOSE_LEVEL: usize = 0;
+const VERBOSE_LEVEL: usize = 1;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 const P_ARRAY_COLLAPSE: [f64; 5] = [0.0, 0.15, 0.3, 0.33, 0.33269]; // inner pressure
-const P_ARRAY_RESIDUAL: [f64; 4] = [0.0, 0.15, 0.28, 0.22]; // inner pressure
+const P_ARRAY_RESIDUAL: [f64; 4] = [0.0, 0.15, 0.28, 0.0]; // inner pressure
 const PA_COLLAPSE: f64 = 0.15;
 const PB_COLLAPSE: f64 = 0.30;
 const PA_RESIDUAL: f64 = 0.15;
@@ -73,6 +73,7 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
     // parameters
     let param1 = ParamSolid {
         density: 1.0,
+        // stress_strain: StressStrain::LinearElastic {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
@@ -88,10 +89,10 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // run the collapse case
-    // run_spo_752(&mesh, &inner_circle, &base, &essential, true)?;
+    run_spo_752(&mesh, &inner_circle, &base, &essential, true)?;
 
     // run the residual case
-    run_spo_752(&mesh, &inner_circle, &base, &essential, false)?;
+    // run_spo_752(&mesh, &inner_circle, &base, &essential, false)?;
 
     Ok(())
 }
@@ -115,7 +116,6 @@ fn run_spo_752(
     let mut config = Config::new(&mesh);
     config
         .set_axisymmetric()
-        .set_tol_rr(1e-5)
         // .set_n_max_iterations(10)
         .set_constant_tangent(false)
         .set_lagrange_mult_method(true)
@@ -157,14 +157,16 @@ fn run_spo_752(
         &file_io,
         ReferenceDataType::SPO,
         fn_ref,
+        // "data/spo/spo_752_pres_sphere_resid_stress_ref.json",
         tol_displacement,
         tol_stress,
         VERBOSE_LEVEL,
     )?;
-    // assert!(all_good);
+    assert!(all_good);
 
     // post-processing
-    post_processing(collapse, name)
+    // post_processing(collapse, name)
+    Ok(())
 }
 
 fn post_processing(collapse: bool, name: &str) -> Result<(), StrError> {
@@ -303,10 +305,16 @@ fn test_spo_752_pres_sphere_debug() -> Result<(), StrError> {
     let (file_io, _, _) = PostProc::read_summary("/tmp/pmsim", name)?;
 
     // loop over time stations
+    let cell_id = 0;
+    let gauss_id = 1;
     let mut local_states = Vec::new();
     for index in &file_io.indices {
         let state = PostProc::read_state(&file_io, *index)?;
-        local_states.push(state.gauss[0].get_local_state(0)?.clone());
+        println!(
+            "t = {:?}",
+            state.gauss[cell_id].stress(gauss_id).unwrap().vector().as_data()
+        );
+        local_states.push(state.gauss[cell_id].get_local_state(gauss_id)?.clone());
     }
 
     let data = PlotterData::from_states(&local_states);
@@ -317,12 +325,12 @@ fn test_spo_752_pres_sphere_debug() -> Result<(), StrError> {
         })
         .unwrap();
     let p = local_states.len() - 1;
-    let radius_0 = local_states[0].int_vars[0] * SQRT_2_BY_3;
-    let radius_1 = local_states[p].int_vars[0] * SQRT_2_BY_3;
-    plotter.set_oct_circle(radius_0, |_| {});
-    plotter.set_oct_circle(radius_1, |canvas| {
-        canvas.set_line_style("-");
-    });
+    // let radius_0 = local_states[0].int_vars[0] * SQRT_2_BY_3;
+    // let radius_1 = local_states[p].int_vars[0] * SQRT_2_BY_3;
+    // plotter.set_oct_circle(radius_0, |_| {});
+    // plotter.set_oct_circle(radius_1, |canvas| {
+    //     canvas.set_line_style("-");
+    // });
     plotter.save("/tmp/pmsim/spo_752_pres_sphere_resid_stress_local_state.svg")?;
     Ok(())
 }

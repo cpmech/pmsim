@@ -66,7 +66,8 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     natural.edges(&right, Nbc::Cv(27.0), 20.0);
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.set_lagrange_mult_method(true);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
@@ -79,13 +80,13 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     solver.solve(&mut state, &mut file_io)?;
 
     // check U vector
-    let tt_bhatti = Vector::from(&[
+    let tt_bhatti = &[
         3.000000000000000e+02,
         9.354661202985511e+01,
         2.384369969266794e+01,
         3.000000000000000e+02,
         1.828327235474901e+02,
-    ]);
-    vec_approx_eq(&state.uu, &tt_bhatti, 1e-13);
+    ];
+    array_approx_eq(&state.uu.as_data()[..5], tt_bhatti, 1e-13);
     Ok(())
 }

@@ -72,7 +72,8 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     let natural = Natural::new();
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.set_lagrange_mult_method(true);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
@@ -86,8 +87,8 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     let eps_x = -DY * POISSON / (POISSON - 1.0);
     println!("eps_x = {}", eps_x);
     println!("U =\n{}", state.uu);
-    vec_approx_eq(
-        &state.uu,
+    array_approx_eq(
+        &state.uu.as_data()[..8],
         &[
             0.0, 0.0, //   node 0
             eps_x, 0.0, // node 1
