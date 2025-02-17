@@ -323,7 +323,7 @@ mod tests {
         };
         assert_eq!(
             BcDistributed::new(&mesh, &base, &config, face.kind, &face.points, Nbc::Ql, -10.0, None).err(), // << flux
-            Some("cannot find equation number corresponding to (PointId,DOF)")
+            Some("cannot find the number of a (PointId, DOF) pair")
         );
 
         let mut natural = Natural::new();

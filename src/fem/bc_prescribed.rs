@@ -106,7 +106,7 @@ mod tests {
         essential.points(&[0], Dof::T, 0.0);
         assert_eq!(
             BcPrescribedArray::new(&base, &essential).err(),
-            Some("cannot find equation number corresponding to (PointId,DOF)")
+            Some("cannot find the number of a (PointId, DOF) pair")
         );
     }
 

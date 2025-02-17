@@ -125,14 +125,14 @@ impl AllDofs {
         self.ndof
     }
 
-    /// Returns the (global) equation number of a (PointId,DOF) pair
+    /// Returns the (global) number of a DOF
     pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         if point_id >= self.list.len() {
             return Err("cannot find equation number because PointId is out-of-bounds");
         }
         let eq = self.list[point_id]
             .get(&dof)
-            .ok_or("cannot find equation number corresponding to (PointId,DOF)")?;
+            .ok_or("cannot find the number of a (PointId, DOF) pair")?;
         Ok(*eq)
     }
 
@@ -248,7 +248,7 @@ mod tests {
         );
         assert_eq!(
             dofs.eq(0, Dof::T).err(),
-            Some("cannot find equation number corresponding to (PointId,DOF)")
+            Some("cannot find the number of a (PointId, DOF) pair")
         );
 
         // check keys
