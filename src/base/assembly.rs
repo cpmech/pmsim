@@ -1,11 +1,11 @@
-use super::{ElementDofsMap, Equations};
+use super::{ElementDofsMap, AllDofs};
 use crate::StrError;
 use gemlab::mesh::Cell;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::{CooMatrix, Sym};
 
 /// Computes local-to-global maps needed for the assembly process
-pub fn compute_local_to_global(emap: &ElementDofsMap, eqs: &Equations, cell: &Cell) -> Result<Vec<usize>, StrError> {
+pub fn compute_local_to_global(emap: &ElementDofsMap, eqs: &AllDofs, cell: &Cell) -> Result<Vec<usize>, StrError> {
     let info = emap.get(cell)?;
     let mut local_to_global = vec![0; info.n_equation];
     for m in 0..cell.points.len() {
@@ -143,7 +143,7 @@ pub fn assemble_matrix(
 #[cfg(test)]
 mod tests {
     use super::{assemble_matrix, assemble_vector};
-    use crate::base::{compute_local_to_global, Attributes, Elem, ElementDofsMap, Equations};
+    use crate::base::{compute_local_to_global, Attributes, Elem, ElementDofsMap, AllDofs};
     use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
     use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{mat_approx_eq, Matrix, Vector};
@@ -155,7 +155,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let amap = Attributes::from([(1, Elem::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
         mesh.cells[0].kind = GeoKind::Qua4; // never do this!
         assert_eq!(
             compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
@@ -185,7 +185,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let amap = Attributes::from([(1, Elem::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
         let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();
         let l2g2 = compute_local_to_global(&emap, &eqs, &mesh.cells[2]).unwrap();
@@ -205,7 +205,7 @@ mod tests {
         let p = ParamPorousLiq::sample_brooks_corey_constant();
         let amap = Attributes::from([(1, Elem::PorousLiq(p)), (2, Elem::PorousLiq(p))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
         let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();
         let l2g2 = compute_local_to_global(&emap, &eqs, &mesh.cells[2]).unwrap();
@@ -226,7 +226,7 @@ mod tests {
         let p3 = ParamBeam::sample();
         let amap = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
         let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
         let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();
         let l2g2 = compute_local_to_global(&emap, &eqs, &mesh.cells[2]).unwrap();

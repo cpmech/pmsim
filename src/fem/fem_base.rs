@@ -1,4 +1,4 @@
-use crate::base::{Attributes, Elem, ElementDofsMap, Equations};
+use crate::base::{AllDofs, Attributes, Elem, ElementDofsMap};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellAttribute, Mesh};
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ pub struct FemBase {
     pub emap: ElementDofsMap,
 
     /// Holds all DOF numbers
-    pub equations: Equations,
+    pub equations: AllDofs,
 }
 
 impl FemBase {
@@ -25,7 +25,7 @@ impl FemBase {
     pub fn new<const N: usize>(mesh: &Mesh, arr: [(CellAttribute, Elem); N]) -> Result<Self, StrError> {
         let amap = Attributes::from(arr);
         let emap = ElementDofsMap::new(&mesh, &amap)?;
-        let equations = Equations::new(&mesh, &emap).unwrap(); // cannot fail
+        let equations = AllDofs::new(&mesh, &emap).unwrap(); // cannot fail
         Ok(FemBase { amap, emap, equations })
     }
 

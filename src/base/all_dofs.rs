@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-/// Holds equation numbers (DOF numbers)
+/// Holds all DOF numbers for all points
 ///
 /// # Examples
 ///
@@ -62,7 +62,7 @@ use std::fmt;
 /// }
 /// ```
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Equations {
+pub struct AllDofs {
     /// Holds all points DOFs and numbers
     ///
     /// **Notes:**
@@ -77,7 +77,7 @@ pub struct Equations {
     pub n_equation: usize,
 }
 
-impl Equations {
+impl AllDofs {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, emap: &ElementDofsMap) -> Result<Self, StrError> {
         // auxiliary memoization data
@@ -107,7 +107,7 @@ impl Equations {
         }
 
         // done
-        Ok(Equations { all, n_equation })
+        Ok(AllDofs { all, n_equation })
     }
 
     /// Returns the (global) equation number of a (PointId,DOF) pair
@@ -122,7 +122,7 @@ impl Equations {
     }
 }
 
-impl fmt::Display for Equations {
+impl fmt::Display for AllDofs {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Points: DOFs and global equation numbers\n").unwrap();
         write!(f, "========================================\n").unwrap();
@@ -139,7 +139,7 @@ impl fmt::Display for Equations {
 
 #[cfg(test)]
 mod tests {
-    use super::Equations;
+    use super::AllDofs;
     use crate::base::{Attributes, Dof, Elem, ElementDofsMap, SampleMeshes};
     use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
     use gemlab::mesh::{PointId, Samples};
@@ -153,12 +153,12 @@ mod tests {
         let amap = Attributes::from([(1, Elem::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(
-            Equations::new(&mesh_wrong, &emap).err(),
+            AllDofs::new(&mesh_wrong, &emap).err(),
             Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
         );
     }
 
-    fn assert_equations(eqs: &Equations, p: PointId, correct: &[(Dof, usize)]) {
+    fn assert_equations(eqs: &AllDofs, p: PointId, correct: &[(Dof, usize)]) {
         let mut dofs: Vec<_> = eqs.all[p].iter().map(|(d, n)| (*d, *n)).collect();
         dofs.sort();
         assert_eq!(dofs, correct);
@@ -188,7 +188,7 @@ mod tests {
         let p3 = ParamBeam::sample();
         let amap = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
 
         // check point dofs
         assert_equations(&eqs, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
@@ -233,7 +233,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let amap = Attributes::from([(1, Elem::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
             "Points: DOFs and global equation numbers\n\
@@ -257,7 +257,7 @@ mod tests {
         let p = ParamPorousLiq::sample_brooks_corey_constant();
         let amap = Attributes::from([(1, Elem::PorousLiq(p)), (2, Elem::PorousLiq(p))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
             "Points: DOFs and global equation numbers\n\
@@ -306,7 +306,7 @@ mod tests {
         let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let amap = Attributes::from([(1, Elem::PorousSldLiq(p)), (2, Elem::PorousSldLiq(p))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
         assert_eq!(
             format!("{}", eqs),
             "Points: DOFs and global equation numbers\n\
@@ -347,14 +347,14 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let amap = Attributes::from([(1, Elem::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = Equations::new(&mesh, &emap).unwrap();
+        let eqs = AllDofs::new(&mesh, &emap).unwrap();
         let clone = eqs.clone();
         let str_ori = format!("{:?}", eqs).to_string();
         assert_eq!(format!("{:?}", clone), str_ori);
         // serialize
         let json = serde_json::to_string(&eqs).unwrap();
         // deserialize
-        let read: Equations = serde_json::from_str(&json).unwrap();
+        let read: AllDofs = serde_json::from_str(&json).unwrap();
         assert_eq!(format!("{}", read), format!("{}", eqs));
     }
 }

@@ -64,7 +64,7 @@ pub(crate) fn calculate_strain(
 #[cfg(test)]
 mod tests {
     use super::calculate_strain;
-    use crate::base::{compute_local_to_global, Attributes, Config, Elem, ElementDofsMap, Equations, ParamSolid};
+    use crate::base::{compute_local_to_global, AllDofs, Attributes, Config, Elem, ElementDofsMap, ParamSolid};
     use crate::base::{
         elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
@@ -110,7 +110,7 @@ mod tests {
             let p1 = ParamSolid::sample_linear_elastic();
             let amap = Attributes::from([(1, Elem::Solid(p1))]);
             let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-            let eqs = Equations::new(&mesh, &emap).unwrap();
+            let eqs = AllDofs::new(&mesh, &emap).unwrap();
             let l2g = compute_local_to_global(&emap, &eqs, cell).unwrap();
 
             // configuration
