@@ -74,7 +74,7 @@ pub struct AllDofs {
     /// Holds the total number of global equations
     ///
     /// **Note:** This is equal to the total number of DOFs
-    pub n_equation: usize,
+    n_equation: usize,
 }
 
 impl AllDofs {
@@ -113,6 +113,11 @@ impl AllDofs {
     /// Returns whether a point has a specific DOF or not
     pub fn has_dof(&self, point_id: PointId, dof: Dof) -> bool {
         self.all[point_id].contains_key(&dof)
+    }
+
+    /// Returns the total number of DOFs
+    pub fn ndof(&self) -> usize {
+        self.n_equation
     }
 
     /// Returns the (global) equation number of a (PointId,DOF) pair

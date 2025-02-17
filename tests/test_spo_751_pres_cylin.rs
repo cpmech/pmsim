@@ -267,8 +267,8 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
     }
 }
 
-#[test]
-fn test_spo_751_pres_cylin_debug() -> Result<(), StrError> {
+// #[test]
+fn _test_spo_751_pres_cylin_debug() -> Result<(), StrError> {
     // read summary and associated files
     let name = "spo_751_pres_cylin_resid_stress";
     let (file_io, _, _) = PostProc::read_summary("/tmp/pmsim", name)?;

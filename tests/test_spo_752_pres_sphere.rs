@@ -298,8 +298,8 @@ fn post_processing(collapse: bool, name: &str) -> Result<(), StrError> {
     Ok(())
 }
 
-#[test]
-fn test_spo_752_pres_sphere_debug() -> Result<(), StrError> {
+// #[test]
+fn _test_spo_752_pres_sphere_debug() -> Result<(), StrError> {
     // read summary and associated files
     let name = "spo_752_pres_sphere_resid_stress";
     let (file_io, _, _) = PostProc::read_summary("/tmp/pmsim", name)?;

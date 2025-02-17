@@ -144,7 +144,7 @@ fn main() -> Result<(), StrError> {
         let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
 
         // total number of DOF
-        let ndof = base.equations.n_equation;
+        let ndof = base.equations.ndof();
         let n_str = format!("{:0>5}", ndof);
 
         // println!("4. NDOF = {}", ndof);
