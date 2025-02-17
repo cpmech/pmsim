@@ -69,7 +69,7 @@ pub struct AllDofs {
     ///
     /// 1. The array has a length equal to npoint
     /// 2. The inner maps have variable lengths according to the number of DOFs at the point
-    pub all: Vec<HashMap<Dof, usize>>,
+    all: Vec<HashMap<Dof, usize>>,
 
     /// Holds the total number of global equations
     ///
@@ -110,6 +110,11 @@ impl AllDofs {
         Ok(AllDofs { all, n_equation })
     }
 
+    /// Returns whether a point has a specific DOF or not
+    pub fn has_dof(&self, point_id: PointId, dof: Dof) -> bool {
+        self.all[point_id].contains_key(&dof)
+    }
+
     /// Returns the (global) equation number of a (PointId,DOF) pair
     pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         if point_id >= self.all.len() {
@@ -119,6 +124,26 @@ impl AllDofs {
             .get(&dof)
             .ok_or("cannot find equation number corresponding to (PointId,DOF)")?;
         Ok(*eq)
+    }
+
+    /// Returns the DOF keys of a point (sorted according to the enum)
+    pub fn get_keys(&self, point_id: PointId) -> Vec<Dof> {
+        let mut keys: Vec<_> = self.all[point_id].keys().copied().collect();
+        keys.sort();
+        keys
+    }
+
+    /// Returns a list with all enabled DOFs (sorted according to the enum)
+    pub fn get_enabled_dofs(&self) -> Vec<Dof> {
+        let mut unique = HashSet::new();
+        for map in &self.all {
+            for dof in map.keys() {
+                unique.insert(*dof);
+            }
+        }
+        let mut enabled_dofs: Vec<_> = unique.into_iter().collect();
+        enabled_dofs.sort();
+        enabled_dofs
     }
 }
 
@@ -158,14 +183,14 @@ mod tests {
         );
     }
 
-    fn assert_equations(eqs: &AllDofs, p: PointId, correct: &[(Dof, usize)]) {
-        let mut dofs: Vec<_> = eqs.all[p].iter().map(|(d, n)| (*d, *n)).collect();
+    fn check_dofs(dofs: &AllDofs, p: PointId, correct: &[(Dof, usize)]) {
+        let mut dofs: Vec<_> = dofs.all[p].iter().map(|(d, n)| (*d, *n)).collect();
         dofs.sort();
         assert_eq!(dofs, correct);
     }
 
     #[test]
-    fn new_and_eq_works() {
+    fn all_dofs_works_mixed() {
         //                     {Ux→15}
         //    {Ux→21}          {Uy→16}
         //    {Uy→22}  {Ux→19} {Rz→17}
@@ -188,33 +213,46 @@ mod tests {
         let p3 = ParamBeam::sample();
         let amap = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = AllDofs::new(&mesh, &emap).unwrap();
+        let dofs = AllDofs::new(&mesh, &emap).unwrap();
 
         // check point dofs
-        assert_equations(&eqs, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
-        assert_equations(&eqs, 1, &[(Dof::Ux, 3), (Dof::Uy, 4)]);
-        assert_equations(&eqs, 2, &[(Dof::Ux, 5), (Dof::Uy, 6), (Dof::Rz, 7), (Dof::Pl, 8)]);
-        assert_equations(&eqs, 3, &[(Dof::Ux, 9), (Dof::Uy, 10)]);
-        assert_equations(&eqs, 4, &[(Dof::Ux, 11), (Dof::Uy, 12)]);
-        assert_equations(&eqs, 5, &[(Dof::Ux, 13), (Dof::Uy, 14)]);
-        assert_equations(&eqs, 6, &[(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Rz, 17), (Dof::Pl, 18)]);
-        assert_equations(&eqs, 7, &[(Dof::Ux, 19), (Dof::Uy, 20)]);
-        assert_equations(&eqs, 8, &[(Dof::Ux, 21), (Dof::Uy, 22), (Dof::Pl, 23)]);
-        assert_equations(&eqs, 9, &[(Dof::Ux, 24), (Dof::Uy, 25)]);
-        assert_equations(&eqs, 10, &[(Dof::Ux, 26), (Dof::Uy, 27), (Dof::Rz, 28)]);
+        check_dofs(&dofs, 0, &[(Dof::Ux, 0), (Dof::Uy, 1), (Dof::Pl, 2)]);
+        check_dofs(&dofs, 1, &[(Dof::Ux, 3), (Dof::Uy, 4)]);
+        check_dofs(&dofs, 2, &[(Dof::Ux, 5), (Dof::Uy, 6), (Dof::Rz, 7), (Dof::Pl, 8)]);
+        check_dofs(&dofs, 3, &[(Dof::Ux, 9), (Dof::Uy, 10)]);
+        check_dofs(&dofs, 4, &[(Dof::Ux, 11), (Dof::Uy, 12)]);
+        check_dofs(&dofs, 5, &[(Dof::Ux, 13), (Dof::Uy, 14)]);
+        check_dofs(&dofs, 6, &[(Dof::Ux, 15), (Dof::Uy, 16), (Dof::Rz, 17), (Dof::Pl, 18)]);
+        check_dofs(&dofs, 7, &[(Dof::Ux, 19), (Dof::Uy, 20)]);
+        check_dofs(&dofs, 8, &[(Dof::Ux, 21), (Dof::Uy, 22), (Dof::Pl, 23)]);
+        check_dofs(&dofs, 9, &[(Dof::Ux, 24), (Dof::Uy, 25)]);
+        check_dofs(&dofs, 10, &[(Dof::Ux, 26), (Dof::Uy, 27), (Dof::Rz, 28)]);
 
-        // check eq
-        assert_eq!(eqs.eq(0, Dof::Ux).unwrap(), 0);
-        assert_eq!(eqs.eq(6, Dof::Rz).unwrap(), 17);
-        assert_eq!(eqs.eq(8, Dof::Pl).unwrap(), 23);
+        // check numbers
+        assert_eq!(dofs.eq(0, Dof::Ux).unwrap(), 0);
+        assert_eq!(dofs.eq(6, Dof::Rz).unwrap(), 17);
+        assert_eq!(dofs.eq(8, Dof::Pl).unwrap(), 23);
         assert_eq!(
-            eqs.eq(111, Dof::Ux).err(),
+            dofs.eq(111, Dof::Ux).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         assert_eq!(
-            eqs.eq(0, Dof::T).err(),
+            dofs.eq(0, Dof::T).err(),
             Some("cannot find equation number corresponding to (PointId,DOF)")
         );
+
+        // check keys
+        let keys0 = dofs.get_keys(0); // remember: DOFs are enums and thus Rx,Ry,Rz come before Pl,Pg
+        let keys2 = dofs.get_keys(2);
+        let keys4 = dofs.get_keys(4);
+        let keys6 = dofs.get_keys(6);
+        assert_eq!(&keys0, &vec![Dof::Ux, Dof::Uy, Dof::Pl]);
+        assert_eq!(&keys2, &vec![Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl]);
+        assert_eq!(&keys4, &vec![Dof::Ux, Dof::Uy]);
+        assert_eq!(&keys6, &vec![Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl]);
+
+        // check get_enabled_dofs
+        assert_eq!(dofs.get_enabled_dofs(), vec![Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl]);
     }
 
     #[test]

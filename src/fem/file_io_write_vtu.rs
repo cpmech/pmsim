@@ -3,7 +3,6 @@ use crate::base::Dof;
 use crate::fem::FemState;
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use std::collections::HashSet;
 use std::fmt::Write;
 use std::fs::File;
 use std::io::Write as IoWrite;
@@ -25,12 +24,7 @@ impl FileIo {
         }
 
         // auxiliary information
-        let mut enabled_dofs = HashSet::new();
-        for map in &base.equations.all {
-            for dof in map.keys() {
-                enabled_dofs.insert(*dof);
-            }
-        }
+        let enabled_dofs = base.equations.get_enabled_dofs();
         let not_displacement_dof: Vec<_> = enabled_dofs
             .iter()
             .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
@@ -216,7 +210,7 @@ impl FileIo {
 
 #[cfg(test)]
 mod tests {
-    use crate::base::{Config, Elem, Essential, ParamSolid};
+    use crate::base::{Config, Dof, Elem, Essential, ParamBeam, ParamPorousSldLiq, ParamSolid};
     use crate::fem::{FemBase, FemState, FileIo};
     use gemlab::mesh::Samples;
     use std::fs;
@@ -251,7 +245,8 @@ mod tests {
         let npoint = mesh.points.len();
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            state.uu[0 + mesh.ndim * p] = strain * y;
+            let eq = base.equations.eq(p, Dof::Ux).unwrap();
+            state.uu[eq] = strain * y;
         }
 
         let index = 0;
@@ -287,6 +282,104 @@ mod tests {
 <PointData Scalars="TheScalars">
 <DataArray type="Float64" Name="displacement" NumberOfComponents="3" format="ascii">
 0.246 0.0 0.0 0.0 0.0 0.0 0.123 0.0 0.0 1.23 0.0 0.0 1.476 0.0 0.0 
+</DataArray>
+</PointData>
+</Piece>
+</UnstructuredGrid>
+</VTKFile>
+"#
+        );
+    }
+
+    #[test]
+    fn write_vtu_works_mixed() {
+        //                     {Ux→15}
+        //    {Ux→21}          {Uy→16}
+        //    {Uy→22}  {Ux→19} {Rz→17}
+        //    {Pl→23}  {Uy→20} {Pl→18} {Ux→13}
+        //         8------7------6._   {Uy→14}
+        //         |       [3](3)|  '-.5
+        //         |  [0]        |     '-._
+        // {Ux→24} 9  (1)      *10  [1]    '4 {Ux→11}
+        // {Uy→25} |             |  (2)  .-'  {Uy→12}
+        //         |       [2](3)|   _.3'
+        //         0------1------2.-'  {Ux→9}
+        //     {Ux→0}  {Ux→3}  {Ux→5}  {Uy→10}
+        //     {Uy→1}  {Uy→4}  {Uy→6}
+        //     {Pl→2}          {Rz→7}
+        //                     {Pl→8}
+        //  *10 => {Ux→26, Uy→27, Rz→28}
+        let mesh = Samples::qua8_tri6_lin2();
+        let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
+        let p2 = ParamSolid::sample_linear_elastic();
+        let p3 = ParamBeam::sample();
+        let base = FemBase::new(
+            &mesh,
+            [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
+        )
+        .unwrap();
+        let essential = Essential::new();
+        let config = Config::new(&mesh);
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+
+        // Generates a displacement field corresponding to a simple shear deformation
+        // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
+        let strain = 1.23;
+        let npoint = mesh.points.len();
+        for p in 0..npoint {
+            let y = mesh.points[p].coords[1];
+            let eq = base.equations.eq(p, Dof::Ux).unwrap();
+            state.uu[eq] = strain * y;
+        }
+
+        // Applies liquid pressure proportional to the y coordinate
+        for p in 0..npoint {
+            let y = mesh.points[p].coords[1];
+            if base.equations.has_dof(p, Dof::Pl) {
+                let eq = base.equations.eq(p, Dof::Pl).unwrap();
+                state.uu[eq] = 100.0 * (1.0 + y);
+            }
+        }
+
+        let index = 0;
+        let fn_stem = "test_write_vtu_works_mixed";
+        let mut file_io = FileIo::new();
+        file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
+        file_io.write_vtu(&mesh, &base, &state, index).unwrap();
+
+        let fn_path = file_io.path_vtu(index);
+        let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
+        assert_eq!(
+            contents,
+            r#"<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">
+<UnstructuredGrid>
+<Piece NumberOfPoints="11" NumberOfCells="4">
+<Points>
+<DataArray type="Float64" NumberOfComponents="3" format="ascii">
+0.0 0.0 0.0 0.5 0.0 0.0 1.0 0.0 0.0 1.433 0.25 0.0 1.866 0.5 0.0 1.433 0.75 0.0 1.0 1.0 0.0 0.5 1.0 0.0 0.0 1.0 0.0 0.0 0.5 0.0 1.0 0.5 0.0 
+</DataArray>
+</Points>
+<Cells>
+<DataArray type="Int32" Name="connectivity" format="ascii">
+0 2 6 8 1 10 7 9 2 4 6 3 5 10 2 10 10 6 
+</DataArray>
+<DataArray type="Int32" Name="offsets" format="ascii">
+8 14 16 18 
+</DataArray>
+<DataArray type="UInt8" Name="types" format="ascii">
+23 22 3 3 
+</DataArray>
+</Cells>
+<PointData Scalars="TheScalars">
+<DataArray type="Float64" Name="displacement" NumberOfComponents="3" format="ascii">
+0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.3075 0.0 0.0 0.615 0.0 0.0 0.9225 0.0 0.0 1.23 0.0 0.0 1.23 0.0 0.0 1.23 0.0 0.0 0.615 0.0 0.0 0.615 0.0 0.0 
+</DataArray>
+<DataArray type="Float64" Name="Rz" NumberOfComponents="1" format="ascii">
+0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 
+</DataArray>
+<DataArray type="Float64" Name="Pl" NumberOfComponents="1" format="ascii">
+100.0 0.0 100.0 0.0 0.0 0.0 200.0 0.0 200.0 0.0 0.0 
 </DataArray>
 </PointData>
 </Piece>
