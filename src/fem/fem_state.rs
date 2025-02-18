@@ -126,13 +126,14 @@ impl FemState {
             return Err("cannot combine PorousLiq or PorousLiqGas with other elements");
         }
 
-        // constants
-        let neq_total = if config.lagrange_mult_method {
-            let n_lagrange = essential.n_prescribed();
-            base.dofs.size() + n_lagrange
-        } else {
-            base.dofs.size()
+        // total number of equations
+        let mut neq_total = base.dofs.size();
+        if config.lagrange_mult_method {
+            neq_total += essential.n_prescribed();
         };
+        if config.arc_length_method {
+            neq_total += 1;
+        }
 
         // primary variables
         let t = config.t_ini;

@@ -9,9 +9,11 @@ pub struct LinearSystem<'a> {
     /// Total number of global equations
     ///
     /// ```text
-    ///             ⎧ n_equation               if reduced system method
+    ///             ⎧ ndof               if reduced system method
     /// neq_total = ⎨
-    ///             ⎩ n_equation + n_lagrange  if Lagrange multipliers method
+    ///             ⎩ ndof + n_lagrange  if Lagrange multipliers method
+    ///
+    /// if arc-length: neq_total += 1
     /// ```
     ///
     /// where `n_equation` is the total number of DOFs and `n_lagrange`
@@ -42,6 +44,8 @@ pub struct LinearSystem<'a> {
     ///           ⎧   n_prescribed  if reduced system method
     /// n_extra = ⎨
     ///           ⎩ 2 n_prescribed  if Lagrange multipliers method
+    ///
+    /// if arc-length: n_extra += 2 ndof + 1
     /// ```
     pub nnz_sup: usize,
 
@@ -107,12 +111,14 @@ impl<'a> LinearSystem<'a> {
         let sym = config.lin_sol_genie.get_sym(symmetric);
         let n_prescribed = prescribed.equations.len();
 
-        // equation (DOF) numbers
-        let neq_total = if config.lagrange_mult_method {
-            base.dofs.size() + n_prescribed
-        } else {
-            base.dofs.size()
+        // total number of equations
+        let mut neq_total = base.dofs.size();
+        if config.lagrange_mult_method {
+            neq_total += n_prescribed;
         };
+        if config.arc_length_method {
+            neq_total += 1;
+        }
 
         // estimate the number of non-zero values
         let mut nnz_sup = if config.lagrange_mult_method {
@@ -124,6 +130,9 @@ impl<'a> LinearSystem<'a> {
         } else {
             n_prescribed
         };
+        if config.arc_length_method {
+            nnz_sup += 2 * neq_total + 1;
+        }
 
         // elements always have a Jacobian matrix (all must be symmetric to use symmetry)
         nnz_sup += elements.all.iter().fold(0, |acc, e| {

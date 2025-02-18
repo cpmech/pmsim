@@ -38,6 +38,9 @@ pub struct Config<'a> {
     /// Holds a flag indicating Pseudo-Newton method with constant-tangent operator
     pub(crate) constant_tangent: bool,
 
+    /// Holds a flag indicating the use the arc-length method
+    pub(crate) arc_length_method: bool,
+
     /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
 
@@ -160,6 +163,7 @@ impl<'a> Config<'a> {
             transient: false,
             dynamics: false,
             constant_tangent: false,
+            arc_length_method: false,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-10),
@@ -364,6 +368,12 @@ impl<'a> Config<'a> {
     /// Sets a flag indicating Pseudo-Newton method with constant-tangent operator
     pub fn set_constant_tangent(&mut self, enable: bool) -> &mut Self {
         self.constant_tangent = enable;
+        self
+    }
+
+    /// Sets a flag indicating the use of the arc-length method
+    pub fn set_arc_length_method(&mut self, enable: bool) -> &mut Self {
+        self.arc_length_method = enable;
         self
     }
 
