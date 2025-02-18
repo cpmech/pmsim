@@ -179,8 +179,8 @@ impl<'a> SolverImplicit<'a> {
                         let j = ndof + p;
                         let lambda = state.uu[j];
                         let c = self.bc_prescribed.all[p].value(state.t);
-                        rr[i] += lambda; // Aᵀ λ => 1 * λ
-                        rr[j] = state.uu[i] - c; // A u - c => 1 * u - c
+                        rr[i] += lambda; // Aᵀ λ  →  1 * λ
+                        rr[j] = state.uu[i] - c; // A u - c  →  1 * u - c
                     }
                 }
 
