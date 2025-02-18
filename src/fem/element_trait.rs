@@ -13,8 +13,11 @@ pub trait ElementTrait {
     /// Initializes the internal variables
     fn initialize_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError>;
 
-    /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError>;
+    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
+    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError>;
+
+    /// Calculates the vector of external forces f_ext
+    fn calc_f_ext(&mut self, f_ext: &mut Vector, time: f64) -> Result<(), StrError>;
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError>;

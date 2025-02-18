@@ -95,17 +95,20 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         Ok(())
     }
 
-    /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
+    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+        // constants
         let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
         let l2g = &self.local_to_global;
+
+        // arguments for the integrator
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
-        // conductivity term (always present, so we calculate it first with clear=true)
-        integ::vec_03_vb(residual, &mut args, |w, _, nn, bb| {
+        // the conductivity term is always present, so we calculate it first with clear=true
+        integ::vec_03_vb(f_int, &mut args, |w, _, nn, bb| {
             // interpolate T at integration point
             let mut tt = 0.0;
             for m in 0..nnode {
@@ -120,7 +123,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             }
             // compute conductivity tensor at integration point
             self.model.calc_k(&mut self.conductivity, tt)?;
-            // the residual must get -w; however w = -k·∇T, thus -w = -(-k·∇T) = k·∇T
+            // f_int must get -w; however w = -k·∇T, thus -w = -(-k·∇T) = k·∇T
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt);
             Ok(())
         })
@@ -132,33 +135,41 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         if self.config.transient {
             // calculate beta coefficient
             let (beta_1, _) = self.config.betas_transient(state.dt)?;
-            let s = match self.param.source {
-                Some(val) => val,
-                None => 0.0,
-            };
 
-            // transient and source terms
-            integ::vec_01_ns(residual, &mut args, |_, nn| {
+            // transient term
+            integ::vec_01_ns(f_int, &mut args, |_, nn| {
                 // interpolate T and T★ to integration point
                 let (mut tt, mut tt_star) = (0.0, 0.0);
                 for m in 0..nnode {
                     tt += nn[m] * state.uu[l2g[m]];
                     tt_star += nn[m] * state.uu_star[l2g[m]];
                 }
-                Ok(self.param.rho * (beta_1 * tt - tt_star) - s)
-            })
-            .unwrap();
-        } else {
-            // source term only (steady case)
-            if let Some(s) = self.param.source {
-                integ::vec_01_ns(residual, &mut args, |_, _| Ok(-s)).unwrap();
-            }
+                Ok(self.param.rho * (beta_1 * tt - tt_star))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Calculates the vector of external forces f_ext
+    fn calc_f_ext(&mut self, f_ext: &mut Vector, _time: f64) -> Result<(), StrError> {
+        if let Some(s) = self.param.source {
+            // arguments for the integrator
+            let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
+            args.alpha = self.config.ideal.thickness;
+            args.axisymmetric = self.config.ideal.axisymmetric;
+
+            // →        ⌠
+            // fᵐ_ext = │ Nᵐ s dΩ
+            //          ⌡
+            //          Ωₑ
+            integ::vec_01_ns(f_ext, &mut args, |_, _| Ok(s))?;
         }
         Ok(())
     }
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+        // arguments for the integrator
         let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
         let l2g = &self.local_to_global;
@@ -239,7 +250,7 @@ mod tests {
     use crate::fem::{ElementTrait, FemBase, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
-    use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
+    use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix, Vector};
     use russell_tensor::{Mandel, Tensor2};
 
     /// Finds the symmetry status of the Jacobian matrix
@@ -354,15 +365,15 @@ mod tests {
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
-        // check residual vector
+        // check f_int vector
         let neq = 3;
-        let mut residual = Vector::new(neq);
-        elem.calc_residual(&mut residual, &state).unwrap();
+        let mut f_int = Vector::new(neq);
+        elem.calc_f_int(&mut f_int, &state).unwrap();
         let dtt_dx = 5.0;
         let w0 = -KX * dtt_dx;
         let w1 = 0.0;
-        let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1));
-        vec_approx_eq(&residual, &correct_r, 1e-15);
+        let correct_f_int = Vector::from(&ana.vec_03_vb(-w0, -w1));
+        vec_approx_eq(&f_int, &correct_f_int, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
@@ -380,12 +391,11 @@ mod tests {
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
 
-        // check residual vector
-        elem.calc_residual(&mut residual, &state).unwrap();
-        let correct_src = ana.vec_01_ns(-source, false);
-        let mut correct_r_new = Vector::new(neq);
-        vec_add(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
-        vec_approx_eq(&residual, &correct_r_new, 1e-15);
+        // check f_ext vector
+        let mut f_ext = Vector::new(neq);
+        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
+        let correct_f_ext = ana.vec_01_ns(source, false);
+        vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
 
         // error in transient -----------------------------------------------
 
@@ -394,7 +404,7 @@ mod tests {
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
         state.dt = 0.0; // wrong
         assert_eq!(
-            elem.calc_residual(&mut residual, &state).err(),
+            elem.calc_f_int(&mut f_int, &state).err(),
             Some("Δt is smaller than the allowed minimum")
         );
         assert_eq!(
@@ -432,16 +442,16 @@ mod tests {
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);
 
-        // check residual vector
+        // check f_int vector
         let neq = 4;
-        let mut residual = Vector::new(neq);
-        elem.calc_residual(&mut residual, &state).unwrap();
+        let mut f_int = Vector::new(neq);
+        elem.calc_f_int(&mut f_int, &state).unwrap();
         let (dtt_dx, dtt_dz) = (7.0, 3.0);
         let w0 = -KX * dtt_dx;
         let w1 = 0.0;
         let w2 = -KZ * dtt_dz;
-        let correct_r = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
-        vec_approx_eq(&residual, &correct_r, 1e-15);
+        let correct_f_int = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
+        vec_approx_eq(&f_int, &correct_f_int, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
@@ -461,11 +471,10 @@ mod tests {
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
 
-        // check residual vector
-        elem.calc_residual(&mut residual, &state).unwrap();
-        let correct_src = Vector::from(&ana.vec_01_ns(-source));
-        let mut correct_r_new = Vector::new(neq);
-        vec_add(&mut correct_r_new, 1.0, &correct_r, 1.0, &correct_src).unwrap();
-        vec_approx_eq(&residual, &correct_r_new, 1e-15);
+        // check f_ext vector
+        let mut f_ext = Vector::new(neq);
+        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
+        let correct_f_ext = Vector::from(&ana.vec_01_ns(source));
+        vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
     }
 }

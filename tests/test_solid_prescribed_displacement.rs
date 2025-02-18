@@ -150,12 +150,12 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     vec_update(&mut ee2, 1.0, &ee2_tmp)?;
     println!("\nexternal F2 = \n{}", ee2);
 
-    // compute (local=global) residual (actually, internal forces)
-    let mut rr = Vector::new(neq);
-    elem.calc_residual(&mut rr, &state)?;
+    // compute (local=global) internal forces vector
+    let mut f_int = Vector::new(neq);
+    elem.calc_f_int(&mut f_int, &state)?;
     let mut rr2 = Vector::new(n_prescribed);
     for (i, ii) in eq_prescribed.iter().enumerate() {
-        rr2[i] = rr[*ii];
+        rr2[i] = f_int[*ii];
     }
     println!("internal F2 = \n{}", rr2);
     vec_approx_eq(&ee2, &rr2, 1e-15);
@@ -223,10 +223,15 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
         println!("σ = {:?}", state.gauss[0].stress(p)?.vector().as_data());
     }
 
-    // compute residual (actually, internal forces)
+    // compute internal and external forces vectors
+    let mut f_int = Vector::new(neq);
+    let mut f_ext = Vector::new(neq);
+    elem.calc_f_int(&mut f_int, &state)?;
+    elem.calc_f_ext(&mut f_ext, state.t)?;
+    println!("f_int = \n{}", f_int);
+    println!("f_ext = \n{}", f_ext);
     let mut rr_local = Vector::new(neq);
-    elem.calc_residual(&mut rr_local, &state)?;
-    println!("local R = \n{}", rr_local);
+    vec_add(&mut rr_local, 1.0, &f_int, 1.0, &f_ext)?;
     let mut ee1 = Vector::new(n_unknown); // external forces vector E1
     for (i, ii) in eq_unknown.iter().enumerate() {
         ee1[i] = -rr_local[*ii];

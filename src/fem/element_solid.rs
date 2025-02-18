@@ -120,47 +120,44 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             .collect()
     }
 
-    /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
+    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+        // arguments for the integrator
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
-        // compute the internal forces contribution to the residual vector
-        //
-        // →    ⌠     →
-        // rᵐ = │ σ · Bᵐ dΩ    +   ...
-        //      ⌡ ▔
-        //      Ωₑ
-        //     \____________/
-        //     we compute this
-        integ::vec_04_tb(residual, &mut args, |sig, p, _, _| {
+        // →        ⌠     →
+        // fᵐ_int = │ σ · Bᵐ dΩ
+        //          ⌡ ▔
+        //          Ωₑ
+        integ::vec_04_tb(f_int, &mut args, |sig, p, _, _| {
             sig.set_tensor(1.0, &state.gauss[self.cell_id].solid[p].stress);
             Ok(())
-        })?;
+        })
+    }
 
-        // enable updates on the residual vector
-        args.clear = false; // << important from now on
-
-        // handle body forces
+    /// Calculates the vector of external forces f_ext
+    fn calc_f_ext(&mut self, f_ext: &mut Vector, time: f64) -> Result<(), StrError> {
         if let Some(gravity) = self.config.gravity.as_ref() {
+            // constants
             let ndim = self.config.ndim;
             let rho = self.param.density;
-            integ::vec_02_nv(residual, &mut args, |b, _, _| {
-                // Note: due to the definition of the residual vector, the body force needs
-                // to be negative, i.e, residual = -ρ·b; however the gravity acceleration component
-                // is negative: aᵢ = -gravity. Thus, the residual is rᵢ = -ρ·(-gravity) = ρ·gravity
-                //
-                // note the negative sign
-                //                 ↓
-                // →    ⌠              ⌠      →
-                // rᵐ = │ ... dΩ   ─   │ Nᵐ ρ b dΩ
-                //      ⌡              ⌡
-                //      Ωₑ             Ωₑ
-                //                 \_____________/
-                //                 we compute this
+
+            // arguments for the integrator
+            let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
+            args.alpha = self.config.ideal.thickness;
+            args.axisymmetric = self.config.ideal.axisymmetric;
+
+            // note that the gravity acceleration component is negative: bᵢ = -gravity
+            //
+            // →        ⌠      →
+            // fᵐ_ext = │ Nᵐ ρ b dΩ
+            //          ⌡
+            //          Ωₑ
+            integ::vec_02_nv(f_ext, &mut args, |b, _, _| {
                 b.fill(0.0);
-                b[ndim - 1] = rho * gravity(state.t); // -ρ·(-g) = ρ·g
+                b[ndim - 1] = rho * (-gravity(time)); // ρ·(-g)
                 Ok(())
             })?;
         }
@@ -265,7 +262,7 @@ mod tests {
     use gemlab::mesh::{Cell, Mesh, Point, Samples};
     use gemlab::shapes::GeoKind;
     use russell_lab::math::SQRT_2;
-    use russell_lab::{mat_approx_eq, vec_approx_eq, vec_copy, vec_update, Matrix, Vector};
+    use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, vec_copy, vec_update, Matrix, Vector};
 
     fn get_sample<'a>(
         d3: bool,
@@ -316,26 +313,26 @@ mod tests {
     }
 
     #[test]
-    fn calc_phi_works_2d() {
+    fn calc_f_int_works_2d() {
         // allocate element
         let young = 10_000.0;
         let poisson = 0.2;
         let (mesh, p1, base, config, state) = get_sample(false, young, poisson, false);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
 
-        // allocate local phi vector
+        // allocate local f_int vector
         let nnode = mesh.cells[0].kind.nnode();
         let neq = nnode * mesh.ndim;
-        let mut phi = Vector::new(neq);
+        let mut f_int = Vector::new(neq);
 
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
-        // check phi vector
-        elem.calc_residual(&mut phi, &state).unwrap();
+        // check f_int vector
+        elem.calc_f_int(&mut f_int, &state).unwrap();
         let sigma = &state.gauss[0].solid[0].stress;
         let correct = ana.vec_04_tb(sigma, false);
-        vec_approx_eq(&phi, &correct, 1e-15);
+        vec_approx_eq(&f_int, &correct, 1e-15);
     }
 
     #[test]
@@ -387,26 +384,26 @@ mod tests {
     }
 
     #[test]
-    fn calc_phi_works_3d() {
+    fn calc_f_int_works_3d() {
         // allocate element
         let young = 10_000.0;
         let poisson = 0.2;
         let (mesh, p1, base, config, state) = get_sample(true, young, poisson, false);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
 
-        // allocate local phi vector
+        // allocate local f_int vector
         let nnode = mesh.cells[0].kind.nnode();
         let neq = nnode * mesh.ndim;
-        let mut phi = Vector::new(neq);
+        let mut f_int = Vector::new(neq);
 
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);
 
-        // check phi vector
-        elem.calc_residual(&mut phi, &state).unwrap();
+        // check f_int vector
+        elem.calc_f_int(&mut f_int, &state).unwrap();
         let sigma = &state.gauss[0].solid[0].stress;
         let correct = ana.vec_04_tb(sigma);
-        vec_approx_eq(&phi, &correct, 1e-15);
+        vec_approx_eq(&f_int, &correct, 1e-15);
     }
 
     #[test]
@@ -675,17 +672,21 @@ mod tests {
         // NOTE: since the stress is zero, the residual is due to the body force only
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 4 * 2;
-        let mut residual = Vector::new(neq);
+        let mut f_int = Vector::new(neq);
+        let mut f_ext = Vector::new(neq);
+        let mut f_int_minus_f_ext = Vector::new(neq);
         elem.initialize_internal_values(&mut state).unwrap();
-        elem.calc_residual(&mut residual, &state).unwrap();
+        elem.calc_f_int(&mut f_int, &state).unwrap();
+        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
+        vec_add(&mut f_int_minus_f_ext, 1.0, &f_int, -1.0, &f_ext).unwrap();
 
         // check residual vector
         if reduced_integration {
             let felippa_neg_rr_1ip = &[0.0, 12.0, 0.0, 12.0, 0.0, 12.0, 0.0, 12.0];
-            vec_approx_eq(&residual, felippa_neg_rr_1ip, 1e-15);
+            vec_approx_eq(&f_int_minus_f_ext, felippa_neg_rr_1ip, 1e-15);
         } else {
             let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
-            vec_approx_eq(&residual, felippa_neg_rr_4ip, 1e-14);
+            vec_approx_eq(&f_int_minus_f_ext, felippa_neg_rr_4ip, 1e-14);
         }
     }
 

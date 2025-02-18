@@ -98,13 +98,18 @@ impl<'a> ElementTrait for ElementRod<'a> {
         Ok(())
     }
 
-    /// Calculates the residual vector
-    fn calc_residual(&mut self, residual: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
+    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for local in 0..self.local_to_global.len() {
             let global = self.local_to_global[local];
             self.uu[local] = state.uu[global];
         }
-        mat_vec_mul(residual, 1.0, &self.stiffness, &self.uu).unwrap();
+        mat_vec_mul(f_int, 1.0, &self.stiffness, &self.uu).unwrap();
+        Ok(())
+    }
+
+    /// Calculates the vector of external forces f_ext
+    fn calc_f_ext(&mut self, _f_ext: &mut Vector, _time: f64) -> Result<(), StrError> {
         Ok(())
     }
 
@@ -198,9 +203,9 @@ mod tests {
         let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 4;
-        let mut residual = Vector::new(neq);
+        let mut f_int = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
-        rod.calc_residual(&mut residual, &state).unwrap();
+        rod.calc_f_int(&mut f_int, &state).unwrap();
         rod.calc_jacobian(&mut jacobian, &state).unwrap();
         let correct = &[
             [36.0, 48.0, -36.0, -48.0], // 0
@@ -238,9 +243,9 @@ mod tests {
         let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 6;
-        let mut residual = Vector::new(neq);
+        let mut f_int = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
-        rod.calc_residual(&mut residual, &state).unwrap();
+        rod.calc_f_int(&mut f_int, &state).unwrap();
         rod.calc_jacobian(&mut jacobian, &state).unwrap();
         let correct = &[
             [40.0, 60.0, 120.0, -40.0, -60.0, -120.0],     // 0
@@ -281,9 +286,9 @@ mod tests {
         let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 6;
-        let mut residual = Vector::new(neq);
+        let mut f_int = Vector::new(neq);
         let mut jacobian = Matrix::new(neq, neq);
-        rod.calc_residual(&mut residual, &state).unwrap();
+        rod.calc_f_int(&mut f_int, &state).unwrap();
         rod.calc_jacobian(&mut jacobian, &state).unwrap();
         let correct = &[
             [1.0, 2.0, 2.0, -1.0, -2.0, -2.0], // 0

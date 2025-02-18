@@ -10,8 +10,11 @@ pub struct GenericElement<'a> {
     /// Connects to the "actual" implementation of local equations
     pub actual: Box<dyn ElementTrait + 'a>,
 
-    /// Holds the ϕ vector (local contribution to the residual R)
-    pub phi: Vector,
+    /// Holds the local vector of "internal forces" (including the dynamical forces)
+    pub f_int: Vector,
+
+    /// Holds the local vector of "external forces"
+    pub f_ext: Vector,
 
     /// Holds the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
     pub kke: Matrix,
@@ -30,8 +33,8 @@ pub struct Elements<'a> {
 
 /// Holds auxiliary arguments for the computation of numerical Jacobian matrices
 struct ArgsForNumericalJacobian<'a> {
-    /// Holds the ϕ vector (local contribution to the residual R)
-    pub phi: &'a mut Vector,
+    /// Holds the local vector of "internal forces"
+    pub f_int: &'a mut Vector,
 
     /// Holds the current state
     pub state: &'a mut FemState,
@@ -54,28 +57,19 @@ impl<'a> GenericElement<'a> {
         let neq = base.n_local_eq(cell).unwrap();
         Ok(GenericElement {
             actual,
-            phi: Vector::new(neq),
+            f_int: Vector::new(neq),
+            f_ext: Vector::new(neq),
             kke: Matrix::new(neq, neq),
         })
-    }
-
-    /// Calculates the ϕ vector (local contribution to the residual R)
-    pub fn calc_phi(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.actual.calc_residual(&mut self.phi, state)
-    }
-
-    /// Calculates the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
-    pub fn calc_kke(&mut self, state: &FemState) -> Result<(), StrError> {
-        self.actual.calc_jacobian(&mut self.kke, state)
     }
 
     /// Calculates the local Jacobian matrix using finite differences
     ///
     /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
     pub fn numerical_jacobian(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        let neq = self.phi.dim();
+        let neq = self.f_int.dim();
         let mut args = ArgsForNumericalJacobian {
-            phi: &mut self.phi,
+            f_int: &mut self.f_int,
             state,
         };
         for i in 0..neq {
@@ -88,11 +82,11 @@ impl<'a> GenericElement<'a> {
                     a.state.duu[j] = u - original_uu;
                     self.actual.backup_secondary_values(a.state);
                     self.actual.update_secondary_values(&mut a.state).unwrap();
-                    self.actual.calc_residual(&mut a.phi, &a.state).unwrap();
+                    self.actual.calc_f_int(&mut a.f_int, &a.state).unwrap();
                     self.actual.restore_secondary_values(&mut a.state);
                     a.state.uu[j] = original_uu;
                     a.state.duu[j] = original_duu;
-                    Ok(a.phi[i])
+                    Ok(a.f_int[i])
                 });
                 self.kke.set(i, j, res.unwrap());
             }
@@ -125,26 +119,38 @@ impl<'a> Elements<'a> {
         return true;
     }
 
-    /// Calculates all ϕ vectors (local contribution to the residual R) and adds them to R
+    /// Calculates all local f_int vectors and assembles them into the global F_int vector
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
-    /// i.e., it allows the generation of the reduced system.
-    pub fn assemble_phi(&mut self, rr: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
+    pub fn assemble_f_int(&mut self, ff_int: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
         for e in &mut self.all {
-            e.calc_phi(state)?;
-            assemble_vector(rr, &e.phi, &e.actual.local_to_global(), ignore);
+            e.actual.calc_f_int(&mut e.f_int, state)?;
+            assemble_vector(ff_int, &e.f_int, &e.actual.local_to_global(), ignore);
         }
         Ok(())
     }
 
-    /// Calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
+    /// Calculates all local f_ext vectors and assembles them into the global F_ext vector
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
-    /// i.e., it allows the generation of the reduced system.
+    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
+    pub fn assemble_f_ext(&mut self, ff_ext: &mut Vector, time: f64, ignore: &[bool]) -> Result<(), StrError> {
+        for e in &mut self.all {
+            e.actual.calc_f_ext(&mut e.f_ext, time)?;
+            assemble_vector(ff_ext, &e.f_ext, &e.actual.local_to_global(), ignore);
+        }
+        Ok(())
+    }
+
+    /// Calculates all local Ke matrices and assembles them into K
+    ///
+    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
+    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
     pub fn assemble_kke(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
         let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.all {
-            e.calc_kke(state)?;
+            e.actual.calc_jacobian(&mut e.kke, state)?;
             assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore, tol)?;
         }
         Ok(())
@@ -203,7 +209,7 @@ mod tests {
     use crate::fem::{FemBase, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Mesh, Samples};
-    use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix, Vector};
+    use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
     use russell_sparse::{CooMatrix, Sym};
     use russell_tensor::{Mandel, Tensor2};
 
@@ -256,6 +262,7 @@ mod tests {
 
     #[test]
     fn num_jacobian_diffusion() {
+        // mesh
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
@@ -270,30 +277,42 @@ mod tests {
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
-        ele.calc_kke(&state).unwrap();
+        // check
+        ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
         mat_approx_eq(&jj_ana, &ele.kke, 1e-11);
+        // println!("Ke = \n{}", ele.kke);
+    }
 
-        // transient simulation
+    #[test]
+    fn num_jacobian_diffusion_transient() {
+        // mesh
+        let mesh = Samples::one_tri3();
+        let p1 = ParamDiffusion::sample();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let mut config = Config::new(&mesh);
-        config.transient = true;
+        config.set_transient(true);
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
+
+        // set heat flow from the top to bottom and right to left
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
         state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
         state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
         state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
-        let (beta_1, beta_2) = config.betas_transient(state.dt).unwrap();
-        state.uu_star[0] = beta_1 * state.uu[0] + beta_2 * state.uu[0];
-        state.uu_star[1] = beta_1 * state.uu[1] + beta_2 * state.uu[1];
-        state.uu_star[2] = beta_1 * state.uu[2] + beta_2 * state.uu[2];
-        ele.calc_kke(&state).unwrap();
+
+        // check
+        ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
-        mat_approx_eq(&jj_ana, &ele.kke, 1e-10);
+        mat_approx_eq(&jj_ana, &ele.kke, 1e-11);
+    }
 
-        // variable conductivity
+    #[test]
+    fn num_jacobian_diffusion_variable_conductivity() {
+        let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion {
             rho: 1.0,
             conductivity: Conductivity::IsotropicLinear { kr: 2.0, beta: 10.0 },
@@ -301,16 +320,26 @@ mod tests {
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
-        ele.calc_kke(&state).unwrap();
+
+        // set heat flow from the top to bottom and right to left
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+
+        // check
+        ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
-        // println!("ana: J = \n{}", ele.jacobian);
-        // println!("num: J = \n{}", num_jacobian);
+        // println!("ana: J = \n{}", jj_ana);
+        // println!("num: J = \n{}", ele.kke);
         mat_approx_eq(&jj_ana, &ele.kke, 1e-7);
         // note that the "stiffness" is now unsymmetric
-        // println!("difference = {:?}", num_jacobian[0][2] - num_jacobian[2][0]);
+        // println!("difference = {:?}", jj_ana.get(0, 2) - jj_ana.get(2, 0));
     }
 
     #[test]
@@ -336,7 +365,7 @@ mod tests {
         ele.actual.update_secondary_values(&mut state).unwrap();
         println!("uu =\n{}", state.uu);
 
-        ele.calc_kke(&state).unwrap();
+        ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
 
@@ -461,11 +490,15 @@ mod tests {
         let mut elements = Elements::new(&mesh, &base, &config).unwrap();
         let neq = base.dofs.size();
         let nnz_sup = 3 * neq * neq;
+        let mut f_int = Vector::new(neq);
+        let mut f_ext = Vector::new(neq);
         let mut rr = Vector::new(neq);
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
         let ignore = vec![false; neq];
-        elements.assemble_phi(&mut rr, &state, &ignore).unwrap();
+        elements.assemble_f_int(&mut f_int, &state, &ignore).unwrap();
+        elements.assemble_f_ext(&mut f_ext, state.t, &ignore).unwrap();
         elements.assemble_kke(&mut kk, &state, &ignore).unwrap();
+        vec_add(&mut rr, 1.0, &f_int, -1.0, &f_ext).unwrap();
         let kk_mat = kk.as_dense();
         vec_approx_eq(&rr, &rr_correct, 1e-14);
         mat_approx_eq(&kk_mat, &kk_correct, 1e-12);

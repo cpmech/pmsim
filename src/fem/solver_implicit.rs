@@ -79,9 +79,12 @@ impl<'a> SolverImplicit<'a> {
 
         // accessors
         let config = &self.config;
+        let ff_int = &mut self.linear_system.ff_int;
+        let ff_ext = &mut self.linear_system.ff_ext;
         let rr = &mut self.linear_system.rr;
         let kk = &mut self.linear_system.kk;
         let mdu = &mut self.linear_system.mdu;
+        let mut beta_1 = 0.0;
 
         // array to ignore prescribed equations when building the reduced system
         let ndof = self.bc_prescribed.flags.len(); // number of DOFs = n_equation without Lagrange multipliers
@@ -119,11 +122,12 @@ impl<'a> SolverImplicit<'a> {
             }
             state.t += state.dt;
 
-            // old state variables
-            let (beta_1, beta_2) = run!(config.betas_transient(state.dt));
+            // transient/dynamics: old state variables
             if config.transient {
-                vec_add(&mut state.uu_star, beta_1, &state.uu, beta_2, &state.vv).unwrap();
-            }
+                let (b1, b2) = run!(config.betas_transient(state.dt));
+                vec_add(&mut state.uu_star, b1, &state.uu, b2, &state.vv).unwrap();
+                beta_1 = b1;
+            };
 
             // reset cumulated primary values
             state.duu.fill(0.0);
@@ -148,15 +152,25 @@ impl<'a> SolverImplicit<'a> {
             // (except the prescribed values) and secondary variables are still on the old time.
             // These values (primary and secondary) at the old time are hence the trial values.
             for iteration in 0..config.n_max_iterations {
-                // clear residuals vector
-                rr.fill(0.0);
+                // clear vectors
+                for eq in 0..self.linear_system.neq_total {
+                    ff_int[eq] = 0.0;
+                    ff_ext[eq] = 0.0;
+                }
 
-                // calculate all ϕ vectors (at the new time) and add them to R
-                run!(self.elements.assemble_phi(rr, state, ignore));
-                run!(self.bc_distributed.assemble_phi(rr, state, ignore));
+                // calculate all element local vectors and add them to the global vectors
+                run!(self.elements.assemble_f_int(ff_int, state, ignore));
+                run!(self.elements.assemble_f_ext(ff_ext, state.t, ignore));
 
-                // add concentrated loads to the residual R
-                self.bc_concentrated.add_to_rr(rr, state.t);
+                // calculate all boundary elements local vectors and add them to the global vectors
+                run!(self.bc_distributed.assemble_f_int(ff_int, state, ignore));
+                run!(self.bc_distributed.assemble_f_ext(ff_ext, state.t, ignore));
+
+                // add concentrated loads to the external forces vector
+                self.bc_concentrated.add_to_ff_ext(ff_ext, state.t);
+
+                // calculate the residuals vector
+                vec_add(rr, 1.0, ff_int, -1.0, ff_ext).unwrap();
 
                 // add Lagrange multiplier contributions to R
                 if config.lagrange_mult_method {
@@ -358,7 +372,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_dt(|_| -1.0); // wrong
+        config.set_transient(true).set_dt(|_| -1.0); // wrong
         let essential = Essential::new();
         let natural = Natural::new();
         let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();

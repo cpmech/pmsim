@@ -45,6 +45,16 @@ pub struct LinearSystem<'a> {
     /// ```
     pub nnz_sup: usize,
 
+    /// Holds the vector of internal forces F_int (including dynamic terms)
+    ///
+    /// (neq_total)
+    pub ff_int: Vector,
+
+    /// Holds the vector of external forces F_ext
+    ///
+    /// (neq_total)
+    pub ff_ext: Vector,
+
     /// Holds the residual vector R
     ///
     /// (neq_total)
@@ -143,6 +153,8 @@ impl<'a> LinearSystem<'a> {
         Ok(LinearSystem {
             neq_total,
             nnz_sup,
+            ff_int: Vector::new(neq_total),
+            ff_ext: Vector::new(neq_total),
             rr: Vector::new(neq_total),
             kk: SparseMatrix::new_coo(neq_total, neq_total, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,

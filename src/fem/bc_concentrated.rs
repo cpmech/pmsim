@@ -23,18 +23,6 @@ pub struct BcConcentratedArray<'a> {
     pub all: Vec<BcConcentrated<'a>>,
 }
 
-impl<'a> BcConcentrated<'a> {
-    /// Adds the concentrated load value at given time to the residual R
-    pub fn add_to_rr(&self, residual: &mut Vector, time: f64) {
-        let value = match self.function {
-            Some(f) => (f)(time),
-            None => self.value,
-        };
-        // note the negative sign
-        residual[self.eq] -= value;
-    }
-}
-
 impl<'a> BcConcentratedArray<'a> {
     /// Allocates a new instance
     pub fn new(base: &FemBase, natural: &'a Natural) -> Result<Self, StrError> {
@@ -54,9 +42,15 @@ impl<'a> BcConcentratedArray<'a> {
         Ok(BcConcentratedArray { all })
     }
 
-    /// Adds all concentrated load values at given time to the residual R
-    pub fn add_to_rr(&self, residual: &mut Vector, time: f64) {
-        self.all.iter().for_each(|e| e.add_to_rr(residual, time));
+    /// Adds all concentrated load values at given time to the external forces vector
+    pub fn add_to_ff_ext(&self, ff_ext: &mut Vector, time: f64) {
+        for e in &self.all {
+            let value = match e.function {
+                Some(f) => (f)(time),
+                None => e.value,
+            };
+            ff_ext[e.eq] += value;
+        }
     }
 }
 
@@ -94,14 +88,14 @@ mod tests {
         natural.points(&[1], Pbc::Fy, -20.0);
         natural.points(&[2], Pbc::Fz, -20.0);
         let b_points = BcConcentratedArray::new(&base, &natural).unwrap();
-        let mut residual = Vector::new(4 * 3);
-        b_points.add_to_rr(&mut residual, 0.0);
+        let mut ff_ext = Vector::new(4 * 3);
+        b_points.add_to_ff_ext(&mut ff_ext, 0.0);
         assert_eq!(
-            residual.as_data(),
+            ff_ext.as_data(),
             &[
-                20.0, 0.0, 0.0, // 0
-                0.0, 20.0, 0.0, // 1
-                0.0, 0.0, 20.0, // 2
+                -20.0, 0.0, 0.0, // 0
+                0.0, -20.0, 0.0, // 1
+                0.0, 0.0, -20.0, // 2
                 0.0, 0.0, 0.0, // 3
             ]
         );
