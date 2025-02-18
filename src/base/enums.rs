@@ -59,13 +59,13 @@ pub enum Nbc {
     /// Gas flux
     Qg,
 
-    /// Temperature flux
+    /// Heat flux
     Qt,
 
-    /// Temperature convection
+    /// Heat convection
     ///
-    /// The constant value is the convection coefficient `cc`.
-    /// The actual value is the environment temperature `T_env`.
+    /// The value in parenthesis is constant and corresponds to is the convection coefficient `cc`.
+    /// The specified value is the environment temperature `T∞`.
     Cv(f64),
 }
 
