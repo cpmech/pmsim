@@ -1,4 +1,4 @@
-use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray, FemState};
+use super::{BcConcentratedArray, BcDistributedArray, BcPrescribed, FemState};
 use super::{Elements, FemBase, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
@@ -17,7 +17,7 @@ pub(crate) struct SolverData<'a> {
     pub(crate) bc_distributed: BcDistributedArray<'a>,
 
     /// Holds a collection of prescribed (primary) values
-    pub(crate) bc_prescribed: BcPrescribedArray<'a>,
+    pub(crate) bc_prescribed: BcPrescribed<'a>,
 
     /// Holds a collection of elements
     pub(crate) elements: Elements<'a>,
@@ -50,7 +50,7 @@ impl<'a> SolverData<'a> {
         // allocate auxiliary instances
         let bc_concentrated = BcConcentratedArray::new(base, natural)?;
         let bc_distributed = BcDistributedArray::new(mesh, base, config, natural)?;
-        let bc_prescribed = BcPrescribedArray::new(base, essential)?;
+        let bc_prescribed = BcPrescribed::new(base, essential)?;
         let elements = Elements::new(mesh, base, config)?;
         let linear_system = LinearSystem::new(base, config, &bc_prescribed, &elements, &bc_distributed)?;
 

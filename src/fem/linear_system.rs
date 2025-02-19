@@ -1,4 +1,4 @@
-use super::{BcDistributedArray, BcPrescribedArray, Elements, FemBase};
+use super::{BcDistributedArray, BcPrescribed, Elements, FemBase};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
@@ -87,7 +87,7 @@ impl<'a> LinearSystem<'a> {
     pub fn new(
         base: &FemBase,
         config: &'a Config,
-        prescribed: &BcPrescribedArray,
+        prescribed: &BcPrescribed,
         elements: &Elements,
         boundaries: &BcDistributedArray,
     ) -> Result<Self, StrError> {
@@ -220,7 +220,7 @@ impl<'a> LinearSystem<'a> {
 mod tests {
     use super::LinearSystem;
     use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, Natural, Nbc, ParamDiffusion};
-    use crate::fem::{BcDistributedArray, BcPrescribedArray, Elements, FemBase};
+    use crate::fem::{BcDistributedArray, BcPrescribed, Elements, FemBase};
     use gemlab::mesh::{Edge, Samples};
     use gemlab::shapes::GeoKind;
     use russell_sparse::{Genie, Sym};
@@ -233,7 +233,7 @@ mod tests {
         let config = Config::new(&mesh);
         let essential = Essential::new();
         let natural = Natural::new();
-        let prescribed_values = BcPrescribedArray::new(&base, &essential).unwrap();
+        let prescribed_values = BcPrescribed::new(&base, &essential).unwrap();
         let elements = Elements::new(&mesh, &base, &config).unwrap();
         let boundaries = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
         assert_eq!(
@@ -265,7 +265,7 @@ mod tests {
             points: vec![2, 3],
         };
         natural.edge(&edge_conv, Nbc::Cv(55.0), 123.0);
-        let prescribed_values = BcPrescribedArray::new(&base, &essential).unwrap();
+        let prescribed_values = BcPrescribed::new(&base, &essential).unwrap();
 
         let n_equation_global = mesh.points.len() * 1; // 1 DOF per node
 
@@ -359,7 +359,7 @@ mod tests {
             points: vec![2, 3],
         };
         natural.edge(&edge_conv, Nbc::Cv(55.0), 123.0);
-        let prescribed = BcPrescribedArray::new(&base, &essential).unwrap();
+        let prescribed = BcPrescribed::new(&base, &essential).unwrap();
 
         let n_equation_global = mesh.points.len() * 1 + prescribed.size(); // 1 DOF per node
 
