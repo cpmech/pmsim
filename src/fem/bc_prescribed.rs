@@ -2,23 +2,15 @@ use super::FemBase;
 use crate::base::Essential;
 use crate::StrError;
 
-/// Assists in calculating a prescribed value boundary condition
-///
-/// This data structure corresponds to a single Essential (Dirichlet) boundary condition
-struct BcPrescribed<'a> {
-    /// Specified BC value (overridden by the function, if not None)
-    value: f64,
-
-    /// Function to calculate the BC value (overrides the value, if not None)
-    function: Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>,
-}
-
-/// Implements an array of BcPrescribed
+/// Assists in calculating essential (Dirichlet) boundary conditions (aka prescribed BCs)
 pub struct BcPrescribedArray<'a> {
     /// All values
     ///
     /// (n_prescribed)
-    all: Vec<BcPrescribed<'a>>,
+    values: Vec<f64>,
+
+    /// Functions to multiply the BC value
+    multipliers: Vec<Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>>,
 
     /// Array with only the numbers of the prescribed DOFs
     ///
@@ -31,52 +23,51 @@ pub struct BcPrescribedArray<'a> {
     pub flags: Vec<bool>,
 }
 
-impl<'a> BcPrescribed<'a> {
-    /// Returns the prescribed value @ specified time
-    pub fn value(&self, time: f64) -> f64 {
-        match self.function {
-            Some(f) => (f)(time),
-            None => self.value,
-        }
-    }
-}
-
 impl<'a> BcPrescribedArray<'a> {
     /// Allocates a new instance
     pub fn new(base: &FemBase, essential: &'a Essential) -> Result<Self, StrError> {
-        let mut all = Vec::new();
+        let mut values = Vec::with_capacity(essential.all.len());
+        let mut multipliers = Vec::with_capacity(essential.all.len());
         let mut flags = vec![false; base.dofs.size()];
         let mut equations = Vec::new();
         for ((point_id, dof), (value, f_index)) in &essential.all {
             let eq = base.dofs.eq(*point_id, *dof)?;
-            let function = match f_index {
+            let multiplier = match f_index {
                 Some(index) => Some(&essential.functions[*index]),
                 None => None,
             };
-            all.push(BcPrescribed {
-                value: *value,
-                function,
-            });
+            values.push(*value);
+            multipliers.push(multiplier);
             flags[eq] = true;
             equations.push(eq);
         }
-        Ok(BcPrescribedArray { all, flags, equations })
+        assert_eq!(essential.all.len(), values.len()); // TODO: remove this line
+        Ok(BcPrescribedArray {
+            values,
+            multipliers,
+            flags,
+            equations,
+        })
     }
 
     /// Returns the value of the prescribed DOF at given time
     pub fn value(&self, eq: usize, time: f64) -> f64 {
-        self.all[eq].value(time)
+        match self.multipliers[eq] {
+            Some(m) => (m)(time),
+            None => self.values[eq],
+        }
     }
 
     /// Returns the number of prescribed values
     pub fn size(&self) -> usize {
-        self.all.len()
+        self.values.len()
     }
 
     /// Checks if there is a non-zero prescribed value at time t
-    pub fn has_non_zero_values(&self, t: f64) -> bool {
-        for bc in &self.all {
-            if bc.value(t) != 0.0 {
+    pub fn has_non_zero_values(&self, _t: f64) -> bool {
+        // TODO: improve this
+        for value in &self.values {
+            if *value != 0.0 {
                 return true;
             }
         }
@@ -127,7 +118,7 @@ mod tests {
         assert_eq!(array.flags, &[true, false, false]);
         assert_eq!(array.equations, &[0]);
         assert_eq!(array.has_non_zero_values(0.0), true);
-        assert_eq!(array.all[0].value(0.0), 110.0);
+        assert_eq!(array.value(0, 0.0), 110.0);
     }
 
     #[test]
