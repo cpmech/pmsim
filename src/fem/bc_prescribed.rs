@@ -5,7 +5,7 @@ use crate::StrError;
 /// Assists in calculating a prescribed value boundary condition
 ///
 /// This data structure corresponds to a single Essential (Dirichlet) boundary condition
-pub struct BcPrescribed<'a> {
+struct BcPrescribed<'a> {
     /// Specified BC value (overridden by the function, if not None)
     value: f64,
 
@@ -18,7 +18,7 @@ pub struct BcPrescribedArray<'a> {
     /// All values
     ///
     /// (n_prescribed)
-    pub all: Vec<BcPrescribed<'a>>,
+    all: Vec<BcPrescribed<'a>>,
 
     /// Array with only the numbers of the prescribed DOFs
     ///
@@ -61,6 +61,16 @@ impl<'a> BcPrescribedArray<'a> {
             equations.push(eq);
         }
         Ok(BcPrescribedArray { all, flags, equations })
+    }
+
+    /// Returns the value of the prescribed DOF at given time
+    pub fn value(&self, eq: usize, time: f64) -> f64 {
+        self.all[eq].value(time)
+    }
+
+    /// Returns the number of prescribed values
+    pub fn size(&self) -> usize {
+        self.all.len()
     }
 
     /// Checks if there is a non-zero prescribed value at time t

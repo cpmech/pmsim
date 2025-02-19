@@ -163,7 +163,7 @@ impl<'a> SolverImplicit<'a> {
                 let i = self.data.bc_prescribed.equations[p];
                 let j = ndof + p;
                 let lambda = state.uu[j];
-                let c = self.data.bc_prescribed.all[p].value(state.t);
+                let c = self.data.bc_prescribed.value(p, state.t);
                 self.data.ls.rr[i] += lambda; // Aᵀ λ  →  1 * λ
                 self.data.ls.rr[j] = state.uu[i] - c; // A u - c  →  1 * u - c
             }
