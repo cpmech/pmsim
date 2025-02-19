@@ -25,6 +25,12 @@ pub struct SolverImplicit<'a> {
 
     /// Holds variables to solve the global linear system
     pub linear_system: LinearSystem<'a>,
+
+    /// Array to ignore prescribed equations when building the reduced system
+    pub ignore: Vec<bool>,
+
+    /// Unknown equations
+    pub unknown_equations: Vec<usize>,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -36,15 +42,33 @@ impl<'a> SolverImplicit<'a> {
         essential: &'a Essential,
         natural: &'a Natural,
     ) -> Result<Self, StrError> {
+        // check
         if let Some(msg) = config.validate() {
             println!("ERROR: {}", msg);
             return Err("cannot allocate simulation because config.validate() failed");
         }
+
+        // allocate auxiliary instances
         let bc_concentrated = BcConcentratedArray::new(base, natural)?;
         let bc_distributed = BcDistributedArray::new(mesh, base, config, natural)?;
         let bc_prescribed = BcPrescribedArray::new(base, essential)?;
         let elements = Elements::new(mesh, base, config)?;
         let linear_system = LinearSystem::new(base, config, &bc_prescribed, &elements, &bc_distributed)?;
+
+        // array to ignore prescribed equations when building the reduced system
+        let ndof = bc_prescribed.flags.len(); // number of DOFs = n_equation without Lagrange multipliers
+        let ignore = if config.lagrange_mult_method {
+            vec![false; ndof]
+        } else {
+            bc_prescribed.flags.clone()
+        };
+
+        // collect the unknown equations
+        let neq_total = linear_system.neq_total;
+        let unknown_equations: Vec<_> = (0..neq_total)
+            .filter(|&eq| config.lagrange_mult_method || !ignore[eq])
+            .collect();
+
         Ok(SolverImplicit {
             config,
             bc_concentrated,
@@ -52,6 +76,8 @@ impl<'a> SolverImplicit<'a> {
             bc_prescribed,
             elements,
             linear_system,
+            ignore,
+            unknown_equations,
         })
     }
 
@@ -86,21 +112,8 @@ impl<'a> SolverImplicit<'a> {
         let mdu = &mut self.linear_system.mdu;
         let mut beta_1 = 0.0;
 
-        // array to ignore prescribed equations when building the reduced system
-        let ndof = self.bc_prescribed.flags.len(); // number of DOFs = n_equation without Lagrange multipliers
-        let ignore = if config.lagrange_mult_method {
-            &vec![false; ndof]
-        } else {
-            &self.bc_prescribed.flags
-        };
-
-        // residual vector
-        let neq_total = rr.dim();
-
-        // collect the unknown equations
-        let unknown_equations: Vec<_> = (0..neq_total)
-            .filter(|&eq| config.lagrange_mult_method || !ignore[eq])
-            .collect();
+        // number of DOFs = n_equation without Lagrange multipliers
+        let ndof = self.bc_prescribed.flags.len();
 
         // initialize internal variables
         self.elements.initialize_internal_values(state)?;
@@ -159,12 +172,12 @@ impl<'a> SolverImplicit<'a> {
                 }
 
                 // calculate all element local vectors and add them to the global vectors
-                run!(self.elements.assemble_f_int(ff_int, state, ignore));
-                run!(self.elements.assemble_f_ext(ff_ext, state.t, ignore));
+                run!(self.elements.assemble_f_int(ff_int, state, &self.ignore));
+                run!(self.elements.assemble_f_ext(ff_ext, state.t, &self.ignore));
 
                 // calculate all boundary elements local vectors and add them to the global vectors
-                run!(self.bc_distributed.assemble_f_int(ff_int, state, ignore));
-                run!(self.bc_distributed.assemble_f_ext(ff_ext, state.t, ignore));
+                run!(self.bc_distributed.assemble_f_int(ff_int, state, &self.ignore));
+                run!(self.bc_distributed.assemble_f_ext(ff_ext, state.t, &self.ignore));
 
                 // add concentrated loads to the external forces vector
                 self.bc_concentrated.add_to_ff_ext(ff_ext, state.t);
@@ -198,8 +211,8 @@ impl<'a> SolverImplicit<'a> {
 
                     // calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
                     let kk_coo = kk.get_coo_mut().unwrap();
-                    run!(self.elements.assemble_kke(kk_coo, state, ignore));
-                    run!(self.bc_distributed.assemble_kke(kk_coo, state, ignore));
+                    run!(self.elements.assemble_kke(kk_coo, state, &self.ignore));
+                    run!(self.bc_distributed.assemble_kke(kk_coo, state, &self.ignore));
 
                     // modify K
                     if config.lagrange_mult_method {
@@ -246,14 +259,14 @@ impl<'a> SolverImplicit<'a> {
                 // updates
                 if config.transient {
                     // update U, V, and ΔU vectors
-                    for i in &unknown_equations {
+                    for i in &self.unknown_equations {
                         state.uu[*i] -= mdu[*i];
                         state.vv[*i] = beta_1 * state.uu[*i] - state.uu_star[*i];
                         state.duu[*i] -= mdu[*i];
                     }
                 } else {
                     // update U and ΔU vectors
-                    for i in &unknown_equations {
+                    for i in &self.unknown_equations {
                         state.uu[*i] -= mdu[*i];
                         state.duu[*i] -= mdu[*i];
                     }
@@ -297,6 +310,31 @@ impl<'a> SolverImplicit<'a> {
 
         // write the file_io file
         file_io.write_self()
+    }
+
+    pub fn assemble_f_int_and_f_ext(&mut self, _iteration: usize, state: &mut FemState) -> Result<(), StrError> {
+        // accessors
+        let neq_total = self.linear_system.neq_total;
+        let ff_int = &mut self.linear_system.ff_int;
+        let ff_ext = &mut self.linear_system.ff_ext;
+
+        // clear vectors
+        for eq in 0..neq_total {
+            ff_int[eq] = 0.0;
+            ff_ext[eq] = 0.0;
+        }
+
+        // calculate all element local vectors and add them to the global vectors
+        self.elements.assemble_f_int(ff_int, state, &self.ignore)?;
+        self.elements.assemble_f_ext(ff_ext, state.t, &self.ignore)?;
+
+        // calculate all boundary elements local vectors and add them to the global vectors
+        self.bc_distributed.assemble_f_int(ff_int, state, &self.ignore)?;
+        self.bc_distributed.assemble_f_ext(ff_ext, state.t, &self.ignore)?;
+
+        // add concentrated loads to the external forces vector
+        self.bc_concentrated.add_to_ff_ext(ff_ext, state.t);
+        Ok(())
     }
 }
 
