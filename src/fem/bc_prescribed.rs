@@ -26,22 +26,19 @@ pub struct BcPrescribed<'a> {
 impl<'a> BcPrescribed<'a> {
     /// Allocates a new instance
     pub fn new(base: &FemBase, essential: &'a Essential) -> Result<Self, StrError> {
-        let mut values = Vec::with_capacity(essential.all.len());
-        let mut multipliers = Vec::with_capacity(essential.all.len());
+        let n_prescribed = essential.size();
+        let mut values = Vec::with_capacity(n_prescribed);
+        let mut multipliers = Vec::with_capacity(n_prescribed);
+        let mut equations = Vec::with_capacity(n_prescribed);
         let mut flags = vec![false; base.dofs.size()];
-        let mut equations = Vec::new();
-        for ((point_id, dof), (value, f_index)) in &essential.all {
+        for (point_id, dof) in essential.keys() {
             let eq = base.dofs.eq(*point_id, *dof)?;
-            let multiplier = match f_index {
-                Some(index) => Some(&essential.functions[*index]),
-                None => None,
-            };
-            values.push(*value);
+            let (value, multiplier) = essential.get(*point_id, *dof);
+            values.push(value);
             multipliers.push(multiplier);
             flags[eq] = true;
             equations.push(eq);
         }
-        assert_eq!(essential.all.len(), values.len()); // TODO: remove this line
         Ok(BcPrescribed {
             values,
             multipliers,

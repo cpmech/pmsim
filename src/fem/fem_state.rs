@@ -159,7 +159,7 @@ impl FemState {
         // total number of equations
         let mut neq_total = base.dofs.size();
         if config.lagrange_mult_method {
-            neq_total += essential.n_prescribed();
+            neq_total += essential.size();
         };
         if config.arc_length_method {
             neq_total += 1;

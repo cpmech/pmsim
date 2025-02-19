@@ -1,5 +1,6 @@
 use super::Dof;
 use gemlab::mesh::{Edge, Edges, Face, Faces, PointId};
+use std::collections::hash_map::Keys;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -12,10 +13,10 @@ pub struct Essential<'a> {
     ///
     /// * If `f_index` is None: `bc_value_current = value`
     /// * If `f_index` is Some: `bc_value_current = f(t)`
-    pub(crate) all: HashMap<(PointId, Dof), (f64, Option<usize>)>,
+    all: HashMap<(PointId, Dof), (f64, Option<usize>)>,
 
     /// Holds optional functions to calculate the BC value
-    pub(crate) functions: Vec<Box<dyn Fn(f64) -> f64 + 'a>>,
+    functions: Vec<Box<dyn Fn(f64) -> f64 + 'a>>,
 }
 
 impl<'a> Essential<'a> {
@@ -111,9 +112,27 @@ impl<'a> Essential<'a> {
         self
     }
 
-    /// Returns the number of prescribed DOFs (global equations)
-    pub(crate) fn n_prescribed(&self) -> usize {
+    /// Returns the number of prescribed DOFs
+    pub fn size(&self) -> usize {
         self.all.len()
+    }
+
+    /// Returns an iterator to the (point_id, DOF) pairs
+    pub fn keys(&self) -> Keys<'_, (usize, Dof), (f64, Option<usize>)> {
+        self.all.keys()
+    }
+
+    /// Returns (value, multiplier) for the given point and DOF
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the point and DOF pair is not found.
+    pub fn get(&self, point_id: PointId, dof: Dof) -> (f64, Option<&Box<dyn Fn(f64) -> f64 + 'a>>) {
+        let (value, f_index) = self.all.get(&(point_id, dof)).unwrap();
+        match f_index {
+            Some(index) => (*value, Some(&self.functions[*index])),
+            None => (*value, None),
+        }
     }
 }
 
