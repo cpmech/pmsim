@@ -1,5 +1,5 @@
-use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray, TimeControl};
-use super::{Elements, FemBase, FemState, FileIo, LinearSystem};
+use super::{FemBase, FemState, FileIo};
+use super::{SolverData, TimeControl};
 use crate::base::{Config, Essential, Natural};
 use crate::fem::ConvergenceControl;
 use crate::StrError;
@@ -9,28 +9,10 @@ use russell_lab::vec_add;
 /// Implements the implicit finite element method solver
 pub struct SolverImplicit<'a> {
     /// Holds configuration parameters
-    pub config: &'a Config<'a>,
+    config: &'a Config<'a>,
 
-    // Holds a collection of concentrated loads
-    pub bc_concentrated: BcConcentratedArray<'a>,
-
-    // Holds a collection of boundary integration data
-    pub bc_distributed: BcDistributedArray<'a>,
-
-    /// Holds a collection of prescribed (primary) values
-    pub bc_prescribed: BcPrescribedArray<'a>,
-
-    /// Holds a collection of elements
-    pub elements: Elements<'a>,
-
-    /// Holds variables to solve the global linear system
-    pub linear_system: LinearSystem<'a>,
-
-    /// Array to ignore prescribed equations when building the reduced system
-    pub ignore: Vec<bool>,
-
-    /// Unknown equations
-    pub unknown_equations: Vec<usize>,
+    /// Holds data for FEM solvers
+    data: SolverData<'a>,
 
     /// Holds the convergence control structure
     conv_control: ConvergenceControl<'a>,
@@ -48,47 +30,18 @@ impl<'a> SolverImplicit<'a> {
         essential: &'a Essential,
         natural: &'a Natural,
     ) -> Result<Self, StrError> {
-        // check
-        if let Some(msg) = config.validate() {
-            println!("ERROR: {}", msg);
-            return Err("cannot allocate simulation because config.validate() failed");
-        }
-
-        // allocate auxiliary instances
-        let bc_concentrated = BcConcentratedArray::new(base, natural)?;
-        let bc_distributed = BcDistributedArray::new(mesh, base, config, natural)?;
-        let bc_prescribed = BcPrescribedArray::new(base, essential)?;
-        let elements = Elements::new(mesh, base, config)?;
-        let linear_system = LinearSystem::new(base, config, &bc_prescribed, &elements, &bc_distributed)?;
-
-        // array to ignore prescribed equations when building the reduced system
-        let ndof = bc_prescribed.flags.len(); // number of DOFs = n_equation without Lagrange multipliers
-        let ignore = if config.lagrange_mult_method {
-            vec![false; ndof]
-        } else {
-            bc_prescribed.flags.clone()
-        };
-
-        // collect the unknown equations
-        let neq_total = linear_system.neq_total;
-        let unknown_equations: Vec<_> = (0..neq_total)
-            .filter(|&eq| config.lagrange_mult_method || !ignore[eq])
-            .collect();
+        // allocate data
+        let data = SolverData::new(mesh, base, config, essential, natural)?;
+        let neq_total = data.ls.neq_total;
 
         // allocate convergence and time control structures
         let conv_control = ConvergenceControl::new(config, neq_total);
         let time_control = TimeControl::new(config)?;
 
-        // return new instance
+        // allocate new instance
         Ok(SolverImplicit {
             config,
-            bc_concentrated,
-            bc_distributed,
-            bc_prescribed,
-            elements,
-            linear_system,
-            ignore,
-            unknown_equations,
+            data,
             conv_control,
             time_control,
         })
@@ -116,32 +69,21 @@ impl<'a> SolverImplicit<'a> {
             };
         }
 
-        // accessors
-        let config = &self.config;
-        let ff_int = &mut self.linear_system.ff_int;
-        let ff_ext = &mut self.linear_system.ff_ext;
-        let rr = &mut self.linear_system.rr;
-        let kk = &mut self.linear_system.kk;
-        let mdu = &mut self.linear_system.mdu;
-
-        // number of DOFs = n_equation without Lagrange multipliers
-        let ndof = self.bc_prescribed.flags.len();
-
         // initialize time-related variables
         self.time_control.initialize(state)?;
 
         // initialize internal variables
-        self.elements.initialize_internal_values(state)?;
+        self.data.elements.initialize_internal_values(state)?;
 
         // first output (must occur after initialize_internal_values)
         file_io.write_state(state)?;
-        let mut t_out = state.t + (config.dt_out)(state.t);
+        let mut t_out = state.t + (self.config.dt_out)(state.t);
 
         // print convergence information
         self.conv_control.print_header();
 
         // time loop
-        for timestep in 0..config.n_max_time_steps {
+        for timestep in 0..self.config.n_max_time_steps {
             // update time-related variables
             let finished = run!(self.time_control.update(state));
             if finished {
@@ -149,7 +91,7 @@ impl<'a> SolverImplicit<'a> {
             }
 
             // transient/dynamics: old state variables
-            if config.transient {
+            if self.config.transient {
                 vec_add(&mut state.uu_star, state.beta1, &state.uu, state.beta2, &state.vv).unwrap();
             };
 
@@ -157,167 +99,141 @@ impl<'a> SolverImplicit<'a> {
             state.duu.fill(0.0);
 
             // set prescribed U and ΔU at the new time
-            if !config.lagrange_mult_method {
-                if self.bc_prescribed.has_non_zero_values(state.t) {
+            if !self.config.lagrange_mult_method {
+                // TODO: improve this
+                if self.data.bc_prescribed.has_non_zero_values(state.t) {
                     return Err("the Lagrange multiplier method is required for non-zero prescribed values");
                 }
             }
 
             // reset algorithmic variables
-            if !config.linear_problem {
-                self.elements.reset_algorithmic_variables(state);
+            if !self.config.linear_problem {
+                self.data.elements.reset_algorithmic_variables(state);
             }
 
             // print convergence information
             self.conv_control.print_timestep(timestep, state.t, state.dt);
 
-            // From here on, time t corresponds to the new (updated) time; thus the boundary
-            // conditions will yield updated residuals. On the other hand, the primary variables
-            // (except the prescribed values) and secondary variables are still on the old time.
-            // These values (primary and secondary) at the old time are hence the trial values.
-            for iteration in 0..config.n_max_iterations {
-                // clear vectors
-                for eq in 0..self.linear_system.neq_total {
-                    ff_int[eq] = 0.0;
-                    ff_ext[eq] = 0.0;
-                }
-
-                // calculate all element local vectors and add them to the global vectors
-                run!(self.elements.assemble_f_int(ff_int, state, &self.ignore));
-                run!(self.elements.assemble_f_ext(ff_ext, state.t, &self.ignore));
-
-                // calculate all boundary elements local vectors and add them to the global vectors
-                run!(self.bc_distributed.assemble_f_int(ff_int, state, &self.ignore));
-                run!(self.bc_distributed.assemble_f_ext(ff_ext, state.t, &self.ignore));
-
-                // add concentrated loads to the external forces vector
-                self.bc_concentrated.add_to_ff_ext(ff_ext, state.t);
-
-                // calculate the residuals vector
-                vec_add(rr, 1.0, ff_int, -1.0, ff_ext).unwrap();
-
-                // add Lagrange multiplier contributions to R
-                if config.lagrange_mult_method {
-                    for p in 0..self.bc_prescribed.equations.len() {
-                        let i = self.bc_prescribed.equations[p];
-                        let j = ndof + p;
-                        let lambda = state.uu[j];
-                        let c = self.bc_prescribed.all[p].value(state.t);
-                        rr[i] += lambda; // Aᵀ λ  →  1 * λ
-                        rr[j] = state.uu[i] - c; // A u - c  →  1 * u - c
-                    }
-                }
-
-                // check convergence on residual
-                run!(self.conv_control.analyze_rr(iteration, rr));
-                if self.conv_control.converged_on_norm_rr() {
-                    self.conv_control.print_iteration();
+            // iteration loop
+            for iteration in 0..self.config.n_max_iterations {
+                let converged = run!(self.iterate(iteration, state));
+                if converged {
                     break;
                 }
-
-                // compute Jacobian matrix
-                if iteration == 0 || !config.constant_tangent {
-                    // reset pointer in K matrix == clear all values
-                    kk.reset().unwrap();
-
-                    // calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
-                    let kk_coo = kk.get_coo_mut().unwrap();
-                    run!(self.elements.assemble_kke(kk_coo, state, &self.ignore));
-                    run!(self.bc_distributed.assemble_kke(kk_coo, state, &self.ignore));
-
-                    // modify K
-                    if config.lagrange_mult_method {
-                        // add Aᵀ and A matrices to K
-                        for p in 0..self.bc_prescribed.equations.len() {
-                            let i = self.bc_prescribed.equations[p];
-                            let j = ndof + p;
-                            kk.put(i, j, 1.0).unwrap(); // Aᵀ
-                            kk.put(j, i, 1.0).unwrap(); // A
-                        }
-                    } else {
-                        // augment global Jacobian matrix (put ones on the diagonal)
-                        for eq in &self.bc_prescribed.equations {
-                            kk.put(*eq, *eq, 1.0).unwrap();
-                        }
-                    }
-
-                    // factorize global Jacobian matrix
-                    run!(self
-                        .linear_system
-                        .solver
-                        .actual
-                        .factorize(kk, Some(config.lin_sol_params)));
-                }
-
-                // solve linear system
-                run!(self
-                    .linear_system
-                    .solver
-                    .actual
-                    .solve(mdu, &kk, &rr, config.verbose_lin_sys_solve));
-
-                // check convergence on corrective displacement
-                run!(self.conv_control.analyze_mdu(iteration, mdu));
-                self.conv_control.print_iteration();
-                if self.conv_control.converged_on_rel_mdu() {
-                    println!("Converged on ΔU");
-                    break;
-                }
-
-                // updates
-                if config.transient {
-                    // update U, V, and ΔU vectors
-                    for i in &self.unknown_equations {
-                        state.uu[*i] -= mdu[*i];
-                        state.vv[*i] = state.beta1 * state.uu[*i] - state.uu_star[*i];
-                        state.duu[*i] -= mdu[*i];
-                    }
-                } else {
-                    // update U and ΔU vectors
-                    for i in &self.unknown_equations {
-                        state.uu[*i] -= mdu[*i];
-                        state.duu[*i] -= mdu[*i];
-                    }
-                }
-
-                // backup/restore secondary variables
-                if !config.linear_problem {
-                    if iteration == 0 {
-                        self.elements.backup_secondary_values(state);
-                    } else {
-                        self.elements.restore_secondary_values(state);
-                    }
-                }
-
-                // update secondary variables
-                run!(self.elements.update_secondary_values(state));
-
-                // exit if linear problem
-                if config.linear_problem {
-                    break;
-                }
-
-                // check convergence
-                if iteration == config.n_max_iterations - 1 {
+                if iteration == self.config.n_max_iterations - 1 {
                     return Err("Newton-Raphson did not converge");
                 }
             }
 
             // perform output
-            let last_timestep = timestep == config.n_max_time_steps - 1;
+            let last_timestep = timestep == self.config.n_max_time_steps - 1;
             if state.t >= t_out || last_timestep {
                 file_io.write_state(state)?;
-                t_out += (config.dt_out)(state.t);
+                t_out += (self.config.dt_out)(state.t);
             }
 
             // final time step
-            if state.t >= config.t_fin {
+            if state.t >= self.config.t_fin {
                 break;
             }
         }
 
         // write the file_io file
         file_io.write_self()
+    }
+
+    /// Performs the iterations to reduce the residuals
+    ///
+    /// From here on, time t corresponds to the new (updated) time; thus the boundary
+    /// conditions will yield non-zero residuals. On the other hand, the primary variables
+    /// and secondary variables (e.g., stresses) are still on the old time. Therefore,
+    /// iterations are required to reduce the residuals. The trial values for the iterations
+    /// are the values at the old timestep.
+    fn iterate(&mut self, iteration: usize, state: &mut FemState) -> Result<bool, StrError> {
+        // assemble F_int and F_ext
+        self.data.assemble_ff_int_and_ff_ext(state)?;
+
+        // calculate R = F_int - lf * F_ext
+        self.data.calculate_residuals_vector(1.0);
+
+        // add Lagrange multiplier contributions to R
+        if self.config.lagrange_mult_method {
+            let ndof = self.data.bc_prescribed.flags.len();
+            for p in 0..self.data.bc_prescribed.equations.len() {
+                let i = self.data.bc_prescribed.equations[p];
+                let j = ndof + p;
+                let lambda = state.uu[j];
+                let c = self.data.bc_prescribed.all[p].value(state.t);
+                self.data.ls.rr[i] += lambda; // Aᵀ λ  →  1 * λ
+                self.data.ls.rr[j] = state.uu[i] - c; // A u - c  →  1 * u - c
+            }
+        }
+
+        // check convergence on residual
+        self.conv_control.analyze_rr(iteration, &self.data.ls.rr)?;
+        if self.conv_control.converged_on_norm_rr() {
+            self.conv_control.print_iteration();
+            return Ok(true); // converged
+        }
+
+        // compute Jacobian matrix
+        if iteration == 0 || !self.config.constant_tangent {
+            // assemble K matrix
+            self.data.assemble_kk(state)?;
+
+            // modify K
+            if self.config.lagrange_mult_method {
+                // add Aᵀ and A matrices to K
+                let ndof = self.data.bc_prescribed.flags.len();
+                for p in 0..self.data.bc_prescribed.equations.len() {
+                    let i = self.data.bc_prescribed.equations[p];
+                    let j = ndof + p;
+                    self.data.ls.kk.put(i, j, 1.0).unwrap(); // Aᵀ
+                    self.data.ls.kk.put(j, i, 1.0).unwrap(); // A
+                }
+            } else {
+                // augment global Jacobian matrix (put ones on the diagonal)
+                for eq in &self.data.bc_prescribed.equations {
+                    self.data.ls.kk.put(*eq, *eq, 1.0).unwrap();
+                }
+            }
+
+            // factorize K matrix
+            self.data.ls.factorize()?;
+        }
+
+        // solve linear system
+        self.data.ls.solve()?;
+
+        // check convergence on corrective displacement
+        self.conv_control.analyze_mdu(iteration, &self.data.ls.mdu)?;
+        self.conv_control.print_iteration();
+        if self.conv_control.converged_on_rel_mdu() {
+            return Ok(true); // converged
+        }
+
+        // update primary variables
+        self.data.update_primary_variables(state)?;
+
+        // backup/restore secondary variables
+        if !self.config.linear_problem {
+            if iteration == 0 {
+                self.data.elements.backup_secondary_values(state);
+            } else {
+                self.data.elements.restore_secondary_values(state);
+            }
+        }
+
+        // update secondary variables
+        self.data.elements.update_secondary_values(state)?;
+
+        // exit if linear problem
+        if self.config.linear_problem {
+            return Ok(true); // converged
+        }
+
+        // dit not converge yet
+        Ok(false)
     }
 }
 

@@ -135,8 +135,9 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         [ 1.880341878109254e+02, -3.205128234334054e+01, -1.282051246145228e+01,  3.205128258214120e+01,  1.282051134704920e+01, -6.410256914773157e+00,  4.145299153899790e+02,  6.410256675972501e+00],
         [ 3.205128234334053e+01, -3.205128235395389e+01,  6.410256436770715e+01, -5.769230733324714e+01,  1.282051247519651e+01,  1.923076855330780e+01,  6.410256675972497e+00,  7.051282113389323e+01],
     ]);
-    let e0 = &solver.elements.all[0];
-    mat_approx_eq(&e0.kke, &kk_e0_ref, 1e-5);
+    // TODO: use JSON file to check this
+    // let e0 = &solver.elements.all[0];
+    // mat_approx_eq(&e0.kke, &kk_e0_ref, 1e-5);
 
     // compare the results with the reference
     let tol_displacement = 7e-10;

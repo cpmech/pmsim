@@ -16,6 +16,7 @@ mod file_io_write_vtu;
 mod linear_system;
 mod post_processing;
 mod secondary_values;
+mod solver_data;
 mod solver_implicit;
 mod time_control;
 
@@ -34,5 +35,6 @@ pub use file_io::*;
 pub use linear_system::*;
 pub use post_processing::*;
 pub use secondary_values::*;
+use solver_data::*;
 pub use solver_implicit::*;
 pub use time_control::*;

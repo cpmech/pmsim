@@ -6,6 +6,9 @@ use russell_sparse::{LinSolver, SparseMatrix};
 
 /// Holds variables to solve the global linear system
 pub struct LinearSystem<'a> {
+    /// Holds the configuration
+    config: &'a Config<'a>,
+
     /// Total number of global equations
     ///
     /// ```text
@@ -74,13 +77,16 @@ pub struct LinearSystem<'a> {
 
     /// Holds the "minus-delta-U" vector (the solution of the linear system)
     pub mdu: Vector,
+
+    /// Indicates whether debugging of the K matrix is enabled or not
+    debug_kk_matrix: bool,
 }
 
 impl<'a> LinearSystem<'a> {
     /// Allocates a new instance
     pub fn new(
         base: &FemBase,
-        config: &Config,
+        config: &'a Config,
         prescribed: &BcPrescribedArray,
         elements: &Elements,
         boundaries: &BcDistributedArray,
@@ -160,6 +166,7 @@ impl<'a> LinearSystem<'a> {
 
         // allocate new instance
         Ok(LinearSystem {
+            config,
             neq_total,
             nnz_sup,
             ff_int: Vector::new(neq_total),
@@ -168,7 +175,42 @@ impl<'a> LinearSystem<'a> {
             kk: SparseMatrix::new_coo(neq_total, neq_total, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,
             mdu: Vector::new(neq_total),
+            debug_kk_matrix: config.save_matrix_market_file || config.save_vismatrix_file,
         })
+    }
+
+    /// Factorizes the global system matrix
+    #[inline]
+    pub fn factorize(&mut self) -> Result<(), StrError> {
+        self.solver
+            .actual
+            .factorize(&mut self.kk, Some(self.config.lin_sol_params))?;
+        if self.debug_kk_matrix {
+            return self.write_kk_matrix_and_stop();
+        }
+        Ok(())
+    }
+
+    /// Solves the global system
+    #[inline]
+    pub fn solve(&mut self) -> Result<(), StrError> {
+        self.solver
+            .actual
+            .solve(&mut self.mdu, &self.kk, &self.rr, self.config.lin_sol_params.verbose)
+    }
+
+    /// Writes K matrix to file and stops
+    fn write_kk_matrix_and_stop(&self) -> Result<(), StrError> {
+        let csc = self.kk.get_csc()?;
+        if self.config.save_matrix_market_file {
+            let name = format!("/tmp/pmsim/K-matrix.mtx");
+            csc.write_matrix_market(&name, false).unwrap();
+        }
+        if self.config.save_vismatrix_file {
+            let name = format!("/tmp/pmsim/K-matrix.smat");
+            csc.write_matrix_market(&name, true).unwrap();
+        }
+        return Err("K matrix written; stopping now");
     }
 }
 
