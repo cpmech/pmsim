@@ -1,4 +1,4 @@
-use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray};
+use super::{BcConcentratedArray, BcDistributedArray, BcPrescribedArray, TimeControl};
 use super::{Elements, FemBase, FemState, FileIo, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::fem::ConvergenceControl;
@@ -31,6 +31,12 @@ pub struct SolverImplicit<'a> {
 
     /// Unknown equations
     pub unknown_equations: Vec<usize>,
+
+    /// Holds the convergence control structure
+    conv_control: ConvergenceControl<'a>,
+
+    /// Holds the time loop control structure
+    time_control: TimeControl<'a>,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -69,6 +75,11 @@ impl<'a> SolverImplicit<'a> {
             .filter(|&eq| config.lagrange_mult_method || !ignore[eq])
             .collect();
 
+        // allocate convergence and time control structures
+        let conv_control = ConvergenceControl::new(config, neq_total);
+        let time_control = TimeControl::new(config)?;
+
+        // return new instance
         Ok(SolverImplicit {
             config,
             bc_concentrated,
@@ -78,6 +89,8 @@ impl<'a> SolverImplicit<'a> {
             linear_system,
             ignore,
             unknown_equations,
+            conv_control,
+            time_control,
         })
     }
 
@@ -110,10 +123,12 @@ impl<'a> SolverImplicit<'a> {
         let rr = &mut self.linear_system.rr;
         let kk = &mut self.linear_system.kk;
         let mdu = &mut self.linear_system.mdu;
-        let mut beta_1 = 0.0;
 
         // number of DOFs = n_equation without Lagrange multipliers
         let ndof = self.bc_prescribed.flags.len();
+
+        // initialize time-related variables
+        self.time_control.initialize(state)?;
 
         // initialize internal variables
         self.elements.initialize_internal_values(state)?;
@@ -122,24 +137,20 @@ impl<'a> SolverImplicit<'a> {
         file_io.write_state(state)?;
         let mut t_out = state.t + (config.dt_out)(state.t);
 
-        // allocate convergence control
-        let mut control = ConvergenceControl::new(config, rr.dim());
-        control.print_header();
+        // print convergence information
+        self.conv_control.print_header();
 
         // time loop
         for timestep in 0..config.n_max_time_steps {
-            // update time
-            state.dt = (config.dt)(state.t);
-            if state.t + state.dt > config.t_fin {
+            // update time-related variables
+            let finished = run!(self.time_control.update(state));
+            if finished {
                 break;
             }
-            state.t += state.dt;
 
             // transient/dynamics: old state variables
             if config.transient {
-                let (b1, b2) = run!(config.betas_transient(state.dt));
-                vec_add(&mut state.uu_star, b1, &state.uu, b2, &state.vv).unwrap();
-                beta_1 = b1;
+                vec_add(&mut state.uu_star, state.beta1, &state.uu, state.beta2, &state.vv).unwrap();
             };
 
             // reset cumulated primary values
@@ -157,8 +168,8 @@ impl<'a> SolverImplicit<'a> {
                 self.elements.reset_algorithmic_variables(state);
             }
 
-            // message
-            control.print_timestep(timestep, state.t, state.dt);
+            // print convergence information
+            self.conv_control.print_timestep(timestep, state.t, state.dt);
 
             // From here on, time t corresponds to the new (updated) time; thus the boundary
             // conditions will yield updated residuals. On the other hand, the primary variables
@@ -198,9 +209,9 @@ impl<'a> SolverImplicit<'a> {
                 }
 
                 // check convergence on residual
-                run!(control.analyze_rr(iteration, rr));
-                if control.converged_on_norm_rr() {
-                    control.print_iteration();
+                run!(self.conv_control.analyze_rr(iteration, rr));
+                if self.conv_control.converged_on_norm_rr() {
+                    self.conv_control.print_iteration();
                     break;
                 }
 
@@ -246,9 +257,9 @@ impl<'a> SolverImplicit<'a> {
                     .solve(mdu, &kk, &rr, config.verbose_lin_sys_solve));
 
                 // check convergence on corrective displacement
-                run!(control.analyze_mdu(iteration, mdu));
-                control.print_iteration();
-                if control.converged_on_rel_mdu() {
+                run!(self.conv_control.analyze_mdu(iteration, mdu));
+                self.conv_control.print_iteration();
+                if self.conv_control.converged_on_rel_mdu() {
                     println!("Converged on ΔU");
                     break;
                 }
@@ -258,7 +269,7 @@ impl<'a> SolverImplicit<'a> {
                     // update U, V, and ΔU vectors
                     for i in &self.unknown_equations {
                         state.uu[*i] -= mdu[*i];
-                        state.vv[*i] = beta_1 * state.uu[*i] - state.uu_star[*i];
+                        state.vv[*i] = state.beta1 * state.uu[*i] - state.uu_star[*i];
                         state.duu[*i] -= mdu[*i];
                     }
                 } else {

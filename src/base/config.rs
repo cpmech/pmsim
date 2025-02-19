@@ -1,7 +1,7 @@
 use super::{Idealization, Init, ParamFluids};
 use crate::material::Settings;
-use crate::StrError;
 use gemlab::mesh::{CellAttribute, Mesh};
+use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::HashMap;
 use std::fmt;
@@ -135,6 +135,12 @@ pub struct Config<'a> {
     /// Holds the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
     pub(crate) theta2: f64,
 
+    /// Activates the use of Hilber-Hughes-Taylor method (instead of Newmark's method)
+    pub(crate) hht_method: bool,
+
+    /// Hilber-Hughes-Taylor parameter with `-1/3 ≤ α ≤ 0`
+    pub(crate) hht_alpha: f64,
+
     /// Holds the verbose flag for timesteps
     pub(crate) verbose_timesteps: bool,
 
@@ -189,6 +195,8 @@ impl<'a> Config<'a> {
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
+            hht_method: false,
+            hht_alpha: 0.0,
             verbose_timesteps: true,
             verbose_iterations: true,
             verbose_lin_sys_solve: false,
@@ -287,19 +295,13 @@ impl<'a> Config<'a> {
                 self.theta2, CONTROL_MIN_THETA
             ));
         }
-        None // all good
-    }
-
-    // auxiliary ---------------------------------------------------------------------------------
-
-    /// Calculates beta coefficients for transient method
-    pub(crate) fn betas_transient(&self, dt: f64) -> Result<(f64, f64), StrError> {
-        if dt < self.dt_min {
-            return Err("Δt is smaller than the allowed minimum");
+        if self.hht_alpha < -ONE_BY_3 || self.hht_alpha > 0.0 {
+            return Some(format!(
+                "hht_alpha = {:?} is incorrect; it must be -1/3 ≤ α ≤ 0.0",
+                self.hht_alpha,
+            ));
         }
-        let beta_1 = 1.0 / (self.theta * dt);
-        let beta_2 = (1.0 - self.theta) / self.theta;
-        Ok((beta_1, beta_2))
+        None // all good
     }
 
     // getters -----------------------------------------------------------------------------------
@@ -667,27 +669,6 @@ mod tests {
     }
 
     #[test]
-    fn alphas_transient_works() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-
-        config.theta = 1.0;
-        let (beta_1, beta_2) = config.betas_transient(1.0).unwrap();
-        assert_eq!(beta_1, 1.0);
-        assert_eq!(beta_2, 0.0);
-
-        config.theta = 0.5;
-        let (beta_1, beta_2) = config.betas_transient(1.0).unwrap();
-        assert_eq!(beta_1, 2.0);
-        assert_eq!(beta_2, 1.0);
-
-        assert_eq!(
-            config.betas_transient(0.0).err(),
-            Some("Δt is smaller than the allowed minimum")
-        );
-    }
-
-    #[test]
     fn validate_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
@@ -823,6 +804,13 @@ mod tests {
             Some("theta2 = 1.1 is incorrect; it must be 0.0001 ≤ θ₂ ≤ 1.0".to_string())
         );
         config.theta2 = 0.5;
+
+        config.hht_alpha = -1.0;
+        assert_eq!(
+            config.validate(),
+            Some("hht_alpha = -1.0 is incorrect; it must be -1/3 ≤ α ≤ 0.0".to_string())
+        );
+        config.hht_alpha = 0.0;
 
         config.ideal.plane_stress = false;
         assert_eq!(config.validate(), None);

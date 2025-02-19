@@ -19,6 +19,36 @@ pub struct FemState {
     /// Delta time
     pub dt: f64,
 
+    /// Holds the α1(time) coefficient for the dynamics method
+    pub alpha1: f64,
+
+    /// Holds the α2(time) coefficient for the dynamics method
+    pub alpha2: f64,
+
+    /// Holds the α3(time) coefficient for the dynamics method
+    pub alpha3: f64,
+
+    /// Holds the α4(time) coefficient for the dynamics method
+    pub alpha4: f64,
+
+    /// Holds the α5(time) coefficient for the dynamics method
+    pub alpha5: f64,
+
+    /// Holds the α6(time) coefficient for the dynamics method
+    pub alpha6: f64,
+
+    /// Holds the α7(time) coefficient for the dynamics method
+    pub alpha7: f64,
+
+    /// Holds the α8(time) coefficient for the dynamics method
+    pub alpha8: f64,
+
+    /// Holds the β1(time) coefficient for the transient/dynamics method
+    pub beta1: f64,
+
+    /// Holds the β2(time) coefficient for the dynamics method
+    pub beta2: f64,
+
     /// Cumulated (for one timestep) primary unknowns {ΔU}
     pub duu: Vector,
 
@@ -136,8 +166,6 @@ impl FemState {
         }
 
         // primary variables
-        let t = config.t_ini;
-        let dt = (config.dt)(t);
         let duu = Vector::new(neq_total);
         let uu = Vector::new(neq_total);
         let (uu_star, vv, vv_star) = if config.transient || config.dynamics {
@@ -152,9 +180,19 @@ impl FemState {
         };
 
         // allocate new instance
-        return Ok(FemState {
-            t,
-            dt,
+        Ok(FemState {
+            t: 0.0,      // needs initialization
+            dt: 0.0,     // needs initialization
+            alpha1: 0.0, // needs initialization
+            alpha2: 0.0, // needs initialization
+            alpha3: 0.0, // needs initialization
+            alpha4: 0.0, // needs initialization
+            alpha5: 0.0, // needs initialization
+            alpha6: 0.0, // needs initialization
+            alpha7: 0.0, // needs initialization
+            alpha8: 0.0, // needs initialization
+            beta1: 0.0,  // needs initialization
+            beta2: 0.0,  // needs initialization
             duu,
             uu,
             vv,
@@ -163,7 +201,7 @@ impl FemState {
             vv_star,
             aa_star,
             gauss,
-        });
+        })
     }
 
     /// Reads a JSON file containing the state data
@@ -278,8 +316,6 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.t, 0.0);
-        assert_eq!(state.dt, 1.0);
         assert_eq!(state.duu.dim(), base.dofs.size());
         assert_eq!(state.uu.dim(), base.dofs.size());
     }
@@ -293,7 +329,6 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.transient = true;
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.dofs.size());
         assert_eq!(state.uu.dim(), base.dofs.size());
         assert_eq!(state.vv.dim(), base.dofs.size());
@@ -311,7 +346,6 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.dofs.size());
         assert_eq!(state.uu.dim(), base.dofs.size());
         assert_eq!(state.vv.dim(), 0);
@@ -329,7 +363,6 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.dofs.size());
         assert_eq!(state.uu.dim(), base.dofs.size());
     }
@@ -342,7 +375,6 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.dofs.size());
         assert_eq!(state.uu.dim(), base.dofs.size());
     }
@@ -355,7 +387,6 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.dofs.size());
         assert_eq!(state.uu.dim(), base.dofs.size());
     }
@@ -370,7 +401,6 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.dynamics = true;
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.t, 0.0);
         assert_eq!(state.duu.dim(), base.dofs.size());
         assert_eq!(state.uu.dim(), base.dofs.size());
         assert_eq!(state.vv.dim(), base.dofs.size());

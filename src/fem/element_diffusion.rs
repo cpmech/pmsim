@@ -132,11 +132,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         // flag updates: very important from here on
         args.clear = false;
 
+        // transient term
         if self.config.transient {
-            // calculate beta coefficient
-            let (beta_1, _) = self.config.betas_transient(state.dt)?;
-
-            // transient term
             integ::vec_01_ns(f_int, &mut args, |_, nn| {
                 // interpolate T and T★ to integration point
                 let (mut tt, mut tt_star) = (0.0, 0.0);
@@ -144,7 +141,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                     tt += nn[m] * state.uu[l2g[m]];
                     tt_star += nn[m] * state.uu_star[l2g[m]];
                 }
-                Ok(self.param.rho * (beta_1 * tt - tt_star))
+                Ok(self.param.rho * (state.beta1 * tt - tt_star))
             })?;
         }
         Ok(())
@@ -218,8 +215,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // diffusion (mass) matrix
         if self.config.transient {
-            let (beta_1, _) = self.config.betas_transient(state.dt)?;
-            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(beta_1 * self.param.rho)).unwrap();
+            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(state.beta1 * self.param.rho)).unwrap();
         }
         Ok(())
     }
@@ -396,21 +392,6 @@ mod tests {
         elem.calc_f_ext(&mut f_ext, state.t).unwrap();
         let correct_f_ext = ana.vec_01_ns(source, false);
         vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
-
-        // error in transient -----------------------------------------------
-
-        let mut config = Config::new(&mesh);
-        config.transient = true;
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
-        state.dt = 0.0; // wrong
-        assert_eq!(
-            elem.calc_f_int(&mut f_int, &state).err(),
-            Some("Δt is smaller than the allowed minimum")
-        );
-        assert_eq!(
-            elem.calc_jacobian(&mut jacobian, &state).err(),
-            Some("Δt is smaller than the allowed minimum")
-        );
     }
 
     #[test]

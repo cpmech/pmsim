@@ -17,6 +17,7 @@ mod linear_system;
 mod post_processing;
 mod secondary_values;
 mod solver_implicit;
+mod time_control;
 
 pub use bc_concentrated::*;
 pub use bc_distributed::*;
@@ -34,3 +35,4 @@ pub use linear_system::*;
 pub use post_processing::*;
 pub use secondary_values::*;
 pub use solver_implicit::*;
+pub use time_control::*;
