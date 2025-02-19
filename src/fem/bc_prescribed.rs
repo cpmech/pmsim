@@ -20,19 +20,15 @@ pub struct BcPrescribedArray<'a> {
     /// (n_prescribed)
     pub all: Vec<BcPrescribed<'a>>,
 
-    /// An array indicating which DOFs (equations) are prescribed
-    ///
-    /// The length of `flags` is equal to `n_equation`, the total number of DOFs (total number of equations).
-    ///
-    /// (n_equation)
-    pub flags: Vec<bool>,
-
-    /// Array with only the DOFs numbers of the prescribed equations
-    ///
-    /// Compared to the array `flags`, this is a "smaller" array with only the prescribed DOFs numbers.
+    /// Array with only the numbers of the prescribed DOFs
     ///
     /// (n_prescribed)
     pub equations: Vec<usize>,
+
+    /// An array indicating which DOFs are prescribed
+    ///
+    /// (ndof; the total number of DOFs)
+    pub flags: Vec<bool>,
 }
 
 impl<'a> BcPrescribed<'a> {
