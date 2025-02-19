@@ -2,7 +2,6 @@ use super::{Idealization, Init, ParamFluids};
 use crate::material::Settings;
 use crate::StrError;
 use gemlab::mesh::{CellAttribute, Mesh};
-use russell_sparse::SparseMatrix;
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::HashMap;
 use std::fmt;
@@ -301,24 +300,6 @@ impl<'a> Config<'a> {
         let beta_1 = 1.0 / (self.theta * dt);
         let beta_2 = (1.0 - self.theta) / self.theta;
         Ok((beta_1, beta_2))
-    }
-
-    /// Saves the global K matrix for debugging
-    pub(crate) fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix) -> Result<(), StrError> {
-        if self.save_matrix_market_file || self.save_vismatrix_file {
-            let csc = kk.get_csc()?;
-            if self.save_matrix_market_file {
-                let name = format!("/tmp/pmsim/K-matrix.mtx");
-                csc.write_matrix_market(&name, false).unwrap();
-            }
-            if self.save_vismatrix_file {
-                let name = format!("/tmp/pmsim/K-matrix.smat");
-                csc.write_matrix_market(&name, true).unwrap();
-            }
-            Err("K matrix written; will stop now")
-        } else {
-            Ok(())
-        }
     }
 
     // getters -----------------------------------------------------------------------------------
