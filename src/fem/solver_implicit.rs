@@ -118,7 +118,7 @@ impl<'a> SolverImplicit<'a> {
         // initialize internal variables
         self.elements.initialize_internal_values(state)?;
 
-        // first output (must occur initialize_internal_values)
+        // first output (must occur after initialize_internal_values)
         file_io.write_state(state)?;
         let mut t_out = state.t + (config.dt_out)(state.t);
 
