@@ -236,9 +236,6 @@ impl<'a> SolverImplicit<'a> {
                         .solver
                         .actual
                         .factorize(kk, Some(config.lin_sol_params)));
-
-                    // Debug K matrix
-                    config.debug_save_kk_matrix(kk).unwrap();
                 }
 
                 // solve linear system
@@ -310,31 +307,6 @@ impl<'a> SolverImplicit<'a> {
 
         // write the file_io file
         file_io.write_self()
-    }
-
-    pub fn assemble_f_int_and_f_ext(&mut self, _iteration: usize, state: &mut FemState) -> Result<(), StrError> {
-        // accessors
-        let neq_total = self.linear_system.neq_total;
-        let ff_int = &mut self.linear_system.ff_int;
-        let ff_ext = &mut self.linear_system.ff_ext;
-
-        // clear vectors
-        for eq in 0..neq_total {
-            ff_int[eq] = 0.0;
-            ff_ext[eq] = 0.0;
-        }
-
-        // calculate all element local vectors and add them to the global vectors
-        self.elements.assemble_f_int(ff_int, state, &self.ignore)?;
-        self.elements.assemble_f_ext(ff_ext, state.t, &self.ignore)?;
-
-        // calculate all boundary elements local vectors and add them to the global vectors
-        self.bc_distributed.assemble_f_int(ff_int, state, &self.ignore)?;
-        self.bc_distributed.assemble_f_ext(ff_ext, state.t, &self.ignore)?;
-
-        // add concentrated loads to the external forces vector
-        self.bc_concentrated.add_to_ff_ext(ff_ext, state.t);
-        Ok(())
     }
 }
 
