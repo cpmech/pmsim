@@ -60,7 +60,7 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, |t| UY_PERF_PLAST[t as usize]);
+        .edges_fn(&top, Dof::Uy, 1.0, |t| UY_PERF_PLAST[t as usize]);
 
     // natural boundary conditions
     let natural = Natural::new();

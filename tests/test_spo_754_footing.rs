@@ -76,7 +76,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&footing, Dof::Uy, |t| UY[t as usize]);
+        .edges_fn(&footing, Dof::Uy, 1.0, |t| UY[t as usize]);
     // println!("{}", essential);
 
     // natural boundary conditions

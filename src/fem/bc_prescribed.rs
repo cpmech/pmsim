@@ -4,12 +4,14 @@ use crate::StrError;
 
 /// Assists in calculating essential (Dirichlet) boundary conditions (aka prescribed BCs)
 pub struct BcPrescribed<'a> {
-    /// All values
+    /// All constant values
     ///
     /// (n_prescribed)
-    values: Vec<f64>,
+    constants: Vec<f64>,
 
-    /// Functions to multiply the BC value
+    /// All multiplier functions
+    ///
+    /// (n_prescribed)
     multipliers: Vec<Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>>,
 
     /// Array with only the numbers of the prescribed DOFs
@@ -27,20 +29,20 @@ impl<'a> BcPrescribed<'a> {
     /// Allocates a new instance
     pub fn new(base: &FemBase, essential: &'a Essential) -> Result<Self, StrError> {
         let n_prescribed = essential.size();
-        let mut values = Vec::with_capacity(n_prescribed);
+        let mut constants = Vec::with_capacity(n_prescribed);
         let mut multipliers = Vec::with_capacity(n_prescribed);
         let mut equations = Vec::with_capacity(n_prescribed);
         let mut flags = vec![false; base.dofs.size()];
         for (point_id, dof) in essential.keys() {
             let eq = base.dofs.eq(*point_id, *dof)?;
-            let (value, multiplier) = essential.get(*point_id, *dof);
-            values.push(value);
+            let (constant, multiplier) = essential.get(*point_id, *dof);
+            constants.push(constant);
             multipliers.push(multiplier);
             flags[eq] = true;
             equations.push(eq);
         }
         Ok(BcPrescribed {
-            values,
+            constants,
             multipliers,
             flags,
             equations,
@@ -48,23 +50,28 @@ impl<'a> BcPrescribed<'a> {
     }
 
     /// Returns the value of the prescribed DOF at given time
+    ///
+    /// The BC value is computed as follows:
+    ///
+    /// ```text
+    /// value = constant * multiplier(t)
+    /// ```
     pub fn value(&self, eq: usize, time: f64) -> f64 {
         match self.multipliers[eq] {
-            Some(m) => (m)(time),
-            None => self.values[eq],
+            Some(m) => self.constants[eq] * (m)(time),
+            None => self.constants[eq],
         }
     }
 
     /// Returns the number of prescribed values
     pub fn size(&self) -> usize {
-        self.values.len()
+        self.constants.len()
     }
 
-    /// Checks if there is a non-zero prescribed value at time t
-    pub fn has_non_zero_values(&self, _t: f64) -> bool {
-        // TODO: improve this
-        for value in &self.values {
-            if *value != 0.0 {
+    /// Returns true if there is at least one non-zero constant
+    pub fn has_non_zero(&self) -> bool {
+        for constant in &self.constants {
+            if *constant != 0.0 {
                 return true;
             }
         }
@@ -114,7 +121,7 @@ mod tests {
         let array = BcPrescribed::new(&base, &essential).unwrap();
         assert_eq!(array.flags, &[true, false, false]);
         assert_eq!(array.equations, &[0]);
-        assert_eq!(array.has_non_zero_values(0.0), true);
+        assert_eq!(array.has_non_zero(), true);
         assert_eq!(array.value(0, 0.0), 110.0);
     }
 
@@ -149,7 +156,7 @@ mod tests {
                 false, false, false, false, false, false, //  1 Ux,Uy,Uz, Rx,Ry,Rz
             ]
         );
-        assert_eq!(array.has_non_zero_values(0.0), true);
+        assert_eq!(array.has_non_zero(), true);
         let mut eqs = array.equations.clone();
         eqs.sort();
         assert_eq!(&eqs, &[0, 1, 2, 3, 4, 5]);

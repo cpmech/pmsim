@@ -87,7 +87,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, |t| -delta_y * t);
+        .edges_fn(&top, Dof::Uy, 1.0, |t| -delta_y * t);
 
     // natural boundary conditions
     let natural = Natural::new();

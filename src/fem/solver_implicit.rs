@@ -69,6 +69,13 @@ impl<'a> SolverImplicit<'a> {
             };
         }
 
+        // check if there are non-zero prescribed values
+        if !self.config.lagrange_mult_method {
+            if self.data.bc_prescribed.has_non_zero() {
+                return Err("the Lagrange multiplier method is required for non-zero prescribed values");
+            }
+        }
+
         // initialize time-related variables
         self.time_control.initialize(state)?;
 
@@ -97,14 +104,6 @@ impl<'a> SolverImplicit<'a> {
 
             // reset cumulated primary values
             state.duu.fill(0.0);
-
-            // set prescribed U and ΔU at the new time
-            if !self.config.lagrange_mult_method {
-                // TODO: improve this
-                if self.data.bc_prescribed.has_non_zero_values(state.t) {
-                    return Err("the Lagrange multiplier method is required for non-zero prescribed values");
-                }
-            }
 
             // reset algorithmic variables
             if !self.config.linear_problem {
