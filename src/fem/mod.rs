@@ -1,5 +1,6 @@
 //! Implements the finite element method
 
+mod arc_length_control;
 mod bc_concentrated;
 mod bc_distributed;
 mod bc_prescribed;
@@ -20,6 +21,7 @@ mod solver_data;
 mod solver_implicit;
 mod time_control;
 
+pub use arc_length_control::*;
 pub use bc_concentrated::*;
 pub use bc_distributed::*;
 pub use bc_prescribed::*;
