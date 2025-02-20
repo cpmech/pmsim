@@ -157,15 +157,7 @@ impl<'a> SolverImplicit<'a> {
 
         // add Lagrange multiplier contributions to R
         if self.config.lagrange_mult_method {
-            let ndof = self.data.bc_prescribed.flags.len();
-            for p in 0..self.data.bc_prescribed.equations.len() {
-                let i = self.data.bc_prescribed.equations[p];
-                let j = ndof + p;
-                let lambda = state.uu[j];
-                let c = self.data.bc_prescribed.value(p, state.t);
-                self.data.ls.rr[i] += lambda; // Aᵀ λ  →  1 * λ
-                self.data.ls.rr[j] = state.uu[i] - c; // A u - c  →  1 * u - c
-            }
+            self.data.bc_prescribed.assemble_rr_lmm(&mut self.data.ls.rr, state);
         }
 
         // check convergence on residual
@@ -182,19 +174,9 @@ impl<'a> SolverImplicit<'a> {
 
             // modify K
             if self.config.lagrange_mult_method {
-                // add Aᵀ and A matrices to K
-                let ndof = self.data.bc_prescribed.flags.len();
-                for p in 0..self.data.bc_prescribed.equations.len() {
-                    let i = self.data.bc_prescribed.equations[p];
-                    let j = ndof + p;
-                    self.data.ls.kk.put(i, j, 1.0).unwrap(); // Aᵀ
-                    self.data.ls.kk.put(j, i, 1.0).unwrap(); // A
-                }
+                self.data.bc_prescribed.assemble_kk_lmm(&mut self.data.ls.kk);
             } else {
-                // augment global Jacobian matrix (put ones on the diagonal)
-                for eq in &self.data.bc_prescribed.equations {
-                    self.data.ls.kk.put(*eq, *eq, 1.0).unwrap();
-                }
+                self.data.bc_prescribed.assemble_kk_rsm(&mut self.data.ls.kk);
             }
 
             // factorize K matrix

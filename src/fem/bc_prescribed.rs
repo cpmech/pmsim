@@ -1,6 +1,8 @@
-use super::FemBase;
+use super::{FemBase, FemState};
 use crate::base::Essential;
 use crate::StrError;
+use russell_lab::Vector;
+use russell_sparse::SparseMatrix;
 
 /// Assists in calculating essential (Dirichlet) boundary conditions (aka prescribed BCs)
 pub struct BcPrescribed<'a> {
@@ -76,6 +78,82 @@ impl<'a> BcPrescribed<'a> {
             }
         }
         false
+    }
+
+    /// Assembles the contribution due to the prescribed DOFs into the global R vector (LMM)
+    ///
+    /// **LMM** means Lagrange Multiplier Method
+    ///
+    /// This function adds `Aᵀλ` to the global R vector at the non-prescribed equations and
+    /// **sets** the prescribed equations to `A u - c`. Here, `c` is the prescribed value.
+    ///
+    /// The global system is symbolized by:
+    ///
+    /// ```text
+    ///  ┌         ┐ ┌     ┐   ┌         ┐
+    ///  │  K   Aᵀ │ │ -δu │   │ R + Aᵀλ │
+    ///  │         │ │     │ = │         │
+    ///  │  A   0  │ │ -δλ │   │ A u - c │
+    ///  └         ┘ └     ┘   └         ┘
+    /// ```
+    pub fn assemble_rr_lmm(&self, rr: &mut Vector, state: &FemState) {
+        let ndof = self.flags.len();
+        for p in 0..self.equations.len() {
+            let i = self.equations[p];
+            let j = ndof + p;
+            let lambda = state.uu[j];
+            let c = self.value(p, state.t);
+            rr[i] += lambda; // Aᵀ λ  →  1 * λ
+            rr[j] = state.uu[i] - c; // A u - c  →  1 * u - c
+        }
+    }
+
+    /// Assembles the constraint matrix into the global K matrix (LMM)
+    ///
+    /// **LMM** means Lagrange Multiplier Method
+    ///
+    /// This function adds the constraints matrix (Aᵀ and A) to K.
+    ///
+    /// The global system is symbolized by:
+    ///
+    /// ```text
+    ///  ┌         ┐ ┌     ┐   ┌         ┐
+    ///  │  K   Aᵀ │ │ -δu │   │ R + Aᵀλ │
+    ///  │         │ │     │ = │         │
+    ///  │  A   0  │ │ -δλ │   │ A u - c │
+    ///  └         ┘ └     ┘   └         ┘
+    /// ```
+    pub fn assemble_kk_lmm(&self, kk: &mut SparseMatrix) {
+        let ndof = self.flags.len();
+        for p in 0..self.equations.len() {
+            let i = self.equations[p];
+            let j = ndof + p;
+            kk.put(i, j, 1.0).unwrap(); // Aᵀ
+            kk.put(j, i, 1.0).unwrap(); // A
+        }
+    }
+
+    /// Updates the diagonal of the global K matrix (RSM)
+    ///
+    /// **RSM** means Reduced-System Method
+    ///
+    /// This function put ones on the diagonal entries corresponding to the prescribed DOFs.
+    ///
+    /// The global system is symbolized by:
+    ///
+    /// ```text
+    ///  ┌         ┐ ┌     ┐   ┌   ┐
+    ///  │  K   0  │ │ -δu │   │ R │
+    ///  │         │ │     │ = │   │
+    ///  │  0   1  │ │  0  │   │ 0 │
+    ///  └         ┘ └     ┘   └   ┘
+    /// ```
+    ///
+    /// Note that the prescribed values are zero (homogeneous BCs).
+    pub fn assemble_kk_rsm(&self, kk: &mut SparseMatrix) {
+        for eq in &self.equations {
+            kk.put(*eq, *eq, 1.0).unwrap();
+        }
     }
 }
 
