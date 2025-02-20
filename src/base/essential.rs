@@ -206,8 +206,7 @@ impl<'a> fmt::Display for Essential<'a> {
 mod tests {
     use super::Essential;
     use crate::base::Dof;
-    use gemlab::mesh::{Edge, Edges, Face, Faces};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Edge, Edges, Face, Faces, GeoKind};
 
     #[test]
     fn essential_works_1() {

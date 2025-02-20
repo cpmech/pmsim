@@ -225,8 +225,7 @@ mod tests {
     use super::SolverImplicit;
     use crate::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemBase, FemState, FileIo};
-    use gemlab::mesh::{Edge, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Edge, GeoKind, Samples};
 
     #[test]
     fn new_captures_errors() {

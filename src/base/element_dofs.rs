@@ -1,6 +1,6 @@
 use super::{Dof, Elem};
 use crate::StrError;
-use gemlab::shapes::GeoKind;
+use gemlab::mesh::GeoKind;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -209,7 +209,7 @@ mod tests {
     use super::ElementDofs;
     use crate::base::{Dof, Elem, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamBeam, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::GeoKind;
 
     #[test]
     fn new_handles_errors() {

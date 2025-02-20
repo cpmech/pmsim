@@ -76,8 +76,7 @@ impl FemBase {
 mod tests {
     use super::FemBase;
     use crate::base::{Elem, ParamDiffusion, ParamSolid};
-    use gemlab::mesh::{Cell, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Cell, GeoKind, Samples};
 
     #[test]
     fn new_handles_errors() {

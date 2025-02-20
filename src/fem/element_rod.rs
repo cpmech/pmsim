@@ -143,8 +143,7 @@ mod tests {
     use super::ElementRod;
     use crate::base::{assemble_matrix, Config, Elem, Essential, ParamRod};
     use crate::fem::{ElementTrait, FemBase, FemState};
-    use gemlab::mesh::{Cell, Mesh, Point};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
     use russell_lab::math::SQRT_2;
     use russell_lab::{mat_approx_eq, Matrix, Vector};
     use russell_sparse::{CooMatrix, Sym};

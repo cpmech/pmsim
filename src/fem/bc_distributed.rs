@@ -382,8 +382,7 @@ mod tests {
     use crate::base::{Config, Elem, Essential, Natural, Nbc, SampleMeshes};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::{FemBase, FemState};
-    use gemlab::mesh::{At, Edge, Face, Features, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{At, Edge, Face, Features, GeoKind, Samples};
     use gemlab::util::any_x;
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
     use russell_sparse::{CooMatrix, Sym};

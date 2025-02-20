@@ -165,8 +165,7 @@ mod tests {
     use crate::base::{Dof, Elem, Essential, ParamBeam, ParamDiffusion};
     use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::FemBase;
-    use gemlab::mesh::{Cell, Mesh, Point, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
 
     #[test]
     fn new_captures_errors() {

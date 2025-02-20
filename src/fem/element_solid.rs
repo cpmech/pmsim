@@ -259,8 +259,7 @@ mod tests {
     use crate::base::{Config, Elem, Essential, ParamSolid, StressStrain};
     use crate::fem::{ElementTrait, FemBase, FemState};
     use gemlab::integ;
-    use gemlab::mesh::{Cell, Mesh, Point, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
     use russell_lab::math::SQRT_2;
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, vec_copy, vec_update, Matrix, Vector};
 

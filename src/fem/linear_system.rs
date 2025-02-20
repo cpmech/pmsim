@@ -9,6 +9,12 @@ pub struct LinearSystem<'a> {
     /// Holds the configuration
     config: &'a Config<'a>,
 
+    /// Total number of DOFs (first equations in the system)
+    pub ndof: usize,
+
+    /// Number of Lagrange multipliers (equals the number of prescribed DOFs)
+    pub n_lagrange: usize,
+
     /// Total number of global equations
     ///
     /// ```text
@@ -22,6 +28,17 @@ pub struct LinearSystem<'a> {
     /// where `n_equation` is the total number of DOFs and `n_lagrange`
     /// is the number of prescribed DOFs.
     pub neq_total: usize,
+
+    /// Points to the equation corresponding to the arc-length constraint
+    ///
+    /// ```text
+    ///          ⎧ ndof               if reduced system method
+    /// eq_arc = ⎨
+    ///          ⎩ ndof + n_lagrange  if Lagrange multipliers method
+    ///
+    /// neq_total = ndof + n_lagrange + 1
+    /// ```
+    pub eq_arc: usize,
 
     /// Holds the supremum of the number of nonzero values (nnz) in the global matrix
     ///
@@ -115,14 +132,19 @@ impl<'a> LinearSystem<'a> {
 
         // constants
         let sym = config.lin_sol_genie.get_sym(symmetric);
+        let ndof = base.dofs.size();
         let n_prescribed = prescribed.equations.len();
+        let mut n_lagrange = 0;
 
-        // total number of equations
-        let mut neq_total = base.dofs.size();
+        // total number of equations and first arc-length equation
+        let mut neq_total = ndof;
         if config.lagrange_mult_method {
-            neq_total += n_prescribed;
+            n_lagrange = n_prescribed;
+            neq_total += n_lagrange;
         };
+        let mut eq_arc = 0;
         if config.arc_length_method {
+            eq_arc = neq_total;
             neq_total += 1;
         }
 
@@ -137,7 +159,7 @@ impl<'a> LinearSystem<'a> {
             n_prescribed
         };
         if config.arc_length_method {
-            nnz_sup += 2 * neq_total + 1;
+            nnz_sup += 2 * ndof + 1;
         }
 
         // elements always have a Jacobian matrix (all must be symmetric to use symmetry)
@@ -167,7 +189,10 @@ impl<'a> LinearSystem<'a> {
         // allocate new instance
         Ok(LinearSystem {
             config,
+            ndof,
+            n_lagrange,
             neq_total,
+            eq_arc,
             nnz_sup,
             ff_int: Vector::new(neq_total),
             ff_ext: Vector::new(neq_total),
@@ -221,8 +246,7 @@ mod tests {
     use super::LinearSystem;
     use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, Natural, Nbc, ParamDiffusion};
     use crate::fem::{BcDistributedArray, BcPrescribed, Elements, FemBase};
-    use gemlab::mesh::{Edge, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Edge, GeoKind, Samples};
     use russell_sparse::{Genie, Sym};
 
     #[test]

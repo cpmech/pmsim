@@ -207,8 +207,7 @@ impl<'a, 'b> fmt::Display for Natural<'a, 'b> {
 mod tests {
     use super::Natural;
     use crate::base::{Nbc, Pbc};
-    use gemlab::mesh::{Edge, Edges, Face, Faces, Features, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Edge, Edges, Face, Faces, Features, GeoKind, Samples};
 
     #[test]
     fn natural_works_1() {

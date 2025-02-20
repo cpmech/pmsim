@@ -799,8 +799,7 @@ mod tests {
     };
     use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
     use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
-    use gemlab::mesh::{At, Cell, Edges, Features, Figure, Mesh, Point, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{At, Cell, Edges, Features, Figure, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
     use russell_lab::math::SQRT_3;
