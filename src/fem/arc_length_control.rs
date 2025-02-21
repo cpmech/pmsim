@@ -141,8 +141,6 @@ impl<'a> ArcLengthControl<'a> {
                 self.data.bc_prescribed.assemble_kk_rsm(&mut self.data.ls.kk);
             }
 
-            let kk = self.data.ls.kk.as_dense();
-
             // factorize K matrix
             self.data.ls.factorize()?;
 
