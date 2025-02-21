@@ -27,6 +27,11 @@ pub struct ArcLengthControl<'a> {
     u_old: Vector,       // old displacement
     converged_old: bool, // convergence status of previous iteration
     converged: bool,     // convergence status of current iteration
+    n_converged: usize,  // number of converged iterations
+
+    arr_ell: Vec<f64>,
+    arr_uy1: Vec<f64>,
+    arr_uy3: Vec<f64>,
 }
 
 impl<'a> ArcLengthControl<'a> {
@@ -68,6 +73,10 @@ impl<'a> ArcLengthControl<'a> {
             u_old: Vector::new(neq_total),
             converged_old: false,
             converged: false,
+            n_converged: 0,
+            arr_ell: Vec::with_capacity(50),
+            arr_uy1: Vec::with_capacity(50),
+            arr_uy3: Vec::with_capacity(50),
         })
     }
 
@@ -189,10 +198,14 @@ impl<'a> ArcLengthControl<'a> {
     }
 
     pub fn run(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        self.arr_ell.push(0.0);
+        self.arr_uy1.push(0.0);
+        self.arr_uy3.push(0.0);
         for timestep in 0..50 {
             self.step_predictor(timestep, state);
             self.converged = self.step_corrector(timestep, state)?;
             if self.converged {
+                self.n_converged += 1;
                 if timestep == 0 {
                     let inc = vec_inner(&state.ddu, &state.ddu);
                     let ftf = vec_inner(&self.data.ls.ff_ext, &self.data.ls.ff_ext);
@@ -208,6 +221,9 @@ impl<'a> ArcLengthControl<'a> {
                 vec_copy(&mut self.u_old, &state.u).unwrap();
                 self.ell_anc = self.ell_old;
                 self.ell_old = state.ell;
+                self.arr_ell.push(state.ell);
+                self.arr_uy1.push(state.u[3]);
+                self.arr_uy3.push(state.u[7]);
             } else {
                 if self.converged_old {
                     self.dds = f64::max(self.dds / 2.0, self.dds_min);
@@ -228,6 +244,10 @@ mod tests {
     use crate::base::{Config, Dof, Elem, Essential, Natural, ParamRod, Pbc};
     use crate::fem::{FemBase, FemState};
     use gemlab::mesh::{Cell, Figure, GeoKind, Mesh, Point};
+    use plotpy::{Curve, Plot};
+    use russell_lab::{approx_eq, read_data};
+
+    const SAVE_FIGURE: bool = false;
 
     #[rustfmt::skip]
     pub fn small_truss_2d() -> Mesh {
@@ -251,9 +271,11 @@ mod tests {
     fn small_truss_2d_works() {
         // mesh
         let mesh = small_truss_2d();
-        // let mut fig = Figure::new();
-        // fig.show_point_ids(true).show_cell_ids(true);
-        // fig.draw(&mesh, "/tmp/pmsim/test_small_truss_2d.svg").unwrap();
+        if SAVE_FIGURE {
+            let mut fig = Figure::new();
+            fig.show_point_ids(true).show_cell_ids(true);
+            fig.draw(&mesh, "/tmp/pmsim/test_small_truss_2d_mesh.svg").unwrap();
+        }
 
         // parameters
         let p1 = ParamRod {
@@ -286,7 +308,10 @@ mod tests {
 
         // configuration
         let mut config = Config::new(&mesh);
-        config.set_arc_length_method(true).set_tol_rr_abs(1e-6);
+        config
+            .set_arc_length_method(true)
+            .set_tol_rr_abs(1e-6)
+            .set_tol_mdu_rel(1e-12);
 
         // FEM state
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -294,5 +319,60 @@ mod tests {
         // solver
         let mut solver = ArcLengthControl::new(&mesh, &base, &config, &essential, &natural).unwrap();
         solver.run(&mut state).unwrap();
+
+        assert_eq!(solver.n_converged, 46);
+
+        let reference = read_data(
+            "data/arc_length/kadapa-truss-2d-3members-model1.txt",
+            &["ell", "uy1", "uy3"],
+        )
+        .unwrap();
+        assert_eq!(solver.arr_ell.len(), reference["ell"].len());
+        for i in 0..reference["ell"].len() {
+            approx_eq(solver.arr_ell[i], reference["ell"][i], 1e-5);
+            approx_eq(solver.arr_uy1[i], reference["uy1"][i], 1e-5);
+            approx_eq(solver.arr_uy3[i], reference["uy3"][i], 1e-5);
+        }
+
+        if SAVE_FIGURE {
+            let mut curve1 = Curve::new();
+            let mut curve2 = Curve::new();
+            let mut curve1_ref = Curve::new();
+            let mut curve2_ref = Curve::new();
+            curve1
+                .set_label("pmsim: uy1")
+                .set_line_style("None")
+                .set_marker_style("o")
+                .set_marker_color("blue")
+                .set_marker_line_color("blue");
+            curve1_ref
+                .set_label("Kadapa (2021)")
+                .set_line_style("-")
+                .set_line_color("blue");
+            curve2
+                .set_label("pmsim: uy3")
+                .set_line_style("None")
+                .set_marker_style("s")
+                .set_marker_color("black")
+                .set_marker_line_color("black");
+            curve2_ref
+                .set_label("Kadapa (2021)")
+                .set_line_style("--")
+                .set_line_color("black");
+            curve1.draw(&solver.arr_uy1, &solver.arr_ell);
+            curve2.draw(&solver.arr_uy3, &solver.arr_ell);
+            curve1_ref.draw(&reference["uy1"], &reference["ell"]);
+            curve2_ref.draw(&reference["uy3"], &reference["ell"]);
+            let mut plot = Plot::new();
+            plot.add(&curve1_ref)
+                .add(&curve2_ref)
+                .add(&curve1)
+                .add(&curve2)
+                .set_title("E(top element) = 0.5")
+                .grid_labels_legend("vertical displacement", "load factor")
+                .set_inv_x()
+                .set_figure_size_points(600.0, 300.0)
+                .save("/tmp/pmsim/test_small_truss_2d.svg");
+        }
     }
 }
