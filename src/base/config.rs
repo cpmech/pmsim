@@ -178,7 +178,7 @@ impl<'a> Config<'a> {
             dynamics: false,
             constant_tangent: false,
             arc_length_method: false,
-            initial_loading_factor: 0.05,
+            initial_loading_factor: 1.0,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-10),

@@ -118,7 +118,6 @@ impl<'a> ArcLengthControl<'a> {
                 let g = inc + self.psi * self.ddl * self.ddl * ftf - self.dds * self.dds;
                 let dg_dl = 2.0 * self.psi * self.ddl * ftf;
                 vec_copy_scaled(&mut self.dg_du, 2.0, &state.ddu).unwrap();
-                // self.data.ls.rr[eq_arc] = g;
                 (g, dg_dl)
             } else {
                 vec_scale(&mut self.dg_du, 0.0);
@@ -310,6 +309,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config
             .set_arc_length_method(true)
+            .set_ini_load_factor(0.05)
             .set_tol_rr_abs(1e-6)
             .set_tol_mdu_rel(1e-12);
 
