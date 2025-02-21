@@ -155,7 +155,7 @@ fn post_processing() -> Result<(), StrError> {
         assert_eq!(file_io.times[*index], state.t);
 
         // radial displacement
-        let ub_num = state.uu[eq_ux];
+        let ub_num = state.u[eq_ux];
         outer_ur[*index] = ub_num;
 
         // get stresses

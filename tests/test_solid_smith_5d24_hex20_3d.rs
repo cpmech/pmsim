@@ -164,6 +164,6 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
          0.000000000000000e+00,  0.000000000000000e+00,  0.000000000000000e+00,
          0.000000000000000e+00,  0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.uu, uu_correct, 2e-9);
+    vec_approx_eq(&state.u, uu_correct, 2e-9);
     Ok(())
 }

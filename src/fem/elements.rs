@@ -80,18 +80,18 @@ impl<'a> GenericElement<'a> {
         };
         for i in 0..neq {
             for j in 0..neq {
-                let at_u = args.state.uu[j];
+                let at_u = args.state.u[j];
                 let res = deriv1_central5(at_u, &mut args, |u, a| {
-                    let original_uu = a.state.uu[j];
-                    let original_duu = a.state.duu[j];
-                    a.state.uu[j] = u;
-                    a.state.duu[j] = u - original_uu;
+                    let original_u = a.state.u[j];
+                    let original_ddu = a.state.ddu[j];
+                    a.state.u[j] = u;
+                    a.state.ddu[j] = u - original_u;
                     self.actual.backup_secondary_values(a.state);
                     self.actual.update_secondary_values(&mut a.state).unwrap();
                     self.actual.calc_f_int(&mut a.f_int, &a.state).unwrap();
                     self.actual.restore_secondary_values(&mut a.state);
-                    a.state.uu[j] = original_uu;
-                    a.state.duu[j] = original_duu;
+                    a.state.u[j] = original_u;
+                    a.state.ddu[j] = original_ddu;
                     Ok(a.f_int[i])
                 });
                 self.kke.set(i, j, res.unwrap());
@@ -172,7 +172,7 @@ impl<'a> Elements<'a> {
 
     /// Updates secondary values such as stresses and internal variables
     ///
-    /// Note that state.uu, state.vv, and state.aa have been updated already
+    /// Note that state.u, state.v, and state.a have been updated already
     pub fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         self.all
             .iter_mut()
@@ -279,9 +279,9 @@ mod tests {
         // set heat flow from the top to bottom and right to left
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
-        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
         ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
@@ -305,9 +305,9 @@ mod tests {
         // set heat flow from the top to bottom and right to left
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
-        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
         ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
@@ -333,9 +333,9 @@ mod tests {
         // set heat flow from the top to bottom and right to left
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
-        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
         ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
@@ -359,17 +359,17 @@ mod tests {
 
         // linear displacement field
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        state.duu[0] = 1.0 + mesh.points[0].coords[0];
-        state.duu[1] = 2.0 + mesh.points[0].coords[1];
-        state.duu[2] = 1.0 + mesh.points[1].coords[0];
-        state.duu[3] = 2.0 + mesh.points[1].coords[1];
-        state.duu[4] = 1.0 + mesh.points[2].coords[0];
-        state.duu[5] = 2.0 + mesh.points[2].coords[1];
+        state.ddu[0] = 1.0 + mesh.points[0].coords[0];
+        state.ddu[1] = 2.0 + mesh.points[0].coords[1];
+        state.ddu[2] = 1.0 + mesh.points[1].coords[0];
+        state.ddu[3] = 2.0 + mesh.points[1].coords[1];
+        state.ddu[4] = 1.0 + mesh.points[2].coords[0];
+        state.ddu[5] = 2.0 + mesh.points[2].coords[1];
         for i in 0..6 {
-            state.uu[i] = state.duu[i];
+            state.u[i] = state.ddu[i];
         }
         ele.actual.update_secondary_values(&mut state).unwrap();
-        println!("uu =\n{}", state.uu);
+        println!("uu =\n{}", state.u);
 
         ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();

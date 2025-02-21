@@ -94,7 +94,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // fix state.uu (must do this before calculating R)
     for eq in &bc_prescribed.equations {
-        state.uu[*eq] = 110.0;
+        state.u[*eq] = 110.0;
     }
 
     // assemble R
@@ -192,7 +192,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // update U vector
     let mut uu_new = Vector::new(lin_sys.neq_total);
-    vec_add(&mut uu_new, 1.0, &state.uu, -1.0, &mdu)?;
+    vec_add(&mut uu_new, 1.0, &state.u, -1.0, &mdu)?;
     println!("uu_new =\n{}", uu_new);
 
     // check U vector
@@ -214,7 +214,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     vec_approx_eq(&uu_new, &tt_bhatti, 1e-12);
 
     // set state with new U vector and check R
-    vec_copy(&mut state.uu, &uu_new)?;
+    vec_copy(&mut state.u, &uu_new)?;
     for eq in 0..lin_sys.neq_total {
         lin_sys.ff_int[eq] = 0.0;
         lin_sys.ff_ext[eq] = 0.0;
@@ -293,6 +293,6 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         144.67542222443012,
         129.13200798820264,
     ];
-    array_approx_eq(&state.uu.as_data()[..13], tt_bhatti, 1e-12);
+    array_approx_eq(&state.u.as_data()[..13], tt_bhatti, 1e-12);
     Ok(())
 }

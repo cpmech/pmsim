@@ -137,15 +137,15 @@ impl<'a> SolverData<'a> {
         if self.config.transient {
             // update U, V, and ΔU vectors
             for i in &self.unknown {
-                state.uu[*i] -= mdu[*i];
-                state.vv[*i] = state.beta1 * state.uu[*i] - state.uu_star[*i];
-                state.duu[*i] -= mdu[*i];
+                state.u[*i] -= mdu[*i];
+                state.v[*i] = state.beta1 * state.u[*i] - state.u_star[*i];
+                state.ddu[*i] -= mdu[*i];
             }
         } else {
             // update U and ΔU vectors
             for i in &self.unknown {
-                state.uu[*i] -= mdu[*i];
-                state.duu[*i] -= mdu[*i];
+                state.u[*i] -= mdu[*i];
+                state.ddu[*i] -= mdu[*i];
             }
         }
         Ok(())

@@ -95,14 +95,20 @@ pub struct Config<'a> {
     /// Holds the final time
     pub(crate) t_fin: f64,
 
-    /// Holds the time increments
-    pub(crate) dt: Box<dyn Fn(f64) -> f64 + 'a>,
+    /// Holds the time increments as function of time Δt(t)
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub(crate) ddt: Box<dyn Fn(f64) -> f64 + 'a>,
 
-    /// Holds the time increment for the output of results
-    pub(crate) dt_out: Box<dyn Fn(f64) -> f64 + 'a>,
+    /// Holds the time increment for the output of results Δt_out(t)
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub(crate) ddt_out: Box<dyn Fn(f64) -> f64 + 'a>,
 
     /// Holds the minimum allowed time increment min(Δt)
-    pub(crate) dt_min: f64,
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub(crate) ddt_min: f64,
 
     /// Holds the maximum number of time steps
     pub(crate) n_max_time_steps: usize,
@@ -183,9 +189,9 @@ impl<'a> Config<'a> {
             // control
             t_ini: 0.0,
             t_fin: 1.0,
-            dt: Box::new(|_| 1.0),
-            dt_out: Box::new(|_| 1.0),
-            dt_min: CONTROL_MIN_DT_MIN,
+            ddt: Box::new(|_| 1.0),
+            ddt_out: Box::new(|_| 1.0),
+            ddt_min: CONTROL_MIN_DT_MIN,
             n_max_time_steps: 1_000,
             divergence_control: false,
             div_ctrl_max_steps: 10,
@@ -259,10 +265,10 @@ impl<'a> Config<'a> {
                 self.t_fin, self.t_ini
             ));
         }
-        if self.dt_min < CONTROL_MIN_DT_MIN {
+        if self.ddt_min < CONTROL_MIN_DT_MIN {
             return Some(format!(
                 "dt_min = {:?} is incorrect; it must be ≥ {:e}",
-                self.dt_min, CONTROL_MIN_DT_MIN
+                self.ddt_min, CONTROL_MIN_DT_MIN
             ));
         }
         if self.tol_rr_abs < CONTROL_MIN_TOL {
@@ -496,19 +502,19 @@ impl<'a> Config<'a> {
 
     /// Sets the time increments
     pub fn set_dt(&mut self, dt: impl Fn(f64) -> f64 + 'a) -> &mut Self {
-        self.dt = Box::new(dt);
+        self.ddt = Box::new(dt);
         self
     }
 
     /// Sets the time increment for the output of results
     pub fn set_dt_out(&mut self, dt_out: impl Fn(f64) -> f64 + 'a) -> &mut Self {
-        self.dt_out = Box::new(dt_out);
+        self.ddt_out = Box::new(dt_out);
         self
     }
 
     /// Sets the minimum allowed time increment min(Δt)
     pub fn set_dt_min(&mut self, dt_min: f64) -> &mut Self {
-        self.dt_min = dt_min;
+        self.ddt_min = dt_min;
         self
     }
 
@@ -748,12 +754,12 @@ mod tests {
         );
         config.t_fin = 1.0;
 
-        config.dt_min = 0.0;
+        config.ddt_min = 0.0;
         assert_eq!(
             config.validate(),
             Some("dt_min = 0.0 is incorrect; it must be ≥ 1e-10".to_string())
         );
-        config.dt_min = 1e-3;
+        config.ddt_min = 1e-3;
 
         config.tol_rr_abs = 0.0;
         assert_eq!(
@@ -839,10 +845,10 @@ mod tests {
         config.set_incremental(UY.len());
         assert_eq!(config.t_ini, 0.0);
         assert_eq!(config.t_fin, 3.0);
-        assert_eq!((config.dt)(0.0), 1.0);
-        assert_eq!((config.dt)(3.0), 1.0);
-        assert_eq!((config.dt_out)(0.0), 1.0);
-        assert_eq!((config.dt_out)(3.0), 1.0);
+        assert_eq!((config.ddt)(0.0), 1.0);
+        assert_eq!((config.ddt)(3.0), 1.0);
+        assert_eq!((config.ddt_out)(0.0), 1.0);
+        assert_eq!((config.ddt_out)(3.0), 1.0);
 
         config.set_incremental(0);
         assert_eq!(config.t_ini, 0.0);

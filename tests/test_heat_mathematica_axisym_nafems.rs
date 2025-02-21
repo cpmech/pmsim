@@ -111,10 +111,10 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // check
     let eq = base.dofs.eq(ref_point, Dof::T).unwrap();
-    let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
+    let rel_err = f64::abs(state.u[eq] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",
-        state.uu[eq],
+        state.u[eq],
         ref_temperature,
         rel_err * 100.0
     );

@@ -65,8 +65,8 @@ impl<'a> TimeControl<'a> {
     /// Initializes the time, Δt, α, and β coefficients at t_ini
     pub fn initialize(&self, state: &mut FemState) -> Result<(), StrError> {
         state.t = self.config.t_ini;
-        state.dt = (self.config.dt)(state.t);
-        if state.dt < self.config.dt_min {
+        state.ddt = (self.config.ddt)(state.t);
+        if state.ddt < self.config.ddt_min {
             return Err("Δt is smaller than the allowed minimum");
         }
         self.calculate(state);
@@ -77,14 +77,14 @@ impl<'a> TimeControl<'a> {
     ///
     /// Returns `true` if the simulation has finished (the final time has been reached)
     pub fn update(&self, state: &mut FemState) -> Result<bool, StrError> {
-        state.dt = (self.config.dt)(state.t);
-        if state.dt < self.config.dt_min {
+        state.ddt = (self.config.ddt)(state.t);
+        if state.ddt < self.config.ddt_min {
             return Err("Δt is smaller than the allowed minimum");
         }
-        if state.t + state.dt > self.config.t_fin {
+        if state.t + state.ddt > self.config.t_fin {
             return Ok(true);
         }
-        state.t += state.dt;
+        state.t += state.ddt;
         self.calculate(state);
         Ok(false)
     }
@@ -92,8 +92,8 @@ impl<'a> TimeControl<'a> {
     /// Calculates all derived coefficients for given timestep Δt
     fn calculate(&self, state: &mut FemState) {
         // check
-        let dt = state.dt;
-        assert!(dt >= self.config.dt_min);
+        let dt = state.ddt;
+        assert!(dt >= self.config.ddt_min);
 
         // α coefficients
         let m = dt * dt / 2.0;
@@ -143,7 +143,7 @@ mod tests {
 
         // check
         assert_eq!(state.t, 1.0);
-        assert_eq!(state.dt, 0.0001);
+        assert_eq!(state.ddt, 0.0001);
         assert_eq!(state.alpha1, 4e8);
         assert_eq!(state.alpha2, 40000.0);
         assert_eq!(state.alpha3, 1.0);
@@ -159,7 +159,7 @@ mod tests {
         let finished = dcs.update(&mut state).unwrap();
         assert!(!finished);
         assert_eq!(state.t, 1.0001);
-        assert_eq!(state.dt, 0.0001);
+        assert_eq!(state.ddt, 0.0001);
         assert_eq!(state.alpha1, 4e8); // no changes
         assert_eq!(state.alpha2, 40000.0);
         assert_eq!(state.alpha3, 1.0);

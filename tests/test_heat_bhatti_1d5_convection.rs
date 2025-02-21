@@ -87,6 +87,6 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
         3.000000000000000e+02,
         1.828327235474901e+02,
     ];
-    array_approx_eq(&state.uu.as_data()[..5], tt_bhatti, 1e-13);
+    array_approx_eq(&state.u.as_data()[..5], tt_bhatti, 1e-13);
     Ok(())
 }

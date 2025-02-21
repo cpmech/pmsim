@@ -219,12 +219,12 @@ fn main() -> Result<(), StrError> {
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
         let eq = base.dofs.eq(ref_point_id, Dof::Ux).unwrap();
-        let numerical_ur = state.uu[eq];
+        let numerical_ur = state.u[eq];
         let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
         let eq = base.dofs.eq(study_point, Dof::Uy).unwrap();
-        let numerical_ur = state.uu[eq];
+        let numerical_ur = state.u[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results

@@ -16,8 +16,10 @@ pub struct FemState {
     /// Time
     pub t: f64,
 
-    /// Delta time
-    pub dt: f64,
+    /// Delta time Δt
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub ddt: f64,
 
     /// Holds the α1(time) coefficient for the dynamics method
     pub alpha1: f64,
@@ -49,38 +51,40 @@ pub struct FemState {
     /// Holds the β2(time) coefficient for the dynamics method
     pub beta2: f64,
 
-    /// Cumulated (for one timestep) primary unknowns {ΔU}
-    pub duu: Vector,
+    /// Cumulated (for one timestep) primary unknowns Δu
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub ddu: Vector,
 
-    /// Primary unknowns {U}
+    /// Primary unknowns u
     ///
     /// (n_equation)
-    pub uu: Vector,
+    pub u: Vector,
 
-    /// First time derivative of primary unknowns d{U}/dt
+    /// First time derivative of primary unknowns du/dt
     ///
     /// (n_equation)
-    pub vv: Vector,
+    pub v: Vector,
 
-    /// Second time derivative of primary unknowns d²{U}/dt²
+    /// Second time derivative of primary unknowns d²u/dt²
     ///
     /// (n_equation)
-    pub aa: Vector,
+    pub a: Vector,
 
-    /// Auxiliary time-discretization variable (Theta method)
+    /// Auxiliary time-discretization variable (Theta method) u★
     ///
     /// (n_equation)
-    pub uu_star: Vector,
+    pub u_star: Vector,
 
-    /// Auxiliary time-discretization variable (Newmark method)
+    /// Auxiliary time-discretization variable (Newmark method) v★
     ///
     /// (n_equation)
-    pub vv_star: Vector,
+    pub v_star: Vector,
 
-    /// Auxiliary time-discretization variable (Newmark method)
+    /// Auxiliary time-discretization variable (Newmark method) a★
     ///
     /// (n_equation)
-    pub aa_star: Vector,
+    pub a_star: Vector,
 
     /// Holds the secondary values (e.g. stress) at all integration (Gauss) points of all elements
     ///
@@ -163,14 +167,14 @@ impl FemState {
         };
 
         // primary variables
-        let duu = Vector::new(neq_total);
-        let uu = Vector::new(neq_total);
-        let (uu_star, vv, vv_star) = if config.transient || config.dynamics {
+        let ddu = Vector::new(neq_total);
+        let u = Vector::new(neq_total);
+        let (u_star, v, v_star) = if config.transient || config.dynamics {
             (Vector::new(neq_total), Vector::new(neq_total), Vector::new(neq_total))
         } else {
             (Vector::new(0), Vector::new(0), Vector::new(0))
         };
-        let (aa, aa_star) = if config.dynamics {
+        let (a, a_star) = if config.dynamics {
             (Vector::new(neq_total), Vector::new(neq_total))
         } else {
             (Vector::new(0), Vector::new(0))
@@ -179,7 +183,7 @@ impl FemState {
         // allocate new instance
         Ok(FemState {
             t: 0.0,      // needs initialization
-            dt: 0.0,     // needs initialization
+            ddt: 0.0,    // needs initialization
             alpha1: 0.0, // needs initialization
             alpha2: 0.0, // needs initialization
             alpha3: 0.0, // needs initialization
@@ -190,13 +194,13 @@ impl FemState {
             alpha8: 0.0, // needs initialization
             beta1: 0.0,  // needs initialization
             beta2: 0.0,  // needs initialization
-            duu,
-            uu,
-            vv,
-            aa,
-            uu_star,
-            vv_star,
-            aa_star,
+            ddu,
+            u,
+            v,
+            a,
+            u_star,
+            v_star,
+            a_star,
             gauss,
         })
     }
@@ -313,8 +317,8 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.duu.dim(), base.dofs.size());
-        assert_eq!(state.uu.dim(), base.dofs.size());
+        assert_eq!(state.ddu.dim(), base.dofs.size());
+        assert_eq!(state.u.dim(), base.dofs.size());
     }
 
     #[test]
@@ -326,13 +330,13 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.transient = true;
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.duu.dim(), base.dofs.size());
-        assert_eq!(state.uu.dim(), base.dofs.size());
-        assert_eq!(state.vv.dim(), base.dofs.size());
-        assert_eq!(state.aa.dim(), 0);
-        assert_eq!(state.uu_star.dim(), base.dofs.size());
-        assert_eq!(state.vv_star.dim(), base.dofs.size());
-        assert_eq!(state.aa_star.dim(), 0);
+        assert_eq!(state.ddu.dim(), base.dofs.size());
+        assert_eq!(state.u.dim(), base.dofs.size());
+        assert_eq!(state.v.dim(), base.dofs.size());
+        assert_eq!(state.a.dim(), 0);
+        assert_eq!(state.u_star.dim(), base.dofs.size());
+        assert_eq!(state.v_star.dim(), base.dofs.size());
+        assert_eq!(state.a_star.dim(), 0);
     }
 
     #[test]
@@ -343,13 +347,13 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.duu.dim(), base.dofs.size());
-        assert_eq!(state.uu.dim(), base.dofs.size());
-        assert_eq!(state.vv.dim(), 0);
-        assert_eq!(state.aa.dim(), 0);
-        assert_eq!(state.uu_star.dim(), 0);
-        assert_eq!(state.vv_star.dim(), 0);
-        assert_eq!(state.aa_star.dim(), 0);
+        assert_eq!(state.ddu.dim(), base.dofs.size());
+        assert_eq!(state.u.dim(), base.dofs.size());
+        assert_eq!(state.v.dim(), 0);
+        assert_eq!(state.a.dim(), 0);
+        assert_eq!(state.u_star.dim(), 0);
+        assert_eq!(state.v_star.dim(), 0);
+        assert_eq!(state.a_star.dim(), 0);
     }
 
     #[test]
@@ -360,8 +364,8 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.duu.dim(), base.dofs.size());
-        assert_eq!(state.uu.dim(), base.dofs.size());
+        assert_eq!(state.ddu.dim(), base.dofs.size());
+        assert_eq!(state.u.dim(), base.dofs.size());
     }
 
     #[test]
@@ -372,8 +376,8 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.duu.dim(), base.dofs.size());
-        assert_eq!(state.uu.dim(), base.dofs.size());
+        assert_eq!(state.ddu.dim(), base.dofs.size());
+        assert_eq!(state.u.dim(), base.dofs.size());
     }
 
     #[test]
@@ -384,8 +388,8 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.duu.dim(), base.dofs.size());
-        assert_eq!(state.uu.dim(), base.dofs.size());
+        assert_eq!(state.ddu.dim(), base.dofs.size());
+        assert_eq!(state.u.dim(), base.dofs.size());
     }
 
     #[test]
@@ -398,13 +402,13 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.dynamics = true;
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.duu.dim(), base.dofs.size());
-        assert_eq!(state.uu.dim(), base.dofs.size());
-        assert_eq!(state.vv.dim(), base.dofs.size());
-        assert_eq!(state.aa.dim(), base.dofs.size());
-        assert_eq!(state.uu_star.dim(), base.dofs.size());
-        assert_eq!(state.vv_star.dim(), base.dofs.size());
-        assert_eq!(state.aa_star.dim(), base.dofs.size());
+        assert_eq!(state.ddu.dim(), base.dofs.size());
+        assert_eq!(state.u.dim(), base.dofs.size());
+        assert_eq!(state.v.dim(), base.dofs.size());
+        assert_eq!(state.a.dim(), base.dofs.size());
+        assert_eq!(state.u_star.dim(), base.dofs.size());
+        assert_eq!(state.v_star.dim(), base.dofs.size());
+        assert_eq!(state.a_star.dim(), base.dofs.size());
     }
 
     #[test]

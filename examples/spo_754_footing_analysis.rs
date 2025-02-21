@@ -31,7 +31,7 @@ pub fn main() -> Result<(), StrError> {
     let eq_corner = base.dofs.eq(corner_id, Dof::Uy)?;
     for index in &file_io.indices {
         let state = PostProc::read_state(&file_io, *index)?;
-        let uy = state.uu[eq_corner];
+        let uy = state.u[eq_corner];
         normalized_settlement.push(-uy / width);
         let res = post.nodal_stresses(&footing_cells, &state, |_, y, _| y == max[1])?;
         let mut area = 0.0;

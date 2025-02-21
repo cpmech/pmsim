@@ -100,10 +100,10 @@ impl<'a> ElementRodGnl<'a> {
     /// Returns the current length of the rod L
     fn update_bb(&mut self, state: &FemState) -> f64 {
         if self.ndim == 2 {
-            let uxa = state.uu[self.local_to_global[0]];
-            let uya = state.uu[self.local_to_global[1]];
-            let uxb = state.uu[self.local_to_global[2]];
-            let uyb = state.uu[self.local_to_global[3]];
+            let uxa = state.u[self.local_to_global[0]];
+            let uya = state.u[self.local_to_global[1]];
+            let uxb = state.u[self.local_to_global[2]];
+            let uyb = state.u[self.local_to_global[3]];
             let xa = self.xxa + uxa;
             let ya = self.yya + uya;
             let xb = self.xxb + uxb;
@@ -116,12 +116,12 @@ impl<'a> ElementRodGnl<'a> {
             self.bb[3] = dy;
             f64::sqrt(dx * dx + dy * dy)
         } else {
-            let uxa = state.uu[self.local_to_global[0]];
-            let uya = state.uu[self.local_to_global[1]];
-            let uza = state.uu[self.local_to_global[2]];
-            let uxb = state.uu[self.local_to_global[3]];
-            let uyb = state.uu[self.local_to_global[4]];
-            let uzb = state.uu[self.local_to_global[5]];
+            let uxa = state.u[self.local_to_global[0]];
+            let uya = state.u[self.local_to_global[1]];
+            let uza = state.u[self.local_to_global[2]];
+            let uxb = state.u[self.local_to_global[3]];
+            let uyb = state.u[self.local_to_global[4]];
+            let uzb = state.u[self.local_to_global[5]];
             let xa = self.xxa + uxa;
             let ya = self.yya + uya;
             let za = self.zza + uza;
@@ -186,7 +186,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
 
     /// Updates secondary values such as stresses and internal variables
     ///
-    /// Note that state.uu, state.vv, and state.aa have been updated already
+    /// Note that state.u, state.v, and state.a have been updated already
     fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
@@ -271,8 +271,8 @@ mod tests {
 
         // set state
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        state.uu[3] = -0.033333377560878;
-        state.uu[7] = -0.133333377560878;
+        state.u[3] = -0.033333377560878;
+        state.u[7] = -0.133333377560878;
 
         // check B
         element.update_bb(&state);

@@ -144,7 +144,7 @@ impl<'a> BcDistributed<'a> {
                     // interpolate T from nodes to integration point
                     let mut tt = 0.0;
                     for m in 0..nnode {
-                        tt += nn[m] * state.uu[self.local_to_global[m]];
+                        tt += nn[m] * state.u[self.local_to_global[m]];
                     }
                     Ok(cc * tt)
                 })?;

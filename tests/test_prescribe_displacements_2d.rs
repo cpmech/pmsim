@@ -86,9 +86,9 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     solver.solve(&mut state, &mut file_io)?;
     let eps_x = -DY * POISSON / (POISSON - 1.0);
     println!("eps_x = {}", eps_x);
-    println!("U =\n{}", state.uu);
+    println!("u =\n{}", state.u);
     array_approx_eq(
-        &state.uu.as_data()[..8],
+        &state.u.as_data()[..8],
         &[
             0.0, 0.0, //   node 0
             eps_x, 0.0, // node 1

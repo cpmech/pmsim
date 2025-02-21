@@ -24,7 +24,7 @@ pub trait ElementTrait {
 
     /// Updates secondary values such as stresses and internal variables
     ///
-    /// Note that state.uu, state.vv, and state.aa have been updated already
+    /// Note that state.u, state.v, and state.a have been updated already
     fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError>;
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)

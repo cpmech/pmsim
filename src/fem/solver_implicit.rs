@@ -84,7 +84,7 @@ impl<'a> SolverImplicit<'a> {
 
         // first output (must occur after initialize_internal_values)
         file_io.write_state(state)?;
-        let mut t_out = state.t + (self.config.dt_out)(state.t);
+        let mut t_out = state.t + (self.config.ddt_out)(state.t);
 
         // print convergence information
         self.conv_control.print_header();
@@ -99,11 +99,11 @@ impl<'a> SolverImplicit<'a> {
 
             // transient/dynamics: old state variables
             if self.config.transient {
-                vec_add(&mut state.uu_star, state.beta1, &state.uu, state.beta2, &state.vv).unwrap();
+                vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
             };
 
             // reset cumulated primary values
-            state.duu.fill(0.0);
+            state.ddu.fill(0.0);
 
             // reset algorithmic variables
             if !self.config.linear_problem {
@@ -111,7 +111,7 @@ impl<'a> SolverImplicit<'a> {
             }
 
             // print convergence information
-            self.conv_control.print_timestep(timestep, state.t, state.dt);
+            self.conv_control.print_timestep(timestep, state.t, state.ddt);
 
             // iteration loop
             for iteration in 0..self.config.n_max_iterations {
@@ -128,7 +128,7 @@ impl<'a> SolverImplicit<'a> {
             let last_timestep = timestep == self.config.n_max_time_steps - 1;
             if state.t >= t_out || last_timestep {
                 file_io.write_state(state)?;
-                t_out += (self.config.dt_out)(state.t);
+                t_out += (self.config.ddt_out)(state.t);
             }
 
             // final time step

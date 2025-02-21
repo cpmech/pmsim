@@ -133,6 +133,6 @@ fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
          0.000000000000000e+00,  0.000000000000000e+00,
          0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.uu, uu_correct, 3e-13);
+    vec_approx_eq(&state.u, uu_correct, 3e-13);
     Ok(())
 }

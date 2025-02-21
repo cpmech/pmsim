@@ -125,15 +125,15 @@ impl FileIo {
             .unwrap();
             for point in &mesh.points {
                 let ux = match base.dofs.eq(point.id, Dof::Ux).ok() {
-                    Some(eq) => state.uu[eq],
+                    Some(eq) => state.u[eq],
                     None => 0.0,
                 };
                 let uy = match base.dofs.eq(point.id, Dof::Uy).ok() {
-                    Some(eq) => state.uu[eq],
+                    Some(eq) => state.u[eq],
                     None => 0.0,
                 };
                 let uz = match base.dofs.eq(point.id, Dof::Uz).ok() {
-                    Some(eq) => state.uu[eq],
+                    Some(eq) => state.u[eq],
                     None => 0.0,
                 };
                 write!(&mut buffer, "{:?} {:?} {:?} ", ux, uy, uz).unwrap();
@@ -149,7 +149,7 @@ impl FileIo {
             .unwrap();
             for point in &mesh.points {
                 let value = match base.dofs.eq(point.id, *dof).ok() {
-                    Some(eq) => state.uu[eq],
+                    Some(eq) => state.u[eq],
                     None => 0.0,
                 };
                 write!(&mut buffer, "{:?} ", value).unwrap();
@@ -246,7 +246,7 @@ mod tests {
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
             let eq = base.dofs.eq(p, Dof::Ux).unwrap();
-            state.uu[eq] = strain * y;
+            state.u[eq] = strain * y;
         }
 
         let index = 0;
@@ -329,7 +329,7 @@ mod tests {
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
             let eq = base.dofs.eq(p, Dof::Ux).unwrap();
-            state.uu[eq] = strain * y;
+            state.u[eq] = strain * y;
         }
 
         // Applies liquid pressure proportional to the y coordinate
@@ -337,7 +337,7 @@ mod tests {
             let y = mesh.points[p].coords[1];
             if base.dofs.contains(p, Dof::Pl) {
                 let eq = base.dofs.eq(p, Dof::Pl).unwrap();
-                state.uu[eq] = 100.0 * (1.0 + y);
+                state.u[eq] = 100.0 * (1.0 + y);
             }
         }
 

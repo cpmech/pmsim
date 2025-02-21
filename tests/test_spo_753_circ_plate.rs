@@ -128,7 +128,7 @@ fn post_processing() -> Result<(), StrError> {
     let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
     for index in 0..nstep_max {
         let state = PostProc::read_state(&file_io, index)?;
-        deflection[index] = -state.uu[eq_uy];
+        deflection[index] = -state.u[eq_uy];
         let pp = P_ARRAY[index];
         if pp == 100.0 {
             let (_, cc, dd) = post.values_along_edges(&bottom, Dof::Uy, &state).unwrap();

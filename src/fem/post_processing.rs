@@ -725,7 +725,7 @@ impl<'a> PostProc<'a> {
         // extract dof values
         let dd: Vec<_> = id_x_pairs
             .iter()
-            .map(|(id, _)| state.uu[self.base.dofs.eq(*id, dof).unwrap()])
+            .map(|(id, _)| state.u[self.base.dofs.eq(*id, dof).unwrap()])
             .collect();
 
         // unzip id_x_pairs
@@ -779,7 +779,7 @@ impl<'a> PostProc<'a> {
         // extract dof values
         let dd: Vec<_> = point_ids
             .iter()
-            .map(|id| state.uu[self.base.dofs.eq(*id, dof).unwrap()])
+            .map(|id| state.u[self.base.dofs.eq(*id, dof).unwrap()])
             .collect();
 
         // results
@@ -818,8 +818,8 @@ mod tests {
         // update displacement
         let essential = Essential::new();
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        vec_copy(&mut state.duu, &duu).unwrap();
-        vec_update(&mut state.uu, 1.0, &duu).unwrap();
+        vec_copy(&mut state.ddu, &duu).unwrap();
+        vec_update(&mut state.u, 1.0, &duu).unwrap();
 
         // update stress
         let ncell = mesh.cells.len();
@@ -1632,12 +1632,12 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        state.uu[0] = 1.0;
-        state.uu[1] = 2.0;
-        state.uu[2] = 3.0;
-        state.uu[3] = 4.0;
-        state.uu[4] = 5.0;
-        state.uu[5] = 6.0;
+        state.u[0] = 1.0;
+        state.u[1] = 2.0;
+        state.u[2] = 3.0;
+        state.u[3] = 4.0;
+        state.u[4] = 5.0;
+        state.u[5] = 6.0;
         let output = PostProc::new(&mesh, &base);
         let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
@@ -1741,7 +1741,7 @@ mod tests {
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let npoint = mesh.points.len();
         for p in 0..npoint {
-            state.uu[p] = 100.0 + (p as f64);
+            state.u[p] = 100.0 + (p as f64);
         }
 
         // allocate post-processor

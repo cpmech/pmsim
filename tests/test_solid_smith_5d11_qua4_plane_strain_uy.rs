@@ -105,9 +105,9 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     ];
     if LAG {
         let n = base.dofs.size();
-        array_approx_eq(&state.uu.as_data()[0..n], uu_correct, 1e-13);
+        array_approx_eq(&state.u.as_data()[0..n], uu_correct, 1e-13);
     } else {
-        vec_approx_eq(&state.uu, uu_correct, 1e-13);
+        vec_approx_eq(&state.u, uu_correct, 1e-13);
     }
     Ok(())
 }

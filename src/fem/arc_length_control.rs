@@ -77,11 +77,11 @@ impl<'a> ArcLengthControl<'a> {
         if timestep > 0 {
             assert!(f64::abs(self.dds_old) > 1e-12);
             let alpha = self.dds / self.dds_old;
-            vec_add(&mut state.uu, 1.0 + alpha, &self.u_old, -alpha, &self.u_anc).unwrap();
+            vec_add(&mut state.u, 1.0 + alpha, &self.u_old, -alpha, &self.u_anc).unwrap();
             self.ell = (1.0 + alpha) * self.ell_old - alpha * self.ell_anc;
         }
 
-        vec_add(&mut state.duu, 1.0, &state.uu, -1.0, &self.u_old).unwrap();
+        vec_add(&mut state.ddu, 1.0, &state.u, -1.0, &self.u_old).unwrap();
         self.ddl = self.ell - self.ell_old;
 
         self.converged_old = self.converged;
@@ -106,11 +106,11 @@ impl<'a> ArcLengthControl<'a> {
 
             // add arc-length contribution to R
             let (g, dg_dl) = if timestep > 0 {
-                let inc = vec_inner(&state.duu, &state.duu);
+                let inc = vec_inner(&state.ddu, &state.ddu);
                 let ftf = vec_inner(&self.data.ls.ff_ext, &self.data.ls.ff_ext);
                 let g = inc + self.psi * self.ddl * self.ddl * ftf - self.dds * self.dds;
                 let dg_dl = 2.0 * self.psi * self.ddl * ftf;
-                vec_copy_scaled(&mut self.dg_du, 2.0, &state.duu).unwrap();
+                vec_copy_scaled(&mut self.dg_du, 2.0, &state.ddu).unwrap();
                 // self.data.ls.rr[eq_arc] = g;
                 (g, dg_dl)
             } else {
@@ -196,7 +196,7 @@ impl<'a> ArcLengthControl<'a> {
             self.converged = self.step_corrector(timestep, state)?;
             if self.converged {
                 if timestep == 0 {
-                    let inc = vec_inner(&state.duu, &state.duu);
+                    let inc = vec_inner(&state.ddu, &state.ddu);
                     let ftf = vec_inner(&self.data.ls.ff_ext, &self.data.ls.ff_ext);
                     self.dds = f64::sqrt(inc + self.psi * self.ddl * self.ddl * ftf);
                     self.dds_max = self.dds;
@@ -207,7 +207,7 @@ impl<'a> ArcLengthControl<'a> {
                     self.dds = f64::min(f64::max(2.0 * self.dds, self.dds_min), self.dds_max);
                 }
                 vec_copy(&mut self.u_anc, &self.u_old).unwrap();
-                vec_copy(&mut self.u_old, &state.uu).unwrap();
+                vec_copy(&mut self.u_old, &state.u).unwrap();
                 self.ell_anc = self.ell_old;
                 self.ell_old = self.ell;
             } else {

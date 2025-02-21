@@ -102,7 +102,7 @@ pub fn compare_results(
         for p in 0..npoint {
             for i in 0..ndim {
                 let eq = base.dofs.eq(p, dofs[i]).unwrap();
-                let a = fem_state.uu[eq];
+                let a = fem_state.u[eq];
                 let b = dat.actual.displacement(step, p, i);
                 let (fail, diff) = query_failed(a, b, tol_displacement, verbose);
                 diff_displacement_max = f64::max(diff_displacement_max, diff);

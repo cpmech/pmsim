@@ -77,11 +77,11 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     for p in 0..values.equations.len() {
         let value = values.value(p, 1.0);
         let eq = values.equations[p];
-        state.duu[eq] = value - state.uu[eq];
-        state.uu[eq] = value;
+        state.ddu[eq] = value - state.u[eq];
+        state.u[eq] = value;
     }
-    println!("\nU = \n{:.6}", state.uu);
-    println!("ΔU = \n{:.6}", state.duu);
+    println!("\nu = \n{:.6}", state.u);
+    println!("Δu = \n{:.6}", state.ddu);
 
     // global = local Jacobian matrix (kk_global = kk_local because there is one element only)
     let mut kk = Matrix::new(neq, neq);
@@ -103,7 +103,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     let mut uu2 = Vector::new(n_prescribed); // prescribed displacements vector U2
     let mut ee1 = Vector::new(n_unknown); // external forces vector E1
     for (i, ii) in eq_prescribed.iter().enumerate() {
-        uu2[i] = state.uu[*ii];
+        uu2[i] = state.u[*ii];
     }
 
     // fix vector of external forces: E1 = -K12·U2
@@ -117,11 +117,11 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
 
     // fix vector of displacements and increments
     for (i, ii) in eq_unknown.iter().enumerate() {
-        state.uu[*ii] = uu1[i];
-        state.duu[*ii] = uu1[i];
+        state.u[*ii] = uu1[i];
+        state.ddu[*ii] = uu1[i];
     }
-    println!("\nU = \n{:.6}", state.uu);
-    println!("ΔU = \n{:.6}", state.duu);
+    println!("\nU = \n{:.6}", state.u);
+    println!("ΔU = \n{:.6}", state.ddu);
 
     // update stresses
     println!("\nstrain = {:?}", strain);
@@ -209,11 +209,11 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     for p in 0..values.equations.len() {
         let value = values.value(p, 1.0);
         let eq = values.equations[p];
-        state.duu[eq] = value - state.uu[eq];
-        state.uu[eq] = value;
+        state.ddu[eq] = value - state.u[eq];
+        state.u[eq] = value;
     }
-    println!("\nU = \n{:.6}", state.uu);
-    println!("ΔU = \n{:.6}", state.duu);
+    println!("\nU = \n{:.6}", state.u);
+    println!("ΔU = \n{:.6}", state.ddu);
 
     // update secondary variables (corresponds to E1 = -K12·U2)
     println!("\nstrain = {:?}", strain);
@@ -268,16 +268,16 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
 
     // update U and ΔU
     for i in 0..neq {
-        state.uu[i] -= mdu[i];
-        state.duu[i] -= mdu[i];
+        state.u[i] -= mdu[i];
+        state.ddu[i] -= mdu[i];
     }
     let duu_expected = vec![0.0, 0.0, 0.625, 0.0, 0.625, -1.875, 0.0, -1.875];
-    vec_approx_eq(&state.duu, &duu_expected, 1e-15);
+    vec_approx_eq(&state.ddu, &duu_expected, 1e-15);
 
     // must reset ΔU corresponding to prescribed values because
     // it has been used to update the stress already!
     for eq in &eq_prescribed {
-        state.duu[*eq] = 0.0;
+        state.ddu[*eq] = 0.0;
     }
 
     // update secondary variables

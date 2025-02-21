@@ -20,7 +20,7 @@ pub struct ElementRod<'a> {
     pub stiffness: Matrix,
 
     /// Local displacements
-    pub uu: Vector,
+    pub u: Vector,
 }
 
 impl<'a> ElementRod<'a> {
@@ -72,7 +72,7 @@ impl<'a> ElementRod<'a> {
             param,
             local_to_global: compute_local_to_global(&base.emap, &base.dofs, cell)?,
             stiffness,
-            uu:Vector::new(2*ndim),
+            u:Vector::new(2*ndim),
         })
     }
 }
@@ -97,9 +97,9 @@ impl<'a> ElementTrait for ElementRod<'a> {
     fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for local in 0..self.local_to_global.len() {
             let global = self.local_to_global[local];
-            self.uu[local] = state.uu[global];
+            self.u[local] = state.u[global];
         }
-        mat_vec_mul(f_int, 1.0, &self.stiffness, &self.uu).unwrap();
+        mat_vec_mul(f_int, 1.0, &self.stiffness, &self.u).unwrap();
         Ok(())
     }
 
@@ -116,7 +116,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 
     /// Updates secondary values such as stresses and internal variables
     ///
-    /// Note that state.uu, state.vv, and state.aa have been updated already
+    /// Note that state.u, state.v, and state.a have been updated already
     fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }

@@ -98,7 +98,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     for p in &selection {
         let r = mesh.points[*p].coords[0];
         let eq = base.dofs.eq(*p, Dof::Ux).unwrap();
-        let ux = state.uu[eq];
+        let ux = state.u[eq];
         let diff = f64::abs(ux - analytical_ur(r));
         println!("point = {}, r = {:?}, Ux = {:?}, diff = {:?}", p, r, ux, diff);
         assert!(diff < 1e-15);

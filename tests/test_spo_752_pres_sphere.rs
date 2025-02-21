@@ -202,7 +202,7 @@ fn post_processing(collapse: bool, name: &str) -> Result<(), StrError> {
 
         // radial displacement
         let outer_eq = base.dofs.eq(outer_point, Dof::Ux)?;
-        let ub_num = state.uu[outer_eq];
+        let ub_num = state.u[outer_eq];
         outer_ur[*index] = ub_num;
 
         // get stresses

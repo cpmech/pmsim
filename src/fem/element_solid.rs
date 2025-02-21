@@ -186,13 +186,13 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 
     /// Updates secondary values such as stresses and internal variables
     ///
-    /// Note that state.uu, state.vv, and state.aa have been updated already
+    /// Note that state.u, state.v, and state.a have been updated already
     fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         for p in 0..self.gauss.npoint() {
             // calculate increment of strains Δε at integration point (from global increment of displacements)
             calculate_strain(
                 &mut self.delta_strain,
-                &state.duu,
+                &state.ddu,
                 &self.config.ideal,
                 &self.local_to_global,
                 self.gauss.coords(p),
@@ -212,7 +212,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 let strain = state.gauss[self.cell_id].solid[p].strain.as_mut().unwrap();
                 calculate_strain(
                     strain,
-                    &state.uu,
+                    &state.u,
                     &self.config.ideal,
                     &self.local_to_global,
                     self.gauss.coords(p),
@@ -498,8 +498,8 @@ mod tests {
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
             let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.duu, &duu_h).unwrap();
-            vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
+            vec_copy(&mut state.ddu, &duu_h).unwrap();
+            vec_update(&mut state.u, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -514,8 +514,8 @@ mod tests {
             // check stress update (vertical displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
             let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.duu, &duu_v).unwrap();
-            vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
+            vec_copy(&mut state.ddu, &duu_v).unwrap();
+            vec_update(&mut state.u, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -530,8 +530,8 @@ mod tests {
             // check stress update (shear displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
             let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.duu, &duu_s).unwrap();
-            vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
+            vec_copy(&mut state.ddu, &duu_s).unwrap();
+            vec_update(&mut state.u, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -593,8 +593,8 @@ mod tests {
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
             let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.duu, &duu_h).unwrap();
-            vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
+            vec_copy(&mut state.ddu, &duu_h).unwrap();
+            vec_update(&mut state.u, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -604,8 +604,8 @@ mod tests {
             // check stress update (vertical displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
             let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.duu, &duu_v).unwrap();
-            vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
+            vec_copy(&mut state.ddu, &duu_v).unwrap();
+            vec_update(&mut state.u, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -615,8 +615,8 @@ mod tests {
             // check stress update (shear displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
             let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.duu, &duu_s).unwrap();
-            vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
+            vec_copy(&mut state.ddu, &duu_s).unwrap();
+            vec_update(&mut state.u, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {

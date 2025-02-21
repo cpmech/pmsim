@@ -112,13 +112,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             // interpolate T at integration point
             let mut tt = 0.0;
             for m in 0..nnode {
-                tt += nn[m] * state.uu[l2g[m]];
+                tt += nn[m] * state.u[l2g[m]];
             }
             // interpolate ∇T at integration point
             for i in 0..ndim {
                 self.grad_tt[i] = 0.0;
                 for m in 0..nnode {
-                    self.grad_tt[i] += bb.get(m, i) * state.uu[l2g[m]];
+                    self.grad_tt[i] += bb.get(m, i) * state.u[l2g[m]];
                 }
             }
             // compute conductivity tensor at integration point
@@ -138,8 +138,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 // interpolate T and T★ to integration point
                 let (mut tt, mut tt_star) = (0.0, 0.0);
                 for m in 0..nnode {
-                    tt += nn[m] * state.uu[l2g[m]];
-                    tt_star += nn[m] * state.uu_star[l2g[m]];
+                    tt += nn[m] * state.u[l2g[m]];
+                    tt_star += nn[m] * state.u_star[l2g[m]];
                 }
                 Ok(self.param.rho * (state.beta1 * tt - tt_star))
             })?;
@@ -179,7 +179,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             // interpolate T at integration point
             let mut tt = 0.0;
             for m in 0..nnode {
-                tt += nn[m] * state.uu[l2g[m]];
+                tt += nn[m] * state.u[l2g[m]];
             }
             // compute conductivity tensor at integration point
             self.model.calc_k(k, tt)
@@ -195,13 +195,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 // interpolate T at integration point
                 let mut tt = 0.0;
                 for m in 0..nnode {
-                    tt += nn[m] * state.uu[l2g[m]];
+                    tt += nn[m] * state.u[l2g[m]];
                 }
                 // interpolate ∇T at integration point
                 for i in 0..ndim {
                     self.grad_tt[i] = 0.0;
                     for m in 0..nnode {
-                        self.grad_tt[i] += bb.get(m, i) * state.uu[l2g[m]];
+                        self.grad_tt[i] += bb.get(m, i) * state.u[l2g[m]];
                     }
                 }
                 // conductivity ← ∂k/∂ϕ
@@ -222,7 +222,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
     /// Updates secondary values such as stresses and internal variables
     ///
-    /// Note that state.uu, state.vv, and state.aa have been updated already
+    /// Note that state.u, state.v, and state.a have been updated already
     fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
         Ok(())
     }
@@ -278,9 +278,9 @@ mod tests {
         // set heat flow from the right to the left
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
-        state.uu[0] = tt_field(mesh.points[0].coords[0]);
-        state.uu[1] = tt_field(mesh.points[1].coords[0]);
-        state.uu[2] = tt_field(mesh.points[2].coords[0]);
+        state.u[0] = tt_field(mesh.points[0].coords[0]);
+        state.u[1] = tt_field(mesh.points[1].coords[0]);
+        state.u[2] = tt_field(mesh.points[2].coords[0]);
 
         // calc Jacobian
         let neq = 3;
@@ -354,9 +354,9 @@ mod tests {
         // set heat flow from the right to the left
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
-        state.uu[0] = tt_field(mesh.points[0].coords[0]);
-        state.uu[1] = tt_field(mesh.points[1].coords[0]);
-        state.uu[2] = tt_field(mesh.points[2].coords[0]);
+        state.u[0] = tt_field(mesh.points[0].coords[0]);
+        state.u[1] = tt_field(mesh.points[1].coords[0]);
+        state.u[2] = tt_field(mesh.points[2].coords[0]);
 
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
@@ -415,10 +415,10 @@ mod tests {
         // set heat flow from the top to bottom and right to left
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
-        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
-        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
-        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[2]);
-        state.uu[3] = tt_field(mesh.points[3].coords[0], mesh.points[3].coords[2]);
+        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
+        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
+        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[2]);
+        state.u[3] = tt_field(mesh.points[3].coords[0], mesh.points[3].coords[2]);
 
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);

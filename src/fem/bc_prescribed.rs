@@ -101,10 +101,10 @@ impl<'a> BcPrescribed<'a> {
         for p in 0..self.equations.len() {
             let i = self.equations[p];
             let j = ndof + p;
-            let lambda = state.uu[j];
+            let lambda = state.u[j];
             let c = self.value(p, state.t);
             rr[i] += lambda; // Aᵀ λ  →  1 * λ
-            rr[j] = state.uu[i] - c; // A u - c  →  1 * u - c
+            rr[j] = state.u[i] - c; // A u - c  →  1 * u - c
         }
     }
 
