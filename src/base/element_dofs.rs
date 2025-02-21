@@ -94,7 +94,7 @@ impl ElementDofs {
         match element {
             Elem::Diffusion(..) => {
                 for m in 0..nnode {
-                    dofs[m].push((Dof::T, count)); count += 1;
+                    dofs[m].push((Dof::Phi, count)); count += 1;
                 }
             }
             Elem::Rod(..) => {
@@ -258,7 +258,7 @@ mod tests {
         let f = ElementDofs::new(2, Elem::PorousLiqGas(pf), GeoKind::Tri3).unwrap();
         let g = ElementDofs::new(2, Elem::PorousSldLiq(pg), GeoKind::Tri6).unwrap();
         let h = ElementDofs::new(2, Elem::PorousSldLiqGas(ph), GeoKind::Tri6).unwrap();
-        assert_eq!(a.dofs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
+        assert_eq!(a.dofs, &[[(Dof::Phi, 0)], [(Dof::Phi, 1)], [(Dof::Phi, 2)]]);
         assert_eq!(
             b.dofs,
             vec![vec![(Dof::Ux, 0), (Dof::Uy, 1)], vec![(Dof::Ux, 2), (Dof::Uy, 3)]]
@@ -329,7 +329,7 @@ mod tests {
         let f = ElementDofs::new(3, Elem::PorousLiqGas(pf), GeoKind::Tri3).unwrap();
         let g = ElementDofs::new(3, Elem::PorousSldLiq(pg), GeoKind::Tri6).unwrap();
         let h = ElementDofs::new(3, Elem::PorousSldLiqGas(ph), GeoKind::Tri6).unwrap();
-        assert_eq!(a.dofs, &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]);
+        assert_eq!(a.dofs, &[[(Dof::Phi, 0)], [(Dof::Phi, 1)], [(Dof::Phi, 2)]]);
         assert_eq!(
             b.dofs,
             vec![

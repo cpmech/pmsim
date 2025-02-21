@@ -89,7 +89,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&edges_temp, Dof::T, 273.15);
+    essential.edges(&edges_temp, Dof::Phi, 273.15);
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -110,7 +110,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     solver.solve(&mut state, &mut file_io)?;
 
     // check
-    let eq = base.dofs.eq(ref_point, Dof::T).unwrap();
+    let eq = base.dofs.eq(ref_point, Dof::Phi).unwrap();
     let rel_err = f64::abs(state.u[eq] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",

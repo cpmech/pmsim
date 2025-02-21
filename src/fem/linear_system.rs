@@ -259,7 +259,7 @@ mod tests {
 
         let mut essential = Essential::new();
         let mut natural = Natural::new();
-        essential.points(&[0, 4], Dof::T, 123.0);
+        essential.points(&[0, 4], Dof::Phi, 123.0);
         let edge_conv = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
@@ -353,7 +353,7 @@ mod tests {
 
         let mut essential = Essential::new();
         let mut natural = Natural::new();
-        essential.points(&[0, 4], Dof::T, 123.0);
+        essential.points(&[0, 4], Dof::Phi, 123.0);
         let edge_conv = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],

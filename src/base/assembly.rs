@@ -1,4 +1,4 @@
-use super::{ElementDofsMap, AllDofs};
+use super::{AllDofs, ElementDofsMap};
 use crate::StrError;
 use gemlab::mesh::Cell;
 use russell_lab::{Matrix, Vector};
@@ -25,7 +25,7 @@ pub fn compute_local_to_global(emap: &ElementDofsMap, eqs: &AllDofs, cell: &Cell
 ///
 /// # Input
 ///
-/// * `phi` -- is the local vector with length = `n_equation_local`
+/// * `f` -- is the local vector with length = `n_equation_local`
 /// * `cell_id` -- is the ID of the cell adding the contribution to R
 /// * `local_to_global` -- is an array holding all equation numbers.
 /// * `ignore` -- (n_equation) holds the equation numbers to be ignored in the assembly process;
@@ -35,12 +35,12 @@ pub fn compute_local_to_global(emap: &ElementDofsMap, eqs: &AllDofs, cell: &Cell
 /// # Panics
 ///
 /// This function will panic if the indices are out-of-bounds
-pub fn assemble_vector(rr: &mut Vector, phi: &Vector, local_to_global: &[usize], ignore: &[bool]) {
-    let n_equation_local = phi.dim();
+pub fn assemble_vector(rr: &mut Vector, f: &Vector, local_to_global: &[usize], ignore: &[bool]) {
+    let n_equation_local = f.dim();
     for l in 0..n_equation_local {
         let g = local_to_global[l];
         if !ignore[g] {
-            rr[g] += phi[l];
+            rr[g] += f[l];
         }
     }
 }
@@ -143,7 +143,7 @@ pub fn assemble_matrix(
 #[cfg(test)]
 mod tests {
     use super::{assemble_matrix, assemble_vector};
-    use crate::base::{compute_local_to_global, Attributes, Elem, ElementDofsMap, AllDofs};
+    use crate::base::{compute_local_to_global, AllDofs, Attributes, Elem, ElementDofsMap};
     use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
     use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{mat_approx_eq, Matrix, Vector};

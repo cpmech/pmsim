@@ -97,7 +97,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     println!("");
     for p in &selected {
         let x = mesh.points[*p].coords[0];
-        let eq = base.dofs.eq(*p, Dof::T).unwrap();
+        let eq = base.dofs.eq(*p, Dof::Phi).unwrap();
         let tt = state.u[eq];
         let diff = f64::abs(tt - analytical(state.t, x));
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
@@ -112,7 +112,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
         // get temperature values along x
         let post = PostProc::new(&mesh, &base);
-        let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::T, 0.0, |x| x[0] <= 2.0)?;
+        let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::Phi, 0.0, |x| x[0] <= 2.0)?;
 
         // plot
         let mut curve_ana = Curve::new();

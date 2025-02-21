@@ -1639,7 +1639,7 @@ mod tests {
         state.u[4] = 5.0;
         state.u[5] = 6.0;
         let output = PostProc::new(&mesh, &base);
-        let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::T, 0.0, any_x).unwrap();
+        let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::Phi, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
         assert_eq!(dd, &[1.0, 4.0, 2.0]);
@@ -1751,7 +1751,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(0, 4), feat.get_edge(0, 6), feat.get_edge(4, 11)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
         assert_eq!(ids, &[11, 5, 4, 3, 0, 1, 6]);
         array_approx_eq(&dd, &[111.0, 105.0, 104.0, 103.0, 100.0, 101.0, 106.0], 1e-15);
 
@@ -1759,7 +1759,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(4, 11)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
         assert_eq!(ids, &[4, 5, 11]);
         array_approx_eq(&dd, &[104.0, 105.0, 111.0], 1e-15);
 
@@ -1767,7 +1767,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(8, 10)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
         assert_eq!(ids, &[10, 9, 8]);
         array_approx_eq(&dd, &[110.0, 109.0, 108.0], 1e-15);
 
@@ -1775,7 +1775,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(6, 10)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
         assert_eq!(ids, &[10, 2, 6]);
         array_approx_eq(&dd, &[110.0, 102.0, 106.0], 1e-15);
 
@@ -1783,7 +1783,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(8, 11)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
         assert_eq!(ids, &[8, 7, 11]);
         array_approx_eq(&dd, &[108.0, 107.0, 111.0], 1e-15);
 
@@ -1791,14 +1791,14 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(4, 10)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::T, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
         assert_eq!(ids, &[10, 12, 4]);
         array_approx_eq(&dd, &[110.0, 112.0, 104.0], 1e-15);
 
         // empty
         let edges = Edges { all: vec![] };
         assert_eq!(
-            post.values_along_edges(&edges, Dof::T, &state).err(),
+            post.values_along_edges(&edges, Dof::Phi, &state).err(),
             Some("not enough points along the path of edges")
         );
     }

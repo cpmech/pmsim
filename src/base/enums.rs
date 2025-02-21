@@ -25,8 +25,10 @@ pub enum Dof {
     /// Rotation around the third axis
     Rz = 5,
 
-    /// Temperature
-    T = 6,
+    /// Primary scalar quantity for diffusion problems (such as the temperature)
+    ///
+    /// Examples: Liquid pressure, temperature
+    Phi = 6,
 
     /// Liquid pressure
     Pl = 7,
@@ -104,12 +106,12 @@ impl Nbc {
             }
             Nbc::Qt => {
                 for m in 0..nnode {
-                    dofs[m].push((Dof::T, count)); count += 1;
+                    dofs[m].push((Dof::Phi, count)); count += 1;
                 }
             }
             Nbc::Cv(..) => {
                 for m in 0..nnode {
-                    dofs[m].push((Dof::T, count)); count += 1;
+                    dofs[m].push((Dof::Phi, count)); count += 1;
                 }
             }
         }
@@ -390,7 +392,7 @@ mod tests {
         let qt = Nbc::Qt;
         assert_eq!(
             qt.dof_equation_pairs(2, 3),
-            &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]
+            &[[(Dof::Phi, 0)], [(Dof::Phi, 1)], [(Dof::Phi, 2)]]
         );
         assert_eq!(qt.contributes_to_jacobian_matrix(), false);
 
@@ -404,7 +406,7 @@ mod tests {
         let cv = Nbc::Cv(0.5);
         assert_eq!(
             cv.dof_equation_pairs(2, 3),
-            &[[(Dof::T, 0)], [(Dof::T, 1)], [(Dof::T, 2)]]
+            &[[(Dof::Phi, 0)], [(Dof::Phi, 1)], [(Dof::Phi, 2)]]
         );
         assert_eq!(cv.contributes_to_jacobian_matrix(), true);
     }

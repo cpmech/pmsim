@@ -33,8 +33,8 @@ pub struct ElementDiffusion<'a> {
 
     /// (temporary) Gradient of temperature at a single integration point
     ///
-    /// ∇T @ ip
-    pub grad_tt: Vector,
+    /// ∇ϕ @ ip
+    pub grad_phi: Vector,
 }
 
 impl<'a> ElementDiffusion<'a> {
@@ -63,7 +63,7 @@ impl<'a> ElementDiffusion<'a> {
         let conductivity = Tensor2::new_sym_ndim(ndim);
 
         // auxiliary gradient tensor
-        let grad_tt = Vector::new(ndim);
+        let grad_phi = Vector::new(ndim);
 
         // allocate new instance
         Ok(ElementDiffusion {
@@ -74,7 +74,7 @@ impl<'a> ElementDiffusion<'a> {
             gauss,
             model,
             conductivity,
-            grad_tt,
+            grad_phi,
         })
     }
 }
@@ -109,22 +109,22 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // the conductivity term is always present, so we calculate it first with clear=true
         integ::vec_03_vb(f_int, &mut args, |w, _, nn, bb| {
-            // interpolate T at integration point
-            let mut tt = 0.0;
+            // interpolate ϕ at integration point
+            let mut phi = 0.0;
             for m in 0..nnode {
-                tt += nn[m] * state.u[l2g[m]];
+                phi += nn[m] * state.u[l2g[m]];
             }
-            // interpolate ∇T at integration point
+            // interpolate ∇ϕ at integration point
             for i in 0..ndim {
-                self.grad_tt[i] = 0.0;
+                self.grad_phi[i] = 0.0;
                 for m in 0..nnode {
-                    self.grad_tt[i] += bb.get(m, i) * state.u[l2g[m]];
+                    self.grad_phi[i] += bb.get(m, i) * state.u[l2g[m]];
                 }
             }
             // compute conductivity tensor at integration point
-            self.model.calc_k(&mut self.conductivity, tt)?;
-            // f_int must get -w; however w = -k·∇T, thus -w = -(-k·∇T) = k·∇T
-            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_tt);
+            self.model.calc_k(&mut self.conductivity, phi)?;
+            // f_int must get -w; however w = -k·∇ϕ, thus -w = -(-k·∇ϕ) = k·∇ϕ
+            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_phi);
             Ok(())
         })
         .unwrap();
@@ -135,13 +135,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         // transient term
         if self.config.transient {
             integ::vec_01_ns(f_int, &mut args, |_, nn| {
-                // interpolate T and T★ to integration point
-                let (mut tt, mut tt_star) = (0.0, 0.0);
+                // interpolate ϕ and ϕ★ to integration point
+                let (mut phi, mut phi_star) = (0.0, 0.0);
                 for m in 0..nnode {
-                    tt += nn[m] * state.u[l2g[m]];
-                    tt_star += nn[m] * state.u_star[l2g[m]];
+                    phi += nn[m] * state.u[l2g[m]];
+                    phi_star += nn[m] * state.u_star[l2g[m]];
                 }
-                Ok(self.param.rho * (state.beta1 * tt - tt_star))
+                Ok(self.param.rho * (state.beta1 * phi - phi_star))
             })?;
         }
         Ok(())
@@ -176,13 +176,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // conductivity term (always present, so we calculate it first with clear=true)
         integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {
-            // interpolate T at integration point
-            let mut tt = 0.0;
+            // interpolate ϕ at integration point
+            let mut phi = 0.0;
             for m in 0..nnode {
-                tt += nn[m] * state.u[l2g[m]];
+                phi += nn[m] * state.u[l2g[m]];
             }
             // compute conductivity tensor at integration point
-            self.model.calc_k(k, tt)
+            self.model.calc_k(k, phi)
         })
         .unwrap();
 
@@ -192,22 +192,22 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         // variable k tensor
         if self.model.has_variable_k() {
             integ::mat_02_bvn(jacobian, &mut args, |hk, _, nn, bb| {
-                // interpolate T at integration point
-                let mut tt = 0.0;
+                // interpolate ϕ at integration point
+                let mut phi = 0.0;
                 for m in 0..nnode {
-                    tt += nn[m] * state.u[l2g[m]];
+                    phi += nn[m] * state.u[l2g[m]];
                 }
-                // interpolate ∇T at integration point
+                // interpolate ∇ϕ at integration point
                 for i in 0..ndim {
-                    self.grad_tt[i] = 0.0;
+                    self.grad_phi[i] = 0.0;
                     for m in 0..nnode {
-                        self.grad_tt[i] += bb.get(m, i) * state.u[l2g[m]];
+                        self.grad_phi[i] += bb.get(m, i) * state.u[l2g[m]];
                     }
                 }
                 // conductivity ← ∂k/∂ϕ
-                self.model.calc_dk_dphi(&mut self.conductivity, tt)?;
-                // compute hₖ = ∂k/∂ϕ · ∇T
-                t2_dot_vec(hk, 1.0, &self.conductivity, &self.grad_tt);
+                self.model.calc_dk_dphi(&mut self.conductivity, phi)?;
+                // compute hₖ = ∂k/∂ϕ · ∇ϕ
+                t2_dot_vec(hk, 1.0, &self.conductivity, &self.grad_phi);
                 Ok(())
             })
             .unwrap();

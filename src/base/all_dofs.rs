@@ -247,7 +247,7 @@ mod tests {
             Some("cannot find equation number because PointId is out-of-bounds")
         );
         assert_eq!(
-            dofs.eq(0, Dof::T).err(),
+            dofs.eq(0, Dof::Phi).err(),
             Some("cannot find the number of a (PointId, DOF) pair")
         );
 

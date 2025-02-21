@@ -223,7 +223,7 @@ mod tests {
             .point(0, Dof::Ux, 0.0)
             .point(0, Dof::Uy, 0.0)
             .edge(&edge, Dof::Pl, 1.0)
-            .face(&face, Dof::T, 2.0);
+            .face(&face, Dof::Phi, 2.0);
         print!("{}", essential);
         assert_eq!(
             format!("{}", essential),
@@ -233,9 +233,9 @@ mod tests {
              0 : Uy(t=0) = 0.0, Uy(t=1) = 0.0\n\
              1 : Pl(t=0) = 1.0, Pl(t=1) = 1.0\n\
              2 : Pl(t=0) = 1.0, Pl(t=1) = 1.0\n\
-             3 : T(t=0) = 2.0, T(t=1) = 2.0\n\
-             4 : T(t=0) = 2.0, T(t=1) = 2.0\n\
-             5 : T(t=0) = 2.0, T(t=1) = 2.0\n"
+             3 : Phi(t=0) = 2.0, Phi(t=1) = 2.0\n\
+             4 : Phi(t=0) = 2.0, Phi(t=1) = 2.0\n\
+             5 : Phi(t=0) = 2.0, Phi(t=1) = 2.0\n"
         );
     }
 
@@ -256,7 +256,7 @@ mod tests {
             .points(&[0], Dof::Ux, 0.0)
             .points_fn(&[0], Dof::Uy, 1.0, |t| (t + 1.0) * 2.0)
             .edges_fn(&edges, Dof::Pl, 1.0, |t| (t + 1.0) * 20.0)
-            .faces_fn(&faces, Dof::T, 1.0, |t| (t + 1.0) * 200.0);
+            .faces_fn(&faces, Dof::Phi, 1.0, |t| (t + 1.0) * 200.0);
         // print!("{}", essential);
         assert_eq!(
             format!("{}", essential),
@@ -266,9 +266,9 @@ mod tests {
              0 : Uy(t=0) = 2.0, Uy(t=1) = 4.0\n\
              1 : Pl(t=0) = 20.0, Pl(t=1) = 40.0\n\
              2 : Pl(t=0) = 20.0, Pl(t=1) = 40.0\n\
-             3 : T(t=0) = 200.0, T(t=1) = 400.0\n\
-             4 : T(t=0) = 200.0, T(t=1) = 400.0\n\
-             5 : T(t=0) = 200.0, T(t=1) = 400.0\n"
+             3 : Phi(t=0) = 200.0, Phi(t=1) = 400.0\n\
+             4 : Phi(t=0) = 200.0, Phi(t=1) = 400.0\n\
+             5 : Phi(t=0) = 200.0, Phi(t=1) = 400.0\n"
         );
     }
 }

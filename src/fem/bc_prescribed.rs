@@ -181,7 +181,7 @@ mod tests {
         );
 
         let mut essential = Essential::new();
-        essential.points(&[0], Dof::T, 0.0);
+        essential.points(&[0], Dof::Phi, 0.0);
         assert_eq!(
             BcPrescribed::new(&base, &essential).err(),
             Some("cannot find the number of a (PointId, DOF) pair")
@@ -194,7 +194,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let mut essential = Essential::new();
-        essential.points(&[0], Dof::T, 110.0);
+        essential.points(&[0], Dof::Phi, 110.0);
         let array = BcPrescribed::new(&base, &essential).unwrap();
         assert_eq!(array.flags, &[true, false, false]);
         assert_eq!(array.equations, &[0]);

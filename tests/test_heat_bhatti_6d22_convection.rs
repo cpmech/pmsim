@@ -62,7 +62,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&bottom, Dof::T, 110.0);
+    essential.edges(&bottom, Dof::Phi, 110.0);
     println!("\n{}", essential);
 
     // natural boundary conditions
@@ -257,7 +257,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&bottom, Dof::T, 110.0);
+    essential.edges(&bottom, Dof::Phi, 110.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();

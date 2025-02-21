@@ -69,7 +69,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&right, Dof::T, 0.0); // must be zero to match analytical solution
+    essential.edges(&right, Dof::Phi, 0.0); // must be zero to match analytical solution
 
     // natural boundary conditions
     let natural = Natural::new();
@@ -101,7 +101,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = base.dofs.eq(ref_id, Dof::T)?;
+    let ref_eq = base.dofs.eq(ref_id, Dof::Phi)?;
     let ref_tt = state.u[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
@@ -110,7 +110,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     if SAVE_FIGURE {
         // get temperature values along x
         let post = PostProc::new(&mesh, &base);
-        let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::T, 0.0, any_x)?;
+        let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;
 
         // compute plot data
         let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();
