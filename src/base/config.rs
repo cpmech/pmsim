@@ -40,6 +40,9 @@ pub struct Config<'a> {
     /// Holds a flag indicating the use the arc-length method
     pub(crate) arc_length_method: bool,
 
+    /// Holds the initial loading factor ℓ0 used by the arc-length method
+    pub(crate) initial_loading_factor: f64,
+
     /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
 
@@ -175,6 +178,7 @@ impl<'a> Config<'a> {
             dynamics: false,
             constant_tangent: false,
             arc_length_method: false,
+            initial_loading_factor: 0.05,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-10),
@@ -363,6 +367,12 @@ impl<'a> Config<'a> {
     /// Sets a flag indicating the use of the arc-length method
     pub fn set_arc_length_method(&mut self, enable: bool) -> &mut Self {
         self.arc_length_method = enable;
+        self
+    }
+
+    /// Sets the initial loading factor ℓ0 used by the arc-length method
+    pub fn set_ini_load_factor(&mut self, ell0: f64) -> &mut Self {
+        self.initial_loading_factor = ell0;
         self
     }
 

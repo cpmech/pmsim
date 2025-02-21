@@ -19,7 +19,6 @@ pub struct ArcLengthControl<'a> {
     dds_max: f64,        // maximum total increment of arc-length
     ell_anc: f64,        // ancient (before previous) loading factor ℓ
     ell_old: f64,        // previous loading factor ℓ
-    ell: f64,            // ℓ: current loading factor
     dg_du: Vector,       // derivative of constraint equation w.r.t. displacement
     ddl: f64,            // Δℓ: total increment in load factor
     ddu1: Vector,        // Δu1: total increment in displacement part I
@@ -61,7 +60,6 @@ impl<'a> ArcLengthControl<'a> {
             dds_max: 0.0,
             ell_anc: 0.0,
             ell_old: 0.0,
-            ell: 0.05,
             dg_du: Vector::new(neq_total),
             ddl: 0.0,
             ddu1: Vector::new(neq_total),
@@ -78,11 +76,11 @@ impl<'a> ArcLengthControl<'a> {
             assert!(f64::abs(self.dds_old) > 1e-12);
             let alpha = self.dds / self.dds_old;
             vec_add(&mut state.u, 1.0 + alpha, &self.u_old, -alpha, &self.u_anc).unwrap();
-            self.ell = (1.0 + alpha) * self.ell_old - alpha * self.ell_anc;
+            state.ell = (1.0 + alpha) * self.ell_old - alpha * self.ell_anc;
         }
 
         vec_add(&mut state.ddu, 1.0, &state.u, -1.0, &self.u_old).unwrap();
-        self.ddl = self.ell - self.ell_old;
+        self.ddl = state.ell - self.ell_old;
 
         self.converged_old = self.converged;
         self.converged = false;
@@ -97,7 +95,7 @@ impl<'a> ArcLengthControl<'a> {
             self.data.assemble_ff_int_and_ff_ext(state)?;
 
             // calculate R = F_int - lf * F_ext
-            self.data.calculate_residuals_vector(self.ell);
+            self.data.calculate_residuals_vector(state.ell);
 
             // add Lagrange multiplier contributions to R
             if self.config.lagrange_mult_method {
@@ -172,7 +170,7 @@ impl<'a> ArcLengthControl<'a> {
 
             // update primary variables
             self.data.update_primary_variables(state)?;
-            self.ell += dl;
+            state.ell += dl;
             self.ddl += dl;
 
             // backup/restore secondary variables
@@ -209,7 +207,7 @@ impl<'a> ArcLengthControl<'a> {
                 vec_copy(&mut self.u_anc, &self.u_old).unwrap();
                 vec_copy(&mut self.u_old, &state.u).unwrap();
                 self.ell_anc = self.ell_old;
-                self.ell_old = self.ell;
+                self.ell_old = state.ell;
             } else {
                 if self.converged_old {
                     self.dds = f64::max(self.dds / 2.0, self.dds_min);
