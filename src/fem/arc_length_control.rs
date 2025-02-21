@@ -4,7 +4,7 @@ use super::{ConvergenceControl, FemBase, FemState, SolverData, TimeControl};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::{vec_add, vec_copy, vec_inner, Vector};
+use russell_lab::{vec_add, vec_copy, vec_copy_scaled, vec_inner, vec_scale, Vector};
 
 pub struct ArcLengthControl<'a> {
     config: &'a Config<'a>,
@@ -12,20 +12,22 @@ pub struct ArcLengthControl<'a> {
     conv_control: ConvergenceControl<'a>,
     time_control: TimeControl<'a>,
 
-    psi: f64,
-    alpha: f64,
-    delta_s: f64,
-    delta_s_old: f64,
-    delta_s_min: f64,
-    delta_s_max: f64,
-    lf_anc: f64, // lf: load factor, anc: ancient
-    lf_old: f64,
-    lf: f64,
-    delta_lf: f64,
-    uu_anc: Vector, // anc: ancient
-    uu_old: Vector,
-    converged_old: bool,
-    converged: bool,
+    psi: f64,            // method selector
+    dds: f64,            // total increment of arc-length
+    dds_old: f64,        // previous total increment of arc-length
+    dds_min: f64,        // minimum total increment of arc-length
+    dds_max: f64,        // maximum total increment of arc-length
+    ell_anc: f64,        // ancient (before previous) loading factor ℓ
+    ell_old: f64,        // previous loading factor ℓ
+    ell: f64,            // ℓ: current loading factor
+    dg_du: Vector,       // derivative of constraint equation w.r.t. displacement
+    ddl: f64,            // Δℓ: total increment in load factor
+    ddu1: Vector,        // Δu1: total increment in displacement part I
+    ddu2: Vector,        // Δu2: total increment in displacement part II
+    u_anc: Vector,       // ancient (before previous) displacement
+    u_old: Vector,       // old displacement
+    converged_old: bool, // convergence status of previous iteration
+    converged: bool,     // convergence status of current iteration
 }
 
 impl<'a> ArcLengthControl<'a> {
@@ -53,32 +55,34 @@ impl<'a> ArcLengthControl<'a> {
             conv_control,
             time_control,
             psi: 1.0,
-            alpha: 0.0,
-            delta_s: 0.0,
-            delta_s_old: 0.0,
-            delta_s_min: 0.0,
-            delta_s_max: 0.0,
-            lf_anc: 0.0,
-            lf_old: 0.0,
-            lf: 0.0,
-            delta_lf: 0.0,
-            uu_anc: Vector::new(neq_total),
-            uu_old: Vector::new(neq_total),
+            dds: 0.05,
+            dds_old: 0.0,
+            dds_min: 0.0,
+            dds_max: 0.0,
+            ell_anc: 0.0,
+            ell_old: 0.0,
+            ell: 0.05,
+            dg_du: Vector::new(neq_total),
+            ddl: 0.0,
+            ddu1: Vector::new(neq_total),
+            ddu2: Vector::new(neq_total),
+            u_anc: Vector::new(neq_total),
+            u_old: Vector::new(neq_total),
             converged_old: false,
             converged: false,
         })
     }
 
     pub fn step_predictor(&mut self, timestep: usize, state: &mut FemState) {
-        if timestep > 1 {
-            assert!(f64::abs(self.delta_s_old) > 1e-12);
-            self.alpha = self.delta_s / self.delta_s_old;
-            vec_add(&mut state.uu, 1.0 + self.alpha, &self.uu_old, -self.alpha, &self.uu_anc).unwrap();
-            self.lf = (1.0 + self.alpha) * self.lf_old - self.alpha * self.lf_anc;
+        if timestep > 0 {
+            assert!(f64::abs(self.dds_old) > 1e-12);
+            let alpha = self.dds / self.dds_old;
+            vec_add(&mut state.uu, 1.0 + alpha, &self.u_old, -alpha, &self.u_anc).unwrap();
+            self.ell = (1.0 + alpha) * self.ell_old - alpha * self.ell_anc;
         }
 
-        vec_add(&mut state.duu, 1.0, &state.uu, -1.0, &self.uu_old).unwrap();
-        self.delta_lf = self.lf - self.lf_old;
+        vec_add(&mut state.duu, 1.0, &state.uu, -1.0, &self.u_old).unwrap();
+        self.ddl = self.ell - self.ell_old;
 
         self.converged_old = self.converged;
         self.converged = false;
@@ -88,15 +92,12 @@ impl<'a> ArcLengthControl<'a> {
     pub fn step_corrector(&mut self, timestep: usize, state: &mut FemState) -> Result<bool, StrError> {
         let ndof = self.data.ls.ndof;
         let neq = self.data.ls.neq_total;
-        let lf2 = self.lf * self.lf;
-        let ds2 = self.delta_s * self.delta_s;
-        let eq_arc = self.data.ls.eq_arc;
         for iteration in 0..self.config.n_max_iterations {
             // assemble F_int and F_ext
             self.data.assemble_ff_int_and_ff_ext(state)?;
 
             // calculate R = F_int - lf * F_ext
-            self.data.calculate_residuals_vector(self.lf);
+            self.data.calculate_residuals_vector(self.ell);
 
             // add Lagrange multiplier contributions to R
             if self.config.lagrange_mult_method {
@@ -104,20 +105,21 @@ impl<'a> ArcLengthControl<'a> {
             }
 
             // add arc-length contribution to R
-            let b = if timestep > 0 {
-                // constraint-related expressions
-                // note that: a = 2 * delta_u
-                let mut ftf = vec_inner(&self.data.ls.ff_ext, &self.data.ls.ff_ext);
-                let g = vec_inner(&state.duu, &state.duu) + self.psi * lf2 * ftf - ds2;
-                let b = 2.0 * self.psi * self.delta_lf * ftf;
-                self.data.ls.rr[eq_arc] = g;
-                b
+            let (g, dg_dl) = if timestep > 0 {
+                let inc = vec_inner(&state.duu, &state.duu);
+                let ftf = vec_inner(&self.data.ls.ff_ext, &self.data.ls.ff_ext);
+                let g = inc + self.psi * self.ddl * self.ddl * ftf - self.dds * self.dds;
+                let dg_dl = 2.0 * self.psi * self.ddl * ftf;
+                vec_copy_scaled(&mut self.dg_du, 2.0, &state.duu).unwrap();
+                // self.data.ls.rr[eq_arc] = g;
+                (g, dg_dl)
             } else {
-                0.0
+                vec_scale(&mut self.dg_du, 0.0);
+                (0.0, 1.0)
             };
 
             // check convergence on residual
-            self.conv_control.analyze_rr(iteration, &self.data.ls.rr)?;
+            self.conv_control.analyze_rr(iteration, &self.data.ls.rr, g)?;
             if self.conv_control.converged_on_norm_rr() {
                 self.conv_control.print_iteration();
                 return Ok(true); // converged
@@ -133,18 +135,33 @@ impl<'a> ArcLengthControl<'a> {
                 self.data.bc_prescribed.assemble_kk_rsm(&mut self.data.ls.kk);
             }
 
-            // add arc-length contribution to K
-            for i in 0..ndof {
-                self.data.ls.kk.put(i, eq_arc, -self.data.ls.ff_ext[i]);
-                self.data.ls.kk.put(eq_arc, i, 2.0 * state.duu[i]);
-            }
-            self.data.ls.kk.put(eq_arc, eq_arc, b);
+            let kk = self.data.ls.kk.as_dense();
 
             // factorize K matrix
             self.data.ls.factorize()?;
 
-            // solve linear system
-            self.data.ls.solve()?;
+            // solve linear system I
+            let verbose = self.config.lin_sol_params.verbose;
+            self.data
+                .ls
+                .solver
+                .actual
+                .solve(&mut self.ddu1, &self.data.ls.ff_ext, verbose)?;
+
+            // solve linear system II
+            self.data
+                .ls
+                .solver
+                .actual
+                .solve(&mut self.ddu2, &self.data.ls.rr, verbose)?;
+
+            // calculate δℓ
+            let c1 = vec_inner(&self.dg_du, &self.ddu1);
+            let c2 = vec_inner(&self.dg_du, &self.ddu2);
+            let dl = (c2 - g) / (dg_dl + c1);
+
+            // calculate -δu
+            vec_add(&mut self.data.ls.mdu, 1.0, &self.ddu2, -dl, &self.ddu1).unwrap();
 
             // check convergence on corrective displacement
             self.conv_control.analyze_mdu(iteration, &self.data.ls.mdu)?;
@@ -154,12 +171,9 @@ impl<'a> ArcLengthControl<'a> {
             }
 
             // update primary variables
-            for i in 0..eq_arc {
-                state.duu[i] -= self.data.ls.mdu[i];
-                state.uu[i] += state.duu[i];
-            }
-            self.delta_lf -= self.data.ls.mdu[eq_arc];
-            self.lf += self.delta_lf;
+            self.data.update_primary_variables(state)?;
+            self.ell += dl;
+            self.ddl += dl;
 
             // backup/restore secondary variables
             if !self.config.linear_problem {
@@ -177,31 +191,30 @@ impl<'a> ArcLengthControl<'a> {
     }
 
     pub fn run(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        for timestep in 0..1 {
+        for timestep in 0..50 {
             self.step_predictor(timestep, state);
-            let converged = self.step_corrector(timestep, state)?;
-            if converged {
+            self.converged = self.step_corrector(timestep, state)?;
+            if self.converged {
                 if timestep == 0 {
-                    let utu = vec_inner(&state.duu, &state.duu);
-                    let mut ftf = vec_inner(&self.data.ls.ff_ext, &self.data.ls.ff_ext);
-                    let dlf2 = self.delta_lf * self.delta_lf;
-                    self.delta_s = f64::sqrt(utu + self.psi * dlf2 * ftf);
-                    self.delta_s_max = self.delta_s;
-                    self.delta_s_min = self.delta_s / 1024.0;
+                    let inc = vec_inner(&state.duu, &state.duu);
+                    let ftf = vec_inner(&self.data.ls.ff_ext, &self.data.ls.ff_ext);
+                    self.dds = f64::sqrt(inc + self.psi * self.ddl * self.ddl * ftf);
+                    self.dds_max = self.dds;
+                    self.dds_min = self.dds / 1024.0;
                 }
-                self.delta_s_old = self.delta_s;
+                self.dds_old = self.dds;
                 if self.converged_old {
-                    self.delta_s = f64::min(f64::max(2.0 * self.delta_s, self.delta_s_min), self.delta_s_max);
+                    self.dds = f64::min(f64::max(2.0 * self.dds, self.dds_min), self.dds_max);
                 }
-                vec_copy(&mut self.uu_anc, &self.uu_old).unwrap();
-                vec_copy(&mut self.uu_old, &state.uu).unwrap();
-                self.lf_anc = self.lf_old;
-                self.lf_old = self.lf;
+                vec_copy(&mut self.u_anc, &self.u_old).unwrap();
+                vec_copy(&mut self.u_old, &state.uu).unwrap();
+                self.ell_anc = self.ell_old;
+                self.ell_old = self.ell;
             } else {
                 if self.converged_old {
-                    self.delta_s = f64::max(self.delta_s / 2.0, self.delta_s_min);
+                    self.dds = f64::max(self.dds / 2.0, self.dds_min);
                 } else {
-                    self.delta_s = f64::max(self.delta_s / 4.0, self.delta_s_min);
+                    self.dds = f64::max(self.dds / 4.0, self.dds_min);
                 }
             }
         }
@@ -213,11 +226,10 @@ impl<'a> ArcLengthControl<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::ArcLengthControl;
     use crate::base::{Config, Dof, Elem, Essential, Natural, ParamRod, Pbc};
     use crate::fem::{FemBase, FemState};
     use gemlab::mesh::{Cell, Figure, GeoKind, Mesh, Point};
-
-    use super::ArcLengthControl;
 
     #[rustfmt::skip]
     pub fn small_truss_2d() -> Mesh {
@@ -247,18 +259,20 @@ mod tests {
 
         // parameters
         let p1 = ParamRod {
+            gnl: true,
             density: 1.0,
             young: 1.0,
             area: 1.0,
             ngauss: None,
         };
         let p2 = ParamRod {
+            gnl: true,
             density: 1.0,
             young: 0.5,
             area: 1.0,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2))]).unwrap();
 
         // essential boundary conditions
         let mut essential = Essential::new();
@@ -273,12 +287,14 @@ mod tests {
         natural.point(3, Pbc::Fy, -1.0);
 
         // configuration
-        let config = Config::new(&mesh);
+        let mut config = Config::new(&mesh);
+        config.set_arc_length_method(true).set_tol_rr_abs(1e-6);
 
         // FEM state
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         // solver
         let mut solver = ArcLengthControl::new(&mesh, &base, &config, &essential, &natural).unwrap();
+        solver.run(&mut state).unwrap();
     }
 }

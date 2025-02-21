@@ -122,12 +122,12 @@ impl<'a> SolverData<'a> {
     /// Assembles the (augmented) global matrix K
     pub fn assemble_kk(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // reset pointer in K matrix == clear all values
-        self.ls.kk.reset().unwrap();
+        self.ls.kk.reset();
 
-        // calculates all Ke matrices (local Jacobian matrix; derivative of ϕ w.r.t u) and adds them to K
-        let kk_coo = self.ls.kk.get_coo_mut().unwrap();
-        self.elements.assemble_kke(kk_coo, state, &self.ignored)?;
-        self.bc_distributed.assemble_kke(kk_coo, state, &self.ignored)?;
+        // calculates all Ke matrices (local Jacobian matrix; derivative of f_int w.r.t u) and adds them to K
+        self.elements.assemble_kke(&mut self.ls.kk, state, &self.ignored)?;
+        self.bc_distributed
+            .assemble_kke(&mut self.ls.kk, state, &self.ignored)?;
         Ok(())
     }
 

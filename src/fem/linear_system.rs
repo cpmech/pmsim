@@ -2,7 +2,7 @@ use super::{BcDistributedArray, BcPrescribed, Elements, FemBase};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::{LinSolver, SparseMatrix};
+use russell_sparse::{CooMatrix, CscMatrix, LinSolver};
 
 /// Holds variables to solve the global linear system
 pub struct LinearSystem<'a> {
@@ -21,24 +21,11 @@ pub struct LinearSystem<'a> {
     ///             ⎧ ndof               if reduced system method
     /// neq_total = ⎨
     ///             ⎩ ndof + n_lagrange  if Lagrange multipliers method
-    ///
-    /// if arc-length: neq_total += 1
     /// ```
     ///
     /// where `n_equation` is the total number of DOFs and `n_lagrange`
     /// is the number of prescribed DOFs.
     pub neq_total: usize,
-
-    /// Points to the equation corresponding to the arc-length constraint
-    ///
-    /// ```text
-    ///          ⎧ ndof               if reduced system method
-    /// eq_arc = ⎨
-    ///          ⎩ ndof + n_lagrange  if Lagrange multipliers method
-    ///
-    /// neq_total = ndof + n_lagrange + 1
-    /// ```
-    pub eq_arc: usize,
 
     /// Holds the supremum of the number of nonzero values (nnz) in the global matrix
     ///
@@ -64,8 +51,6 @@ pub struct LinearSystem<'a> {
     ///           ⎧   n_prescribed  if reduced system method
     /// n_extra = ⎨
     ///           ⎩ 2 n_prescribed  if Lagrange multipliers method
-    ///
-    /// if arc-length: n_extra += 2 ndof + 1
     /// ```
     pub nnz_sup: usize,
 
@@ -87,7 +72,7 @@ pub struct LinearSystem<'a> {
     /// Holds the global Jacobian matrix K
     ///
     /// (neq_total, neq_total, nnz_sup)
-    pub kk: SparseMatrix,
+    pub kk: CooMatrix,
 
     /// Holds the linear solver
     pub solver: LinSolver<'a>,
@@ -136,17 +121,12 @@ impl<'a> LinearSystem<'a> {
         let n_prescribed = prescribed.equations.len();
         let mut n_lagrange = 0;
 
-        // total number of equations and first arc-length equation
+        // total number of equations
         let mut neq_total = ndof;
         if config.lagrange_mult_method {
             n_lagrange = n_prescribed;
             neq_total += n_lagrange;
         };
-        let mut eq_arc = 0;
-        if config.arc_length_method {
-            eq_arc = neq_total;
-            neq_total += 1;
-        }
 
         // estimate the number of non-zero values
         let mut nnz_sup = if config.lagrange_mult_method {
@@ -158,9 +138,6 @@ impl<'a> LinearSystem<'a> {
         } else {
             n_prescribed
         };
-        if config.arc_length_method {
-            nnz_sup += 2 * ndof + 1;
-        }
 
         // elements always have a Jacobian matrix (all must be symmetric to use symmetry)
         nnz_sup += elements.all.iter().fold(0, |acc, e| {
@@ -192,12 +169,11 @@ impl<'a> LinearSystem<'a> {
             ndof,
             n_lagrange,
             neq_total,
-            eq_arc,
             nnz_sup,
             ff_int: Vector::new(neq_total),
             ff_ext: Vector::new(neq_total),
             rr: Vector::new(neq_total),
-            kk: SparseMatrix::new_coo(neq_total, neq_total, nnz_sup, sym)?,
+            kk: CooMatrix::new(neq_total, neq_total, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,
             mdu: Vector::new(neq_total),
             debug_kk_matrix: config.save_matrix_market_file || config.save_vismatrix_file,
@@ -209,7 +185,7 @@ impl<'a> LinearSystem<'a> {
     pub fn factorize(&mut self) -> Result<(), StrError> {
         self.solver
             .actual
-            .factorize(&mut self.kk, Some(self.config.lin_sol_params))?;
+            .factorize(&self.kk, Some(self.config.lin_sol_params))?;
         if self.debug_kk_matrix {
             return self.write_kk_matrix_and_stop();
         }
@@ -221,12 +197,12 @@ impl<'a> LinearSystem<'a> {
     pub fn solve(&mut self) -> Result<(), StrError> {
         self.solver
             .actual
-            .solve(&mut self.mdu, &self.kk, &self.rr, self.config.lin_sol_params.verbose)
+            .solve(&mut self.mdu, &self.rr, self.config.lin_sol_params.verbose)
     }
 
     /// Writes K matrix to file and stops
     fn write_kk_matrix_and_stop(&self) -> Result<(), StrError> {
-        let csc = self.kk.get_csc()?;
+        let csc = CscMatrix::from_coo(&self.kk)?;
         if self.config.save_matrix_market_file {
             let name = format!("/tmp/pmsim/K-matrix.mtx");
             csc.write_matrix_market(&name, false).unwrap();

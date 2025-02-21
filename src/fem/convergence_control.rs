@@ -46,12 +46,15 @@ impl<'a> ConvergenceControl<'a> {
     /// Analyzes the convergence of the current iteration
     ///
     /// Returns an error if NaN or Inf is found.
-    pub(crate) fn analyze_rr(&mut self, iteration: usize, rr: &Vector) -> Result<(), StrError> {
+    ///
+    /// `g` is some extra constraint that needs to be satisfied.
+    /// For example, the arc-length constraint.
+    pub(crate) fn analyze_rr(&mut self, iteration: usize, rr: &Vector, g: f64) -> Result<(), StrError> {
         // record iteration index
         self.iteration = iteration;
 
         // compute the norm of R
-        self.norm_rr = vec_norm(rr, Norm::Max);
+        self.norm_rr = f64::max(vec_norm(rr, Norm::Max), f64::abs(g));
 
         // check for NaN or Inf
         let found_nan_or_inf = !self.norm_rr.is_finite();

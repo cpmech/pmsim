@@ -15,7 +15,7 @@ const YOUNG: f64 = 1000.0; // Young's modulus
 const POISSON: f64 = 0.25; // Poisson's coefficient
 const NA: usize = 94; // number of alpha divisions
 
-fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
+fn generate_matrix(name: &str, nr: usize) -> Result<CooMatrix, StrError> {
     // generate mesh
     let wr = vec![1.0; nr];
     let mesh = Structured::quarter_ring_2d(R1, R2, &wr, NA, GeoKind::Qua4, true).unwrap();
@@ -78,21 +78,20 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
     let mut lin_sys = LinearSystem::new(&base, &config, &bc_prescribed, &elements, &boundaries)?;
 
     // assemble jacobian matrix
-    let kk = lin_sys.kk.get_coo_mut()?;
     let ignore = &bc_prescribed.flags;
-    elements.assemble_kke(kk, &state, &ignore)?;
-    boundaries.assemble_kke(kk, &state, &ignore)?;
+    elements.assemble_kke(&mut lin_sys.kk, &state, &ignore)?;
+    boundaries.assemble_kke(&mut lin_sys.kk, &state, &ignore)?;
 
     // augment global Jacobian matrix
     for eq in &bc_prescribed.equations {
-        kk.put(*eq, *eq, 1.0).unwrap();
+        lin_sys.kk.put(*eq, *eq, 1.0).unwrap();
     }
 
     // done
     Ok(lin_sys.kk)
 }
 
-fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Result<(), StrError> {
+fn run(name: &str, mat: &CooMatrix, enforce_unsym_strategy: bool) -> Result<(), StrError> {
     // allocate stats structure
     let mut stats = StatsLinSol::new();
 
@@ -119,7 +118,7 @@ fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Resu
     let rhs = Vector::filled(nrow, 1.0);
 
     // solve linear system
-    solver.actual.solve(&mut x, mat, &rhs, false)?;
+    solver.actual.solve(&mut x, &rhs, false)?;
 
     // verify the solution
     stats.verify = VerifyLinSys::from(mat, &x, &rhs)?;
@@ -166,7 +165,7 @@ fn main() -> Result<(), StrError> {
         run(name, &mut mat, true)?;
 
         // write smat and mtx files
-        let csc = mat.get_csc()?;
+        let csc = CscMatrix::from_coo(&mat)?;
         csc.write_matrix_market(&format!("{}/{}.mtx", OUT_DIR, name), false)?;
         csc.write_matrix_market(&format!("{}/{}.smat", OUT_DIR, name), true)?;
     }

@@ -161,7 +161,7 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // check convergence on residual
-        self.conv_control.analyze_rr(iteration, &self.data.ls.rr)?;
+        self.conv_control.analyze_rr(iteration, &self.data.ls.rr, 0.0)?;
         if self.conv_control.converged_on_norm_rr() {
             self.conv_control.print_iteration();
             return Ok(true); // converged

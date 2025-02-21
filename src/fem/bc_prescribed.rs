@@ -2,7 +2,7 @@ use super::{FemBase, FemState};
 use crate::base::Essential;
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::SparseMatrix;
+use russell_sparse::CooMatrix;
 
 /// Assists in calculating essential (Dirichlet) boundary conditions (aka prescribed BCs)
 pub struct BcPrescribed<'a> {
@@ -123,7 +123,7 @@ impl<'a> BcPrescribed<'a> {
     ///  │  A   0  │ │ -δλ │   │ A u - c │
     ///  └         ┘ └     ┘   └         ┘
     /// ```
-    pub fn assemble_kk_lmm(&self, kk: &mut SparseMatrix) {
+    pub fn assemble_kk_lmm(&self, kk: &mut CooMatrix) {
         let ndof = self.flags.len();
         for p in 0..self.equations.len() {
             let i = self.equations[p];
@@ -150,7 +150,7 @@ impl<'a> BcPrescribed<'a> {
     /// ```
     ///
     /// Note that the prescribed values are zero (homogeneous BCs).
-    pub fn assemble_kk_rsm(&self, kk: &mut SparseMatrix) {
+    pub fn assemble_kk_rsm(&self, kk: &mut CooMatrix) {
         for eq in &self.equations {
             kk.put(*eq, *eq, 1.0).unwrap();
         }

@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemBase, FemState};
-use crate::base::{compute_local_to_global, Config, ParamRod};
+use crate::base::{compute_local_to_global, ParamRod};
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
@@ -10,9 +10,6 @@ use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
 ///
 /// * Felippa C., Chapter 20: Implementation of One-Dimensional Elements (IFEM.Ch20.pdf)
 pub struct ElementRod<'a> {
-    /// Global configuration
-    pub config: &'a Config<'a>,
-
     /// Material parameters
     pub param: &'a ParamRod,
 
@@ -32,7 +29,6 @@ impl<'a> ElementRod<'a> {
     pub fn new(
         mesh: &Mesh,
         base: &FemBase,
-        config: &'a Config,
         param: &'a ParamRod,
         cell_id: CellId,
     ) -> Result<Self, StrError> {
@@ -73,7 +69,6 @@ impl<'a> ElementRod<'a> {
             ])
         };
         Ok(ElementRod {
-            config,
             param,
             local_to_global: compute_local_to_global(&base.emap, &base.dofs, cell)?,
             stiffness,
@@ -163,15 +158,15 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
+            gnl: false,
             area: 5.0,
             young: 1_000.0,
             density: 1.0,
             ngauss: None,
         };
         let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
-        let config = Config::new(&mesh);
         assert_eq!(
-            ElementRod::new(&mesh, &base, &config, &p1, 0).err(),
+            ElementRod::new(&mesh, &base, &p1, 0).err(),
             Some("number of nodes for Rod must be 2")
         );
     }
@@ -190,6 +185,7 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
+            gnl: false,
             area: 5.0,
             young: 1_000.0,
             density: 1.0,
@@ -199,7 +195,7 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
+        let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 4;
         let mut f_int = Vector::new(neq);
@@ -230,6 +226,7 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
+            gnl: false,
             area: 10.0,
             young: 343.0,
             density: 1.0,
@@ -239,7 +236,7 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
+        let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 6;
         let mut f_int = Vector::new(neq);
@@ -273,6 +270,7 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
+            gnl: false,
             area: 9.0,
             young: 1.0,
             density: 1.0,
@@ -282,7 +280,7 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&mesh, &base, &config, &p1, cell.id).unwrap();
+        let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 6;
         let mut f_int = Vector::new(neq);
@@ -326,18 +324,21 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
+            gnl: false,
             area: 1.0,
             young: 100.0,
             density: 1.0,
             ngauss: None,
         };
         let p2 = ParamRod {
+            gnl: false,
             area: 1.0 / 2.0,
             young: 100.0,
             density: 1.0,
             ngauss: None,
         };
         let p3 = ParamRod {
+            gnl: false,
             area: 2.0 * SQRT_2,
             young: 100.0,
             density: 1.0,
@@ -347,9 +348,9 @@ mod tests {
         let essential = Essential::new();
 
         let config = Config::new(&mesh);
-        let mut rod0 = ElementRod::new(&mesh, &base, &config, &p1, 0).unwrap();
-        let mut rod1 = ElementRod::new(&mesh, &base, &config, &p2, 1).unwrap();
-        let mut rod2 = ElementRod::new(&mesh, &base, &config, &p3, 2).unwrap();
+        let mut rod0 = ElementRod::new(&mesh, &base, &p1, 0).unwrap();
+        let mut rod1 = ElementRod::new(&mesh, &base, &p2, 1).unwrap();
+        let mut rod2 = ElementRod::new(&mesh, &base, &p3, 2).unwrap();
         let neq = 4;
         let mut jacobian = Matrix::new(neq, neq);
 

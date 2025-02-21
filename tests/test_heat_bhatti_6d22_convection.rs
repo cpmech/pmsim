@@ -126,7 +126,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     println!("norm_rr = {:?}", norm_rr);
 
     // assemble jacobians matrices
-    let kk = lin_sys.kk.get_coo_mut()?;
+    let kk = &mut lin_sys.kk;
     elements.assemble_kke(kk, &state, &ignore)?;
     boundaries.assemble_kke(kk, &state, &ignore)?;
     let kk_mat = kk.as_dense();
@@ -188,7 +188,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let jj = &mut lin_sys.kk;
     let mdu = &mut lin_sys.mdu;
     lin_sys.solver.actual.factorize(jj, None)?;
-    lin_sys.solver.actual.solve(mdu, jj, &rr, false)?;
+    lin_sys.solver.actual.solve(mdu, &rr, false)?;
 
     // update U vector
     let mut uu_new = Vector::new(lin_sys.neq_total);

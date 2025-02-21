@@ -227,6 +227,9 @@ pub struct ParamDiffusion {
 /// Holds parameters for (linear-elastic) rods
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamRod {
+    /// Use geometrically non-linear (GNL) formulation
+    pub gnl: bool,
+
     /// Intrinsic (real) density
     pub density: f64,
 
@@ -513,6 +516,7 @@ impl ParamRod {
     /// Returns sample parameters
     pub fn sample() -> Self {
         ParamRod {
+            gnl: false,
             density: 1.0,
             young: 1000.0,
             area: 1.0,
@@ -717,7 +721,7 @@ mod tests {
     fn param_rod_works() {
         let p = ParamRod::sample();
         let q = p.clone();
-        let correct = "ParamRod { density: 1.0, young: 1000.0, area: 1.0, ngauss: None }";
+        let correct = "ParamRod { gnl: false, density: 1.0, young: 1000.0, area: 1.0, ngauss: None }";
         assert_eq!(format!("{:?}", q), correct);
     }
 

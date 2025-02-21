@@ -1,4 +1,4 @@
-use super::{ElementDiffusion, ElementRod, ElementSolid, ElementTrait, FemBase, FemState};
+use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemBase, FemState};
 use crate::base::{assemble_matrix, assemble_vector, Config, Elem};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
@@ -46,7 +46,13 @@ impl<'a> GenericElement<'a> {
         let element = base.amap.get(cell.attribute).unwrap(); // already checked
         let actual: Box<dyn ElementTrait> = match element {
             Elem::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, base, config, p, cell.id)?),
-            Elem::Rod(p) => Box::new(ElementRod::new(mesh, base, config, p, cell.id)?),
+            Elem::Rod(p) => {
+                if p.gnl {
+                    Box::new(ElementRodGnl::new(mesh, base, p, cell.id)?)
+                } else {
+                    Box::new(ElementRod::new(mesh, base, p, cell.id)?)
+                }
+            }
             Elem::Beam(..) => panic!("TODO: Beam"),
             Elem::Solid(p) => Box::new(ElementSolid::new(mesh, base, config, p, cell.id)?),
             Elem::PorousLiq(..) => panic!("TODO: PorousLiq"),

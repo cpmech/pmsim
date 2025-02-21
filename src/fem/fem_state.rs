@@ -161,9 +161,6 @@ impl FemState {
         if config.lagrange_mult_method {
             neq_total += essential.size();
         };
-        if config.arc_length_method {
-            neq_total += 1;
-        }
 
         // primary variables
         let duu = Vector::new(neq_total);
