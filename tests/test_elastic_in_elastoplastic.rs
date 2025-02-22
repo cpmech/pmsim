@@ -14,10 +14,8 @@ use russell_tensor::{Mandel, Tensor2, SQRT_2_BY_3, SQRT_3_BY_2};
 //                                                                   //
 ///////////////////////////////////////////////////////////////////////
 
-const FILE_STEM: &str = "test_elastic_in_elastoplastic";
-
-const SAVE_FIGURE: bool = true;
-
+const NAME: &str = "test_elastic_in_elastoplastic";
+const SAVE_FIGURE: bool = false;
 const N_STEP: usize = 4;
 
 #[test]
@@ -50,8 +48,8 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
 
     // constants
     let mandel = ideal.mandel();
-    let n_int_val = box_direct.n_internal_values();
-    assert_eq!(box_general.n_internal_values(), n_int_val);
+    let n_int_val = box_direct.n_int_vars();
+    assert_eq!(box_general.n_int_vars(), n_int_val);
 
     // initial states and increments
     let sig_m_0 = 1.0;
@@ -82,8 +80,8 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
             Some(general_full.yield_function(&state_general_full)?),
             Some(0.0),
         );
-        general_full.initialize_internal_values(&mut state_general_full)?;
-        general_full.update_stress(&mut state_general_full, &depsilon)?;
+        general_full.initialize_int_vars(&mut state_general_full)?;
+        general_full.update_stress(&mut state_general_full, &depsilon, 0, 0)?;
         data_general_full.push(
             &state_general_full.stress,
             Some(state_general_full.strain.as_ref().unwrap()),
@@ -118,15 +116,15 @@ fn update_with_steps(
         return Err("n_step must be ≥ 1");
     }
 
-    // initialize internal values
-    model.initialize_internal_values(state)?;
+    // initialize internal variables
+    model.initialize_int_vars(state)?;
     let mut states = vec![state.clone()];
 
     // update stress and strain
     let mut depsilon = Tensor2::new(state.stress.mandel());
     depsilon.update(1.0 / (n_step as f64), &depsilon_total);
     for _ in 0..n_step {
-        model.update_stress(state, &depsilon)?;
+        model.update_stress(state, &depsilon, 0, 0)?;
         state.strain.as_mut().unwrap().update(1.0, &depsilon);
         states.push(state.clone())
     }
@@ -143,8 +141,8 @@ fn do_plot(
     // constants
     let n = states_elast.len();
     let l = n - 1;
-    let z_ini = states_general[0].internal_values[0];
-    let z_fin = states_general[l].internal_values[0];
+    let z_ini = states_general[0].int_vars[0];
+    let z_fin = states_general[l].int_vars[0];
 
     // plotting data
     let mut data_elast = PlotterData::from_states(&states_elast);
@@ -217,7 +215,7 @@ fn do_plot(
         plot.set_yrange(-1.0, 1.0);
     });
     plotter.set_figure_size(800.0, 1000.0);
-    plotter.save(&format!("/tmp/pmsim/{}_{}.svg", FILE_STEM, index))
+    plotter.save(&format!("/tmp/pmsim/{}_{}.svg", NAME, index))
 }
 
 // Generates stresses and strain increments to "walk" on the octahedral plane along three directions

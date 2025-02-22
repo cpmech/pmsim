@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Ebc, Etype, Essential, Natural, Nbc, ParamSolid, StressStrain};
-use pmsim::fem::{Boundaries, Elements, FemInput, FemState, LinearSystem, PrescribedValues};
+use pmsim::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, StressStrain};
+use pmsim::fem::{BcDistributedArray, BcPrescribed, Elements, FemBase, FemState, LinearSystem};
 use russell_lab::*;
 use russell_sparse::prelude::*;
 
@@ -15,23 +15,24 @@ const YOUNG: f64 = 1000.0; // Young's modulus
 const POISSON: f64 = 0.25; // Poisson's coefficient
 const NA: usize = 94; // number of alpha divisions
 
-fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
+fn generate_matrix(name: &str, nr: usize) -> Result<CooMatrix, StrError> {
     // generate mesh
-    let mesh = Structured::quarter_ring_2d(R1, R2, nr, NA, GeoKind::Qua4, true).unwrap();
+    let wr = vec![1.0; nr];
+    let mesh = Structured::quarter_ring_2d(R1, R2, &wr, NA, GeoKind::Qua4, true).unwrap();
 
     // draw mesh
     if SAVE_FIGURE {
         let mut fig = Figure::new();
-        fig.figure_size = Some((800.0, 800.0));
-        mesh.draw(Some(fig), &format!("{}/{}.svg", OUT_DIR, name), |_, _| {})?;
+        fig.size(800.0, 800.0)
+            .draw(&mesh, &format!("{}/{}.svg", OUT_DIR, name))?;
     }
 
     // features
-    let feat = Features::new(&mesh, false);
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
-    let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
+    let features = Features::new(&mesh, false);
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
+    let outer_circle = features.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
 
     // material parameters
     let param1 = ParamSolid {
@@ -40,21 +41,22 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
             young: YOUNG,
             poisson: POISSON,
         },
+        ngauss: None,
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(param1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0));
+    essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // prescribed values
-    let prescribed_values = PrescribedValues::new(&input, &essential)?;
+    let bc_prescribed = BcPrescribed::new(&base, &essential)?;
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .on(&inner_circle, Nbc::Qn(|_| -P1))
-        .on(&outer_circle, Nbc::Qn(|_| -P2));
+        .edges(&inner_circle, Nbc::Qn, -P1)
+        .edges(&outer_circle, Nbc::Qn, -P2);
 
     // configuration
     let mut config = Config::new(&mesh);
@@ -64,36 +66,32 @@ fn generate_matrix(name: &str, nr: usize) -> Result<SparseMatrix, StrError> {
         .umfpack_enforce_unsymmetric_strategy = true;
 
     // elements
-    let mut elements = Elements::new(&input, &config)?;
+    let mut elements = Elements::new(&mesh, &base, &config)?;
 
     // boundaries
-    let mut boundaries = Boundaries::new(&input, &config, &natural)?;
+    let mut boundaries = BcDistributedArray::new(&mesh, &base, &config, &natural)?;
 
     // FEM state
-    let state = FemState::new(&input, &config)?;
-
-    // compute jacobians
-    elements.calc_jacobians(&state)?;
-    boundaries.calc_jacobians(&state)?;
+    let state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&input, &config, &prescribed_values, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&base, &config, &bc_prescribed, &elements, &boundaries)?;
 
     // assemble jacobian matrix
-    let kk = lin_sys.jacobian.get_coo_mut()?;
-    elements.assemble_jacobians(kk, &prescribed_values.flags)?;
-    boundaries.assemble_jacobians(kk, &prescribed_values.flags)?;
+    let ignore = &bc_prescribed.flags;
+    elements.assemble_kke(&mut lin_sys.kk, &state, &ignore)?;
+    boundaries.assemble_kke(&mut lin_sys.kk, &state, &ignore)?;
 
     // augment global Jacobian matrix
-    for eq in &prescribed_values.equations {
-        kk.put(*eq, *eq, 1.0).unwrap();
+    for eq in &bc_prescribed.equations {
+        lin_sys.kk.put(*eq, *eq, 1.0).unwrap();
     }
 
     // done
-    Ok(lin_sys.jacobian)
+    Ok(lin_sys.kk)
 }
 
-fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Result<(), StrError> {
+fn run(name: &str, mat: &CooMatrix, enforce_unsym_strategy: bool) -> Result<(), StrError> {
     // allocate stats structure
     let mut stats = StatsLinSol::new();
 
@@ -120,7 +118,7 @@ fn run(name: &str, mat: &mut SparseMatrix, enforce_unsym_strategy: bool) -> Resu
     let rhs = Vector::filled(nrow, 1.0);
 
     // solve linear system
-    solver.actual.solve(&mut x, mat, &rhs, false)?;
+    solver.actual.solve(&mut x, &rhs, false)?;
 
     // verify the solution
     stats.verify = VerifyLinSys::from(mat, &x, &rhs)?;
@@ -167,7 +165,7 @@ fn main() -> Result<(), StrError> {
         run(name, &mut mat, true)?;
 
         // write smat and mtx files
-        let csc = mat.get_csc()?;
+        let csc = CscMatrix::from_coo(&mat)?;
         csc.write_matrix_market(&format!("{}/{}.mtx", OUT_DIR, name), false)?;
         csc.write_matrix_market(&format!("{}/{}.smat", OUT_DIR, name), true)?;
     }

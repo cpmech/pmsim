@@ -1,6 +1,7 @@
 use super::{Elastoplastic, LinearElastic, LocalState, Settings, VonMises};
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
+use gemlab::mesh::CellId;
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Specifies the essential functions for stress-strain models
@@ -8,23 +9,37 @@ pub trait StressStrainTrait: Send {
     /// Indicates that the stiffness matrix is symmetric
     fn symmetric_stiffness(&self) -> bool;
 
-    /// Returns the number of internal values
-    fn n_internal_values(&self) -> usize;
+    /// Returns the number of internal variables
+    fn n_int_vars(&self) -> usize;
 
-    /// Returns the number of internal values directly affecting the yield function
-    fn n_internal_values_yield_function(&self) -> usize;
+    /// Returns the number of internal variables directly affecting the yield function
+    ///
+    /// Note: The first `n_int_vars_yield_function` affect the yield function
+    fn n_int_vars_yield_function(&self) -> usize;
 
-    /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError>;
+    /// Initializes the internal variables for the initial stress state
+    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError>;
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, state: &mut LocalState);
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
+    fn stiffness(
+        &mut self,
+        dd: &mut Tensor4,
+        state: &LocalState,
+        cell_id: CellId,
+        gauss_id: usize,
+    ) -> Result<(), StrError>;
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError>;
+    fn update_stress(
+        &mut self,
+        state: &mut LocalState,
+        delta_strain: &Tensor2,
+        cell_id: CellId,
+        gauss_id: usize,
+    ) -> Result<(), StrError>;
 }
 
 /// Holds the actual stress-strain model implementation

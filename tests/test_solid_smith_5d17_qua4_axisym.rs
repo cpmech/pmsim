@@ -1,5 +1,7 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*};
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
+use pmsim::util::{compare_results, ReferenceDataType};
 use russell_lab::*;
 
 // Smith's Example 5.17 (Figure 5.17) on page 187
@@ -42,24 +44,27 @@ use russell_lab::*;
 // Plane-strain
 // NOTE: using 9 integration points
 
+const VERBOSE_LEVEL: usize = 0;
+
 #[test]
-fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
+fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d17_qua4();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let right = feat.search_edges(At::X(30.0), any_x)?;
-    let bottom = feat.search_edges(At::Y(-10.0), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let right = features.search_edges(At::X(30.0), any_x)?;
+    let bottom = features.search_edges(At::Y(-10.0), any_x)?;
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
             young: 100.0,
             poisson: 0.3,
         },
+        ngauss: Some(9),
     };
     let p2 = ParamSolid {
         density: 1.0,
@@ -67,38 +72,39 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
             young: 1000.0,
             poisson: 0.45,
         },
+        ngauss: Some(9),
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1)), (2, Etype::Solid(p2))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .on(&left, Ebc::Ux(|_| 0.0))
-        .on(&right, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Uy(|_| 0.0));
+        .edges(&left, Dof::Ux, 0.0)
+        .edges(&right, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .at(&[0], Pbc::Fy(|_| -2.6667))
-        .at(&[3], Pbc::Fy(|_| -23.3333))
-        .at(&[6], Pbc::Fy(|_| -24.0));
+        .points(&[0], Pbc::Fy, -2.6667)
+        .points(&[3], Pbc::Fy, -23.3333)
+        .points(&[6], Pbc::Fy, -24.0);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config
-        .set_axisymmetric()
-        .set_n_integ_point(1, 9)
-        .set_n_integ_point(2, 9);
+    config.set_alt_bb_matrix_method(true).set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+    file_io.activate(&mesh, &base, "/tmp/pmsim/", "test_solid_smith_5d17_qua4_axisym")?;
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -116,10 +122,10 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
         0.000000000000000e+00,  3.090608328409013e-04,
         0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.uu, uu_correct, 1e-9);
+    vec_approx_eq(&state.u, uu_correct, 1e-9);
 
     #[rustfmt::skip]
-    let kk_e0_ref = Matrix::from(&[
+    let _kk_e0_ref = Matrix::from(&[
         [ 4.145299153899789e+02, -6.410256675972500e+00,  1.282051134704921e+01,  6.410256914773158e+00, -1.282051246145228e+01, -3.205128258214119e+01,  1.880341878109254e+02,  3.205128234334054e+01],
         [-6.410256675972496e+00,  7.051282113389323e+01, -1.282051247519651e+01,  1.923076855330780e+01, -6.410256436770716e+01, -5.769230733324714e+01, -3.205128234334053e+01, -3.205128235395389e+01],
         [ 1.282051134704917e+01, -1.282051247519651e+01,  2.948717975954594e+02, -1.025641036258208e+02,  8.974358861192951e+01,  5.128205173331020e+01, -1.282051246145228e+01,  6.410256436770715e+01],
@@ -129,7 +135,23 @@ fn test_solid_smith_5d17_qua8_plane_strain() -> Result<(), StrError> {
         [ 1.880341878109254e+02, -3.205128234334054e+01, -1.282051246145228e+01,  3.205128258214120e+01,  1.282051134704920e+01, -6.410256914773157e+00,  4.145299153899790e+02,  6.410256675972501e+00],
         [ 3.205128234334053e+01, -3.205128235395389e+01,  6.410256436770715e+01, -5.769230733324714e+01,  1.282051247519651e+01,  1.923076855330780e+01,  6.410256675972497e+00,  7.051282113389323e+01],
     ]);
-    let e0 = &solver.elements.all[0];
-    mat_approx_eq(&e0.jacobian, &kk_e0_ref, 1e-5);
+    // TODO: use JSON file to check this
+    // let e0 = &solver.elements.all[0];
+    // mat_approx_eq(&e0.kke, &kk_e0_ref, 1e-5);
+
+    // compare the results with the reference
+    let tol_displacement = 7e-10;
+    let tol_stress = 8e-8;
+    let all_good = compare_results(
+        &mesh,
+        &base,
+        &file_io,
+        ReferenceDataType::SGM,
+        "data/sgm/sgm_5d17_ref.json",
+        tol_displacement,
+        tol_stress,
+        VERBOSE_LEVEL,
+    )?;
+    assert!(all_good);
     Ok(())
 }

@@ -1,3 +1,5 @@
 /target
 Cargo.lock
 tarpaulin-report.html
+.aider*
+log*.txt

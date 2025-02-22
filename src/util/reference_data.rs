@@ -1,117 +1,108 @@
+use super::{ReferenceDataSGM, ReferenceDataSPO};
 use crate::StrError;
-use serde::{Deserialize, Serialize};
-use std::ffi::OsStr;
-use std::fs::{self, File};
-use std::io::BufReader;
-use std::path::Path;
 
-/// Holds reference results for comparisons and tests
-#[derive(Serialize, Deserialize)]
-pub struct ReferenceIterationInfo {
-    pub number: usize,
-    pub ratio: f64,
-    pub residual: f64,
+/// Specifies the source of reference data for validation purposes
+///
+/// This enum identifies different published sources of reference data used for
+/// validating finite element analysis results.
+///
+/// # References
+///
+/// 1. Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
+///    Element Method, Wiley, Fifth Edition, 664p
+/// 2. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
+///    Theory and applications, Wiley, 791p
+pub enum ReferenceDataType {
+    /// Reference data from Smith, Griffiths, and Margetts (2014)
+    SGM,
+
+    /// Reference data from de Souza Neto, Peric, and Owen (2008)
+    SPO,
 }
 
-/// Holds reference results for comparisons and tests
-#[derive(Serialize, Deserialize)]
-pub struct ReferenceData {
-    /// Holds the load factor
-    pub load_factor: f64,
+/// Defines the interface for accessing reference data across multiple timesteps
+///
+/// This trait provides methods to access mesh data (points and cells) and results
+/// (displacements and stresses) for different timesteps or load increments.
+///
+/// The reference data can be used to validate finite element implementations
+/// by comparing numerical results with published solutions.
+pub trait ReferenceDataTrait {
+    /// Returns the number of load increments or timesteps in the reference solution
+    fn nstep(&self) -> usize;
 
-    /// Holds the information about iterations
-    pub iterations: Vec<ReferenceIterationInfo>,
+    /// Returns the total number of points in the mesh
+    fn npoint(&self) -> usize;
 
-    /// Holds the displacements
+    /// Returns the total number of cells/elements in the mesh
+    fn ncell(&self) -> usize;
+
+    /// Returns a displacement component for a specific point and timestep
     ///
-    /// Size: `[npoint][ndim]`
-    pub displacement: Vec<Vec<f64>>,
-
-    /// Holds the stresses (standard components)
-    /// Size: `[nele][n_integ_point][n_components]`
-    pub stresses: Vec<Vec<Vec<f64>>>,
-
-    /// Holds the elastic strains (standard components)
+    /// # Arguments
     ///
-    /// Size: `[nele][n_integ_point][n_components]`
-    pub elastic_strains: Vec<Vec<Vec<f64>>>,
+    /// * `step` - Index of the load increment or timestep
+    /// * `p` - Point index
+    /// * `i` - Component index (0=x, 1=y, 2=z)
+    ///
+    /// # Returns
+    ///
+    /// The displacement component value
+    fn displacement(&self, step: usize, p: usize, i: usize) -> f64;
 
-    /// Holds (plastic_loading, apex_return, acc_plastic_strain)
-    pub plast_apex_epbar: Vec<Vec<Vec<f64>>>, // [nele][n_integ_point][3]
+    /// Returns the number of Gauss points for a specific cell
+    ///
+    /// # Arguments
+    ///
+    /// * `step` - Index of the load increment or timestep
+    /// * `e` - Cell/element index
+    ///
+    /// # Returns
+    ///
+    /// The number of Gauss points in the cell
+    fn ngauss(&self, step: usize, e: usize) -> usize;
+
+    /// Returns a stress component at a specific Gauss point
+    ///
+    /// # Arguments
+    ///
+    /// * `step` - Index of the load increment or timestep
+    /// * `e` - Cell/element index
+    /// * `ip` - Gauss point index
+    /// * `i` - Component index (Voigt notation)
+    ///
+    /// # Returns
+    ///
+    /// The stress component value
+    fn stresses(&self, step: usize, e: usize, ip: usize, i: usize) -> f64;
 }
 
-/// Holds reference results for comparisons and tests
-#[derive(Serialize, Deserialize)]
-pub struct ReferenceDataSet {
-    pub all: Vec<ReferenceData>,
+/// Provides generic access to reference data from different sources
+///
+/// This struct wraps different implementations of reference data providers,
+/// allowing uniform access to reference solutions regardless of their source.
+pub struct ReferenceData<'a> {
+    /// The concrete implementation of the reference data provider
+    pub actual: Box<dyn ReferenceDataTrait + 'a>,
 }
 
-impl ReferenceDataSet {
-    /// Reads a JSON file containing the results
+impl<'a> ReferenceData<'a> {
+    /// Loads reference data from a JSON file
     ///
-    /// # Input
+    /// # Arguments
     ///
-    /// * `full_path` -- may be a String, &str, or Path
-    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-    {
-        let path = Path::new(full_path).to_path_buf();
-        let file = File::open(&path).map_err(|_| "file not found")?;
-        let reader = BufReader::new(file);
-        let data = serde_json::from_reader(reader).map_err(|_| "deserialize failed")?;
-        Ok(data)
-    }
-
-    /// Writes a JSON file with the results
+    /// * `ref_type` - The type of reference data to load
+    /// * `full_path` - Full path to the JSON file containing the reference data
     ///
-    /// # Input
+    /// # Returns
     ///
-    /// * `full_path` -- may be a String, &str, or Path
-    pub fn write_json<P>(&self, full_path: &P) -> Result<(), StrError>
-    where
-        P: AsRef<OsStr> + ?Sized,
-    {
-        let path = Path::new(full_path).to_path_buf();
-        if let Some(p) = path.parent() {
-            fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
-        }
-        let mut file = File::create(&path).map_err(|_| "cannot create file")?;
-        serde_json::to_writer_pretty(&mut file, &self).map_err(|_| "cannot write file")?;
-        Ok(())
-    }
-
-    /// Returns the number of mesh points (nodes)
-    pub fn n_point(&self) -> usize {
-        if self.all.len() > 0 {
-            self.all[0].displacement.len()
-        } else {
-            0
-        }
-    }
-
-    /// Returns the number of elements
-    pub fn n_element(&self) -> usize {
-        if self.all.len() > 0 {
-            self.all[0].stresses.len()
-        } else {
-            0
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[cfg(test)]
-mod tests {
-    use super::ReferenceDataSet;
-
-    #[test]
-    fn reference_dataset_works() {
-        let filename = "data/results/spo_von_mises_single_element_2d.json";
-        let reference = ReferenceDataSet::read_json(filename).unwrap();
-        assert!(reference.all.len() > 0);
-        assert_eq!(reference.n_point(), 4);
-        assert_eq!(reference.n_element(), 1);
+    /// A new `ReferenceData` instance on success, or an error if the file
+    /// cannot be read or parsed
+    pub fn load(ref_type: ReferenceDataType, full_path: &str) -> Result<Self, StrError> {
+        let actual: Box<dyn ReferenceDataTrait> = match ref_type {
+            ReferenceDataType::SGM => Box::new(ReferenceDataSGM::read_json(full_path)?),
+            ReferenceDataType::SPO => Box::new(ReferenceDataSPO::read_json(full_path)?),
+        };
+        Ok(ReferenceData { actual })
     }
 }

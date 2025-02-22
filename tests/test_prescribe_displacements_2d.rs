@@ -39,52 +39,56 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     let mesh = Samples::one_qua4();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let top = feat.search_edges(At::Y(1.0), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let top = features.search_edges(At::Y(1.0), any_x)?;
 
     // constants
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
     const DY: f64 = 0.1;
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
             young: YOUNG,
             poisson: POISSON,
         },
+        ngauss: None,
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .on(&left, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Uy(|_| 0.0))
-        .on(&top, Ebc::Uy(|_| -DY));
+        .edges(&left, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Uy, 0.0)
+        .edges(&top, Dof::Uy, -DY);
     println!("{}", essential);
 
     // natural boundary conditions
     let natural = Natural::new();
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.set_lagrange_mult_method(true);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
     let eps_x = -DY * POISSON / (POISSON - 1.0);
     println!("eps_x = {}", eps_x);
-    println!("U =\n{}", state.uu);
-    vec_approx_eq(
-        &state.uu,
+    println!("u =\n{}", state.u);
+    array_approx_eq(
+        &state.u.as_data()[..8],
         &[
             0.0, 0.0, //   node 0
             eps_x, 0.0, // node 1

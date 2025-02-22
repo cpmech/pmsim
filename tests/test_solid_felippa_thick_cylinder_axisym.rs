@@ -34,6 +34,7 @@ use pmsim::StrError;
 // NOTE: using 4 integration points because it gives better results with Qua8
 
 const NAME: &str = "test_solid_felippa_thick_cylinder_axisym";
+const GENERATE_MESH: bool = false;
 
 #[test]
 fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
@@ -42,45 +43,48 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // mesh
     let (rin, rout, thickness) = (4.0, 10.0, 2.0);
-    let mesh = generate_or_read_mesh(rin, rout, thickness, false);
+    let mesh = generate_or_read_mesh(rin, rout, thickness, GENERATE_MESH);
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(rin), any_x)?;
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-    let top = feat.search_edges(At::Y(thickness), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(rin), any_x)?;
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let top = features.search_edges(At::Y(thickness), any_x)?;
 
     const YOUNG: f64 = 1000.0;
     const POISSON: f64 = 0.0;
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
             young: YOUNG,
             poisson: POISSON,
         },
+        ngauss: Some(4), // reduced integration => better results
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&bottom, Ebc::Uy(|_| 0.0)).on(&top, Ebc::Uy(|_| 0.0));
+    essential.edges(&bottom, Dof::Uy, 0.0).edges(&top, Dof::Uy, 0.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&left, Nbc::Qn(|_| -PRESSURE));
+    natural.edges(&left, Nbc::Qn, -PRESSURE);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric().set_n_integ_point(1, 4); // reduced integration => better results
+    config.set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // Felippa's Equation 14.2 on page 14-4
     let analytical_ur = |r: f64| {
@@ -90,11 +94,11 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // check displacements
     println!("");
-    let selection = feat.search_point_ids(At::Y(0.0), any_x)?;
+    let selection = features.search_point_ids(At::Y(0.0), any_x)?;
     for p in &selection {
         let r = mesh.points[*p].coords[0];
-        let eq = input.equations.eq(*p, Dof::Ux).unwrap();
-        let ux = state.uu[eq];
+        let eq = base.dofs.eq(*p, Dof::Ux).unwrap();
+        let ux = state.u[eq];
         let diff = f64::abs(ux - analytical_ur(r));
         println!("point = {}, r = {:?}, Ux = {:?}, diff = {:?}", p, r, ux, diff);
         assert!(diff < 1e-15);
@@ -110,15 +114,18 @@ fn generate_or_read_mesh(rin: f64, rout: f64, thickness: f64, generate: bool) ->
         block.set_ndiv(&[2, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
-        // write mesh
-        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
-
-        // write figure
-        mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
+        // draw figure
+        let mut fig = Figure::new();
+        fig.show_point_ids(true)
+            .show_cell_ids(true)
+            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
+
+        // write mesh
+        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
+        Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
 }

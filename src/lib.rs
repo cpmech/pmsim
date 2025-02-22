@@ -1,6 +1,7 @@
 /// Defines a type alias for the error type as a static string
 pub type StrError = &'static str;
 
+pub mod analytical;
 pub mod base;
 pub mod fem;
 pub mod material;

@@ -34,48 +34,50 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d30_tet4();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let faces_x_min = feat.search_faces(At::X(0.0), any_x)?;
-    let faces_y_min = feat.search_faces(At::Y(0.0), any_x)?;
-    let bottom = feat.search_faces(At::Z(-1.0), any_x)?;
-    println!("faces_x_min = {:?}", &faces_x_min);
-    println!("faces_y_min = {:?}", &faces_y_min);
-    println!("bottom = {:?}", &bottom);
+    let features = Features::new(&mesh, false);
+    let faces_x_min = features.search_faces(At::X(0.0), any_x)?;
+    let faces_y_min = features.search_faces(At::Y(0.0), any_x)?;
+    let bottom = features.search_faces(At::Z(-1.0), any_x)?;
+    // println!("\nfaces_x_min = {}", &faces_x_min);
+    // println!("faces_y_min = {}", &faces_y_min);
+    // println!("bottom = {}\n", &bottom);
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
             young: 100.0,
             poisson: 0.3,
         },
+        ngauss: None,
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
-    let zero = |_| 0.0;
     let mut essential = Essential::new();
     essential
-        .on(&faces_x_min, Ebc::Ux(zero))
-        .on(&faces_y_min, Ebc::Uy(zero))
-        .on(&bottom, Ebc::Uz(zero));
+        .faces(&faces_x_min, Dof::Ux, 0.0)
+        .faces(&faces_y_min, Dof::Uy, 0.0)
+        .faces(&bottom, Dof::Uz, 0.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .at(&[0, 5], Pbc::Fz(|_| -0.1667))
-        .at(&[1, 4], Pbc::Fz(|_| -0.3333));
+        .points(&[0, 5], Pbc::Fz, -0.1667)
+        .points(&[1, 4], Pbc::Fz, -0.3333);
 
     // configuration
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -89,6 +91,6 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
         0.000000000000000e+00,  3.000091440207385e-03,  0.000000000000000e+00,
         3.000108483339240e-03,  3.000132531607437e-03,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.uu, uu_correct, 1e-15);
+    vec_approx_eq(&state.u, uu_correct, 1e-15);
     Ok(())
 }

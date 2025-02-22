@@ -43,46 +43,50 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     let mesh = SampleMeshes::bhatti_example_1d5_heat();
 
     // features
-    let feat = Features::new(&mesh, false); // boundary only
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let right = feat.search_edges(At::X(0.2), any_x)?;
+    let features = Features::new(&mesh, false); // boundary only
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let right = features.search_edges(At::X(0.2), any_x)?;
 
-    // input data
+    // parameters
     let (kx, ky) = (1.4, 1.4);
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
+        ngauss: None,
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&left, Ebc::T(|_| 300.0));
+    essential.edges(&left, Dof::Phi, 300.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&right, Nbc::Cv(27.0, |_| 20.0));
+    natural.edges(&right, Nbc::Cv(27.0), 20.0);
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.set_lagrange_mult_method(true);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // check U vector
-    let tt_bhatti = Vector::from(&[
+    let tt_bhatti = &[
         3.000000000000000e+02,
         9.354661202985511e+01,
         2.384369969266794e+01,
         3.000000000000000e+02,
         1.828327235474901e+02,
-    ]);
-    vec_approx_eq(&state.uu, &tt_bhatti, 1e-13);
+    ];
+    array_approx_eq(&state.u.as_data()[..5], tt_bhatti, 1e-13);
     Ok(())
 }

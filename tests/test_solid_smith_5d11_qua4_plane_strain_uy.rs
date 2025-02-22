@@ -43,44 +43,49 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d11_qua4();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let right = feat.search_edges(At::X(30.0), any_x)?;
-    let bottom = feat.search_edges(At::Y(-10.0), any_x)?;
-    let footing = feat.search_edges(At::Y(0.0), |x| x[0] <= 10.0)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let right = features.search_edges(At::X(30.0), any_x)?;
+    let bottom = features.search_edges(At::Y(-10.0), any_x)?;
+    let footing = features.search_edges(At::Y(0.0), |x| x[0] <= 10.0)?;
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
             young: 1e6,
             poisson: 0.3,
         },
+        ngauss: None,
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
-        .on(&left, Ebc::Ux(|_| 0.0))
-        .on(&right, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Ux(|_| 0.0))
-        .on(&bottom, Ebc::Uy(|_| 0.0))
-        .on(&footing, Ebc::Uy(|_| -1e-5));
+        .edges(&left, Dof::Ux, 0.0)
+        .edges(&right, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Ux, 0.0)
+        .edges(&bottom, Dof::Uy, 0.0)
+        .edges(&footing, Dof::Uy, -1e-5);
 
     // natural boundary conditions
     let natural = Natural::new();
 
     // configuration
-    let config = Config::new(&mesh);
+    const LAG: bool = true;
+    let mut config = Config::new(&mesh);
+    config.set_lagrange_mult_method(LAG);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -98,6 +103,11 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
         0.000000000000000e+00,  3.474895306354719e-07,
         0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.uu, uu_correct, 1e-13);
+    if LAG {
+        let n = base.dofs.size();
+        array_approx_eq(&state.u.as_data()[0..n], uu_correct, 1e-13);
+    } else {
+        vec_approx_eq(&state.u, uu_correct, 1e-13);
+    }
     Ok(())
 }

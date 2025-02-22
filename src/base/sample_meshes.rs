@@ -1,10 +1,48 @@
-use gemlab::mesh::{Cell, Mesh, Point};
-use gemlab::shapes::GeoKind;
+use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
 
 /// Holds sample meshes
 pub struct SampleMeshes {}
 
 impl SampleMeshes {
+    /// Returns a 2D mesh with a 3 rod elements
+    ///
+    /// ```text
+    ///       3
+    ///       |        (#) indicates cell id
+    ///   (2) | [2]    [#] indicates attribute id
+    ///       |        The lines are ROD (Lin2) elements
+    ///       1
+    /// (0)  / \  (1)
+    /// [1] /   \ [1]
+    ///    /     \
+    ///   0       2
+    /// ```
+    ///
+    /// # References
+    ///
+    /// * Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
+    ///   issues in the arc-length method for nonlinear structural mechanics,
+    ///   Engineering Structures, 234:111755
+    ///
+    /// ![mesh_truss_3member_2d](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_truss_3member_2d.svg)
+    #[rustfmt::skip]
+    pub fn truss_3member_2d() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, marker: 0, coords: vec![-0.5, 0.00000] },
+                Point { id: 1, marker: 0, coords: vec![ 0.0, 0.86603] },
+                Point { id: 2, marker: 0, coords: vec![ 0.5, 0.00000] },
+                Point { id: 3, marker: 0, coords: vec![ 0.0, 1.86603] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 1, attribute: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
+                Cell { id: 2, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
+            ],
+        }
+    }
+
     /// Returns the mesh from Bhatti's Example 1.4 (page 25)
     ///
     /// Reference: Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
@@ -26,7 +64,7 @@ impl SampleMeshes {
     ///     0'     [#] indicates attribute id
     /// ```
     ///
-    /// ![bhatti_example_1d4_truss](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d4_truss.svg)
+    /// ![bhatti_example_1d4_truss](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_bhatti_example_1d4_truss.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d4_truss() -> Mesh {
         Mesh {
@@ -67,7 +105,7 @@ impl SampleMeshes {
     ///     0.0    0.1    0.2
     /// ```
     ///
-    /// ![bhatti_example_1d5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d5_heat.svg)
+    /// ![bhatti_example_1d5_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_bhatti_example_1d5_heat.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d5_heat() -> Mesh {
         Mesh {
@@ -106,7 +144,7 @@ impl SampleMeshes {
     ///       0.0             0.03            0.06
     /// ```
     ///
-    /// ![bhatti_example_6d22_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_6d22_heat.svg)
+    /// ![bhatti_example_6d22_heat](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_bhatti_example_6d22_heat.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_6d22_heat() -> Mesh {
         Mesh {
@@ -152,7 +190,7 @@ impl SampleMeshes {
     ///           0.0        2.0       4.0   fixed on x and y
     /// ```
     ///
-    /// ![bhatti_example_1d6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_bhatti_example_1d6_bracket.svg)
+    /// ![bhatti_example_1d6_bracket](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_bhatti_example_1d6_bracket.svg)
     #[rustfmt::skip]
     pub fn bhatti_example_1d6_bracket() -> Mesh {
         Mesh {
@@ -179,7 +217,7 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
-    /// ![mesh_smith_example_4d22_frame_3d](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_4d22_frame_3d.svg)
+    /// ![mesh_smith_example_4d22_frame_3d](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_4d22_frame_3d.svg)
     #[rustfmt::skip]
     pub fn smith_example_4d22_frame_3d() -> Mesh {
         Mesh {
@@ -218,7 +256,7 @@ impl SampleMeshes {
     ///      0.0       0.5       1.0
     /// ```
     ///
-    /// ![mesh_smith_example_5d2_tri3](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d2_tri3.svg)
+    /// ![mesh_smith_example_5d2_tri3](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_5d2_tri3.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d2_tri3() -> Mesh {
         Mesh {
@@ -262,7 +300,7 @@ impl SampleMeshes {
     ///      0.0  1.0             6.0
     /// ```
     ///
-    /// ![mesh_smith_example_5d7_tri15](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d7_tri15.svg)
+    /// ![mesh_smith_example_5d7_tri15](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_5d7_tri15.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d7_tri15() -> Mesh {
         Mesh {
@@ -339,7 +377,7 @@ impl SampleMeshes {
     ///        0.0       10.0       20.0       30.0
     /// ```
     ///
-    /// ![mesh_smith_example_5d11_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d11_qua4.svg)
+    /// ![mesh_smith_example_5d11_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_5d11_qua4.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d11_qua4() -> Mesh {
         Mesh {
@@ -391,7 +429,7 @@ impl SampleMeshes {
     ///       0.0       3.0       6.0
     /// ```
     ///
-    /// ![mesh_smith_example_5d15_qua8](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d15_qua8.svg)
+    /// ![mesh_smith_example_5d15_qua8](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_5d15_qua8.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d15_qua8() -> Mesh {
         Mesh {
@@ -463,7 +501,7 @@ impl SampleMeshes {
     /// [#] indicates attribute id
     /// ```
     ///
-    /// ![mesh_smith_example_5d17_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d17_qua4.svg)
+    /// ![mesh_smith_example_5d17_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_5d17_qua4.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d17_qua4() -> Mesh {
         Mesh {
@@ -498,7 +536,7 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
-    /// ![mesh_smith_example_5d24_hex20](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d24_hex20.svg)
+    /// ![mesh_smith_example_5d24_hex20](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_5d24_hex20.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d24_hex20() -> Mesh {
         Mesh {
@@ -608,7 +646,7 @@ impl SampleMeshes {
     ///       0.0       3.0       6.0
     /// ```
     ///
-    /// ![mesh_smith_example_5d27_qua9](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d27_qua9.svg)
+    /// ![mesh_smith_example_5d27_qua9](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_5d27_qua9.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d27_qua9() -> Mesh {
         Mesh {
@@ -672,7 +710,7 @@ impl SampleMeshes {
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
     /// Element Method, Wiley, Fifth Edition, 664p
     ///
-    /// ![mesh_smith_example_5d30_tet4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_smith_example_5d30_tet4.svg)
+    /// ![mesh_smith_example_5d30_tet4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_smith_example_5d30_tet4.svg)
     #[rustfmt::skip]
     pub fn smith_example_5d30_tet4() -> Mesh {
         Mesh {
@@ -723,7 +761,7 @@ impl SampleMeshes {
     ///      0.0       1.0
     /// ```
     ///
-    /// ![mesh_column_two_layers_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_column_two_layers_qua4.svg)
+    /// ![mesh_column_two_layers_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_column_two_layers_qua4.svg)
     #[rustfmt::skip]
     pub fn column_two_layers_qua4() -> Mesh {
         Mesh {
@@ -787,7 +825,7 @@ impl SampleMeshes {
     ///  0----10-----1
     /// ```
     ///
-    /// ![mesh_column_two_layers_qua9](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/mesh_column_two_layers_qua9.svg)
+    /// ![mesh_column_two_layers_qua9](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_column_two_layers_qua9.svg)
     #[rustfmt::skip]
     pub fn column_two_layers_qua9() -> Mesh {
         Mesh {
@@ -842,17 +880,23 @@ mod tests {
 
     fn draw(mesh: &Mesh, larger: bool, filename: &str) {
         let mut fig = Figure::new();
-        fig.cell_ids = true;
-        fig.point_ids = true;
+        fig.show_cell_ids(true).show_point_ids(true);
         if larger {
-            fig.figure_size = Some((600.0, 600.0));
+            fig.size(600.0, 600.0);
         }
-        mesh.draw(Some(fig), filename, |_, _| {}).unwrap();
+        fig.draw(&mesh, filename).unwrap();
     }
 
     #[test]
     #[rustfmt::skip]
     fn sample_meshes_are_ok() {
+        let mesh = SampleMeshes::truss_3member_2d();
+        assert_eq!(mesh.points.len(), 4);
+        assert_eq!(mesh.cells.len(), 3);
+        if SAVE_FIGURE{
+            draw(&mesh, false, "/tmp/pmsim/mesh_truss_3member_2d.svg");
+        }
+
         let mesh = SampleMeshes::bhatti_example_1d4_truss();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 5);

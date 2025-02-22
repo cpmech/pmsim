@@ -942,3 +942,11 @@ timestep             t            Δt  iter    max(R)
        .             .             .     1   3.33e-1❋ 
        .             .             .     2  9.30e-17✅
 ```
+
+## Running unit tests
+
+Example:
+
+```bash
+cargo test test_spo_755_tensile -- --nocapture
+```

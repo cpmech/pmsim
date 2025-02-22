@@ -1,6 +1,7 @@
 use super::{LocalState, PlasticityTrait, PlotterData, Settings, StressStrainTrait, VonMises};
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
+use gemlab::mesh::CellId;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
 use russell_ode::{OdeSolver, Params, System};
 use russell_tensor::{t2_ddot_t4_ddot_t2, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4};
@@ -134,8 +135,8 @@ impl<'a> Elastoplastic<'a> {
 
         // constants
         let mandel = ideal.mandel();
-        let n_int_val = model.n_internal_values();
-        let n_int_val_yf = model.n_internal_values_yield_function();
+        let n_int_val = model.n_int_vars();
+        let n_int_val_yf = model.n_int_vars_yield_function();
         let ndim_e = mandel.dim();
         let ndim_ep = ndim_e + n_int_val;
 
@@ -156,7 +157,7 @@ impl<'a> Elastoplastic<'a> {
             // split {y}(t) into σ and z
             y.split2(
                 args.state.stress.vector_mut().as_mut_data(),
-                args.state.internal_values.as_mut_data(),
+                args.state.int_vars.as_mut_data(),
             );
 
             // gradients of the yield function
@@ -291,7 +292,7 @@ impl<'a> Elastoplastic<'a> {
                         // split {y}(t) into σ and z
                         y.split2(
                             args.state.stress.vector_mut().as_mut_data(),
-                            args.state.internal_values.as_mut_data(),
+                            args.state.int_vars.as_mut_data(),
                         );
 
                         // yield function value: f(σ, z)
@@ -392,10 +393,7 @@ impl<'a> Elastoplastic<'a> {
     /// Returns `(t_int, yf_trial)`
     fn intersection_finding(&mut self, state: &LocalState, inside: bool) -> Result<(Option<f64>, f64), StrError> {
         // copy z into arguments (z is frozen)
-        self.args
-            .state
-            .internal_values
-            .set_vector(state.internal_values.as_data());
+        self.args.state.int_vars.set_vector(state.int_vars.as_data());
 
         // copy σ into {y}
         self.ode_y_e.set_vector(state.stress.vector().as_data());
@@ -506,19 +504,19 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         self.args.model.symmetric_stiffness()
     }
 
-    /// Returns the number of internal values
-    fn n_internal_values(&self) -> usize {
-        self.args.model.n_internal_values()
+    /// Returns the number of internal variables
+    fn n_int_vars(&self) -> usize {
+        self.args.model.n_int_vars()
     }
 
-    /// Returns the number of internal values directly affecting the yield function
-    fn n_internal_values_yield_function(&self) -> usize {
-        self.args.model.n_internal_values_yield_function()
+    /// Returns the number of internal variables directly affecting the yield function
+    fn n_int_vars_yield_function(&self) -> usize {
+        self.args.model.n_int_vars_yield_function()
     }
 
-    /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, state: &mut LocalState) -> Result<(), StrError> {
-        self.args.model.initialize_internal_values(state)
+    /// Initializes the internal variables for the initial stress state
+    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
+        self.args.model.initialize_int_vars(state)
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
@@ -527,12 +525,24 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     }
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+    fn stiffness(
+        &mut self,
+        _dd: &mut Tensor4,
+        _state: &LocalState,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
         Err("TODO")
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(
+        &mut self,
+        state: &mut LocalState,
+        delta_strain: &Tensor2,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
         // set Δε in arguments struct
         self.args.depsilon.set_tensor(1.0, delta_strain);
 
@@ -574,17 +584,15 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
 
                 // elastoplastic run: join σ and z into {y} (now z plays a role)
                 self.ode_y_ep
-                    .join2(state.stress.vector().as_data(), state.internal_values.as_data());
+                    .join2(state.stress.vector().as_data(), state.int_vars.as_data());
 
                 // solve elastoplastic problem (starting from t_int)
                 self.ode_elastoplastic
                     .solve(&mut self.ode_y_ep, t_int, 1.0, None, &mut self.args)?;
 
                 // update: split {y} into σ and z
-                self.ode_y_ep.split2(
-                    state.stress.vector_mut().as_mut_data(),
-                    state.internal_values.as_mut_data(),
-                );
+                self.ode_y_ep
+                    .split2(state.stress.vector_mut().as_mut_data(), state.int_vars.as_mut_data());
                 state.elastic = false;
             }
 
@@ -592,17 +600,15 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
             Case::BP => {
                 // join σ and z into {y} (now z plays a role)
                 self.ode_y_ep
-                    .join2(state.stress.vector().as_data(), state.internal_values.as_data());
+                    .join2(state.stress.vector().as_data(), state.int_vars.as_data());
 
                 // solve elastoplastic problem
                 self.ode_elastoplastic
                     .solve(&mut self.ode_y_ep, 0.0, 1.0, None, &mut self.args)?;
 
                 // update: split {y} into σ and z
-                self.ode_y_ep.split2(
-                    state.stress.vector_mut().as_mut_data(),
-                    state.internal_values.as_mut_data(),
-                );
+                self.ode_y_ep
+                    .split2(state.stress.vector_mut().as_mut_data(), state.int_vars.as_mut_data());
                 state.elastic = false;
             }
         }
@@ -632,7 +638,7 @@ mod tests {
     use std::collections::HashMap;
 
     const VERBOSE: bool = true;
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     // Returns a vector of keys associated with the Case (for debugging)
     fn case_to_keys(case: &Case) -> Vec<&str> {
@@ -655,10 +661,10 @@ mod tests {
     ) -> LocalState {
         let distance = sig_m * SQRT_3;
         let radius = sig_d * SQRT_2_BY_3;
-        let n_internal_values = model.n_internal_values();
-        let mut state = LocalState::new(ideal.mandel(), n_internal_values);
+        let n_int_vars = model.n_int_vars();
+        let mut state = LocalState::new(ideal.mandel(), n_int_vars);
         state.stress = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, ideal.two_dim).unwrap();
-        model.initialize_internal_values(&mut state).unwrap();
+        model.initialize_int_vars(&mut state).unwrap();
         state.enable_strain(); // for plotting
         state
     }
@@ -692,7 +698,7 @@ mod tests {
         t4_ddot_t2(&mut depsilon, 1.0, &cc, &dsigma); // Δε = C : Δσ
 
         // perform the update
-        model.update_stress(state, &depsilon).unwrap(); // update stress
+        model.update_stress(state, &depsilon, 0, 0).unwrap(); // update stress
         state.strain.as_mut().unwrap().update(1.0, &depsilon); // update strain (for plotting)
         (depsilon.invariant_eps_v(), depsilon.invariant_eps_d())
     }
@@ -729,7 +735,7 @@ mod tests {
             let mut data = PlotterData::new();
             for i in 0..states.len() {
                 let s = &states[i];
-                let f = s.stress.invariant_sigma_d() - s.internal_values[0];
+                let f = s.stress.invariant_sigma_d() - s.int_vars[0];
                 let t = (i as f64) / 2.0;
                 data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
             }
@@ -744,8 +750,8 @@ mod tests {
                 .unwrap();
             if lode == 0 {
                 let p = states.len() - 1;
-                let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
-                let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+                let radius_0 = states[0].int_vars[0] * SQRT_2_BY_3;
+                let radius_1 = states[p].int_vars[0] * SQRT_2_BY_3;
                 plotter.set_oct_circle(radius_0, |_| {});
                 plotter.set_oct_circle(radius_1, |canvas| {
                     canvas.set_line_style("-");
@@ -825,8 +831,8 @@ mod tests {
             })
             .unwrap();
         let p = states.len() - 1;
-        let radius_0 = states[0].internal_values[0] * SQRT_2_BY_3;
-        let radius_1 = states[p].internal_values[0] * SQRT_2_BY_3;
+        let radius_0 = states[0].int_vars[0] * SQRT_2_BY_3;
+        let radius_1 = states[p].int_vars[0] * SQRT_2_BY_3;
         plotter.set_oct_circle(radius_0, |_| {});
         plotter.set_oct_circle(radius_1, |canvas| {
             canvas.set_line_style("-");
@@ -907,7 +913,7 @@ mod tests {
                 let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
                 approx_eq(sig_m_1, correct_sig_m, 1e-14);
                 approx_eq(sig_d_1, correct_sig_d, 1e-13);
-                approx_eq(state.internal_values[0], z_ini, 1e-15);
+                approx_eq(state.int_vars[0], z_ini, 1e-15);
                 assert_eq!(state.elastic, true);
                 let case = model.last_case.as_ref().unwrap();
                 let keys = case_to_keys(case);
@@ -926,7 +932,7 @@ mod tests {
                 let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
                 approx_eq(sig_m_2, correct_sig_m, 1e-14);
                 approx_eq(sig_d_2, correct_sig_d, 1e-14);
-                approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
+                approx_eq(state.int_vars[0], correct_sig_d, 1e-13);
                 assert_eq!(state.elastic, false);
                 let case = model.last_case.as_ref().unwrap();
                 let keys = case_to_keys(case);
@@ -1002,7 +1008,7 @@ mod tests {
         let correct_sig_d = z_ini + 3.0 * gg * hh * deps_d_ep / (3.0 * gg + hh);
         approx_eq(sig_m, correct_sig_m, 1e-14);
         approx_eq(sig_d, correct_sig_d, 1e-13);
-        approx_eq(state.internal_values[0], correct_sig_d, 1e-13);
+        approx_eq(state.int_vars[0], correct_sig_d, 1e-13);
         assert_eq!(state.elastic, false);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
@@ -1066,7 +1072,7 @@ mod tests {
         // check
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.internal_values[0], z_ini, 1e-15);
+        approx_eq(state.int_vars[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
@@ -1132,7 +1138,7 @@ mod tests {
         // check
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.internal_values[0], z_ini, 1e-15);
+        approx_eq(state.int_vars[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
@@ -1202,7 +1208,7 @@ mod tests {
         // check
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.internal_values[0], z_ini, 1e-15);
+        approx_eq(state.int_vars[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
@@ -1272,7 +1278,7 @@ mod tests {
         // check
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.internal_values[0], z_ini, 1e-15);
+        approx_eq(state.int_vars[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let case = model.last_case.as_ref().unwrap();
         let keys = case_to_keys(case);

@@ -1,9 +1,7 @@
 use super::{Idealization, Init, ParamFluids};
 use crate::material::Settings;
-use crate::StrError;
-use gemlab::integ;
-use gemlab::mesh::{Cell, CellAttribute, Mesh};
-use russell_sparse::SparseMatrix;
+use gemlab::mesh::{CellAttribute, Mesh};
+use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::HashMap;
 use std::fmt;
@@ -12,7 +10,7 @@ use std::fmt;
 pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
 
 /// Defines the smallest allowed tolerance (Control)
-pub const CONTROL_MIN_TOL: f64 = 1e-15;
+pub const CONTROL_MIN_TOL: f64 = 1e-12;
 
 /// Defines the smallest allowed theta{1,2} (Control)
 pub const CONTROL_MIN_THETA: f64 = 0.0001;
@@ -38,6 +36,34 @@ pub struct Config<'a> {
 
     /// Holds a flag indicating Pseudo-Newton method with constant-tangent operator
     pub(crate) constant_tangent: bool,
+
+    /// Holds a flag indicating the use the arc-length method
+    pub(crate) arc_length_method: bool,
+
+    /// Holds the parameter to select the arc-length method
+    ///
+    /// `0 ≤ ψ ≤ 1`
+    ///
+    /// * ψ = 0.0: (hyper) cylindrical arc-length control
+    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
+    pub(crate) arc_length_psi: f64,
+
+    /// Holds the first trial loading factor ℓ₀ used by the arc-length method
+    ///
+    /// Only for the arc-length method
+    pub(crate) first_trial_loading_factor: f64,
+
+    /// Holds the number of allowed (time)steps that fail to converge
+    pub(crate) allowed_step_n_failure: usize,
+
+    /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
+    pub(crate) lagrange_mult_method: bool,
+
+    /// Uses the alternative method to calculate the B matrix (the alternative method is the "standard" method)
+    pub(crate) alt_bb_matrix_method: bool,
+
+    /// Holds a tolerance to check the symmetry of local Jacobian matrices
+    pub(crate) symmetry_check_tolerance: Option<f64>,
 
     /// Holds the gravity acceleration (a positive value)
     ///
@@ -74,9 +100,6 @@ pub struct Config<'a> {
     /// Holds a flag allowing an initial yield surface drift in (stress-strain) material models
     pub(crate) model_allow_initial_drift: bool,
 
-    /// Holds the number of integration points for a group of cells
-    pub(crate) n_integ_point: HashMap<CellAttribute, usize>,
-
     /// Holds extra configuration parameters for the material models
     pub(crate) model_settings: HashMap<CellAttribute, Settings>,
 
@@ -88,14 +111,20 @@ pub struct Config<'a> {
     /// Holds the final time
     pub(crate) t_fin: f64,
 
-    /// Holds the time increments
-    pub(crate) dt: Box<dyn Fn(f64) -> f64 + 'a>,
+    /// Holds the time increments as function of time Δt(t)
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub(crate) ddt: Box<dyn Fn(f64) -> f64 + 'a>,
 
-    /// Holds the time increment for the output of results
-    pub(crate) dt_out: Box<dyn Fn(f64) -> f64 + 'a>,
+    /// Holds the time increment for the output of results Δt_out(t)
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub(crate) ddt_out: Box<dyn Fn(f64) -> f64 + 'a>,
 
     /// Holds the minimum allowed time increment min(Δt)
-    pub(crate) dt_min: f64,
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub(crate) ddt_min: f64,
 
     /// Holds the maximum number of time steps
     pub(crate) n_max_time_steps: usize,
@@ -109,8 +138,15 @@ pub struct Config<'a> {
     /// Holds the maximum number of iterations
     pub(crate) n_max_iterations: usize,
 
-    /// Holds the tolerance for the scaled residual vector
-    pub(crate) tol_rr: f64,
+    /// Holds the absolute tolerance for the global residual vector
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub(crate) tol_rr_abs: f64,
+
+    /// Holds the relative tolerance for the corrective (augmented) displacement vector (mdu)
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub(crate) tol_mdu_rel: f64,
 
     /// Holds the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub(crate) theta: f64,
@@ -120,6 +156,12 @@ pub struct Config<'a> {
 
     /// Holds the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
     pub(crate) theta2: f64,
+
+    /// Activates the use of Hilber-Hughes-Taylor method (instead of Newmark's method)
+    pub(crate) hht_method: bool,
+
+    /// Hilber-Hughes-Taylor parameter with `-1/3 ≤ α ≤ 0`
+    pub(crate) hht_alpha: f64,
 
     /// Holds the verbose flag for timesteps
     pub(crate) verbose_timesteps: bool,
@@ -148,6 +190,13 @@ impl<'a> Config<'a> {
             transient: false,
             dynamics: false,
             constant_tangent: false,
+            arc_length_method: false,
+            arc_length_psi: 1.0,
+            first_trial_loading_factor: 1.0,
+            allowed_step_n_failure: 100,
+            lagrange_mult_method: false,
+            alt_bb_matrix_method: false,
+            symmetry_check_tolerance: Some(1e-10),
             gravity: None,
             initialization: Init::Zero,
             param_fluids: None,
@@ -155,22 +204,24 @@ impl<'a> Config<'a> {
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
-            n_integ_point: HashMap::new(),
             model_settings: HashMap::new(),
             // control
             t_ini: 0.0,
             t_fin: 1.0,
-            dt: Box::new(|_| 1.0),
-            dt_out: Box::new(|_| 1.0),
-            dt_min: CONTROL_MIN_DT_MIN,
+            ddt: Box::new(|_| 1.0),
+            ddt_out: Box::new(|_| 1.0),
+            ddt_min: CONTROL_MIN_DT_MIN,
             n_max_time_steps: 1_000,
             divergence_control: false,
             div_ctrl_max_steps: 10,
             n_max_iterations: 10,
-            tol_rr: 1e-10,
+            tol_rr_abs: 1e-10,
+            tol_mdu_rel: 1e-8,
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
+            hht_method: false,
+            hht_alpha: 0.0,
             verbose_timesteps: true,
             verbose_iterations: true,
             verbose_lin_sys_solve: false,
@@ -199,6 +250,18 @@ impl<'a> Config<'a> {
             return Some(format!(
                 "thickness = {:?} is incorrect; it must be = 1.0 for plane-strain or 3D",
                 self.ideal.thickness
+            ));
+        }
+        if self.arc_length_psi < 0.0 || self.arc_length_psi > 1.0 {
+            return Some(format!(
+                "arc_length_psi = {:?} is incorrect; it must be 0.0 ≤ ψ ≤ 1.0",
+                self.arc_length_psi
+            ));
+        }
+        if f64::abs(self.first_trial_loading_factor) < 1e-12 {
+            return Some(format!(
+                "absolute first trial loading factor |ℓ₀| = {:?} is incorrect; it must be ≥ 1e-12",
+                self.first_trial_loading_factor
             ));
         }
         match self.initialization {
@@ -233,16 +296,22 @@ impl<'a> Config<'a> {
                 self.t_fin, self.t_ini
             ));
         }
-        if self.dt_min < CONTROL_MIN_DT_MIN {
+        if self.ddt_min < CONTROL_MIN_DT_MIN {
             return Some(format!(
                 "dt_min = {:?} is incorrect; it must be ≥ {:e}",
-                self.dt_min, CONTROL_MIN_DT_MIN
+                self.ddt_min, CONTROL_MIN_DT_MIN
             ));
         }
-        if self.tol_rr < CONTROL_MIN_TOL {
+        if self.tol_rr_abs < CONTROL_MIN_TOL {
             return Some(format!(
-                "tol_rel_residual = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rr, CONTROL_MIN_TOL
+                "tol_rr_abs = {:?} is incorrect; it must be ≥ {:e}",
+                self.tol_rr_abs, CONTROL_MIN_TOL
+            ));
+        }
+        if self.tol_mdu_rel < CONTROL_MIN_TOL {
+            return Some(format!(
+                "tol_mdu_rel = {:?} is incorrect; it must be ≥ {:e}",
+                self.tol_mdu_rel, CONTROL_MIN_TOL
             ));
         }
         if self.theta < CONTROL_MIN_THETA || self.theta > 1.0 {
@@ -263,108 +332,28 @@ impl<'a> Config<'a> {
                 self.theta2, CONTROL_MIN_THETA
             ));
         }
+        if self.hht_alpha < -ONE_BY_3 || self.hht_alpha > 0.0 {
+            return Some(format!(
+                "hht_alpha = {:?} is incorrect; it must be -1/3 ≤ α ≤ 0.0",
+                self.hht_alpha,
+            ));
+        }
         None // all good
-    }
-
-    // auxiliary ---------------------------------------------------------------------------------
-
-    /// Calculates beta coefficients for transient method
-    pub(crate) fn betas_transient(&self, dt: f64) -> Result<(f64, f64), StrError> {
-        if dt < self.dt_min {
-            return Err("Δt is smaller than the allowed minimum");
-        }
-        let beta_1 = 1.0 / (self.theta * dt);
-        let beta_2 = (1.0 - self.theta) / self.theta;
-        Ok((beta_1, beta_2))
-    }
-
-    /// Prints the header of the table with timestep and iteration data
-    pub(crate) fn print_header(&self) {
-        if self.verbose_timesteps || self.verbose_iterations {
-            println!("Legend:");
-            println!("✅ : converged");
-            println!("👍 : converging");
-            println!("🥵 : diverging");
-            println!("😱 : found NaN or Inf");
-            println!("❋  : non-scaled max(R)");
-            println!("?  : no info abut convergence");
-            println!("{:>8} {:>13} {:>13} {:>5} {:>9}  ", "", "", "", "", "    _ ");
-            println!(
-                "{:>8} {:>13} {:>13} {:>5} {:>9}  ",
-                "timestep", "t", "Δt", "iter", "max(R)"
-            );
-        }
-    }
-
-    /// Prints timestep data
-    pub(crate) fn print_timestep(&self, timestep: usize, t: f64, dt: f64) {
-        if !self.verbose_timesteps {
-            return;
-        }
-        let n = timestep + 1;
-        println!("{:>8} {:>13.6e} {:>13.6e} {:>5} {:>8}  ", n, t, dt, ".", ".");
-    }
-
-    /// Prints iteration data
-    pub(crate) fn print_iteration(&self, it: usize, max_rr_prev: f64, max_rr: f64) {
-        if !self.verbose_iterations {
-            return; // skip if not verbose
-        }
-        let l = if !max_rr.is_finite() {
-            "😱" // found NaN or Inf
-        } else if it == 0 {
-            "❋ " // non-scaled max residual
-        } else if max_rr < self.tol_rr {
-            "✅" // converged
-        } else if it == 1 {
-            "? " // no info about convergence (cannot compare max_rr with max_rr_prev yet)
-        } else if max_rr > max_rr_prev {
-            "🥵" // diverging
-        } else {
-            "👍" // converging
-        };
-        let n = it + 1;
-        println!("{:>8} {:>13} {:>13} {:>5} {:>9.2e}{}", ".", ".", ".", n, max_rr, l);
-    }
-
-    /// Saves the global K matrix for debugging
-    pub(crate) fn debug_save_kk_matrix(&self, kk: &mut SparseMatrix) -> Result<(), StrError> {
-        if self.save_matrix_market_file || self.save_vismatrix_file {
-            let csc = kk.get_csc()?;
-            if self.save_matrix_market_file {
-                let name = format!("/tmp/pmsim/K-matrix.mtx");
-                csc.write_matrix_market(&name, false).unwrap();
-            }
-            if self.save_vismatrix_file {
-                let name = format!("/tmp/pmsim/K-matrix.smat");
-                csc.write_matrix_market(&name, true).unwrap();
-            }
-            Err("K matrix written; will stop now")
-        } else {
-            Ok(())
-        }
     }
 
     // getters -----------------------------------------------------------------------------------
 
     /// Returns the initial overburden stress (negative means compression)
-    pub fn initial_overburden_stress(&self) -> f64 {
+    #[allow(dead_code)]
+    pub(crate) fn initial_overburden_stress(&self) -> f64 {
         match self.initialization {
             Init::Geostatic(overburden) => overburden,
             _ => 0.0,
         }
     }
 
-    /// Returns the integration (Gauss) points data
-    pub fn integ_point_data(&self, cell: &Cell) -> Result<integ::IntegPointData, StrError> {
-        match self.n_integ_point.get(&cell.attribute) {
-            Some(n) => integ::points(cell.kind.class(), *n),
-            None => Ok(integ::default_points(cell.kind)),
-        }
-    }
-
     /// Returns the extra model settings
-    pub fn model_settings(&self, cell_attribute: CellAttribute) -> Settings {
+    pub(crate) fn model_settings(&self, cell_attribute: CellAttribute) -> Settings {
         match self.model_settings.get(&cell_attribute) {
             Some(s) => s.clone(),
             None => Settings::new(),
@@ -399,6 +388,55 @@ impl<'a> Config<'a> {
     /// Sets a flag indicating Pseudo-Newton method with constant-tangent operator
     pub fn set_constant_tangent(&mut self, enable: bool) -> &mut Self {
         self.constant_tangent = enable;
+        self
+    }
+
+    /// Sets a flag indicating the use of the arc-length method
+    pub fn set_arc_length_method(&mut self, enable: bool) -> &mut Self {
+        self.arc_length_method = enable;
+        self
+    }
+
+    /// Sets the parameter to select the arc-length method
+    ///
+    /// `0 ≤ ψ ≤ 1`
+    ///
+    /// * ψ = 0.0: (hyper) cylindrical arc-length control
+    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
+    pub fn set_arc_length_psi(&mut self, psi: f64) -> &mut Self {
+        self.arc_length_psi = psi;
+        self
+    }
+
+    /// Sets the initial trial loading factor ℓ₀ used by the arc-length method
+    ///
+    /// Only for the arc-length method
+    pub fn set_ini_trial_load_factor(&mut self, ell0: f64) -> &mut Self {
+        self.first_trial_loading_factor = ell0;
+        self
+    }
+
+    /// Sets the number of allowed (time)steps that fail to converge
+    pub fn set_allowed_step_n_failure(&mut self, n_allowed: usize) -> &mut Self {
+        self.allowed_step_n_failure = n_allowed;
+        self
+    }
+
+    /// Sets a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
+    pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
+        self.lagrange_mult_method = enable;
+        self
+    }
+
+    /// Uses the alternative method to calculate the B matrix (the alternative method is the "standard" method)
+    pub fn set_alt_bb_matrix_method(&mut self, enable: bool) -> &mut Self {
+        self.alt_bb_matrix_method = enable;
+        self
+    }
+
+    /// Sets the tolerance to check the symmetry of local Jacobian matrices
+    pub fn set_symmetry_check_tolerance(&mut self, tol: Option<f64>) -> &mut Self {
+        self.symmetry_check_tolerance = tol;
         self
     }
 
@@ -473,18 +511,37 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the number of integration points for a group of cells
-    ///
-    /// Note: This function is optional because a default number
-    /// of integration points is selected for all cell types.
-    pub fn set_n_integ_point(&mut self, cell_attribute: CellAttribute, n_integ_point: usize) -> &mut Self {
-        self.n_integ_point.insert(cell_attribute, n_integ_point);
-        self
-    }
-
     /// Updates the default settings for the material model used by a group of cells
     pub fn update_model_settings(&mut self, cell_attribute: CellAttribute) -> &mut Settings {
         self.model_settings.entry(cell_attribute).or_insert(Settings::new())
+    }
+
+    /// Sets t, dt, and dt_out to simulate an incremental loading
+    ///
+    /// This function corresponds to:
+    ///
+    /// ```text
+    /// self.set_t_ini(0.0)
+    ///     .set_t_fin((n_station - 1) as f64)
+    ///     .set_dt(|_| 1.0)
+    ///     .set_dt_out(|_| 1.0)
+    /// ```
+    ///
+    /// # Input
+    ///
+    /// * `n_station` -- is the number of (pseudo) time stations. For example, with a
+    ///   displacement control such as `uy = [0.0, -0.1, -0.2]`, the number of stations
+    ///   is `n_station = 3`, corresponding to `time = [0.0, 1.0, 2.0]`.
+    ///
+    /// **Note:** `n_station` must be ≥ 2, otherwise `t_ini` and `t_fin` will be set to zero,
+    /// and the simulation will not be run.
+    pub fn set_incremental(&mut self, n_station: usize) -> &mut Self {
+        self.set_t_ini(0.0).set_dt(|_| 1.0).set_dt_out(|_| 1.0);
+        if n_station > 1 {
+            self.set_t_fin((n_station - 1) as f64)
+        } else {
+            self.set_t_fin(0.0)
+        }
     }
 
     /// Sets the initial time
@@ -501,19 +558,19 @@ impl<'a> Config<'a> {
 
     /// Sets the time increments
     pub fn set_dt(&mut self, dt: impl Fn(f64) -> f64 + 'a) -> &mut Self {
-        self.dt = Box::new(dt);
+        self.ddt = Box::new(dt);
         self
     }
 
     /// Sets the time increment for the output of results
     pub fn set_dt_out(&mut self, dt_out: impl Fn(f64) -> f64 + 'a) -> &mut Self {
-        self.dt_out = Box::new(dt_out);
+        self.ddt_out = Box::new(dt_out);
         self
     }
 
     /// Sets the minimum allowed time increment min(Δt)
     pub fn set_dt_min(&mut self, dt_min: f64) -> &mut Self {
-        self.dt_min = dt_min;
+        self.ddt_min = dt_min;
         self
     }
 
@@ -541,9 +598,19 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the tolerance for the scaled residual vector
-    pub fn set_tol_rr(&mut self, tol_rr: f64) -> &mut Self {
-        self.tol_rr = tol_rr;
+    /// Sets the absolute tolerance for the global residual vector
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub fn set_tol_rr_abs(&mut self, tol_absolute: f64) -> &mut Self {
+        self.tol_rr_abs = tol_absolute;
+        self
+    }
+
+    /// Sets the relative tolerance for the corrective (augmented) displacement vector (mdu)
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub fn set_tol_mdu_rel(&mut self, tol_relative: f64) -> &mut Self {
+        self.tol_mdu_rel = tol_relative;
         self
     }
 
@@ -603,13 +670,6 @@ impl<'a> fmt::Display for Config<'a> {
         write!(f, "thickness = {:?}\n", self.ideal.thickness).unwrap();
         write!(f, "plane_stress = {:?}\n", self.ideal.plane_stress).unwrap();
         write!(f, "initialization = {:?}\n", self.initialization).unwrap();
-        write!(f, "\nSpecified number of integration points\n").unwrap();
-        write!(f, "======================================\n").unwrap();
-        let mut key_val: Vec<_> = self.n_integ_point.iter().map(|x| x).collect();
-        key_val.sort();
-        for (key, val) in key_val {
-            write!(f, "{}: {}\n", key, val).unwrap();
-        }
         write!(f, "\nParameters for fluids\n").unwrap();
         write!(f, "=====================\n").unwrap();
         write!(f, "{:?}\n", self.param_fluids).unwrap();
@@ -623,8 +683,6 @@ impl<'a> fmt::Display for Config<'a> {
 mod tests {
     use super::Config;
     use crate::base::{Init, ParamFluids, ParamRealDensity, SampleMeshes};
-    use gemlab::mesh::Samples;
-    use std::collections::HashMap;
 
     #[test]
     fn new_works() {
@@ -635,6 +693,7 @@ mod tests {
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
         assert_eq!(config.constant_tangent, false);
+        assert_eq!(config.lagrange_mult_method, false);
         assert_eq!(config.ideal.thickness, 1.0);
         assert_eq!(config.ideal.plane_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);
@@ -657,11 +716,6 @@ mod tests {
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
 
-        let mesh = Samples::one_lin2();
-        assert_eq!(config.integ_point_data(&mesh.cells[0]).unwrap().len(), 2);
-        config.n_integ_point = HashMap::from([(1, 3), (2, 6)]);
-        assert_eq!(config.integ_point_data(&mesh.cells[0]).unwrap().len(), 3);
-
         assert_eq!(
             format!("{}", config),
             "Configuration data\n\
@@ -670,35 +724,9 @@ mod tests {
              plane_stress = true\n\
              initialization = Geostatic(-123.0)\n\
              \n\
-             Specified number of integration points\n\
-             ======================================\n\
-             1: 3\n\
-             2: 6\n\
-             \n\
              Parameters for fluids\n\
              =====================\n\
              Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })\n"
-        );
-    }
-
-    #[test]
-    fn alphas_transient_works() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-
-        config.theta = 1.0;
-        let (beta_1, beta_2) = config.betas_transient(1.0).unwrap();
-        assert_eq!(beta_1, 1.0);
-        assert_eq!(beta_2, 0.0);
-
-        config.theta = 0.5;
-        let (beta_1, beta_2) = config.betas_transient(1.0).unwrap();
-        assert_eq!(beta_1, 2.0);
-        assert_eq!(beta_2, 1.0);
-
-        assert_eq!(
-            config.betas_transient(0.0).err(),
-            Some("Δt is smaller than the allowed minimum")
         );
     }
 
@@ -737,6 +765,20 @@ mod tests {
             Some("thickness = 0.5 is incorrect; it must be = 1.0 for plane-strain or 3D".to_string())
         );
         config.ideal.thickness = 1.0;
+
+        config.arc_length_psi = -0.1;
+        assert_eq!(
+            config.validate(),
+            Some("arc_length_psi = -0.1 is incorrect; it must be 0.0 ≤ ψ ≤ 1.0".to_string())
+        );
+        config.arc_length_psi = 1.0;
+
+        config.first_trial_loading_factor = 0.0;
+        assert_eq!(
+            config.validate(),
+            Some("absolute first trial loading factor |ℓ₀| = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
+        );
+        config.first_trial_loading_factor = 1.0;
 
         config.initialization = Init::Geostatic(123.0);
         assert_eq!(
@@ -782,19 +824,26 @@ mod tests {
         );
         config.t_fin = 1.0;
 
-        config.dt_min = 0.0;
+        config.ddt_min = 0.0;
         assert_eq!(
             config.validate(),
             Some("dt_min = 0.0 is incorrect; it must be ≥ 1e-10".to_string())
         );
-        config.dt_min = 1e-3;
+        config.ddt_min = 1e-3;
 
-        config.tol_rr = 0.0;
+        config.tol_rr_abs = 0.0;
         assert_eq!(
             config.validate(),
-            Some("tol_rel_residual = 0.0 is incorrect; it must be ≥ 1e-15".to_string())
+            Some("tol_rr_abs = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
         );
-        config.tol_rr = 1e-8;
+        config.tol_rr_abs = 1e-8;
+
+        config.tol_mdu_rel = 0.0;
+        assert_eq!(
+            config.validate(),
+            Some("tol_mdu_rel = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
+        );
+        config.tol_mdu_rel = 1e-8;
 
         config.theta = 0.0;
         assert_eq!(
@@ -832,72 +881,18 @@ mod tests {
         );
         config.theta2 = 0.5;
 
+        config.hht_alpha = -1.0;
+        assert_eq!(
+            config.validate(),
+            Some("hht_alpha = -1.0 is incorrect; it must be -1/3 ≤ α ≤ 0.0".to_string())
+        );
+        config.hht_alpha = 0.0;
+
         config.ideal.plane_stress = false;
         assert_eq!(config.validate(), None);
 
         config.initialization = Init::Zero;
         assert_eq!(config.validate(), None);
-    }
-
-    #[test]
-    fn print_methods_work() {
-        // NOTE:
-        // We need to run this test manually to check the output (with our eyes)
-
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS HEADER) ####################################");
-        config.verbose_timesteps = true;
-        config.verbose_iterations = true;
-        config.print_header();
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
-        config.verbose_timesteps = false;
-        config.verbose_iterations = false;
-        config.print_header();
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP) ##################################");
-        config.verbose_timesteps = true;
-        config.print_timestep(123, 0.1, 0.01);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
-        config.verbose_timesteps = false;
-        config.print_timestep(123, 0.1, 0.01);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NaN) #############################");
-        config.verbose_iterations = true;
-        config.print_iteration(3, 123.0, f64::NAN);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NON-SCALED) ######################");
-        config.print_iteration(0, 123.0, 123.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: CONVERGED) #######################");
-        config.print_iteration(1, 123.0, 0.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: NO INFO) #########################");
-        config.print_iteration(1, 123.0, 1.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: DIVERGING) #######################");
-        config.print_iteration(3, 123.0, 246.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS TIMESTEP: CONVERGING) ######################");
-        config.print_iteration(3, 123.0, 100.0);
-        println!("############################################################ TO HERE");
-
-        println!("\n\nOUTPUT FROM HERE (SHOWS NOTHING) ###################################");
-        config.verbose_iterations = false;
-        config.print_iteration(3, 123.0, 100.0);
-        println!("############################################################ TO HERE");
     }
 
     #[test]
@@ -910,5 +905,27 @@ mod tests {
             .set_general_plasticity(true)
             .set_gp_interp_nn_max(20);
         assert_eq!(config.model_settings(att).general_plasticity, true);
+    }
+
+    #[test]
+    fn set_incremental_works() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
+        const UY: [f64; 4] = [0.0, -0.7, -0.9, -1.0];
+        config.set_incremental(UY.len());
+        assert_eq!(config.t_ini, 0.0);
+        assert_eq!(config.t_fin, 3.0);
+        assert_eq!((config.ddt)(0.0), 1.0);
+        assert_eq!((config.ddt)(3.0), 1.0);
+        assert_eq!((config.ddt_out)(0.0), 1.0);
+        assert_eq!((config.ddt_out)(3.0), 1.0);
+
+        config.set_incremental(0);
+        assert_eq!(config.t_ini, 0.0);
+        assert_eq!(config.t_fin, 0.0);
+
+        config.set_incremental(1);
+        assert_eq!(config.t_ini, 0.0);
+        assert_eq!(config.t_fin, 0.0);
     }
 }

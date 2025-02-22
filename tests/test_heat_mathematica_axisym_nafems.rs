@@ -54,6 +54,7 @@ use pmsim::{prelude::*, StrError};
 // Constant conductivity kx = ky = 52
 
 const NAME: &str = "test_heat_mathematica_axisym_nafems";
+const GENERATE_MESH: bool = false;
 const REF_POINT_MARKER: PointMarker = -1;
 
 #[test]
@@ -63,13 +64,12 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     let (ya, yb, h) = (0.04, 0.1, 0.14);
 
     // mesh
-    let generate = false;
-    let mesh = generate_or_read_mesh(rin, rref, rout, ya, yb, h, generate);
+    let mesh = generate_or_read_mesh(rin, rref, rout, ya, yb, h, GENERATE_MESH);
 
     // features
-    let feat = Features::new(&mesh, false);
-    let edges_temp = feat.search_many_edges(&[At::Y(0.0), At::Y(h), At::X(rout)], any_x)?;
-    let edges_flux = feat.search_edges(At::X(rin), |x| x[1] >= ya && x[1] <= yb)?;
+    let features = Features::new(&mesh, false);
+    let edges_temp = features.search_many_edges(&[At::Y(0.0), At::Y(h), At::X(rout)], any_x)?;
+    let edges_flux = features.search_edges(At::X(rin), |x| x[1] >= ya && x[1] <= yb)?;
 
     // reference point
     let ref_point = mesh.search_first_marked_point(REF_POINT_MARKER, any_x)?;
@@ -77,41 +77,44 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     // reference solution
     let ref_temperature = 332.97;
 
-    // input data
+    // parameters
     let (kx, ky) = (52.0, 52.0);
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
+        ngauss: None,
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&edges_temp, Ebc::T(|_| 273.15));
+    essential.edges(&edges_temp, Dof::Phi, 273.15);
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&edges_flux, Nbc::Qt(|_| 5e5));
+    natural.edges(&edges_flux, Nbc::Qt, 5e5);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric();
+    config.set_axisymmetric().set_lagrange_mult_method(true);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // check
-    let eq = input.equations.eq(ref_point, Dof::T).unwrap();
-    let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
+    let eq = base.dofs.eq(ref_point, Dof::Phi).unwrap();
+    let rel_err = f64::abs(state.u[eq] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",
-        state.uu[eq],
+        state.u[eq],
         ref_temperature,
         rel_err * 100.0
     );
@@ -130,13 +133,10 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
 
         // mark reference point
         let extract_all = true; // << needed to find interior point
-        let feat = Features::new(&mesh, extract_all);
-        let ref_points = feat.search_point_ids(At::XY(rref, ya), any_x).unwrap();
+        let features = Features::new(&mesh, extract_all);
+        let ref_points = features.search_point_ids(At::XY(rref, ya), any_x).unwrap();
         assert_eq!(ref_points.len(), 1);
         mesh.points[ref_points[0]].marker = REF_POINT_MARKER;
-
-        // write mesh
-        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
 
         // reference point
         let mut circle = Canvas::new();
@@ -145,26 +145,25 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
 
         // configure plot
         let mut fig = Figure::new();
-        fig.point_dots = true;
-        fig.figure_size = Some((400.0, 600.0));
-        fig.canvas_points.set_marker_size(3.0).set_marker_line_color("none");
+        fig.size(400.0, 600.0)
+            .canvas_points()
+            .set_marker_size(3.0)
+            .set_marker_line_color("None");
 
         // generate figure
-        mesh.draw(
-            Some(fig),
-            &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME),
-            |plot, before| {
-                if !before {
-                    plot.add(&circle);
-                }
-            },
-        )
+        fig.extra(|plot, before| {
+            if !before {
+                plot.add(&circle);
+            }
+        })
+        .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
         .unwrap();
 
-        // return generated mesh
+        // write mesh
+        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
+        Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
 }

@@ -1,6 +1,7 @@
 use gemlab::prelude::*;
 use plotpy::Canvas;
 use plotpy::Curve;
+use pmsim::analytical::ElastPlaneStrainPresCylin;
 use pmsim::prelude::*;
 use pmsim::util::ConvergenceResults;
 use russell_lab::*;
@@ -17,33 +18,6 @@ const P1: f64 = 200.0; // inner pressure (magnitude)
 const P2: f64 = 100.0; // outer pressure (magnitude)
 const YOUNG: f64 = 1000.0; // Young's modulus
 const POISSON: f64 = 0.25; // Poisson's coefficient
-
-/// Calculates the analytical solution (elastic pressurized cylinder)
-/// Reference (page 160)
-/// Sadd MH (2005) Elasticity: Theory, Applications and Numerics, Elsevier, 474p
-struct AnalyticalSolution {
-    aa: f64,
-    bb: f64,
-    c1: f64,
-    c2: f64,
-}
-
-impl AnalyticalSolution {
-    pub fn new() -> Self {
-        let rr1 = R1 * R1;
-        let rr2 = R2 * R2;
-        let drr = rr2 - rr1;
-        let dp = P2 - P1;
-        let aa = rr1 * rr2 * dp / drr;
-        let bb = (rr1 * P1 - rr2 * P2) / drr;
-        let c1 = (1.0 + POISSON) / YOUNG;
-        let c2 = 1.0 - 2.0 * POISSON;
-        AnalyticalSolution { aa, bb, c1, c2 }
-    }
-    pub fn radial_displacement(&self, r: f64) -> f64 {
-        self.c1 * (r * self.c2 * self.bb - self.aa / r)
-    }
-}
 
 fn main() -> Result<(), StrError> {
     // arguments
@@ -85,7 +59,7 @@ fn main() -> Result<(), StrError> {
     };
 
     // analytical solution
-    let ana = AnalyticalSolution::new();
+    let ana = ElastPlaneStrainPresCylin::new(R1, R2, P1, P2, YOUNG, POISSON)?;
 
     // numerical solution arrays
     let n = sizes.len();
@@ -110,7 +84,8 @@ fn main() -> Result<(), StrError> {
             let global_max_area = Some(delta_x * delta_x / 2.0);
             Unstructured::quarter_ring_2d(R1, R2, *nr, *na, kind, global_max_area, true).unwrap()
         } else {
-            Structured::quarter_ring_2d(R1, R2, *nr, *na, kind, true).unwrap()
+            let wr = vec![1.0; *nr];
+            Structured::quarter_ring_2d(R1, R2, &wr, *na, kind, true).unwrap()
         };
 
         // check mesh
@@ -118,44 +93,45 @@ fn main() -> Result<(), StrError> {
         mesh.check_overlapping_points(0.001).unwrap();
 
         // features
-        let feat = Features::new(&mesh, false);
-        let bottom = feat.search_edges(At::Y(0.0), any_x)?;
-        let left = feat.search_edges(At::X(0.0), any_x)?;
-        let inner_circle = feat.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
-        let outer_circle = feat.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
+        let features = Features::new(&mesh, false);
+        let bottom = features.search_edges(At::Y(0.0), any_x)?;
+        let left = features.search_edges(At::X(0.0), any_x)?;
+        let inner_circle = features.search_edges(At::Circle(0.0, 0.0, R1), any_x)?;
+        let outer_circle = features.search_edges(At::Circle(0.0, 0.0, R2), any_x)?;
 
         // check boundaries
         if kind == GeoKind::Qua4 {
-            assert_eq!(inner_circle.len(), *na);
-            assert_eq!(outer_circle.len(), *na);
+            assert_eq!(inner_circle.all.len(), *na);
+            assert_eq!(outer_circle.all.len(), *na);
             for i in 0..*na {
                 if i > 0 {
-                    assert_eq!(inner_circle[i].points[0], inner_circle[i - 1].points[1]);
-                    assert_eq!(outer_circle[i].points[1], outer_circle[i - 1].points[0]);
+                    assert_eq!(inner_circle.all[i].points[0], inner_circle.all[i - 1].points[1]);
+                    assert_eq!(outer_circle.all[i].points[1], outer_circle.all[i - 1].points[0]);
                 }
             }
         }
 
         // reference point to compare analytical vs numerical result
-        let ref_point_id = feat.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
+        let ref_point_id = features.search_point_ids(At::XY(R1, 0.0), any_x)?[0];
         array_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0], 1e-15);
 
         // study point (for debugging)
-        let study_point = feat.search_point_ids(At::XY(0.0, R2), any_x)?[0];
+        let study_point = features.search_point_ids(At::XY(0.0, R2), any_x)?[0];
         array_approx_eq(&mesh.points[study_point].coords, &[0.0, R2], 1e-13); // << some error
 
-        // input data
+        // parameters
         let param1 = ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::LinearElastic {
                 young: YOUNG,
                 poisson: POISSON,
             },
+            ngauss: None,
         };
-        let input = FemInput::new(&mesh, [(1, Etype::Solid(param1))])?;
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
 
         // total number of DOF
-        let ndof = input.equations.n_equation;
+        let ndof = base.dofs.size();
         let n_str = format!("{:0>5}", ndof);
 
         // filepaths
@@ -191,29 +167,30 @@ fn main() -> Result<(), StrError> {
 
             // figure settings
             let mut fig = Figure::new();
-            fig.canvas_points.set_marker_size(2.5).set_marker_line_color("black");
-            fig.figure_size = Some((800.0, 800.0));
-            fig.point_dots = if ndof < 3100 { true } else { false };
-
-            // draw figure
-            mesh.draw(Some(fig), &path_mesh, |plot, before| {
-                if !before {
-                    plot.add(&circle_in);
-                    plot.add(&circle_out);
-                    plot.add(&curve);
-                }
-            })?;
+            fig.size(800.0, 800.0)
+                .canvas_points()
+                .set_marker_size(2.5)
+                .set_marker_line_color("black");
+            fig.show_point_dots(if ndof < 3100 { true } else { false })
+                .extra(|plot, before| {
+                    if !before {
+                        plot.add(&circle_in);
+                        plot.add(&circle_out);
+                        plot.add(&curve);
+                    }
+                })
+                .draw(&mesh, &path_mesh)?;
         }
 
         // essential boundary conditions
         let mut essential = Essential::new();
-        essential.on(&left, Ebc::Ux(|_| 0.0)).on(&bottom, Ebc::Uy(|_| 0.0));
+        essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
         // natural boundary conditions
         let mut natural = Natural::new();
         natural
-            .on(&inner_circle, Nbc::Qn(|_| -P1))
-            .on(&outer_circle, Nbc::Qn(|_| -P2));
+            .edges(&inner_circle, Nbc::Qn, -P1)
+            .edges(&outer_circle, Nbc::Qn, -P2);
 
         // configuration
         let mut config = Config::new(&mesh);
@@ -227,27 +204,27 @@ fn main() -> Result<(), StrError> {
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // FEM state
-        let mut state = FemState::new(&input, &config)?;
+        let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-        // FEM output
-        let mut output = FemOutput::new(&input, None, None, None)?;
+        // File IO
+        let mut file_io = FileIo::new();
 
-        // solve problem
-        let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+        // solution
+        let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
-        solver.solve(&mut state, &mut output)?;
+        solver.solve(&mut state, &mut file_io)?;
         results.time[idx] = stopwatch.stop();
 
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = input.equations.eq(ref_point_id, Dof::Ux).unwrap();
-        let numerical_ur = state.uu[eq];
-        let error = f64::abs(numerical_ur - ana.radial_displacement(r));
+        let eq = base.dofs.eq(ref_point_id, Dof::Ux).unwrap();
+        let numerical_ur = state.u[eq];
+        let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
-        let eq = input.equations.eq(study_point, Dof::Uy).unwrap();
-        let numerical_ur = state.uu[eq];
+        let eq = base.dofs.eq(study_point, Dof::Uy).unwrap();
+        let numerical_ur = state.u[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results

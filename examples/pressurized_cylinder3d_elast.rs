@@ -1,6 +1,7 @@
 use gemlab::prelude::*;
 use plotpy::Curve;
 use plotpy::Surface;
+use pmsim::analytical::ElastPlaneStrainPresCylin;
 use pmsim::prelude::*;
 use pmsim::util::ConvergenceResults;
 use russell_lab::*;
@@ -21,33 +22,6 @@ const P1: f64 = 200.0; // inner pressure (magnitude)
 const P2: f64 = 100.0; // outer pressure (magnitude)
 const YOUNG: f64 = 1000.0; // Young's modulus
 const POISSON: f64 = 0.25; // Poisson's coefficient
-
-/// Calculates the analytical solution (elastic pressurized cylinder)
-/// Reference (page 160)
-/// Sadd MH (2005) Elasticity: Theory, Applications and Numerics, Elsevier, 474p
-struct AnalyticalSolution {
-    aa: f64,
-    bb: f64,
-    c1: f64,
-    c2: f64,
-}
-
-impl AnalyticalSolution {
-    pub fn new() -> Self {
-        let rr1 = R1 * R1;
-        let rr2 = R2 * R2;
-        let drr = rr2 - rr1;
-        let dp = P2 - P1;
-        let aa = rr1 * rr2 * dp / drr;
-        let bb = (rr1 * P1 - rr2 * P2) / drr;
-        let c1 = (1.0 + POISSON) / YOUNG;
-        let c2 = 1.0 - 2.0 * POISSON;
-        AnalyticalSolution { aa, bb, c1, c2 }
-    }
-    pub fn radial_displacement(&self, r: f64) -> f64 {
-        self.c1 * (r * self.c2 * self.bb - self.aa / r)
-    }
-}
 
 fn main() -> Result<(), StrError> {
     // arguments
@@ -92,7 +66,7 @@ fn main() -> Result<(), StrError> {
     };
 
     // analytical solution
-    let ana = AnalyticalSolution::new();
+    let ana = ElastPlaneStrainPresCylin::new(R1, R2, P1, P2, YOUNG, POISSON)?;
 
     // numerical solution arrays
     let n = sizes.len();
@@ -118,7 +92,8 @@ fn main() -> Result<(), StrError> {
             // println!("0. max vol = {:?}", global_max_volume);
             Unstructured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, kind, global_max_volume, true).unwrap()
         } else {
-            Structured::quarter_ring_3d(R1, R2, THICKNESS, *nr, *na, NZ, kind, true).unwrap()
+            let wr = vec![1.0; *nr];
+            Structured::quarter_ring_3d(R1, R2, THICKNESS, &wr, *na, NZ, kind, true).unwrap()
         };
 
         // println!("1. npoint = {}, ncell = {}", mesh.points.len(), mesh.cells.len());
@@ -133,42 +108,43 @@ fn main() -> Result<(), StrError> {
         // println!("2. mesh verified");
 
         // features
-        let feat = Features::new(&mesh, false);
-        let faces_y_min = feat.search_faces(At::Y(0.0), any_x)?;
-        let faces_x_min = feat.search_faces(At::X(0.0), any_x)?;
-        let faces_inner = feat.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R1), any_x)?;
-        let faces_outer = feat.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R2), any_x)?;
-        let faces_z_min = feat.search_faces(At::Z(0.0), any_x)?;
-        let faces_z_max = feat.search_faces(At::Z(THICKNESS), any_x)?;
+        let features = Features::new(&mesh, false);
+        let faces_y_min = features.search_faces(At::Y(0.0), any_x)?;
+        let faces_x_min = features.search_faces(At::X(0.0), any_x)?;
+        let faces_inner = features.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R1), any_x)?;
+        let faces_outer = features.search_faces(At::Cylinder(0.0, 0.0, 0.0, 0.0, 0.0, 1.0, R2), any_x)?;
+        let faces_z_min = features.search_faces(At::Z(0.0), any_x)?;
+        let faces_z_max = features.search_faces(At::Z(THICKNESS), any_x)?;
 
         // check boundaries
         if kind == GeoKind::Hex8 {
-            assert_eq!(faces_inner.len(), *na * NZ);
-            assert_eq!(faces_outer.len(), *na * NZ);
+            assert_eq!(faces_inner.all.len(), *na * NZ);
+            assert_eq!(faces_outer.all.len(), *na * NZ);
         }
 
         // println!("3. found boundaries");
 
         // reference point to compare analytical vs numerical result
-        let ref_point_id = feat.search_point_ids(At::XYZ(R1, 0.0, 0.0), any_x)?[0];
+        let ref_point_id = features.search_point_ids(At::XYZ(R1, 0.0, 0.0), any_x)?[0];
         array_approx_eq(&mesh.points[ref_point_id].coords, &[R1, 0.0, 0.0], 1e-15);
 
         // study point (for debugging)
-        let study_point = feat.search_point_ids(At::XYZ(0.0, R2, 0.0), any_x)?[0];
+        let study_point = features.search_point_ids(At::XYZ(0.0, R2, 0.0), any_x)?[0];
         array_approx_eq(&mesh.points[study_point].coords, &[0.0, R2, 0.0], 1e-13); // << some error
 
-        // input data
+        // parameters
         let param1 = ParamSolid {
             density: 1.0,
             stress_strain: StressStrain::LinearElastic {
                 young: YOUNG,
                 poisson: POISSON,
             },
+            ngauss: None,
         };
-        let input = FemInput::new(&mesh, [(1, Etype::Solid(param1))])?;
+        let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
 
         // total number of DOF
-        let ndof = input.equations.n_equation;
+        let ndof = base.dofs.size();
         let n_str = format!("{:0>5}", ndof);
 
         // println!("4. NDOF = {}", ndof);
@@ -200,34 +176,34 @@ fn main() -> Result<(), StrError> {
 
             // figure settings
             let mut fig = Figure::new();
-            fig.point_ids = false;
-            fig.canvas_points.set_marker_size(2.5).set_marker_line_color("black");
-            fig.figure_size = Some((800.0, 800.0));
-            fig.point_dots = if ndof < 3100 { true } else { false };
-
-            // draw figure
-            mesh.draw(Some(fig), &path_mesh, |plot, before| {
-                if !before {
-                    plot.add(&cylin_in);
-                    plot.add(&cylin_out);
-                    plot.add(&curve);
-                }
-            })?;
+            fig.size(800.0, 800.0)
+                .canvas_points()
+                .set_marker_size(2.5)
+                .set_marker_line_color("black");
+            fig.show_point_dots(if ndof < 3100 { true } else { false })
+                .extra(|plot, before| {
+                    if !before {
+                        plot.add(&cylin_in);
+                        plot.add(&cylin_out);
+                        plot.add(&curve);
+                    }
+                })
+                .draw(&mesh, &path_mesh)?;
         }
 
         // essential boundary conditions
         let mut essential = Essential::new();
         essential
-            .on(&faces_x_min, Ebc::Ux(|_| 0.0))
-            .on(&faces_y_min, Ebc::Uy(|_| 0.0))
-            .on(&faces_z_min, Ebc::Uz(|_| 0.0))
-            .on(&faces_z_max, Ebc::Uz(|_| 0.0));
+            .faces(&faces_x_min, Dof::Ux, 0.0)
+            .faces(&faces_y_min, Dof::Uy, 0.0)
+            .faces(&faces_z_min, Dof::Uz, 0.0)
+            .faces(&faces_z_max, Dof::Uz, 0.0);
 
         // natural boundary conditions
         let mut natural = Natural::new();
         natural
-            .on(&faces_inner, Nbc::Qn(|_| -P1))
-            .on(&faces_outer, Nbc::Qn(|_| -P2));
+            .faces(&faces_inner, Nbc::Qn, -P1)
+            .faces(&faces_outer, Nbc::Qn, -P2);
 
         // configuration
         let mut config = Config::new(&mesh);
@@ -241,17 +217,17 @@ fn main() -> Result<(), StrError> {
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // FEM state
-        let mut state = FemState::new(&input, &config)?;
+        let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-        // FEM output
-        let mut output = FemOutput::new(&input, None, None, None)?;
+        // File IO
+        let mut file_io = FileIo::new();
 
         // println!("5. running simulation");
 
-        // solve problem
-        let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
+        // solution
+        let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
-        match solver.solve(&mut state, &mut output) {
+        match solver.solve(&mut state, &mut file_io) {
             Err(e) => {
                 println!("{:?} failed with: {}", genie, e);
                 continue;
@@ -265,13 +241,13 @@ fn main() -> Result<(), StrError> {
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = input.equations.eq(ref_point_id, Dof::Ux).unwrap();
-        let numerical_ur = state.uu[eq];
-        let error = f64::abs(numerical_ur - ana.radial_displacement(r));
+        let eq = base.dofs.eq(ref_point_id, Dof::Ux).unwrap();
+        let numerical_ur = state.u[eq];
+        let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
-        let eq = input.equations.eq(study_point, Dof::Uy).unwrap();
-        let numerical_ur = state.uu[eq];
+        let eq = base.dofs.eq(study_point, Dof::Uy).unwrap();
+        let numerical_ur = state.u[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results

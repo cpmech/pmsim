@@ -64,14 +64,14 @@ pub(crate) fn calculate_strain(
 #[cfg(test)]
 mod tests {
     use super::calculate_strain;
-    use crate::base::{compute_local_to_global, Attributes, Config, Etype, ElementDofsMap, Equations, ParamSolid};
+    use crate::base::{compute_local_to_global, AllDofs, Attributes, Config, Elem, ElementDofsMap, ParamSolid};
     use crate::base::{
         elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
+    use gemlab::integ::Gauss;
     use gemlab::mesh::Samples;
-    use gemlab::shapes::Scratchpad;
     use russell_lab::vec_approx_eq;
     use russell_tensor::Tensor2;
 
@@ -108,36 +108,34 @@ mod tests {
 
             // local-to-global map
             let p1 = ParamSolid::sample_linear_elastic();
-            let att = Attributes::from([(1, Etype::Solid(p1))]);
-            let emap = ElementDofsMap::new(&mesh, &att).unwrap();
-            let eqs = Equations::new(&mesh, &emap).unwrap();
+            let amap = Attributes::from([(1, Elem::Solid(p1))]);
+            let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
+            let eqs = AllDofs::new(&mesh, &emap).unwrap();
             let l2g = compute_local_to_global(&emap, &eqs, cell).unwrap();
 
             // configuration
             let config = Config::new(&mesh);
 
             // pad for numerical integration
-            let (kind, points) = (cell.kind, &cell.points);
-            let mut pad = Scratchpad::new(ndim, kind).unwrap();
-            mesh.set_pad(&mut pad, &points);
+            let mut pad = mesh.get_pad(cell.id);
 
             // integration points
-            let ips = config.integ_point_data(cell).unwrap();
+            let gauss = Gauss::new(cell.kind);
 
             // strain increment
             let mut de = Tensor2::new(config.ideal.mandel());
 
             // check increment of strains for all integration points
-            for p in 0..ips.len() {
-                let ksi = &ips[p];
+            for p in 0..gauss.npoint() {
+                let iota = gauss.coords(p);
                 // horizontal strain
-                calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, iota, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_h.vector(), 1e-13);
                 // vertical strain
-                calculate_strain(&mut de, &duu_v, &config.ideal, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_v, &config.ideal, &l2g, iota, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_v.vector(), 1e-14);
                 // shear strain
-                calculate_strain(&mut de, &duu_s, &config.ideal, &l2g, ksi, &mut pad).unwrap();
+                calculate_strain(&mut de, &duu_s, &config.ideal, &l2g, iota, &mut pad).unwrap();
                 vec_approx_eq(de.vector(), strain_s.vector(), 1e-14);
             }
         }

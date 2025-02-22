@@ -35,23 +35,24 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let mesh = SampleMeshes::smith_example_5d24_hex20();
 
     // features
-    let feat = Features::new(&mesh, false);
-    let faces_x_min = feat.search_faces(At::X(0.0), any_x)?;
-    let faces_y_min = feat.search_faces(At::Y(0.0), any_x)?;
-    let bottom = feat.search_faces(At::Z(-2.0), any_x)?;
-    let top = feat.search_faces(At::Z(0.0), |x| x[1] <= 1.0)?;
-    println!("faces_x_min = {:?}", &faces_x_min);
-    println!("faces_y_min = {:?}", &faces_y_min);
-    println!("bottom = {:?}", &bottom);
-    println!("top = {:?}", &top);
+    let features = Features::new(&mesh, false);
+    let faces_x_min = features.search_faces(At::X(0.0), any_x)?;
+    let faces_y_min = features.search_faces(At::Y(0.0), any_x)?;
+    let bottom = features.search_faces(At::Z(-2.0), any_x)?;
+    let top = features.search_faces(At::Z(0.0), |x| x[1] <= 1.0)?;
+    // println!("faces_x_min = {:?}", &faces_x_min);
+    // println!("faces_y_min = {:?}", &faces_y_min);
+    // println!("bottom = {:?}", &bottom);
+    // println!("top = {:?}", &top);
 
-    // input data
+    // parameters
     let p1 = ParamSolid {
         density: 1.0,
         stress_strain: StressStrain::LinearElastic {
             young: 100.0,
             poisson: 0.3,
         },
+        ngauss: Some(8),
     };
     let p2 = ParamSolid {
         density: 1.0,
@@ -59,34 +60,35 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
             young: 50.0,
             poisson: 0.3,
         },
+        ngauss: Some(8),
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Solid(p1)), (2, Etype::Solid(p2))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
 
     // essential boundary conditions
-    let zero = |_| 0.0;
     let mut essential = Essential::new();
     essential
-        .on(&faces_x_min, Ebc::Ux(zero))
-        .on(&faces_y_min, Ebc::Uy(zero))
-        .on(&bottom, Ebc::Ux(zero))
-        .on(&bottom, Ebc::Uy(zero))
-        .on(&bottom, Ebc::Uz(zero));
+        .faces(&faces_x_min, Dof::Ux, 0.0)
+        .faces(&faces_y_min, Dof::Uy, 0.0)
+        .faces(&bottom, Dof::Ux, 0.0)
+        .faces(&bottom, Dof::Uy, 0.0)
+        .faces(&bottom, Dof::Uz, 0.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&top, Nbc::Qn(|_| -1.0));
+    natural.faces(&top, Nbc::Qn, -1.0);
 
     // configuration
-    let mut config = Config::new(&mesh);
-    config.set_n_integ_point(1, 8).set_n_integ_point(2, 8);
+    let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -162,6 +164,6 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
          0.000000000000000e+00,  0.000000000000000e+00,  0.000000000000000e+00,
          0.000000000000000e+00,  0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.uu, uu_correct, 2e-9);
+    vec_approx_eq(&state.u, uu_correct, 2e-9);
     Ok(())
 }

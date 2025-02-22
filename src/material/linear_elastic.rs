@@ -1,6 +1,7 @@
 use super::{LocalState, Settings, StressStrainTrait};
-use crate::base::{Idealization, StressStrain, N_INT_VAL_LINEAR_ELASTIC};
+use crate::base::{Idealization, StressStrain, NZ_LINEAR_ELASTIC};
 use crate::StrError;
+use gemlab::mesh::CellId;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 
 /// Implements a linear elastic model
@@ -26,18 +27,18 @@ impl StressStrainTrait for LinearElastic {
         true
     }
 
-    /// Returns the number of internal values
-    fn n_internal_values(&self) -> usize {
-        N_INT_VAL_LINEAR_ELASTIC
+    /// Returns the number of internal variables
+    fn n_int_vars(&self) -> usize {
+        NZ_LINEAR_ELASTIC
     }
 
-    /// Returns the number of internal values directly affecting the yield function
-    fn n_internal_values_yield_function(&self) -> usize {
+    /// Returns the number of internal variables directly affecting the yield function
+    fn n_int_vars_yield_function(&self) -> usize {
         0
     }
 
-    /// Initializes the internal values for the initial stress state
-    fn initialize_internal_values(&self, _state: &mut LocalState) -> Result<(), StrError> {
+    /// Initializes the internal variables for the initial stress state
+    fn initialize_int_vars(&self, _state: &mut LocalState) -> Result<(), StrError> {
         Ok(())
     }
 
@@ -45,13 +46,25 @@ impl StressStrainTrait for LinearElastic {
     fn reset_algorithmic_variables(&self, _state: &mut LocalState) {}
 
     /// Computes the consistent tangent stiffness
-    fn stiffness(&mut self, dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+    fn stiffness(
+        &mut self,
+        dd: &mut Tensor4,
+        _state: &LocalState,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
         dd.set_tensor(1.0, self.model.get_modulus());
         Ok(())
     }
 
     /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+    fn update_stress(
+        &mut self,
+        state: &mut LocalState,
+        delta_strain: &Tensor2,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
         let dd = self.model.get_modulus();
         t4_ddot_t2_update(&mut state.stress, 1.0, dd, delta_strain, 1.0); // σ += D : Δε
         Ok(())

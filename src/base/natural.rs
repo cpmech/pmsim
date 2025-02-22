@@ -1,51 +1,201 @@
 use super::{Nbc, Pbc};
-use gemlab::mesh::{Feature, PointId};
+use gemlab::mesh::{Edge, Edges, Face, Faces, PointId};
 use std::fmt;
 
 /// Holds natural boundary conditions
-pub struct Natural<'a> {
-    pub concentrated: Vec<(PointId, Pbc)>,
-    pub distributed: Vec<(&'a Feature, Nbc)>,
+pub struct Natural<'a, 'b> {
+    /// Holds all point values
+    ///
+    /// The data is `(point_id, pbc, value, f_index)` where `f_index`
+    /// is the index of the function in the `functions` array.
+    ///
+    /// * If `f_index` is None: `value_current = value`
+    /// * If `f_index` is Some: `value_current = f(t)`
+    pub(crate) at_points: Vec<(PointId, Pbc, f64, Option<usize>)>,
+
+    /// Holds all edge values
+    ///
+    /// The data is `(point_id, pbc, value, f_index)` where `f_index`
+    /// is the index of the function in the `functions` array.
+    ///
+    /// * If `f_index` is None: `value_current = value`
+    /// * If `f_index` is Some: `value_current = f(t)`
+    pub(crate) on_edges: Vec<(&'b Edge, Nbc, f64, Option<usize>)>,
+
+    /// Holds all face values
+    ///
+    /// The data is `(point_id, pbc, value, f_index)` where `f_index`
+    /// is the index of the function in the `functions` array.
+    ///
+    /// * If `f_index` is None: `value_current = value`
+    /// * If `f_index` is Some: `value_current = f(t)`
+    pub(crate) on_faces: Vec<(&'b Face, Nbc, f64, Option<usize>)>,
+
+    /// Holds optional functions to calculate the BC value
+    pub(crate) functions: Vec<Box<dyn Fn(f64) -> f64 + 'a>>,
 }
 
-impl<'a> Natural<'a> {
+impl<'a, 'b> Natural<'a, 'b> {
     /// Allocates a new instance
     pub fn new() -> Self {
         Natural {
-            concentrated: Vec::new(),
-            distributed: Vec::new(),
+            at_points: Vec::new(),
+            on_edges: Vec::new(),
+            on_faces: Vec::new(),
+            functions: Vec::new(),
         }
     }
 
-    /// Sets natural boundary condition at points
-    pub fn at(&mut self, points: &[PointId], pbc: Pbc) -> &mut Self {
+    /// Sets natural boundary condition given point
+    pub fn point(&mut self, point_id: PointId, pbc: Pbc, value: f64) -> &mut Self {
+        self.at_points.push((point_id, pbc, value, None));
+        self
+    }
+
+    /// Sets natural boundary condition given edge
+    pub fn edge(&mut self, edge: &'b Edge, nbc: Nbc, value: f64) -> &mut Self {
+        self.on_edges.push((edge, nbc, value, None));
+        self
+    }
+
+    /// Sets natural boundary condition given face
+    pub fn face(&mut self, face: &'b Face, nbc: Nbc, value: f64) -> &mut Self {
+        self.on_faces.push((face, nbc, value, None));
+        self
+    }
+
+    /// Sets natural boundary condition given point
+    pub fn point_fn(&mut self, point_id: PointId, pbc: Pbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        let f_index = self.functions.len();
+        self.at_points.push((point_id, pbc, 0.0, Some(f_index)));
+        self.functions.push(Box::new(f));
+        self
+    }
+
+    /// Sets natural boundary condition given edge
+    pub fn edge_fn(&mut self, edge: &'b Edge, nbc: Nbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        let f_index = self.functions.len();
+        self.on_edges.push((edge, nbc, 0.0, Some(f_index)));
+        self.functions.push(Box::new(f));
+        self
+    }
+
+    /// Sets natural boundary condition given face
+    pub fn face_fn(&mut self, face: &'b Face, nbc: Nbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        let f_index = self.functions.len();
+        self.on_faces.push((face, nbc, 0.0, Some(f_index)));
+        self.functions.push(Box::new(f));
+        self
+    }
+
+    /// Sets natural boundary condition given points
+    pub fn points(&mut self, points: &[PointId], pbc: Pbc, value: f64) -> &mut Self {
         for point_id in points {
-            self.concentrated.push((*point_id, pbc));
+            self.at_points.push((*point_id, pbc, value, None));
         }
         self
     }
 
-    /// Sets natural boundary condition on edges or faces
-    pub fn on(&mut self, features: &[&'a Feature], nbc: Nbc) -> &mut Self {
-        for feature in features {
-            self.distributed.push((feature, nbc));
+    /// Sets natural boundary condition given edges
+    pub fn edges(&mut self, edges: &'b Edges, nbc: Nbc, value: f64) -> &mut Self {
+        for edge in &edges.all {
+            self.on_edges.push((edge, nbc, value, None));
         }
+        self
+    }
+
+    /// Sets natural boundary condition given faces
+    pub fn faces(&mut self, faces: &'b Faces, nbc: Nbc, value: f64) -> &mut Self {
+        for face in &faces.all {
+            self.on_faces.push((face, nbc, value, None));
+        }
+        self
+    }
+
+    /// Sets natural boundary condition given points
+    pub fn points_fn(&mut self, points: &[PointId], pbc: Pbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        let f_index = self.functions.len();
+        for point_id in points {
+            self.at_points.push((*point_id, pbc, 0.0, Some(f_index)));
+        }
+        self.functions.push(Box::new(f));
+        self
+    }
+
+    /// Sets natural boundary condition given edges
+    pub fn edges_fn(&mut self, edges: &'b Edges, nbc: Nbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        let f_index = self.functions.len();
+        for edge in &edges.all {
+            self.on_edges.push((edge, nbc, 0.0, Some(f_index)));
+        }
+        self.functions.push(Box::new(f));
+        self
+    }
+
+    /// Sets natural boundary condition given faces
+    pub fn faces_fn(&mut self, faces: &'b Faces, nbc: Nbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+        let f_index = self.functions.len();
+        for face in &faces.all {
+            self.on_faces.push((face, nbc, 0.0, Some(f_index)));
+        }
+        self.functions.push(Box::new(f));
         self
     }
 }
 
-impl<'a> fmt::Display for Natural<'a> {
+impl<'a, 'b> fmt::Display for Natural<'a, 'b> {
     /// Prints a formatted summary of Boundary Conditions
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Concentrated boundary conditions\n").unwrap();
-        write!(f, "================================\n").unwrap();
-        for (id, pbc) in &self.concentrated {
-            write!(f, "{:?} : {}\n", id, pbc).unwrap();
+        write!(f, "Points: concentrated boundary conditions\n").unwrap();
+        write!(f, "========================================\n").unwrap();
+        for (id, pbc, value, f_index) in &self.at_points {
+            match f_index {
+                Some(index) => write!(
+                    f,
+                    "{:?} : {:?}(t=0) = {:?}, {:?}(t=1) = {:?}\n",
+                    id,
+                    pbc,
+                    (self.functions[*index](0.0)),
+                    pbc,
+                    (self.functions[*index](1.0))
+                )
+                .unwrap(),
+                None => write!(f, "{:?} : {:?} = {:?}\n", id, pbc, value).unwrap(),
+            }
         }
-        write!(f, "\nDistributed boundary conditions\n").unwrap();
-        write!(f, "===============================\n").unwrap();
-        for (feature, nbc) in &self.distributed {
-            write!(f, "{:?} : {}\n", feature.points, nbc).unwrap();
+        write!(f, "\nEdges: distributed boundary conditions\n").unwrap();
+        write!(f, "======================================\n").unwrap();
+        for (edge, nbc, value, f_index) in &self.on_edges {
+            match f_index {
+                Some(index) => write!(
+                    f,
+                    "{:?} : {:?}(t=0) = {:?}, {:?}(t=1) = {:?}\n",
+                    edge.points,
+                    nbc,
+                    (self.functions[*index](0.0)),
+                    nbc,
+                    (self.functions[*index](1.0))
+                )
+                .unwrap(),
+                None => write!(f, "{:?} : {:?} = {:?}\n", edge.points, nbc, value).unwrap(),
+            }
+        }
+        write!(f, "\nFaces: distributed boundary conditions\n").unwrap();
+        write!(f, "======================================\n").unwrap();
+        for (face, nbc, value, f_index) in &self.on_faces {
+            match f_index {
+                Some(index) => write!(
+                    f,
+                    "{:?} : {:?}(t=0) = {:?}, {:?}(t=1) = {:?}\n",
+                    face.points,
+                    nbc,
+                    (self.functions[*index](0.0)),
+                    nbc,
+                    (self.functions[*index](1.0))
+                )
+                .unwrap(),
+                None => write!(f, "{:?} : {:?} = {:?}\n", face.points, nbc, value).unwrap(),
+            }
         }
         Ok(())
     }
@@ -57,52 +207,101 @@ impl<'a> fmt::Display for Natural<'a> {
 mod tests {
     use super::Natural;
     use crate::base::{Nbc, Pbc};
-    use gemlab::mesh::{Feature, Features, Samples};
-    use gemlab::shapes::GeoKind;
+    use gemlab::mesh::{Edge, Edges, Face, Faces, Features, GeoKind, Samples};
 
     #[test]
-    fn set_points_edges_faces_work() {
+    fn natural_works_1() {
         let mut natural = Natural::new();
-        let edges = &[&Feature {
+        let edge_a = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
-        }];
-        let faces = &[&Feature {
+        };
+        let edge_b = Edge {
+            kind: GeoKind::Lin2,
+            points: vec![2, 3],
+        };
+        let face_a = Face {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
-        }];
+        };
+        let face_b = Face {
+            kind: GeoKind::Tri3,
+            points: vec![6, 7, 8],
+        };
         natural
-            .at(&[10], Pbc::Fy(|_| -100.0))
-            .on(edges, Nbc::Qy(|t| t))
-            .on(faces, Nbc::Qn(|t| t / 2.0));
+            .point(10, Pbc::Fy, -100.0)
+            .edge(&edge_a, Nbc::Qx, 1.0)
+            .face(&face_a, Nbc::Qy, 2.0)
+            .point_fn(20, Pbc::Fy, |t| t)
+            .edge_fn(&edge_b, Nbc::Qx, |t| t)
+            .face_fn(&face_b, Nbc::Qy, |t| t);
+        // println!("{}", natural);
         assert_eq!(
             format!("{}", natural),
-            "Concentrated boundary conditions\n\
-             ================================\n\
-             10 : Fy(0) = -100.0, Fy(1) = -100.0\n\
+            "Points: concentrated boundary conditions\n\
+             ========================================\n\
+             10 : Fy = -100.0\n\
+             20 : Fy(t=0) = 0.0, Fy(t=1) = 1.0\n\
              \n\
-             Distributed boundary conditions\n\
-             ===============================\n\
-             [1, 2] : Qy(0) = 0.0, Qy(1) = 1.0\n\
-             [3, 4, 5] : Qn(0) = 0.0, Qn(1) = 0.5\n"
+             Edges: distributed boundary conditions\n\
+             ======================================\n\
+             [1, 2] : Qx = 1.0\n\
+             [2, 3] : Qx(t=0) = 0.0, Qx(t=1) = 1.0\n\
+             \n\
+             Faces: distributed boundary conditions\n\
+             ======================================\n\
+             [3, 4, 5] : Qy = 2.0\n\
+             [6, 7, 8] : Qy(t=0) = 0.0, Qy(t=1) = 1.0\n"
         );
+    }
 
-        // note that Display follows the setting order
+    #[test]
+    fn natural_works_2() {
         let mut natural = Natural::new();
+        let edge_a = Edge {
+            kind: GeoKind::Lin2,
+            points: vec![1, 2],
+        };
+        let edge_b = Edge {
+            kind: GeoKind::Lin2,
+            points: vec![2, 3],
+        };
+        let face_a = Face {
+            kind: GeoKind::Tri3,
+            points: vec![3, 4, 5],
+        };
+        let face_b = Face {
+            kind: GeoKind::Tri3,
+            points: vec![6, 7, 8],
+        };
+        let edges_a = Edges { all: vec![&edge_a] };
+        let edges_b = Edges { all: vec![&edge_b] };
+        let faces_a = Faces { all: vec![&face_a] };
+        let faces_b = Faces { all: vec![&face_b] };
         natural
-            .at(&[10], Pbc::Fy(|_| -100.0))
-            .on(faces, Nbc::Qn(|t| t / 2.0))
-            .on(edges, Nbc::Qy(|t| t));
+            .points(&[10], Pbc::Fy, -100.0)
+            .edges(&edges_a, Nbc::Qx, 1.0)
+            .faces(&faces_a, Nbc::Qy, 2.0)
+            .points_fn(&[20], Pbc::Fy, |t| t)
+            .edges_fn(&edges_b, Nbc::Qx, |t| t)
+            .faces_fn(&faces_b, Nbc::Qy, |t| t);
+        // println!("{}", natural);
         assert_eq!(
             format!("{}", natural),
-            "Concentrated boundary conditions\n\
-             ================================\n\
-             10 : Fy(0) = -100.0, Fy(1) = -100.0\n\
+            "Points: concentrated boundary conditions\n\
+             ========================================\n\
+             10 : Fy = -100.0\n\
+             20 : Fy(t=0) = 0.0, Fy(t=1) = 1.0\n\
              \n\
-             Distributed boundary conditions\n\
-             ===============================\n\
-             [3, 4, 5] : Qn(0) = 0.0, Qn(1) = 0.5\n\
-             [1, 2] : Qy(0) = 0.0, Qy(1) = 1.0\n"
+             Edges: distributed boundary conditions\n\
+             ======================================\n\
+             [1, 2] : Qx = 1.0\n\
+             [2, 3] : Qx(t=0) = 0.0, Qx(t=1) = 1.0\n\
+             \n\
+             Faces: distributed boundary conditions\n\
+             ======================================\n\
+             [3, 4, 5] : Qy = 2.0\n\
+             [6, 7, 8] : Qy(t=0) = 0.0, Qy(t=1) = 1.0\n"
         );
     }
 
@@ -122,24 +321,33 @@ mod tests {
         // |/             |/
         // 1--------------2   1.0
         let mesh = Samples::one_hex8();
-        let feat = Features::new(&mesh, false);
+        let features = Features::new(&mesh, false);
         let mut natural = Natural::new();
-        let fbc = |t| -10.0 * t;
-        let top_edges = [feat.edges.get(&(4, 5)).unwrap(), feat.edges.get(&(6, 7)).unwrap()];
-        let top_face = feat.faces.get(&(0, 1, 4, 5)).unwrap();
-        natural.on(&top_edges, Nbc::Qn(fbc));
-        natural.on(&[&top_face], Nbc::Qy(fbc));
+        let top_edges = Edges {
+            all: vec![
+                features.edges.get(&(4, 5)).unwrap(),
+                features.edges.get(&(6, 7)).unwrap(),
+            ],
+        };
+        let top_faces = Faces {
+            all: vec![features.faces.get(&(0, 1, 4, 5)).unwrap()],
+        };
+        natural.edges(&top_edges, Nbc::Qn, -10.0);
+        natural.faces(&top_faces, Nbc::Qy, -20.0);
+        // println!("{}", natural);
         assert_eq!(
             format!("{}", natural),
-            "Concentrated boundary conditions\n\
-             ================================\n\
+            "Points: concentrated boundary conditions\n\
+             ========================================\n\
              \n\
-             Distributed boundary conditions\n\
-             ===============================\n\
-             [4, 5] : Qn(0) = -0.0, Qn(1) = -10.0\n\
-             [6, 7] : Qn(0) = -0.0, Qn(1) = -10.0\n\
-             [0, 1, 5, 4] : Qy(0) = -0.0, Qy(1) = -10.0\n"
+             Edges: distributed boundary conditions\n\
+             ======================================\n\
+             [4, 5] : Qn = -10.0\n\
+             [6, 7] : Qn = -10.0\n\
+             \n\
+             Faces: distributed boundary conditions\n\
+             ======================================\n\
+             [0, 1, 5, 4] : Qy = -20.0\n"
         );
-        assert_eq!(fbc(1.0), -10.0);
     }
 }

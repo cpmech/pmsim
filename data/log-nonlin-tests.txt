@@ -1,0 +1,208 @@
+
+
+
+
+running 1 test
+test test_heat_arpaci_nonlinear_1d ... ok
+
+successes:
+
+---- test_heat_arpaci_nonlinear_1d stdout ----
+Legend:
+✅ : converged
+👍 : converging
+🥵 : diverging
+😱 : found NaN or Inf
+❋  : non-scaled max(R)
+?  : no info abut convergence
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1    1.000000e0    1.000000e0     .        .  
+       .             .             .     1    2.50e0❋ 
+       .             .             .     2    1.28e0? 
+       .             .             .     3   9.36e-2👍
+       .             .             .     4   1.25e-3👍
+       .             .             .     5   1.42e-7👍
+       .             .             .     6  1.47e-14✅
+
+T(0) = 87.08286933869704  (87.08286933869707)
+
+
+successes:
+    test_heat_arpaci_nonlinear_1d
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+
+
+
+running 1 test
+test test_von_mises_single_element_2d ... ok
+
+successes:
+
+---- test_von_mises_single_element_2d stdout ----
+Legend:
+✅ : converged
+👍 : converging
+🥵 : diverging
+😱 : found NaN or Inf
+❋  : non-scaled max(R)
+?  : no info abut convergence
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1    1.000000e0    1.000000e0     .        .  
+       .             .             .     1    0.00e0❋ 
+       .             .             .     2    1.87e0? 
+       .             .             .     3  5.55e-17✅
+       2    2.000000e0    1.000000e0     .        .  
+       .             .             .     1  5.55e-17❋ 
+       .             .             .     2    2.91e0? 
+       .             .             .     3   9.00e-2👍
+       .             .             .     4   6.60e-5👍
+       .             .             .     5  3.51e-11✅
+       3    3.000000e0    1.000000e0     .        .  
+       .             .             .     1  3.51e-11❋ 
+       .             .             .     2    2.99e0? 
+       .             .             .     3   8.71e-2👍
+       .             .             .     4   5.71e-5👍
+       .             .             .     5  2.42e-11✅
+       4    4.000000e0    1.000000e0     .        .  
+       .             .             .     1  2.42e-11❋ 
+       .             .             .     2    3.03e0? 
+       .             .             .     3   8.11e-2👍
+       .             .             .     4   4.57e-5👍
+       .             .             .     5  1.44e-11✅
+       5    5.000000e0    1.000000e0     .        .  
+       .             .             .     1  1.44e-11❋ 
+       .             .             .     2    3.05e0? 
+       .             .             .     3   7.48e-2👍
+       .             .             .     4   3.61e-5👍
+       .             .             .     5  8.36e-12✅
+
+
+successes:
+    test_von_mises_single_element_2d
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+
+
+
+running 1 test
+test test_von_mises_2x2_elements_2d ... ok
+
+successes:
+
+---- test_von_mises_2x2_elements_2d stdout ----
+Legend:
+✅ : converged
+👍 : converging
+🥵 : diverging
+😱 : found NaN or Inf
+❋  : non-scaled max(R)
+?  : no info abut convergence
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1    1.000000e0    1.000000e0     .        .  
+       .             .             .     1    0.00e0❋ 
+       .             .             .     2    2.62e1? 
+       .             .             .     3    3.72e0👍
+       .             .             .     4  3.77e-15✅
+       2    2.000000e0    1.000000e0     .        .  
+       .             .             .     1  3.77e-15❋ 
+       .             .             .     2    2.38e1? 
+       .             .             .     3   1.02e-1👍
+       .             .             .     4   1.36e-3👍
+       .             .             .     5   1.34e-8👍
+       .             .             .     6  3.33e-15✅
+       3    3.000000e0    1.000000e0     .        .  
+       .             .             .     1  3.33e-15❋ 
+       .             .             .     2    2.15e1? 
+       .             .             .     3    2.02e0👍
+       .             .             .     4   3.94e-2👍
+       .             .             .     5   1.24e-4👍
+       .             .             .     6   1.92e-9👍
+       .             .             .     7  2.61e-15✅
+       4    4.000000e0    1.000000e0     .        .  
+       .             .             .     1  2.61e-15❋ 
+       .             .             .     2    2.16e1? 
+       .             .             .     3    1.77e0👍
+       .             .             .     4   3.21e-2👍
+       .             .             .     5   2.55e-5👍
+       .             .             .     6  8.78e-11✅
+       5    5.000000e0    1.000000e0     .        .  
+       .             .             .     1  8.78e-11❋ 
+       .             .             .     2    2.17e1? 
+       .             .             .     3    1.85e0👍
+       .             .             .     4   3.22e-2👍
+       .             .             .     5   8.35e-5👍
+       .             .             .     6  6.98e-10👍
+       .             .             .     7  5.33e-15✅
+
+
+successes:
+    test_von_mises_2x2_elements_2d
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+
+
+
+
+running 1 test
+test test_spo_751_pres_cylin ... ok
+
+successes:
+
+---- test_spo_751_pres_cylin stdout ----
+Legend:
+✅ : converged
+👍 : converging
+🥵 : diverging
+😱 : found NaN or Inf
+❋  : non-scaled max(R)
+?  : no info abut convergence
+                                                  _   
+timestep             t            Δt  iter    max(R)  
+       1    1.000000e0    1.000000e0     .        .  
+       .             .             .     1    3.33e0❋ 
+       .             .             .     2  5.65e-14✅
+       2    2.000000e0    1.000000e0     .        .  
+       .             .             .     1    1.33e0❋ 
+       .             .             .     2    1.25e0? 
+       .             .             .     3   3.34e-2👍
+       .             .             .     4   4.05e-5👍
+       .             .             .     5  2.77e-11✅
+       3    3.000000e0    1.000000e0     .        .  
+       .             .             .     1    1.33e0❋ 
+       .             .             .     2    2.25e0? 
+       .             .             .     3   1.44e-1👍
+       .             .             .     4   1.35e-3👍
+       .             .             .     5   4.33e-8👍
+       .             .             .     6  3.29e-14✅
+       4    4.000000e0    1.000000e0     .        .  
+       .             .             .     1   3.33e-1❋ 
+       .             .             .     2   8.12e-1? 
+       .             .             .     3   5.35e-2👍
+       .             .             .     4   4.92e-5👍
+       .             .             .     5  4.29e-11✅
+       5    5.000000e0    1.000000e0     .        .  
+       .             .             .     1   6.67e-2❋ 
+       .             .             .     2   3.47e-1? 
+       .             .             .     3   1.64e-1👍
+       .             .             .     4   8.64e-2👍
+       .             .             .     5   3.61e-2👍
+       .             .             .     6   8.50e-3👍
+       .             .             .     7   5.36e-4👍
+       .             .             .     8   2.03e-6👍
+       .             .             .     9  2.82e-11✅
+
+
+successes:
+    test_spo_751_pres_cylin
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+

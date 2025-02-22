@@ -36,6 +36,7 @@ use pmsim::{prelude::*, StrError};
 // Constant conductivity kx = ky = 10.0
 
 const NAME: &str = "test_heat_mathematica_axisym_simple";
+const GENERATE_MESH: bool = false;
 
 #[test]
 fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
@@ -43,49 +44,52 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let (rin, rout, h) = (1.0, 2.0, 0.1);
 
     // mesh
-    let mesh = generate_or_read_mesh(rin, rout, h, false);
+    let mesh = generate_or_read_mesh(rin, rout, h, GENERATE_MESH);
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(rin), any_x)?;
-    let right = feat.search_edges(At::X(rout), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(rin), any_x)?;
+    let right = features.search_edges(At::X(rout), any_x)?;
 
-    // input data
+    // parameters
     let (kx, ky) = (10.0, 10.0);
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
         source: None,
+        ngauss: None,
     };
-    let input = FemInput::new(&mesh, [(1, Etype::Diffusion(p1))])?;
+    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.on(&right, Ebc::T(|_| 10.0));
+    essential.edges(&right, Dof::Phi, 10.0);
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.on(&left, Nbc::Qt(|_| 100.0));
+    natural.edges(&left, Nbc::Qt, 100.0);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric();
+    config.set_axisymmetric().set_lagrange_mult_method(true);
 
     // FEM state
-    let mut state = FemState::new(&input, &config)?;
-    let mut output = FemOutput::new(&input, None, None, None)?;
+    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // solve problem
-    let mut solver = FemSolverImplicit::new(&input, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut output)?;
+    // File IO
+    let mut file_io = FileIo::new();
+
+    // solution
+    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    solver.solve(&mut state, &mut file_io)?;
     // println!("{}", state.uu);
 
     // check
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
-        let eq = input.equations.eq(point.id, Dof::T).unwrap();
-        let tt = state.uu[eq];
+        let eq = base.dofs.eq(point.id, Dof::Phi).unwrap();
+        let tt = state.u[eq];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);
         assert!(diff < 1e-5);
@@ -101,14 +105,20 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         block.set_ndiv(&[10, 1]).unwrap();
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
-        mesh.write_json(&format!("{}/{}.json", DEFAULT_TEST_DIR, NAME)).unwrap();
-
-        // write figure
-        mesh.draw(None, &format!("{}/{}.svg", DEFAULT_TEST_DIR, NAME), |_, _| {})
+        // draw figure
+        let mut fig = Figure::new();
+        fig.show_point_ids(true)
+            .show_cell_ids(true)
+            .range_2d(0.95, 2.05, -0.05, 0.15)
+            .size(600.0, 100.0)
+            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
+
+        // write mesh
+        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh
-        Mesh::read_json(&format!("data/meshes/{}.json", NAME)).unwrap()
+        Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
 }
