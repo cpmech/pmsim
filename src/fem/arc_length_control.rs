@@ -1,16 +1,13 @@
-#![allow(unused)]
-
-use super::{ConvergenceControl, FemBase, FemState, SolverData, TimeControl};
+use super::{ConvergenceControl, FemBase, FemState, SolverData};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_add, vec_copy, vec_copy_scaled, vec_inner, vec_scale, Vector};
 
-pub struct ArcLengthControl<'a> {
+pub struct ArcLengthSolver<'a> {
     config: &'a Config<'a>,
     data: SolverData<'a>,
     conv_control: ConvergenceControl<'a>,
-    time_control: TimeControl<'a>,
 
     psi: f64,            // method selector
     dds: f64,            // total increment of arc-length
@@ -34,7 +31,7 @@ pub struct ArcLengthControl<'a> {
     arr_uy3: Vec<f64>,
 }
 
-impl<'a> ArcLengthControl<'a> {
+impl<'a> ArcLengthSolver<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
@@ -49,17 +46,15 @@ impl<'a> ArcLengthControl<'a> {
 
         // allocate convergence and time control structures
         let conv_control = ConvergenceControl::new(config, neq_total);
-        let time_control = TimeControl::new(config)?;
 
         // allocate new instance
         let neq_total = data.ls.neq_total;
-        Ok(ArcLengthControl {
+        Ok(ArcLengthSolver {
             config,
             data,
             conv_control,
-            time_control,
             psi: 1.0,
-            dds: 0.05,
+            dds: 0.0,
             dds_old: 0.0,
             dds_min: 0.0,
             dds_max: 0.0,
@@ -97,8 +92,6 @@ impl<'a> ArcLengthControl<'a> {
 
     // returns `converged`
     pub fn step_corrector(&mut self, timestep: usize, state: &mut FemState) -> Result<bool, StrError> {
-        let ndof = self.data.ls.ndof;
-        let neq = self.data.ls.neq_total;
         for iteration in 0..self.config.n_max_iterations {
             // assemble F_int and F_ext
             self.data.assemble_ff_int_and_ff_ext(state)?;
@@ -194,12 +187,14 @@ impl<'a> ArcLengthControl<'a> {
         Ok(false) // did not converge
     }
 
-    pub fn run(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    pub fn solve(&mut self, state: &mut FemState) -> Result<(), StrError> {
         self.arr_ell.push(0.0);
         self.arr_uy1.push(0.0);
         self.arr_uy3.push(0.0);
-        for timestep in 0..50 {
+        self.conv_control.print_header();
+        for timestep in 0..self.config.n_max_time_steps {
             self.step_predictor(timestep, state);
+            self.conv_control.print_timestep(timestep, state.t, state.ddt);
             self.converged = self.step_corrector(timestep, state)?;
             if self.converged {
                 self.n_converged += 1;
@@ -237,7 +232,7 @@ impl<'a> ArcLengthControl<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::ArcLengthControl;
+    use super::ArcLengthSolver;
     use crate::base::{Config, Dof, Elem, Essential, Natural, ParamRod, Pbc};
     use crate::fem::{FemBase, FemState};
     use gemlab::mesh::{Cell, Figure, GeoKind, Mesh, Point};
@@ -306,6 +301,10 @@ mod tests {
         // configuration
         let mut config = Config::new(&mesh);
         config
+            .set_n_max_time_steps(50)
+            .set_dt(|_| 1.0)
+            .set_dt_out(|_| 1.0)
+            .set_t_fin(50.0)
             .set_arc_length_method(true)
             .set_ini_load_factor(0.05)
             .set_tol_rr_abs(1e-6)
@@ -314,9 +313,14 @@ mod tests {
         // FEM state
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
+        // file io
+        // let mut file_io = FileIo::new();
+
         // solver
-        let mut solver = ArcLengthControl::new(&mesh, &base, &config, &essential, &natural).unwrap();
-        solver.run(&mut state).unwrap();
+        let mut solver = ArcLengthSolver::new(&mesh, &base, &config, &essential, &natural).unwrap();
+        solver.solve(&mut state).unwrap();
+        // let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
+        // solver.solve(&mut state, &mut file_io).unwrap();
 
         assert_eq!(solver.n_converged, 46);
 
@@ -370,7 +374,8 @@ mod tests {
                 .grid_labels_legend("vertical displacement", "load factor")
                 .set_inv_x()
                 .set_figure_size_points(600.0, 300.0)
-                .save("/tmp/pmsim/test_small_truss_2d.svg");
+                .save("/tmp/pmsim/test_small_truss_2d.svg")
+                .unwrap();
         }
     }
 }

@@ -43,6 +43,9 @@ pub struct Config<'a> {
     /// Holds the initial loading factor ℓ0 used by the arc-length method
     pub(crate) initial_loading_factor: f64,
 
+    /// Holds the number of allowed (time)steps that fail to converge
+    pub(crate) allowed_step_n_failure: usize,
+
     /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
 
@@ -179,6 +182,7 @@ impl<'a> Config<'a> {
             constant_tangent: false,
             arc_length_method: false,
             initial_loading_factor: 1.0,
+            allowed_step_n_failure: 100,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-10),
@@ -373,6 +377,12 @@ impl<'a> Config<'a> {
     /// Sets the initial loading factor ℓ0 used by the arc-length method
     pub fn set_ini_load_factor(&mut self, ell0: f64) -> &mut Self {
         self.initial_loading_factor = ell0;
+        self
+    }
+
+    /// Sets the number of allowed (time)steps that fail to converge
+    pub fn set_allowed_step_n_failure(&mut self, n_allowed: usize) -> &mut Self {
+        self.allowed_step_n_failure = n_allowed;
         self
     }
 
