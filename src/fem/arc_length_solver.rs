@@ -289,14 +289,9 @@ mod tests {
         // FEM state
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
-        // file io
-        // let mut file_io = FileIo::new();
-
         // solver
         let mut solver = ArcLengthSolver::new(&mesh, &base, &config, &essential, &natural).unwrap();
         solver.solve(&mut state).unwrap();
-        // let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
-        // solver.solve(&mut state, &mut file_io).unwrap();
 
         assert_eq!(solver.n_converged, 46);
 
