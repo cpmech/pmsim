@@ -40,6 +40,14 @@ pub struct Config<'a> {
     /// Holds a flag indicating the use the arc-length method
     pub(crate) arc_length_method: bool,
 
+    /// Holds the parameter to select the arc-length method
+    ///
+    /// `0 ≤ ψ ≤ 1`
+    ///
+    /// * ψ = 0.0: (hyper) cylindrical arc-length control
+    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
+    pub(crate) arc_length_psi: f64,
+
     /// Holds the initial loading factor ℓ0 used by the arc-length method
     pub(crate) initial_loading_factor: f64,
 
@@ -181,6 +189,7 @@ impl<'a> Config<'a> {
             dynamics: false,
             constant_tangent: false,
             arc_length_method: false,
+            arc_length_psi: 1.0,
             initial_loading_factor: 1.0,
             allowed_step_n_failure: 100,
             lagrange_mult_method: false,
@@ -239,6 +248,12 @@ impl<'a> Config<'a> {
             return Some(format!(
                 "thickness = {:?} is incorrect; it must be = 1.0 for plane-strain or 3D",
                 self.ideal.thickness
+            ));
+        }
+        if self.arc_length_psi < 0.0 || self.arc_length_psi > 1.0 {
+            return Some(format!(
+                "arc_length_psi = {:?} is incorrect; it must be 0.0 ≤ ψ ≤ 1.0",
+                self.arc_length_psi
             ));
         }
         match self.initialization {
@@ -371,6 +386,17 @@ impl<'a> Config<'a> {
     /// Sets a flag indicating the use of the arc-length method
     pub fn set_arc_length_method(&mut self, enable: bool) -> &mut Self {
         self.arc_length_method = enable;
+        self
+    }
+
+    /// Sets the parameter to select the arc-length method
+    ///
+    /// `0 ≤ ψ ≤ 1`
+    ///
+    /// * ψ = 0.0: (hyper) cylindrical arc-length control
+    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
+    pub fn set_arc_length_psi(&mut self, psi: f64) -> &mut Self {
+        self.arc_length_psi = psi;
         self
     }
 
@@ -729,6 +755,13 @@ mod tests {
             Some("thickness = 0.5 is incorrect; it must be = 1.0 for plane-strain or 3D".to_string())
         );
         config.ideal.thickness = 1.0;
+
+        config.arc_length_psi = -0.1;
+        assert_eq!(
+            config.validate(),
+            Some("arc_length_psi = -0.1 is incorrect; it must be 0.0 ≤ ψ ≤ 1.0".to_string())
+        );
+        config.arc_length_psi = 1.0;
 
         config.initialization = Init::Geostatic(123.0);
         assert_eq!(
