@@ -6,6 +6,7 @@ use pmsim::StrError;
 use russell_lab::approx_eq;
 
 const NAME: &str = "test_durand_farias_example4";
+const KIND: GeoKind = GeoKind::Qua4;
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 
@@ -21,8 +22,7 @@ const NGAUSS: usize = 4; // number of gauss points
 #[test]
 fn test_durand_farias_example4() -> Result<(), StrError> {
     // mesh
-    let kind = GeoKind::Qua4;
-    let mesh = generate_or_read_mesh(1, kind, GENERATE_MESH);
+    let mesh = generate_or_read_mesh(1, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -58,18 +58,32 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
+    // analyze results
+    analyze_results()
+}
+
+fn analyze_results() -> Result<(), StrError> {
     // results
-    let mut post = PostProc::deprecated_new(&mesh, &base);
+    let (post, mut memo) = PostProc::load("/tmp/pmsim", NAME)?;
+    let mesh = post.mesh();
+
+    // features
+    let features = Features::new(mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
     let left_cells = features.get_cells_via_2d_edges(&left);
     let (min, max) = mesh.get_cell_bounding_box(mesh.cells[left_cells[0]].id);
     let hdx = (max[0] - min[0]) / 2.0;
-    let gauss = post.gauss_stresses(&left_cells, &state, |x, _, _| x < hdx)?;
-    let nodal = post.nodal_stresses(&left_cells, &state, |x, _, _| x < hdx)?;
+
+    // stresses
+    let state = post.read_state(post.n_state() - 1)?;
+    let gauss = post.gauss_stresses(&mut memo, &state, &left_cells, |x, _, _| x < hdx)?;
+    let nodal = post.nodal_stresses(&mut memo, &state, &left_cells, |x, _, _| x < hdx)?;
 
     // verification
     let ana = ElastPlaneStrainFlexibleFoot {
@@ -136,14 +150,14 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
             .add(&curve_nodal)
             .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
 
-        plot.save(&format!("/tmp/pmsim/{}_{}.svg", NAME, kind.to_string()))?;
+        plot.save(&format!("/tmp/pmsim/{}_{}.svg", NAME, KIND.to_string()))?;
     }
     Ok(())
 }
 
 /// Generate or read mesh
-fn generate_or_read_mesh(att: usize, kind: GeoKind, generate: bool) -> Mesh {
-    let k_str = kind.to_string();
+fn generate_or_read_mesh(att: usize, generate: bool) -> Mesh {
+    let k_str = KIND.to_string();
 
     if generate {
         // generate mesh
@@ -158,7 +172,7 @@ fn generate_or_read_mesh(att: usize, kind: GeoKind, generate: bool) -> Mesh {
             &[ya, yb, yc],
             &[ma, mb],
             &[att, att],
-            kind,
+            KIND,
             true,
         )
         .unwrap();

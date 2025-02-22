@@ -43,14 +43,28 @@ const NAME: &str = "test_heat_arpaci_nonlinear_1d";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 
+const L: f64 = 10.0;
+const SOURCE: f64 = 5.0;
+const K_R: f64 = 2.0;
+const BETA: f64 = 0.01;
+const COEF: f64 = BETA * SOURCE * L * L / (2.0 * K_R);
+
+// normalized analytical solution
+fn normalized(x: f64) -> f64 {
+    if BETA == 0.0 {
+        1.0 - f64::powf(x / L, 2.0)
+    } else {
+        (f64::sqrt(1.0 + 2.0 * COEF * (1.0 - f64::powf(x / L, 2.0))) - 1.0) / COEF
+    }
+}
+
+// analytical solution
+fn analytical(x: f64) -> f64 {
+    normalized(x) * SOURCE * L * L / (2.0 * K_R)
+}
+
 #[test]
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
-    // constants
-    const L: f64 = 10.0;
-    const SOURCE: f64 = 5.0;
-    const K_R: f64 = 2.0;
-    const BETA: f64 = 0.01;
-
     // mesh
     let mesh = generate_or_read_mesh(L, GENERATE_MESH);
 
@@ -82,21 +96,11 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
 
     // File IO
     let mut file_io = FileIo::new();
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
-
-    // analytical solution
-    let coef = BETA * SOURCE * L * L / (2.0 * K_R);
-    let normalized = |x: f64| {
-        if BETA == 0.0 {
-            1.0 - f64::powf(x / L, 2.0)
-        } else {
-            (f64::sqrt(1.0 + 2.0 * coef * (1.0 - f64::powf(x / L, 2.0))) - 1.0) / coef
-        }
-    };
-    let analytical = |x: f64| normalized(x) * SOURCE * L * L / (2.0 * K_R);
 
     // check
     let ref_id = 0;
@@ -106,35 +110,42 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);
 
-    // plot
+    // plot the results
     if SAVE_FIGURE {
-        // get temperature values along x
-        let post = PostProc::deprecated_new(&mesh, &base);
-        let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;
-
-        // compute plot data
-        let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();
-        let yy_num: Vec<_> = tt_values.iter().map(|tt| 2.0 * K_R * tt / (SOURCE * L * L)).collect();
-        let yy_ana: Vec<_> = x_values.iter().map(|x| normalized(*x)).collect();
-
-        // figure
-        let mut curve_num = Curve::new();
-        let mut curve_ana = Curve::new();
-        curve_num
-            .set_line_color("#cd0000")
-            .set_line_style("None")
-            .set_marker_style("+");
-        curve_num.draw(&xx, &yy_num);
-        curve_ana.draw(&xx, &yy_ana);
-        let mut plot = Plot::new();
-        plot.add(&curve_ana);
-        plot.add(&curve_num);
-        plot.set_title(format!("$\\beta\\;s\\;L^2\\;/\\;(2\\;k_r)$ = {:.2}", coef).as_str())
-            .grid_and_labels("$x\\;/\\;L$", "$2\\,k_r\\,T\\;/\\;(s\\,L^2)$")
-            .legend()
-            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+        do_plot()
+    } else {
+        Ok(())
     }
-    Ok(())
+}
+
+fn do_plot() -> Result<(), StrError> {
+    // get temperature values along x
+    let (post, _) = PostProc::load("/tmp/pmsim", NAME)?;
+    let features = Features::new(post.mesh(), false);
+    let state = post.read_state(post.n_state() - 1)?;
+    let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;
+
+    // compute plot data
+    let xx: Vec<_> = x_values.iter().map(|x| x / L).collect();
+    let yy_num: Vec<_> = tt_values.iter().map(|tt| 2.0 * K_R * tt / (SOURCE * L * L)).collect();
+    let yy_ana: Vec<_> = x_values.iter().map(|x| normalized(*x)).collect();
+
+    // figure
+    let mut curve_num = Curve::new();
+    let mut curve_ana = Curve::new();
+    curve_num
+        .set_line_color("#cd0000")
+        .set_line_style("None")
+        .set_marker_style("+");
+    curve_num.draw(&xx, &yy_num);
+    curve_ana.draw(&xx, &yy_ana);
+    let mut plot = Plot::new();
+    plot.add(&curve_ana);
+    plot.add(&curve_num);
+    plot.set_title(format!("$\\beta\\;s\\;L^2\\;/\\;(2\\;k_r)$ = {:.2}", COEF).as_str())
+        .grid_and_labels("$x\\;/\\;L$", "$2\\,k_r\\,T\\;/\\;(s\\,L^2)$")
+        .legend()
+        .save(&format!("/tmp/pmsim/{}.svg", NAME))
 }
 
 /// Generate or read mesh

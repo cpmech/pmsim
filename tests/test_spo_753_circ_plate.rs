@@ -9,7 +9,7 @@ use russell_lab::{approx_eq, array_approx_eq};
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
 const P_ARRAY: [f64; 13] = [
@@ -84,9 +84,6 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
-    // post-processing
-    post_processing()?;
-
     // verify the results
     let tol_displacement = 1e-9;
     let tol_stress = 1e-6;
@@ -101,16 +98,19 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         VERBOSE_LEVEL,
     )?;
     assert!(all_good);
-    Ok(())
+
+    // analyze results
+    analyze_results()
 }
 
-fn post_processing() -> Result<(), StrError> {
+fn analyze_results() -> Result<(), StrError> {
     // load summary and associated files
-    let (file_io, mesh, base) = PostProc::deprecated_read_summary("/tmp/pmsim", NAME)?;
-    let post = PostProc::deprecated_new(&mesh, &base);
+    let (post, _) = PostProc::load("/tmp/pmsim", NAME)?;
+    let mesh = post.mesh();
+    let base = post.base();
 
     // boundaries
-    let features = Features::new(&mesh, false);
+    let features = Features::new(mesh, false);
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
     let eq_uy = base.dofs.eq(center, Dof::Uy)?;
@@ -127,20 +127,20 @@ fn post_processing() -> Result<(), StrError> {
     let mut yy_p200 = Vec::new(); // normalized deflection w/h @ P = 200
     let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
     for index in 0..nstep_max {
-        let state = PostProc::deprecated_read_state(&file_io, index)?;
+        let state = post.read_state(index)?;
         deflection[index] = -state.u[eq_uy];
         let pp = P_ARRAY[index];
         if pp == 100.0 {
-            let (_, cc, dd) = post.values_along_edges(&bottom, Dof::Uy, &state).unwrap();
+            let (_, cc, dd) = post.values_along_edges(&state, &bottom, Dof::Uy).unwrap();
             ll = cc.iter().map(|x| x[0] / RADIUS).collect::<Vec<_>>();
             yy_p100 = dd.iter().map(|uy| -uy / THICKNESS).collect::<Vec<_>>();
         }
         if pp == 200.0 {
-            let (_, _, dd) = post.values_along_edges(&bottom, Dof::Uy, &state).unwrap();
+            let (_, _, dd) = post.values_along_edges(&state, &bottom, Dof::Uy).unwrap();
             yy_p200 = dd.iter().map(|uy| -uy / THICKNESS).collect::<Vec<_>>();
         }
         if pp == 250.0 {
-            let (_, _, dd) = post.values_along_edges(&bottom, Dof::Uy, &state).unwrap();
+            let (_, _, dd) = post.values_along_edges(&state, &bottom, Dof::Uy).unwrap();
             yy_p250 = dd.iter().map(|uy| -uy / THICKNESS).collect::<Vec<_>>();
         }
     }

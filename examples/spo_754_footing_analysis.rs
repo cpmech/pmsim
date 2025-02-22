@@ -10,11 +10,10 @@ use russell_lab::read_data;
 const NAME: &str = "spo_754_footing";
 
 pub fn main() -> Result<(), StrError> {
-    let (file_io, mesh, base) = PostProc::deprecated_read_summary("/tmp/pmsim", NAME)?;
-    let mut post = PostProc::deprecated_new(&mesh, &base);
+    let (post, mut memo) = PostProc::load("/tmp/pmsim", NAME)?;
 
-    let (min, max) = mesh.get_limits();
-    let features = Features::new(&mesh, false);
+    let (min, max) = post.mesh().get_limits();
+    let features = Features::new(post.mesh(), false);
     let footing = features.search_edges(At::Y(500.0), |x| x[0] <= 50.0)?;
     let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
     let footing_cells = features.get_cells_via_2d_edges(&footing);
@@ -27,18 +26,18 @@ pub fn main() -> Result<(), StrError> {
     let mut normalized_pressure = Vec::new();
     let mut x_coords = Vec::new();
     let mut selected_syy = Vec::<Vec<f64>>::new();
-    let selected_indices = &[1, 2, 4, 6, file_io.indices.len() - 1];
-    let eq_corner = base.dofs.eq(corner_id, Dof::Uy)?;
-    for index in &file_io.indices {
-        let state = PostProc::deprecated_read_state(&file_io, *index)?;
+    let selected_indices = &[1, 2, 4, 6, post.n_state() - 1];
+    let eq_corner = post.base().dofs.eq(corner_id, Dof::Uy)?;
+    for index in 0..post.n_state() {
+        let state = post.read_state(index)?;
         let uy = state.u[eq_corner];
         normalized_settlement.push(-uy / width);
-        let res = post.nodal_stresses(&footing_cells, &state, |_, y, _| y == max[1])?;
+        let res = post.nodal_stresses(&mut memo, &state, &footing_cells, |_, y, _| y == max[1])?;
         let mut area = 0.0;
-        if *index == 0 {
+        if index == 0 {
             x_coords = res.xx.clone();
         }
-        if selected_indices.contains(index) {
+        if selected_indices.contains(&index) {
             selected_syy.push(res.tyy.iter().map(|sy| *sy / cohesion).collect());
         }
         for i in 1..res.xx.len() {

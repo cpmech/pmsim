@@ -12,13 +12,19 @@ use std::collections::HashMap;
 /// Assists in post-processing the results given at Gauss points
 ///
 /// This structure also implements the extrapolation from Gauss points to nodes.
-pub struct PostProc<'a> {
-    /// Holds the mesh
-    mesh: &'a Mesh,
+pub struct PostProc {
+    /// Holds the FileIo instance
+    file_io: FileIo,
 
-    /// Holds the material parameters, element attributes, and equation numbers
-    base: &'a FemBase,
+    /// Holds the Mesh
+    mesh: Mesh,
 
+    /// Holds the FemBase
+    base: FemBase,
+}
+
+/// Holds the memoization data for post-processing
+pub struct PostProcMemo {
     /// Holds all Gauss points data
     all_gauss: HashMap<CellId, Gauss>,
 
@@ -29,8 +35,13 @@ pub struct PostProc<'a> {
     all_extrap_mat: HashMap<CellId, Matrix>,
 }
 
-impl<'a> PostProc<'a> {
-    /// Reads the summary and associated files for post-processing
+impl PostProc {
+    /// Load the results for post-processing
+    ///
+    /// Returns `(post, memo)` where:
+    ///
+    /// * `post` -- The post-processing instance.
+    /// * `memo` -- The memoization data for post-processing.
     ///
     /// This function loads the summary JSON file, and reads the Mesh and
     /// FemBase data from their respective files.
@@ -40,18 +51,10 @@ impl<'a> PostProc<'a> {
     /// * `dir` - The directory where the summary and associated files are located.
     /// * `fn_stem` - The filename stem used to construct the full path to the summary file.
     ///
-    /// # Returns
-    ///
-    /// Returns `(file_io, mesh, base)` where:
-    ///
-    /// * `file_io` - The file I/O handler with updated output directory.
-    /// * `mesh` - The mesh data read from the file.
-    /// * `base` - The FemBase data read from the file.
-    ///
     /// # Errors
     ///
     /// Returns an error if any of the files cannot be read or parsed.
-    pub fn deprecated_read_summary(dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
+    pub fn load(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
         // load FileIo
         let full_path = format!("{}/{}-summary.json", dir, fn_stem);
         let mut file_io = FileIo::read_json(&full_path)?;
@@ -59,16 +62,38 @@ impl<'a> PostProc<'a> {
         // update output_dir because the files may have been moved
         file_io.dir = dir.to_string();
 
-        // load the mesh
+        // reads the mesh
         let path_mesh = file_io.path_mesh();
         let mesh = Mesh::read(&path_mesh)?;
 
-        // load the FemBase
+        // reads the FemBase
         let path_base = file_io.path_base();
         let base = FemBase::read_json(&path_base)?;
 
-        // done
-        Ok((file_io, mesh, base))
+        // return new instance
+        Ok((
+            PostProc { file_io, mesh, base },
+            PostProcMemo {
+                all_gauss: HashMap::new(),
+                all_pads: HashMap::new(),
+                all_extrap_mat: HashMap::new(),
+            },
+        ))
+    }
+
+    /// Returns an access to the mesh
+    pub fn mesh(&self) -> &Mesh {
+        &self.mesh
+    }
+
+    /// Returns an access to the FemBase
+    pub fn base(&self) -> &FemBase {
+        &self.base
+    }
+
+    /// Returns the number of state files (to define the index in read_state)
+    pub fn n_state(&self) -> usize {
+        self.file_io.indices.len()
     }
 
     /// Reads a JSON file with the FEM state at a given index (time station)
@@ -80,6 +105,8 @@ impl<'a> PostProc<'a> {
     ///
     /// * `file_io` - The file I/O handler containing the paths to the state files.
     /// * `index` - The index of the time station for which the state data is to be read.
+    ///   The index should be in the range `[0, n_state_files)`. Use [PostProc::n_state_files()]
+    ///   to get the number of state files.
     ///
     /// # Returns
     ///
@@ -88,34 +115,9 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the state file cannot be read or parsed.
-    pub fn deprecated_read_state(file_io: &FileIo, index: usize) -> Result<FemState, StrError> {
-        let path_state = file_io.path_state(index);
+    pub fn read_state(&self, index: usize) -> Result<FemState, StrError> {
+        let path_state = self.file_io.path_state(index);
         FemState::read_json(&path_state)
-    }
-
-    /// Allocates a new instance
-    ///
-    /// This function initializes a new `PostProc` instance with the provided mesh and FemBase.
-    /// It also initializes the internal data structures for storing Gauss points, scratchpads,
-    /// and extrapolation matrices.
-    ///
-    /// # Arguments
-    ///
-    /// * `mesh` - A reference to the `Mesh` instance containing the mesh data.
-    /// * `base` - A reference to the `FemBase` instance containing the material parameters,
-    ///            element attributes, and equation numbers.
-    ///
-    /// # Returns
-    ///
-    /// A new `PostProc` instance.
-    pub fn deprecated_new(mesh: &'a Mesh, base: &'a FemBase) -> Self {
-        PostProc {
-            mesh,
-            base,
-            all_gauss: HashMap::new(),
-            all_pads: HashMap::new(),
-            all_extrap_mat: HashMap::new(),
-        }
     }
 
     /// Returns the real coordinates of all Gauss points of a cell
@@ -133,14 +135,14 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the Gauss points cannot be retrieved.
-    pub fn gauss_coords(&mut self, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
+    pub fn gauss_coords(&self, memo: &mut PostProcMemo, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
         let cell = &self.mesh.cells[cell_id];
         let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
-        let gauss = self
+        let gauss = memo
             .all_gauss
             .entry(cell_id)
             .or_insert(Gauss::new_or_sized(cell.kind, ngauss_opt)?);
-        let mut pad = self.all_pads.entry(cell_id).or_insert(self.mesh.get_pad(cell_id));
+        let mut pad = memo.all_pads.entry(cell_id).or_insert(self.mesh.get_pad(cell_id));
         get_points_coords(&mut pad, &gauss)
     }
 
@@ -164,8 +166,8 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the stress components cannot be retrieved.
-    pub fn gauss_stress(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
-        self.gauss_tensor(cell_id, state, false)
+    pub fn gauss_stress(&self, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
+        self.gauss_tensor(state, cell_id, false)
     }
 
     /// Returns all strain components at the Gauss points of a cell
@@ -195,8 +197,8 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the strain components cannot be retrieved.
-    pub fn gauss_strain(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
-        self.gauss_tensor(cell_id, state, true)
+    pub fn gauss_strain(&self, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
+        self.gauss_tensor(state, cell_id, true)
     }
 
     /// Returns all tensor components at the Gauss points of a cell
@@ -220,7 +222,7 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the tensor components cannot be retrieved.
-    fn gauss_tensor(&mut self, cell_id: CellId, state: &FemState, strain: bool) -> Result<Matrix, StrError> {
+    fn gauss_tensor(&self, state: &FemState, cell_id: CellId, strain: bool) -> Result<Matrix, StrError> {
         let ndim = self.mesh.ndim;
         let second = &state.gauss[cell_id];
         let mut res = Matrix::new(second.ngauss, ndim * 2);
@@ -273,15 +275,16 @@ impl<'a> PostProc<'a> {
     ///
     /// Returns an error if the stress components cannot be retrieved.
     pub fn gauss_stresses<F>(
-        &mut self,
-        cell_ids: &[CellId],
+        &self,
+        memo: &mut PostProcMemo,
         state: &FemState,
+        cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        self.gauss_tensors(cell_ids, state, filter, false)
+        self.gauss_tensors(memo, state, cell_ids, filter, false)
     }
 
     /// Returns all strain components at the Gauss points of a patch of cells
@@ -305,15 +308,16 @@ impl<'a> PostProc<'a> {
     ///
     /// Returns an error if the strain components cannot be retrieved.
     pub fn gauss_strains<F>(
-        &mut self,
-        cell_ids: &[CellId],
+        &self,
+        memo: &mut PostProcMemo,
         state: &FemState,
+        cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        self.gauss_tensors(cell_ids, state, filter, true)
+        self.gauss_tensors(memo, state, cell_ids, filter, true)
     }
 
     /// Returns all tensor components at the Gauss points of a patch of cells
@@ -338,9 +342,10 @@ impl<'a> PostProc<'a> {
     ///
     /// Returns an error if the tensor components cannot be retrieved.
     fn gauss_tensors<F>(
-        &mut self,
-        cell_ids: &[CellId],
+        &self,
+        memo: &mut PostProcMemo,
         state: &FemState,
+        cell_ids: &[CellId],
         filter: F,
         strain: bool,
     ) -> Result<SpatialTensor, StrError>
@@ -359,7 +364,7 @@ impl<'a> PostProc<'a> {
             Vec::new()
         };
         for cell_id in cell_ids {
-            let coords = self.gauss_coords(*cell_id)?;
+            let coords = self.gauss_coords(memo, *cell_id)?;
             let ngauss = coords.len();
             for p in 0..ngauss {
                 let x = coords[p][0];
@@ -398,7 +403,7 @@ impl<'a> PostProc<'a> {
         let mut res = SpatialTensor::new(ndim, capacity);
         for index in &sorted_indices {
             let (cell_id, p) = accepted[*index];
-            let tt = self.gauss_tensor(cell_id, state, strain)?;
+            let tt = self.gauss_tensor(state, cell_id, strain)?;
             let id = res.id2k.len();
             let k = res.k2id.len();
             res.id2k.insert(id, k);
@@ -438,8 +443,8 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the stress components cannot be retrieved.
-    pub fn nodal_stress(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
-        self.nodal_tensor(cell_id, state, false)
+    pub fn nodal_stress(&self, memo: &mut PostProcMemo, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
+        self.nodal_tensor(memo, state, cell_id, false)
     }
 
     /// Returns the extrapolated strain components at the nodes of a cell
@@ -469,8 +474,8 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the strain components cannot be retrieved.
-    pub fn nodal_strain(&mut self, cell_id: CellId, state: &FemState) -> Result<Matrix, StrError> {
-        self.nodal_tensor(cell_id, state, true)
+    pub fn nodal_strain(&self, memo: &mut PostProcMemo, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
+        self.nodal_tensor(memo, state, cell_id, true)
     }
 
     /// Returns all extrapolated tensor components at the nodes of a cell
@@ -492,11 +497,17 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the tensor components cannot be retrieved.
-    fn nodal_tensor(&mut self, cell_id: CellId, state: &FemState, strain: bool) -> Result<Matrix, StrError> {
+    fn nodal_tensor(
+        &self,
+        memo: &mut PostProcMemo,
+        state: &FemState,
+        cell_id: CellId,
+        strain: bool,
+    ) -> Result<Matrix, StrError> {
         let nnode = self.mesh.cells[cell_id].points.len();
-        let ten_gauss = self.gauss_tensor(cell_id, state, strain)?;
+        let ten_gauss = self.gauss_tensor(state, cell_id, strain)?;
         let mut ten_nodal = Matrix::new(nnode, ten_gauss.ncol());
-        let ee = self.get_extrap_matrix(cell_id)?;
+        let ee = self.get_extrap_matrix(memo, cell_id)?;
         mat_mat_mul(&mut ten_nodal, 1.0, &ee, &ten_gauss, 0.0)?;
         Ok(ten_nodal)
     }
@@ -524,15 +535,16 @@ impl<'a> PostProc<'a> {
     ///
     /// Returns an error if the stress components cannot be retrieved.
     pub fn nodal_stresses<F>(
-        &mut self,
-        cell_ids: &[CellId],
+        &self,
+        memo: &mut PostProcMemo,
         state: &FemState,
+        cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        self.extrapolate_tensor(cell_ids, state, filter, false)
+        self.extrapolate_tensor(memo, state, cell_ids, filter, false)
     }
 
     /// Extrapolates strain components from Gauss points to the nodes of cells (averaging)
@@ -558,15 +570,16 @@ impl<'a> PostProc<'a> {
     ///
     /// Returns an error if the strain components cannot be retrieved.
     pub fn nodal_strains<F>(
-        &mut self,
-        cell_ids: &[CellId],
+        &self,
+        memo: &mut PostProcMemo,
         state: &FemState,
+        cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        self.extrapolate_tensor(cell_ids, state, filter, true)
+        self.extrapolate_tensor(memo, state, cell_ids, filter, true)
     }
 
     /// Extrapolates tensor components from Gauss points to the nodes of cells (averaging)
@@ -593,9 +606,10 @@ impl<'a> PostProc<'a> {
     ///
     /// Returns an error if the tensor components cannot be retrieved.
     fn extrapolate_tensor<F>(
-        &mut self,
-        cell_ids: &[CellId],
+        &self,
+        memo: &mut PostProcMemo,
         state: &FemState,
+        cell_ids: &[CellId],
         filter: F,
         strain: bool,
     ) -> Result<SpatialTensor, StrError>
@@ -606,7 +620,7 @@ impl<'a> PostProc<'a> {
         let ndim = self.mesh.ndim;
         let mut map = TensorComponentsMap::new(ndim);
         for cell_id in cell_ids {
-            let tt = self.nodal_tensor(*cell_id, &state, strain)?;
+            let tt = self.nodal_tensor(memo, state, *cell_id, strain)?;
             let nnode = tt.nrow(); // = cell.points.len()
             if ndim == 3 {
                 for m in 0..nnode {
@@ -662,15 +676,15 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the extrapolation matrix cannot be computed.
-    fn get_extrap_matrix(&mut self, cell_id: CellId) -> Result<&Matrix, StrError> {
+    fn get_extrap_matrix<'a>(&self, memo: &'a mut PostProcMemo, cell_id: CellId) -> Result<&'a Matrix, StrError> {
         let cell = &self.mesh.cells[cell_id];
         let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
-        let gauss = self
+        let gauss = memo
             .all_gauss
             .entry(cell_id)
             .or_insert(Gauss::new_or_sized(cell.kind, ngauss_opt)?);
-        let mut pad = self.all_pads.entry(cell_id).or_insert(self.mesh.get_pad(cell_id));
-        let ee = self
+        let mut pad = memo.all_pads.entry(cell_id).or_insert(self.mesh.get_pad(cell_id));
+        let ee = memo
             .all_extrap_mat
             .entry(cell_id)
             .or_insert(get_extrap_matrix(&mut pad, &gauss)?);
@@ -750,9 +764,9 @@ impl<'a> PostProc<'a> {
     /// * `dd` - A vector containing the DOF values (e.g., temperature) along the x-axis corresponding to the `ids` and `xx`.
     pub fn values_along_edges(
         &self,
+        state: &FemState,
         edges: &Edges,
         dof: Dof,
-        state: &FemState,
     ) -> Result<(Vec<PointId>, Vec<Vec<f64>>, Vec<f64>), StrError> {
         // find points along path of edges
         let (_, mut point_ids) = edges.any_path();
@@ -785,13 +799,26 @@ impl<'a> PostProc<'a> {
         // results
         Ok((point_ids, coords, dd))
     }
+
+    /// Writes Paraview's VTK file
+    pub fn write_vtu(&self, state: &FemState, index: usize) -> Result<(), StrError> {
+        self.file_io.write_vtu(&self.mesh, &self.base, state, index)
+    }
+
+    /// Writes Paraview's PVD file
+    ///
+    /// Returns the path to the PVD file
+    pub fn write_pvd(&self) -> Result<String, StrError> {
+        self.file_io.write_pvd()?;
+        Ok(self.file_io.path_pvd())
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-    use super::PostProc;
+    use super::{PostProc, PostProcMemo};
     use crate::base::{
         elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
@@ -805,6 +832,7 @@ mod tests {
     use russell_lab::math::SQRT_3;
     use russell_lab::{approx_eq, array_approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::Tensor2;
+    use std::collections::HashMap;
     use std::fmt::Write;
 
     const SAVE_FIGURE: bool = false;
@@ -975,28 +1003,27 @@ mod tests {
         // generate_artificial_2d(true);
 
         // read essential
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        assert_eq!(file_io.indices, &[0, 1, 2]);
-        assert_eq!(file_io.times, &[0.0, 1.0, 2.0]);
-        assert_eq!(mesh.ndim, 2);
-        assert_eq!(mesh.points.len(), 5);
-        assert_eq!(mesh.cells.len(), 3);
-        assert_eq!(base.amap.get(1).unwrap().name(), "Solid");
-        assert_eq!(base.emap.get(&mesh.cells[0]).unwrap().n_equation, 6); // 3 * 2 (nnode * ndim)
-        assert_eq!(base.emap.get(&mesh.cells[1]).unwrap().n_equation, 6);
-        assert_eq!(base.emap.get(&mesh.cells[2]).unwrap().n_equation, 6);
-        assert_eq!(base.dofs.size(), 10);
+        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
+        assert_eq!(post.file_io.indices, &[0, 1, 2]);
+        assert_eq!(post.file_io.times, &[0.0, 1.0, 2.0]);
+        assert_eq!(post.mesh.ndim, 2);
+        assert_eq!(post.mesh.points.len(), 5);
+        assert_eq!(post.mesh.cells.len(), 3);
+        assert_eq!(post.base.amap.get(1).unwrap().name(), "Solid");
+        assert_eq!(post.base.emap.get(&post.mesh.cells[0]).unwrap().n_equation, 6); // 3 * 2 (nnode * ndim)
+        assert_eq!(post.base.emap.get(&post.mesh.cells[1]).unwrap().n_equation, 6);
+        assert_eq!(post.base.emap.get(&post.mesh.cells[2]).unwrap().n_equation, 6);
+        assert_eq!(post.base.dofs.size(), 10);
 
         // read state
-        let ndim = mesh.ndim;
-        let state_h = PostProc::deprecated_read_state(&file_io, 0).unwrap();
-        let state_v = PostProc::deprecated_read_state(&file_io, 1).unwrap();
-        let state_s = PostProc::deprecated_read_state(&file_io, 2).unwrap();
+        let ndim = post.mesh.ndim;
+        let state_h = post.read_state(0).unwrap();
+        let state_v = post.read_state(1).unwrap();
+        let state_s = post.read_state(2).unwrap();
         let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        for id in 0..mesh.cells.len() {
+        for id in 0..post.mesh.cells.len() {
             vec_approx_eq(state_h.gauss[id].solid[0].stress.vector(), stress_h.vector(), 1e-14);
             vec_approx_eq(state_v.gauss[id].solid[0].stress.vector(), stress_v.vector(), 1e-14);
             vec_approx_eq(state_s.gauss[id].solid[0].stress.vector(), stress_s.vector(), 1e-14);
@@ -1024,28 +1051,27 @@ mod tests {
         // generate_artificial_3d();
 
         // read essential
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        assert_eq!(file_io.indices, &[0, 1, 2]);
-        assert_eq!(file_io.times, &[0.0, 1.0, 2.0]);
-        assert_eq!(mesh.ndim, 3);
-        assert_eq!(mesh.points.len(), 12);
-        assert_eq!(mesh.cells.len(), 2);
-        assert_eq!(base.amap.get(1).unwrap().name(), "Solid");
-        assert_eq!(base.amap.get(2).unwrap().name(), "Solid");
-        assert_eq!(base.emap.get(&mesh.cells[0]).unwrap().n_equation, 24); // 8 * 3 (nnode * ndim)
-        assert_eq!(base.emap.get(&mesh.cells[1]).unwrap().n_equation, 24);
-        assert_eq!(base.dofs.size(), 36); // 12 * 3 (nnode_total * ndim)
+        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
+        assert_eq!(post.file_io.indices, &[0, 1, 2]);
+        assert_eq!(post.file_io.times, &[0.0, 1.0, 2.0]);
+        assert_eq!(post.mesh.ndim, 3);
+        assert_eq!(post.mesh.points.len(), 12);
+        assert_eq!(post.mesh.cells.len(), 2);
+        assert_eq!(post.base.amap.get(1).unwrap().name(), "Solid");
+        assert_eq!(post.base.amap.get(2).unwrap().name(), "Solid");
+        assert_eq!(post.base.emap.get(&post.mesh.cells[0]).unwrap().n_equation, 24); // 8 * 3 (nnode * ndim)
+        assert_eq!(post.base.emap.get(&post.mesh.cells[1]).unwrap().n_equation, 24);
+        assert_eq!(post.base.dofs.size(), 36); // 12 * 3 (nnode_total * ndim)
 
         // read state
-        let ndim = mesh.ndim;
-        let state_h = PostProc::deprecated_read_state(&file_io, 0).unwrap();
-        let state_v = PostProc::deprecated_read_state(&file_io, 1).unwrap();
-        let state_s = PostProc::deprecated_read_state(&file_io, 2).unwrap();
+        let ndim = post.mesh.ndim;
+        let state_h = post.read_state(0).unwrap();
+        let state_v = post.read_state(1).unwrap();
+        let state_s = post.read_state(2).unwrap();
         let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        for id in 0..mesh.cells.len() {
+        for id in 0..post.mesh.cells.len() {
             vec_approx_eq(state_h.gauss[id].solid[0].stress.vector(), stress_h.vector(), 1e-14);
             vec_approx_eq(state_v.gauss[id].solid[0].stress.vector(), stress_v.vector(), 1e-14);
             vec_approx_eq(state_s.gauss[id].solid[0].stress.vector(), stress_s.vector(), 1e-14);
@@ -1073,8 +1099,17 @@ mod tests {
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(1);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
-        let res = post.gauss_coords(0).unwrap();
+        let post = PostProc {
+            file_io: FileIo::new(),
+            mesh,
+            base,
+        };
+        let mut memo = PostProcMemo {
+            all_gauss: HashMap::new(),
+            all_pads: HashMap::new(),
+            all_extrap_mat: HashMap::new(),
+        };
+        let res = post.gauss_coords(&mut memo, 0).unwrap();
         assert_eq!(res[0].as_data(), &[0.5, 0.5]);
     }
 
@@ -1084,8 +1119,17 @@ mod tests {
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(8);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
-        let res = post.gauss_coords(0).unwrap();
+        let post = PostProc {
+            file_io: FileIo::new(),
+            mesh,
+            base,
+        };
+        let mut memo = PostProcMemo {
+            all_gauss: HashMap::new(),
+            all_pads: HashMap::new(),
+            all_extrap_mat: HashMap::new(),
+        };
+        let res = post.gauss_coords(&mut memo, 0).unwrap();
         let a = (1.0 - 1.0 / SQRT_3) / 2.0;
         let b = (1.0 + 1.0 / SQRT_3) / 2.0;
         vec_approx_eq(&res[0], &[a, a, a], 1e-15);
@@ -1098,10 +1142,10 @@ mod tests {
         vec_approx_eq(&res[7], &[b, b, b], 1e-15);
     }
 
-    fn load_states_and_solutions(file_io: &FileIo) -> [(FemState, Tensor2, Tensor2); 3] {
-        let state_h = PostProc::deprecated_read_state(&file_io, 0).unwrap();
-        let state_v = PostProc::deprecated_read_state(&file_io, 1).unwrap();
-        let state_s = PostProc::deprecated_read_state(&file_io, 2).unwrap();
+    fn load_states_and_solutions(post: &PostProc) -> [(FemState, Tensor2, Tensor2); 3] {
+        let state_h = post.read_state(0).unwrap();
+        let state_v = post.read_state(1).unwrap();
+        let state_s = post.read_state(2).unwrap();
 
         let ndim = state_h.gauss[0].stress(0).unwrap().vector().dim() / 2;
 
@@ -1118,12 +1162,10 @@ mod tests {
 
     #[test]
     fn gauss_stress_and_strain_work_2d() {
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
-        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.gauss_stress(0, &state).unwrap();
-            let eps = post.gauss_strain(0, &state).unwrap();
+        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
+            let sig = post.gauss_stress(&state, 0).unwrap();
+            let eps = post.gauss_strain(&state, 0).unwrap();
             let ngauss = sig.nrow();
             for p in 0..ngauss {
                 // stress
@@ -1142,12 +1184,10 @@ mod tests {
 
     #[test]
     fn gauss_stress_and_strain_work_3d() {
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
-        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.gauss_stress(0, &state).unwrap();
-            let eps = post.gauss_strain(0, &state).unwrap();
+        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
+            let sig = post.gauss_stress(&state, 0).unwrap();
+            let eps = post.gauss_strain(&state, 0).unwrap();
             let ngauss = sig.nrow();
             for p in 0..ngauss {
                 // stress
@@ -1170,9 +1210,7 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_strains_work_2d() {
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
+        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1189,10 +1227,10 @@ mod tests {
         let mut first = true;
         let mut coords_sig = String::new();
         let mut coords_eps = String::new();
-        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
-                .gauss_stresses(&[0, 1, 2], &state, |x, y, _| !(x < 0.5 && y < 0.5))
+                .gauss_stresses(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.k2id.len() {
                 assert_eq!(*sig.id2k.get(&k).unwrap(), k);
@@ -1210,7 +1248,9 @@ mod tests {
                 }
             }
             // strain (unfiltered)
-            let eps = post.gauss_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
+            let eps = post
+                .gauss_strains(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
+                .unwrap();
             for k in 0..eps.k2id.len() {
                 assert_eq!(*eps.id2k.get(&k).unwrap(), k);
                 assert_eq!(eps.k2id[k], k);
@@ -1236,7 +1276,7 @@ mod tests {
                     plot.add(&curve_eps).add(&text_eps);
                 }
             })
-            .draw(&mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg")
+            .draw(&post.mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -1266,9 +1306,7 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_strains_work_3d() {
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
+        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1285,10 +1323,10 @@ mod tests {
         let mut first = true;
         let mut coords_sig = String::new();
         let mut coords_eps = String::new();
-        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
-                .gauss_stresses(&[0, 1], &state, |x, y, _| !(x < 0.5 && y < 0.5))
+                .gauss_stresses(&mut memo, &state, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.k2id.len() {
                 assert_eq!(*sig.id2k.get(&k).unwrap(), k);
@@ -1308,7 +1346,7 @@ mod tests {
                 }
             }
             // strain (unfiltered)
-            let eps = post.gauss_strains(&[0, 1], &state, |_, _, _| true).unwrap();
+            let eps = post.gauss_strains(&mut memo, &state, &[0, 1], |_, _, _| true).unwrap();
             for k in 0..eps.k2id.len() {
                 assert_eq!(*eps.id2k.get(&k).unwrap(), k);
                 assert_eq!(eps.k2id[k], k);
@@ -1337,7 +1375,7 @@ mod tests {
                     plot.set_figure_size_points(800.0, 800.0);
                 }
             })
-            .draw(&mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_3d.svg")
+            .draw(&post.mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_3d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -1378,12 +1416,10 @@ mod tests {
 
     #[test]
     fn nodal_stress_and_strain_work_2d() {
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
-        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.nodal_stress(0, &state).unwrap();
-            let eps = post.nodal_strain(0, &state).unwrap();
+        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
+            let sig = post.nodal_stress(&mut memo, &state, 0).unwrap();
+            let eps = post.nodal_strain(&mut memo, &state, 0).unwrap();
             let nnode = sig.nrow();
             for m in 0..nnode {
                 // stress
@@ -1402,12 +1438,10 @@ mod tests {
 
     #[test]
     fn nodal_stress_and_strain_work_3d() {
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
-        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
-            let sig = post.nodal_stress(0, &state).unwrap();
-            let eps = post.nodal_strain(0, &state).unwrap();
+        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
+            let sig = post.nodal_stress(&mut memo, &state, 0).unwrap();
+            let eps = post.nodal_strain(&mut memo, &state, 0).unwrap();
             let nnode = sig.nrow();
             for m in 0..nnode {
                 // stress
@@ -1430,9 +1464,7 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_strains_work_2d() {
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
+        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1449,10 +1481,10 @@ mod tests {
         let mut first = true;
         let mut coords_sig = String::new();
         let mut coords_eps = String::new();
-        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
-                .nodal_stresses(&[0, 1, 2], &state, |x, y, _| !(x < 0.5 && y < 0.5))
+                .nodal_stresses(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.xx.len() {
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
@@ -1473,7 +1505,9 @@ mod tests {
                 .map(|id| sig.id2k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
             // strain (unfiltered)
-            let eps = post.nodal_strains(&[0, 1, 2], &state, |_, _, _| true).unwrap();
+            let eps = post
+                .nodal_strains(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
+                .unwrap();
             for k in 0..eps.xx.len() {
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
@@ -1502,7 +1536,7 @@ mod tests {
                     plot.add(&curve_eps).add(&text_eps);
                 }
             })
-            .draw(&mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg")
+            .draw(&post.mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -1524,9 +1558,7 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_strains_work_3d() {
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        let mut post = PostProc::deprecated_new(&mesh, &base);
+        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1543,10 +1575,10 @@ mod tests {
         let mut first = true;
         let mut coords_sig = String::new();
         let mut coords_eps = String::new();
-        for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
+        for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
-                .nodal_stresses(&[0, 1], &state, |x, y, _| !(x < 0.5 && y < 0.5))
+                .nodal_stresses(&mut memo, &state, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.xx.len() {
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-13);
@@ -1569,7 +1601,7 @@ mod tests {
                 .map(|id| sig.id2k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
             // strain (unfiltered)
-            let eps = post.nodal_strains(&[0, 1], &state, |_, _, _| true).unwrap();
+            let eps = post.nodal_strains(&mut memo, &state, &[0, 1], |_, _, _| true).unwrap();
             for k in 0..eps.xx.len() {
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
@@ -1601,7 +1633,7 @@ mod tests {
                     plot.set_figure_size_points(800.0, 800.0);
                 }
             })
-            .draw(&mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_3d.svg")
+            .draw(&post.mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_3d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -1648,8 +1680,12 @@ mod tests {
         state.u[3] = 4.0;
         state.u[4] = 5.0;
         state.u[5] = 6.0;
-        let output = PostProc::deprecated_new(&mesh, &base);
-        let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::Phi, 0.0, any_x).unwrap();
+        let post = PostProc {
+            file_io: FileIo::new(),
+            mesh: mesh.clone(),
+            base,
+        };
+        let (ids, xx, dd) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
         assert_eq!(dd, &[1.0, 4.0, 2.0]);
@@ -1672,14 +1708,12 @@ mod tests {
         // 0.0   0-------4-------1------10-------8
         //
         //      0.0     0.5     1.0     1.5     2.0
-        let (file_io, mesh, base) =
-            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
-        let post = PostProc::deprecated_new(&mesh, &base);
-        let features = Features::new(&mesh, false);
+        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
+        let features = Features::new(&post.mesh, false);
         let top = features.search_edges(At::Y(2.0), any_x).unwrap();
 
-        let state = PostProc::deprecated_read_state(&file_io, 0).unwrap();
-        let (ids, coords, dd) = post.values_along_edges(&top, Dof::Ux, &state).unwrap();
+        let state = post.read_state(0).unwrap();
+        let (ids, coords, dd) = post.values_along_edges(&state, &top, Dof::Ux).unwrap();
 
         assert_eq!(ids, &[14, 16, 13, 20, 18]);
         assert_eq!(coords, &[[0.0, 2.0], [0.5, 2.0], [1.0, 2.0], [1.5, 2.0], [2.0, 2.0]]);
@@ -1755,13 +1789,17 @@ mod tests {
         }
 
         // allocate post-processor
-        let post = PostProc::deprecated_new(&mesh, &base);
+        let post = PostProc {
+            file_io: FileIo::new(),
+            mesh: mesh.clone(),
+            base,
+        };
 
         // top edges
         let edges = Edges {
             all: vec![feat.get_edge(0, 4), feat.get_edge(0, 6), feat.get_edge(4, 11)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&state, &edges, Dof::Phi).unwrap();
         assert_eq!(ids, &[11, 5, 4, 3, 0, 1, 6]);
         array_approx_eq(&dd, &[111.0, 105.0, 104.0, 103.0, 100.0, 101.0, 106.0], 1e-15);
 
@@ -1769,7 +1807,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(4, 11)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&state, &edges, Dof::Phi).unwrap();
         assert_eq!(ids, &[4, 5, 11]);
         array_approx_eq(&dd, &[104.0, 105.0, 111.0], 1e-15);
 
@@ -1777,7 +1815,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(8, 10)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&state, &edges, Dof::Phi).unwrap();
         assert_eq!(ids, &[10, 9, 8]);
         array_approx_eq(&dd, &[110.0, 109.0, 108.0], 1e-15);
 
@@ -1785,7 +1823,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(6, 10)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&state, &edges, Dof::Phi).unwrap();
         assert_eq!(ids, &[10, 2, 6]);
         array_approx_eq(&dd, &[110.0, 102.0, 106.0], 1e-15);
 
@@ -1793,7 +1831,7 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(8, 11)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&state, &edges, Dof::Phi).unwrap();
         assert_eq!(ids, &[8, 7, 11]);
         array_approx_eq(&dd, &[108.0, 107.0, 111.0], 1e-15);
 
@@ -1801,14 +1839,14 @@ mod tests {
         let edges = Edges {
             all: vec![feat.get_edge(4, 10)],
         };
-        let (ids, _, dd) = post.values_along_edges(&edges, Dof::Phi, &state).unwrap();
+        let (ids, _, dd) = post.values_along_edges(&state, &edges, Dof::Phi).unwrap();
         assert_eq!(ids, &[10, 12, 4]);
         array_approx_eq(&dd, &[110.0, 112.0, 104.0], 1e-15);
 
         // empty
         let edges = Edges { all: vec![] };
         assert_eq!(
-            post.values_along_edges(&edges, Dof::Phi, &state).err(),
+            post.values_along_edges(&state, &edges, Dof::Phi).err(),
             Some("not enough points along the path of edges")
         );
     }

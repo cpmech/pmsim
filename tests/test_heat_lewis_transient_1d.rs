@@ -39,6 +39,14 @@ const NAME: &str = "test_heat_lewis_transient_1d";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 
+const T_FIN: f64 = 1.0;
+
+// analytical solution
+fn analytical(t: f64, x: f64) -> f64 {
+    2.0 * f64::sqrt(t / PI)
+        * (f64::exp(-x * x / (4.0 * t)) - (x / 2.0) * f64::sqrt(PI / t) * erfc(x / (2.0 * f64::sqrt(t))))
+}
+
 #[test]
 fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     // mesh
@@ -70,24 +78,20 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    let t_fin = 1.0;
-    config.set_transient(true).set_dt(|_| 0.1).set_t_fin(t_fin);
+    config.set_transient(true).set_dt(|_| 0.1).set_t_fin(T_FIN);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
     let mut file_io = FileIo::new();
+    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut file_io)?;
 
     // check
-    let analytical = |t: f64, x: f64| {
-        2.0 * f64::sqrt(t / PI)
-            * (f64::exp(-x * x / (4.0 * t)) - (x / 2.0) * f64::sqrt(PI / t) * erfc(x / (2.0 * f64::sqrt(t))))
-    };
     let selected = vec![
         features.search_point_ids(At::X(0.0), any_x).unwrap(),
         features.search_point_ids(At::X(1.0), any_x).unwrap(),
@@ -104,34 +108,41 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         assert!(diff < 3e-2);
     }
 
-    // plot
+    // plot the results
     if SAVE_FIGURE {
-        // compute analytical solution
-        let xx_ana = Vector::linspace(0.0, 2.0, 11)?;
-        let tt_ana = xx_ana.get_mapped(|x| analytical(t_fin, x));
-
-        // get temperature values along x
-        let post = PostProc::deprecated_new(&mesh, &base);
-        let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::Phi, 0.0, |x| x[0] <= 2.0)?;
-
-        // plot
-        let mut curve_ana = Curve::new();
-        let mut curve_num = Curve::new();
-        curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
-        curve_num
-            .set_line_color("#cd0000")
-            .set_line_style("None")
-            .set_marker_style("+");
-        curve_num.draw(&xx_num, &tt_num);
-        let mut plot = Plot::new();
-        plot.add(&curve_ana).add(&curve_num);
-        plot.grid_and_labels("x", "T")
-            .set_yrange(0.0, 1.2)
-            .legend()
-            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+        do_plot()
+    } else {
+        Ok(())
     }
+}
 
-    Ok(())
+fn do_plot() -> Result<(), StrError> {
+    // compute analytical solution
+    let xx_ana = Vector::linspace(0.0, 2.0, 11)?;
+    let tt_ana = xx_ana.get_mapped(|x| analytical(T_FIN, x));
+
+    // get temperature values along x
+    let (post, _) = PostProc::load("/tmp/pmsim", NAME)?;
+    let features = Features::new(post.mesh(), false);
+    let state = post.read_state(post.n_state() - 1)?;
+    let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::Phi, 0.0, |x| x[0] <= 2.0)?;
+
+    // plot
+    let mut curve_ana = Curve::new();
+    let mut curve_num = Curve::new();
+    curve_ana.draw(xx_ana.as_data(), tt_ana.as_data());
+    curve_num
+        .set_line_color("#cd0000")
+        .set_line_style("None")
+        .set_marker_style("o")
+        .set_stop_clip(true);
+    curve_num.draw(&xx_num, &tt_num);
+    let mut plot = Plot::new();
+    plot.add(&curve_ana).add(&curve_num);
+    plot.grid_and_labels("x", "T")
+        .set_yrange(0.0, 1.2)
+        .legend()
+        .save(&format!("/tmp/pmsim/{}.svg", NAME))
 }
 
 /// Generate or read mesh

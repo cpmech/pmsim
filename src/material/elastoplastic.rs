@@ -638,7 +638,7 @@ mod tests {
     use std::collections::HashMap;
 
     const VERBOSE: bool = true;
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     // Returns a vector of keys associated with the Case (for debugging)
     fn case_to_keys(case: &Case) -> Vec<&str> {

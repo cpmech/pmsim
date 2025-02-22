@@ -19,19 +19,18 @@ fn main() -> Result<(), StrError> {
     let options = Options::from_args();
 
     // load data
-    let (file_io, mesh, base) = PostProc::deprecated_read_summary(&options.out_dir, &options.fn_stem)?;
+    let (post, _) = PostProc::load(&options.out_dir, &options.fn_stem)?;
 
     // write VTU files
-    for index in &file_io.indices {
-        let state = PostProc::deprecated_read_state(&file_io, *index)?;
-        file_io.write_vtu(&mesh, &base, &state, *index)?;
+    for index in 0..post.n_state() {
+        let state = post.read_state(index)?;
+        post.write_vtu(&state, index)?;
     }
 
     // write PVD file
-    file_io.write_pvd()?;
+    let path_pvd = post.write_pvd()?;
 
     // message
-    let path_pvd = file_io.path_pvd();
     let thin_line = format!("{:─^1$}", "", path_pvd.len());
     println!("\n\n{}", thin_line);
     println!("VTU files generated; the PVD file is:");

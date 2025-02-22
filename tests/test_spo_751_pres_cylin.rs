@@ -121,18 +121,19 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     )?;
     assert!(all_good);
 
-    // post-processing
-    // post_processing();
+    // analyze results
+    analyze_results()?;
     Ok(())
 }
 
-fn post_processing() -> Result<(), StrError> {
+fn analyze_results() -> Result<(), StrError> {
     // load summary and associated files
-    let (file_io, mesh, base) = PostProc::deprecated_read_summary("/tmp/pmsim", NAME)?;
-    let mut post = PostProc::deprecated_new(&mesh, &base);
+    let (post, mut memo) = PostProc::load("/tmp/pmsim", NAME)?;
+    let mesh = post.mesh();
+    let base = post.base();
 
     // boundaries
-    let features = Features::new(&mesh, false);
+    let features = Features::new(mesh, false);
     let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let lower_cells = features.get_cells_via_2d_edges(&bottom);
@@ -142,26 +143,25 @@ fn post_processing() -> Result<(), StrError> {
     let ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
 
     // loop over time stations
-    let mut outer_ur = vec![0.0; file_io.indices.len()];
+    let mut outer_ur = vec![0.0; post.n_state()];
     let inner_pp: Vec<_> = P_ARRAY.iter().map(|p| *p).collect();
     let mut rr = Vec::new();
     let mut sh_p10 = Vec::new();
     let mut sr_p10 = Vec::new();
     let mut sh_p18 = Vec::new();
     let mut sr_p18 = Vec::new();
-    for index in &file_io.indices {
+    for index in 0..post.n_state() {
         // load state
-        let state = PostProc::deprecated_read_state(&file_io, *index)?;
-        assert_eq!(file_io.times[*index], state.t);
+        let state = post.read_state(index)?;
 
         // radial displacement
         let ub_num = state.u[eq_ux];
-        outer_ur[*index] = ub_num;
+        outer_ur[index] = ub_num;
 
         // get stresses
-        let pp = P_ARRAY[*index];
+        let pp = P_ARRAY[index];
         if pp == 0.1 || pp == 0.18 {
-            let res = post.gauss_stresses(&lower_cells, &state, |x, y, _| {
+            let res = post.gauss_stresses(&mut memo, &state, &lower_cells, |x, y, _| {
                 let alpha = f64::atan2(y, x) * 180.0 / PI;
                 alpha < 15.0
             })?;
@@ -271,14 +271,14 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
 fn _test_spo_751_pres_cylin_debug() -> Result<(), StrError> {
     // read summary and associated files
     let name = "spo_751_pres_cylin_resid_stress";
-    let (file_io, _, _) = PostProc::deprecated_read_summary("/tmp/pmsim", name)?;
+    let (post, _) = PostProc::load("/tmp/pmsim", name)?;
 
     // loop over time stations
     let cell_id = 0;
     let gauss_id = 1;
     let mut local_states = Vec::new();
-    for index in &file_io.indices {
-        let state = PostProc::deprecated_read_state(&file_io, *index)?;
+    for index in 0..post.n_state() {
+        let state = post.read_state(index)?;
         println!(
             "t = {:?}",
             state.gauss[cell_id].stress(gauss_id).unwrap().vector().as_data()
@@ -293,7 +293,7 @@ fn _test_spo_751_pres_cylin_debug() -> Result<(), StrError> {
             curve.set_marker_style("o");
         })
         .unwrap();
-    let p = local_states.len() - 1;
+    let _p = local_states.len() - 1;
     // let radius_0 = local_states[0].int_vars[0] * SQRT_2_BY_3;
     // let radius_1 = local_states[p].int_vars[0] * SQRT_2_BY_3;
     // plotter.set_oct_circle(radius_0, |_| {});
