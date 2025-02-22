@@ -105,7 +105,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
 fn analyze_results() -> Result<(), StrError> {
     // load summary and associated files
-    let (post, _) = PostProc::load("/tmp/pmsim", NAME)?;
+    let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
     let mesh = post.mesh();
     let base = post.base();
 

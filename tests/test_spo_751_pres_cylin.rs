@@ -128,7 +128,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
 
 fn analyze_results() -> Result<(), StrError> {
     // load summary and associated files
-    let (post, mut memo) = PostProc::load("/tmp/pmsim", NAME)?;
+    let (post, mut memo) = PostProc::new("/tmp/pmsim", NAME)?;
     let mesh = post.mesh();
     let base = post.base();
 
@@ -271,7 +271,7 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
 fn _test_spo_751_pres_cylin_debug() -> Result<(), StrError> {
     // read summary and associated files
     let name = "spo_751_pres_cylin_resid_stress";
-    let (post, _) = PostProc::load("/tmp/pmsim", name)?;
+    let (post, _) = PostProc::new("/tmp/pmsim", name)?;
 
     // loop over time stations
     let cell_id = 0;

@@ -170,7 +170,7 @@ fn run_spo_752(
 
 fn analyze_results(collapse: bool, name: &str) -> Result<(), StrError> {
     // load summary and associated files
-    let (post, mut memo) = PostProc::load("/tmp/pmsim", name)?;
+    let (post, mut memo) = PostProc::new("/tmp/pmsim", name)?;
     let mesh = post.mesh();
     let base = post.base();
 
@@ -301,7 +301,7 @@ fn analyze_results(collapse: bool, name: &str) -> Result<(), StrError> {
 fn _test_spo_752_pres_sphere_debug() -> Result<(), StrError> {
     // read summary and associated files
     let name = "spo_752_pres_sphere_resid_stress";
-    let (post, _) = PostProc::load("/tmp/pmsim", name)?;
+    let (post, _) = PostProc::new("/tmp/pmsim", name)?;
 
     // loop over time stations
     let cell_id = 0;

@@ -19,7 +19,7 @@ fn main() -> Result<(), StrError> {
     let options = Options::from_args();
 
     // load data
-    let (post, _) = PostProc::load(&options.out_dir, &options.fn_stem)?;
+    let (post, _) = PostProc::new(&options.out_dir, &options.fn_stem)?;
 
     // write VTU files
     for index in 0..post.n_state() {

@@ -120,7 +120,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
 
 fn do_plot() -> Result<(), StrError> {
     // get temperature values along x
-    let (post, _) = PostProc::load("/tmp/pmsim", NAME)?;
+    let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
     let features = Features::new(post.mesh(), false);
     let state = post.read_state(post.n_state() - 1)?;
     let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;

@@ -70,7 +70,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
 
 fn analyze_results() -> Result<(), StrError> {
     // results
-    let (post, mut memo) = PostProc::load("/tmp/pmsim", NAME)?;
+    let (post, mut memo) = PostProc::new("/tmp/pmsim", NAME)?;
     let mesh = post.mesh();
 
     // features

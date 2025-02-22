@@ -54,7 +54,7 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if any of the files cannot be read or parsed.
-    pub fn load(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
+    pub fn new(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
         // load FileIo
         let full_path = format!("{}/{}-summary.json", dir, fn_stem);
         let mut file_io = FileIo::read_json(&full_path)?;
@@ -89,6 +89,15 @@ impl PostProc {
     /// Returns an access to the FemBase
     pub fn base(&self) -> &FemBase {
         &self.base
+    }
+
+    /// Returns the equation number associated with the pair (point_id, dof)
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the pair (point_id, dof) is not found.
+    pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+        self.base.dofs.eq(point_id, dof)
     }
 
     /// Returns the number of state files (to define the index in read_state)
@@ -1003,7 +1012,7 @@ mod tests {
         // generate_artificial_2d(true);
 
         // read essential
-        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         assert_eq!(post.file_io.indices, &[0, 1, 2]);
         assert_eq!(post.file_io.times, &[0.0, 1.0, 2.0]);
         assert_eq!(post.mesh.ndim, 2);
@@ -1051,7 +1060,7 @@ mod tests {
         // generate_artificial_3d();
 
         // read essential
-        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         assert_eq!(post.file_io.indices, &[0, 1, 2]);
         assert_eq!(post.file_io.times, &[0.0, 1.0, 2.0]);
         assert_eq!(post.mesh.ndim, 3);
@@ -1162,7 +1171,7 @@ mod tests {
 
     #[test]
     fn gauss_stress_and_strain_work_2d() {
-        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stress(&state, 0).unwrap();
             let eps = post.gauss_strain(&state, 0).unwrap();
@@ -1184,7 +1193,7 @@ mod tests {
 
     #[test]
     fn gauss_stress_and_strain_work_3d() {
-        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stress(&state, 0).unwrap();
             let eps = post.gauss_strain(&state, 0).unwrap();
@@ -1210,7 +1219,7 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_strains_work_2d() {
-        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1306,7 +1315,7 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_strains_work_3d() {
-        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1416,7 +1425,7 @@ mod tests {
 
     #[test]
     fn nodal_stress_and_strain_work_2d() {
-        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.nodal_stress(&mut memo, &state, 0).unwrap();
             let eps = post.nodal_strain(&mut memo, &state, 0).unwrap();
@@ -1438,7 +1447,7 @@ mod tests {
 
     #[test]
     fn nodal_stress_and_strain_work_3d() {
-        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.nodal_stress(&mut memo, &state, 0).unwrap();
             let eps = post.nodal_strain(&mut memo, &state, 0).unwrap();
@@ -1464,7 +1473,7 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_strains_work_2d() {
-        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1558,7 +1567,7 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_strains_work_3d() {
-        let (post, mut memo) = PostProc::load("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1708,7 +1717,7 @@ mod tests {
         // 0.0   0-------4-------1------10-------8
         //
         //      0.0     0.5     1.0     1.5     2.0
-        let (post, _) = PostProc::load("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
         let features = Features::new(&post.mesh, false);
         let top = features.search_edges(At::Y(2.0), any_x).unwrap();
 
