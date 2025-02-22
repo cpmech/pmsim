@@ -2,7 +2,8 @@ use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::analytical::ElastPlaneStrainFlexibleFoot;
 use pmsim::prelude::*;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::approx_eq;
 
 const NAME: &str = "test_durand_farias_example4";
 const GENERATE_MESH: bool = false;
