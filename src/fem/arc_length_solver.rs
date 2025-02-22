@@ -233,41 +233,17 @@ impl<'a> ArcLengthSolver<'a> {
 #[cfg(test)]
 mod tests {
     use super::ArcLengthSolver;
-    use crate::base::{Config, Dof, Elem, Essential, Natural, ParamRod, Pbc};
+    use crate::base::{Config, Dof, Elem, Essential, Natural, ParamRod, Pbc, SampleMeshes};
     use crate::fem::{FemBase, FemState};
-    use gemlab::mesh::{Cell, Figure, GeoKind, Mesh, Point};
     use plotpy::{Curve, Plot};
     use russell_lab::{approx_eq, read_data};
 
     const SAVE_FIGURE: bool = false;
 
-    #[rustfmt::skip]
-    pub fn small_truss_2d() -> Mesh {
-        Mesh {
-            ndim: 2,
-            points: vec![
-                Point { id: 0, marker: 0, coords: vec![-0.5, 0.00000] },
-                Point { id: 1, marker: 0, coords: vec![ 0.0, 0.86603] },
-                Point { id: 2, marker: 0, coords: vec![ 0.5, 0.00000] },
-                Point { id: 3, marker: 0, coords: vec![ 0.0, 1.86603] },
-            ],
-            cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
-                Cell { id: 1, attribute: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
-                Cell { id: 2, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
-            ],
-        }
-    }
-
     #[test]
     fn small_truss_2d_works() {
         // mesh
-        let mesh = small_truss_2d();
-        if SAVE_FIGURE {
-            let mut fig = Figure::new();
-            fig.show_point_ids(true).show_cell_ids(true);
-            fig.draw(&mesh, "/tmp/pmsim/test_small_truss_2d_mesh.svg").unwrap();
-        }
+        let mesh = SampleMeshes::truss_3member_2d();
 
         // parameters
         let p1 = ParamRod {

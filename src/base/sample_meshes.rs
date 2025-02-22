@@ -4,6 +4,45 @@ use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
 pub struct SampleMeshes {}
 
 impl SampleMeshes {
+    /// Returns a 2D mesh with a 3 rod elements
+    ///
+    /// ```text
+    ///       3
+    ///       |        (#) indicates cell id
+    ///   (2) | [2]    [#] indicates attribute id
+    ///       |        The lines are ROD (Lin2) elements
+    ///       1
+    /// (0)  / \  (1)
+    /// [1] /   \ [1]
+    ///    /     \
+    ///   0       2
+    /// ```
+    ///
+    /// # References
+    ///
+    /// * Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
+    ///   issues in the arc-length method for nonlinear structural mechanics,
+    ///   Engineering Structures, 234:111755
+    ///
+    /// ![mesh_truss_3member_2d](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_truss_3member_2d.svg)
+    #[rustfmt::skip]
+    pub fn truss_3member_2d() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, marker: 0, coords: vec![-0.5, 0.00000] },
+                Point { id: 1, marker: 0, coords: vec![ 0.0, 0.86603] },
+                Point { id: 2, marker: 0, coords: vec![ 0.5, 0.00000] },
+                Point { id: 3, marker: 0, coords: vec![ 0.0, 1.86603] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 1, attribute: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
+                Cell { id: 2, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
+            ],
+        }
+    }
+
     /// Returns the mesh from Bhatti's Example 1.4 (page 25)
     ///
     /// Reference: Bhatti, M.A. (2005) Fundamental Finite Element Analysis and Applications, Wiley, 700p.
@@ -851,6 +890,13 @@ mod tests {
     #[test]
     #[rustfmt::skip]
     fn sample_meshes_are_ok() {
+        let mesh = SampleMeshes::truss_3member_2d();
+        assert_eq!(mesh.points.len(), 4);
+        assert_eq!(mesh.cells.len(), 3);
+        if SAVE_FIGURE{
+            draw(&mesh, false, "/tmp/pmsim/mesh_truss_3member_2d.svg");
+        }
+
         let mesh = SampleMeshes::bhatti_example_1d4_truss();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 5);
