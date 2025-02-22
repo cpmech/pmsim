@@ -51,7 +51,7 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if any of the files cannot be read or parsed.
-    pub fn read_summary(dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
+    pub fn deprecated_read_summary(dir: &str, fn_stem: &str) -> Result<(FileIo, Mesh, FemBase), StrError> {
         // load FileIo
         let full_path = format!("{}/{}-summary.json", dir, fn_stem);
         let mut file_io = FileIo::read_json(&full_path)?;
@@ -88,7 +88,7 @@ impl<'a> PostProc<'a> {
     /// # Errors
     ///
     /// Returns an error if the state file cannot be read or parsed.
-    pub fn read_state(file_io: &FileIo, index: usize) -> Result<FemState, StrError> {
+    pub fn deprecated_read_state(file_io: &FileIo, index: usize) -> Result<FemState, StrError> {
         let path_state = file_io.path_state(index);
         FemState::read_json(&path_state)
     }
@@ -108,7 +108,7 @@ impl<'a> PostProc<'a> {
     /// # Returns
     ///
     /// A new `PostProc` instance.
-    pub fn new(mesh: &'a Mesh, base: &'a FemBase) -> Self {
+    pub fn deprecated_new(mesh: &'a Mesh, base: &'a FemBase) -> Self {
         PostProc {
             mesh,
             base,
@@ -975,7 +975,8 @@ mod tests {
         // generate_artificial_2d(true);
 
         // read essential
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
         assert_eq!(file_io.indices, &[0, 1, 2]);
         assert_eq!(file_io.times, &[0.0, 1.0, 2.0]);
         assert_eq!(mesh.ndim, 2);
@@ -989,9 +990,9 @@ mod tests {
 
         // read state
         let ndim = mesh.ndim;
-        let state_h = PostProc::read_state(&file_io, 0).unwrap();
-        let state_v = PostProc::read_state(&file_io, 1).unwrap();
-        let state_s = PostProc::read_state(&file_io, 2).unwrap();
+        let state_h = PostProc::deprecated_read_state(&file_io, 0).unwrap();
+        let state_v = PostProc::deprecated_read_state(&file_io, 1).unwrap();
+        let state_s = PostProc::deprecated_read_state(&file_io, 2).unwrap();
         let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
@@ -1023,7 +1024,8 @@ mod tests {
         // generate_artificial_3d();
 
         // read essential
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
         assert_eq!(file_io.indices, &[0, 1, 2]);
         assert_eq!(file_io.times, &[0.0, 1.0, 2.0]);
         assert_eq!(mesh.ndim, 3);
@@ -1037,9 +1039,9 @@ mod tests {
 
         // read state
         let ndim = mesh.ndim;
-        let state_h = PostProc::read_state(&file_io, 0).unwrap();
-        let state_v = PostProc::read_state(&file_io, 1).unwrap();
-        let state_s = PostProc::read_state(&file_io, 2).unwrap();
+        let state_h = PostProc::deprecated_read_state(&file_io, 0).unwrap();
+        let state_v = PostProc::deprecated_read_state(&file_io, 1).unwrap();
+        let state_s = PostProc::deprecated_read_state(&file_io, 2).unwrap();
         let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
@@ -1071,7 +1073,7 @@ mod tests {
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(1);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         let res = post.gauss_coords(0).unwrap();
         assert_eq!(res[0].as_data(), &[0.5, 0.5]);
     }
@@ -1082,7 +1084,7 @@ mod tests {
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(8);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         let res = post.gauss_coords(0).unwrap();
         let a = (1.0 - 1.0 / SQRT_3) / 2.0;
         let b = (1.0 + 1.0 / SQRT_3) / 2.0;
@@ -1097,9 +1099,9 @@ mod tests {
     }
 
     fn load_states_and_solutions(file_io: &FileIo) -> [(FemState, Tensor2, Tensor2); 3] {
-        let state_h = PostProc::read_state(&file_io, 0).unwrap();
-        let state_v = PostProc::read_state(&file_io, 1).unwrap();
-        let state_s = PostProc::read_state(&file_io, 2).unwrap();
+        let state_h = PostProc::deprecated_read_state(&file_io, 0).unwrap();
+        let state_v = PostProc::deprecated_read_state(&file_io, 1).unwrap();
+        let state_s = PostProc::deprecated_read_state(&file_io, 2).unwrap();
 
         let ndim = state_h.gauss[0].stress(0).unwrap().vector().dim() / 2;
 
@@ -1116,8 +1118,9 @@ mod tests {
 
     #[test]
     fn gauss_stress_and_strain_work_2d() {
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.gauss_stress(0, &state).unwrap();
             let eps = post.gauss_strain(0, &state).unwrap();
@@ -1139,8 +1142,9 @@ mod tests {
 
     #[test]
     fn gauss_stress_and_strain_work_3d() {
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.gauss_stress(0, &state).unwrap();
             let eps = post.gauss_strain(0, &state).unwrap();
@@ -1166,8 +1170,9 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_strains_work_2d() {
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1261,8 +1266,9 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_strains_work_3d() {
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1372,8 +1378,9 @@ mod tests {
 
     #[test]
     fn nodal_stress_and_strain_work_2d() {
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.nodal_stress(0, &state).unwrap();
             let eps = post.nodal_strain(0, &state).unwrap();
@@ -1395,8 +1402,9 @@ mod tests {
 
     #[test]
     fn nodal_stress_and_strain_work_3d() {
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&file_io) {
             let sig = post.nodal_stress(0, &state).unwrap();
             let eps = post.nodal_strain(0, &state).unwrap();
@@ -1422,8 +1430,9 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_strains_work_2d() {
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1515,8 +1524,9 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_strains_work_3d() {
-        let (file_io, mesh, base) = PostProc::read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
-        let mut post = PostProc::new(&mesh, &base);
+        let (file_io, mesh, base) =
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let mut post = PostProc::deprecated_new(&mesh, &base);
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -1638,7 +1648,7 @@ mod tests {
         state.u[3] = 4.0;
         state.u[4] = 5.0;
         state.u[5] = 6.0;
-        let output = PostProc::new(&mesh, &base);
+        let output = PostProc::deprecated_new(&mesh, &base);
         let (ids, xx, dd) = output.values_along_x(&features, &state, Dof::Phi, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
         assert_eq!(xx, &[0.0, 0.5, 1.0]);
@@ -1663,12 +1673,12 @@ mod tests {
         //
         //      0.0     0.5     1.0     1.5     2.0
         let (file_io, mesh, base) =
-            PostProc::read_summary("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
-        let post = PostProc::new(&mesh, &base);
+            PostProc::deprecated_read_summary("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
+        let post = PostProc::deprecated_new(&mesh, &base);
         let features = Features::new(&mesh, false);
         let top = features.search_edges(At::Y(2.0), any_x).unwrap();
 
-        let state = PostProc::read_state(&file_io, 0).unwrap();
+        let state = PostProc::deprecated_read_state(&file_io, 0).unwrap();
         let (ids, coords, dd) = post.values_along_edges(&top, Dof::Ux, &state).unwrap();
 
         assert_eq!(ids, &[14, 16, 13, 20, 18]);
@@ -1745,7 +1755,7 @@ mod tests {
         }
 
         // allocate post-processor
-        let post = PostProc::new(&mesh, &base);
+        let post = PostProc::deprecated_new(&mesh, &base);
 
         // top edges
         let edges = Edges {

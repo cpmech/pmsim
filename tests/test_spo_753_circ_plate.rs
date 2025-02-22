@@ -106,8 +106,8 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
 fn post_processing() -> Result<(), StrError> {
     // load summary and associated files
-    let (file_io, mesh, base) = PostProc::read_summary("/tmp/pmsim", NAME)?;
-    let post = PostProc::new(&mesh, &base);
+    let (file_io, mesh, base) = PostProc::deprecated_read_summary("/tmp/pmsim", NAME)?;
+    let post = PostProc::deprecated_new(&mesh, &base);
 
     // boundaries
     let features = Features::new(&mesh, false);
@@ -127,7 +127,7 @@ fn post_processing() -> Result<(), StrError> {
     let mut yy_p200 = Vec::new(); // normalized deflection w/h @ P = 200
     let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
     for index in 0..nstep_max {
-        let state = PostProc::read_state(&file_io, index)?;
+        let state = PostProc::deprecated_read_state(&file_io, index)?;
         deflection[index] = -state.u[eq_uy];
         let pp = P_ARRAY[index];
         if pp == 100.0 {

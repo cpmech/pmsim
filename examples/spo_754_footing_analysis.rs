@@ -10,8 +10,8 @@ use russell_lab::read_data;
 const NAME: &str = "spo_754_footing";
 
 pub fn main() -> Result<(), StrError> {
-    let (file_io, mesh, base) = PostProc::read_summary("/tmp/pmsim", NAME)?;
-    let mut post = PostProc::new(&mesh, &base);
+    let (file_io, mesh, base) = PostProc::deprecated_read_summary("/tmp/pmsim", NAME)?;
+    let mut post = PostProc::deprecated_new(&mesh, &base);
 
     let (min, max) = mesh.get_limits();
     let features = Features::new(&mesh, false);
@@ -30,7 +30,7 @@ pub fn main() -> Result<(), StrError> {
     let selected_indices = &[1, 2, 4, 6, file_io.indices.len() - 1];
     let eq_corner = base.dofs.eq(corner_id, Dof::Uy)?;
     for index in &file_io.indices {
-        let state = PostProc::read_state(&file_io, *index)?;
+        let state = PostProc::deprecated_read_state(&file_io, *index)?;
         let uy = state.u[eq_corner];
         normalized_settlement.push(-uy / width);
         let res = post.nodal_stresses(&footing_cells, &state, |_, y, _| y == max[1])?;

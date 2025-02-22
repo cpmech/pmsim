@@ -171,8 +171,8 @@ fn run_spo_752(
 
 fn post_processing(collapse: bool, name: &str) -> Result<(), StrError> {
     // load summary and associated files
-    let (file_io, mesh, base) = PostProc::read_summary("/tmp/pmsim", name)?;
-    let mut post = PostProc::new(&mesh, &base);
+    let (file_io, mesh, base) = PostProc::deprecated_read_summary("/tmp/pmsim", name)?;
+    let mut post = PostProc::deprecated_new(&mesh, &base);
 
     // boundaries
     let features = Features::new(&mesh, false);
@@ -197,7 +197,7 @@ fn post_processing(collapse: bool, name: &str) -> Result<(), StrError> {
     let mut sr_ppb = Vec::new();
     for index in &file_io.indices {
         // load state
-        let state = PostProc::read_state(&file_io, *index)?;
+        let state = PostProc::deprecated_read_state(&file_io, *index)?;
         assert_eq!(file_io.times[*index], state.t);
 
         // radial displacement
@@ -302,14 +302,14 @@ fn post_processing(collapse: bool, name: &str) -> Result<(), StrError> {
 fn _test_spo_752_pres_sphere_debug() -> Result<(), StrError> {
     // read summary and associated files
     let name = "spo_752_pres_sphere_resid_stress";
-    let (file_io, _, _) = PostProc::read_summary("/tmp/pmsim", name)?;
+    let (file_io, _, _) = PostProc::deprecated_read_summary("/tmp/pmsim", name)?;
 
     // loop over time stations
     let cell_id = 0;
     let gauss_id = 1;
     let mut local_states = Vec::new();
     for index in &file_io.indices {
-        let state = PostProc::read_state(&file_io, *index)?;
+        let state = PostProc::deprecated_read_state(&file_io, *index)?;
         println!(
             "t = {:?}",
             state.gauss[cell_id].stress(gauss_id).unwrap().vector().as_data()

@@ -64,7 +64,7 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     solver.solve(&mut state, &mut file_io)?;
 
     // results
-    let mut post = PostProc::new(&mesh, &base);
+    let mut post = PostProc::deprecated_new(&mesh, &base);
     let left_cells = features.get_cells_via_2d_edges(&left);
     let (min, max) = mesh.get_cell_bounding_box(mesh.cells[left_cells[0]].id);
     let hdx = (max[0] - min[0]) / 2.0;
