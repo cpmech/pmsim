@@ -1,0 +1,206 @@
+diff --git a/src/fem/solver_implicit.rs b/src/fem/solver_implicit.rs
+index 45ead02..c4977d8 100644
+--- a/src/fem/solver_implicit.rs
++++ b/src/fem/solver_implicit.rs
+@@ -1,7 +1,5 @@
+-use super::{FemBase, FemState, FileIo};
+-use super::{SolverData, TimeControl};
++use super::{ArcLengthControl, ConvergenceControl, FemBase, FemState, FileIo, SolverData, TimeControl};
+ use crate::base::{Config, Essential, Natural};
+-use crate::fem::ConvergenceControl;
+ use crate::StrError;
+ use gemlab::mesh::Mesh;
+ use russell_lab::vec_add;
+@@ -14,6 +12,9 @@ pub struct SolverImplicit<'a> {
+     /// Holds data for FEM solvers
+     data: SolverData<'a>,
+ 
++    /// Holds the arc-length control structure
++    arc_control: ArcLengthControl<'a>,
++
+     /// Holds the convergence control structure
+     conv_control: ConvergenceControl<'a>,
+ 
+@@ -35,6 +36,7 @@ impl<'a> SolverImplicit<'a> {
+         let neq_total = data.ls.neq_total;
+ 
+         // allocate convergence and time control structures
++        let arc_control = ArcLengthControl::new(config, neq_total);
+         let conv_control = ConvergenceControl::new(config, neq_total);
+         let time_control = TimeControl::new(config)?;
+ 
+@@ -42,13 +44,16 @@ impl<'a> SolverImplicit<'a> {
+         Ok(SolverImplicit {
+             config,
+             data,
++            arc_control,
+             conv_control,
+             time_control,
+         })
+     }
+ 
+     /// Solves the associated system of partial differential equations
+-    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
++    ///
++    /// Returns the total number of converged iterations.
++    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<usize, StrError> {
+         // helper macro to save the state before returning an error
+         macro_rules! run {
+             ($e:expr) => {
+@@ -89,11 +94,17 @@ impl<'a> SolverImplicit<'a> {
+         // print convergence information
+         self.conv_control.print_header();
+ 
++        // initialize control variables
++        let mut converged = false;
++        let mut n_converged = 0;
++        let mut step_n_failure = 0;
++
+         // time loop
+         for timestep in 0..self.config.n_max_time_steps {
+             // update time-related variables
+             let finished = run!(self.time_control.update(state));
+             if finished {
++                file_io.write_state(state)?;
+                 break;
+             }
+ 
+@@ -102,8 +113,14 @@ impl<'a> SolverImplicit<'a> {
+                 vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
+             };
+ 
+-            // reset cumulated primary values
+-            state.ddu.fill(0.0);
++            // trial displacement u, displacement increment Δu, and trial loading factor ℓ
++            if self.config.arc_length_method {
++                run!(self.arc_control.trial_increments(timestep, state, converged));
++            } else {
++                // the trial displacement is the displacement at the old time (unchanged)
++                state.ddu.fill(0.0);
++                state.ell = 1.0;
++            }
+ 
+             // reset algorithmic variables
+             if !self.config.linear_problem {
+@@ -115,22 +132,38 @@ impl<'a> SolverImplicit<'a> {
+ 
+             // iteration loop
+             for iteration in 0..self.config.n_max_iterations {
+-                let converged = run!(self.iterate(iteration, state));
++                converged = run!(self.iterate(timestep, iteration, state));
+                 if converged {
++                    n_converged += 1;
+                     break;
+                 }
+-                if iteration == self.config.n_max_iterations - 1 {
+-                    return Err("Newton-Raphson did not converge");
++                if !self.config.arc_length_method {
++                    if iteration == self.config.n_max_iterations - 1 {
++                        return Err("Newton-Raphson did not converge");
++                    }
+                 }
+             }
+ 
++            // arc-length step adaptation
++            if self.config.arc_length_method {
++                run!(self
++                    .arc_control
++                    .step_adaptation(timestep, state, converged, &self.data.ls.ff_ext));
++            }
++
+             // perform output
+             let last_timestep = timestep == self.config.n_max_time_steps - 1;
+-            if state.t >= t_out || last_timestep {
++            if converged && state.t >= t_out || last_timestep {
+                 file_io.write_state(state)?;
+                 t_out += (self.config.ddt_out)(state.t);
+             }
+ 
++            // check if many steps failed to converge
++            step_n_failure += 1;
++            if step_n_failure > self.config.allowed_step_n_failure {
++                return Err("too many step failures");
++            }
++
+             // final time step
+             if state.t >= self.config.t_fin {
+                 break;
+@@ -138,7 +171,10 @@ impl<'a> SolverImplicit<'a> {
+         }
+ 
+         // write the file_io file
+-        file_io.write_self()
++        file_io.write_self()?;
++
++        // return the number of converged iterations
++        Ok(n_converged)
+     }
+ 
+     /// Performs the iterations to reduce the residuals
+@@ -148,20 +184,29 @@ impl<'a> SolverImplicit<'a> {
+     /// and secondary variables (e.g., stresses) are still on the old time. Therefore,
+     /// iterations are required to reduce the residuals. The trial values for the iterations
+     /// are the values at the old timestep.
+-    fn iterate(&mut self, iteration: usize, state: &mut FemState) -> Result<bool, StrError> {
++    fn iterate(&mut self, timestep: usize, iteration: usize, state: &mut FemState) -> Result<bool, StrError> {
+         // assemble F_int and F_ext
+         self.data.assemble_ff_int_and_ff_ext(state)?;
+ 
+         // calculate R = F_int - lf * F_ext
+-        self.data.calculate_residuals_vector(1.0);
++        self.data.calculate_residuals_vector(state.ell);
+ 
+         // add Lagrange multiplier contributions to R
+         if self.config.lagrange_mult_method {
+             self.data.bc_prescribed.assemble_rr_lmm(&mut self.data.ls.rr, state);
+         }
+ 
++        // calculate arc-length constraint and derivatives
++        let g = if self.config.arc_length_method {
++            self.arc_control
++                .constraint_and_derivatives(timestep, state, &self.data.ls.ff_ext)?;
++            self.arc_control.constraint()
++        } else {
++            0.0
++        };
++
+         // check convergence on residual
+-        self.conv_control.analyze_rr(iteration, &self.data.ls.rr, 0.0)?;
++        self.conv_control.analyze_rr(iteration, &self.data.ls.rr, g)?;
+         if self.conv_control.converged_on_norm_rr() {
+             self.conv_control.print_iteration();
+             return Ok(true); // converged
+@@ -184,7 +229,11 @@ impl<'a> SolverImplicit<'a> {
+         }
+ 
+         // solve linear system
+-        self.data.ls.solve()?;
++        if self.config.arc_length_method {
++            self.arc_control.solve(&mut self.data.ls)?;
++        } else {
++            self.data.ls.solve()?;
++        }
+ 
+         // check convergence on corrective displacement
+         self.conv_control.analyze_mdu(iteration, &self.data.ls.mdu)?;
+@@ -196,6 +245,11 @@ impl<'a> SolverImplicit<'a> {
+         // update primary variables
+         self.data.update_primary_variables(state)?;
+ 
++        // update loading factor
++        if self.config.arc_length_method {
++            self.arc_control.update_load_factor(state)?;
++        }
++
+         // backup/restore secondary variables
+         if !self.config.linear_problem {
+             if iteration == 0 {
+@@ -284,7 +338,7 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn run_captures_errors() {
++    fn solve_captures_errors() {
+         let mesh = Samples::one_tri3();
+         let p1 = ParamSolid::sample_linear_elastic();
+         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();

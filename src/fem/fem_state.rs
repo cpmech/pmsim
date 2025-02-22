@@ -185,7 +185,7 @@ impl FemState {
 
         // allocate new instance
         Ok(FemState {
-            ell: config.initial_loading_factor,
+            ell: 0.0,
             t: 0.0,      // needs initialization
             ddt: 0.0,    // needs initialization
             alpha1: 0.0, // needs initialization

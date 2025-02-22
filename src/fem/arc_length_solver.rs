@@ -76,6 +76,10 @@ impl<'a> ArcLengthSolver<'a> {
     }
 
     pub fn step_predictor(&mut self, timestep: usize, state: &mut FemState) {
+        if timestep == 0 {
+            state.ell = self.config.first_trial_loading_factor;
+        }
+
         if timestep > 0 {
             assert!(f64::abs(self.dds_old) > 1e-12);
             let alpha = self.dds / self.dds_old;
@@ -282,7 +286,7 @@ mod tests {
             .set_dt_out(|_| 1.0)
             .set_t_fin(50.0)
             .set_arc_length_method(true)
-            .set_ini_load_factor(0.05)
+            .set_ini_trial_load_factor(0.05)
             .set_tol_rr_abs(1e-6)
             .set_tol_mdu_rel(1e-12);
 

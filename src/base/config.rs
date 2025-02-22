@@ -48,8 +48,10 @@ pub struct Config<'a> {
     /// * ψ = 1.0: (hyper) spherical arc-length control (default)
     pub(crate) arc_length_psi: f64,
 
-    /// Holds the initial loading factor ℓ0 used by the arc-length method
-    pub(crate) initial_loading_factor: f64,
+    /// Holds the first trial loading factor ℓ₀ used by the arc-length method
+    ///
+    /// Only for the arc-length method
+    pub(crate) first_trial_loading_factor: f64,
 
     /// Holds the number of allowed (time)steps that fail to converge
     pub(crate) allowed_step_n_failure: usize,
@@ -190,7 +192,7 @@ impl<'a> Config<'a> {
             constant_tangent: false,
             arc_length_method: false,
             arc_length_psi: 1.0,
-            initial_loading_factor: 1.0,
+            first_trial_loading_factor: 1.0,
             allowed_step_n_failure: 100,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
@@ -254,6 +256,12 @@ impl<'a> Config<'a> {
             return Some(format!(
                 "arc_length_psi = {:?} is incorrect; it must be 0.0 ≤ ψ ≤ 1.0",
                 self.arc_length_psi
+            ));
+        }
+        if f64::abs(self.first_trial_loading_factor) < 1e-12 {
+            return Some(format!(
+                "absolute first trial loading factor |ℓ₀| = {:?} is incorrect; it must be ≥ 1e-12",
+                self.first_trial_loading_factor
             ));
         }
         match self.initialization {
@@ -400,9 +408,11 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the initial loading factor ℓ0 used by the arc-length method
-    pub fn set_ini_load_factor(&mut self, ell0: f64) -> &mut Self {
-        self.initial_loading_factor = ell0;
+    /// Sets the initial trial loading factor ℓ₀ used by the arc-length method
+    ///
+    /// Only for the arc-length method
+    pub fn set_ini_trial_load_factor(&mut self, ell0: f64) -> &mut Self {
+        self.first_trial_loading_factor = ell0;
         self
     }
 
@@ -762,6 +772,13 @@ mod tests {
             Some("arc_length_psi = -0.1 is incorrect; it must be 0.0 ≤ ψ ≤ 1.0".to_string())
         );
         config.arc_length_psi = 1.0;
+
+        config.first_trial_loading_factor = 0.0;
+        assert_eq!(
+            config.validate(),
+            Some("absolute first trial loading factor |ℓ₀| = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
+        );
+        config.first_trial_loading_factor = 1.0;
 
         config.initialization = Init::Geostatic(123.0);
         assert_eq!(
