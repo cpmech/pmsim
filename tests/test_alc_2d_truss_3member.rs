@@ -5,7 +5,7 @@ use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::{approx_eq, read_data};
 
-// Arc-length method for a 3-member truss in 2D
+// Arc-length control (ALC) for a 3-member truss in 2D
 //
 // TEST GOAL
 //
@@ -48,11 +48,11 @@ use russell_lab::{approx_eq, read_data};
 //   issues in the arc-length method for nonlinear structural mechanics,
 //   Engineering Structures, 234:111755
 
-const NAME: &str = "test_al_truss_3member_2d";
+const NAME: &str = "test_alc_2d_truss_3member";
 const SAVE_FIGURE: bool = false;
 
 #[test]
-fn test_al_truss_3member_2d() -> Result<(), StrError> {
+fn test_alc_2d_truss_3member() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::truss_3member_2d();
 
