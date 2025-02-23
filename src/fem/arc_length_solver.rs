@@ -237,7 +237,7 @@ impl<'a> ArcLengthSolver<'a> {
 #[cfg(test)]
 mod tests {
     use super::ArcLengthSolver;
-    use crate::base::{Config, Dof, Elem, Essential, Natural, ParamRod, Pbc, SampleMeshes};
+    use crate::base::{Config, Dof, Elem, Essential, GnlStrain, Natural, ParamRod, Pbc, SampleMeshes};
     use crate::fem::{FemBase, FemState};
     use plotpy::{Curve, Plot};
     use russell_lab::{approx_eq, read_data};
@@ -251,14 +251,14 @@ mod tests {
 
         // parameters
         let p1 = ParamRod {
-            gnl: true,
+            gnl: Some(GnlStrain::Eng),
             density: 1.0,
             young: 1.0,
             area: 1.0,
             ngauss: None,
         };
         let p2 = ParamRod {
-            gnl: true,
+            gnl: Some(GnlStrain::Eng),
             density: 1.0,
             young: 0.5,
             area: 1.0,

@@ -58,14 +58,14 @@ fn test_al_truss_3member_2d() -> Result<(), StrError> {
 
     // parameters
     let p1 = ParamRod {
-        gnl: true,
+        gnl: Some(GnlStrain::Eng),
         density: 1.0,
         young: 1.0,
         area: 1.0,
         ngauss: None,
     };
     let p2 = ParamRod {
-        gnl: true,
+        gnl: Some(GnlStrain::Eng),
         density: 1.0,
         young: 0.5,
         area: 1.0,

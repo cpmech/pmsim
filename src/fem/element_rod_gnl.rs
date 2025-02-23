@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemBase, FemState};
-use crate::base::{compute_local_to_global, ParamRod};
+use crate::base::{compute_local_to_global, GnlStrain, ParamRod};
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_add, vec_outer, Matrix, Vector};
@@ -8,9 +8,11 @@ use russell_lab::{mat_add, vec_outer, Matrix, Vector};
 ///
 /// # References
 ///
-/// * Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
-///   issues in the arc-length method for nonlinear structural mechanics,
-///   Engineering Structures, 234:111755
+/// 1. Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
+///    issues in the arc-length method for nonlinear structural mechanics,
+///    Engineering Structures, 234:111755
+/// 2. Bonet J, Wood RD (2008) Nonlinear Continuum Mechanics for Finite Element Analysis,
+///    2nd Edition, Cambridge University Press
 pub struct ElementRodGnl<'a> {
     /// Material parameters
     pub param: &'a ParamRod,
@@ -43,6 +45,9 @@ impl<'a> ElementRodGnl<'a> {
         let pp = &cell.points;
         if pp.len() != 2 {
             return Err("number of nodes for Rod must be 2");
+        }
+        if param.gnl.is_none() {
+            return Err("strain type must be specified for the geometrically-nonlinear Rod");
         }
         let xxa = mesh.points[pp[0]].coords[0];
         let yya = mesh.points[pp[0]].coords[1];
@@ -140,6 +145,19 @@ impl<'a> ElementRodGnl<'a> {
             f64::sqrt(dx * dx + dy * dy + dz * dz)
         }
     }
+
+    /// Calculates the strain and the denominator of F_int
+    ///
+    /// Returns `(axial_strain, den)`
+    ///
+    /// `den` is either L or L0 depending on the strain type
+    fn calc_strain(&self, ll: f64) -> (f64, f64) {
+        match self.param.gnl.unwrap() {
+            GnlStrain::Eng => ((ll - self.ll0) / self.ll0, ll),
+            GnlStrain::Green => ((ll * ll - self.ll0 * self.ll0) / (2.0 * self.ll0 * self.ll0), self.ll0),
+            GnlStrain::Log => (f64::ln(ll / self.ll0), self.ll0), // TODO: verify this
+        }
+    }
 }
 
 impl<'a> ElementTrait for ElementRodGnl<'a> {
@@ -161,10 +179,10 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
     /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
     fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let ll = self.update_bb(state);
-        let axial_strain = ll / self.ll0 - 1.0;
+        let (axial_strain, den) = self.calc_strain(ll);
         let axial_force = self.param.young * self.param.area * axial_strain;
         for i in 0..(2 * self.ndim) {
-            f_int[i] = axial_force * self.bb[i] / ll;
+            f_int[i] = axial_force * self.bb[i] / den;
         }
         Ok(())
     }
@@ -177,10 +195,10 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let ll = self.update_bb(state);
-        let axial_strain = ll / self.ll0 - 1.0;
-        let eal = self.param.young * self.param.area / ll;
+        let (axial_strain, den) = self.calc_strain(ll);
+        let ead = self.param.young * self.param.area / den;
         vec_outer(&mut self.btb, 1.0, &self.bb, &self.bb).unwrap();
-        mat_add(kke, eal / (ll * ll), &self.btb, eal * axial_strain, &self.hh).unwrap();
+        mat_add(kke, ead / (den * den), &self.btb, ead * axial_strain, &self.hh).unwrap();
         Ok(())
     }
 
@@ -206,7 +224,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRodGnl;
-    use crate::base::{Config, Elem, Essential, ParamRod};
+    use crate::base::{Config, Elem, Essential, GnlStrain, ParamRod};
     use crate::fem::{ElementTrait, FemBase, FemState};
     use gemlab::mesh::{Cell, Figure, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};
@@ -243,14 +261,14 @@ mod tests {
 
         // parameters and first element
         let p1 = ParamRod {
-            gnl: true,
+            gnl: Some(GnlStrain::Eng),
             density: 1.0,
             young: 1.0,
             area: 1.0,
             ngauss: None,
         };
         let p2 = ParamRod {
-            gnl: true,
+            gnl: Some(GnlStrain::Eng),
             density: 1.0,
             young: 0.5,
             area: 1.0,

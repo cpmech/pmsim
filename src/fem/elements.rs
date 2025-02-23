@@ -47,7 +47,7 @@ impl<'a> GenericElement<'a> {
         let actual: Box<dyn ElementTrait> = match element {
             Elem::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, base, config, p, cell.id)?),
             Elem::Rod(p) => {
-                if p.gnl {
+                if p.gnl.is_some() {
                     Box::new(ElementRodGnl::new(mesh, base, p, cell.id)?)
                 } else {
                     Box::new(ElementRod::new(mesh, base, p, cell.id)?)

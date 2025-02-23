@@ -158,7 +158,7 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
-            gnl: false,
+            gnl: None,
             area: 5.0,
             young: 1_000.0,
             density: 1.0,
@@ -185,7 +185,7 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
-            gnl: false,
+            gnl: None,
             area: 5.0,
             young: 1_000.0,
             density: 1.0,
@@ -226,7 +226,7 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
-            gnl: false,
+            gnl: None,
             area: 10.0,
             young: 343.0,
             density: 1.0,
@@ -270,7 +270,7 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
-            gnl: false,
+            gnl: None,
             area: 9.0,
             young: 1.0,
             density: 1.0,
@@ -324,21 +324,21 @@ mod tests {
             ],
         };
         let p1 = ParamRod {
-            gnl: false,
+            gnl: None,
             area: 1.0,
             young: 100.0,
             density: 1.0,
             ngauss: None,
         };
         let p2 = ParamRod {
-            gnl: false,
+            gnl: None,
             area: 1.0 / 2.0,
             young: 100.0,
             density: 1.0,
             ngauss: None,
         };
         let p3 = ParamRod {
-            gnl: false,
+            gnl: None,
             area: 2.0 * SQRT_2,
             young: 100.0,
             density: 1.0,

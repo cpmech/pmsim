@@ -157,6 +157,37 @@ impl Pbc {
     }
 }
 
+/// Defines the kind of strain for geometrically non-linear analysis
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum GnlStrain {
+    /// Engineering strain
+    ///
+    /// ```text
+    ///      L - L₀
+    /// ε  = ——————
+    ///  ᴱ     L₀
+    /// ```
+    Eng,
+
+    /// Green-Lagrange strain
+    ///
+    /// ```text
+    ///      L² - L₀²
+    /// ε  = ————————
+    ///  ᴳ    2 L₀²
+    /// ```
+    Green,
+
+    /// Logarithmic strain
+    ///
+    /// ```text
+    ///         ⎛ L  ⎞
+    /// ε  = ln ⎜————⎟
+    ///  ᴸ      ⎝ L₀ ⎠
+    /// ```
+    Log,
+}
+
 /// Defines how stresses are initialized
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Init {
@@ -277,7 +308,7 @@ mod tests {
         let e_clone = e.clone();
         assert_eq!(
             format!("{:?}", e),
-            "Rod(ParamRod { gnl: false, density: 1.0, young: 1000.0, area: 1.0, ngauss: None })"
+            "Rod(ParamRod { gnl: None, density: 1.0, young: 1000.0, area: 1.0, ngauss: None })"
         );
         assert_eq!(format!("{}", e_clone.name()), "Rod");
         assert_eq!(e.ngauss(), None);
