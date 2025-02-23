@@ -118,7 +118,11 @@ impl<'a> ArcLengthControl<'a> {
         // calculate δℓ
         let c1 = vec_inner(&self.dg_du, &self.ddu1);
         let c2 = vec_inner(&self.dg_du, &self.ddu2);
-        self.dl = (c2 - self.g) / (self.dg_dl + c1);
+        let den = self.dg_dl + c1;
+        if f64::abs(den) < 1e-12 {
+            return Err("cannot compute δℓ because of zero division. F_ext might be zero");
+        }
+        self.dl = (c2 - self.g) / den;
 
         // calculate -δu
         vec_add(&mut ls.mdu, 1.0, &self.ddu2, -self.dl, &self.ddu1).unwrap();
