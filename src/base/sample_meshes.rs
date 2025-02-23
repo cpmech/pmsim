@@ -18,6 +18,8 @@ impl SampleMeshes {
     ///   0       2
     /// ```
     ///
+    /// This mesh corresponds to Figure 5a of Reference #1.
+    ///
     /// # References
     ///
     /// * Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
@@ -39,6 +41,49 @@ impl SampleMeshes {
                 Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
                 Cell { id: 1, attribute: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
                 Cell { id: 2, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
+            ],
+        }
+    }
+
+    /// Returns a 3D mesh with a 12 rod elements
+    ///
+    /// This mesh corresponds to Figure 7a of Reference #1.
+    ///
+    /// # References
+    ///
+    /// * Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
+    ///   issues in the arc-length method for nonlinear structural mechanics,
+    ///   Engineering Structures, 234:111755
+    ///
+    /// ![mesh_truss_12member_3d](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_truss_12member_3d.svg)
+    #[rustfmt::skip]
+    pub fn truss_12member_3d() -> Mesh {
+        Mesh {
+            ndim: 3,
+            points: vec![
+                Point { id: 0, marker: 0, coords: vec![ -1.697,-1.000, 0.000] },
+                Point { id: 1, marker: 0, coords: vec![  0.000,-1.000, 0.000] },
+                Point { id: 2, marker: 0, coords: vec![  1.697,-1.000, 0.000] },
+                Point { id: 3, marker: 0, coords: vec![ -1.414, 0.000, 1.000] },
+                Point { id: 4, marker: 0, coords: vec![  0.000, 0.000, 1.000] },
+                Point { id: 5, marker: 0, coords: vec![  1.414, 0.000, 1.000] },
+                Point { id: 6, marker: 0, coords: vec![ -1.697, 1.000, 0.000] },
+                Point { id: 7, marker: 0, coords: vec![  0.000, 1.000, 0.000] },
+                Point { id: 8, marker: 0, coords: vec![  1.697, 1.000, 0.000] },
+            ],
+            cells: vec![
+                Cell { id:  0, attribute: 1, kind: GeoKind::Lin2, points: vec![3, 0] },
+                Cell { id:  1, attribute: 1, kind: GeoKind::Lin2, points: vec![3, 6] },
+                Cell { id:  2, attribute: 1, kind: GeoKind::Lin2, points: vec![5, 2] },
+                Cell { id:  3, attribute: 1, kind: GeoKind::Lin2, points: vec![5, 8] },
+                Cell { id:  4, attribute: 1, kind: GeoKind::Lin2, points: vec![4, 0] },
+                Cell { id:  5, attribute: 1, kind: GeoKind::Lin2, points: vec![4, 1] },
+                Cell { id:  6, attribute: 1, kind: GeoKind::Lin2, points: vec![4, 2] },
+                Cell { id:  7, attribute: 1, kind: GeoKind::Lin2, points: vec![4, 3] },
+                Cell { id:  8, attribute: 1, kind: GeoKind::Lin2, points: vec![4, 5] },
+                Cell { id:  9, attribute: 1, kind: GeoKind::Lin2, points: vec![4, 6] },
+                Cell { id: 10, attribute: 1, kind: GeoKind::Lin2, points: vec![4, 7] },
+                Cell { id: 11, attribute: 1, kind: GeoKind::Lin2, points: vec![4, 8] },
             ],
         }
     }
@@ -878,9 +923,11 @@ mod tests {
 
     const SAVE_FIGURE: bool = false;
 
-    fn draw(mesh: &Mesh, larger: bool, filename: &str) {
+    fn draw(mesh: &Mesh, larger: bool, show_ids: bool, filename: &str) {
         let mut fig = Figure::new();
-        fig.show_cell_ids(true).show_point_ids(true);
+        if show_ids {
+            fig.show_cell_ids(true).show_point_ids(true);
+        }
         if larger {
             fig.size(600.0, 600.0);
         }
@@ -891,115 +938,142 @@ mod tests {
     #[rustfmt::skip]
     fn sample_meshes_are_ok() {
         let mesh = SampleMeshes::truss_3member_2d();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 3);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_truss_3member_2d.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_truss_3member_2d.svg");
+        }
+
+        let mesh = SampleMeshes::truss_12member_3d();
+        mesh.check_all().unwrap();
+        assert_eq!(mesh.points.len(), 9);
+        assert_eq!(mesh.cells.len(), 12);
+        if SAVE_FIGURE {
+            let mut fig = Figure::new();
+            fig.size(600.0, 600.0)
+                .draw(&mesh, "/tmp/pmsim/mesh_truss_12member_3d.svg")
+                .unwrap();
         }
 
         let mesh = SampleMeshes::bhatti_example_1d4_truss();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 5);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_bhatti_example_1d4_truss.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_bhatti_example_1d4_truss.svg");
         }
 
         let mesh = SampleMeshes::bhatti_example_1d5_heat();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 5);
         assert_eq!(mesh.cells.len(), 4);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_bhatti_example_1d5_heat.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_bhatti_example_1d5_heat.svg");
         }
 
         let mesh = SampleMeshes::bhatti_example_6d22_heat();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 13);
         assert_eq!(mesh.cells.len(), 2);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_bhatti_example_6d22_heat.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_bhatti_example_6d22_heat.svg");
         }
 
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 6);
         assert_eq!(mesh.cells.len(), 4);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_bhatti_example_1d6_bracket.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_bhatti_example_1d6_bracket.svg");
         }
 
         let mesh = SampleMeshes::smith_example_4d22_frame_3d();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 4);
         assert_eq!(mesh.cells.len(), 3);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_4d22_frame_3d.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_4d22_frame_3d.svg");
         }
 
         let mesh = SampleMeshes::smith_example_5d2_tri3();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 9);
         assert_eq!(mesh.cells.len(), 8);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_5d2_tri3.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_5d2_tri3.svg");
         }
 
         let mesh = SampleMeshes::smith_example_5d7_tri15();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 45);
         assert_eq!(mesh.cells.len(), 4);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_5d7_tri15.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_5d7_tri15.svg");
         }
 
         let mesh = SampleMeshes::smith_example_5d11_qua4();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 12);
         assert_eq!(mesh.cells.len(), 6);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_5d11_qua4.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_5d11_qua4.svg");
         }
 
         let mesh = SampleMeshes::smith_example_5d15_qua8();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 29);
         assert_eq!(mesh.cells.len(), 6);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_5d15_qua8.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_5d15_qua8.svg");
         }
 
         let mesh = SampleMeshes::smith_example_5d17_qua4();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 12);
         assert_eq!(mesh.cells.len(), 6);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_5d17_qua4.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_5d17_qua4.svg");
         }
 
         let mesh = SampleMeshes::smith_example_5d24_hex20();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 70);
         assert_eq!(mesh.cells.len(), 6);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_5d24_hex20.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_5d24_hex20.svg");
         }
 
         let mesh = SampleMeshes::smith_example_5d27_qua9();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 35);
         assert_eq!(mesh.cells.len(), 6);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_5d27_qua9.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_5d27_qua9.svg");
         }
 
         let mesh = SampleMeshes::smith_example_5d30_tet4();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 8);
         assert_eq!(mesh.cells.len(), 6);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_smith_example_5d30_tet4.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_smith_example_5d30_tet4.svg");
         }
 
         let mesh = SampleMeshes::column_two_layers_qua4();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 14);
         assert_eq!(mesh.cells.len(), 6);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_column_two_layers_qua4.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_column_two_layers_qua4.svg");
         }
 
         let mesh = SampleMeshes::column_two_layers_qua9();
+        mesh.check_all().unwrap();
         assert_eq!(mesh.points.len(), 27);
         assert_eq!(mesh.cells.len(), 4);
-        if SAVE_FIGURE{
-            draw(&mesh, false, "/tmp/pmsim/mesh_column_two_layers_qua9.svg");
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_column_two_layers_qua9.svg");
         }
     }
 }
