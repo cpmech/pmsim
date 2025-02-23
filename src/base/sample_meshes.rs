@@ -951,6 +951,7 @@ mod tests {
         assert_eq!(mesh.cells.len(), 12);
         if SAVE_FIGURE {
             let mut fig = Figure::new();
+            fig.show_point_ids(true).canvas_point_ids().set_color("black");
             fig.size(600.0, 600.0)
                 .draw(&mesh, "/tmp/pmsim/mesh_truss_12member_3d.svg")
                 .unwrap();
