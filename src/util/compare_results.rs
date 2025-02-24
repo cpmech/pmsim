@@ -146,10 +146,9 @@ pub fn compare_results(
             }
         }
     }
-    if verbose > 0 {
-        println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
-        println!("diff_stress_max       = {:9.2e}", diff_stress_max);
-        println!();
-    }
+    println!("\n\nCOMPARISON SUMMARY ======================================================");
+    println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
+    println!("diff_stress_max       = {:9.2e}", diff_stress_max);
+    println!();
     Ok(all_good)
 }
