@@ -129,22 +129,27 @@ impl<'a> ConvergenceControl<'a> {
 
     pub fn print_header(&self) {
         if self.config.verbose_timesteps || self.config.verbose_iterations {
-            println!("\nLegend:");
+            println!("\nLEGEND");
+            println!("======");
             println!("➖ : unknown");
             println!("✅ : converged");
             println!("🔹 : converging");
-            println!("🎈 : diverging\n");
+            println!("🎈 : diverging");
+            println!("🔙 : load reversal detected");
+            println!("\"rev\" means load reversal");
+            println!("\"iter\" means iteration\n");
             println!(
-                "{:8} {:>11} {:>11} {:>5} {:>9} {:>9} ➖ {:>9} ➖",
-                "timestep", "t", "Δt", "iter", "‖mdu‖∞", "rel(mdu)", "‖R‖∞"
+                "{:8} {:>11} {:>11} {:3} {:>5} {:>9} {:>9} ➖ {:>9} ➖",
+                "timestep", "t", "Δt", "rev", "iter", "‖mdu‖∞", "rel(mdu)", "‖R‖∞"
             );
         }
     }
 
     /// Prints timestep data
-    pub(crate) fn print_timestep(&self, timestep: usize, t: f64, dt: f64) {
+    pub(crate) fn print_timestep(&self, timestep: usize, t: f64, dt: f64, load_reversal: bool) {
         if self.config.verbose_timesteps {
-            println!("{:>8} {:>11.6e} {:>11.6e}", timestep + 1, t, dt);
+            let str_rev = if load_reversal { "🔙" } else { "" };
+            println!("{:>8} {:>11.6e} {:>11.6e} {:>2}", timestep + 1, t, dt, str_rev);
         }
     }
 
@@ -153,8 +158,8 @@ impl<'a> ConvergenceControl<'a> {
             let it = self.iteration;
             if self.iteration == 0 {
                 println!(
-                    "{:>8} {:>11} {:>11} {:>5} {:>9.2e} {:>9} ➖ {:>9.2e} ➖",
-                    "·", "·", "·", it, self.norm_mdu, "·", self.norm_rr
+                    "{:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} {:>9} ➖ {:>9.2e} ➖",
+                    "·", "·", "·", "", it, self.norm_mdu, "·", self.norm_rr
                 );
             } else {
                 let icon_rr = if self.converged_on_norm_rr {
@@ -167,8 +172,8 @@ impl<'a> ConvergenceControl<'a> {
                 if self.iteration == 1 && self.converged_on_norm_rr {
                     // handle linear problems: show only the norm of R at it=1 (the norm of mdu was shown at it=0)
                     println!(
-                        "{:>8} {:>11} {:>11} {:>5} {:>9} {:>9} ➖ {:>9.2e} {}",
-                        "·", "·", "·", it, "·", "·", self.norm_rr, icon_rr
+                        "{:>8} {:>11} {:>11} {:>3} {:>5} {:>9} {:>9} ➖ {:>9.2e} {}",
+                        "·", "·", "·", "", it, "·", "·", self.norm_rr, icon_rr
                     );
                 } else {
                     // handle non-linear problems
@@ -180,8 +185,8 @@ impl<'a> ConvergenceControl<'a> {
                         "🔹"
                     };
                     println!(
-                        "{:>8} {:>11} {:>11} {:>5} {:>9.2e} {:>9.2e} {} {:>9.2e} {}",
-                        "·", "·", "·", it, self.norm_mdu, self.rel_mdu, icon_mdu, self.norm_rr, icon_rr
+                        "{:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} {:>9.2e} {} {:>9.2e} {}",
+                        "·", "·", "·", "", it, self.norm_mdu, self.rel_mdu, icon_mdu, self.norm_rr, icon_rr
                     );
                 }
             }

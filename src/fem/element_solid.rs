@@ -238,11 +238,11 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut FemState) {
+    fn reset_algorithmic_variables(&self, state: &mut FemState, load_reversal: bool) {
         state.gauss[self.cell_id]
             .solid
             .iter_mut()
-            .for_each(|s| self.model.actual.reset_algorithmic_variables(s));
+            .for_each(|s| self.model.actual.reset_algorithmic_variables(s, load_reversal));
     }
 }
 

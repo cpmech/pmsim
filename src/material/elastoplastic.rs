@@ -520,8 +520,8 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut LocalState) {
-        self.args.model.reset_algorithmic_variables(state);
+    fn reset_algorithmic_variables(&self, state: &mut LocalState, load_reversal: bool) {
+        self.args.model.reset_algorithmic_variables(state, load_reversal);
     }
 
     /// Computes the consistent tangent stiffness

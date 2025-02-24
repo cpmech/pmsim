@@ -116,7 +116,10 @@ impl StressStrainTrait for VonMises {
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut LocalState) {
+    fn reset_algorithmic_variables(&self, state: &mut LocalState, load_reversal: bool) {
+        if load_reversal {
+            state.elastic = true;
+        }
         state.int_vars[I_LAMBDA] = 0.0;
     }
 

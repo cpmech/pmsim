@@ -109,7 +109,7 @@ impl<'a> SolverImplicit<'a> {
             }
 
             // update external forces vector F_ext
-            run!(self.data.assemble_ff_ext(state.t));
+            let load_reversal = run!(self.data.assemble_ff_ext(state.t));
 
             // transient/dynamics: old state variables
             if self.config.transient {
@@ -127,11 +127,12 @@ impl<'a> SolverImplicit<'a> {
 
             // reset algorithmic variables
             if !self.config.linear_problem {
-                self.data.elements.reset_algorithmic_variables(state);
+                self.data.elements.reset_algorithmic_variables(state, load_reversal);
             }
 
-            // print convergence information
-            self.conv_control.print_timestep(timestep, state.t, state.ddt);
+            // print time information
+            self.conv_control
+                .print_timestep(timestep, state.t, state.ddt, load_reversal);
 
             // iteration loop
             for iteration in 0..self.config.n_max_iterations {

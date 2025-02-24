@@ -43,7 +43,7 @@ impl StressStrainTrait for LinearElastic {
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, _state: &mut LocalState) {}
+    fn reset_algorithmic_variables(&self, _state: &mut LocalState, _load_reversal: bool) {}
 
     /// Computes the consistent tangent stiffness
     fn stiffness(

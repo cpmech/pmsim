@@ -3,7 +3,7 @@ use super::{Elements, FemBase, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::vec_add;
+use russell_lab::{vec_add, vec_copy, vec_inner};
 
 /// Holds data for FEM solvers
 pub(crate) struct SolverData<'a> {
@@ -86,31 +86,45 @@ impl<'a> SolverData<'a> {
         // clear F_int vector
         self.ls.ff_int.fill(0.0);
 
-        // calculate all element local vectors and add them to the global vectors
+        // calculate all element local vectors and add them to F_int
         self.elements
             .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored)?;
 
-        // calculate all boundary elements local vectors and add them to the global vectors
+        // calculate all boundary elements local vectors and add them to F_int
         self.bc_distributed
             .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored)?;
         Ok(())
     }
 
     /// Assembles the external forces vector (F_ext)
-    pub fn assemble_ff_ext(&mut self, t: f64) -> Result<(), StrError> {
+    ///
+    /// Returns `reversal` indicating if the loading direction has changed
+    pub fn assemble_ff_ext(&mut self, t: f64) -> Result<bool, StrError> {
+        // make a copy of F_ext
+        vec_copy(&mut self.ls.ff_ext_old, &self.ls.ff_ext).unwrap();
+
         // clear F_ext vector
         self.ls.ff_ext.fill(0.0);
 
-        // calculate all element local vectors and add them to the global vectors
+        // calculate all element local vectors and add them to F_ext
         self.elements.assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored)?;
 
-        // calculate all boundary elements local vectors and add them to the global vectors
+        // calculate all boundary elements local vectors and add them to F_ext
         self.bc_distributed
             .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored)?;
 
-        // add concentrated loads to the external forces vector
+        // add concentrated loads to F_ext
         self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff_ext, t);
-        Ok(())
+
+        // make a copy of ΔF_ext
+        vec_copy(&mut self.ls.ddff_ext_old, &self.ls.ddff_ext).unwrap();
+
+        // calculate the total increment ΔF_ext = F_ext - F_ext_old
+        vec_add(&mut self.ls.ddff_ext, 1.0, &self.ls.ff_ext, -1.0, &self.ls.ff_ext_old).unwrap();
+
+        // check if load reversal occurred
+        let dot = vec_inner(&self.ls.ddff_ext_old, &self.ls.ddff_ext);
+        Ok(dot < 0.0)
     }
 
     /// Calculates the residual vector R

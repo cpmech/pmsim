@@ -64,6 +64,21 @@ pub struct LinearSystem<'a> {
     /// (neq_total)
     pub ff_ext: Vector,
 
+    /// Holds the previous vector of external forces F_ext_old
+    ///
+    /// (neq_total)
+    pub ff_ext_old: Vector,
+
+    /// Holds the total increment of external forces ΔF_ext = F_ext - F_ext_old
+    ///
+    /// (neq_total)
+    pub ddff_ext: Vector,
+
+    /// Holds the previous total increment of external forces
+    ///
+    /// (neq_total)
+    pub ddff_ext_old: Vector,
+
     /// Holds the residual vector R
     ///
     /// (neq_total)
@@ -172,6 +187,9 @@ impl<'a> LinearSystem<'a> {
             nnz_sup,
             ff_int: Vector::new(neq_total),
             ff_ext: Vector::new(neq_total),
+            ff_ext_old: Vector::new(neq_total),
+            ddff_ext: Vector::new(neq_total),
+            ddff_ext_old: Vector::new(neq_total),
             rr: Vector::new(neq_total),
             kk: CooMatrix::new(neq_total, neq_total, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,
