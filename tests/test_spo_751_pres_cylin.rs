@@ -36,13 +36,17 @@ const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual";
 const GENERATE_MESH: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
+
 const P_ARRAY_COLLAPSE: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
-const P_ARRAY_RESIDUAL: [f64; 4] = [0.0, 0.1, 0.14, 0.0];
+const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero
+const P_ARRAY_RESIDUAL: [f64; 5] = [0.0, 0.1, 0.14, P_MAX_RES, 0.0];
+const P_SHOW_COLLAPSE: [f64; 3] = [0.1, 0.18, 0.19];
+
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
 const Y: f64 = 2.0 * 0.24 / SQRT_3; // uniaxial yield strength (2 σy_spo / sq3)
@@ -130,7 +134,7 @@ fn run_test(
     solver.solve(&mut state, &mut file_io)?;
 
     // compare the results with Ref #1
-    let tol_displacement = if residual { 1e-14 } else { 1e-11 };
+    let tol_displacement = if residual { 1e-13 } else { 1e-11 };
     let tol_stress = 1e-14;
     let all_good = compare_results(
         &mesh,
@@ -196,7 +200,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
 
         // convert to polar coordinates and compare with analytical solution
         let pp = p_array[index];
-        if index > 0 && pp != 0.14 && pp != 0.192 && !(residual && pp == 0.1) {
+        if !residual && P_SHOW_COLLAPSE.contains(&pp) || residual && index == post.n_state() - 1 {
             pp_arr.push(pp);
             sh_arr.push(Vec::new());
             sr_arr.push(Vec::new());
@@ -207,13 +211,14 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                 }
                 sh_arr.last_mut().unwrap().push(sh);
                 sr_arr.last_mut().unwrap().push(sr);
-                let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
                 if residual {
-                    // approx_eq(sr, sr_ana, 0.096);
-                    // approx_eq(sh, sh_ana, 0.0063);
+                    let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
+                    approx_eq(sr, sr_ana, 0.003);
+                    approx_eq(sh, sh_ana, 0.003);
                 } else {
-                    // approx_eq(sr, sr_ana, 0.0036);
-                    // approx_eq(sh, sh_ana, 0.0063);
+                    let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
+                    approx_eq(sr, sr_ana, 0.0036);
+                    approx_eq(sh, sh_ana, 0.0077);
                 }
             }
             first_rr = false;
@@ -222,9 +227,9 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
 
     // plot
     if SAVE_FIGURE {
-        let pp_last = P_ARRAY_RESIDUAL[P_ARRAY_RESIDUAL.len() - 2];
-        let mut plot = ana.plot_results(&pp_arr, residual, pp_last, |plot, index| {
+        let mut plot = ana.plot_results(&pp_arr, residual, P_MAX_RES, |plot, index| {
             if index == 0 {
+                // load-displacement curve
                 let mut curve = Curve::new();
                 curve
                     .set_line_style("--")
@@ -234,6 +239,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                     .draw(&outer_ur, &inner_pp);
                 plot.add(&curve);
             } else if index == 1 {
+                // hoop stress-strain curve
                 let mut curve = Curve::new();
                 curve
                     .set_label("Gauss points")
@@ -246,8 +252,10 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                 }
                 plot.add(&curve);
             } else if index == 2 {
+                // radial stress-strain curve
                 let mut curve = Curve::new();
                 curve
+                    .set_label("numerical")
                     .set_line_style("None")
                     .set_marker_style(".")
                     .set_marker_color("black")
@@ -255,6 +263,17 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                 for i in 0..sr_arr.len() {
                     curve.draw(&rr, &sr_arr[i]);
                 }
+                plot.add(&curve);
+            } else if index == 3 {
+                // legend
+                let mut curve = Curve::new();
+                curve
+                    .set_label("numerical")
+                    .set_line_style("None")
+                    .set_marker_style(".")
+                    .set_marker_color("black")
+                    .set_marker_line_color("black")
+                    .draw(&[0], &[0]);
                 plot.add(&curve);
             }
         });

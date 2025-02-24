@@ -190,24 +190,27 @@ impl PlastPlaneStrainPresCylin {
             let mut curve_b = Curve::new();
             curve_a.draw(&rr, &ssh);
             curve_b.draw(&rr, &ssr);
+            // fake curves to build legend
             plot.set_subplot_grid("grid", "1", "0:2").add(&curve_a);
             plot.set_subplot_grid("grid", "1", "2:4").add(&curve_b);
-            let mut empty = Curve::new();
-            let str = format!(" P = {}", pp);
-            empty.set_label(&str).draw(&[0], &[0]);
-            plot.set_subplot_grid("grid", "0", "3")
-                .add(&empty)
-                .set_range(1.0, 2.0, 1.0, 2.0);
+            if residual {
+                let mut empty = Curve::new();
+                let str = format!(" $P_{{max}} = {}$", pp);
+                empty.set_label(&str).draw(&[0], &[0]);
+                empty.set_line_style("None");
+                empty.set_label(" $P = 0$").draw(&[0], &[0]);
+                plot.set_subplot_grid("grid", "0", "3")
+                    .add(&empty)
+                    .set_range(1.0, 2.0, 1.0, 2.0);
+            } else {
+                let mut empty = Curve::new();
+                let str = format!(" $P = {}$", pp);
+                empty.set_label(&str).draw(&[0], &[0]);
+                plot.set_subplot_grid("grid", "0", "3")
+                    .add(&empty)
+                    .set_range(1.0, 2.0, 1.0, 2.0);
+            }
         }
-
-        let mut leg = Legend::new();
-        leg.set_num_col(1)
-            .set_handle_len(2.5)
-            .set_outside(true)
-            .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
-            .draw();
-
-        plot.set_subplot_grid("grid", "0", "3").add(&leg).set_hide_axes(true);
 
         plot.set_subplot_grid("grid", "1", "0:2");
         callback(&mut plot, 1);
@@ -216,6 +219,16 @@ impl PlastPlaneStrainPresCylin {
         plot.set_subplot_grid("grid", "1", "2:4");
         callback(&mut plot, 2);
         plot.grid_and_labels("Radial coordinate $r$", "Radial stress $\\sigma_r$");
+
+        let mut leg = Legend::new();
+        leg.set_num_col(1)
+            .set_handle_len(2.5)
+            .set_outside(true)
+            .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
+            .draw();
+        plot.set_subplot_grid("grid", "0", "3");
+        callback(&mut plot, 3);
+        plot.add(&leg).set_hide_axes(true);
 
         plot
     }
