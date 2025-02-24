@@ -105,6 +105,7 @@ impl<'a> SolverImplicit<'a> {
             let finished = run!(self.time_control.update(state));
             if finished {
                 file_io.write_state(state)?;
+                self.conv_control.print_footer();
                 break;
             }
 
@@ -170,6 +171,7 @@ impl<'a> SolverImplicit<'a> {
 
             // final time step
             if state.t >= self.config.t_fin {
+                self.conv_control.print_footer();
                 break;
             }
         }

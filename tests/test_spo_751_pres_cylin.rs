@@ -85,7 +85,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     run_test(false, &mesh, &base, &essential, &inner_circle)?;
 
     // run the residual stress test
-    // run_test(true, &mesh, &base, &essential, &inner_circle)?;
+    run_test(true, &mesh, &base, &essential, &inner_circle)?;
     Ok(())
 }
 
@@ -130,7 +130,7 @@ fn run_test(
     solver.solve(&mut state, &mut file_io)?;
 
     // compare the results with Ref #1
-    let tol_displacement = 1e-11;
+    let tol_displacement = if residual { 1e-14 } else { 1e-11 };
     let tol_stress = 1e-14;
     let all_good = compare_results(
         &mesh,
@@ -175,11 +175,11 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
     // loop over time stations
     let mut outer_ur = vec![0.0; post.n_state()];
     let inner_pp: Vec<_> = p_array.iter().map(|p| *p).collect();
+    let mut first_rr = true;
     let mut rr = Vec::new();
-    let mut sh_p10 = Vec::new();
-    let mut sr_p10 = Vec::new();
-    let mut sh_p18 = Vec::new();
-    let mut sr_p18 = Vec::new();
+    let mut pp_arr = Vec::new();
+    let mut sh_arr = Vec::new();
+    let mut sr_arr = Vec::new();
     for index in 0..post.n_state() {
         // load state
         let state = post.read_state(index)?;
@@ -189,32 +189,41 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
         outer_ur[index] = ub_num;
 
         // get stresses
+        let res = post.gauss_stresses(&mut memo, &state, &lower_cells, |x, y, _| {
+            let alpha = f64::atan2(y, x) * 180.0 / PI;
+            alpha < 15.0
+        })?;
+
+        // convert to polar coordinates and compare with analytical solution
         let pp = p_array[index];
-        if pp == 0.1 || pp == 0.18 {
-            let res = post.gauss_stresses(&mut memo, &state, &lower_cells, |x, y, _| {
-                let alpha = f64::atan2(y, x) * 180.0 / PI;
-                alpha < 15.0
-            })?;
+        if index > 0 && pp != 0.14 && pp != 0.192 && !(residual && pp == 0.1) {
+            pp_arr.push(pp);
+            sh_arr.push(Vec::new());
+            sr_arr.push(Vec::new());
             for i in 0..res.xx.len() {
                 let (r, sr, sh, _) = cartesian_to_polar(res.xx[i], res.yy[i], res.txx[i], res.tyy[i], res.txy[i]);
-                if pp == 0.1 {
+                if first_rr {
                     rr.push(r);
-                    sh_p10.push(sh);
-                    sr_p10.push(sr);
-                } else if pp == 0.18 {
-                    sh_p18.push(sh);
-                    sr_p18.push(sr);
                 }
+                sh_arr.last_mut().unwrap().push(sh);
+                sr_arr.last_mut().unwrap().push(sr);
                 let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
-                // approx_eq(sr, sr_ana, 0.0036);
-                // approx_eq(sh, sh_ana, 0.0063);
+                if residual {
+                    // approx_eq(sr, sr_ana, 0.096);
+                    // approx_eq(sh, sh_ana, 0.0063);
+                } else {
+                    // approx_eq(sr, sr_ana, 0.0036);
+                    // approx_eq(sh, sh_ana, 0.0063);
+                }
             }
+            first_rr = false;
         }
     }
 
     // plot
     if SAVE_FIGURE {
-        let mut plot = ana.plot_results(&[0.1, 0.18], |plot, index| {
+        let pp_last = P_ARRAY_RESIDUAL[P_ARRAY_RESIDUAL.len() - 2];
+        let mut plot = ana.plot_results(&pp_arr, residual, pp_last, |plot, index| {
             if index == 0 {
                 let mut curve = Curve::new();
                 curve
@@ -229,31 +238,23 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                 curve
                     .set_label("Gauss points")
                     .set_line_style("None")
-                    .set_marker_style("o")
-                    .set_marker_void(true)
-                    .draw(&rr, &sh_p18);
-                plot.add(&curve);
-                let mut curve = Curve::new();
-                curve
-                    .set_line_style("None")
-                    .set_marker_style("s")
-                    .set_marker_void(true)
-                    .draw(&rr, &sh_p10);
+                    .set_marker_style(".")
+                    .set_marker_color("black")
+                    .set_marker_line_color("black");
+                for i in 0..sh_arr.len() {
+                    curve.draw(&rr, &sh_arr[i]);
+                }
                 plot.add(&curve);
             } else if index == 2 {
                 let mut curve = Curve::new();
                 curve
                     .set_line_style("None")
-                    .set_marker_style("o")
-                    .set_marker_void(true)
-                    .draw(&rr, &sr_p18);
-                plot.add(&curve);
-                let mut curve = Curve::new();
-                curve
-                    .set_line_style("None")
-                    .set_marker_style("s")
-                    .set_marker_void(true)
-                    .draw(&rr, &sr_p10);
+                    .set_marker_style(".")
+                    .set_marker_color("black")
+                    .set_marker_line_color("black");
+                for i in 0..sr_arr.len() {
+                    curve.draw(&rr, &sr_arr[i]);
+                }
                 plot.add(&curve);
             }
         });

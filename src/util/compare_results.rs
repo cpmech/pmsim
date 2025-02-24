@@ -146,7 +146,7 @@ pub fn compare_results(
             }
         }
     }
-    println!("\n\nCOMPARISON SUMMARY ======================================================");
+    println!("\nCOMPARISON SUMMARY ============================================================");
     println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
     println!("diff_stress_max       = {:9.2e}", diff_stress_max);
     println!();

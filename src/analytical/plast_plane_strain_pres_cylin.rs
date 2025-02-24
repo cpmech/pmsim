@@ -115,6 +115,18 @@ impl PlastPlaneStrainPresCylin {
         }
     }
 
+    /// Calculates the residual radial and hoop stresses after the loading is completely removed
+    ///
+    /// `pp_last` is the last pressure applied to the cylinder, before it becomes zero.
+    pub fn calc_sr_sh_residual(&self, r: f64, pp_last: f64) -> Result<(f64, f64), StrError> {
+        let (mut sr, mut sh) = self.calc_sr_sh(r, pp_last)?;
+        let m = self.b * self.b / (self.a * self.a);
+        let d = self.b * self.b / (r * r);
+        sr -= -pp_last * (d - 1.0) / (m - 1.0);
+        sh -= pp_last * (d + 1.0) / (m - 1.0);
+        Ok((sr, sh))
+    }
+
     /// Calculates the elastic-to-plastic radius
     ///
     /// **Note:** P must be greater than P0 and smaller than P_lim
@@ -136,13 +148,15 @@ impl PlastPlaneStrainPresCylin {
     ///
     /// # Input
     ///
-    /// * `pps` -- a series of P values to plot the stresses
+    /// * `pps` -- a series of P values to plot the stresses (not used if `residual == true`)
+    /// * `residual` -- plots the residual stresses after the loading is completely removed
+    /// * `pp_last` -- is the last pressure applied to the cylinder, before it becomes zero
     /// * `callback` -- a `(plot, index)` function to add extra (e.g. numerical) results.
     ///   The index is:
     ///     * 0 for the P vs ub plot
     ///     * 1 for the σθ vs r plot
     ///     * 2 for the σr vs r plot
-    pub fn plot_results<F>(&self, pps: &[f64], callback: F) -> Plot
+    pub fn plot_results<F>(&self, pps: &[f64], residual: bool, pp_last: f64, callback: F) -> Plot
     where
         F: Fn(&mut Plot, usize),
     {
@@ -161,9 +175,14 @@ impl PlastPlaneStrainPresCylin {
         let rr = linspace(self.a, self.b, 201);
         let mut ssr = vec![0.0; rr.len()];
         let mut ssh = vec![0.0; rr.len()];
-        for pp in pps {
+        let pp_array = if residual { vec![pp_last] } else { pps.to_vec() };
+        for pp in pp_array {
             for i in 0..rr.len() {
-                let (sr, sh) = self.calc_sr_sh(rr[i], *pp).unwrap();
+                let (sr, sh) = if residual {
+                    self.calc_sr_sh_residual(rr[i], pp).unwrap()
+                } else {
+                    self.calc_sr_sh(rr[i], pp).unwrap()
+                };
                 ssr[i] = sr;
                 ssh[i] = sh;
             }
@@ -228,7 +247,7 @@ mod tests {
         approx_eq(ana.calc_c(ana.pp_lim - 1e-13).unwrap(), b, 1e-3);
 
         if SAVE_FIGURE {
-            let mut plot = ana.plot_results(&[0.1, 0.18], |_, _| ());
+            let mut plot = ana.plot_results(&[0.1, 0.18], false, 0.0, |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
                 .save("/tmp/pmsim/test_plast_plane_strain_pres_cylin.svg")
                 .unwrap();

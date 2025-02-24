@@ -129,19 +129,21 @@ impl<'a> ConvergenceControl<'a> {
 
     pub fn print_header(&self) {
         if self.config.verbose_timesteps || self.config.verbose_iterations {
-            println!("\nLEGEND");
-            println!("======");
-            println!("➖ : unknown");
-            println!("✅ : converged");
-            println!("🔹 : converging");
-            println!("🎈 : diverging");
-            println!("🔙 : load reversal detected");
+            println!("\nPMSIM === TIME STEPPING AND CONVERGENCE STATISTICS ============================");
+            println!("\nLegend:");
+            println!("➖ ─ unknown");
+            println!("✅ ─ converged");
+            println!("🔹 ─ converging");
+            println!("🎈 ─ diverging");
+            println!("🔙 ─ load reversal detected");
             println!("\"rev\" means load reversal");
             println!("\"iter\" means iteration\n");
+            println!("{}", "─".repeat(79));
             println!(
                 "{:8} {:>11} {:>11} {:3} {:>5} {:>9} {:>9} ➖ {:>9} ➖",
                 "timestep", "t", "Δt", "rev", "iter", "‖mdu‖∞", "rel(mdu)", "‖R‖∞"
             );
+            println!("{}", "─".repeat(79));
         }
     }
 
@@ -190,6 +192,13 @@ impl<'a> ConvergenceControl<'a> {
                     );
                 }
             }
+        }
+    }
+
+    /// Prints the summary
+    pub(crate) fn print_footer(&self) {
+        if self.config.verbose_timesteps || self.config.verbose_iterations {
+            println!("{}", "─".repeat(79));
         }
     }
 }
