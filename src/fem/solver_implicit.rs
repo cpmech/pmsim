@@ -108,6 +108,9 @@ impl<'a> SolverImplicit<'a> {
                 break;
             }
 
+            // update external forces vector F_ext
+            run!(self.data.assemble_ff_ext(state.t));
+
             // transient/dynamics: old state variables
             if self.config.transient {
                 vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
@@ -185,10 +188,10 @@ impl<'a> SolverImplicit<'a> {
     /// iterations are required to reduce the residuals. The trial values for the iterations
     /// are the values at the old timestep.
     fn iterate(&mut self, timestep: usize, iteration: usize, state: &mut FemState) -> Result<bool, StrError> {
-        // assemble F_int and F_ext
-        self.data.assemble_ff_int_and_ff_ext(state)?;
+        // assemble internal forces vector F_int
+        self.data.assemble_ff_int(state)?;
 
-        // calculate R = F_int - lf * F_ext
+        // calculate residual vector: R = F_int - lf * F_ext
         self.data.calculate_residuals_vector(state.ell);
 
         // add Lagrange multiplier contributions to R

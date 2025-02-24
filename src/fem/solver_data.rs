@@ -81,29 +81,35 @@ impl<'a> SolverData<'a> {
         })
     }
 
-    /// Assembles the internal and external vectors (F_int and F_ext)
-    pub fn assemble_ff_int_and_ff_ext(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        // accessors
-        let neq_total = self.ls.neq_total;
-        let ff_int = &mut self.ls.ff_int;
-        let ff_ext = &mut self.ls.ff_ext;
-
-        // clear vectors
-        for eq in 0..neq_total {
-            ff_int[eq] = 0.0;
-            ff_ext[eq] = 0.0;
-        }
+    /// Assembles the internal forces vector (F_int)
+    pub fn assemble_ff_int(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        // clear F_int vector
+        self.ls.ff_int.fill(0.0);
 
         // calculate all element local vectors and add them to the global vectors
-        self.elements.assemble_f_int(ff_int, state, &self.ignored)?;
-        self.elements.assemble_f_ext(ff_ext, state.t, &self.ignored)?;
+        self.elements
+            .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored)?;
 
         // calculate all boundary elements local vectors and add them to the global vectors
-        self.bc_distributed.assemble_f_int(ff_int, state, &self.ignored)?;
-        self.bc_distributed.assemble_f_ext(ff_ext, state.t, &self.ignored)?;
+        self.bc_distributed
+            .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored)?;
+        Ok(())
+    }
+
+    /// Assembles the external forces vector (F_ext)
+    pub fn assemble_ff_ext(&mut self, t: f64) -> Result<(), StrError> {
+        // clear F_ext vector
+        self.ls.ff_ext.fill(0.0);
+
+        // calculate all element local vectors and add them to the global vectors
+        self.elements.assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored)?;
+
+        // calculate all boundary elements local vectors and add them to the global vectors
+        self.bc_distributed
+            .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored)?;
 
         // add concentrated loads to the external forces vector
-        self.bc_concentrated.add_to_ff_ext(ff_ext, state.t);
+        self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff_ext, t);
         Ok(())
     }
 
