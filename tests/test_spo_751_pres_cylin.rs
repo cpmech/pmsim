@@ -6,7 +6,7 @@ use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
-use russell_lab::{approx_eq, array_approx_eq};
+use russell_lab::{approx_eq, array_approx_eq, read_data};
 
 // This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
 //
@@ -229,52 +229,62 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
     // plot
     if SAVE_FIGURE {
         let mut plot = ana.plot_results(&pp_arr, residual, P_MAX_RES, |plot, index| {
+            // reference curve
+            let mut curve_ref = Curve::new();
+            curve_ref
+                .set_label("de Souza Neto et al.")
+                .set_line_style("None")
+                .set_line_color("#787878")
+                .set_marker_style("D")
+                .set_marker_void(true);
+            // numerical curve
+            let mut curve = Curve::new();
+            curve
+                .set_label("numerical")
+                .set_line_style("None")
+                .set_line_color("black")
+                .set_marker_color("black")
+                .set_marker_style(".");
             if index == 0 {
+                // reference data
+                if !residual {
+                    let data = read_data("data/spo/spo-751-fig-716.tsv", &["x", "Curve1"]).unwrap();
+                    curve_ref.draw(&data["x"], &data["Curve1"]);
+                    plot.add(&curve_ref);
+                }
                 // load-displacement curve
-                let mut curve = Curve::new();
-                curve
-                    .set_line_style("--")
-                    .set_marker_style("o")
-                    .set_marker_void(true)
-                    .set_label("numerical")
-                    .draw(&outer_ur, &inner_pp);
+                curve.set_line_style("--").draw(&outer_ur, &inner_pp);
                 plot.add(&curve);
+                curve.set_line_style("None");
             } else if index == 1 {
+                // reference data
+                if !residual {
+                    let data = read_data("data/spo/spo-751-fig-717a.tsv", &["x", "p10", "p18"]).unwrap();
+                    curve_ref.draw(&data["x"], &data["p10"]);
+                    curve_ref.draw(&data["x"], &data["p18"]);
+                    plot.add(&curve_ref);
+                }
                 // hoop stress-strain curve
-                let mut curve = Curve::new();
-                curve
-                    .set_label("Gauss points")
-                    .set_line_style("None")
-                    .set_marker_style(".")
-                    .set_marker_color("black")
-                    .set_marker_line_color("black");
                 for i in 0..sh_arr.len() {
                     curve.draw(&rr, &sh_arr[i]);
                 }
                 plot.add(&curve);
             } else if index == 2 {
+                // reference data
+                if !residual {
+                    let data = read_data("data/spo/spo-751-fig-717b.tsv", &["x", "p10", "p18"]).unwrap();
+                    curve_ref.draw(&data["x"], &data["p10"]);
+                    curve_ref.draw(&data["x"], &data["p18"]);
+                    plot.add(&curve_ref);
+                }
                 // radial stress-strain curve
-                let mut curve = Curve::new();
-                curve
-                    .set_label("numerical")
-                    .set_line_style("None")
-                    .set_marker_style(".")
-                    .set_marker_color("black")
-                    .set_marker_line_color("black");
                 for i in 0..sr_arr.len() {
                     curve.draw(&rr, &sr_arr[i]);
                 }
                 plot.add(&curve);
             } else if index == 3 {
                 // legend
-                let mut curve = Curve::new();
-                curve
-                    .set_label("numerical")
-                    .set_line_style("None")
-                    .set_marker_style(".")
-                    .set_marker_color("black")
-                    .set_marker_line_color("black")
-                    .draw(&[0], &[0]);
+                curve.draw(&[0], &[0]);
                 plot.add(&curve);
             }
         });
