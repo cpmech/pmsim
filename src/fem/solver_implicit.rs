@@ -25,14 +25,14 @@ pub struct SolverImplicit<'a> {
     /// Solver data containing matrices, vectors and element data
     data: SolverData<'a>,
 
-    /// Arc-length control for path-following analysis
-    control_arc: ControlArcLength<'a>,
-
     /// Convergence control for nonlinear iterations
     control_conv: ControlConvergence<'a>,
 
     /// Time stepping and integration control
     control_time: ControlTime<'a>,
+
+    /// Arc-length control for path-following analysis
+    control_arc: Option<ControlArcLength<'a>>,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -69,17 +69,23 @@ impl<'a> SolverImplicit<'a> {
         let neq_total = data.ls.neq_total;
 
         // allocate convergence and time control structures
-        let control_arc = ControlArcLength::new(config, neq_total);
         let control_conv = ControlConvergence::new(config, neq_total);
         let control_time = ControlTime::new(config)?;
+
+        // allocate arc-length control structure
+        let control_arc = if config.arc_length_method {
+            Some(ControlArcLength::new(config, neq_total))
+        } else {
+            None
+        };
 
         // allocate new instance
         Ok(SolverImplicit {
             config,
             data,
-            control_arc,
             control_conv,
             control_time,
+            control_arc,
         })
     }
 
@@ -211,7 +217,7 @@ impl<'a> SolverImplicit<'a> {
 
         // trial displacement u, displacement increment Δu, and trial loading factor ℓ
         if self.config.arc_length_method {
-            self.control_arc.trial_increments(timestep, state)?;
+            self.control_arc.as_mut().unwrap().trial_increments(timestep, state)?;
         } else {
             // the trial displacement is the displacement at the old time (unchanged)
             state.ddu.fill(0.0);
@@ -243,8 +249,12 @@ impl<'a> SolverImplicit<'a> {
 
         // arc-length step adaptation
         if self.config.arc_length_method {
-            self.control_arc
-                .step_adaptation(timestep, state, self.control_conv.converged(), &self.data.ls.ff_ext)?;
+            self.control_arc.as_mut().unwrap().step_adaptation(
+                timestep,
+                state,
+                self.control_conv.converged(),
+                &self.data.ls.ff_ext,
+            )?;
         }
 
         // check if many iterations failed to converge in a single time step
@@ -296,8 +306,9 @@ impl<'a> SolverImplicit<'a> {
         // calculate arc-length constraint and derivatives
         let g = if self.config.arc_length_method {
             self.control_arc
-                .constraint_and_derivatives(timestep, state, &self.data.ls.ff_ext)?;
-            self.control_arc.constraint()
+                .as_mut()
+                .unwrap()
+                .constraint_and_derivatives(timestep, state, &self.data.ls.ff_ext)?
         } else {
             0.0
         };
@@ -328,7 +339,7 @@ impl<'a> SolverImplicit<'a> {
 
         // solve linear system
         if self.config.arc_length_method {
-            self.control_arc.solve(&mut self.data.ls)?;
+            self.control_arc.as_mut().unwrap().solve(&mut self.data.ls)?;
         } else {
             self.data.ls.solve()?;
         }
@@ -345,7 +356,7 @@ impl<'a> SolverImplicit<'a> {
 
         // update loading factor
         if self.config.arc_length_method {
-            self.control_arc.update_load_factor(state)?;
+            self.control_arc.as_mut().unwrap().update_load_factor(state)?;
         }
 
         // backup/restore secondary variables

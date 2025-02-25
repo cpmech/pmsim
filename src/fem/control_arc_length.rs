@@ -107,13 +107,6 @@ impl<'a> ControlArcLength<'a> {
         }
     }
 
-    /// Returns the current value of the arc-length constraint g(Δu,Δℓ)
-    ///
-    /// The constraint should be approximately zero at convergence
-    pub(crate) fn constraint(&self) -> f64 {
-        self.g
-    }
-
     /// Calculates trial increments for the next step
     ///
     /// Computes the trial displacement increment Δu and loading factor increment Δℓ
@@ -151,6 +144,10 @@ impl<'a> ControlArcLength<'a> {
 
     /// Calculates the constraints and associated derivatives
     ///
+    /// # Returns
+    ///
+    /// Returns the constraint `g`
+    ///
     /// # Arguments
     ///
     /// * `timestep` - Current timestep number
@@ -173,7 +170,7 @@ impl<'a> ControlArcLength<'a> {
         timestep: usize,
         state: &FemState,
         ff_ext: &Vector,
-    ) -> Result<(), StrError> {
+    ) -> Result<f64, StrError> {
         if timestep > 0 {
             let psi = self.config.arc_length_psi;
             let inc = vec_inner(&state.ddu, &state.ddu);
@@ -186,7 +183,7 @@ impl<'a> ControlArcLength<'a> {
             self.g = 0.0;
             self.dg_dl = 1.0;
         };
-        Ok(())
+        Ok(self.g)
     }
 
     /// Solves the linear system for the iterative increments δℓ and -δu
