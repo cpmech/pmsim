@@ -9,37 +9,47 @@ use russell_lab::{vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 ///
 /// 1. Residual forces norm (`norm_rr`)
 /// 2. Relative displacement increment (`rel_mdu`)
-///
-/// # Fields
-///
-/// * `config` - Configuration parameters including tolerances
-/// * `iteration` - Current iteration number
-/// * `norm_rr_prev` - Previous residual forces norm
-/// * `norm_rr` - Current residual forces norm
-/// * `mdu0` - Initial displacement increment vector
-/// * `norm_mdu` - Norm of current displacement increment
-/// * `rel_mdu_prev` - Previous relative displacement increment
-/// * `rel_mdu` - Current relative displacement increment
-/// * `converged_on_norm_rr` - Whether convergence was achieved based on residual forces
-/// * `diverging_on_norm_rr` - Whether solution is diverging based on residual forces
-/// * `converged_on_rel_mdu` - Whether convergence was achieved based on displacement increment
-/// * `diverging_on_rel_mdu` - Whether solution is diverging based on displacement increment
-/// * `n_converged_total` - Total number of converged steps
-/// * `n_failed_per_step` - Number of failed attempts in current step
 pub struct ControlConvergence<'a> {
+    /// Configuration parameters including tolerances
     config: &'a Config<'a>,
+
+    /// Current iteration number
     iteration: usize,
+
+    /// Previous residual forces norm
     norm_rr_prev: f64,
+
+    /// Current residual forces norm
     norm_rr: f64,
+
+    /// Initial displacement increment vector
     mdu0: Vector,
+
+    /// Norm of current displacement increment
     norm_mdu: f64,
+
+    /// Previous relative displacement increment
     rel_mdu_prev: f64,
+
+    /// Current relative displacement increment
     rel_mdu: f64,
+
+    /// Whether convergence was achieved based on residual forces
     converged_on_norm_rr: bool,
+
+    /// Whether solution is diverging based on residual forces
     diverging_on_norm_rr: bool,
+
+    /// Whether convergence was achieved based on displacement increment
     converged_on_rel_mdu: bool,
+
+    /// Whether solution is diverging based on displacement increment
     diverging_on_rel_mdu: bool,
+
+    /// Total number of converged steps
     n_converged_total: usize,
+
+    /// Number of failed attempts in current step
     n_failed_per_step: usize,
 }
 
