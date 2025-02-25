@@ -217,12 +217,12 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                 sr_arr.last_mut().unwrap().push(sr);
                 if residual {
                     let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
-                    approx_eq(sr, sr_ana, 0.003);
-                    approx_eq(sh, sh_ana, 0.003);
+                    approx_eq(sr, sr_ana, 0.00092);
+                    approx_eq(sh, sh_ana, 0.00085);
                 } else {
                     let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
-                    approx_eq(sr, sr_ana, 0.0036);
-                    approx_eq(sh, sh_ana, 0.0077);
+                    approx_eq(sr, sr_ana, 0.00096);
+                    approx_eq(sh, sh_ana, 0.00231);
                 }
             }
             first_rr = false;
