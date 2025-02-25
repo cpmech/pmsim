@@ -123,6 +123,18 @@ impl PlastPlaneStrainPresSphere {
         }
     }
 
+    /// Calculates the residual radial and hoop stresses after the loading is completely removed
+    ///
+    /// `pp_last` is the last pressure applied to the cylinder, before it becomes zero.
+    pub fn calc_sr_sh_residual(&self, r: f64, pp_last: f64) -> Result<(f64, f64), StrError> {
+        let (mut sr, mut sh) = self.calc_sr_sh(r, pp_last)?;
+        let m = self.b * self.b * self.b / (self.a * self.a * self.a);
+        let d = self.b * self.b * self.b / (r * r * r);
+        sr -= -pp_last * (d - 1.0) / (m - 1.0);
+        sh -= pp_last * (0.5 * d + 1.0) / (m - 1.0);
+        Ok((sr, sh))
+    }
+
     /// Calculates the elastic-to-plastic radius
     ///
     /// **Note:** P must be greater than P0 and smaller than P_lim
@@ -144,13 +156,15 @@ impl PlastPlaneStrainPresSphere {
     ///
     /// # Input
     ///
-    /// * `pps` -- a series of P values to plot the stresses
+    /// * `pps` -- a series of P values to plot the stresses (not used if `residual == true`)
+    /// * `residual` -- plots the residual stresses after the loading is completely removed
+    /// * `pp_last` -- is the last pressure applied to the cylinder, before it becomes zero
     /// * `callback` -- a `(plot, index)` function to add extra (e.g. numerical) results.
     ///   The index is:
     ///     * 0 for the P vs ub plot
     ///     * 1 for the σθ vs r plot
     ///     * 2 for the σr vs r plot
-    pub fn plot_results<F>(&self, pps: &[f64], callback: F) -> Plot
+    pub fn plot_results<F>(&self, pps: &[f64], residual: bool, pp_last: f64, callback: F) -> Plot
     where
         F: Fn(&mut Plot, usize),
     {
@@ -164,7 +178,6 @@ impl PlastPlaneStrainPresSphere {
             .set_subplot_grid("grid", "0", "0:3")
             .add(&curve);
         callback(&mut plot, 0);
-
         let mut leg1 = Legend::new();
         leg1.set_location("lower right").draw();
         plot.add(&leg1)
@@ -173,9 +186,14 @@ impl PlastPlaneStrainPresSphere {
         let rr = linspace(self.a, self.b, 201);
         let mut ssr = vec![0.0; rr.len()];
         let mut ssh = vec![0.0; rr.len()];
-        for pp in pps {
+        let pp_array = if residual { vec![pp_last] } else { pps.to_vec() };
+        for pp in pp_array {
             for i in 0..rr.len() {
-                let (sr, sh) = self.calc_sr_sh(rr[i], *pp).unwrap();
+                let (sr, sh) = if residual {
+                    self.calc_sr_sh_residual(rr[i], pp).unwrap()
+                } else {
+                    self.calc_sr_sh(rr[i], pp).unwrap()
+                };
                 ssr[i] = sr;
                 ssh[i] = sh;
             }
@@ -183,24 +201,27 @@ impl PlastPlaneStrainPresSphere {
             let mut curve_b = Curve::new();
             curve_a.draw(&rr, &ssh);
             curve_b.draw(&rr, &ssr);
+            // fake curves to build legend
             plot.set_subplot_grid("grid", "1", "0:2").add(&curve_a);
             plot.set_subplot_grid("grid", "1", "2:4").add(&curve_b);
-            let mut empty = Curve::new();
-            let str = format!(" P = {}", pp);
-            empty.set_label(&str).draw(&[0], &[0]);
-            plot.set_subplot_grid("grid", "0", "3")
-                .add(&empty)
-                .set_range(1.0, 2.0, 1.0, 2.0);
+            if residual {
+                let mut empty = Curve::new();
+                let str = format!(" $P_{{max}} = {}$", pp);
+                empty.set_label(&str).draw(&[0], &[0]);
+                empty.set_line_style("None");
+                empty.set_label(" $P = 0$").draw(&[0], &[0]);
+                plot.set_subplot_grid("grid", "0", "3")
+                    .add(&empty)
+                    .set_range(1.0, 2.0, 1.0, 2.0);
+            } else {
+                let mut empty = Curve::new();
+                let str = format!(" $P = {}$", pp);
+                empty.set_label(&str).draw(&[0], &[0]);
+                plot.set_subplot_grid("grid", "0", "3")
+                    .add(&empty)
+                    .set_range(1.0, 2.0, 1.0, 2.0);
+            }
         }
-
-        let mut leg2 = Legend::new();
-        leg2.set_num_col(1)
-            .set_handle_len(2.5)
-            .set_outside(true)
-            .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
-            .draw();
-
-        plot.set_subplot_grid("grid", "0", "3").add(&leg2).set_hide_axes(true);
 
         plot.set_subplot_grid("grid", "1", "0:2");
         callback(&mut plot, 1);
@@ -209,6 +230,16 @@ impl PlastPlaneStrainPresSphere {
         plot.set_subplot_grid("grid", "1", "2:4");
         callback(&mut plot, 2);
         plot.grid_and_labels("Radial coordinate $r$", "Radial stress $\\sigma_r$");
+
+        let mut leg = Legend::new();
+        leg.set_num_col(1)
+            .set_handle_len(2.5)
+            .set_outside(true)
+            .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
+            .draw();
+        plot.set_subplot_grid("grid", "0", "3");
+        callback(&mut plot, 3);
+        plot.add(&leg).set_hide_axes(true);
 
         plot
     }
@@ -240,7 +271,7 @@ mod tests {
         approx_eq(ana.calc_c(ana.pp_lim - 1e-13).unwrap(), b, 1e-3);
 
         if SAVE_FIGURE {
-            let mut plot = ana.plot_results(&[0.15, 0.3], |_, _| ());
+            let mut plot = ana.plot_results(&[0.15, 0.3], false, 0.0, |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
                 .save("/tmp/pmsim/plast_plane_strain_pres_sphere.svg")
                 .unwrap();
