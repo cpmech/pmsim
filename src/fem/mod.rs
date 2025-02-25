@@ -1,10 +1,11 @@
 //! Implements the finite element method
 
-mod arc_length_control;
 mod bc_concentrated;
 mod bc_distributed;
 mod bc_prescribed;
-mod convergence_control;
+mod control_arc_length;
+mod control_convergence;
+mod control_time;
 mod element_diffusion;
 mod element_rod;
 mod element_rod_gnl;
@@ -20,13 +21,13 @@ mod post_processing;
 mod secondary_values;
 mod solver_data;
 mod solver_implicit;
-mod time_control;
 
-use arc_length_control::*;
 pub use bc_concentrated::*;
 pub use bc_distributed::*;
 pub use bc_prescribed::*;
-use convergence_control::*;
+use control_arc_length::*;
+use control_convergence::*;
+use control_time::*;
 pub use element_diffusion::*;
 pub use element_rod::*;
 pub use element_rod_gnl::*;
@@ -41,4 +42,3 @@ pub use post_processing::*;
 pub use secondary_values::*;
 use solver_data::*;
 pub use solver_implicit::*;
-use time_control::*;
