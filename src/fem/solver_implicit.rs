@@ -5,25 +5,58 @@ use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
 
 /// Implements the implicit finite element method solver
+///
+/// This solver handles nonlinear static and dynamic problems using:
+/// * Newton-Raphson iterations
+/// * Arc-length path-following method
+/// * Implicit time integration schemes
+///
+/// # Features
+///
+/// * Static analysis with load control
+/// * Static analysis with arc-length control
+/// * Dynamic/transient analysis with time integration
+/// * Handles material and geometric nonlinearities
+/// * Supports Lagrange multiplier method for constraints
 pub struct SolverImplicit<'a> {
-    /// Holds configuration parameters
+    /// Configuration parameters including solver settings and tolerances
     config: &'a Config<'a>,
 
-    /// Holds data for FEM solvers
+    /// Solver data containing matrices, vectors and element data
     data: SolverData<'a>,
 
-    /// Holds the arc-length control structure
+    /// Arc-length control for path-following analysis
     control_arc: ControlArcLength<'a>,
 
-    /// Holds the convergence control structure
+    /// Convergence control for nonlinear iterations
     control_conv: ControlConvergence<'a>,
 
-    /// Holds the time loop control structure
+    /// Time stepping and integration control
     control_time: ControlTime<'a>,
 }
 
 impl<'a> SolverImplicit<'a> {
-    /// Allocates a new instance
+    /// Creates a new implicit solver instance
+    ///
+    /// # Arguments
+    ///
+    /// * `mesh` - Finite element mesh
+    /// * `base` - Base FEM data with elements and materials
+    /// * `config` - Configuration parameters
+    /// * `essential` - Essential (Dirichlet) boundary conditions
+    /// * `natural` - Natural (Neumann) boundary conditions
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(SolverImplicit)` on success
+    /// * `Err(StrError)` if initialization fails
+    ///
+    /// # Errors
+    ///
+    /// * If configuration validation fails
+    /// * If boundary conditions reference invalid nodes
+    /// * If element initialization fails
+    /// * If any solver parameters are invalid
     pub fn new(
         mesh: &Mesh,
         base: &'a FemBase,
@@ -50,12 +83,32 @@ impl<'a> SolverImplicit<'a> {
         })
     }
 
-    /// Returns the total number of converged iterations
+    /// Returns the total number of converged iterations across all time steps
     pub fn n_converged_iterations(&self) -> usize {
         self.control_conv.n_converged_total()
     }
 
-    /// Solves the associated system of partial differential equations
+    /// Solves the system of equations
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Current FEM state to update
+    /// * `file_io` - File I/O handler for output
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if solution succeeds
+    /// * `Err(StrError)` if solution fails
+    ///
+    /// # Process
+    ///
+    /// 1. Initializes time stepping and internal variables
+    /// 2. Enters time loop:
+    ///    * Performs nonlinear iterations
+    ///    * Checks convergence
+    ///    * Adapts step size if needed
+    ///    * Outputs results at specified times
+    /// 3. Writes final results
     pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
         // helper macro to save the state before returning an error
         macro_rules! run {
@@ -120,7 +173,27 @@ impl<'a> SolverImplicit<'a> {
 
     /// Performs a single time step
     ///
-    /// Returns `finished` if the simulation is over.
+    /// # Arguments
+    ///
+    /// * `timestep` - Current timestep number
+    /// * `ddt` - Time increment Δt
+    /// * `state` - FEM state to update
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` if simulation is finished
+    /// * `Ok(false)` if simulation should continue
+    /// * `Err(StrError)` if step fails
+    ///
+    /// # Process
+    ///
+    /// 1. Updates time variables
+    /// 2. Updates external forces
+    /// 3. Handles dynamics/transient terms
+    /// 4. Computes trial values
+    /// 5. Performs nonlinear iterations
+    /// 6. Adapts step size for arc-length method
+    /// 7. Checks convergence status
     fn step(&mut self, timestep: usize, ddt: f64, state: &mut FemState) -> Result<bool, StrError> {
         // update time-related variables
         let finished = self.control_time.update(state, ddt)?;
@@ -184,13 +257,30 @@ impl<'a> SolverImplicit<'a> {
         Ok(false)
     }
 
-    /// Performs the iterations to reduce the residuals
+    /// Performs iterations to reduce residuals at current time step
     ///
-    /// From here on, time t corresponds to the new (updated) time; thus the boundary
-    /// conditions will yield non-zero residuals. On the other hand, the primary variables
-    /// and secondary variables (e.g., stresses) are still on the old time. Therefore,
-    /// iterations are required to reduce the residuals. The trial values for the iterations
-    /// are the values at the old timestep.
+    /// # Arguments
+    ///
+    /// * `timestep` - Current timestep number
+    /// * `iteration` - Current iteration number
+    /// * `state` - FEM state to update
+    ///
+    /// # Process
+    ///
+    /// 1. Assembles internal forces vector F_int
+    /// 2. Calculates residual vector R = F_int - ℓF_ext
+    /// 3. Computes arc-length constraint (if enabled)
+    /// 4. Checks convergence on residuals
+    /// 5. Updates Jacobian matrix (if needed)
+    /// 6. Solves linear system
+    /// 7. Checks convergence on displacement increment
+    /// 8. Updates primary and secondary variables
+    ///
+    /// # Notes
+    ///
+    /// At this point, time t corresponds to the new (updated) time, but primary
+    /// variables (displacements) and secondary variables (e.g., stresses) are still
+    /// at the old time. Therefore, iterations are required to reduce the residuals.
     fn iterate(&mut self, timestep: usize, iteration: usize, state: &mut FemState) -> Result<(), StrError> {
         // assemble internal forces vector F_int
         self.data.assemble_ff_int(state)?;
