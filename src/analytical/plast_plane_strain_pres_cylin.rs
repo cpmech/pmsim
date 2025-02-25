@@ -170,7 +170,10 @@ impl PlastPlaneStrainPresCylin {
             .set_subplot_grid("grid", "0", "0:3")
             .add(&curve);
         callback(&mut plot, 0);
-        plot.grid_labels_legend("Radial displacement at outer face $u_b$", "Internal pressure $P$");
+        let mut leg1 = Legend::new();
+        leg1.set_location("lower right").draw();
+        plot.add(&leg1)
+            .grid_and_labels("Radial displacement at outer face $u_b$", "Internal pressure $P$");
 
         let rr = linspace(self.a, self.b, 201);
         let mut ssr = vec![0.0; rr.len()];
