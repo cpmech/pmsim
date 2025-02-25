@@ -22,23 +22,56 @@ use russell_lab::{vec_add, vec_copy, vec_copy_scaled, vec_inner, vec_scale, Vect
 /// * F_ext - external force vector
 /// * Δs - arc length increment
 pub(crate) struct ControlArcLength<'a> {
-    config: &'a Config<'a>, // holds the configuration parameters
-    dds: f64,               // total increment of arc-length (Δs)
-    dds_old: f64,           // previous total increment of arc-length
-    dds_min: f64,           // minimum total increment of arc-length
-    dds_max: f64,           // maximum total increment of arc-length
-    ell_anc: f64,           // ancient (before previous) loading factor ℓ
-    ell_old: f64,           // previous loading factor ℓ
-    g: f64,                 // arc-length constraint
-    dg_dl: f64,             // derivative of arc-length constraint w.r.t. loading factor
-    dg_du: Vector,          // derivative of constraint equation w.r.t. displacement
-    dl: f64,                // δℓ: iterative increment in load factor
-    ddl: f64,               // Δℓ: total increment in load factor
-    ddu1: Vector,           // Δu1: total increment in displacement part I
-    ddu2: Vector,           // Δu2: total increment in displacement part II
-    u_anc: Vector,          // ancient (before previous) displacement
-    u_old: Vector,          // old displacement
-    converged_old: bool,    // convergence status of previous iteration
+    /// Holds the configuration parameters
+    config: &'a Config<'a>,
+
+    /// Total increment of arc-length (Δs)
+    dds: f64,
+
+    /// Previous total increment of arc-length
+    dds_old: f64,
+
+    /// Minimum total increment of arc-length
+    dds_min: f64,
+
+    /// Maximum total increment of arc-length
+    dds_max: f64,
+
+    /// Ancient (before previous) loading factor ℓ
+    ell_anc: f64,
+
+    /// Previous loading factor ℓ
+    ell_old: f64,
+
+    /// Arc-length constraint
+    g: f64,
+
+    /// Derivative of arc-length constraint w.r.t. loading factor
+    dg_dl: f64,
+
+    /// Derivative of constraint equation w.r.t. displacement
+    dg_du: Vector,
+
+    /// δℓ: iterative increment in load factor
+    dl: f64,
+
+    /// Δℓ: total increment in load factor
+    ddl: f64,
+
+    /// δu₁: iterative increment in displacement part 1
+    du1: Vector,
+
+    /// δu₂: iterative increment in displacement part 2
+    du2: Vector,
+
+    /// Ancient (before previous) displacement
+    u_anc: Vector,
+
+    /// Old displacement
+    u_old: Vector,
+
+    /// Convergence status of previous iteration
+    converged_old: bool,
 }
 
 impl<'a> ControlArcLength<'a> {
@@ -66,8 +99,8 @@ impl<'a> ControlArcLength<'a> {
             dg_du: Vector::new(neq_total),
             dl: 0.0,
             ddl: 0.0,
-            ddu1: Vector::new(neq_total),
-            ddu2: Vector::new(neq_total),
+            du1: Vector::new(neq_total),
+            du2: Vector::new(neq_total),
             u_anc: Vector::new(neq_total),
             u_old: Vector::new(neq_total),
             converged_old: false,
@@ -177,14 +210,14 @@ impl<'a> ControlArcLength<'a> {
     pub(crate) fn solve(&mut self, ls: &mut LinearSystem) -> Result<(), StrError> {
         // solve linear system I
         let verbose = self.config.lin_sol_params.verbose;
-        ls.solver.actual.solve(&mut self.ddu1, &ls.ff_ext, verbose)?;
+        ls.solver.actual.solve(&mut self.du1, &ls.ff_ext, verbose)?;
 
         // solve linear system II
-        ls.solver.actual.solve(&mut self.ddu2, &ls.rr, verbose)?;
+        ls.solver.actual.solve(&mut self.du2, &ls.rr, verbose)?;
 
         // calculate δℓ
-        let c1 = vec_inner(&self.dg_du, &self.ddu1);
-        let c2 = vec_inner(&self.dg_du, &self.ddu2);
+        let c1 = vec_inner(&self.dg_du, &self.du1);
+        let c2 = vec_inner(&self.dg_du, &self.du2);
         let den = self.dg_dl + c1;
         if f64::abs(den) < 1e-12 {
             return Err("cannot compute δℓ because of zero division. F_ext might be zero");
@@ -192,7 +225,7 @@ impl<'a> ControlArcLength<'a> {
         self.dl = (c2 - self.g) / den;
 
         // calculate -δu
-        vec_add(&mut ls.mdu, 1.0, &self.ddu2, -self.dl, &self.ddu1).unwrap();
+        vec_add(&mut ls.mdu, 1.0, &self.du2, -self.dl, &self.du1).unwrap();
         Ok(())
     }
 
