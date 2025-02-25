@@ -51,9 +51,6 @@ pub struct Config<'a> {
     /// Tolerance to check the symmetry of local Jacobian matrices
     pub(crate) symmetry_check_tolerance: Option<f64>,
 
-    /// Ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
-    pub(crate) ignore_jacobian_symmetry: bool,
-
     // Initialization -------------------------------------------------------------------------
     //
     /// Gravity acceleration (a positive value)
@@ -94,6 +91,9 @@ pub struct Config<'a> {
 
     /// Parameters for the linear (sparse) solver
     pub(crate) lin_sol_params: LinSolParams,
+
+    /// Uses an unsymmetric linear solver with full K matrix even if the formulation allows symmetry
+    pub(crate) lin_sol_unsymmetric: bool,
 
     /// Saves the global coefficient matrix K as a MatrixMarket file (for debugging)
     pub(crate) save_matrix_market_file: bool,
@@ -240,7 +240,6 @@ impl<'a> Config<'a> {
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-10),
-            ignore_jacobian_symmetry: false,
             // Initialization
             gravity: None,
             initialization: Init::Zero,
@@ -250,6 +249,7 @@ impl<'a> Config<'a> {
             // Linear solver
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
+            lin_sol_unsymmetric: false,
             save_matrix_market_file: false,
             save_vismatrix_file: false,
             verbose_lin_sys_solve: false,
@@ -527,12 +527,6 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Ignores the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
-    pub fn set_ignore_jacobian_symmetry(&mut self, ignore_symmetry: bool) -> &mut Self {
-        self.ignore_jacobian_symmetry = ignore_symmetry;
-        self
-    }
-
     // Initialization -------------------------------------------------------------------------
 
     /// Sets the gravity acceleration (a positive value)
@@ -589,6 +583,12 @@ impl<'a> Config<'a> {
     /// Returns an access to the linear solver parameters
     pub fn access_lin_sol_params(&mut self) -> &mut LinSolParams {
         &mut self.lin_sol_params
+    }
+
+    /// Uses an unsymmetric linear solver with full K matrix even if the formulation allows symmetry
+    pub fn set_lin_sol_unsymmetric(&mut self, unsymmetric: bool) -> &mut Self {
+        self.lin_sol_unsymmetric = unsymmetric;
+        self
     }
 
     /// Saves the global coefficient matrix K as a MatrixMarket file (for debugging)
