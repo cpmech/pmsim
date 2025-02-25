@@ -1,5 +1,5 @@
 use pmsim::util::ConvergenceResults;
-use russell_lab::*;
+use pmsim::StrError;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::fs;

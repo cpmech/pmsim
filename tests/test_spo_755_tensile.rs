@@ -2,7 +2,7 @@ use gemlab::prelude::*;
 use plotpy::Text;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
-use russell_lab::*;
+use pmsim::StrError;
 
 const MESH_NAME: &str = "spo_755_tensile";
 const NAME: &str = "spo_755_tensile_perf_plast";

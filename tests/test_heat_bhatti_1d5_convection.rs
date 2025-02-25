@@ -1,6 +1,8 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*};
-use russell_lab::*;
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
+use pmsim::StrError;
+use russell_lab::array_approx_eq;
 
 // Bhatti's Example 1.5 on page 28
 //

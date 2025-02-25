@@ -1,7 +1,9 @@
 use gemlab::prelude::*;
-use pmsim::base::{Conductivity, Config, Dof, Elem, Essential, Natural, Nbc, ParamDiffusion, SampleMeshes};
-use pmsim::fem::{BcDistributedArray, BcPrescribed, Elements, FemBase, FemState, FileIo, LinearSystem, SolverImplicit};
-use russell_lab::*;
+use pmsim::base::SampleMeshes;
+use pmsim::fem::{BcDistributedArray, BcPrescribed, Elements, LinearSystem};
+use pmsim::prelude::*;
+use pmsim::StrError;
+use russell_lab::{array_approx_eq, mat_approx_eq, vec_add, vec_approx_eq, vec_copy, vec_norm, Matrix, Norm, Vector};
 
 // Bhatti's Example 6.22 on page 449
 //

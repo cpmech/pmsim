@@ -4,8 +4,9 @@ use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
 use pmsim::material::{Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
+use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
-use russell_lab::*;
+use russell_lab::{approx_eq, array_approx_eq};
 
 // This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
 //

@@ -1,7 +1,8 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
 use pmsim::prelude::*;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::array_approx_eq;
 
 // Plane-strain linear elasticity with a single-element
 //

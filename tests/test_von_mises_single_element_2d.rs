@@ -2,7 +2,7 @@ use gemlab::mesh::Samples;
 use gemlab::prelude::*;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
-use russell_lab::*;
+use pmsim::StrError;
 
 // von Mises plasticity with a single-element
 //

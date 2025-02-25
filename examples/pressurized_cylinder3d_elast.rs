@@ -4,7 +4,8 @@ use plotpy::Surface;
 use pmsim::analytical::ElastPlaneStrainPresCylin;
 use pmsim::prelude::*;
 use pmsim::util::ConvergenceResults;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::{array_approx_eq, format_nanoseconds, Stopwatch};
 use russell_sparse::Genie;
 use std::env;
 

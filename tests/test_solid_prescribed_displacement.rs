@@ -2,7 +2,8 @@ use gemlab::mesh::Samples;
 use pmsim::base::{assemble_matrix, assemble_vector};
 use pmsim::fem::{BcPrescribed, ElementSolid, ElementTrait};
 use pmsim::prelude::*;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::{mat_vec_mul, solve_lin_sys, vec_add, vec_approx_eq, vec_copy, vec_update, Matrix, Vector};
 use russell_sparse::prelude::*;
 
 //  Uy PRESCRIBED          Uy PRESCRIBED

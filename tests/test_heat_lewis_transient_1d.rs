@@ -1,8 +1,9 @@
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::prelude::*;
+use pmsim::StrError;
 use russell_lab::math::{erfc, PI};
-use russell_lab::*;
+use russell_lab::Vector;
 
 // Lewis' Example 6.4.2 on page 159
 //

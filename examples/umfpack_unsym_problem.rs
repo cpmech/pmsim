@@ -1,7 +1,8 @@
 use gemlab::prelude::*;
 use pmsim::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, StressStrain};
 use pmsim::fem::{BcDistributedArray, BcPrescribed, Elements, FemBase, FemState, LinearSystem};
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::Vector;
 use russell_sparse::prelude::*;
 
 const OUT_DIR: &str = "/tmp/pmsim/matrix-market";

@@ -1,6 +1,8 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*};
-use russell_lab::*;
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
+use pmsim::StrError;
+use russell_lab::vec_approx_eq;
 
 // Smith's Example 5.7 (Figure 5.7) on page 178
 //

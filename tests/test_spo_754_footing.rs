@@ -1,7 +1,7 @@
 use gemlab::prelude::*;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
-use russell_lab::*;
+use pmsim::StrError;
 
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;

@@ -2,7 +2,8 @@ use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::{vec_approx_eq, Matrix};
 
 // Smith's Example 5.17 (Figure 5.17) on page 187
 //
