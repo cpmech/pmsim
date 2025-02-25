@@ -10,6 +10,8 @@ use russell_lab::{vec_add, vec_copy, vec_copy_scaled, vec_inner, vec_scale, Vect
 ///
 /// # Algorithm
 ///
+/// The algorithm is based on the paper by Kadapa (2021); see Reference #1.
+///
 /// The method works by constraining the path length (arc length) of the solution,
 /// combining both displacement and loading parameter changes:
 ///
@@ -21,6 +23,12 @@ use russell_lab::{vec_add, vec_copy, vec_copy_scaled, vec_inner, vec_scale, Vect
 /// * ψ - scaling parameter
 /// * F_ext - external force vector
 /// * Δs - arc length increment
+///
+/// # References
+///
+/// 1. Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
+///    issues in the arc-length method for nonlinear structural mechanics,
+///    Engineering Structures, 234:111755
 pub(crate) struct ControlArcLength<'a> {
     /// Holds the configuration parameters
     config: &'a Config<'a>,
