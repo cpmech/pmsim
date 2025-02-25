@@ -15,7 +15,7 @@ use crate::StrError;
 /// * `hht_method` -- Indicates the use of Hilber-Hughes-Taylor method (implicit-only)
 /// * `hht_alpha` -- Hilber-Hughes-Taylor `α` parameter with `-1/3 ≤ α ≤ 0`
 /// * if `hht_method` is true, `θ1` and `θ2` are automatically calculated for unconditional stability
-pub struct TimeControl<'a> {
+pub struct ControlTime<'a> {
     /// Holds configuration parameters
     config: &'a Config<'a>,
 
@@ -26,7 +26,7 @@ pub struct TimeControl<'a> {
     theta2: f64,
 }
 
-impl<'a> TimeControl<'a> {
+impl<'a> ControlTime<'a> {
     /// Allocates a new instance
     ///
     pub fn new(config: &'a Config) -> Result<Self, StrError> {
@@ -59,7 +59,7 @@ impl<'a> TimeControl<'a> {
         };
 
         // return new instance
-        Ok(TimeControl { config, theta1, theta2 })
+        Ok(ControlTime { config, theta1, theta2 })
     }
 
     /// Initializes the time, Δt, α, and β coefficients at t_ini
@@ -122,7 +122,7 @@ impl<'a> TimeControl<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::TimeControl;
+    use super::ControlTime;
     use crate::base::{Config, Elem, Essential, ParamSolid};
     use crate::fem::{FemBase, FemState};
     use gemlab::mesh::Samples;
@@ -138,7 +138,7 @@ mod tests {
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         // θ=0.5, θ1=0.5, θ2=0.5, α=0
-        let dcs = TimeControl::new(&config).unwrap();
+        let dcs = ControlTime::new(&config).unwrap();
         dcs.initialize(&mut state).unwrap();
 
         // check

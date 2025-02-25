@@ -1,4 +1,4 @@
-use super::{ArcLengthControl, ConvergenceControl, FemBase, FemState, FileIo, SolverData, TimeControl};
+use super::{ControlArcLength, ControlConvergence, ControlTime, FemBase, FemState, FileIo, SolverData};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -13,13 +13,13 @@ pub struct SolverImplicit<'a> {
     data: SolverData<'a>,
 
     /// Holds the arc-length control structure
-    arc_control: ArcLengthControl<'a>,
+    control_arc: ControlArcLength<'a>,
 
     /// Holds the convergence control structure
-    conv_control: ConvergenceControl<'a>,
+    control_conv: ControlConvergence<'a>,
 
     /// Holds the time loop control structure
-    time_control: TimeControl<'a>,
+    control_time: ControlTime<'a>,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -36,17 +36,17 @@ impl<'a> SolverImplicit<'a> {
         let neq_total = data.ls.neq_total;
 
         // allocate convergence and time control structures
-        let arc_control = ArcLengthControl::new(config, neq_total);
-        let conv_control = ConvergenceControl::new(config, neq_total);
-        let time_control = TimeControl::new(config)?;
+        let control_arc = ControlArcLength::new(config, neq_total);
+        let control_conv = ControlConvergence::new(config, neq_total);
+        let control_time = ControlTime::new(config)?;
 
         // allocate new instance
         Ok(SolverImplicit {
             config,
             data,
-            arc_control,
-            conv_control,
-            time_control,
+            control_arc,
+            control_conv,
+            control_time,
         })
     }
 
@@ -82,7 +82,7 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // initialize time-related variables
-        self.time_control.initialize(state)?;
+        self.control_time.initialize(state)?;
 
         // initialize internal variables
         self.data.elements.initialize_internal_values(state)?;
@@ -92,7 +92,7 @@ impl<'a> SolverImplicit<'a> {
         let mut t_out = state.t + (self.config.ddt_out)(state.t);
 
         // print convergence information
-        self.conv_control.print_header();
+        self.control_conv.print_header();
 
         // initialize control variables
         let mut converged = false;
@@ -102,10 +102,10 @@ impl<'a> SolverImplicit<'a> {
         // time loop
         for timestep in 0..self.config.n_max_time_steps {
             // update time-related variables
-            let finished = run!(self.time_control.update(state));
+            let finished = run!(self.control_time.update(state));
             if finished {
                 file_io.write_state(state)?;
-                self.conv_control.print_footer();
+                self.control_conv.print_footer();
                 break;
             }
 
@@ -119,7 +119,7 @@ impl<'a> SolverImplicit<'a> {
 
             // trial displacement u, displacement increment Δu, and trial loading factor ℓ
             if self.config.arc_length_method {
-                run!(self.arc_control.trial_increments(timestep, state, converged));
+                run!(self.control_arc.trial_increments(timestep, state, converged));
             } else {
                 // the trial displacement is the displacement at the old time (unchanged)
                 state.ddu.fill(0.0);
@@ -132,7 +132,7 @@ impl<'a> SolverImplicit<'a> {
             }
 
             // print time information
-            self.conv_control
+            self.control_conv
                 .print_timestep(timestep, state.t, state.ddt, load_reversal);
 
             // iteration loop
@@ -152,7 +152,7 @@ impl<'a> SolverImplicit<'a> {
             // arc-length step adaptation
             if self.config.arc_length_method {
                 run!(self
-                    .arc_control
+                    .control_arc
                     .step_adaptation(timestep, state, converged, &self.data.ls.ff_ext));
             }
 
@@ -171,7 +171,7 @@ impl<'a> SolverImplicit<'a> {
 
             // final time step
             if state.t >= self.config.t_fin {
-                self.conv_control.print_footer();
+                self.control_conv.print_footer();
                 break;
             }
         }
@@ -204,17 +204,17 @@ impl<'a> SolverImplicit<'a> {
 
         // calculate arc-length constraint and derivatives
         let g = if self.config.arc_length_method {
-            self.arc_control
+            self.control_arc
                 .constraint_and_derivatives(timestep, state, &self.data.ls.ff_ext)?;
-            self.arc_control.constraint()
+            self.control_arc.constraint()
         } else {
             0.0
         };
 
         // check convergence on residual
-        self.conv_control.analyze_rr(iteration, &self.data.ls.rr, g)?;
-        if self.conv_control.converged_on_norm_rr() {
-            self.conv_control.print_iteration();
+        self.control_conv.analyze_rr(iteration, &self.data.ls.rr, g)?;
+        if self.control_conv.converged_on_norm_rr() {
+            self.control_conv.print_iteration();
             return Ok(true); // converged
         }
 
@@ -236,15 +236,15 @@ impl<'a> SolverImplicit<'a> {
 
         // solve linear system
         if self.config.arc_length_method {
-            self.arc_control.solve(&mut self.data.ls)?;
+            self.control_arc.solve(&mut self.data.ls)?;
         } else {
             self.data.ls.solve()?;
         }
 
         // check convergence on corrective displacement
-        self.conv_control.analyze_mdu(iteration, &self.data.ls.mdu)?;
-        self.conv_control.print_iteration();
-        if self.conv_control.converged_on_rel_mdu() {
+        self.control_conv.analyze_mdu(iteration, &self.data.ls.mdu)?;
+        self.control_conv.print_iteration();
+        if self.control_conv.converged_on_rel_mdu() {
             return Ok(true); // converged
         }
 
@@ -253,7 +253,7 @@ impl<'a> SolverImplicit<'a> {
 
         // update loading factor
         if self.config.arc_length_method {
-            self.arc_control.update_load_factor(state)?;
+            self.control_arc.update_load_factor(state)?;
         }
 
         // backup/restore secondary variables

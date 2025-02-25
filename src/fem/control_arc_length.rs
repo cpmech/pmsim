@@ -4,7 +4,7 @@ use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_copy_scaled, vec_inner, vec_scale, Vector};
 
 /// Implements the arc-length (path-following) control
-pub(crate) struct ArcLengthControl<'a> {
+pub(crate) struct ControlArcLength<'a> {
     config: &'a Config<'a>, // holds the configuration parameters
     dds: f64,               // total increment of arc-length
     dds_old: f64,           // previous total increment of arc-length
@@ -24,10 +24,10 @@ pub(crate) struct ArcLengthControl<'a> {
     converged_old: bool,    // convergence status of previous iteration
 }
 
-impl<'a> ArcLengthControl<'a> {
+impl<'a> ControlArcLength<'a> {
     /// Allocates a new instance
     pub(crate) fn new(config: &'a Config<'a>, neq_total: usize) -> Self {
-        ArcLengthControl {
+        ControlArcLength {
             config,
             dds: 0.0,
             dds_old: 0.0,

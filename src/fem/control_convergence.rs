@@ -2,7 +2,7 @@ use crate::base::Config;
 use crate::StrError;
 use russell_lab::{vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
-pub struct ConvergenceControl<'a> {
+pub struct ControlConvergence<'a> {
     config: &'a Config<'a>,
     iteration: usize,
     norm_rr_prev: f64,
@@ -17,7 +17,7 @@ pub struct ConvergenceControl<'a> {
     diverging_on_rel_mdu: bool,
 }
 
-impl<'a> ConvergenceControl<'a> {
+impl<'a> ControlConvergence<'a> {
     pub fn new(config: &'a Config<'a>, neq_total: usize) -> Self {
         Self {
             config,
