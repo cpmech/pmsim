@@ -3,10 +3,27 @@ use crate::base::Config;
 use crate::StrError;
 use russell_lab::{vec_add, vec_copy, vec_copy_scaled, vec_inner, vec_scale, Vector};
 
-/// Implements the arc-length (path-following) control
+/// Implements the arc-length (path-following) method for nonlinear structural analysis
+///
+/// The arc-length method is used to trace the equilibrium path of nonlinear structures,
+/// particularly useful for handling limit points, snap-through, and snap-back behavior.
+///
+/// # Algorithm
+///
+/// The method works by constraining the path length (arc length) of the solution,
+/// combining both displacement and loading parameter changes:
+///
+/// * g(Δu,Δℓ) = ‖Δu‖² + ψ (Δℓ)² ‖F_ext‖² - Δs² = 0
+///
+/// where:
+/// * Δu - displacement increment
+/// * Δℓ - load factor increment
+/// * ψ - scaling parameter
+/// * F_ext - external force vector
+/// * Δs - arc length increment
 pub(crate) struct ControlArcLength<'a> {
     config: &'a Config<'a>, // holds the configuration parameters
-    dds: f64,               // total increment of arc-length
+    dds: f64,               // total increment of arc-length (Δs)
     dds_old: f64,           // previous total increment of arc-length
     dds_min: f64,           // minimum total increment of arc-length
     dds_max: f64,           // maximum total increment of arc-length
@@ -25,7 +42,16 @@ pub(crate) struct ControlArcLength<'a> {
 }
 
 impl<'a> ControlArcLength<'a> {
-    /// Allocates a new instance
+    /// Creates a new arc-length controller
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration parameters including arc-length settings
+    /// * `neq_total` - Total number of equations (DOFs) in the system
+    ///
+    /// # Returns
+    ///
+    /// New instance with initialized vectors and parameters
     pub(crate) fn new(config: &'a Config<'a>, neq_total: usize) -> Self {
         ControlArcLength {
             config,
@@ -48,12 +74,26 @@ impl<'a> ControlArcLength<'a> {
         }
     }
 
-    /// Returns the arc-length constraint
+    /// Returns the current value of the arc-length constraint g(Δu,Δℓ)
+    ///
+    /// The constraint should be approximately zero at convergence
     pub(crate) fn constraint(&self) -> f64 {
         self.g
     }
 
-    /// Calculates the trial displacement increment Δu and trial loading factor increment Δℓ
+    /// Calculates trial increments for the next step
+    ///
+    /// Computes the trial displacement increment Δu and loading factor increment Δℓ
+    /// using linear extrapolation from previous solutions.
+    ///
+    /// # Arguments
+    ///
+    /// * `timestep` - Current timestep number
+    /// * `state` - Current FEM state to update
+    ///
+    /// # Errors
+    ///
+    /// Returns error if previous arc-length increment is too small
     pub(crate) fn trial_increments(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
         // set first loading factor
         if timestep == 0 {
@@ -77,6 +117,24 @@ impl<'a> ControlArcLength<'a> {
     }
 
     /// Calculates the constraints and associated derivatives
+    ///
+    /// # Arguments
+    ///
+    /// * `timestep` - Current timestep number
+    /// * `state` - Current FEM state containing displacements
+    /// * `ff_ext` - External force vector
+    ///
+    /// # Mathematical Details
+    ///
+    /// For timestep > 0:
+    /// * g = ‖Δu‖² + ψ (Δℓ)² ‖F_ext‖² - Δs²
+    /// * ∂g/∂ℓ = 2 ψ Δℓ ‖F_ext‖²
+    /// * ∂g/∂u = 2 Δu
+    ///
+    /// For timestep = 0:
+    /// * g = 0
+    /// * ∂g/∂ℓ = 1
+    /// * ∂g/∂u = 0
     pub(crate) fn constraint_and_derivatives(
         &mut self,
         timestep: usize,
@@ -98,7 +156,24 @@ impl<'a> ControlArcLength<'a> {
         Ok(())
     }
 
-    /// Solves the linear system for the iterative increments δℓ and -δu (mdu)
+    /// Solves the linear system for the iterative increments δℓ and -δu
+    ///
+    /// # Arguments
+    ///
+    /// * `ls` - Linear system containing matrices and vectors
+    ///
+    /// # Mathematical Details
+    ///
+    /// 1. Solves K·δu₁ = F_ext for δu₁
+    /// 2. Solves K·δu₂ = R for δu₂
+    /// 3. Computes δℓ = (c₂ - g)/(∂g/∂ℓ + c₁)
+    /// where:
+    /// * c₁ = (∂g/∂u)ᵀ·δu₁
+    /// * c₂ = (∂g/∂u)ᵀ·δu₂
+    ///
+    /// # Errors
+    ///
+    /// Returns error if denominator is too small (near-zero external forces)
     pub(crate) fn solve(&mut self, ls: &mut LinearSystem) -> Result<(), StrError> {
         // solve linear system I
         let verbose = self.config.lin_sol_params.verbose;
@@ -122,13 +197,42 @@ impl<'a> ControlArcLength<'a> {
     }
 
     /// Updates the load factor ℓ and its total increment Δℓ
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - FEM state to update with new load factor
+    ///
+    /// Updates:
+    /// * ℓ ← ℓ + δℓ
+    /// * Δℓ ← Δℓ + δℓ
     pub(crate) fn update_load_factor(&mut self, state: &mut FemState) -> Result<(), StrError> {
         state.ell += self.dl;
         self.ddl += self.dl;
         Ok(())
     }
 
-    /// Calculates the arc-length increment Δs
+    /// Calculates the arc-length increment Δs and adapts step size
+    ///
+    /// # Arguments
+    ///
+    /// * `timestep` - Current timestep number
+    /// * `state` - Current FEM state
+    /// * `converged` - Whether the current step converged
+    /// * `ff_ext` - External force vector
+    ///
+    /// # Step Adaptation Strategy
+    ///
+    /// For first timestep (timestep = 0):
+    /// * Computes initial Δs from current solution
+    /// * Sets Δs_max = Δs and Δs_min = Δs/1024
+    ///
+    /// For converged steps:
+    /// * If previous step also converged: Δs ← min(max(2Δs, Δs_min), Δs_max)
+    /// * Updates solution history
+    ///
+    /// For failed steps:
+    /// * If previous step converged: Δs ← max(Δs/2, Δs_min)
+    /// * If previous step failed: Δs ← max(Δs/4, Δs_min)
     pub(crate) fn step_adaptation(
         &mut self,
         timestep: usize,
