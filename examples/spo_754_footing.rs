@@ -74,8 +74,6 @@ pub fn main() -> Result<(), StrError> {
     config
         .set_lagrange_mult_method(true)
         .set_incremental(UY.len())
-        // .set_constant_tangent(true)
-        // .set_ignore_jacobian_symmetry(true)
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_n_max_iterations(20);
 
