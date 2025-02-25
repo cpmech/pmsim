@@ -103,10 +103,10 @@ fn test_alc_2d_truss_3member() -> Result<(), StrError> {
 
     // solver
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
-    let n_converged = solver.solve(&mut state, &mut file_io).unwrap();
+    solver.solve(&mut state, &mut file_io).unwrap();
 
     // check the total number of converged iterations
-    assert_eq!(n_converged, 46);
+    assert_eq!(solver.n_converged_iterations(), 46);
 
     // analyze results
     analyze_results()

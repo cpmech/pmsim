@@ -50,10 +50,13 @@ impl<'a> SolverImplicit<'a> {
         })
     }
 
+    /// Returns the total number of converged iterations
+    pub fn n_converged_iterations(&self) -> usize {
+        self.control_conv.n_converged_total()
+    }
+
     /// Solves the associated system of partial differential equations
-    ///
-    /// Returns the total number of converged iterations.
-    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<usize, StrError> {
+    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
         // helper macro to save the state before returning an error
         macro_rules! run {
             ($e:expr) => {
@@ -89,98 +92,96 @@ impl<'a> SolverImplicit<'a> {
 
         // first output (must occur after initialize_internal_values)
         file_io.write_state(state)?;
-        let mut t_out = state.t + (self.config.ddt_out)(state.t);
 
         // print convergence information
         self.control_conv.print_header();
 
-        // initialize control variables
-        let mut converged = false;
-        let mut n_converged = 0;
-        let mut step_n_failure = 0;
-
         // time loop
         for timestep in 0..self.config.n_max_time_steps {
-            // update time-related variables
-            let finished = run!(self.control_time.update(state));
+            // perform step with total increment Δt
+            let ddt = (self.config.ddt)(state.t);
+            let finished = run!(self.step(timestep, ddt, state));
             if finished {
                 file_io.write_state(state)?;
                 self.control_conv.print_footer();
                 break;
             }
 
-            // update external forces vector F_ext
-            let load_reversal = run!(self.data.assemble_ff_ext(state.t));
-
-            // transient/dynamics: old state variables
-            if self.config.transient {
-                vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
-            };
-
-            // trial displacement u, displacement increment Δu, and trial loading factor ℓ
-            if self.config.arc_length_method {
-                run!(self.control_arc.trial_increments(timestep, state, converged));
-            } else {
-                // the trial displacement is the displacement at the old time (unchanged)
-                state.ddu.fill(0.0);
-                state.ell = 1.0;
-            }
-
-            // reset algorithmic variables
-            if !self.config.linear_problem {
-                self.data.elements.reset_algorithmic_variables(state, load_reversal);
-            }
-
-            // print time information
-            self.control_conv
-                .print_timestep(timestep, state.t, state.ddt, load_reversal);
-
-            // iteration loop
-            for iteration in 0..self.config.n_max_iterations {
-                converged = run!(self.iterate(timestep, iteration, state));
-                if converged {
-                    n_converged += 1;
-                    break;
-                }
-                if !self.config.arc_length_method {
-                    if iteration == self.config.n_max_iterations - 1 {
-                        return Err("Newton-Raphson did not converge");
-                    }
-                }
-            }
-
-            // arc-length step adaptation
-            if self.config.arc_length_method {
-                run!(self
-                    .control_arc
-                    .step_adaptation(timestep, state, converged, &self.data.ls.ff_ext));
-            }
-
             // perform output
-            let last_timestep = timestep == self.config.n_max_time_steps - 1;
-            if converged && state.t >= t_out || last_timestep {
+            if self.control_conv.converged() && self.control_time.out(state) {
                 file_io.write_state(state)?;
-                t_out += (self.config.ddt_out)(state.t);
-            }
-
-            // check if many steps failed to converge
-            step_n_failure += 1;
-            if step_n_failure > self.config.allowed_step_n_failure {
-                return Err("too many step failures");
-            }
-
-            // final time step
-            if state.t >= self.config.t_fin {
-                self.control_conv.print_footer();
-                break;
             }
         }
 
         // write the file_io file
         file_io.write_self()?;
+        Ok(())
+    }
 
-        // return the number of converged iterations
-        Ok(n_converged)
+    /// Performs a single time step
+    ///
+    /// Returns `finished` if the simulation is over.
+    fn step(&mut self, timestep: usize, ddt: f64, state: &mut FemState) -> Result<bool, StrError> {
+        // update time-related variables
+        let finished = self.control_time.update(state, ddt)?;
+        if finished {
+            return Ok(finished);
+        }
+
+        // update external forces vector F_ext
+        let load_reversal = self.data.assemble_ff_ext(state.t)?;
+
+        // transient/dynamics: old state variables
+        if self.config.transient {
+            vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
+        };
+
+        // trial displacement u, displacement increment Δu, and trial loading factor ℓ
+        if self.config.arc_length_method {
+            self.control_arc.trial_increments(timestep, state)?;
+        } else {
+            // the trial displacement is the displacement at the old time (unchanged)
+            state.ddu.fill(0.0);
+            state.ell = 1.0;
+        }
+
+        // reset algorithmic variables
+        if !self.config.linear_problem {
+            self.data.elements.reset_algorithmic_variables(state, load_reversal);
+        }
+
+        // print time information
+        self.control_conv
+            .print_timestep(timestep, state.t, state.ddt, load_reversal);
+
+        // iteration loop
+        for iteration in 0..self.config.n_max_iterations {
+            self.iterate(timestep, iteration, state)?;
+            if self.control_conv.converged() {
+                self.control_conv.add_converged();
+                break;
+            }
+            if !self.config.arc_length_method {
+                if iteration == self.config.n_max_iterations - 1 {
+                    return Err("Newton-Raphson did not converge");
+                }
+            }
+        }
+
+        // arc-length step adaptation
+        if self.config.arc_length_method {
+            self.control_arc
+                .step_adaptation(timestep, state, self.control_conv.converged(), &self.data.ls.ff_ext)?;
+        }
+
+        // check if many iterations failed to converge in a single time step
+        self.control_conv.add_failed();
+        if self.control_conv.too_many_failures() {
+            return Err("too many iterations failed to converge");
+        }
+
+        // not finished; keep going
+        Ok(false)
     }
 
     /// Performs the iterations to reduce the residuals
@@ -190,7 +191,7 @@ impl<'a> SolverImplicit<'a> {
     /// and secondary variables (e.g., stresses) are still on the old time. Therefore,
     /// iterations are required to reduce the residuals. The trial values for the iterations
     /// are the values at the old timestep.
-    fn iterate(&mut self, timestep: usize, iteration: usize, state: &mut FemState) -> Result<bool, StrError> {
+    fn iterate(&mut self, timestep: usize, iteration: usize, state: &mut FemState) -> Result<(), StrError> {
         // assemble internal forces vector F_int
         self.data.assemble_ff_int(state)?;
 
@@ -212,10 +213,11 @@ impl<'a> SolverImplicit<'a> {
         };
 
         // check convergence on residual
+        self.control_conv.reset();
         self.control_conv.analyze_rr(iteration, &self.data.ls.rr, g)?;
-        if self.control_conv.converged_on_norm_rr() {
+        if self.control_conv.converged() {
             self.control_conv.print_iteration();
-            return Ok(true); // converged
+            return Ok(());
         }
 
         // compute Jacobian matrix
@@ -244,8 +246,8 @@ impl<'a> SolverImplicit<'a> {
         // check convergence on corrective displacement
         self.control_conv.analyze_mdu(iteration, &self.data.ls.mdu)?;
         self.control_conv.print_iteration();
-        if self.control_conv.converged_on_rel_mdu() {
-            return Ok(true); // converged
+        if self.control_conv.converged() {
+            return Ok(());
         }
 
         // update primary variables
@@ -270,11 +272,10 @@ impl<'a> SolverImplicit<'a> {
 
         // exit if linear problem
         if self.config.linear_problem {
-            return Ok(true); // converged
+            self.control_conv.set_converged_linear_problem();
+            return Ok(());
         }
-
-        // dit not converge yet
-        Ok(false)
+        Ok(())
     }
 }
 

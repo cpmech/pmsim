@@ -24,11 +24,13 @@ pub struct ControlTime<'a> {
 
     /// (updated) Second Newmark parameter (2*beta) with `0.0001 ≤ θ2 ≤ 1.0`
     theta2: f64,
+
+    /// Output time
+    t_out: f64,
 }
 
 impl<'a> ControlTime<'a> {
     /// Allocates a new instance
-    ///
     pub fn new(config: &'a Config) -> Result<Self, StrError> {
         // copy parameters
         let theta1 = config.theta1;
@@ -59,25 +61,31 @@ impl<'a> ControlTime<'a> {
         };
 
         // return new instance
-        Ok(ControlTime { config, theta1, theta2 })
+        Ok(ControlTime {
+            config,
+            theta1,
+            theta2,
+            t_out: 0.0,
+        })
     }
 
     /// Initializes the time, Δt, α, and β coefficients at t_ini
-    pub fn initialize(&self, state: &mut FemState) -> Result<(), StrError> {
+    pub fn initialize(&mut self, state: &mut FemState) -> Result<(), StrError> {
         state.t = self.config.t_ini;
         state.ddt = (self.config.ddt)(state.t);
         if state.ddt < self.config.ddt_min {
             return Err("Δt is smaller than the allowed minimum");
         }
-        self.calculate(state);
+        self.t_out = state.t + (self.config.ddt_out)(state.t);
+        self.calculate_coefficients(state);
         Ok(())
     }
 
     /// Updates the time, Δt, α, and β coefficients with Δt(t)
     ///
     /// Returns `true` if the simulation has finished (the final time has been reached)
-    pub fn update(&self, state: &mut FemState) -> Result<bool, StrError> {
-        state.ddt = (self.config.ddt)(state.t);
+    pub fn update(&self, state: &mut FemState, ddt: f64) -> Result<bool, StrError> {
+        state.ddt = ddt;
         if state.ddt < self.config.ddt_min {
             return Err("Δt is smaller than the allowed minimum");
         }
@@ -85,12 +93,22 @@ impl<'a> ControlTime<'a> {
             return Ok(true);
         }
         state.t += state.ddt;
-        self.calculate(state);
+        self.calculate_coefficients(state);
         Ok(false)
     }
 
+    /// Updates the time for output (t_out) and returns `true` if output is required
+    pub fn out(&mut self, state: &FemState) -> bool {
+        // no need to flag output if the last timestep is reached because the
+        // output will be carried out anyway when the finished flag becomes true
+        let last_timestep = state.t + state.ddt > self.config.t_fin;
+        let do_output = state.t >= self.t_out && !last_timestep;
+        self.t_out += (self.config.ddt_out)(state.t);
+        do_output
+    }
+
     /// Calculates all derived coefficients for given timestep Δt
-    fn calculate(&self, state: &mut FemState) {
+    fn calculate_coefficients(&self, state: &mut FemState) {
         // check
         let dt = state.ddt;
         assert!(dt >= self.config.ddt_min);
@@ -138,7 +156,7 @@ mod tests {
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         // θ=0.5, θ1=0.5, θ2=0.5, α=0
-        let dcs = ControlTime::new(&config).unwrap();
+        let mut dcs = ControlTime::new(&config).unwrap();
         dcs.initialize(&mut state).unwrap();
 
         // check
@@ -156,7 +174,7 @@ mod tests {
         assert_eq!(state.beta2, 1.0);
 
         // update
-        let finished = dcs.update(&mut state).unwrap();
+        let finished = dcs.update(&mut state, 0.0001).unwrap();
         assert!(!finished);
         assert_eq!(state.t, 1.0001);
         assert_eq!(state.ddt, 0.0001);
@@ -172,7 +190,7 @@ mod tests {
         assert_eq!(state.beta2, 1.0);
 
         // check finished flag
-        let finished = dcs.update(&mut state).unwrap();
+        let finished = dcs.update(&mut state, 0.0001).unwrap();
         assert!(finished);
     }
 }

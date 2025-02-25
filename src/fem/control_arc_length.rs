@@ -54,12 +54,7 @@ impl<'a> ControlArcLength<'a> {
     }
 
     /// Calculates the trial displacement increment Δu and trial loading factor increment Δℓ
-    pub(crate) fn trial_increments(
-        &mut self,
-        timestep: usize,
-        state: &mut FemState,
-        converged: bool,
-    ) -> Result<(), StrError> {
+    pub(crate) fn trial_increments(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
         // set first loading factor
         if timestep == 0 {
             state.ell = self.config.first_trial_loading_factor;
@@ -78,9 +73,6 @@ impl<'a> ControlArcLength<'a> {
         // compute trial displacement increment Δu and trial loading factor increment Δℓ
         vec_add(&mut state.ddu, 1.0, &state.u, -1.0, &self.u_old).unwrap();
         self.ddl = state.ell - self.ell_old;
-
-        // update convergence flag and history
-        self.converged_old = converged;
         Ok(())
     }
 
@@ -168,6 +160,7 @@ impl<'a> ControlArcLength<'a> {
                 self.dds = f64::max(self.dds / 4.0, self.dds_min);
             }
         }
+        self.converged_old = converged;
         Ok(())
     }
 }

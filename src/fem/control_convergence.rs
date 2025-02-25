@@ -2,6 +2,30 @@ use crate::base::Config;
 use crate::StrError;
 use russell_lab::{vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
+/// Controls the convergence of nonlinear iterations in FEM analysis
+///
+/// This struct tracks convergence metrics and provides methods to analyze whether the
+/// solution is converging, diverging, or has reached convergence based on:
+///
+/// 1. Residual forces norm (`norm_rr`)
+/// 2. Relative displacement increment (`rel_mdu`)
+///
+/// # Fields
+///
+/// * `config` - Configuration parameters including tolerances
+/// * `iteration` - Current iteration number
+/// * `norm_rr_prev` - Previous residual forces norm
+/// * `norm_rr` - Current residual forces norm
+/// * `mdu0` - Initial displacement increment vector
+/// * `norm_mdu` - Norm of current displacement increment
+/// * `rel_mdu_prev` - Previous relative displacement increment
+/// * `rel_mdu` - Current relative displacement increment
+/// * `converged_on_norm_rr` - Whether convergence was achieved based on residual forces
+/// * `diverging_on_norm_rr` - Whether solution is diverging based on residual forces
+/// * `converged_on_rel_mdu` - Whether convergence was achieved based on displacement increment
+/// * `diverging_on_rel_mdu` - Whether solution is diverging based on displacement increment
+/// * `n_converged_total` - Total number of converged steps
+/// * `n_failed_per_step` - Number of failed attempts in current step
 pub struct ControlConvergence<'a> {
     config: &'a Config<'a>,
     iteration: usize,
@@ -15,9 +39,17 @@ pub struct ControlConvergence<'a> {
     diverging_on_norm_rr: bool,
     converged_on_rel_mdu: bool,
     diverging_on_rel_mdu: bool,
+    n_converged_total: usize,
+    n_failed_per_step: usize,
 }
 
 impl<'a> ControlConvergence<'a> {
+    /// Creates a new convergence controller
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration parameters including convergence tolerances
+    /// * `neq_total` - Total number of equations (DOFs) in the system
     pub fn new(config: &'a Config<'a>, neq_total: usize) -> Self {
         Self {
             config,
@@ -32,23 +64,73 @@ impl<'a> ControlConvergence<'a> {
             diverging_on_norm_rr: false,
             converged_on_rel_mdu: false,
             diverging_on_rel_mdu: false,
+            n_converged_total: 0,
+            n_failed_per_step: 0,
         }
     }
 
-    pub fn converged_on_norm_rr(&self) -> bool {
-        self.converged_on_norm_rr
+    // setters
+
+    /// Resets convergence flags for a new step
+    ///
+    /// This method should be called at the beginning of each new load/time step
+    pub fn reset(&mut self) {
+        self.converged_on_norm_rr = false;
+        self.diverging_on_norm_rr = false;
+        self.converged_on_rel_mdu = false;
+        self.diverging_on_rel_mdu = false;
+        self.n_failed_per_step = 0;
     }
 
-    pub fn converged_on_rel_mdu(&self) -> bool {
-        self.converged_on_rel_mdu
+    /// Marks the problem as converged for linear analysis
+    pub fn set_converged_linear_problem(&mut self) {
+        self.converged_on_norm_rr = true;
     }
 
-    /// Analyzes the convergence of the current iteration
+    /// Increments the total number of converged steps
+    pub fn add_converged(&mut self) {
+        self.n_converged_total += 1;
+    }
+
+    /// Increments the number of failed attempts in current step
+    pub fn add_failed(&mut self) {
+        self.n_failed_per_step += 1;
+    }
+
+    // getters
+
+    /// Checks if the number of failed attempts exceeds the allowed maximum
+    pub fn too_many_failures(&self) -> bool {
+        self.n_failed_per_step >= self.config.allowed_step_n_failure
+    }
+
+    /// Returns the total number of converged steps
+    pub fn n_converged_total(&self) -> usize {
+        self.n_converged_total
+    }
+
+    /// Checks if the solution has converged based on any criterion
     ///
-    /// Returns an error if NaN or Inf is found.
+    /// Returns `true` if either the residual forces norm or the relative
+    /// displacement increment satisfies the convergence criteria
+    pub fn converged(&self) -> bool {
+        self.converged_on_norm_rr || self.converged_on_rel_mdu
+    }
+
+    // analysis
+
+    /// Analyzes convergence based on residual forces and constraint
     ///
-    /// `g` is some extra constraint that needs to be satisfied.
-    /// For example, the arc-length constraint.
+    /// # Arguments
+    ///
+    /// * `iteration` - Current iteration number
+    /// * `rr` - Residual forces vector
+    /// * `g` - Additional constraint value (e.g., arc-length constraint)
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if analysis succeeded
+    /// * `Err(StrError)` if NaN or Inf values are detected
     pub(crate) fn analyze_rr(&mut self, iteration: usize, rr: &Vector, g: f64) -> Result<(), StrError> {
         // record iteration index
         self.iteration = iteration;
@@ -84,7 +166,17 @@ impl<'a> ControlConvergence<'a> {
         }
     }
 
-    /// Analyze the convergence based on the corrective displacement mdu
+    /// Analyzes convergence based on displacement increment
+    ///
+    /// # Arguments
+    ///
+    /// * `iteration` - Current iteration number
+    /// * `mdu` - Displacement increment vector
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if analysis succeeded
+    /// * `Err(StrError)` if NaN or Inf values are detected
     pub(crate) fn analyze_mdu(&mut self, iteration: usize, mdu: &Vector) -> Result<(), StrError> {
         // compute the norm of mdu
         self.norm_mdu = vec_norm(mdu, Norm::Max);
@@ -127,6 +219,7 @@ impl<'a> ControlConvergence<'a> {
         }
     }
 
+    /// Prints the header before time stepping and convergence statistics
     pub fn print_header(&self) {
         if self.config.verbose_timesteps || self.config.verbose_iterations {
             println!("\nPMSIM === TIME STEPPING AND CONVERGENCE STATISTICS ============================");
@@ -147,7 +240,7 @@ impl<'a> ControlConvergence<'a> {
         }
     }
 
-    /// Prints timestep data
+    /// Prints timestep information
     pub(crate) fn print_timestep(&self, timestep: usize, t: f64, dt: f64, load_reversal: bool) {
         if self.config.verbose_timesteps {
             let str_rev = if load_reversal { "🔙" } else { "" };
@@ -155,6 +248,7 @@ impl<'a> ControlConvergence<'a> {
         }
     }
 
+    /// Prints iteration information
     pub(crate) fn print_iteration(&self) {
         if self.config.verbose_iterations {
             let it = self.iteration;
@@ -195,7 +289,7 @@ impl<'a> ControlConvergence<'a> {
         }
     }
 
-    /// Prints the summary
+    /// Prints the horizontal line at the end of the analysis
     pub(crate) fn print_footer(&self) {
         if self.config.verbose_timesteps || self.config.verbose_iterations {
             println!("{}", "─".repeat(79));
