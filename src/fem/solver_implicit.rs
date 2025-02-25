@@ -1,3 +1,4 @@
+use super::control_richardson::ControlRichardson;
 use super::{ControlArcLength, ControlConvergence, ControlTime, FemBase, FemState, FileIo, SolverData};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
@@ -7,6 +8,7 @@ use russell_lab::vec_add;
 /// Implements the implicit finite element method solver
 ///
 /// This solver handles nonlinear static and dynamic problems using:
+///
 /// * Newton-Raphson iterations
 /// * Arc-length path-following method
 /// * Implicit time integration schemes
@@ -32,7 +34,10 @@ pub struct SolverImplicit<'a> {
     control_time: ControlTime<'a>,
 
     /// Arc-length control for path-following analysis
-    control_arc: Option<ControlArcLength<'a>>,
+    control_arc: ControlArcLength<'a>,
+
+    /// Richardson's extrapolation control
+    control_rex: ControlRichardson<'a>,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -74,9 +79,16 @@ impl<'a> SolverImplicit<'a> {
 
         // allocate arc-length control structure
         let control_arc = if config.arc_length_method {
-            Some(ControlArcLength::new(config, neq_total))
+            ControlArcLength::new(config, neq_total)
         } else {
-            None
+            ControlArcLength::new(config, 0)
+        };
+
+        // allocate Richardson's extrapolation control structure
+        let control_rex = if config.richardson_extrapolation {
+            ControlRichardson::new(config, neq_total)
+        } else {
+            ControlRichardson::new(config, 0)
         };
 
         // allocate new instance
@@ -86,6 +98,7 @@ impl<'a> SolverImplicit<'a> {
             control_conv,
             control_time,
             control_arc,
+            control_rex,
         })
     }
 
@@ -156,19 +169,47 @@ impl<'a> SolverImplicit<'a> {
         self.control_conv.print_header();
 
         // time loop
-        for timestep in 0..self.config.n_max_time_steps {
-            // perform step with total increment Δt
-            let ddt = (self.config.ddt)(state.t);
-            let finished = run!(self.step(timestep, ddt, state));
-            if finished {
-                file_io.write_state(state)?;
-                self.control_conv.print_footer();
-                break;
-            }
+        if self.config.richardson_extrapolation {
+            for timestep in 0..self.config.n_max_time_steps {
+                // backup state
+                self.control_rex.backup(state, &mut self.data.elements);
 
-            // perform output
-            if self.control_conv.converged() && self.control_time.out(state) {
-                file_io.write_state(state)?;
+                // single step with Δt -------------------------------------------------------------
+
+                // perform step with total increment Δt
+                let ddt = (self.config.ddt)(state.t);
+                let finished = run!(self.step(timestep, ddt, state));
+                if finished {
+                    file_io.write_state(state)?;
+                    self.control_conv.print_footer();
+                    break;
+                }
+
+                // restore state
+                self.control_rex.restore(state, &mut self.data.elements);
+
+                // two steps with Δt/2 -------------------------------------------------------------
+
+                // perform output
+                if self.control_conv.converged() && self.control_time.out(state) {
+                    file_io.write_state(state)?;
+                }
+            }
+        } else {
+            for timestep in 0..self.config.n_max_time_steps {
+                // perform step with total increment Δt
+                let ddt = (self.config.ddt)(state.t);
+                let finished = run!(self.step(timestep, ddt, state));
+                if finished {
+                    file_io.write_state(state)?;
+                    self.control_conv.print_footer();
+                    break;
+                }
+
+                // perform output
+                if self.control_conv.converged() && self.control_time.out(state) {
+                    file_io.write_state(state)?;
+                }
             }
         }
 
@@ -217,7 +258,7 @@ impl<'a> SolverImplicit<'a> {
 
         // trial displacement u, displacement increment Δu, and trial loading factor ℓ
         if self.config.arc_length_method {
-            self.control_arc.as_mut().unwrap().trial_increments(timestep, state)?;
+            self.control_arc.trial_increments(timestep, state)?;
         } else {
             // the trial displacement is the displacement at the old time (unchanged)
             state.ddu.fill(0.0);
@@ -249,12 +290,8 @@ impl<'a> SolverImplicit<'a> {
 
         // arc-length step adaptation
         if self.config.arc_length_method {
-            self.control_arc.as_mut().unwrap().step_adaptation(
-                timestep,
-                state,
-                self.control_conv.converged(),
-                &self.data.ls.ff_ext,
-            )?;
+            self.control_arc
+                .step_adaptation(timestep, state, self.control_conv.converged(), &self.data.ls.ff_ext)?;
         }
 
         // check if many iterations failed to converge in a single time step
@@ -306,8 +343,6 @@ impl<'a> SolverImplicit<'a> {
         // calculate arc-length constraint and derivatives
         let g = if self.config.arc_length_method {
             self.control_arc
-                .as_mut()
-                .unwrap()
                 .constraint_and_derivatives(timestep, state, &self.data.ls.ff_ext)?
         } else {
             0.0
@@ -339,7 +374,7 @@ impl<'a> SolverImplicit<'a> {
 
         // solve linear system
         if self.config.arc_length_method {
-            self.control_arc.as_mut().unwrap().solve(&mut self.data.ls)?;
+            self.control_arc.solve(&mut self.data.ls)?;
         } else {
             self.data.ls.solve()?;
         }
@@ -356,7 +391,7 @@ impl<'a> SolverImplicit<'a> {
 
         // update loading factor
         if self.config.arc_length_method {
-            self.control_arc.as_mut().unwrap().update_load_factor(state)?;
+            self.control_arc.update_load_factor(state)?;
         }
 
         // backup/restore secondary variables
