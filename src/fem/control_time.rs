@@ -2,19 +2,55 @@ use super::FemState;
 use crate::base::Config;
 use crate::StrError;
 
-/// Assists in the time loop control
+/// Controls time stepping and integration parameters for transient/dynamic analysis
 ///
-/// Computes the coefficients for (implicit) transient and dynamic analyses
+/// This struct manages time stepping and computes coefficients for implicit time integration
+/// schemes including the θ-method, Newmark's method, and Hilber-Hughes-Taylor (HHT) method.
 ///
-/// # Notes
+/// # Time Integration Methods
 ///
-/// * `dt_min` -- Minimum timestep
-/// * `theta` -- Theta-method parameter `θ` with `1e-5 ≤ θ ≤ 1.0` (implicit-only)
-/// * `theta1` -- First Newmark parameter `θ1` (aka, γ) with `0.0001 ≤ θ1 ≤ 1.0` (implicit-only)
-/// * `theta2` -- Second Newmark parameter`θ2` (aka, 2 β) with `0.0001 ≤ θ2 ≤ 1.0` (implicit-only)
-/// * `hht_method` -- Indicates the use of Hilber-Hughes-Taylor method (implicit-only)
-/// * `hht_alpha` -- Hilber-Hughes-Taylor `α` parameter with `-1/3 ≤ α ≤ 0`
-/// * if `hht_method` is true, `θ1` and `θ2` are automatically calculated for unconditional stability
+/// ## θ-method Parameters
+/// * `theta` - Parameter `θ` for first-order equations
+/// * Range: `1e-5 ≤ θ ≤ 1.0`
+/// * Common values:
+///   * `θ = 0.0` - Forward Euler (explicit, conditionally stable) **not allowed here**
+///   * `θ = 0.5` - Crank-Nicolson (implicit, unconditionally stable)
+///   * `θ = 1.0` - Backward Euler (implicit, unconditionally stable)
+///
+/// ## Newmark Method Parameters
+/// * `theta1` (γ) - First parameter controlling numerical damping
+/// * `theta2` (2β) - Second parameter controlling accuracy
+/// * Ranges: `0.0001 ≤ θ1,θ2 ≤ 1.0`
+/// * Common values:
+///   * `θ1 = 0.5, θ2 = 0.25` - Average acceleration (unconditionally stable)
+///   * `θ1 = 0.5, θ2 = 0.0` - Central difference (explicit) **not allowed here**
+///
+/// ## Hilber-Hughes-Taylor (HHT) Method
+/// * `hht_alpha` (α) - Parameter controlling numerical dissipation
+/// * Range: `-1/3 ≤ α ≤ 0`
+/// * When enabled:
+///   * `θ1 = (1-2α)/2`
+///   * `θ2 = (1-α)²/2`
+///
+/// # Time Control
+/// * `dt_min` - Minimum allowed timestep
+/// * `t_out` - Next output time
+///
+/// # Example
+/// ```
+/// use pmsim::fem::{ControlTime, Config};
+///
+/// let config = Config::new(&mesh);
+/// let mut control = ControlTime::new(&config)?;
+/// control.initialize(&mut state)?;
+///
+/// while !control.update(&mut state, dt)? {
+///     // Perform analysis steps
+///     if control.out(&state) {
+///         // Output results
+///     }
+/// }
+/// ```
 pub struct ControlTime<'a> {
     /// Holds configuration parameters
     config: &'a Config<'a>,
@@ -30,7 +66,19 @@ pub struct ControlTime<'a> {
 }
 
 impl<'a> ControlTime<'a> {
-    /// Allocates a new instance
+    /// Creates a new time control instance
+    ///
+    /// # Arguments
+    /// * `config` - Configuration containing time integration parameters
+    ///
+    /// # Returns
+    /// * `Ok(ControlTime)` on success
+    /// * `Err(StrError)` if any parameters are invalid
+    ///
+    /// # Errors
+    /// * If θ-method parameters are invalid: `1e-5 ≤ θ ≤ 1.0`
+    /// * If HHT parameters are invalid: `-1/3 ≤ α ≤ 0`
+    /// * If Newmark parameters are invalid: `0.0001 ≤ θ1,θ2 ≤ 1.0`
     pub fn new(config: &'a Config) -> Result<Self, StrError> {
         // copy parameters
         let theta1 = config.theta1;
@@ -69,7 +117,14 @@ impl<'a> ControlTime<'a> {
         })
     }
 
-    /// Initializes the time, Δt, α, and β coefficients at t_ini
+    /// Initializes time stepping parameters at the start of analysis
+    ///
+    /// # Arguments
+    /// * `state` - FEM state to initialize
+    ///
+    /// # Returns
+    /// * `Ok(())` on success
+    /// * `Err(StrError)` if timestep is below minimum
     pub fn initialize(&mut self, state: &mut FemState) -> Result<(), StrError> {
         state.t = self.config.t_ini;
         state.ddt = (self.config.ddt)(state.t);
@@ -81,9 +136,16 @@ impl<'a> ControlTime<'a> {
         Ok(())
     }
 
-    /// Updates the time, Δt, α, and β coefficients with Δt(t)
+    /// Updates time stepping parameters for the next step
     ///
-    /// Returns `true` if the simulation has finished (the final time has been reached)
+    /// # Arguments
+    /// * `state` - Current FEM state
+    /// * `ddt` - New timestep value
+    ///
+    /// # Returns
+    /// * `Ok(true)` if final time reached
+    /// * `Ok(false)` if simulation should continue
+    /// * `Err(StrError)` if timestep is below minimum
     pub fn update(&self, state: &mut FemState, ddt: f64) -> Result<bool, StrError> {
         state.ddt = ddt;
         if state.ddt < self.config.ddt_min {
@@ -97,7 +159,14 @@ impl<'a> ControlTime<'a> {
         Ok(false)
     }
 
-    /// Updates the time for output (t_out) and returns `true` if output is required
+    /// Checks if output should be generated at current time
+    ///
+    /// # Arguments
+    /// * `state` - Current FEM state
+    ///
+    /// # Returns
+    /// * `true` if output should be generated
+    /// * `false` otherwise
     pub fn out(&mut self, state: &FemState) -> bool {
         // no need to flag output if the last timestep is reached because the
         // output will be carried out anyway when the finished flag becomes true
