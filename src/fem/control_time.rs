@@ -35,22 +35,6 @@ use crate::StrError;
 /// # Time Control
 /// * `dt_min` - Minimum allowed timestep
 /// * `t_out` - Next output time
-///
-/// # Example
-/// ```
-/// use pmsim::fem::{ControlTime, Config};
-///
-/// let config = Config::new(&mesh);
-/// let mut control = ControlTime::new(&config)?;
-/// control.initialize(&mut state)?;
-///
-/// while !control.update(&mut state, dt)? {
-///     // Perform analysis steps
-///     if control.out(&state) {
-///         // Output results
-///     }
-/// }
-/// ```
 pub struct ControlTime<'a> {
     /// Holds configuration parameters
     config: &'a Config<'a>,
