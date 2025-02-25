@@ -71,7 +71,7 @@ fn test_alc_3d_truss_12member() -> Result<(), StrError> {
     config
         .set_incremental(101) // 100 (as in ref #1) + 1 (initial state)
         .set_arc_length_method(true)
-        .set_ini_trial_load_factor(0.025)
+        .set_arc_first_trial_ell(0.025)
         .set_tol_rr_abs(1e-6)
         .set_tol_mdu_rel(1e-12);
 

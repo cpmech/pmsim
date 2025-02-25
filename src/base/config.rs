@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 /// Defines the smallest allowed dt_min (Control)
-pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
+pub const CONTROL_DT_MIN: f64 = 1e-10;
 
 /// Defines the smallest allowed tolerance (Control)
 pub const CONTROL_MIN_TOL: f64 = 1e-12;
@@ -17,55 +17,46 @@ pub const CONTROL_MIN_THETA: f64 = 0.0001;
 
 /// Holds configuration parameters
 pub struct Config<'a> {
-    /// Holds the space dimension
+    // Essential constants --------------------------------------------------------------------
+    //
+    /// Space dimension
     pub(crate) ndim: usize,
 
-    /// Holds the geometry idealization
+    /// Geometry idealization
     pub(crate) ideal: Idealization,
 
-    // problem configuration ------------------------------------------------------
+    // Problem definition ---------------------------------------------------------------------
     //
-    /// Holds a flag indicating Linear problem
+    /// Indicates linear problem and avoids the Newton-Raphson iteration
     pub(crate) linear_problem: bool,
 
-    /// Holds a flag indicating Transient analysis (with first time derivative of primary variables)
+    /// Indicates transient analysis
+    ///
+    /// In this case, the first time derivative of primary variables is included.
     pub(crate) transient: bool,
 
-    /// Holds a flag indicating Dynamics analysis (with second time derivative of primary variables)
+    /// Indicates dynamics analysis
+    ///
+    /// In this case, the second time derivative of primary variables is included.
     pub(crate) dynamics: bool,
 
-    /// Holds a flag indicating Pseudo-Newton method with constant-tangent operator
-    pub(crate) constant_tangent: bool,
-
-    /// Holds a flag indicating the use the arc-length method
-    pub(crate) arc_length_method: bool,
-
-    /// Holds the parameter to select the arc-length method
-    ///
-    /// `0 ≤ ψ ≤ 1`
-    ///
-    /// * ψ = 0.0: (hyper) cylindrical arc-length control
-    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
-    pub(crate) arc_length_psi: f64,
-
-    /// Holds the first trial loading factor ℓ₀ used by the arc-length method
-    ///
-    /// Only for the arc-length method
-    pub(crate) first_trial_loading_factor: f64,
-
-    /// Holds the number of allowed (time)steps that fail to converge
-    pub(crate) allowed_step_n_failure: usize,
-
-    /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
+    /// Enables the method of Lagrange multipliers to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
 
-    /// Uses the alternative method to calculate the B matrix (the alternative method is the "standard" method)
+    /// Uses the alternative method to calculate the B matrix
+    ///
+    /// This alternative method is the "standard" method found in the literature.
     pub(crate) alt_bb_matrix_method: bool,
 
-    /// Holds a tolerance to check the symmetry of local Jacobian matrices
+    /// Tolerance to check the symmetry of local Jacobian matrices
     pub(crate) symmetry_check_tolerance: Option<f64>,
 
-    /// Holds the gravity acceleration (a positive value)
+    /// Ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
+    pub(crate) ignore_jacobian_symmetry: bool,
+
+    // Initialization -------------------------------------------------------------------------
+    //
+    /// Gravity acceleration (a positive value)
     ///
     /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
     ///
@@ -82,158 +73,232 @@ pub struct Config<'a> {
     /// ```
     pub(crate) gravity: Option<Box<dyn Fn(f64) -> f64 + 'a>>,
 
-    /// Holds option to initialize all stress states
+    /// Option to initialize all stress states
     pub(crate) initialization: Init,
 
-    /// Holds the parameters for fluids
+    /// Parameters for fluids used in the initialization
     pub(crate) param_fluids: Option<ParamFluids>,
 
-    /// Holds a flag to ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
-    pub(crate) ignore_jacobian_symmetry: bool,
+    /// Allows an initial yield surface drift in (stress-strain) material models
+    pub(crate) model_allow_initial_drift: bool,
 
+    /// Extra configuration parameters for the material models
+    ///
+    /// Maps the cell attribute to the material model settings.
+    pub(crate) model_settings: HashMap<CellAttribute, Settings>,
+
+    // Linear solver --------------------------------------------------------------------------
+    //
     /// Holds the linear solver type
     pub(crate) lin_sol_genie: Genie,
 
-    /// Holds the parameters for the linear (sparse) solver
+    /// Parameters for the linear (sparse) solver
     pub(crate) lin_sol_params: LinSolParams,
 
-    /// Holds a flag allowing an initial yield surface drift in (stress-strain) material models
-    pub(crate) model_allow_initial_drift: bool,
+    /// Saves the global coefficient matrix K as a MatrixMarket file (for debugging)
+    pub(crate) save_matrix_market_file: bool,
 
-    /// Holds extra configuration parameters for the material models
-    pub(crate) model_settings: HashMap<CellAttribute, Settings>,
+    /// Saves the global coefficient matrix K as a Vismatrix file (for debugging)
+    pub(crate) save_vismatrix_file: bool,
 
-    // control ------------------------------------------------------------------
+    /// Prints detailed information during the linear system solution
+    pub(crate) verbose_lin_sys_solve: bool,
+
+    // Time stepping --------------------------------------------------------------------------
     //
-    /// Holds the initial time
+    /// Initial time
     pub(crate) t_ini: f64,
 
-    /// Holds the final time
+    /// Final time
     pub(crate) t_fin: f64,
 
-    /// Holds the time increments as function of time Δt(t)
+    /// Time increments as function of time Δt(t)
     ///
     /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     pub(crate) ddt: Box<dyn Fn(f64) -> f64 + 'a>,
 
-    /// Holds the time increment for the output of results Δt_out(t)
+    /// Time increment for the output of results Δt_out(t)
     ///
     /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     pub(crate) ddt_out: Box<dyn Fn(f64) -> f64 + 'a>,
 
-    /// Holds the minimum allowed time increment min(Δt)
+    /// Minimum allowed time increment min(Δt)
     ///
     /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     pub(crate) ddt_min: f64,
 
-    /// Holds the maximum number of time steps
+    /// Maximum number of time steps
     pub(crate) n_max_time_steps: usize,
 
-    /// Holds the divergence control flag
-    pub(crate) divergence_control: bool,
+    /// Maximum number of time steps allowed to fail
+    pub(crate) n_max_failed_steps: usize,
 
-    /// Holds the maximum number of steps diverging allowed
-    pub(crate) div_ctrl_max_steps: usize,
+    /// Prints information about timesteps
+    pub(crate) verbose_timesteps: bool,
 
-    /// Holds the maximum number of iterations
+    // Newton-Raphson method ------------------------------------------------------------------
+    //
+    /// Maximum number of iterations
     pub(crate) n_max_iterations: usize,
 
-    /// Holds the absolute tolerance for the global residual vector
+    /// Absolute tolerance for the global residual vector
     ///
     /// The minimum allowed value is [CONTROL_MIN_TOL]
     pub(crate) tol_rr_abs: f64,
 
-    /// Holds the relative tolerance for the corrective (augmented) displacement vector (mdu)
+    /// Relative tolerance for the corrective (augmented) displacement vector (mdu)
     ///
     /// The minimum allowed value is [CONTROL_MIN_TOL]
     pub(crate) tol_mdu_rel: f64,
 
-    /// Holds the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
+    /// Enables pseudo-Newton method with constant-tangent operator
+    pub(crate) constant_tangent: bool,
+
+    /// Prints information about iterations
+    pub(crate) verbose_iterations: bool,
+
+    // Transient/dynamics parameters ----------------------------------------------------------
+    //
+    /// Coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub(crate) theta: f64,
 
-    /// Holds the coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
+    /// Coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
     pub(crate) theta1: f64,
 
-    /// Holds the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
+    /// Coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
     pub(crate) theta2: f64,
 
     /// Activates the use of Hilber-Hughes-Taylor method (instead of Newmark's method)
     pub(crate) hht_method: bool,
 
-    /// Hilber-Hughes-Taylor parameter with `-1/3 ≤ α ≤ 0`
+    /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
     pub(crate) hht_alpha: f64,
 
-    /// Holds the verbose flag for timesteps
-    pub(crate) verbose_timesteps: bool,
+    // Arc-length control ---------------------------------------------------------------------
+    //
+    /// Uses the arc-length method to control the loading (path follower)
+    pub(crate) arc_length_method: bool,
 
-    /// Holds the verbose flag for iterations
-    pub(crate) verbose_iterations: bool,
+    /// Parameter to select the arc-length method
+    ///
+    /// `0 ≤ ψ ≤ 1`
+    ///
+    /// * ψ = 0.0: (hyper) cylindrical arc-length control
+    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
+    pub(crate) arc_psi: f64,
 
-    /// Holds the verbose flag for linear system solution
-    pub(crate) verbose_lin_sys_solve: bool,
+    /// First trial loading factor ℓ₀ used by the arc-length method
+    pub(crate) arc_first_trial_ell: f64,
 
-    /// Holds a flag to activate saving a MatrixMarket file (for debugging)
-    pub(crate) save_matrix_market_file: bool,
+    // Richardson extrapolation ---------------------------------------------------------------
+    //
+    /// Uses Richardson extrapolation in the time loop
+    pub(crate) richardson_extrapolation: bool,
 
-    /// Holds a flag to activate saving a vismatrix file (for debugging)
-    pub(crate) save_vismatrix_file: bool,
+    /// Initial timestep for Richardson extrapolation
+    pub(crate) rex_ddt_ini: f64,
+
+    /// Absolute tolerance for Richardson extrapolation
+    pub(crate) rex_abs_tol: f64,
+
+    /// Relative tolerance for Richardson extrapolation
+    pub(crate) rex_rel_tol: f64,
+
+    /// Minimum multiplier for Richardson extrapolation
+    pub(crate) rex_m_min: f64,
+
+    /// Maximum multiplier for Richardson extrapolation
+    pub(crate) rex_m_max: f64,
+
+    /// Multiplier reduction factor for Richardson extrapolation
+    pub(crate) rex_m_factor: f64,
+
+    /// Maximum number of diverging steps for Richardson extrapolation
+    pub(crate) rex_n_divergence_max: usize,
+
+    /// Maximum number of substeps for Richardson extrapolation
+    pub(crate) rex_n_substep_max: usize,
+
+    /// Enables/disables divergence control for Richardson extrapolation
+    pub(crate) rex_divergence_control: bool,
+
+    /// Enables/disables Gustafsson step size control for Richardson extrapolation
+    pub(crate) rex_gustafsson_control: bool,
 }
 
 impl<'a> Config<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh) -> Self {
         Config {
+            // Essential constants
             ndim: mesh.ndim,
             ideal: Idealization::new(mesh.ndim),
-            // problem configuration
+            // Problem definition
             linear_problem: false,
             transient: false,
             dynamics: false,
-            constant_tangent: false,
-            arc_length_method: false,
-            arc_length_psi: 1.0,
-            first_trial_loading_factor: 1.0,
-            allowed_step_n_failure: 100,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-10),
+            ignore_jacobian_symmetry: false,
+            // Initialization
             gravity: None,
             initialization: Init::Zero,
             param_fluids: None,
-            ignore_jacobian_symmetry: false,
-            lin_sol_genie: Genie::Umfpack,
-            lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
             model_settings: HashMap::new(),
-            // control
+            // Linear solver
+            lin_sol_genie: Genie::Umfpack,
+            lin_sol_params: LinSolParams::new(),
+            save_matrix_market_file: false,
+            save_vismatrix_file: false,
+            verbose_lin_sys_solve: false,
+            // Time stepping
             t_ini: 0.0,
             t_fin: 1.0,
             ddt: Box::new(|_| 1.0),
             ddt_out: Box::new(|_| 1.0),
-            ddt_min: CONTROL_MIN_DT_MIN,
+            ddt_min: CONTROL_DT_MIN,
             n_max_time_steps: 1_000,
-            divergence_control: false,
-            div_ctrl_max_steps: 10,
+            n_max_failed_steps: 100,
+            verbose_timesteps: true,
+            // Newton-Raphson method
             n_max_iterations: 10,
             tol_rr_abs: 1e-10,
             tol_mdu_rel: 1e-8,
+            constant_tangent: false,
+            verbose_iterations: true,
+            // Transient/dynamics parameters
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
             hht_method: false,
             hht_alpha: 0.0,
-            verbose_timesteps: true,
-            verbose_iterations: true,
-            verbose_lin_sys_solve: false,
-            save_matrix_market_file: false,
-            save_vismatrix_file: false,
+            // Arc-length control
+            arc_length_method: false,
+            arc_psi: 1.0,
+            arc_first_trial_ell: 0.01,
+            // Richardson extrapolation
+            richardson_extrapolation: false,
+            rex_ddt_ini: 1.0,
+            rex_abs_tol: 1e-6,
+            rex_rel_tol: 1e-6,
+            rex_m_min: 0.1,
+            rex_m_max: 2.0,
+            rex_m_factor: 0.9,
+            rex_n_divergence_max: 20,
+            rex_n_substep_max: 10_000,
+            rex_divergence_control: true,
+            rex_gustafsson_control: true,
         }
     }
 
-    /// Validates all data
+    /// Validates all configuration parameters
     ///
     /// Returns a message with the inconsistent data, or returns None if everything is all right.
     pub(crate) fn validate(&self) -> Option<String> {
+        // Essential constants
+
         if self.ideal.thickness <= 0.0 {
             return Some(format!(
                 "thickness = {:?} is incorrect; it must be > 0.0",
@@ -252,18 +317,9 @@ impl<'a> Config<'a> {
                 self.ideal.thickness
             ));
         }
-        if self.arc_length_psi < 0.0 || self.arc_length_psi > 1.0 {
-            return Some(format!(
-                "arc_length_psi = {:?} is incorrect; it must be 0.0 ≤ ψ ≤ 1.0",
-                self.arc_length_psi
-            ));
-        }
-        if f64::abs(self.first_trial_loading_factor) < 1e-12 {
-            return Some(format!(
-                "absolute first trial loading factor |ℓ₀| = {:?} is incorrect; it must be ≥ 1e-12",
-                self.first_trial_loading_factor
-            ));
-        }
+
+        // Initialization
+
         match self.initialization {
             Init::Geostatic(overburden) => {
                 if overburden > 0.0 {
@@ -283,7 +339,9 @@ impl<'a> Config<'a> {
             }
             _ => (),
         }
-        // control
+
+        // Time stepping
+
         if self.t_ini < 0.0 {
             return Some(format!("t_ini = {:?} is incorrect; it must be ≥ 0.0", self.t_ini));
         }
@@ -296,12 +354,15 @@ impl<'a> Config<'a> {
                 self.t_fin, self.t_ini
             ));
         }
-        if self.ddt_min < CONTROL_MIN_DT_MIN {
+        if self.ddt_min < CONTROL_DT_MIN {
             return Some(format!(
                 "dt_min = {:?} is incorrect; it must be ≥ {:e}",
-                self.ddt_min, CONTROL_MIN_DT_MIN
+                self.ddt_min, CONTROL_DT_MIN
             ));
         }
+
+        // Newton-Raphson method
+
         if self.tol_rr_abs < CONTROL_MIN_TOL {
             return Some(format!(
                 "tol_rr_abs = {:?} is incorrect; it must be ≥ {:e}",
@@ -314,6 +375,9 @@ impl<'a> Config<'a> {
                 self.tol_mdu_rel, CONTROL_MIN_TOL
             ));
         }
+
+        // Transient/dynamics parameters
+
         if self.theta < CONTROL_MIN_THETA || self.theta > 1.0 {
             return Some(format!(
                 "theta = {:?} is incorrect; it must be {:?} ≤ θ ≤ 1.0",
@@ -338,10 +402,56 @@ impl<'a> Config<'a> {
                 self.hht_alpha,
             ));
         }
+
+        // Arc-length control
+
+        if self.arc_psi < 0.0 || self.arc_psi > 1.0 {
+            return Some(format!(
+                "arc_length_psi = {:?} is incorrect; it must be 0.0 ≤ ψ ≤ 1.0",
+                self.arc_psi
+            ));
+        }
+        if f64::abs(self.arc_first_trial_ell) < 1e-12 {
+            return Some(format!(
+                "absolute first trial loading factor |ℓ₀| = {:?} is incorrect; it must be ≥ 1e-12",
+                self.arc_first_trial_ell
+            ));
+        }
+
+        // Richardson extrapolation
+
+        if self.rex_abs_tol < 0.0 {
+            return Some(format!(
+                "rex_abs_tol = {} is incorrect; it must be ≥ 0",
+                self.rex_abs_tol
+            ));
+        }
+        if self.rex_rel_tol < 0.0 {
+            return Some(format!(
+                "rex_rel_tol = {} is incorrect; it must be ≥ 0",
+                self.rex_rel_tol
+            ));
+        }
+        if self.rex_m_min <= 0.0 {
+            return Some(format!("rex_m_min = {} is incorrect; it must be > 0", self.rex_m_min));
+        }
+        if self.rex_m_max <= self.rex_m_min {
+            return Some(format!(
+                "rex_m_max = {} is incorrect; it must be > rex_m_min = {}",
+                self.rex_m_max, self.rex_m_min
+            ));
+        }
+        if self.rex_m_factor < 0.0001 || self.rex_m_factor >= 1.0 {
+            return Some(format!(
+                "rex_m_factor = {} is incorrect; it must be between 0.0001 and 1",
+                self.rex_m_factor
+            ));
+        }
+
         None // all good
     }
 
-    // getters -----------------------------------------------------------------------------------
+    // Getters ====================================================================================
 
     /// Returns the initial overburden stress (negative means compression)
     #[allow(dead_code)]
@@ -360,75 +470,52 @@ impl<'a> Config<'a> {
         }
     }
 
-    // setters -----------------------------------------------------------------------------------
+    // Setters ====================================================================================
 
-    /// Returns and access to the linear solver parameters
-    pub fn access_lin_sol_params(&mut self) -> &mut LinSolParams {
-        &mut self.lin_sol_params
+    // Essential constants --------------------------------------------------------------------
+
+    /// Enables axisymmetric idealization in 2D (instead of plane-strain)
+    pub fn set_axisymmetric(&mut self) -> &mut Self {
+        self.ideal.axisymmetric = true;
+        self
     }
 
-    /// Sets a flag indicating Linear problem
+    /// Enables plane-stress idealization in 2D (instead of plane-strain)
+    ///
+    /// This function also sets the thickness for the plane-stress analysis.
+    pub fn set_plane_stress(&mut self, thickness: f64) -> &mut Self {
+        self.ideal.plane_stress = true;
+        self.ideal.thickness = thickness;
+        self
+    }
+
+    // Problem definition ---------------------------------------------------------------------
+
+    /// Indicates linear problem and avoids the Newton-Raphson iteration
     pub fn set_linear_problem(&mut self, enable: bool) -> &mut Self {
         self.linear_problem = enable;
         self
     }
 
-    /// Sets a flag indicating Transient analysis (with first time derivative of primary variables)
+    /// Indicates transient analysis
     pub fn set_transient(&mut self, enable: bool) -> &mut Self {
         self.transient = enable;
         self
     }
 
-    /// Sets a flag indicating Dynamics analysis (with second time derivative of primary variables)
+    /// Indicates dynamics analysis
     pub fn set_dynamics(&mut self, enable: bool) -> &mut Self {
         self.dynamics = enable;
         self
     }
 
-    /// Sets a flag indicating Pseudo-Newton method with constant-tangent operator
-    pub fn set_constant_tangent(&mut self, enable: bool) -> &mut Self {
-        self.constant_tangent = enable;
-        self
-    }
-
-    /// Sets a flag indicating the use of the arc-length method
-    pub fn set_arc_length_method(&mut self, enable: bool) -> &mut Self {
-        self.arc_length_method = enable;
-        self
-    }
-
-    /// Sets the parameter to select the arc-length method
-    ///
-    /// `0 ≤ ψ ≤ 1`
-    ///
-    /// * ψ = 0.0: (hyper) cylindrical arc-length control
-    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
-    pub fn set_arc_length_psi(&mut self, psi: f64) -> &mut Self {
-        self.arc_length_psi = psi;
-        self
-    }
-
-    /// Sets the initial trial loading factor ℓ₀ used by the arc-length method
-    ///
-    /// Only for the arc-length method
-    pub fn set_ini_trial_load_factor(&mut self, ell0: f64) -> &mut Self {
-        self.first_trial_loading_factor = ell0;
-        self
-    }
-
-    /// Sets the number of allowed (time)steps that fail to converge
-    pub fn set_allowed_step_n_failure(&mut self, n_allowed: usize) -> &mut Self {
-        self.allowed_step_n_failure = n_allowed;
-        self
-    }
-
-    /// Sets a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
+    /// Enables the method of Lagrange multipliers to handle prescribed essential values
     pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
         self.lagrange_mult_method = enable;
         self
     }
 
-    /// Uses the alternative method to calculate the B matrix (the alternative method is the "standard" method)
+    /// Uses the alternative method to calculate the B matrix
     pub fn set_alt_bb_matrix_method(&mut self, enable: bool) -> &mut Self {
         self.alt_bb_matrix_method = enable;
         self
@@ -439,6 +526,14 @@ impl<'a> Config<'a> {
         self.symmetry_check_tolerance = tol;
         self
     }
+
+    /// Ignores the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
+    pub fn set_ignore_jacobian_symmetry(&mut self, ignore_symmetry: bool) -> &mut Self {
+        self.ignore_jacobian_symmetry = ignore_symmetry;
+        self
+    }
+
+    // Initialization -------------------------------------------------------------------------
 
     /// Sets the gravity acceleration (a positive value)
     ///
@@ -460,21 +555,6 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Enables axisymmetric idealization in 2D (instead of plane-strain)
-    pub fn set_axisymmetric(&mut self) -> &mut Self {
-        self.ideal.axisymmetric = true;
-        self
-    }
-
-    /// Enables plane-stress idealization in 2D (instead of plane-strain)
-    ///
-    /// This function also sets the thickness for the plane-stress analysis.
-    pub fn set_plane_stress(&mut self, thickness: f64) -> &mut Self {
-        self.ideal.plane_stress = true;
-        self.ideal.thickness = thickness;
-        self
-    }
-
     /// Sets options to initialize all stress states
     pub fn set_initialization(&mut self, initialization: Init) -> &mut Self {
         self.initialization = initialization;
@@ -487,34 +567,49 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets a flag to ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
-    pub fn set_ignore_jacobian_symmetry(&mut self, ignore_symmetry: bool) -> &mut Self {
-        self.ignore_jacobian_symmetry = ignore_symmetry;
-        self
-    }
-
-    /// Sets the linear solver type
-    pub fn set_lin_sol_genie(&mut self, genie: Genie) -> &mut Self {
-        self.lin_sol_genie = genie;
-        self
-    }
-
-    /// Sets the parameters for the linear (sparse) solver
-    pub fn set_lin_sol_params(&mut self, params: LinSolParams) -> &mut Self {
-        self.lin_sol_params = params;
-        self
-    }
-
-    /// Sets a flag allowing an initial yield surface drift in (stress-strain) material models
+    /// Allows an initial yield surface drift in (stress-strain) material models
     pub fn set_model_allow_initial_drift(&mut self, model_allow_initial_drift: bool) -> &mut Self {
         self.model_allow_initial_drift = model_allow_initial_drift;
         self
     }
 
-    /// Updates the default settings for the material model used by a group of cells
+    /// Returns an access to the model parameters associated with a group of cells via their attribute
     pub fn update_model_settings(&mut self, cell_attribute: CellAttribute) -> &mut Settings {
         self.model_settings.entry(cell_attribute).or_insert(Settings::new())
     }
+
+    // Linear solver --------------------------------------------------------------------------
+
+    /// Sets the linear solver type (aka Genie)
+    pub fn set_lin_sol_genie(&mut self, genie: Genie) -> &mut Self {
+        self.lin_sol_genie = genie;
+        self
+    }
+
+    /// Returns an access to the linear solver parameters
+    pub fn access_lin_sol_params(&mut self) -> &mut LinSolParams {
+        &mut self.lin_sol_params
+    }
+
+    /// Saves the global coefficient matrix K as a MatrixMarket file (for debugging)
+    pub fn set_save_matrix_market_file(&mut self, enable: bool) -> &mut Self {
+        self.save_matrix_market_file = enable;
+        self
+    }
+
+    /// Saves the global coefficient matrix K as a Vismatrix file (for debugging)
+    pub fn set_save_vismatrix_file(&mut self, enable: bool) -> &mut Self {
+        self.save_vismatrix_file = enable;
+        self
+    }
+
+    /// Prints detailed information during the linear system solution
+    pub fn set_verbose_lin_sys_solve(&mut self, enable: bool) -> &mut Self {
+        self.verbose_lin_sys_solve = enable;
+        self
+    }
+
+    // Time stepping --------------------------------------------------------------------------
 
     /// Sets t, dt, and dt_out to simulate an incremental loading
     ///
@@ -556,13 +651,13 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the time increments
+    /// Sets a function to compute time increments Δt
     pub fn set_dt(&mut self, dt: impl Fn(f64) -> f64 + 'a) -> &mut Self {
         self.ddt = Box::new(dt);
         self
     }
 
-    /// Sets the time increment for the output of results
+    /// Sets a function to compute time increment Δt_out for the output of results
     pub fn set_dt_out(&mut self, dt_out: impl Fn(f64) -> f64 + 'a) -> &mut Self {
         self.ddt_out = Box::new(dt_out);
         self
@@ -580,17 +675,19 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the divergence control flag
-    pub fn set_divergence_control(&mut self, enable: bool) -> &mut Self {
-        self.divergence_control = enable;
+    /// Sets the maximum number of time steps allowed to fail
+    pub fn set_n_max_failed_steps(&mut self, n_allowed: usize) -> &mut Self {
+        self.n_max_failed_steps = n_allowed;
         self
     }
 
-    /// Sets the maximum number of steps diverging allowed
-    pub fn set_div_ctrl_max_steps(&mut self, div_ctrl_max_steps: usize) -> &mut Self {
-        self.div_ctrl_max_steps = div_ctrl_max_steps;
+    /// Prints information about timesteps
+    pub fn set_verbose_timesteps(&mut self, enable: bool) -> &mut Self {
+        self.verbose_timesteps = enable;
         self
     }
+
+    // Newton-Raphson method ------------------------------------------------------------------
 
     /// Sets the maximum number of iterations
     pub fn set_n_max_iterations(&mut self, n_max_iterations: usize) -> &mut Self {
@@ -614,6 +711,20 @@ impl<'a> Config<'a> {
         self
     }
 
+    /// Enables pseudo-Newton method with constant-tangent operator
+    pub fn set_constant_tangent(&mut self, enable: bool) -> &mut Self {
+        self.constant_tangent = enable;
+        self
+    }
+
+    /// Sets the verbose flag for iterations
+    pub fn set_verbose_iterations(&mut self, enable: bool) -> &mut Self {
+        self.verbose_iterations = enable;
+        self
+    }
+
+    // Transient/dynamics parameters ----------------------------------------------------------
+
     /// Sets the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub fn set_theta(&mut self, theta: f64) -> &mut Self {
         self.theta = theta;
@@ -632,33 +743,130 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the verbose flag for timesteps
-    pub fn set_verbose_timesteps(&mut self, enable: bool) -> &mut Self {
-        self.verbose_timesteps = enable;
+    /// Activates the use of Hilber-Hughes-Taylor method (instead of Newmark's method)
+    pub fn set_hht_method(&mut self, enable: bool) -> &mut Self {
+        self.hht_method = enable;
         self
     }
 
-    /// Sets the verbose flag for iterations
-    pub fn set_verbose_iterations(&mut self, enable: bool) -> &mut Self {
-        self.verbose_iterations = enable;
+    /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
+    pub fn set_hht_alpha(&mut self, alpha: f64) -> &mut Self {
+        self.hht_alpha = alpha;
         self
     }
 
-    /// Sets the verbose flag for linear system solution
-    pub fn set_verbose_lin_sys_solve(&mut self, enable: bool) -> &mut Self {
-        self.verbose_lin_sys_solve = enable;
+    // Arc-length control ---------------------------------------------------------------------
+
+    /// Uses the arc-length method to control the loading (path follower)
+    pub fn set_arc_length_method(&mut self, enable: bool) -> &mut Self {
+        self.arc_length_method = enable;
         self
     }
 
-    /// Sets a flag to activate saving a MatrixMarket file (for debugging)
-    pub fn set_save_matrix_market_file(&mut self, enable: bool) -> &mut Self {
-        self.save_matrix_market_file = enable;
+    /// Sets the parameter to select the arc-length method
+    ///
+    /// `0 ≤ ψ ≤ 1`
+    ///
+    /// * ψ = 0.0: (hyper) cylindrical arc-length control
+    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
+    pub fn set_arc_psi(&mut self, psi: f64) -> &mut Self {
+        self.arc_psi = psi;
         self
     }
 
-    /// Sets a flag to activate saving a vismatrix file (for debugging)
-    pub fn set_save_vismatrix_file(&mut self, enable: bool) -> &mut Self {
-        self.save_vismatrix_file = enable;
+    /// Sets the initial trial loading factor ℓ₀ used by the arc-length method
+    ///
+    /// Only for the arc-length method
+    pub fn set_arc_first_trial_ell(&mut self, ell0: f64) -> &mut Self {
+        self.arc_first_trial_ell = ell0;
+        self
+    }
+
+    // Richardson extrapolation ---------------------------------------------------------------
+
+    /// Uses Richardson extrapolation in the time loop
+    pub fn set_richardson_extrapolation(&mut self, enable: bool) -> &mut Self {
+        self.richardson_extrapolation = enable;
+        self
+    }
+
+    /// Sets the initial timestep for Richardson extrapolation
+    pub fn set_rex_ddt_ini(&mut self, ddt_ini: f64) -> &mut Self {
+        self.rex_ddt_ini = ddt_ini;
+        self
+    }
+
+    /// Sets the absolute tolerance for Richardson extrapolation
+    ///
+    /// # Arguments
+    ///
+    /// * `tol` - Absolute tolerance (must be ≥ 0)
+    pub fn set_rex_abs_tol(&mut self, tol: f64) -> &mut Self {
+        self.rex_abs_tol = tol;
+        self
+    }
+
+    /// Sets the relative tolerance for Richardson extrapolation
+    ///
+    /// # Arguments
+    ///
+    /// * `tol` - Relative tolerance (must be ≥ 0)
+    pub fn set_rex_rel_tol(&mut self, tol: f64) -> &mut Self {
+        self.rex_rel_tol = tol;
+        self
+    }
+
+    /// Sets the minimum multiplier for Richardson extrapolation
+    ///
+    /// # Arguments
+    ///
+    /// * `m_min` - Minimum multiplier (must be > 0)
+    pub fn set_rex_m_min(&mut self, m_min: f64) -> &mut Self {
+        self.rex_m_min = m_min;
+        self
+    }
+
+    /// Sets the maximum multiplier for Richardson extrapolation
+    ///
+    /// # Arguments
+    ///
+    /// * `m_max` - Maximum multiplier (must be > m_min)
+    pub fn set_rex_m_max(&mut self, m_max: f64) -> &mut Self {
+        self.rex_m_max = m_max;
+        self
+    }
+
+    /// Sets the multiplier reduction factor for Richardson extrapolation
+    ///
+    /// # Arguments
+    ///
+    /// * `factor` - Reduction factor (must be between 0.0001 and 1)
+    pub fn set_rex_m_factor(&mut self, factor: f64) -> &mut Self {
+        self.rex_m_factor = factor;
+        self
+    }
+
+    /// Sets the maximum number of diverging steps for Richardson extrapolation
+    pub fn set_rex_n_divergence_max(&mut self, n_max: usize) -> &mut Self {
+        self.rex_n_divergence_max = n_max;
+        self
+    }
+
+    /// Sets the maximum number of substeps for Richardson extrapolation
+    pub fn set_rex_n_substep_max(&mut self, n_max: usize) -> &mut Self {
+        self.rex_n_substep_max = n_max;
+        self
+    }
+
+    /// Enables/disables divergence control for Richardson extrapolation
+    pub fn set_rex_divergence_control(&mut self, enable: bool) -> &mut Self {
+        self.rex_divergence_control = enable;
+        self
+    }
+
+    /// Enables/disables Gustafsson step size control for Richardson extrapolation
+    pub fn set_rex_gustafsson_control(&mut self, enable: bool) -> &mut Self {
+        self.rex_gustafsson_control = enable;
         self
     }
 }
@@ -735,6 +943,8 @@ mod tests {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
 
+        // Essential constants
+
         config.ideal.thickness = 0.0;
         assert_eq!(
             config.validate(),
@@ -766,19 +976,7 @@ mod tests {
         );
         config.ideal.thickness = 1.0;
 
-        config.arc_length_psi = -0.1;
-        assert_eq!(
-            config.validate(),
-            Some("arc_length_psi = -0.1 is incorrect; it must be 0.0 ≤ ψ ≤ 1.0".to_string())
-        );
-        config.arc_length_psi = 1.0;
-
-        config.first_trial_loading_factor = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("absolute first trial loading factor |ℓ₀| = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
-        );
-        config.first_trial_loading_factor = 1.0;
+        // Initialization
 
         config.initialization = Init::Geostatic(123.0);
         assert_eq!(
@@ -803,6 +1001,8 @@ mod tests {
             Some("Init::Isotropic does not work with plane-stress".to_string())
         );
         config.ideal.plane_stress = false;
+
+        // Time stepping
 
         config.t_ini = -0.1;
         assert_eq!(
@@ -831,6 +1031,8 @@ mod tests {
         );
         config.ddt_min = 1e-3;
 
+        // Newton-Raphson method
+
         config.tol_rr_abs = 0.0;
         assert_eq!(
             config.validate(),
@@ -844,6 +1046,8 @@ mod tests {
             Some("tol_mdu_rel = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
         );
         config.tol_mdu_rel = 1e-8;
+
+        // Transient/dynamics parameters
 
         config.theta = 0.0;
         assert_eq!(
@@ -887,6 +1091,24 @@ mod tests {
             Some("hht_alpha = -1.0 is incorrect; it must be -1/3 ≤ α ≤ 0.0".to_string())
         );
         config.hht_alpha = 0.0;
+
+        // Arc-length control
+
+        config.arc_psi = -0.1;
+        assert_eq!(
+            config.validate(),
+            Some("arc_length_psi = -0.1 is incorrect; it must be 0.0 ≤ ψ ≤ 1.0".to_string())
+        );
+        config.arc_psi = 1.0;
+
+        config.arc_first_trial_ell = 0.0;
+        assert_eq!(
+            config.validate(),
+            Some("absolute first trial loading factor |ℓ₀| = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
+        );
+        config.arc_first_trial_ell = 1.0;
+
+        // All good
 
         config.ideal.plane_stress = false;
         assert_eq!(config.validate(), None);

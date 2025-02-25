@@ -131,7 +131,7 @@ impl<'a> ControlArcLength<'a> {
     pub(crate) fn trial_increments(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
         // set first loading factor
         if timestep == 0 {
-            state.ell = self.config.first_trial_loading_factor;
+            state.ell = self.config.arc_first_trial_ell;
         }
 
         // compute trial displacement u and trial loading factor ℓ
@@ -180,7 +180,7 @@ impl<'a> ControlArcLength<'a> {
         ff_ext: &Vector,
     ) -> Result<f64, StrError> {
         if timestep > 0 {
-            let psi = self.config.arc_length_psi;
+            let psi = self.config.arc_psi;
             let inc = vec_inner(&state.ddu, &state.ddu);
             let ftf = vec_inner(ff_ext, ff_ext);
             self.g = inc + psi * self.ddl * self.ddl * ftf - self.dds * self.dds;
@@ -280,7 +280,7 @@ impl<'a> ControlArcLength<'a> {
     ) -> Result<(), StrError> {
         if converged {
             if timestep == 0 {
-                let psi = self.config.arc_length_psi;
+                let psi = self.config.arc_psi;
                 let inc = vec_inner(&state.ddu, &state.ddu);
                 let ftf = vec_inner(ff_ext, ff_ext);
                 self.dds = f64::sqrt(inc + psi * self.ddl * self.ddl * ftf);

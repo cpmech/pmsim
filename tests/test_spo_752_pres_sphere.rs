@@ -108,9 +108,6 @@ fn run_test(
         .set_axisymmetric()
         .set_tol_mdu_rel(1e-7)
         .set_tol_rr_abs(1e-7)
-        .set_lagrange_mult_method(false)
-        .set_arc_length_method(false)
-        .set_ini_trial_load_factor(0.05)
         .update_model_settings(1)
         .set_save_strain(true);
 
