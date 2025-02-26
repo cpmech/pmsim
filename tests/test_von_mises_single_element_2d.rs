@@ -3,6 +3,11 @@ use gemlab::prelude::*;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
+use russell_sparse::Genie;
+use serial_test::serial;
+
+// IMPORTANT:
+// Since MUMPS is not thread-safe, we need to use serial_test::serial
 
 // von Mises plasticity with a single-element
 //
@@ -55,9 +60,10 @@ const Z_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
 const NGAUSS: usize = 1;
-const N_STEPS: usize = 5;
+const N_STATION: usize = 6; // including initial zero state
 
 #[test]
+#[serial]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
@@ -92,15 +98,28 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // natural boundary conditions
     let natural = Natural::new();
 
-    // configuration
+    // solve and check with UMFPACK
     let mut config = Config::new(&mesh);
     config
+        // .set_lin_sol_genie(Genie::Mumps)
         .set_lagrange_mult_method(true)
-        .set_dt(|_| 1.0)
-        .set_dt_out(|_| 1.0)
-        .set_t_fin(N_STEPS as f64)
+        .set_incremental(N_STATION)
         .set_n_max_iterations(20);
+    solve_and_check(&mesh, &base, &essential, &natural, &config)?;
 
+    // solve and check with MUMPS
+    config.set_lin_sol_genie(Genie::Mumps);
+    solve_and_check(&mesh, &base, &essential, &natural, &config)?;
+    Ok(())
+}
+
+fn solve_and_check(
+    mesh: &Mesh,
+    base: &FemBase,
+    essential: &Essential,
+    natural: &Natural,
+    config: &Config,
+) -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
