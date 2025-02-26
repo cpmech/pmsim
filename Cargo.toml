@@ -27,3 +27,6 @@ russell_tensor = { path = "../russell/russell_tensor", features = [
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 structopt = "0.3"
+
+[dev-dependencies]
+serial_test = "3.2"
