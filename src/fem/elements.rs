@@ -86,10 +86,10 @@ impl<'a> GenericElement<'a> {
                     let original_ddu = a.state.ddu[j];
                     a.state.u[j] = u;
                     a.state.ddu[j] = u - original_u;
-                    self.actual.backup_secondary_values(a.state);
+                    self.actual.backup_secondary_values(a.state, false);
                     self.actual.update_secondary_values(&mut a.state).unwrap();
                     self.actual.calc_f_int(&mut a.f_int, &a.state).unwrap();
-                    self.actual.restore_secondary_values(&mut a.state);
+                    self.actual.restore_secondary_values(&mut a.state, false);
                     a.state.u[j] = original_u;
                     a.state.ddu[j] = original_ddu;
                     Ok(a.f_int[i])
@@ -181,18 +181,18 @@ impl<'a> Elements<'a> {
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    pub fn backup_secondary_values(&mut self, state: &FemState) {
+    pub fn backup_secondary_values(&mut self, state: &FemState, alternative: bool) {
         self.all
             .iter_mut()
-            .map(|e| e.actual.backup_secondary_values(state))
+            .map(|e| e.actual.backup_secondary_values(state, alternative))
             .collect()
     }
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    pub fn restore_secondary_values(&self, state: &mut FemState) {
+    pub fn restore_secondary_values(&self, state: &mut FemState, alternative: bool) {
         self.all
             .iter()
-            .map(|e| e.actual.restore_secondary_values(state))
+            .map(|e| e.actual.restore_secondary_values(state, alternative))
             .collect()
     }
 

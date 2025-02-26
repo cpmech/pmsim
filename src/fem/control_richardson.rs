@@ -87,7 +87,7 @@ impl<'a> ControlRichardson<'a> {
         if self.config.dynamics {
             vec_copy(&mut self.a_backup, &state.a);
         }
-        elements.backup_secondary_values(state);
+        elements.backup_secondary_values(state, true);
         vec_copy(&mut self.ff_ext_backup, &ls.ff_ext);
         vec_copy(&mut self.ddff_ext_backup, &ls.ddff_ext);
     }
@@ -101,7 +101,7 @@ impl<'a> ControlRichardson<'a> {
         if self.config.dynamics {
             vec_copy(&mut state.a, &self.a_backup);
         }
-        elements.restore_secondary_values(state);
+        elements.restore_secondary_values(state, true);
         vec_copy(&mut ls.ff_ext, &self.ff_ext_backup);
         vec_copy(&mut ls.ddff_ext, &self.ddff_ext_backup);
     }

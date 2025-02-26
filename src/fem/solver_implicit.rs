@@ -437,9 +437,9 @@ impl<'a> SolverImplicit<'a> {
         // backup/restore secondary variables
         if !self.config.linear_problem {
             if iteration == 0 {
-                self.data.elements.backup_secondary_values(state);
+                self.data.elements.backup_secondary_values(state, false);
             } else {
-                self.data.elements.restore_secondary_values(state);
+                self.data.elements.restore_secondary_values(state, false);
             }
         }
 

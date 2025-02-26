@@ -28,10 +28,10 @@ pub trait ElementTrait {
     fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError>;
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, state: &FemState);
+    fn backup_secondary_values(&mut self, state: &FemState, alternative: bool);
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, state: &mut FemState);
+    fn restore_secondary_values(&self, state: &mut FemState, alternative: bool);
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, state: &mut FemState, load_reversal: bool);

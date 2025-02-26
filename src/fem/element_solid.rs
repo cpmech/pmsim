@@ -41,6 +41,9 @@ pub struct ElementSolid<'a> {
 
     /// Holds a backup of the local state at all integration points
     backup: Vec<LocalState>,
+
+    /// Alternative backup of the local state at all integration points
+    backup_alt: Option<Vec<LocalState>>,
 }
 
 impl<'a> ElementSolid<'a> {
@@ -91,6 +94,7 @@ impl<'a> ElementSolid<'a> {
             delta_strain,
             save_strain,
             backup,
+            backup_alt: None,
         })
     }
 }
@@ -224,16 +228,36 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, state: &FemState) {
-        for p in 0..self.gauss.npoint() {
-            self.backup[p].mirror(&state.gauss[self.cell_id].solid[p]);
+    fn backup_secondary_values(&mut self, state: &FemState, alternative: bool) {
+        if alternative {
+            match self.backup_alt.as_mut() {
+                Some(backup) => {
+                    for p in 0..self.gauss.npoint() {
+                        backup[p].mirror(&state.gauss[self.cell_id].solid[p]);
+                    }
+                }
+                None => {
+                    self.backup_alt = Some(state.gauss[self.cell_id].solid.clone());
+                }
+            }
+        } else {
+            for p in 0..self.gauss.npoint() {
+                self.backup[p].mirror(&state.gauss[self.cell_id].solid[p]);
+            }
         }
     }
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, state: &mut FemState) {
-        for p in 0..self.gauss.npoint() {
-            state.gauss[self.cell_id].solid[p].mirror(&self.backup[p]);
+    fn restore_secondary_values(&self, state: &mut FemState, alternative: bool) {
+        if alternative {
+            assert!(self.backup_alt.is_some());
+            for p in 0..self.gauss.npoint() {
+                state.gauss[self.cell_id].solid[p].mirror(&self.backup_alt.as_ref().unwrap()[p]);
+            }
+        } else {
+            for p in 0..self.gauss.npoint() {
+                state.gauss[self.cell_id].solid[p].mirror(&self.backup[p]);
+            }
         }
     }
 

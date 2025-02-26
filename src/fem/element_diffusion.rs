@@ -228,10 +228,10 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, _state: &FemState) {}
+    fn backup_secondary_values(&mut self, _state: &FemState, _alternative: bool) {}
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, _state: &mut FemState) {}
+    fn restore_secondary_values(&self, _state: &mut FemState, _alternative: bool) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, _state: &mut FemState, _load_reversal: bool) {}
