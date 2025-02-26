@@ -3,7 +3,7 @@ use super::{Elements, FemBase, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::{vec_add, vec_copy, vec_inner};
+use russell_lab::{vec_add, vec_copy, vec_inner, Stopwatch};
 
 /// Holds data for FEM solvers
 pub(crate) struct SolverData<'a> {
@@ -30,6 +30,9 @@ pub(crate) struct SolverData<'a> {
 
     /// Unknown equation numbers
     pub(crate) unknown_eqs: Vec<usize>,
+
+    /// Stopwatch to measure computer time
+    pub(crate) stopwatch: Stopwatch,
 }
 
 impl<'a> SolverData<'a> {
@@ -84,6 +87,7 @@ impl<'a> SolverData<'a> {
             ls: linear_system,
             ignored_eqs,
             unknown_eqs,
+            stopwatch: Stopwatch::new(),
         })
     }
 

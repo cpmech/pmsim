@@ -156,6 +156,9 @@ impl<'a> SolverImplicit<'a> {
             }
         }
 
+        // start stopwatch
+        self.data.stopwatch.reset();
+
         // initialize time-related variables
         self.control_time.initialize(state)?;
 
@@ -215,6 +218,12 @@ impl<'a> SolverImplicit<'a> {
 
         // write the file_io file
         file_io.write_self()?;
+
+        // show computer time
+        self.data.stopwatch.stop();
+        if self.config.verbose_timesteps {
+            println!("\nelapsed computer time = {}", self.data.stopwatch);
+        }
         Ok(())
     }
 
