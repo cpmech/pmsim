@@ -99,6 +99,15 @@ impl PlastPlaneStrainPresSphere {
         Ok(ub)
     }
 
+    /// Calculates the radial and hoop stress components for a purely elastic problem
+    pub fn calc_sr_sh_elastic(&self, r: f64, pp: f64) -> (f64, f64) {
+        let m = self.b * self.b * self.b / (self.a * self.a * self.a);
+        let d = self.b * self.b * self.b / (r * r * r);
+        let sr = -pp * (d - 1.0) / (m - 1.0);
+        let sh = pp * (0.5 * d + 1.0) / (m - 1.0);
+        (sr, sh)
+    }
+
     /// Calculates the radial and hoop stress components
     pub fn calc_sr_sh(&self, r: f64, pp: f64) -> Result<(f64, f64), StrError> {
         if pp < 0.0 {
@@ -110,8 +119,11 @@ impl PlastPlaneStrainPresSphere {
         if r < self.a || r > self.b {
             return Err("the radius must be such that a ≤ r ≤ b");
         }
+        if pp <= self.pp0 {
+            return Ok(self.calc_sr_sh_elastic(r, pp));
+        }
         let c = if pp > self.pp0 { self.calc_c(pp)? } else { self.a };
-        if r > c {
+        if r >= c {
             // elastic (the outer part hasn't suffered plastic yielding yet)
             let m = 2.0 * self.yy * c * c * c / (3.0 * self.b * self.b * self.b);
             let d = self.b * self.b * self.b / (r * r * r);
@@ -127,12 +139,9 @@ impl PlastPlaneStrainPresSphere {
     ///
     /// `pp_last` is the last pressure applied to the cylinder, before it becomes zero.
     pub fn calc_sr_sh_residual(&self, r: f64, pp_last: f64) -> Result<(f64, f64), StrError> {
-        let (mut sr, mut sh) = self.calc_sr_sh(r, pp_last)?;
-        let m = self.b * self.b * self.b / (self.a * self.a * self.a);
-        let d = self.b * self.b * self.b / (r * r * r);
-        sr -= -pp_last * (d - 1.0) / (m - 1.0);
-        sh -= pp_last * (0.5 * d + 1.0) / (m - 1.0);
-        Ok((sr, sh))
+        let (sr, sh) = self.calc_sr_sh(r, pp_last)?;
+        let (sr_e, sh_e) = self.calc_sr_sh_elastic(r, pp_last);
+        Ok((sr - sr_e, sh - sh_e))
     }
 
     /// Calculates the elastic-to-plastic radius

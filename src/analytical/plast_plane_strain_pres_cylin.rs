@@ -91,6 +91,15 @@ impl PlastPlaneStrainPresCylin {
         Ok(ub)
     }
 
+    /// Calculates the radial and hoop stress components for a purely elastic problem
+    pub fn calc_sr_sh_elastic(&self, r: f64, pp: f64) -> (f64, f64) {
+        let m = self.b * self.b / (self.a * self.a);
+        let d = self.b * self.b / (r * r);
+        let sr = -pp * (d - 1.0) / (m - 1.0);
+        let sh = pp * (d + 1.0) / (m - 1.0);
+        (sr, sh)
+    }
+
     /// Calculates the radial and hoop stress components
     pub fn calc_sr_sh(&self, r: f64, pp: f64) -> Result<(f64, f64), StrError> {
         if pp < 0.0 {
@@ -102,8 +111,11 @@ impl PlastPlaneStrainPresCylin {
         if r < self.a || r > self.b {
             return Err("the radius must be such that a ≤ r ≤ b");
         }
+        if pp <= self.pp0 {
+            return Ok(self.calc_sr_sh_elastic(r, pp));
+        }
         let c = if pp > self.pp0 { self.calc_c(pp)? } else { self.a };
-        if r > c {
+        if r >= c {
             // elastic (the outer part hasn't suffered plastic yielding yet)
             let m = 0.5 * self.yy * c * c / (self.b * self.b);
             let d = self.b * self.b / (r * r);
@@ -119,12 +131,9 @@ impl PlastPlaneStrainPresCylin {
     ///
     /// `pp_last` is the last pressure applied to the cylinder, before it becomes zero.
     pub fn calc_sr_sh_residual(&self, r: f64, pp_last: f64) -> Result<(f64, f64), StrError> {
-        let (mut sr, mut sh) = self.calc_sr_sh(r, pp_last)?;
-        let m = self.b * self.b / (self.a * self.a);
-        let d = self.b * self.b / (r * r);
-        sr -= -pp_last * (d - 1.0) / (m - 1.0);
-        sh -= pp_last * (d + 1.0) / (m - 1.0);
-        Ok((sr, sh))
+        let (sr, sh) = self.calc_sr_sh(r, pp_last)?;
+        let (sr_e, sh_e) = self.calc_sr_sh_elastic(r, pp_last);
+        Ok((sr - sr_e, sh - sh_e))
     }
 
     /// Calculates the elastic-to-plastic radius
@@ -242,6 +251,7 @@ impl PlastPlaneStrainPresCylin {
 #[cfg(test)]
 mod tests {
     use super::PlastPlaneStrainPresCylin;
+    use crate::analytical::ElastPlaneStrainPresCylin;
     use russell_lab::{approx_eq, math::SQRT_3};
 
     const SAVE_FIGURE: bool = false;
@@ -261,6 +271,12 @@ mod tests {
         println!("c(~P_lim) = {:?}", ana.calc_c(ana.pp_lim - 1e-13));
         approx_eq(ana.calc_c(ana.pp0 + 1e-13).unwrap(), a, 1e-10);
         approx_eq(ana.calc_c(ana.pp_lim - 1e-13).unwrap(), b, 1e-3);
+
+        // check elastic solution
+        let ela = ElastPlaneStrainPresCylin::new(a, b, ana.pp0, 0.0, young, poisson).unwrap();
+        let (sr_e, sh_e) = ana.calc_sr_sh(a, ana.pp0).unwrap();
+        approx_eq(sr_e, ela.sr(a), 1e-15);
+        approx_eq(sh_e, ela.sh(a), 1e-15);
 
         if SAVE_FIGURE {
             let mut plot = ana.plot_results(&[0.1, 0.18], false, 0.0, |_, _| ());
