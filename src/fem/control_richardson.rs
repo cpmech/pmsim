@@ -3,7 +3,7 @@
 use super::{Elements, FemState, LinearSystem};
 use crate::base::{Config, CONTROL_DT_MIN};
 use crate::StrError;
-use russell_lab::{vec_add, vec_copy, vec_copy_scaled, vec_inner, vec_rms_scaled, vec_scale, Vector};
+use russell_lab::{vec_copy, Vector};
 
 /// Implements Richardson's extrapolation for controlling the convergence of nonlinear solvers
 pub(crate) struct ControlRichardson<'a> {
@@ -176,7 +176,18 @@ impl<'a> ControlRichardson<'a> {
             self.last_step = true;
         }
 
+        // update step counter
+        self.n_step += 1;
+
         // return adapted time step
         Ok(ddt_adapted)
+    }
+
+    pub(crate) fn print_stats(&self) {
+        println!("\nRichardson's extrapolation:");
+        println!("    n_step       = {}", self.n_step);
+        println!("    n_accepted   = {}", self.n_accepted);
+        println!("    n_rejected   = {}", self.n_rejected);
+        println!("    n_gustafsson = {}", self.n_gustafsson);
     }
 }

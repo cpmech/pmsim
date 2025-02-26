@@ -133,6 +133,9 @@ pub struct Config<'a> {
     /// Maximum number of time steps allowed to fail
     pub(crate) n_max_failed_steps: usize,
 
+    /// Considers the load reversal in the calculation of the model tangent modulus
+    pub(crate) consider_load_reversal: bool,
+
     /// Prints information about timesteps
     pub(crate) verbose_timesteps: bool,
 
@@ -227,6 +230,9 @@ pub struct Config<'a> {
 
     /// Enables/disables Gustafsson step size control for Richardson extrapolation
     pub(crate) rex_gustafsson_control: bool,
+
+    /// Prints all timesteps in the Richardson extrapolation method
+    pub(crate) rex_print_all_timesteps: bool,
 }
 
 impl<'a> Config<'a> {
@@ -264,6 +270,7 @@ impl<'a> Config<'a> {
             ddt_min: CONTROL_DT_MIN,
             n_max_time_steps: 1_000,
             n_max_failed_steps: 100,
+            consider_load_reversal: true,
             verbose_timesteps: true,
             verbose_legend: false,
             // Newton-Raphson method
@@ -294,6 +301,7 @@ impl<'a> Config<'a> {
             rex_n_substep_max: 10_000,
             rex_divergence_control: true,
             rex_gustafsson_control: true,
+            rex_print_all_timesteps: false,
         }
     }
 
@@ -685,6 +693,12 @@ impl<'a> Config<'a> {
         self
     }
 
+    /// Considers the load reversal in the calculation of the model tangent modulus
+    pub fn set_consider_load_reversal(&mut self, enabled: bool) -> &mut Self {
+        self.consider_load_reversal = enabled;
+        self
+    }
+
     /// Prints information about timesteps
     pub fn set_verbose_timesteps(&mut self, enable: bool) -> &mut Self {
         self.verbose_timesteps = enable;
@@ -877,6 +891,12 @@ impl<'a> Config<'a> {
     /// Enables/disables Gustafsson step size control for Richardson extrapolation
     pub fn set_rex_gustafsson_control(&mut self, enable: bool) -> &mut Self {
         self.rex_gustafsson_control = enable;
+        self
+    }
+
+    /// Prints all timesteps in the Richardson extrapolation method
+    pub fn set_rex_print_all_timesteps(&mut self, enable: bool) -> &mut Self {
+        self.rex_print_all_timesteps = enable;
         self
     }
 }

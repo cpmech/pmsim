@@ -5,9 +5,6 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
 
-/// Hide intermediate output in Richardson's extrapolation (rex)
-const REX_SILENT: bool = true;
-
 /// Implements the implicit finite element method solver
 ///
 /// This solver handles nonlinear static and dynamic problems using:
@@ -180,10 +177,11 @@ impl<'a> SolverImplicit<'a> {
             let mut ddt = self.config.rex_ddt_ini;
 
             // Richardson's extrapolation time loop
+            let silent = !self.config.rex_print_all_timesteps;
             for timestep in 0..self.config.n_max_time_steps {
                 // perform step with total increment Δt
                 self.control_rex.backup(state, &mut self.data.elements, &self.data.ls);
-                run!(self.step(timestep, ddt, state, REX_SILENT && !self.control_rex.is_last_step()));
+                run!(self.step(timestep, ddt, state, silent && !self.control_rex.is_last_step()));
                 if self.control_rex.is_last_step() {
                     file_io.write_state(state)?;
                     self.control_conv.print_footer();
@@ -194,7 +192,7 @@ impl<'a> SolverImplicit<'a> {
                     .restore(state, &mut self.data.elements, &mut self.data.ls);
 
                 // perform two steps with Δt/2
-                run!(self.step(timestep, ddt / 2.0, state, REX_SILENT));
+                run!(self.step(timestep, ddt / 2.0, state, silent));
                 let finished = run!(self.step(timestep, ddt / 2.0, state, false));
                 if finished {
                     file_io.write_state(state)?;
@@ -216,6 +214,9 @@ impl<'a> SolverImplicit<'a> {
                     file_io.write_state(state)?;
                 }
             }
+
+            // print stats
+            self.control_rex.print_stats();
         } else {
             // standard time loop
             for timestep in 0..self.config.n_max_time_steps {
@@ -277,7 +278,7 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // update external forces vector F_ext
-        let load_reversal = self.data.assemble_ff_ext(state.t)?;
+        let load_reversal = self.data.assemble_ff_ext(state.t)? && self.config.consider_load_reversal;
 
         // transient/dynamics: old state variables
         if self.config.transient {
