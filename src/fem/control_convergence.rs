@@ -204,9 +204,9 @@ impl<'a> ControlConvergence<'a> {
         self.converged_on_rel_mdu = if found_nan_or_inf || iteration == 0 {
             false
         } else {
-            //                 /    |mduᵢ|   \
-            // rel_mdu = max_i | ——————————— |
-            //                 \ 1 + |mdu0ᵢ| /
+            //                 ⎛    |mduᵢ|   ⎞
+            // rel_mdu = max_i ⎜ ——————————— ⎟
+            //                 ⎝ 1 + |mdu0ᵢ| ⎠
             self.rel_mdu = vec_max_scaled(mdu, &self.mdu0);
             self.rel_mdu < self.config.tol_mdu_rel
         };
@@ -232,15 +232,17 @@ impl<'a> ControlConvergence<'a> {
     /// Prints the header before time stepping and convergence statistics
     pub fn print_header(&self) {
         if self.config.verbose_timesteps || self.config.verbose_iterations {
-            println!("TIME STEPPING =================================================================");
-            println!("\nLegend:");
-            println!("➖ ─ unknown");
-            println!("✅ ─ converged");
-            println!("🔹 ─ converging");
-            println!("🎈 ─ diverging");
-            println!("🔙 ─ load reversal detected");
-            println!("\"rev\" means load reversal");
-            println!("\"iter\" means iteration\n");
+            println!("TIME STEPPING =================================================================\n");
+            if self.config.verbose_legend {
+                println!("Legend:");
+                println!("➖ ─ unknown");
+                println!("✅ ─ converged");
+                println!("🔹 ─ converging");
+                println!("🎈 ─ diverging");
+                println!("🔙 ─ load reversal detected");
+                println!("\"rev\" means load reversal");
+                println!("\"iter\" means iteration\n");
+            }
             println!("{}", "─".repeat(79));
             println!(
                 "{:8} {:>11} {:>11} {:3} {:>5} {:>9} {:>9} ➖ {:>9} ➖",

@@ -92,7 +92,8 @@ fn test_alc_2d_truss_3member() -> Result<(), StrError> {
         .set_arc_length_method(true)
         .set_arc_first_trial_ell(0.05)
         .set_tol_rr_abs(1e-6)
-        .set_tol_mdu_rel(1e-12);
+        .set_tol_mdu_rel(1e-12)
+        .set_verbose_iterations(false);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();

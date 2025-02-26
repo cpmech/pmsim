@@ -75,7 +75,8 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     natural.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.set_verbose_legend(true).set_lin_sol_unsymmetric(true);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;

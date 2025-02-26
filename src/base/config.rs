@@ -136,6 +136,9 @@ pub struct Config<'a> {
     /// Prints information about timesteps
     pub(crate) verbose_timesteps: bool,
 
+    /// Prints the legend if showing the information about timesteps
+    pub(crate) verbose_legend: bool,
+
     // Newton-Raphson method ------------------------------------------------------------------
     //
     /// Maximum number of iterations
@@ -262,6 +265,7 @@ impl<'a> Config<'a> {
             n_max_time_steps: 1_000,
             n_max_failed_steps: 100,
             verbose_timesteps: true,
+            verbose_legend: false,
             // Newton-Raphson method
             n_max_iterations: 10,
             tol_rr_abs: 1e-10,
@@ -684,6 +688,12 @@ impl<'a> Config<'a> {
     /// Prints information about timesteps
     pub fn set_verbose_timesteps(&mut self, enable: bool) -> &mut Self {
         self.verbose_timesteps = enable;
+        self
+    }
+
+    /// Prints the legend if showing the information about timesteps
+    pub fn set_verbose_legend(&mut self, enable: bool) -> &mut Self {
+        self.verbose_legend = enable;
         self
     }
 
