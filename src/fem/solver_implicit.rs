@@ -5,6 +5,9 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
 
+/// Hide intermediate output in Richardson's extrapolation (rex)
+const REX_SILENT: bool = true;
+
 /// Implements the implicit finite element method solver
 ///
 /// This solver handles nonlinear static and dynamic problems using:
@@ -180,7 +183,7 @@ impl<'a> SolverImplicit<'a> {
             for timestep in 0..self.config.n_max_time_steps {
                 // perform step with total increment Δt
                 self.control_rex.backup(state, &mut self.data.elements, &self.data.ls);
-                run!(self.step(timestep, ddt, state, false));
+                run!(self.step(timestep, ddt, state, REX_SILENT && !self.control_rex.is_last_step()));
                 if self.control_rex.is_last_step() {
                     file_io.write_state(state)?;
                     self.control_conv.print_footer();
@@ -191,7 +194,7 @@ impl<'a> SolverImplicit<'a> {
                     .restore(state, &mut self.data.elements, &mut self.data.ls);
 
                 // perform two steps with Δt/2
-                run!(self.step(timestep, ddt / 2.0, state, false));
+                run!(self.step(timestep, ddt / 2.0, state, REX_SILENT));
                 let finished = run!(self.step(timestep, ddt / 2.0, state, false));
                 if finished {
                     file_io.write_state(state)?;
