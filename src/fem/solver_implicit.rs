@@ -1,5 +1,5 @@
-use super::control_richardson::ControlRichardson;
-use super::{ControlArcLength, ControlConvergence, ControlTime, FemBase, FemState, FileIo, SolverData};
+use super::{ControlArcLength, ControlConvergence, ControlRichardson, ControlTime};
+use super::{FemBase, FemState, FileIo, SolverData};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
