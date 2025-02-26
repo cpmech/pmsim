@@ -2,7 +2,7 @@ use super::{FemBase, FemState};
 use crate::base::Essential;
 use crate::StrError;
 use russell_lab::Vector;
-use russell_sparse::CooMatrix;
+use russell_sparse::{CooMatrix, Sym};
 
 /// Assists in calculating essential (Dirichlet) boundary conditions (aka prescribed BCs)
 pub struct BcPrescribed<'a> {
@@ -125,11 +125,30 @@ impl<'a> BcPrescribed<'a> {
     /// ```
     pub fn assemble_kk_lmm(&self, kk: &mut CooMatrix) {
         let ndof = self.flags.len();
-        for p in 0..self.equations.len() {
-            let i = self.equations[p];
-            let j = ndof + p;
-            kk.put(i, j, 1.0).unwrap(); // Aᵀ
-            kk.put(j, i, 1.0).unwrap(); // A
+        let sym = kk.get_info().3;
+        match sym {
+            Sym::YesLower => {
+                for p in 0..self.equations.len() {
+                    let i = self.equations[p];
+                    let j = ndof + p;
+                    kk.put(j, i, 1.0).unwrap(); // A
+                }
+            }
+            Sym::YesUpper => {
+                for p in 0..self.equations.len() {
+                    let i = self.equations[p];
+                    let j = ndof + p;
+                    kk.put(i, j, 1.0).unwrap(); // Aᵀ
+                }
+            }
+            Sym::YesFull | Sym::No => {
+                for p in 0..self.equations.len() {
+                    let i = self.equations[p];
+                    let j = ndof + p;
+                    kk.put(i, j, 1.0).unwrap(); // Aᵀ
+                    kk.put(j, i, 1.0).unwrap(); // A
+                }
+            }
         }
     }
 
