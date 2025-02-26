@@ -101,7 +101,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // solve and check with UMFPACK
     let mut config = Config::new(&mesh);
     config
-        .set_richardson_extrapolation(false)
         .set_lagrange_mult_method(true)
         .set_incremental(N_STATION)
         .set_n_max_iterations(20);
