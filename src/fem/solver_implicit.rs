@@ -173,36 +173,50 @@ impl<'a> SolverImplicit<'a> {
 
         // time loop
         if self.config.richardson_extrapolation {
+            // select initial time step
+            let mut ddt = self.config.rex_ddt_ini;
+
+            // Richardson's extrapolation time loop
             for timestep in 0..self.config.n_max_time_steps {
-                // backup state
-                self.control_rex.backup(state, &mut self.data.elements);
-
-                // single step with Δt -------------------------------------------------------------
-
                 // perform step with total increment Δt
-                let ddt = (self.config.ddt)(state.t);
-                let finished = run!(self.step(timestep, ddt, state));
+                self.control_rex.backup(state, &mut self.data.elements);
+                run!(self.step(timestep, ddt, state, true));
+                if self.control_rex.is_last_step() {
+                    file_io.write_state(state)?;
+                    self.control_conv.print_footer();
+                    break;
+                }
+                self.control_rex.record_full_step(state);
+                self.control_rex.restore(state, &mut self.data.elements);
+
+                // perform two steps with Δt/2
+                run!(self.step(timestep, ddt / 2.0, state, true));
+                let finished = run!(self.step(timestep, ddt / 2.0, state, false));
                 if finished {
                     file_io.write_state(state)?;
                     self.control_conv.print_footer();
                     break;
                 }
 
-                // restore state
-                self.control_rex.restore(state, &mut self.data.elements);
+                // adapt step size
+                ddt = run!(self.control_rex.adapt_step_size(ddt, state));
 
-                // two steps with Δt/2 -------------------------------------------------------------
+                // restore previous state if the step was rejected
+                if self.control_rex.rejected() {
+                    self.control_rex.restore(state, &mut self.data.elements);
+                }
 
                 // perform output
-                if self.control_conv.converged() && self.control_time.out(state) {
+                if self.control_time.out(state) && self.control_conv.converged() && !self.control_rex.rejected() {
                     file_io.write_state(state)?;
                 }
             }
         } else {
+            // standard time loop
             for timestep in 0..self.config.n_max_time_steps {
                 // perform step with total increment Δt
                 let ddt = (self.config.ddt)(state.t);
-                let finished = run!(self.step(timestep, ddt, state));
+                let finished = run!(self.step(timestep, ddt, state, false));
                 if finished {
                     file_io.write_state(state)?;
                     self.control_conv.print_footer();
@@ -210,7 +224,7 @@ impl<'a> SolverImplicit<'a> {
                 }
 
                 // perform output
-                if self.control_conv.converged() && self.control_time.out(state) {
+                if self.control_time.out(state) && self.control_conv.converged() {
                     file_io.write_state(state)?;
                 }
             }
@@ -250,7 +264,7 @@ impl<'a> SolverImplicit<'a> {
     /// 5. Performs nonlinear iterations
     /// 6. Adapts step size for arc-length method
     /// 7. Checks convergence status
-    fn step(&mut self, timestep: usize, ddt: f64, state: &mut FemState) -> Result<bool, StrError> {
+    fn step(&mut self, timestep: usize, ddt: f64, state: &mut FemState, silent: bool) -> Result<bool, StrError> {
         // update time-related variables
         let finished = self.control_time.update(state, ddt)?;
         if finished {
@@ -280,12 +294,14 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // print time information
-        self.control_conv
-            .print_timestep(timestep, state.t, state.ddt, load_reversal);
+        if !silent {
+            self.control_conv
+                .print_timestep(timestep, state.t, state.ddt, load_reversal);
+        }
 
         // iteration loop
         for iteration in 0..self.config.n_max_iterations {
-            self.iterate(timestep, iteration, state)?;
+            self.iterate(timestep, iteration, state, silent)?;
             if self.control_conv.converged() {
                 self.control_conv.add_converged();
                 break;
@@ -337,7 +353,13 @@ impl<'a> SolverImplicit<'a> {
     /// At this point, time t corresponds to the new (updated) time, but primary
     /// variables (displacements) and secondary variables (e.g., stresses) are still
     /// at the old time. Therefore, iterations are required to reduce the residuals.
-    fn iterate(&mut self, timestep: usize, iteration: usize, state: &mut FemState) -> Result<(), StrError> {
+    fn iterate(
+        &mut self,
+        timestep: usize,
+        iteration: usize,
+        state: &mut FemState,
+        silent: bool,
+    ) -> Result<(), StrError> {
         // assemble internal forces vector F_int
         self.data.assemble_ff_int(state)?;
 
@@ -361,7 +383,9 @@ impl<'a> SolverImplicit<'a> {
         self.control_conv.reset();
         self.control_conv.analyze_rr(iteration, &self.data.ls.rr, g)?;
         if self.control_conv.converged() {
-            self.control_conv.print_iteration();
+            if !silent {
+                self.control_conv.print_iteration();
+            }
             return Ok(());
         }
 
@@ -390,7 +414,9 @@ impl<'a> SolverImplicit<'a> {
 
         // check convergence on corrective displacement
         self.control_conv.analyze_mdu(iteration, &self.data.ls.mdu)?;
-        self.control_conv.print_iteration();
+        if !silent {
+            self.control_conv.print_iteration();
+        }
         if self.control_conv.converged() {
             return Ok(());
         }
