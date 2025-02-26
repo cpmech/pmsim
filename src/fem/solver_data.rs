@@ -26,10 +26,10 @@ pub(crate) struct SolverData<'a> {
     pub(crate) ls: LinearSystem<'a>,
 
     /// Array to ignore prescribed equations when building the reduced system
-    pub(crate) ignored: Vec<bool>,
+    pub(crate) ignored_eqs: Vec<bool>,
 
     /// Unknown equation numbers
-    pub(crate) unknown: Vec<usize>,
+    pub(crate) unknown_eqs: Vec<usize>,
 }
 
 impl<'a> SolverData<'a> {
@@ -56,7 +56,7 @@ impl<'a> SolverData<'a> {
 
         // array to ignore prescribed equations when building the reduced system
         let ndof = bc_prescribed.flags.len(); // number of DOFs = n_equation without Lagrange multipliers
-        let ignore = if config.lagrange_mult_method {
+        let ignored_eqs = if config.lagrange_mult_method {
             vec![false; ndof]
         } else {
             bc_prescribed.flags.clone()
@@ -64,8 +64,8 @@ impl<'a> SolverData<'a> {
 
         // collect the unknown equations
         let neq_total = linear_system.neq_total;
-        let unknown_equations: Vec<_> = (0..neq_total)
-            .filter(|&eq| config.lagrange_mult_method || !ignore[eq])
+        let unknown_eqs: Vec<_> = (0..neq_total)
+            .filter(|&eq| config.lagrange_mult_method || !ignored_eqs[eq])
             .collect();
 
         // show information
@@ -82,8 +82,8 @@ impl<'a> SolverData<'a> {
             bc_prescribed,
             elements,
             ls: linear_system,
-            ignored: ignore,
-            unknown: unknown_equations,
+            ignored_eqs,
+            unknown_eqs,
         })
     }
 
@@ -94,11 +94,11 @@ impl<'a> SolverData<'a> {
 
         // calculate all element local vectors and add them to F_int
         self.elements
-            .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored)?;
+            .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors and add them to F_int
         self.bc_distributed
-            .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored)?;
+            .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored_eqs)?;
         Ok(())
     }
 
@@ -113,11 +113,12 @@ impl<'a> SolverData<'a> {
         self.ls.ff_ext.fill(0.0);
 
         // calculate all element local vectors and add them to F_ext
-        self.elements.assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored)?;
+        self.elements
+            .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors and add them to F_ext
         self.bc_distributed
-            .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored)?;
+            .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored_eqs)?;
 
         // add concentrated loads to F_ext
         self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff_ext, t);
@@ -151,9 +152,9 @@ impl<'a> SolverData<'a> {
         self.ls.kk.reset();
 
         // calculates all Ke matrices (local Jacobian matrix; derivative of f_int w.r.t u) and adds them to K
-        self.elements.assemble_kke(&mut self.ls.kk, state, &self.ignored)?;
+        self.elements.assemble_kke(&mut self.ls.kk, state, &self.ignored_eqs)?;
         self.bc_distributed
-            .assemble_kke(&mut self.ls.kk, state, &self.ignored)?;
+            .assemble_kke(&mut self.ls.kk, state, &self.ignored_eqs)?;
         Ok(())
     }
 
@@ -162,14 +163,14 @@ impl<'a> SolverData<'a> {
         let mdu = &mut self.ls.mdu;
         if self.config.transient {
             // update U, V, and ΔU vectors
-            for i in &self.unknown {
+            for i in &self.unknown_eqs {
                 state.u[*i] -= mdu[*i];
                 state.v[*i] = state.beta1 * state.u[*i] - state.u_star[*i];
                 state.ddu[*i] -= mdu[*i];
             }
         } else {
             // update U and ΔU vectors
-            for i in &self.unknown {
+            for i in &self.unknown_eqs {
                 state.u[*i] -= mdu[*i];
                 state.ddu[*i] -= mdu[*i];
             }
