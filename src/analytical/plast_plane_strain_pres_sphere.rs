@@ -34,13 +34,14 @@ use russell_lab::RootFinder;
 ///    Theory and Applications, Wiley, 791p
 /// 2. Hill R (1950) The Mathematical Theory of Plasticity, Oxford University Press.
 pub struct PlastPlaneStrainPresSphere {
-    a: f64,       // inner radius
-    b: f64,       // outer radius
-    young: f64,   // Young's modulus
-    poisson: f64, // Poisson's' coefficient
-    yy: f64,      // uniaxial strength
-    pp0: f64,     // pressure when plastic yielding begins
-    pp_lim: f64,  // collapse load
+    a: f64,                  // inner radius
+    b: f64,                  // outer radius
+    young: f64,              // Young's modulus
+    poisson: f64,            // Poisson's' coefficient
+    yy: f64,                 // uniaxial strength
+    pp0: f64,                // pressure when plastic yielding begins
+    pp_lim: f64,             // collapse load
+    legend_precision: usize, // number precision for the legend labels
 }
 
 impl PlastPlaneStrainPresSphere {
@@ -69,6 +70,7 @@ impl PlastPlaneStrainPresSphere {
             yy,
             pp0: (2.0 * yy / 3.0) * (1.0 - a * a * a / (b * b * b)),
             pp_lim: 2.0 * yy * f64::ln(b / a),
+            legend_precision: 0,
         })
     }
 
@@ -161,6 +163,11 @@ impl PlastPlaneStrainPresSphere {
         Ok(c_root)
     }
 
+    /// Sets the number precision for the legend labels
+    pub fn set_legend_precision(&mut self, precision: usize) {
+        self.legend_precision = precision;
+    }
+
     /// Generates a Plot with the results
     ///
     /// # Input
@@ -224,7 +231,11 @@ impl PlastPlaneStrainPresSphere {
                     .set_range(1.0, 2.0, 1.0, 2.0);
             } else {
                 let mut empty = Curve::new();
-                let str = format!(" $P = {}$", pp);
+                let str = if self.legend_precision == 0 {
+                    format!(" $P = {}$", pp)
+                } else {
+                    format!(" $P = {:.1$}$", pp, self.legend_precision)
+                };
                 empty.set_label(&str).draw(&[0], &[0]);
                 plot.set_subplot_grid("grid", "0", "3")
                     .add(&empty)
