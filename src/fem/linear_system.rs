@@ -3,6 +3,7 @@ use crate::base::Config;
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{CooMatrix, CscMatrix, LinSolver};
+use std::fmt::Write;
 
 /// Holds variables to solve the global linear system
 pub struct LinearSystem<'a> {
@@ -198,6 +199,16 @@ impl<'a> LinearSystem<'a> {
         })
     }
 
+    /// Returns some information about the coefficient matrix K
+    pub fn get_info(&self) -> String {
+        let mut buf = String::new();
+        let (nrow, ncol, _, sym) = self.kk.get_info();
+        write!(&mut buf, "dim(K) = ({:?}, {:?}) | ", nrow, ncol).unwrap();
+        write!(&mut buf, "nnz_sup(K) = {:?} | ", self.nnz_sup).unwrap();
+        write!(&mut buf, "sym(K) = {:?}\n", sym).unwrap();
+        buf
+    }
+
     /// Factorizes the global system matrix
     #[inline]
     pub fn factorize(&mut self) -> Result<(), StrError> {
@@ -316,6 +327,10 @@ mod tests {
                 Sym::YesFull,
             )
         );
+        assert_eq!(
+            format!("{}", lin_sys.get_info()),
+            "dim(K) = (5, 5) | nnz_sup(K) = 33 | sym(K) = YesFull\n"
+        );
 
         // using symmetry (MUMPS)
         let mut config = Config::new(&mesh);
@@ -333,6 +348,10 @@ mod tests {
                 Sym::YesLower,
             )
         );
+        assert_eq!(
+            format!("{}", lin_sys.get_info()),
+            "dim(K) = (5, 5) | nnz_sup(K) = 23 | sym(K) = YesLower\n"
+        );
 
         // ignoring symmetry (MUMPS)
         let mut config = Config::new(&mesh);
@@ -349,6 +368,10 @@ mod tests {
                 0, // nnz currently is zero
                 Sym::No,
             )
+        );
+        assert_eq!(
+            format!("{}", lin_sys.get_info()),
+            "dim(K) = (5, 5) | nnz_sup(K) = 33 | sym(K) = No\n"
         );
     }
 
