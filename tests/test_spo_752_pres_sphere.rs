@@ -9,7 +9,9 @@ use russell_lab::{approx_eq, array_approx_eq, read_data};
 
 // This test runs the Example 7.5.2 (aka 752) on page 247 of Ref #1 (aka SPO's book)
 //
-// Nonetheless, here we use a quarter-ring geometry instead of a 1/12 slice.
+// This problem can be simulated by a 1/12 slice noting the symmetry of the problem.
+// In this case, multi-point constraints would be required. Nonetheless, here we
+// use a quarter-ring geometry instead of the 1/12 slice.
 //
 // This is an axisymmetric problem; hence the ring becomes an octant of a spherical shell.
 //
