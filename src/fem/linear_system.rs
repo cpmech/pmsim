@@ -201,11 +201,33 @@ impl<'a> LinearSystem<'a> {
 
     /// Returns some information about the coefficient matrix K
     pub fn get_info(&self) -> String {
-        let mut buf = String::new();
         let (nrow, ncol, _, sym) = self.kk.get_info();
-        write!(&mut buf, "dim(K) = ({:?}, {:?}) | ", nrow, ncol).unwrap();
-        write!(&mut buf, "nnz_sup(K) = {:?} | ", self.nnz_sup).unwrap();
-        write!(&mut buf, "sym(K) = {:?}\n", sym).unwrap();
+        let mut b = vec![vec![String::new(); 2]; 3];
+        write!(&mut b[0][0], "ndof       = {:?}", self.ndof).unwrap();
+        write!(&mut b[1][0], "n_lagrange = {:?}", self.n_lagrange).unwrap();
+        write!(&mut b[2][0], "neq_total  = {:?}", self.neq_total).unwrap();
+        write!(&mut b[0][1], "dim(K)     = ({:?},{:?})", nrow, ncol).unwrap();
+        write!(&mut b[1][1], "nnz_sup(K) = {:?}", self.nnz_sup).unwrap();
+        write!(&mut b[2][1], "sym(K)     = {:?}", sym).unwrap();
+        let mut w = vec![0; 2];
+        for i in 0..3 {
+            for j in 0..2 {
+                w[j] = usize::max(w[j], b[i][j].len());
+            }
+        }
+        let mut buf = String::new();
+        for i in 0..3 {
+            if i > 0 {
+                write!(&mut buf, "\n").unwrap();
+            }
+            for j in 0..2 {
+                if j > 0 {
+                    write!(&mut buf, " │ ").unwrap();
+                }
+                write!(&mut buf, "{:1$}", b[i][j], w[j]).unwrap();
+            }
+        }
+        write!(&mut buf, "\n").unwrap();
         buf
     }
 
@@ -329,7 +351,9 @@ mod tests {
         );
         assert_eq!(
             format!("{}", lin_sys.get_info()),
-            "dim(K) = (5, 5) | nnz_sup(K) = 33 | sym(K) = YesFull\n"
+            "ndof       = 5 │ dim(K)     = (5,5)  \n\
+             n_lagrange = 0 │ nnz_sup(K) = 33     \n\
+             neq_total  = 5 │ sym(K)     = YesFull\n"
         );
 
         // using symmetry (MUMPS)
@@ -350,7 +374,9 @@ mod tests {
         );
         assert_eq!(
             format!("{}", lin_sys.get_info()),
-            "dim(K) = (5, 5) | nnz_sup(K) = 23 | sym(K) = YesLower\n"
+            "ndof       = 5 │ dim(K)     = (5,5)   \n\
+             n_lagrange = 0 │ nnz_sup(K) = 23      \n\
+             neq_total  = 5 │ sym(K)     = YesLower\n"
         );
 
         // ignoring symmetry (MUMPS)
@@ -371,7 +397,9 @@ mod tests {
         );
         assert_eq!(
             format!("{}", lin_sys.get_info()),
-            "dim(K) = (5, 5) | nnz_sup(K) = 33 | sym(K) = No\n"
+            "ndof       = 5 │ dim(K)     = (5,5)\n\
+             n_lagrange = 0 │ nnz_sup(K) = 33   \n\
+             neq_total  = 5 │ sym(K)     = No   \n"
         );
     }
 

@@ -232,7 +232,7 @@ impl<'a> ControlConvergence<'a> {
     /// Prints the header before time stepping and convergence statistics
     pub fn print_header(&self) {
         if self.config.verbose_timesteps || self.config.verbose_iterations {
-            println!("\nPMSIM === TIME STEPPING AND CONVERGENCE STATISTICS ============================");
+            println!("TIME STEPPING =================================================================");
             println!("\nLegend:");
             println!("➖ ─ unknown");
             println!("✅ ─ converged");

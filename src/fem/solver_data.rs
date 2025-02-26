@@ -68,6 +68,12 @@ impl<'a> SolverData<'a> {
             .filter(|&eq| config.lagrange_mult_method || !ignore[eq])
             .collect();
 
+        // show information
+        if config.verbose_timesteps || config.verbose_iterations {
+            println!("\nINFORMATION ===================================================================");
+            println!("\n{}", linear_system.get_info());
+        }
+
         // return new instance
         Ok(SolverData {
             config,
