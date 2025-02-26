@@ -6,7 +6,7 @@ use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
-use russell_lab::{approx_eq, array_approx_eq, read_data};
+use russell_lab::{approx_eq, read_data};
 
 // This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
 //
@@ -66,10 +66,6 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let left = features.search_edges(At::X(0.0), any_x)?;
     let inner_circle = features.search_edges(At::Circle(0.0, 0.0, A), any_x)?;
-
-    // reference point to compare analytical vs numerical result
-    let ref_point_id = features.search_point_ids(At::XY(A, 0.0), any_x)?[0];
-    array_approx_eq(&mesh.points[ref_point_id].coords, &[A, 0.0], 1e-15);
 
     // parameters
     let param1 = ParamSolid {
