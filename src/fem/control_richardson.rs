@@ -21,6 +21,12 @@ pub(crate) struct ControlRichardson<'a> {
     diverging_prev: bool, // previous step was diverging
     diverging: bool,      // current step is diverging
 
+    /// Previous time step Δt
+    ddt_old: f64,
+
+    /// Previous relative error
+    rerr_old: f64,
+
     /// Backup of time
     t_backup: f64,
 
@@ -33,14 +39,14 @@ pub(crate) struct ControlRichardson<'a> {
     /// Backup of second time derivative of primary unknowns d²u/dt²
     a_backup: Vector,
 
+    // Backup of F_ext
+    ff_ext_backup: Vector,
+
+    // Backup of ΔF_ext
+    ddff_ext_backup: Vector,
+
     /// Solution due to the full step Δt
     u_full: Vector,
-
-    /// Previous time step Δt
-    ddt_old: f64,
-
-    /// Previous relative error
-    rerr_old: f64,
 }
 
 impl<'a> ControlRichardson<'a> {
@@ -62,6 +68,8 @@ impl<'a> ControlRichardson<'a> {
             u_backup: Vector::new(neq_total),
             v_backup: Vector::new(neq_total),
             a_backup: Vector::new(neq_total),
+            ff_ext_backup: Vector::new(neq_total),
+            ddff_ext_backup: Vector::new(neq_total),
             u_full: Vector::new(neq_total),
         }
     }
@@ -70,7 +78,7 @@ impl<'a> ControlRichardson<'a> {
         self.last_step
     }
 
-    pub(crate) fn backup(&mut self, state: &FemState, elements: &mut Elements) {
+    pub(crate) fn backup(&mut self, state: &FemState, elements: &mut Elements, ls: &LinearSystem) {
         self.t_backup = state.t;
         vec_copy(&mut self.u_backup, &state.u);
         if self.config.transient || self.config.dynamics {
@@ -80,9 +88,11 @@ impl<'a> ControlRichardson<'a> {
             vec_copy(&mut self.a_backup, &state.a);
         }
         elements.backup_secondary_values(state);
+        vec_copy(&mut self.ff_ext_backup, &ls.ff_ext);
+        vec_copy(&mut self.ddff_ext_backup, &ls.ddff_ext);
     }
 
-    pub(crate) fn restore(&mut self, state: &mut FemState, elements: &mut Elements) {
+    pub(crate) fn restore(&mut self, state: &mut FemState, elements: &mut Elements, ls: &mut LinearSystem) {
         state.t = self.t_backup;
         vec_copy(&mut state.u, &self.u_backup);
         if self.config.transient || self.config.dynamics {
@@ -92,6 +102,8 @@ impl<'a> ControlRichardson<'a> {
             vec_copy(&mut state.a, &self.a_backup);
         }
         elements.restore_secondary_values(state);
+        vec_copy(&mut ls.ff_ext, &self.ff_ext_backup);
+        vec_copy(&mut ls.ddff_ext, &self.ddff_ext_backup);
     }
 
     pub(crate) fn record_full_step(&mut self, state: &FemState) {

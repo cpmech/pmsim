@@ -179,18 +179,19 @@ impl<'a> SolverImplicit<'a> {
             // Richardson's extrapolation time loop
             for timestep in 0..self.config.n_max_time_steps {
                 // perform step with total increment Δt
-                self.control_rex.backup(state, &mut self.data.elements);
-                run!(self.step(timestep, ddt, state, true));
+                self.control_rex.backup(state, &mut self.data.elements, &self.data.ls);
+                run!(self.step(timestep, ddt, state, false));
                 if self.control_rex.is_last_step() {
                     file_io.write_state(state)?;
                     self.control_conv.print_footer();
                     break;
                 }
                 self.control_rex.record_full_step(state);
-                self.control_rex.restore(state, &mut self.data.elements);
+                self.control_rex
+                    .restore(state, &mut self.data.elements, &mut self.data.ls);
 
                 // perform two steps with Δt/2
-                run!(self.step(timestep, ddt / 2.0, state, true));
+                run!(self.step(timestep, ddt / 2.0, state, false));
                 let finished = run!(self.step(timestep, ddt / 2.0, state, false));
                 if finished {
                     file_io.write_state(state)?;
@@ -203,7 +204,8 @@ impl<'a> SolverImplicit<'a> {
 
                 // restore previous state if the step was rejected
                 if self.control_rex.rejected() {
-                    self.control_rex.restore(state, &mut self.data.elements);
+                    self.control_rex
+                        .restore(state, &mut self.data.elements, &mut self.data.ls);
                 }
 
                 // perform output
