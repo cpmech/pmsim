@@ -1,4 +1,4 @@
-use super::{ControlArcLength, ControlConvergence, ControlRichardson, ControlTime};
+use super::{ControlArcLength, ControlConvergence, ControlTime};
 use super::{FemBase, FemState, FileIo, SolverData};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
@@ -35,9 +35,6 @@ pub struct SolverImplicit<'a> {
 
     /// Arc-length control for path-following analysis
     control_arc: ControlArcLength<'a>,
-
-    /// Richardson's extrapolation control
-    control_rex: ControlRichardson<'a>,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -84,13 +81,6 @@ impl<'a> SolverImplicit<'a> {
             ControlArcLength::new(config, 0)
         };
 
-        // allocate Richardson's extrapolation control structure
-        let control_rex = if config.richardson_extrapolation {
-            ControlRichardson::new(config, neq_total)
-        } else {
-            ControlRichardson::new(config, 0)
-        };
-
         // allocate new instance
         Ok(SolverImplicit {
             config,
@@ -98,7 +88,6 @@ impl<'a> SolverImplicit<'a> {
             control_conv,
             control_time,
             control_arc,
-            control_rex,
         })
     }
 
@@ -172,67 +161,19 @@ impl<'a> SolverImplicit<'a> {
         self.control_conv.print_header();
 
         // time loop
-        if self.config.richardson_extrapolation {
-            // select initial time step
-            let mut ddt = self.config.rex_ddt_ini;
-
-            // Richardson's extrapolation time loop
-            let silent = !self.config.rex_print_all_timesteps;
-            for timestep in 0..self.config.n_max_time_steps {
-                // perform step with total increment Δt
-                self.control_rex.backup(state, &mut self.data.elements, &self.data.ls);
-                run!(self.step(timestep, ddt, state, silent && !self.control_rex.is_last_step()));
-                if self.control_rex.is_last_step() {
-                    file_io.write_state(state)?;
-                    self.control_conv.print_footer();
-                    break;
-                }
-                self.control_rex.record_full_step(state);
-                self.control_rex
-                    .restore(state, &mut self.data.elements, &mut self.data.ls);
-
-                // perform two steps with Δt/2
-                run!(self.step(timestep, ddt / 2.0, state, silent));
-                let finished = run!(self.step(timestep, ddt / 2.0, state, false));
-                if finished {
-                    file_io.write_state(state)?;
-                    self.control_conv.print_footer();
-                    break;
-                }
-
-                // adapt step size
-                ddt = run!(self.control_rex.adapt_step_size(ddt, state));
-
-                // restore previous state if the step was rejected
-                if self.control_rex.rejected() {
-                    self.control_rex
-                        .restore(state, &mut self.data.elements, &mut self.data.ls);
-                }
-
-                // perform output
-                if self.control_time.out(state) && self.control_conv.converged() && !self.control_rex.rejected() {
-                    file_io.write_state(state)?;
-                }
+        for timestep in 0..self.config.n_max_time_steps {
+            // perform step with total increment Δt
+            let ddt = (self.config.ddt)(state.t);
+            let finished = run!(self.step(timestep, ddt, state, false));
+            if finished {
+                file_io.write_state(state)?;
+                self.control_conv.print_footer();
+                break;
             }
 
-            // print stats
-            self.control_rex.print_stats();
-        } else {
-            // standard time loop
-            for timestep in 0..self.config.n_max_time_steps {
-                // perform step with total increment Δt
-                let ddt = (self.config.ddt)(state.t);
-                let finished = run!(self.step(timestep, ddt, state, false));
-                if finished {
-                    file_io.write_state(state)?;
-                    self.control_conv.print_footer();
-                    break;
-                }
-
-                // perform output
-                if self.control_time.out(state) && self.control_conv.converged() {
-                    file_io.write_state(state)?;
-                }
+            // perform output
+            if self.control_time.out(state) && self.control_conv.converged() {
+                file_io.write_state(state)?;
             }
         }
 

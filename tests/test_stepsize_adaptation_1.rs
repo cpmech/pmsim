@@ -35,7 +35,7 @@ use russell_lab::math::{PI, SQRT_3};
 //    Theory and applications, Wiley, 791p
 
 const NAME_MESH: &str = "spo_751_pres_cylin";
-const NAME: &str = "test_richardson_1";
+const NAME: &str = "test_stepsize_adaptation_1";
 const SAVE_FIGURE: bool = true;
 
 const A: f64 = 100.0; // inner radius
@@ -60,7 +60,7 @@ const Y: f64 = 2.0 * 0.24 / SQRT_3; // uniaxial yield strength (2 σy_spo / sq3)
 const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
-fn test_richardson_1() -> Result<(), StrError> {
+fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     // mesh
     let kind = GeoKind::Qua4;
     let mesh = Mesh::read(&format!("data/spo/{}_{}.msh", NAME_MESH, kind.to_string())).unwrap();
@@ -226,7 +226,7 @@ fn analyze_results() -> Result<(), StrError> {
         let mut plot = Plot::new();
         plot.add(&curve)
             .grid_and_labels("Time $t$", "Distributed load $q_n$")
-            .save("/tmp/pmsim/test_richardson_1_loading_history.svg")?;
+            .save("/tmp/pmsim/test_stepsize_adaptation_1_loading_history.svg")?;
     }
 
     Ok(())
