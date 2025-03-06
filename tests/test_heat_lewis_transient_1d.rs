@@ -79,7 +79,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_transient(true).set_dt(|_| 0.1).set_t_fin(T_FIN);
+    config.set_transient().set_ddt(0.1).set_t_fin(T_FIN);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;

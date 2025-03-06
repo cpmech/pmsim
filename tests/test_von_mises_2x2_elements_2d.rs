@@ -69,7 +69,7 @@ const Z_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
 const NGAUSS: usize = 4;
-const N_STEPS: usize = 5;
+const N_STEP: usize = 6; // including null state
 
 #[test]
 fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
@@ -110,9 +110,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(true)
-        .set_dt(|_| 1.0)
-        .set_dt_out(|_| 1.0)
-        .set_t_fin(N_STEPS as f64)
+        .set_steady(N_STEP)
         .set_n_max_iterations(20);
 
     // FEM state

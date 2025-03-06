@@ -111,11 +111,11 @@ fn run_test(
     let mut natural = Natural::new();
     let name = if residual {
         natural.edges_fn(&inner_circle, Nbc::Qn, |t| -P_ARRAY_RESIDUAL[t as usize]);
-        config.set_incremental(P_ARRAY_RESIDUAL.len());
+        config.set_steady(P_ARRAY_RESIDUAL.len());
         NAME_RESIDUAL
     } else {
         natural.edges_fn(&inner_circle, Nbc::Qn, |t| -P_ARRAY_COLLAPSE[t as usize]);
-        config.set_incremental(P_ARRAY_COLLAPSE.len());
+        config.set_steady(P_ARRAY_COLLAPSE.len());
         NAME_COLLAPSE
     };
 

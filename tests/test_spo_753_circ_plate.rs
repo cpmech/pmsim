@@ -68,7 +68,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_axisymmetric()
-        .set_incremental(P_ARRAY.len())
+        .set_steady(P_ARRAY.len())
         .set_lagrange_mult_method(true)
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_n_max_iterations(20);

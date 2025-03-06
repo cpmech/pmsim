@@ -10,6 +10,7 @@ use crate::StrError;
 /// # Time Integration Methods
 ///
 /// ## θ-method Parameters
+///
 /// * `theta` - Parameter `θ` for first-order equations
 /// * Range: `1e-5 ≤ θ ≤ 1.0`
 /// * Common values:
@@ -18,6 +19,7 @@ use crate::StrError;
 ///   * `θ = 1.0` - Backward Euler (implicit, unconditionally stable)
 ///
 /// ## Newmark Method Parameters
+///
 /// * `theta1` (γ) - First parameter controlling numerical damping
 /// * `theta2` (2β) - Second parameter controlling accuracy
 /// * Ranges: `0.0001 ≤ θ1,θ2 ≤ 1.0`
@@ -26,6 +28,7 @@ use crate::StrError;
 ///   * `θ1 = 0.5, θ2 = 0.0` - Central difference (explicit) **not allowed here**
 ///
 /// ## Hilber-Hughes-Taylor (HHT) Method
+///
 /// * `hht_alpha` (α) - Parameter controlling numerical dissipation
 /// * Range: `-1/3 ≤ α ≤ 0`
 /// * When enabled:
@@ -33,6 +36,7 @@ use crate::StrError;
 ///   * `θ2 = (1-α)²/2`
 ///
 /// # Time Control
+///
 /// * `dt_min` - Minimum allowed timestep
 /// * `t_out` - Next output time
 pub struct ControlTime<'a> {
@@ -47,19 +51,25 @@ pub struct ControlTime<'a> {
 
     /// Output time
     t_out: f64,
+
+    /// Flag to indicate the last timestep
+    last_timestep: bool,
 }
 
 impl<'a> ControlTime<'a> {
     /// Creates a new time control instance
     ///
     /// # Arguments
+    ///
     /// * `config` - Configuration containing time integration parameters
     ///
     /// # Returns
+    ///
     /// * `Ok(ControlTime)` on success
     /// * `Err(StrError)` if any parameters are invalid
     ///
     /// # Errors
+    ///
     /// * If θ-method parameters are invalid: `1e-5 ≤ θ ≤ 1.0`
     /// * If HHT parameters are invalid: `-1/3 ≤ α ≤ 0`
     /// * If Newmark parameters are invalid: `0.0001 ≤ θ1,θ2 ≤ 1.0`
@@ -98,66 +108,63 @@ impl<'a> ControlTime<'a> {
             theta1,
             theta2,
             t_out: 0.0,
+            last_timestep: false,
         })
     }
 
-    /// Initializes time stepping parameters at the start of analysis
-    ///
-    /// # Arguments
-    /// * `state` - FEM state to initialize
-    ///
-    /// # Returns
-    /// * `Ok(())` on success
-    /// * `Err(StrError)` if timestep is below minimum
-    pub fn initialize(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        state.t = self.config.t_ini;
-        state.ddt = (self.config.ddt)(state.t);
-        if state.ddt < self.config.ddt_min {
-            return Err("Δt is smaller than the allowed minimum");
-        }
-        self.t_out = state.t + (self.config.ddt_out)(state.t);
-        self.calculate_coefficients(state);
-        Ok(())
+    /// Returns whether the last timestep has been reached
+    pub fn is_last_timestep(&self) -> bool {
+        self.last_timestep
     }
 
     /// Updates time stepping parameters for the next step
     ///
     /// # Arguments
+    ///
     /// * `state` - Current FEM state
-    /// * `ddt` - New timestep value
     ///
     /// # Returns
-    /// * `Ok(true)` if final time reached
-    /// * `Ok(false)` if simulation should continue
-    /// * `Err(StrError)` if timestep is below minimum
-    pub fn update(&self, state: &mut FemState, ddt: f64) -> Result<bool, StrError> {
-        state.ddt = ddt;
+    ///
+    /// * an error if timestep is below minimum
+    pub fn update(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        state.ddt = self.config.ddt;
         if state.ddt < self.config.ddt_min {
             return Err("Δt is smaller than the allowed minimum");
         }
-        if state.t + state.ddt > self.config.t_fin {
-            return Ok(true);
-        }
+        self.handle_last_timestep(state);
         state.t += state.ddt;
         self.calculate_coefficients(state);
-        Ok(false)
+        Ok(())
     }
 
     /// Checks if output should be generated at current time
     ///
     /// # Arguments
+    ///
     /// * `state` - Current FEM state
     ///
     /// # Returns
+    ///
     /// * `true` if output should be generated
     /// * `false` otherwise
     pub fn out(&mut self, state: &FemState) -> bool {
         // no need to flag output if the last timestep is reached because the
         // output will be carried out anyway when the finished flag becomes true
-        let last_timestep = state.t + state.ddt > self.config.t_fin;
-        let do_output = state.t >= self.t_out && !last_timestep;
-        self.t_out += (self.config.ddt_out)(state.t);
+        let do_output = state.t >= self.t_out || self.last_timestep;
+        self.t_out += self.config.ddt_out;
         do_output
+    }
+
+    /// Truncates Δt if t+Δt  exceeds the final time and sets the last timestep flag
+    fn handle_last_timestep(&mut self, state: &mut FemState) {
+        if state.t + state.ddt >= self.config.t_fin {
+            if state.t + state.ddt != self.config.t_fin && !self.config.steady {
+                // only truncates if t+Δt is not exactly equal to t_fin
+                // also, only truncates if the analysis is not quasi-steady/quasi-static
+                state.ddt = f64::max(self.config.ddt_min, self.config.t_fin - state.t);
+            }
+            self.last_timestep = true;
+        }
     }
 
     /// Calculates all derived coefficients for given timestep Δt
@@ -205,31 +212,15 @@ mod tests {
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
-        config.set_t_ini(1.0).set_t_fin(1.0001).set_dt(|_| 0.0001);
+        config.set_transient().set_t_fin(1.0001).set_ddt(0.0001);
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         // θ=0.5, θ1=0.5, θ2=0.5, α=0
-        let mut dcs = ControlTime::new(&config).unwrap();
-        dcs.initialize(&mut state).unwrap();
-
-        // check
-        assert_eq!(state.t, 1.0);
-        assert_eq!(state.ddt, 0.0001);
-        assert_eq!(state.alpha1, 4e8);
-        assert_eq!(state.alpha2, 40000.0);
-        assert_eq!(state.alpha3, 1.0);
-        assert_eq!(state.alpha4, 20000.0);
-        assert_eq!(state.alpha5, 1.0);
-        assert_eq!(state.alpha6, 0.0);
-        assert_eq!(state.alpha7, 20000.0);
-        assert_eq!(state.alpha8, 1.0);
-        assert_eq!(state.beta1, 20000.0);
-        assert_eq!(state.beta2, 1.0);
+        let mut control = ControlTime::new(&config).unwrap();
 
         // update
-        let finished = dcs.update(&mut state, 0.0001).unwrap();
-        assert!(!finished);
-        assert_eq!(state.t, 1.0001);
+        control.update(&mut state).unwrap();
+        assert_eq!(state.t, 0.0001);
         assert_eq!(state.ddt, 0.0001);
         assert_eq!(state.alpha1, 4e8); // no changes
         assert_eq!(state.alpha2, 40000.0);
@@ -242,8 +233,8 @@ mod tests {
         assert_eq!(state.beta1, 20000.0);
         assert_eq!(state.beta2, 1.0);
 
-        // check finished flag
-        let finished = dcs.update(&mut state, 0.0001).unwrap();
-        assert!(finished);
+        // check last_timestep flag
+        control.update(&mut state).unwrap();
+        assert_eq!(control.is_last_timestep(), false);
     }
 }

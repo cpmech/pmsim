@@ -203,7 +203,7 @@ mod tests {
 
         // error due to config.validate
         let mut config = Config::new(&mesh);
-        config.set_dt_min(-1.0);
+        config.set_transient().set_ddt_min(-1.0);
         assert_eq!(
             SolverData::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")

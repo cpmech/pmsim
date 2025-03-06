@@ -88,7 +88,7 @@ fn test_alc_2d_truss_3member() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_incremental(51) // 50 (as in ref #1) + 1 (initial state)
+        .set_steady(51) // 50 (as in ref #1) + 1 (initial state)
         .set_arc_length_method(true)
         .set_arc_first_trial_ell(0.05)
         .set_tol_rr_abs(1e-6)

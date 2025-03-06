@@ -6,14 +6,14 @@ use russell_sparse::{Genie, LinSolParams};
 use std::collections::HashMap;
 use std::fmt;
 
-/// Defines the smallest allowed dt_min (Control)
-pub const CONTROL_DT_MIN: f64 = 1e-10;
+/// Defines the smallest allowed Δt
+const CONFIG_DT_MIN: f64 = 1e-7;
 
-/// Defines the smallest allowed tolerance (Control)
-pub const CONTROL_MIN_TOL: f64 = 1e-12;
+/// Defines the smallest allowed tolerance
+const CONFIG_MIN_TOL: f64 = 1e-12;
 
-/// Defines the smallest allowed theta{1,2} (Control)
-pub const CONTROL_MIN_THETA: f64 = 0.0001;
+/// Defines the smallest allowed theta{1,2}
+const CONFIG_MIN_THETA: f64 = 0.0001;
 
 /// Holds configuration parameters
 pub struct Config<'a> {
@@ -30,6 +30,13 @@ pub struct Config<'a> {
     /// Indicates linear problem and avoids the Newton-Raphson iteration
     pub(crate) linear_problem: bool,
 
+    /// Indicates that the simulation is quasi-steady or quasi-static (or "incremental")
+    ///
+    /// In this case, time is pseudo-time and the increments are unitary (Δt=1)
+    ///
+    /// (default)
+    pub(crate) steady: bool,
+
     /// Indicates transient analysis
     ///
     /// In this case, the first time derivative of primary variables is included.
@@ -38,6 +45,8 @@ pub struct Config<'a> {
     /// Indicates dynamics analysis
     ///
     /// In this case, the second time derivative of primary variables is included.
+    ///
+    /// Note: dynamics sets transient to true.
     pub(crate) dynamics: bool,
 
     /// Enables the method of Lagrange multipliers to handle prescribed essential values
@@ -106,21 +115,18 @@ pub struct Config<'a> {
 
     // Time stepping --------------------------------------------------------------------------
     //
-    /// Initial time
-    pub(crate) t_ini: f64,
-
     /// Final time
     pub(crate) t_fin: f64,
 
-    /// Time increments as function of time Δt(t)
+    /// Initial or constant stepsize Δt
     ///
     /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-    pub(crate) ddt: Box<dyn Fn(f64) -> f64 + 'a>,
+    pub(crate) ddt: f64,
 
-    /// Time increment for the output of results Δt_out(t)
+    /// Time increment Δt for the output of results
     ///
     /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-    pub(crate) ddt_out: Box<dyn Fn(f64) -> f64 + 'a>,
+    pub(crate) ddt_out: f64,
 
     /// Minimum allowed time increment min(Δt)
     ///
@@ -128,7 +134,7 @@ pub struct Config<'a> {
     pub(crate) ddt_min: f64,
 
     /// Maximum number of time steps
-    pub(crate) n_max_time_steps: usize,
+    pub(crate) n_max_timesteps: usize,
 
     /// Maximum number of time steps allowed to fail
     pub(crate) n_max_failed_steps: usize,
@@ -244,11 +250,12 @@ impl<'a> Config<'a> {
             ideal: Idealization::new(mesh.ndim),
             // Problem definition
             linear_problem: false,
+            steady: true,
             transient: false,
             dynamics: false,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
-            symmetry_check_tolerance: Some(1e-10),
+            symmetry_check_tolerance: Some(1e-7),
             // Initialization
             gravity: None,
             initialization: Init::Zero,
@@ -263,12 +270,11 @@ impl<'a> Config<'a> {
             save_vismatrix_file: false,
             verbose_lin_sys_solve: false,
             // Time stepping
-            t_ini: 0.0,
             t_fin: 1.0,
-            ddt: Box::new(|_| 1.0),
-            ddt_out: Box::new(|_| 1.0),
-            ddt_min: CONTROL_DT_MIN,
-            n_max_time_steps: 1_000,
+            ddt: 1.0,
+            ddt_out: 1.0,
+            ddt_min: CONFIG_DT_MIN,
+            n_max_timesteps: 1_000,
             n_max_failed_steps: 100,
             consider_load_reversal: true,
             verbose_timesteps: true,
@@ -354,58 +360,49 @@ impl<'a> Config<'a> {
 
         // Time stepping
 
-        if self.t_ini < 0.0 {
-            return Some(format!("t_ini = {:?} is incorrect; it must be ≥ 0.0", self.t_ini));
+        if self.t_fin <= 0.0 {
+            return Some(format!("t_fin = {:?} is incorrect; it must be > 0.0", self.t_fin,));
         }
-        if self.t_fin < 0.0 {
-            return Some(format!("t_fin = {:?} is incorrect; it must be ≥ 0.0", self.t_fin));
-        }
-        if self.t_fin < self.t_ini {
+        if self.ddt_min < CONFIG_DT_MIN {
             return Some(format!(
-                "t_fin = {:?} is incorrect; it must be > t_ini = {:?}",
-                self.t_fin, self.t_ini
-            ));
-        }
-        if self.ddt_min < CONTROL_DT_MIN {
-            return Some(format!(
-                "dt_min = {:?} is incorrect; it must be ≥ {:e}",
-                self.ddt_min, CONTROL_DT_MIN
+                "ddt_min = {:?} is incorrect; it must be ≥ {:e}",
+                self.ddt_min, CONFIG_DT_MIN
             ));
         }
 
         // Newton-Raphson method
 
-        if self.tol_rr_abs < CONTROL_MIN_TOL {
+        if self.tol_rr_abs < CONFIG_MIN_TOL {
             return Some(format!(
                 "tol_rr_abs = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rr_abs, CONTROL_MIN_TOL
+                self.tol_rr_abs, CONFIG_MIN_TOL
             ));
         }
-        if self.tol_mdu_rel < CONTROL_MIN_TOL {
+        if self.tol_mdu_rel < CONFIG_MIN_TOL {
             return Some(format!(
                 "tol_mdu_rel = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_mdu_rel, CONTROL_MIN_TOL
+                self.tol_mdu_rel, CONFIG_MIN_TOL
             ));
         }
 
         // Transient/dynamics parameters
 
-        if self.theta < CONTROL_MIN_THETA || self.theta > 1.0 {
+        if self.theta < CONFIG_MIN_THETA || self.theta > 1.0 {
             return Some(format!(
                 "theta = {:?} is incorrect; it must be {:?} ≤ θ ≤ 1.0",
-                self.theta, CONTROL_MIN_THETA
+                self.theta, CONFIG_MIN_THETA
             ));
         }
-        if self.theta1 < CONTROL_MIN_THETA || self.theta1 > 1.0 {
+        if self.theta1 < CONFIG_MIN_THETA || self.theta1 > 1.0 {
             return Some(format!(
                 "theta1 = {:?} is incorrect; it must be {:?} ≤ θ₁ ≤ 1.0",
-                self.theta1, CONTROL_MIN_THETA
+                self.theta1, CONFIG_MIN_THETA
             ));
         }
-        if self.theta2 < CONTROL_MIN_THETA || self.theta2 > 1.0 {
+        if self.theta2 < CONFIG_MIN_THETA || self.theta2 > 1.0 {
             return Some(format!(
                 "theta2 = {:?} is incorrect; it must be {:?} ≤ θ₂ ≤ 1.0",
-                self.theta2, CONTROL_MIN_THETA
+                self.theta2, CONFIG_MIN_THETA
             ));
         }
         if self.hht_alpha < -ONE_BY_3 || self.hht_alpha > 0.0 {
@@ -509,15 +506,49 @@ impl<'a> Config<'a> {
         self
     }
 
+    /// Sets a quasi-steady or quasi-static (or "incremental") simulation (with incremental loading)
+    ///
+    /// # Input
+    ///
+    /// * `nstep` -- is the number of steps (≥ 2), including the initial (null) state.
+    ///   It corresponds to the number of (pseudo) time stations. Example:
+    ///
+    /// ```text
+    /// displacement control with uy = [0.0, -0.1, -0.2]
+    /// nstep = uy.len(), thus nstep = 3
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// **Panics** if `nstep` is less than 2.
+    pub fn set_steady(&mut self, nstep: usize) -> &mut Self {
+        assert!(nstep > 1, "nstep must be ≥ 2");
+        self.steady = true;
+        self.transient = false;
+        self.dynamics = false;
+        self.t_fin = (nstep - 1) as f64;
+        self.ddt = 1.0;
+        self.ddt_out = 1.0;
+        self
+    }
+
     /// Indicates transient analysis
-    pub fn set_transient(&mut self, enable: bool) -> &mut Self {
-        self.transient = enable;
+    ///
+    /// In this case, the first time derivative of primary variables is included.
+    pub fn set_transient(&mut self) -> &mut Self {
+        self.steady = false;
+        self.transient = true;
+        self.dynamics = false;
         self
     }
 
     /// Indicates dynamics analysis
-    pub fn set_dynamics(&mut self, enable: bool) -> &mut Self {
-        self.dynamics = enable;
+    ///
+    /// In this case, the second time derivative of primary variables is included.
+    pub fn set_dynamics(&mut self) -> &mut Self {
+        self.steady = false;
+        self.transient = true;
+        self.dynamics = true;
         self
     }
 
@@ -623,67 +654,58 @@ impl<'a> Config<'a> {
 
     // Time stepping --------------------------------------------------------------------------
 
-    /// Sets t, dt, and dt_out to simulate an incremental loading
-    ///
-    /// This function corresponds to:
-    ///
-    /// ```text
-    /// self.set_t_ini(0.0)
-    ///     .set_t_fin((n_station - 1) as f64)
-    ///     .set_dt(|_| 1.0)
-    ///     .set_dt_out(|_| 1.0)
-    /// ```
-    ///
-    /// # Input
-    ///
-    /// * `n_station` -- is the number of (pseudo) time stations. For example, with a
-    ///   displacement control such as `uy = [0.0, -0.1, -0.2]`, the number of stations
-    ///   is `n_station = 3`, corresponding to `time = [0.0, 1.0, 2.0]`.
-    ///
-    /// **Note:** `n_station` must be ≥ 2, otherwise `t_ini` and `t_fin` will be set to zero,
-    /// and the simulation will not be run.
-    pub fn set_incremental(&mut self, n_station: usize) -> &mut Self {
-        self.set_t_ini(0.0).set_dt(|_| 1.0).set_dt_out(|_| 1.0);
-        if n_station > 1 {
-            self.set_t_fin((n_station - 1) as f64)
-        } else {
-            self.set_t_fin(0.0)
-        }
-    }
-
-    /// Sets the initial time
-    pub fn set_t_ini(&mut self, t_ini: f64) -> &mut Self {
-        self.t_ini = t_ini;
-        self
-    }
-
     /// Sets the final time
+    ///
+    /// # Panics
+    ///
+    /// This function only works if !steady.
     pub fn set_t_fin(&mut self, t_fin: f64) -> &mut Self {
+        assert!(!self.steady, "set_t_fin only works if !steady");
         self.t_fin = t_fin;
         self
     }
 
-    /// Sets a function to compute time increments Δt
-    pub fn set_dt(&mut self, dt: impl Fn(f64) -> f64 + 'a) -> &mut Self {
-        self.ddt = Box::new(dt);
+    /// Sets the initial or constant stepsize Δt
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    ///
+    /// # Panics
+    ///
+    /// This function only works if !steady.
+    pub fn set_ddt(&mut self, ddt: f64) -> &mut Self {
+        assert!(!self.steady, "set_ddt only works if !steady");
+        self.ddt = ddt;
         self
     }
 
-    /// Sets a function to compute time increment Δt_out for the output of results
-    pub fn set_dt_out(&mut self, dt_out: impl Fn(f64) -> f64 + 'a) -> &mut Self {
-        self.ddt_out = Box::new(dt_out);
+    /// Sets the time increment Δt for the output of results
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    pub fn set_ddt_out(&mut self, ddt_out: f64) -> &mut Self {
+        self.ddt_out = ddt_out;
         self
     }
 
     /// Sets the minimum allowed time increment min(Δt)
-    pub fn set_dt_min(&mut self, dt_min: f64) -> &mut Self {
-        self.ddt_min = dt_min;
+    ///
+    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
+    ///
+    /// # Panics
+    ///
+    /// This function only works if !steady.
+    pub fn set_ddt_min(&mut self, ddt_min: f64) -> &mut Self {
+        assert!(!self.steady, "set_ddt_min only works if !steady");
+        self.ddt_min = ddt_min;
         self
     }
 
     /// Sets the maximum number of time steps
-    pub fn set_n_max_time_steps(&mut self, n_max_time_steps: usize) -> &mut Self {
-        self.n_max_time_steps = n_max_time_steps;
+    ///
+    /// # Panics
+    ///
+    /// This function only works if !steady.
+    pub fn set_n_max_timesteps(&mut self, n_max_time_steps: usize) -> &mut Self {
+        self.n_max_timesteps = n_max_time_steps;
         self
     }
 
@@ -1034,30 +1056,17 @@ mod tests {
 
         // Time stepping
 
-        config.t_ini = -0.1;
-        assert_eq!(
-            config.validate(),
-            Some("t_ini = -0.1 is incorrect; it must be ≥ 0.0".to_string())
-        );
-        config.t_ini = 0.1;
-
         config.t_fin = -0.1;
         assert_eq!(
             config.validate(),
-            Some("t_fin = -0.1 is incorrect; it must be ≥ 0.0".to_string())
-        );
-
-        config.t_fin = 0.05;
-        assert_eq!(
-            config.validate(),
-            Some("t_fin = 0.05 is incorrect; it must be > t_ini = 0.1".to_string())
+            Some("t_fin = -0.1 is incorrect; it must be > 0.0".to_string())
         );
         config.t_fin = 1.0;
 
         config.ddt_min = 0.0;
         assert_eq!(
             config.validate(),
-            Some("dt_min = 0.0 is incorrect; it must be ≥ 1e-10".to_string())
+            Some("ddt_min = 0.0 is incorrect; it must be ≥ 1e-7".to_string())
         );
         config.ddt_min = 1e-3;
 
@@ -1148,7 +1157,7 @@ mod tests {
     }
 
     #[test]
-    fn set_methods_work() {
+    fn update_model_settings_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let att = mesh.cells[0].attribute;
         let mut config = Config::new(&mesh);
@@ -1160,24 +1169,59 @@ mod tests {
     }
 
     #[test]
-    fn set_incremental_works() {
+    fn set_quasi_static_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
         const UY: [f64; 4] = [0.0, -0.7, -0.9, -1.0];
-        config.set_incremental(UY.len());
-        assert_eq!(config.t_ini, 0.0);
+        config.set_steady(UY.len());
         assert_eq!(config.t_fin, 3.0);
-        assert_eq!((config.ddt)(0.0), 1.0);
-        assert_eq!((config.ddt)(3.0), 1.0);
-        assert_eq!((config.ddt_out)(0.0), 1.0);
-        assert_eq!((config.ddt_out)(3.0), 1.0);
+        assert_eq!(config.ddt, 1.0);
+        assert_eq!(config.ddt, 1.0);
+        assert_eq!(config.ddt_out, 1.0);
+        assert_eq!(config.ddt_out, 1.0);
+    }
 
-        config.set_incremental(0);
-        assert_eq!(config.t_ini, 0.0);
-        assert_eq!(config.t_fin, 0.0);
+    #[test]
+    #[should_panic(expected = "nstep must be ≥ 2")]
+    fn set_quasi_static_panics_on_small_nstep() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
+        config.set_steady(1);
+    }
 
-        config.set_incremental(1);
-        assert_eq!(config.t_ini, 0.0);
-        assert_eq!(config.t_fin, 0.0);
+    #[test]
+    fn set_steady_transient_and_dynamics_work() {
+        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
+        let mut config = Config::new(&mesh);
+
+        config.set_steady(3).set_transient();
+        assert_eq!(config.steady, false);
+        assert_eq!(config.transient, true);
+        assert_eq!(config.dynamics, false);
+
+        config.set_steady(3).set_dynamics();
+        assert_eq!(config.steady, false);
+        assert_eq!(config.transient, true);
+        assert_eq!(config.dynamics, true);
+
+        config.set_transient().set_steady(3);
+        assert_eq!(config.steady, true);
+        assert_eq!(config.transient, false);
+        assert_eq!(config.dynamics, false);
+
+        config.set_transient().set_dynamics();
+        assert_eq!(config.steady, false);
+        assert_eq!(config.transient, true);
+        assert_eq!(config.dynamics, true);
+
+        config.set_dynamics().set_steady(3);
+        assert_eq!(config.steady, true);
+        assert_eq!(config.transient, false);
+        assert_eq!(config.dynamics, false);
+
+        config.set_dynamics().set_transient();
+        assert_eq!(config.steady, false);
+        assert_eq!(config.transient, true);
+        assert_eq!(config.dynamics, false);
     }
 }

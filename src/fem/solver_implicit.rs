@@ -148,9 +148,6 @@ impl<'a> SolverImplicit<'a> {
         // start stopwatch
         self.data.stopwatch.reset();
 
-        // initialize time-related variables
-        self.control_time.initialize(state)?;
-
         // initialize internal variables
         self.data.elements.initialize_internal_values(state)?;
 
@@ -161,15 +158,15 @@ impl<'a> SolverImplicit<'a> {
         self.control_conv.print_header();
 
         // time loop
-        for timestep in 0..self.config.n_max_time_steps {
-            // perform step with total increment Δt
-            let ddt = (self.config.ddt)(state.t);
-            let finished = run!(self.step(timestep, ddt, state, false));
-            if finished {
-                file_io.write_state(state)?;
+        for timestep in 0..self.config.n_max_timesteps {
+            // done if last timestep
+            if self.control_time.is_last_timestep() {
                 self.control_conv.print_footer();
                 break;
             }
+
+            // perform step
+            run!(self.step(timestep, state, false));
 
             // perform output
             if self.control_time.out(state) && self.control_conv.converged() {
@@ -193,14 +190,11 @@ impl<'a> SolverImplicit<'a> {
     /// # Arguments
     ///
     /// * `timestep` - Current timestep number
-    /// * `ddt` - Time increment Δt
     /// * `state` - FEM state to update
     ///
     /// # Returns
     ///
-    /// * `Ok(true)` if simulation is finished
-    /// * `Ok(false)` if simulation should continue
-    /// * `Err(StrError)` if step fails
+    /// * an error if step fails
     ///
     /// # Process
     ///
@@ -211,12 +205,9 @@ impl<'a> SolverImplicit<'a> {
     /// 5. Performs nonlinear iterations
     /// 6. Adapts step size for arc-length method
     /// 7. Checks convergence status
-    fn step(&mut self, timestep: usize, ddt: f64, state: &mut FemState, silent: bool) -> Result<bool, StrError> {
+    fn step(&mut self, timestep: usize, state: &mut FemState, silent: bool) -> Result<(), StrError> {
         // update time-related variables
-        let finished = self.control_time.update(state, ddt)?;
-        if finished {
-            return Ok(finished);
-        }
+        self.control_time.update(state)?;
 
         // update external forces vector F_ext
         let load_reversal = self.data.assemble_ff_ext(state.t)? && self.config.consider_load_reversal;
@@ -271,9 +262,7 @@ impl<'a> SolverImplicit<'a> {
         if self.control_conv.too_many_failures() {
             return Err("too many iterations failed to converge");
         }
-
-        // not finished; keep going
-        Ok(false)
+        Ok(())
     }
 
     /// Performs iterations to reduce residuals at current time step
@@ -417,7 +406,7 @@ mod tests {
 
         // error due to config.validate
         let mut config = Config::new(&mesh);
-        config.set_dt_min(-1.0);
+        config.set_transient().set_ddt_min(-1.0); // wrong
         assert_eq!(
             SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
@@ -468,7 +457,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_transient(true).set_dt(|_| -1.0); // wrong
+        config.set_transient().set_ddt(-1.0); // wrong
         let essential = Essential::new();
         let natural = Natural::new();
         let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();

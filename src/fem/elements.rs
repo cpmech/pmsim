@@ -299,7 +299,7 @@ mod tests {
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
-        config.set_transient(true);
+        config.set_transient();
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left

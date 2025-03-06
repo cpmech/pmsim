@@ -102,7 +102,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(true)
-        .set_incremental(N_STATION)
+        .set_steady(N_STATION)
         .set_n_max_iterations(20);
     solve_and_check(&mesh, &base, &essential, &natural, &config)?;
 

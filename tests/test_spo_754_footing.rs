@@ -86,7 +86,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(true)
-        .set_incremental(UY.len())
+        .set_steady(UY.len())
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_n_max_iterations(20);
 

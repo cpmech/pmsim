@@ -94,9 +94,9 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
         .set_richardson_extrapolation(true)
         .set_rex_print_all_timesteps(false)
         .set_rex_ddt_ini(0.05)
-        .set_dt(|_| 0.05)
-        .set_dt_out(|_| 0.01)
-        .set_t_fin(T_FIN)
+        // .set_ddt(0.05)
+        // .set_ddt_out(0.01)
+        // .set_t_fin(T_FIN)
         .set_consider_load_reversal(true)
         .update_model_settings(1)
         .set_save_strain(true);
