@@ -115,6 +115,9 @@ pub struct Config<'a> {
 
     // Time stepping --------------------------------------------------------------------------
     //
+    // Number of stages
+    pub(crate) nstage: usize,
+
     /// Final time
     pub(crate) t_fin: f64,
 
@@ -270,11 +273,12 @@ impl<'a> Config<'a> {
             save_vismatrix_file: false,
             verbose_lin_sys_solve: false,
             // Time stepping
+            nstage: 1,
             t_fin: 1.0,
             ddt: 1.0,
             ddt_out: 1.0,
             ddt_min: CONFIG_DT_MIN,
-            n_max_timesteps: 1_000,
+            n_max_timesteps: 10_000,
             n_max_failed_steps: 100,
             consider_load_reversal: true,
             verbose_timesteps: true,

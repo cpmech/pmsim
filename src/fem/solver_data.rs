@@ -73,7 +73,7 @@ impl<'a> SolverData<'a> {
 
         // show information
         if config.verbose_timesteps || config.verbose_iterations {
-            println!("\nINFORMATION ===================================================================");
+            println!("\nINFORMATION =========================================================================");
             println!("\n{}", linear_system.get_info());
         }
 
