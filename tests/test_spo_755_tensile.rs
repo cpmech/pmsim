@@ -15,6 +15,25 @@ const Z_INI: f64 = 0.45; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
+// displacement control
+const UY: [f64; 15] = [
+    0.005, // stage =  0
+    0.01,  // stage =  1
+    0.015, // stage =  2
+    0.02,  // stage =  3
+    0.03,  // stage =  4
+    0.04,  // stage =  5
+    0.05,  // stage =  6
+    0.07,  // stage =  7
+    0.09,  // stage =  8
+    0.11,  // stage =  9
+    0.115, // stage = 10
+    0.12,  // stage = 11
+    0.13,  // stage = 12
+    0.15,  // stage = 13
+    0.17,  // stage = 14
+];
+
 #[test]
 fn test_spo_755_tensile() -> Result<(), StrError> {
     // mesh
@@ -50,17 +69,12 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
     };
     let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
-    // displacement control
-    const UY_PERF_PLAST: [f64; 16] = [
-        0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.04, 0.05, 0.07, 0.09, 0.11, 0.115, 0.12, 0.13, 0.15, 0.17,
-    ];
-
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, 1.0, |t| UY_PERF_PLAST[t as usize]);
+        .edges_fn(&top, Dof::Uy, 1.0, |stage, _| UY[stage]);
 
     // natural boundary conditions
     let natural = Natural::new();
@@ -69,7 +83,7 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(true)
-        .set_steady(UY_PERF_PLAST.len())
+        .set_steady(UY.len())
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_n_max_iterations(20);
 

@@ -65,7 +65,6 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // essential boundary conditions
     let mut essential = Essential::new();
     essential.edges(&bottom, Dof::Phi, 110.0);
-    println!("\n{}", essential);
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -74,7 +73,6 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         .edges(&edges_conv_a, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_b, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);
-    println!("{}", natural);
 
     // configuration
     let config = Config::new(&mesh);
@@ -105,7 +103,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     elements.assemble_f_int(&mut lin_sys.ff_int, &state, &ignore)?;
     elements.assemble_f_ext(&mut lin_sys.ff_ext, state.t, &ignore)?;
     boundaries.assemble_f_int(&mut lin_sys.ff_int, &state, &ignore)?;
-    boundaries.assemble_f_ext(&mut lin_sys.ff_ext, state.t, &ignore)?;
+    boundaries.assemble_f_ext(&mut lin_sys.ff_ext, state.stage, state.t, &ignore)?;
     vec_add(rr, 1.0, &lin_sys.ff_int, -1.0, &lin_sys.ff_ext)?;
     println!("rr =\n{}", rr);
     let bhatti_rr = &[
@@ -224,7 +222,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     elements.assemble_f_int(&mut lin_sys.ff_int, &state, &ignore)?;
     elements.assemble_f_ext(&mut lin_sys.ff_ext, state.t, &ignore)?;
     boundaries.assemble_f_int(&mut lin_sys.ff_int, &state, &ignore)?;
-    boundaries.assemble_f_ext(&mut lin_sys.ff_ext, state.t, &ignore)?;
+    boundaries.assemble_f_ext(&mut lin_sys.ff_ext, state.stage, state.t, &ignore)?;
     vec_add(rr, 1.0, &lin_sys.ff_int, -1.0, &lin_sys.ff_ext)?;
     println!("rr_new =\n{:?}", rr);
     let norm_rr = vec_norm(rr, Norm::Max);

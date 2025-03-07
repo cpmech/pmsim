@@ -117,6 +117,12 @@ impl<'a> ControlTime<'a> {
         self.last_timestep
     }
 
+    /// Initializes the current stage index and resets the last timestep flag
+    pub fn initialize_stage(&mut self, stage: usize, state: &mut FemState) {
+        state.stage = stage;
+        self.last_timestep = false;
+    }
+
     /// Updates time stepping parameters for the next step
     ///
     /// # Arguments
@@ -157,11 +163,12 @@ impl<'a> ControlTime<'a> {
 
     /// Truncates Δt if t+Δt  exceeds the final time and sets the last timestep flag
     fn handle_last_timestep(&mut self, state: &mut FemState) {
-        if state.t + state.ddt >= self.config.t_fin {
-            if state.t + state.ddt != self.config.t_fin && !self.config.steady {
+        let t_fin = self.config.t_fin[state.stage];
+        if state.t + state.ddt >= t_fin {
+            if state.t + state.ddt != t_fin && !self.config.steady {
                 // only truncates if t+Δt is not exactly equal to t_fin
                 // also, only truncates if the analysis is not quasi-steady/quasi-static
-                state.ddt = f64::max(self.config.ddt_min, self.config.t_fin - state.t);
+                state.ddt = f64::max(self.config.ddt_min, t_fin - state.t);
             }
             self.last_timestep = true;
         }

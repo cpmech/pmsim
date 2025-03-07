@@ -14,7 +14,9 @@ pub struct BcConcentrated<'a> {
     value: f64,
 
     /// Function to calculate the BC value (overrides the value, if not None)
-    function: Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>,
+    ///
+    /// The function is `(stage, t) -> load`
+    function: Option<&'a Box<dyn Fn(usize, f64) -> f64 + 'a>>,
 }
 
 /// Implements an array of BcConcentrated
@@ -43,10 +45,10 @@ impl<'a> BcConcentratedArray<'a> {
     }
 
     /// Adds all concentrated load values at given time to the external forces vector
-    pub fn add_to_ff_ext(&self, ff_ext: &mut Vector, time: f64) {
+    pub fn add_to_ff_ext(&self, ff_ext: &mut Vector, stage: usize, time: f64) {
         for e in &self.all {
             let value = match e.function {
-                Some(f) => (f)(time),
+                Some(f) => (f)(stage, time),
                 None => e.value,
             };
             ff_ext[e.eq] += value;
@@ -89,7 +91,7 @@ mod tests {
         natural.points(&[2], Pbc::Fz, -20.0);
         let b_points = BcConcentratedArray::new(&base, &natural).unwrap();
         let mut ff_ext = Vector::new(4 * 3);
-        b_points.add_to_ff_ext(&mut ff_ext, 0.0);
+        b_points.add_to_ff_ext(&mut ff_ext, 0, 0.0);
         assert_eq!(
             ff_ext.as_data(),
             &[

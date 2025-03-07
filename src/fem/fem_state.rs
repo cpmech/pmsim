@@ -13,8 +13,11 @@ use std::path::Path;
 /// Holds the state of a simulation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemState {
-    /// Loading factor ℓ if arc-length control is enabled
-    pub ell: f64,
+    /// Current stage
+    pub stage: usize,
+
+    /// Loading factor λ
+    pub lambda: f64,
 
     /// Time
     pub t: f64,
@@ -185,8 +188,9 @@ impl FemState {
 
         // allocate new instance
         Ok(FemState {
-            ell: 0.0,
-            t: 0.0,      // needs initialization
+            stage: 0,
+            lambda: 0.0,
+            t: 0.0,
             ddt: 0.0,    // needs initialization
             alpha1: 0.0, // needs initialization
             alpha2: 0.0, // needs initialization

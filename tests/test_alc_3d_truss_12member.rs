@@ -69,7 +69,7 @@ fn test_alc_3d_truss_12member() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_steady(101) // 100 (as in ref #1) + 1 (initial state)
+        .set_steady(100)
         .set_arc_length_method(true)
         .set_arc_first_trial_ell(0.025)
         .set_tol_rr_abs(1e-6)
@@ -107,7 +107,7 @@ fn analyze_results() -> Result<(), StrError> {
     let eqw = post.eq(4, Dof::Uz)?;
     for i in 0..n {
         let state = post.read_state(i)?;
-        arr_ell.push(state.ell);
+        arr_ell.push(state.lambda);
         arr_u.push(state.u[equ]);
         arr_v.push(state.u[eqv]);
         arr_w.push(state.u[eqw]);

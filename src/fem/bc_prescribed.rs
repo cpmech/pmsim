@@ -13,8 +13,10 @@ pub struct BcPrescribed<'a> {
 
     /// All multiplier functions
     ///
+    /// The function is `(stage, t) -> multiplier`
+    ///
     /// (n_prescribed)
-    multipliers: Vec<Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>>,
+    multipliers: Vec<Option<&'a Box<dyn Fn(usize, f64) -> f64 + 'a>>>,
 
     /// Array with only the numbers of the prescribed DOFs
     ///
@@ -56,11 +58,11 @@ impl<'a> BcPrescribed<'a> {
     /// The BC value is computed as follows:
     ///
     /// ```text
-    /// value = constant * multiplier(t)
+    /// value = constant * multiplier(stage, t)
     /// ```
-    pub fn value(&self, eq: usize, time: f64) -> f64 {
+    pub fn value(&self, eq: usize, stage: usize, time: f64) -> f64 {
         match self.multipliers[eq] {
-            Some(m) => self.constants[eq] * (m)(time),
+            Some(m) => self.constants[eq] * (m)(stage, time),
             None => self.constants[eq],
         }
     }
@@ -102,7 +104,7 @@ impl<'a> BcPrescribed<'a> {
             let i = self.equations[p];
             let j = ndof + p;
             let lambda = state.u[j];
-            let c = self.value(p, state.t);
+            let c = self.value(p, state.stage, state.t);
             rr[i] += lambda; // Aᵀ λ  →  1 * λ
             rr[j] = state.u[i] - c; // A u - c  →  1 * u - c
         }
@@ -218,7 +220,7 @@ mod tests {
         assert_eq!(array.flags, &[true, false, false]);
         assert_eq!(array.equations, &[0]);
         assert_eq!(array.has_non_zero(), true);
-        assert_eq!(array.value(0, 0.0), 110.0);
+        assert_eq!(array.value(0, 0, 0.0), 110.0);
     }
 
     #[test]

@@ -158,12 +158,14 @@ impl<'a> SolverImplicit<'a> {
         self.control_conv.print_header();
 
         // stages loop
+        let mut timestep = 0;
         for stage in 0..self.config.nstage {
-            // print stage number
-            self.control_conv.print_stage(stage);
+            // initialize stage
+            self.control_time.initialize_stage(stage, state);
+            self.control_conv.print_stage(stage, timestep, state.t);
 
             // time loop
-            for timestep in 0..self.config.n_max_timesteps {
+            while timestep < self.config.n_max_timesteps {
                 // done if last timestep
                 if self.control_time.is_last_timestep() {
                     self.control_conv.print_footer();
@@ -177,6 +179,7 @@ impl<'a> SolverImplicit<'a> {
                 if self.control_time.out(state) && self.control_conv.converged() {
                     file_io.write_state(state)?;
                 }
+                timestep += 1;
             }
         }
 
@@ -216,7 +219,7 @@ impl<'a> SolverImplicit<'a> {
         self.control_time.update(state)?;
 
         // update external forces vector F_ext
-        let load_reversal = self.data.assemble_ff_ext(state.t)? && self.config.consider_load_reversal;
+        let load_reversal = self.data.assemble_ff_ext(state.stage, state.t)? && self.config.consider_load_reversal;
 
         // transient/dynamics: old state variables
         if self.config.transient {
@@ -229,7 +232,7 @@ impl<'a> SolverImplicit<'a> {
         } else {
             // the trial displacement is the displacement at the old time (unchanged)
             state.ddu.fill(0.0);
-            state.ell = 1.0;
+            state.lambda = 1.0;
         }
 
         // reset algorithmic variables
@@ -298,7 +301,7 @@ impl<'a> SolverImplicit<'a> {
         self.data.assemble_ff_int(state)?;
 
         // calculate residual vector: R = F_int - lf * F_ext
-        self.data.calculate_residuals_vector(state.ell);
+        self.data.calculate_residuals_vector(state.lambda);
 
         // add Lagrange multiplier contributions to R
         if self.config.lagrange_mult_method {

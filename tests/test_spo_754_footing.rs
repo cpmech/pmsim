@@ -13,6 +13,24 @@ const Z_INI: f64 = 848.7; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
+// displacement control
+const UY: [f64; 14] = [
+    -0.01,  // stage =  0
+    -0.015, // stage =  1
+    -0.02,  // stage =  2
+    -0.025, // stage =  3
+    -0.035, // stage =  4
+    -0.045, // stage =  5
+    -0.055, // stage =  6
+    -0.065, // stage =  7
+    -0.075, // stage =  8
+    -0.08,  // stage =  9
+    -0.09,  // stage = 10
+    -0.11,  // stage = 11
+    -0.14,  // stage = 12
+    -0.2,   // stage = 13
+];
+
 #[test]
 fn test_spo_754_footing() -> Result<(), StrError> {
     // mesh
@@ -33,9 +51,6 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let right = features.search_edges(At::X(500.0), any_x)?;
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let footing = features.search_edges(At::Y(500.0), |x| x[0] <= 50.0)?;
-    // let mut foot_ids = features.get_points_via_2d_edges(&footing);
-    // let ids: Vec<_> = foot_ids.iter().map(|id| 1 + id).collect();
-    // println!("Footing(IDs) = {:?}", ids);
 
     // parameters
     let p1 = ParamSolid {
@@ -51,33 +66,13 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     };
     let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
-    // displacement control
-    const UY: [f64; 15] = [
-        0.0,    // 0   t =  0.0
-        -0.01,  // 1   t =  1.0
-        -0.015, // 2   t =  2.0
-        -0.02,  // 3   t =  3.0
-        -0.025, // 4   t =  4.0
-        -0.035, // 5   t =  5.0
-        -0.045, // 6   t =  6.0
-        -0.055, // 7   t =  7.0
-        -0.065, // 8   t =  8.0
-        -0.075, // 9   t =  9.0
-        -0.08,  // 10  t = 10.0
-        -0.09,  // 11  t = 11.0
-        -0.11,  // 12  t = 12.0
-        -0.14,  // 13  t = 13.0
-        -0.2,   // 14  t = 14.0
-    ];
-
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&footing, Dof::Uy, 1.0, |t| UY[t as usize]);
-    // println!("{}", essential);
+        .edges_fn(&footing, Dof::Uy, 1.0, |stage, _| UY[stage]);
 
     // natural boundary conditions
     let natural = Natural::new();

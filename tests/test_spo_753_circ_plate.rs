@@ -12,8 +12,8 @@ const DRAW_MESH_AND_EXIT: bool = false;
 const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
-const P_ARRAY: [f64; 13] = [
-    0.0, 100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
+const PP: [f64; 12] = [
+    100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
 ];
 const RADIUS: f64 = 10.0;
 const THICKNESS: f64 = 1.0;
@@ -62,13 +62,13 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges_fn(&top, Nbc::Qn, |t| -P_ARRAY[t as usize]);
+    natural.edges_fn(&top, Nbc::Qn, |stage, _| -PP[stage]);
 
     // configuration
     let mut config = Config::new(&mesh);
     config
         .set_axisymmetric()
-        .set_steady(P_ARRAY.len())
+        .set_steady(PP.len())
         .set_lagrange_mult_method(true)
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_n_max_iterations(20);
@@ -120,16 +120,24 @@ fn analyze_results() -> Result<(), StrError> {
 
     // load results
     let nstep_max = 11; // In SPO's book, they do not show the results for the last two load steps
+    let mut load = vec![0.0; nstep_max];
     let mut deflection = vec![0.0; nstep_max];
-    let load: Vec<_> = (0..nstep_max).into_iter().map(|i| P_ARRAY[i]).collect();
     let mut ll = Vec::new(); // normalized coordinate x/R
     let mut yy_p100 = Vec::new(); // normalized deflection w/h @ P = 100
     let mut yy_p200 = Vec::new(); // normalized deflection w/h @ P = 200
     let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
     for index in 0..nstep_max {
+        // load state
         let state = post.read_state(index)?;
+
+        // load
+        let pp = PP[state.stage];
+        load[index] = pp;
+
+        // deflection
         deflection[index] = -state.u[eq_uy];
-        let pp = P_ARRAY[index];
+
+        // deflection profiles
         if pp == 100.0 {
             let (_, cc, dd) = post.values_along_edges(&state, &bottom, Dof::Uy).unwrap();
             ll = cc.iter().map(|x| x[0] / RADIUS).collect::<Vec<_>>();

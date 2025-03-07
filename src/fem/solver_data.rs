@@ -109,7 +109,7 @@ impl<'a> SolverData<'a> {
     /// Assembles the external forces vector (F_ext)
     ///
     /// Returns `reversal` indicating if the loading direction has changed
-    pub fn assemble_ff_ext(&mut self, t: f64) -> Result<bool, StrError> {
+    pub fn assemble_ff_ext(&mut self, stage: usize, t: f64) -> Result<bool, StrError> {
         // make a copy of F_ext
         vec_copy(&mut self.ls.ff_ext_old, &self.ls.ff_ext).unwrap();
 
@@ -122,10 +122,10 @@ impl<'a> SolverData<'a> {
 
         // calculate all boundary elements local vectors and add them to F_ext
         self.bc_distributed
-            .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored_eqs)?;
+            .assemble_f_ext(&mut self.ls.ff_ext, stage, t, &self.ignored_eqs)?;
 
         // add concentrated loads to F_ext
-        self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff_ext, t);
+        self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff_ext, stage, t);
 
         // make a copy of ΔF_ext
         vec_copy(&mut self.ls.ddff_ext_old, &self.ls.ddff_ext).unwrap();

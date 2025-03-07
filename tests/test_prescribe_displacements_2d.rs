@@ -67,7 +67,6 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
         .edges(&top, Dof::Uy, -DY);
-    println!("{}", essential);
 
     // natural boundary conditions
     let natural = Natural::new();

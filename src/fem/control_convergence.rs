@@ -255,9 +255,9 @@ impl<'a> ControlConvergence<'a> {
     }
 
     /// Prints stage information
-    pub(crate) fn print_stage(&self, stage: usize) {
+    pub(crate) fn print_stage(&self, stage: usize, timestep: usize, t: f64) {
         if self.config.verbose_timesteps {
-            println!("{:>5} {:>8} {:>11} {:>11}", stage, ".", ".", ".");
+            println!("{:>5} {:>8} {:>11.6e}", stage, timestep, t);
         }
     }
 

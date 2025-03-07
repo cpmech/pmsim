@@ -76,7 +76,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
 
     // update state with prescribed displacements
     for p in 0..values.equations.len() {
-        let value = values.value(p, 1.0);
+        let value = values.value(p, 0, 1.0);
         let eq = values.equations[p];
         state.ddu[eq] = value - state.u[eq];
         state.u[eq] = value;
@@ -208,7 +208,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
 
     // update state with prescribed displacements
     for p in 0..values.equations.len() {
-        let value = values.value(p, 1.0);
+        let value = values.value(p, 0, 1.0);
         let eq = values.equations[p];
         state.ddu[eq] = value - state.u[eq];
         state.u[eq] = value;

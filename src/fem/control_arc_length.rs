@@ -131,7 +131,7 @@ impl<'a> ControlArcLength<'a> {
     pub(crate) fn trial_increments(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
         // set first loading factor
         if timestep == 0 {
-            state.ell = self.config.arc_first_trial_ell;
+            state.lambda = self.config.arc_first_trial_ell;
         }
 
         // compute trial displacement u and trial loading factor ℓ
@@ -141,12 +141,12 @@ impl<'a> ControlArcLength<'a> {
             }
             let alpha = self.dds / self.dds_old;
             vec_add(&mut state.u, 1.0 + alpha, &self.u_old, -alpha, &self.u_anc).unwrap();
-            state.ell = (1.0 + alpha) * self.ell_old - alpha * self.ell_anc;
+            state.lambda = (1.0 + alpha) * self.ell_old - alpha * self.ell_anc;
         }
 
         // compute trial displacement increment Δu and trial loading factor increment Δℓ
         vec_add(&mut state.ddu, 1.0, &state.u, -1.0, &self.u_old).unwrap();
-        self.ddl = state.ell - self.ell_old;
+        self.ddl = state.lambda - self.ell_old;
         Ok(())
     }
 
@@ -244,7 +244,7 @@ impl<'a> ControlArcLength<'a> {
     /// * ℓ ← ℓ + δℓ
     /// * Δℓ ← Δℓ + δℓ
     pub(crate) fn update_load_factor(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        state.ell += self.dl;
+        state.lambda += self.dl;
         self.ddl += self.dl;
         Ok(())
     }
@@ -294,7 +294,7 @@ impl<'a> ControlArcLength<'a> {
             vec_copy(&mut self.u_anc, &self.u_old).unwrap();
             vec_copy(&mut self.u_old, &state.u).unwrap();
             self.ell_anc = self.ell_old;
-            self.ell_old = state.ell;
+            self.ell_old = state.lambda;
         } else {
             if self.converged_old {
                 self.dds = f64::max(self.dds / 2.0, self.dds_min);

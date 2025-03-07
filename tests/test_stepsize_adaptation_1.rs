@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use plotpy::{linspace, Curve, Plot};
+use plotpy::Curve;
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
 use pmsim::prelude::*;
 use pmsim::StrError;
@@ -42,17 +42,10 @@ const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 
 const P_MAX_RES: f64 = 0.18; // maximum pressure applied before unloading completely to zero
-const T_FIN: f64 = 1.0; // final time
-const T_CRIT: f64 = T_FIN / 2.0; // critical time
-
-fn calc_pp(t: f64) -> f64 {
-    if t <= T_CRIT {
-        P_MAX_RES * (t / T_CRIT)
-    } else {
-        P_MAX_RES * (T_FIN - t) / (T_FIN - T_CRIT)
-        // P_MAX_RES
-    }
-}
+const PP: [f64; 2] = [
+    P_MAX_RES, // stage = 0
+    0.0,       // stage = 1
+];
 
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
@@ -103,7 +96,7 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
 
     // natural boundary conditions and configuration
     let mut natural = Natural::new();
-    natural.edges_fn(&inner_circle, Nbc::Qn, |t| -calc_pp(t));
+    natural.edges_fn(&inner_circle, Nbc::Qn, |stage, _| -PP[stage]);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
@@ -136,21 +129,24 @@ fn analyze_results() -> Result<(), StrError> {
     let mut ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
 
     // loop over time stations
-    let mut outer_ur = vec![0.0; post.n_state()];
     let mut inner_pp = vec![0.0; post.n_state()];
+    let mut outer_ur = vec![0.0; post.n_state()];
     let mut first_rr = true;
     let mut rr = Vec::new();
     let mut pp_arr = Vec::new();
     let mut sh_arr = Vec::new();
     let mut sr_arr = Vec::new();
-    for index in 0..post.n_state() {
+    for index in 1..post.n_state() {
         // load state
         let state = post.read_state(index)?;
+
+        // pressure
+        let pp = PP[state.stage];
+        inner_pp[index] = pp;
 
         // radial displacement
         let ub_num = state.u[eq_ux];
         outer_ur[index] = ub_num;
-        inner_pp[index] = calc_pp(state.t);
 
         // get stresses
         let res = post.gauss_stresses(&mut memo, &state, &lower_cells, |x, y, _| {
@@ -159,8 +155,7 @@ fn analyze_results() -> Result<(), StrError> {
         })?;
 
         // convert to polar coordinates and compare with analytical solution
-        let pp = calc_pp(state.t);
-        if index > 0 && index % 3 == 0 {
+        if state.stage == 1 {
             pp_arr.push(pp);
             sh_arr.push(Vec::new());
             sr_arr.push(Vec::new());
@@ -178,8 +173,6 @@ fn analyze_results() -> Result<(), StrError> {
             first_rr = false;
         }
     }
-
-    // println!("pp_arr = {:?}", pp_arr);
 
     // plot
     if SAVE_FIGURE {
@@ -218,15 +211,6 @@ fn analyze_results() -> Result<(), StrError> {
         });
         plot.set_figure_size_points(600.0, 450.0)
             .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
-        // loading history
-        let mut curve = Curve::new();
-        let tt = linspace(0.0, T_FIN, 201);
-        let pp = tt.iter().map(|&t| -calc_pp(t)).collect::<Vec<_>>();
-        curve.draw(&tt, &pp);
-        let mut plot = Plot::new();
-        plot.add(&curve)
-            .grid_and_labels("Time $t$", "Distributed load $q_n$")
-            .save("/tmp/pmsim/test_stepsize_adaptation_1_loading_history.svg")?;
     }
 
     Ok(())

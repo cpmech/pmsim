@@ -44,7 +44,9 @@ pub struct BcDistributed<'a> {
     value: f64,
 
     /// Function to calculate the BC value (overrides the value, if not None)
-    function: Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>,
+    ///
+    /// The function is `(stage, t) -> load`
+    function: Option<&'a Box<dyn Fn(usize, f64) -> f64 + 'a>>,
 }
 
 /// Implements an array of BcDistributed
@@ -60,6 +62,8 @@ impl<'a> BcDistributed<'a> {
     /// Allocates a new instance
     ///
     /// Note: `Qn` is not allowed for 3D edges
+    ///
+    /// The function is `(stage, t) -> load`
     pub fn new(
         mesh: &Mesh,
         base: &FemBase,
@@ -68,7 +72,7 @@ impl<'a> BcDistributed<'a> {
         points: &[usize],
         nbc: Nbc,
         value: f64,
-        function: Option<&'a Box<dyn Fn(f64) -> f64 + 'a>>,
+        function: Option<&'a Box<dyn Fn(usize, f64) -> f64 + 'a>>,
     ) -> Result<Self, StrError> {
         // check
         let ndim = mesh.ndim;
@@ -155,7 +159,7 @@ impl<'a> BcDistributed<'a> {
     }
 
     /// Calculates the vector of external forces f_ext
-    pub fn calc_f_ext(&mut self, time: f64) -> Result<(), StrError> {
+    pub fn calc_f_ext(&mut self, stage: usize, time: f64) -> Result<(), StrError> {
         // constants
         let (ndim, _) = self.pad.xxt.dims();
 
@@ -166,7 +170,7 @@ impl<'a> BcDistributed<'a> {
 
         // value of boundary condition at time t
         let value = match self.function {
-            Some(f) => (f)(time),
+            Some(f) => (f)(stage, time),
             None => self.value,
         };
 
@@ -350,9 +354,15 @@ impl<'a> BcDistributedArray<'a> {
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_f_ext(&mut self, ff_ext: &mut Vector, time: f64, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_f_ext(
+        &mut self,
+        ff_ext: &mut Vector,
+        stage: usize,
+        time: f64,
+        ignore: &[bool],
+    ) -> Result<(), StrError> {
         for e in &mut self.all {
-            e.calc_f_ext(time)?;
+            e.calc_f_ext(stage, time)?;
             assemble_vector(ff_ext, &e.f_ext, &e.local_to_global, ignore);
         }
         Ok(())
@@ -443,61 +453,61 @@ mod tests {
         // Qn
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, 2.0 * -Q / 3.0, 0.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         // Qx
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         // Qy
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         // Qz
@@ -510,7 +520,7 @@ mod tests {
         let config = Config::new(&mesh);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qz, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[0.0, 0.0, Q / 2.0, 0.0, 0.0, Q / 2.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
     }
@@ -529,12 +539,12 @@ mod tests {
         let time = 0.0;
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Ql, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[Q / 6.0, Q / 6.0, 2.0 * Q / 3.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qg, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
     }
 
@@ -558,7 +568,7 @@ mod tests {
         // flux: not present in Bhatti's example but we can check the flux BC here
         const L: f64 = 0.3;
         let mut bry = BcDistributed::new(&mesh, &base, &config, edge.kind, &edge.points, Nbc::Qt, Q, None).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[Q * L / 2.0, Q * L / 2.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-14);
 
@@ -575,7 +585,7 @@ mod tests {
         )
         .unwrap();
         bry.calc_f_int(&state).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let mut f_int_minus_f_ext = Vector::new(bry.f_int.dim());
         vec_add(&mut f_int_minus_f_ext, 1.0, &bry.f_int, -1.0, &bry.f_ext).unwrap();
         vec_approx_eq(&f_int_minus_f_ext, &[-81.0, -81.0], 1e-15);
@@ -621,7 +631,7 @@ mod tests {
             None,
         )
         .unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let correct = &[Q * L / 6.0, Q * L / 6.0, 2.0 * Q * L / 3.0];
         vec_approx_eq(&bry.f_ext, correct, 1e-10);
 
@@ -638,7 +648,7 @@ mod tests {
         )
         .unwrap();
         bry.calc_f_int(&state).unwrap();
-        bry.calc_f_ext(time).unwrap();
+        bry.calc_f_ext(0, time).unwrap();
         let mut f_int_minus_f_ext = Vector::new(bry.f_int.dim());
         vec_add(&mut f_int_minus_f_ext, 1.0, &bry.f_int, -1.0, &bry.f_ext).unwrap();
         vec_approx_eq(&f_int_minus_f_ext, &[-5.5, -5.5, -22.0], 1e-14);
@@ -684,7 +694,7 @@ mod tests {
         let neq = base.dofs.size();
         let mut ff_ext = Vector::new(neq);
         let ignore = vec![false; neq];
-        bry.assemble_f_ext(&mut ff_ext, time, &ignore).unwrap();
+        bry.assemble_f_ext(&mut ff_ext, 0, time, &ignore).unwrap();
         // →        ⌠    →
         // fᵐ_int = │ Nᵐ v dΓ
         //          ⌡

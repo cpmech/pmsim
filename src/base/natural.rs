@@ -1,6 +1,5 @@
 use super::{Nbc, Pbc};
 use gemlab::mesh::{Edge, Edges, Face, Faces, PointId};
-use std::fmt;
 
 /// Holds natural boundary conditions
 pub struct Natural<'a, 'b> {
@@ -32,7 +31,9 @@ pub struct Natural<'a, 'b> {
     pub(crate) on_faces: Vec<(&'b Face, Nbc, f64, Option<usize>)>,
 
     /// Holds optional functions to calculate the BC value
-    pub(crate) functions: Vec<Box<dyn Fn(f64) -> f64 + 'a>>,
+    ///
+    /// The function is `(stage, t) -> load`
+    pub(crate) functions: Vec<Box<dyn Fn(usize, f64) -> f64 + 'a>>,
 }
 
 impl<'a, 'b> Natural<'a, 'b> {
@@ -65,7 +66,9 @@ impl<'a, 'b> Natural<'a, 'b> {
     }
 
     /// Sets natural boundary condition given point
-    pub fn point_fn(&mut self, point_id: PointId, pbc: Pbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    ///
+    /// The function is `(stage, t) -> load`
+    pub fn point_fn(&mut self, point_id: PointId, pbc: Pbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
         let f_index = self.functions.len();
         self.at_points.push((point_id, pbc, 0.0, Some(f_index)));
         self.functions.push(Box::new(f));
@@ -73,7 +76,9 @@ impl<'a, 'b> Natural<'a, 'b> {
     }
 
     /// Sets natural boundary condition given edge
-    pub fn edge_fn(&mut self, edge: &'b Edge, nbc: Nbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    ///
+    /// The function is `(stage, t) -> load`
+    pub fn edge_fn(&mut self, edge: &'b Edge, nbc: Nbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
         let f_index = self.functions.len();
         self.on_edges.push((edge, nbc, 0.0, Some(f_index)));
         self.functions.push(Box::new(f));
@@ -81,7 +86,9 @@ impl<'a, 'b> Natural<'a, 'b> {
     }
 
     /// Sets natural boundary condition given face
-    pub fn face_fn(&mut self, face: &'b Face, nbc: Nbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    ///
+    /// The function is `(stage, t) -> load`
+    pub fn face_fn(&mut self, face: &'b Face, nbc: Nbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
         let f_index = self.functions.len();
         self.on_faces.push((face, nbc, 0.0, Some(f_index)));
         self.functions.push(Box::new(f));
@@ -113,7 +120,9 @@ impl<'a, 'b> Natural<'a, 'b> {
     }
 
     /// Sets natural boundary condition given points
-    pub fn points_fn(&mut self, points: &[PointId], pbc: Pbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    ///
+    /// The function is `(stage, t) -> load`
+    pub fn points_fn(&mut self, points: &[PointId], pbc: Pbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
         let f_index = self.functions.len();
         for point_id in points {
             self.at_points.push((*point_id, pbc, 0.0, Some(f_index)));
@@ -123,7 +132,9 @@ impl<'a, 'b> Natural<'a, 'b> {
     }
 
     /// Sets natural boundary condition given edges
-    pub fn edges_fn(&mut self, edges: &'b Edges, nbc: Nbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    ///
+    /// The function is `(stage, t) -> load`
+    pub fn edges_fn(&mut self, edges: &'b Edges, nbc: Nbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
         let f_index = self.functions.len();
         for edge in &edges.all {
             self.on_edges.push((edge, nbc, 0.0, Some(f_index)));
@@ -133,71 +144,15 @@ impl<'a, 'b> Natural<'a, 'b> {
     }
 
     /// Sets natural boundary condition given faces
-    pub fn faces_fn(&mut self, faces: &'b Faces, nbc: Nbc, f: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    ///
+    /// The function is `(stage, t) -> load`
+    pub fn faces_fn(&mut self, faces: &'b Faces, nbc: Nbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
         let f_index = self.functions.len();
         for face in &faces.all {
             self.on_faces.push((face, nbc, 0.0, Some(f_index)));
         }
         self.functions.push(Box::new(f));
         self
-    }
-}
-
-impl<'a, 'b> fmt::Display for Natural<'a, 'b> {
-    /// Prints a formatted summary of Boundary Conditions
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Points: concentrated boundary conditions\n").unwrap();
-        write!(f, "========================================\n").unwrap();
-        for (id, pbc, value, f_index) in &self.at_points {
-            match f_index {
-                Some(index) => write!(
-                    f,
-                    "{:?} : {:?}(t=0) = {:?}, {:?}(t=1) = {:?}\n",
-                    id,
-                    pbc,
-                    (self.functions[*index](0.0)),
-                    pbc,
-                    (self.functions[*index](1.0))
-                )
-                .unwrap(),
-                None => write!(f, "{:?} : {:?} = {:?}\n", id, pbc, value).unwrap(),
-            }
-        }
-        write!(f, "\nEdges: distributed boundary conditions\n").unwrap();
-        write!(f, "======================================\n").unwrap();
-        for (edge, nbc, value, f_index) in &self.on_edges {
-            match f_index {
-                Some(index) => write!(
-                    f,
-                    "{:?} : {:?}(t=0) = {:?}, {:?}(t=1) = {:?}\n",
-                    edge.points,
-                    nbc,
-                    (self.functions[*index](0.0)),
-                    nbc,
-                    (self.functions[*index](1.0))
-                )
-                .unwrap(),
-                None => write!(f, "{:?} : {:?} = {:?}\n", edge.points, nbc, value).unwrap(),
-            }
-        }
-        write!(f, "\nFaces: distributed boundary conditions\n").unwrap();
-        write!(f, "======================================\n").unwrap();
-        for (face, nbc, value, f_index) in &self.on_faces {
-            match f_index {
-                Some(index) => write!(
-                    f,
-                    "{:?} : {:?}(t=0) = {:?}, {:?}(t=1) = {:?}\n",
-                    face.points,
-                    nbc,
-                    (self.functions[*index](0.0)),
-                    nbc,
-                    (self.functions[*index](1.0))
-                )
-                .unwrap(),
-                None => write!(f, "{:?} : {:?} = {:?}\n", face.points, nbc, value).unwrap(),
-            }
-        }
-        Ok(())
     }
 }
 
@@ -232,27 +187,9 @@ mod tests {
             .point(10, Pbc::Fy, -100.0)
             .edge(&edge_a, Nbc::Qx, 1.0)
             .face(&face_a, Nbc::Qy, 2.0)
-            .point_fn(20, Pbc::Fy, |t| t)
-            .edge_fn(&edge_b, Nbc::Qx, |t| t)
-            .face_fn(&face_b, Nbc::Qy, |t| t);
-        // println!("{}", natural);
-        assert_eq!(
-            format!("{}", natural),
-            "Points: concentrated boundary conditions\n\
-             ========================================\n\
-             10 : Fy = -100.0\n\
-             20 : Fy(t=0) = 0.0, Fy(t=1) = 1.0\n\
-             \n\
-             Edges: distributed boundary conditions\n\
-             ======================================\n\
-             [1, 2] : Qx = 1.0\n\
-             [2, 3] : Qx(t=0) = 0.0, Qx(t=1) = 1.0\n\
-             \n\
-             Faces: distributed boundary conditions\n\
-             ======================================\n\
-             [3, 4, 5] : Qy = 2.0\n\
-             [6, 7, 8] : Qy(t=0) = 0.0, Qy(t=1) = 1.0\n"
-        );
+            .point_fn(20, Pbc::Fy, |_, t| t)
+            .edge_fn(&edge_b, Nbc::Qx, |_, t| t)
+            .face_fn(&face_b, Nbc::Qy, |_, t| t);
     }
 
     #[test]
@@ -282,27 +219,9 @@ mod tests {
             .points(&[10], Pbc::Fy, -100.0)
             .edges(&edges_a, Nbc::Qx, 1.0)
             .faces(&faces_a, Nbc::Qy, 2.0)
-            .points_fn(&[20], Pbc::Fy, |t| t)
-            .edges_fn(&edges_b, Nbc::Qx, |t| t)
-            .faces_fn(&faces_b, Nbc::Qy, |t| t);
-        // println!("{}", natural);
-        assert_eq!(
-            format!("{}", natural),
-            "Points: concentrated boundary conditions\n\
-             ========================================\n\
-             10 : Fy = -100.0\n\
-             20 : Fy(t=0) = 0.0, Fy(t=1) = 1.0\n\
-             \n\
-             Edges: distributed boundary conditions\n\
-             ======================================\n\
-             [1, 2] : Qx = 1.0\n\
-             [2, 3] : Qx(t=0) = 0.0, Qx(t=1) = 1.0\n\
-             \n\
-             Faces: distributed boundary conditions\n\
-             ======================================\n\
-             [3, 4, 5] : Qy = 2.0\n\
-             [6, 7, 8] : Qy(t=0) = 0.0, Qy(t=1) = 1.0\n"
-        );
+            .points_fn(&[20], Pbc::Fy, |_, t| t)
+            .edges_fn(&edges_b, Nbc::Qx, |_, t| t)
+            .faces_fn(&faces_b, Nbc::Qy, |_, t| t);
     }
 
     #[test]
@@ -334,20 +253,5 @@ mod tests {
         };
         natural.edges(&top_edges, Nbc::Qn, -10.0);
         natural.faces(&top_faces, Nbc::Qy, -20.0);
-        // println!("{}", natural);
-        assert_eq!(
-            format!("{}", natural),
-            "Points: concentrated boundary conditions\n\
-             ========================================\n\
-             \n\
-             Edges: distributed boundary conditions\n\
-             ======================================\n\
-             [4, 5] : Qn = -10.0\n\
-             [6, 7] : Qn = -10.0\n\
-             \n\
-             Faces: distributed boundary conditions\n\
-             ======================================\n\
-             [0, 1, 5, 4] : Qy = -20.0\n"
-        );
     }
 }

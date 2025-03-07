@@ -118,8 +118,10 @@ pub struct Config<'a> {
     // Number of stages
     pub(crate) nstage: usize,
 
-    /// Final time
-    pub(crate) t_fin: f64,
+    /// Final time per stage
+    ///
+    /// (nstage)
+    pub(crate) t_fin: Vec<f64>,
 
     /// Initial or constant stepsize Δt
     ///
@@ -274,7 +276,7 @@ impl<'a> Config<'a> {
             verbose_lin_sys_solve: false,
             // Time stepping
             nstage: 1,
-            t_fin: 1.0,
+            t_fin: vec![1.0],
             ddt: 1.0,
             ddt_out: 1.0,
             ddt_min: CONFIG_DT_MIN,
@@ -340,6 +342,11 @@ impl<'a> Config<'a> {
             ));
         }
 
+        // Problem definition
+        if self.nstage == 0 {
+            return Some("nstage = 0 is incorrect; it must be ≥ 1".to_string());
+        }
+
         // Initialization
 
         match self.initialization {
@@ -364,9 +371,6 @@ impl<'a> Config<'a> {
 
         // Time stepping
 
-        if self.t_fin <= 0.0 {
-            return Some(format!("t_fin = {:?} is incorrect; it must be > 0.0", self.t_fin,));
-        }
         if self.ddt_min < CONFIG_DT_MIN {
             return Some(format!(
                 "ddt_min = {:?} is incorrect; it must be ≥ {:e}",
@@ -514,23 +518,13 @@ impl<'a> Config<'a> {
     ///
     /// # Input
     ///
-    /// * `nstep` -- is the number of steps (≥ 2), including the initial (null) state.
-    ///   It corresponds to the number of (pseudo) time stations. Example:
-    ///
-    /// ```text
-    /// displacement control with uy = [0.0, -0.1, -0.2]
-    /// nstep = uy.len(), thus nstep = 3
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// **Panics** if `nstep` is less than 2.
-    pub fn set_steady(&mut self, nstep: usize) -> &mut Self {
-        assert!(nstep > 1, "nstep must be ≥ 2");
+    /// * `nstage` -- the number of stages (≥ 1)
+    pub fn set_steady(&mut self, nstage: usize) -> &mut Self {
         self.steady = true;
         self.transient = false;
         self.dynamics = false;
-        self.t_fin = (nstep - 1) as f64;
+        self.nstage = nstage;
+        self.t_fin = (1..=nstage).map(|i| i as f64).collect();
         self.ddt = 1.0;
         self.ddt_out = 1.0;
         self
@@ -665,7 +659,7 @@ impl<'a> Config<'a> {
     /// This function only works if !steady.
     pub fn set_t_fin(&mut self, t_fin: f64) -> &mut Self {
         assert!(!self.steady, "set_t_fin only works if !steady");
-        self.t_fin = t_fin;
+        self.t_fin = vec![t_fin];
         self
     }
 
@@ -1032,6 +1026,15 @@ mod tests {
         );
         config.ideal.thickness = 1.0;
 
+        // Problem definition
+
+        config.nstage = 0;
+        assert_eq!(
+            config.validate(),
+            Some("nstage = 0 is incorrect; it must be ≥ 1".to_string())
+        );
+        config.nstage = 1;
+
         // Initialization
 
         config.initialization = Init::Geostatic(123.0);
@@ -1059,13 +1062,6 @@ mod tests {
         config.ideal.plane_stress = false;
 
         // Time stepping
-
-        config.t_fin = -0.1;
-        assert_eq!(
-            config.validate(),
-            Some("t_fin = -0.1 is incorrect; it must be > 0.0".to_string())
-        );
-        config.t_fin = 1.0;
 
         config.ddt_min = 0.0;
         assert_eq!(
@@ -1176,21 +1172,12 @@ mod tests {
     fn set_quasi_static_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
-        const UY: [f64; 4] = [0.0, -0.7, -0.9, -1.0];
-        config.set_steady(UY.len());
-        assert_eq!(config.t_fin, 3.0);
+        config.set_steady(3);
+        assert_eq!(config.t_fin, &[1.0, 2.0, 3.0]);
         assert_eq!(config.ddt, 1.0);
         assert_eq!(config.ddt, 1.0);
         assert_eq!(config.ddt_out, 1.0);
         assert_eq!(config.ddt_out, 1.0);
-    }
-
-    #[test]
-    #[should_panic(expected = "nstep must be ≥ 2")]
-    fn set_quasi_static_panics_on_small_nstep() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-        config.set_steady(1);
     }
 
     #[test]

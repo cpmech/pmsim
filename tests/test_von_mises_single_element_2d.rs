@@ -60,7 +60,7 @@ const Z_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
 const NGAUSS: usize = 1;
-const N_STATION: usize = 6; // including initial zero state
+const NSTAGE: usize = 5;
 
 #[test]
 #[serial]
@@ -87,13 +87,15 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     };
     let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
 
+    // stage-wise vertical displacement increment
+    let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+
     // essential boundary conditions
-    let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
     let mut essential = Essential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, 1.0, |t| -delta_y * t);
+        .edges_fn(&top, Dof::Uy, 1.0, |s, _| delta_y * ((1 + s) as f64));
 
     // natural boundary conditions
     let natural = Natural::new();
@@ -102,7 +104,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(true)
-        .set_steady(N_STATION)
+        .set_steady(NSTAGE)
         .set_n_max_iterations(20);
     solve_and_check(&mesh, &base, &essential, &natural, &config)?;
 
