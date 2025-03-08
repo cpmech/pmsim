@@ -219,7 +219,7 @@ impl<'a> SolverImplicit<'a> {
         self.control_time.update(state)?;
 
         // update external forces vector F_ext
-        let load_reversal = self.data.assemble_ff_ext(state.stage, state.t)? && self.config.consider_load_reversal;
+        self.data.assemble_ff_ext(state.stage, state.t)?;
 
         // transient/dynamics: old state variables
         if self.config.transient {
@@ -237,12 +237,14 @@ impl<'a> SolverImplicit<'a> {
 
         // reset algorithmic variables
         if !self.config.linear_problem {
-            self.data.elements.reset_algorithmic_variables(state, load_reversal);
+            self.data
+                .elements
+                .reset_algorithmic_variables(state, self.data.reversal);
         }
 
         // print time information
         self.control_conv
-            .print_timestep(timestep, state.t, state.ddt, load_reversal);
+            .print_timestep(timestep, state.t, state.ddt, self.data.reversal);
 
         // iteration loop
         for iteration in 0..self.config.n_max_iterations {

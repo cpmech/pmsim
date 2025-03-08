@@ -33,6 +33,11 @@ pub(crate) struct SolverData<'a> {
 
     /// Stopwatch to measure computer time
     pub(crate) stopwatch: Stopwatch,
+
+    /// Indicates whether a load reversal occurred from stage(i) to stage(i+1)
+    ///
+    /// Note: this flag works with quasi-static simulations only
+    pub(crate) reversal: bool,
 }
 
 impl<'a> SolverData<'a> {
@@ -88,6 +93,7 @@ impl<'a> SolverData<'a> {
             ignored_eqs,
             unknown_eqs,
             stopwatch: Stopwatch::new(),
+            reversal: false,
         })
     }
 
@@ -107,9 +113,7 @@ impl<'a> SolverData<'a> {
     }
 
     /// Assembles the external forces vector (F_ext)
-    ///
-    /// Returns `reversal` indicating if the loading direction has changed
-    pub fn assemble_ff_ext(&mut self, stage: usize, t: f64) -> Result<bool, StrError> {
+    pub fn assemble_ff_ext(&mut self, stage: usize, t: f64) -> Result<(), StrError> {
         // make a copy of F_ext
         vec_copy(&mut self.ls.ff_ext_old, &self.ls.ff_ext).unwrap();
 
@@ -135,7 +139,8 @@ impl<'a> SolverData<'a> {
 
         // check if load reversal occurred
         let dot = vec_inner(&self.ls.ddff_ext_old, &self.ls.ddff_ext);
-        Ok(dot < 0.0)
+        self.reversal = dot < 0.0;
+        Ok(())
     }
 
     /// Calculates the residual vector R
