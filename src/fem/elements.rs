@@ -197,10 +197,10 @@ impl<'a> Elements<'a> {
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    pub fn reset_algorithmic_variables(&self, state: &mut FemState, load_reversal: bool) {
+    pub fn reset_algorithmic_variables(&self, state: &mut FemState) {
         self.all
             .iter()
-            .map(|e| e.actual.reset_algorithmic_variables(state, load_reversal))
+            .map(|e| e.actual.reset_algorithmic_variables(state))
             .collect()
     }
 }

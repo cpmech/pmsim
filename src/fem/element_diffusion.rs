@@ -234,7 +234,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     fn restore_secondary_values(&self, _state: &mut FemState, _alternative: bool) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, _state: &mut FemState, _load_reversal: bool) {}
+    fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

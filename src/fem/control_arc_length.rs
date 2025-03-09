@@ -122,20 +122,19 @@ impl<'a> ControlArcLength<'a> {
     ///
     /// # Arguments
     ///
-    /// * `timestep` - Current timestep number
     /// * `state` - Current FEM state to update
     ///
     /// # Errors
     ///
     /// Returns error if previous arc-length increment is too small
-    pub(crate) fn trial(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
+    pub(crate) fn trial(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // set first loading factor
-        if timestep == 0 {
+        if state.step == 0 {
             state.lambda = self.config.arc_first_trial_ell;
         }
 
         // compute trial displacement u and trial loading factor ℓ
-        if timestep > 0 {
+        if state.step > 0 {
             if f64::abs(self.dds_old) < 1e-12 {
                 return Err("Δs_old is too small");
             }
@@ -158,7 +157,6 @@ impl<'a> ControlArcLength<'a> {
     ///
     /// # Arguments
     ///
-    /// * `timestep` - Current timestep number
     /// * `state` - Current FEM state containing displacements
     /// * `ff_ext` - External force vector
     ///
@@ -173,8 +171,8 @@ impl<'a> ControlArcLength<'a> {
     /// * g = 0
     /// * ∂g/∂ℓ = 1
     /// * ∂g/∂u = 0
-    pub(crate) fn constraint(&mut self, timestep: usize, state: &FemState, ff_ext: &Vector) -> Result<f64, StrError> {
-        if timestep > 0 {
+    pub(crate) fn constraint(&mut self, state: &FemState, ff_ext: &Vector) -> Result<f64, StrError> {
+        if state.step > 0 {
             let psi = self.config.arc_psi;
             let inc = vec_inner(&state.ddu, &state.ddu);
             let ftf = vec_inner(ff_ext, ff_ext);
@@ -248,7 +246,6 @@ impl<'a> ControlArcLength<'a> {
     ///
     /// # Arguments
     ///
-    /// * `timestep` - Current timestep number
     /// * `state` - Current FEM state
     /// * `converged` - Whether the current step converged
     /// * `ff_ext` - External force vector
@@ -266,15 +263,9 @@ impl<'a> ControlArcLength<'a> {
     /// For failed steps:
     /// * If previous step converged: Δs ← max(Δs/2, Δs_min)
     /// * If previous step failed: Δs ← max(Δs/4, Δs_min)
-    pub(crate) fn adapt(
-        &mut self,
-        timestep: usize,
-        state: &FemState,
-        converged: bool,
-        ff_ext: &Vector,
-    ) -> Result<(), StrError> {
+    pub(crate) fn adapt(&mut self, state: &FemState, converged: bool, ff_ext: &Vector) -> Result<(), StrError> {
         if converged {
-            if timestep == 0 {
+            if state.step == 0 {
                 let psi = self.config.arc_psi;
                 let inc = vec_inner(&state.ddu, &state.ddu);
                 let ftf = vec_inner(ff_ext, ff_ext);

@@ -1,4 +1,4 @@
-use super::{ControlArcLength, ControlResidual, ControlTime};
+use super::{ControlArcLength, ControlPrinter, ControlResidual, ControlTime};
 use super::{FemBase, FemState, FileIo, SolverCommon};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
@@ -27,14 +27,17 @@ pub struct SolverImplicit<'a> {
     /// Common functionality
     com: SolverCommon<'a>,
 
+    /// Arc-length control for path-following analysis
+    arc: ControlArcLength<'a>,
+
+    /// Printer control
+    print: ControlPrinter,
+
     /// Residual control
     res: ControlResidual<'a>,
 
     /// Time stepping and integration control
     time: ControlTime<'a>,
-
-    /// Arc-length control for path-following analysis
-    arc: ControlArcLength<'a>,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -70,10 +73,6 @@ impl<'a> SolverImplicit<'a> {
         let com = SolverCommon::new(mesh, base, config, essential, natural)?;
         let neq_total = com.ls.neq_total;
 
-        // allocate residual and time control structures
-        let res = ControlResidual::new(config, neq_total);
-        let time = ControlTime::new(config)?;
-
         // allocate arc-length control structure
         let arc = if config.arc_length_method {
             ControlArcLength::new(config, neq_total)
@@ -81,13 +80,19 @@ impl<'a> SolverImplicit<'a> {
             ControlArcLength::new(config, 0)
         };
 
+        // allocate controls
+        let print = ControlPrinter::new(config);
+        let res = ControlResidual::new(config, neq_total);
+        let time = ControlTime::new(config)?;
+
         // allocate new instance
         Ok(SolverImplicit {
             config,
             com,
+            arc,
+            print,
             res,
             time,
-            arc,
         })
     }
 
@@ -155,31 +160,31 @@ impl<'a> SolverImplicit<'a> {
         file_io.write_state(state)?;
 
         // print convergence information
-        self.res.print_header();
+        self.print.header();
 
         // stages loop
-        let mut timestep = 0;
+        state.step = 0;
         for stage in 0..self.config.nstage {
             // initialize stage
             self.time.initialize_stage(stage, state);
-            self.res.print_stage(stage, timestep, state.t);
+            self.print.stage(state);
 
             // time loop
-            while timestep < self.config.n_max_timesteps {
+            while state.step < self.config.n_max_timesteps {
                 // done if last timestep
                 if self.time.last() {
-                    self.res.print_footer();
+                    self.print.footer();
                     break;
                 }
 
                 // perform step
-                run!(self.step(timestep, state));
+                run!(self.step(state));
 
                 // perform output
                 if self.time.out(state) && self.res.converged() {
                     file_io.write_state(state)?;
                 }
-                timestep += 1;
+                state.step += 1;
             }
         }
 
@@ -198,7 +203,6 @@ impl<'a> SolverImplicit<'a> {
     ///
     /// # Arguments
     ///
-    /// * `timestep` - Current timestep number
     /// * `state` - FEM state to update
     ///
     /// # Returns
@@ -214,12 +218,12 @@ impl<'a> SolverImplicit<'a> {
     /// 5. Performs nonlinear iterations
     /// 6. Adapts step size for arc-length method
     /// 7. Checks convergence status
-    fn step(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
+    fn step(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // update time-related variables
         self.time.update(state)?;
 
-        // update external forces vector F_ext
-        self.com.assemble_ff_ext(state.stage, state.t)?;
+        // update external forces vector F_ext (also updates the load reversal flag)
+        state.reverse = self.com.assemble_ff_ext(state.stage, state.t)?;
 
         // transient/dynamics: old state variables
         if self.config.transient {
@@ -228,7 +232,7 @@ impl<'a> SolverImplicit<'a> {
 
         // trial displacement u, displacement increment Δu, and trial loading factor ℓ
         if self.config.arc_length_method {
-            self.arc.trial(timestep, state)?;
+            self.arc.trial(state)?;
         } else {
             // the trial displacement is the displacement at the old time (unchanged)
             state.ddu.fill(0.0);
@@ -237,15 +241,15 @@ impl<'a> SolverImplicit<'a> {
 
         // reset algorithmic variables
         if !self.config.linear_problem {
-            self.com.elements.reset_algorithmic_variables(state, self.com.reversal);
+            self.com.elements.reset_algorithmic_variables(state);
         }
 
         // print time information
-        self.res.print_timestep(timestep, state.t, state.ddt, self.com.reversal);
+        self.print.timestep(state);
 
         // iteration loop
         for iteration in 0..self.config.n_max_iterations {
-            self.iterate(timestep, iteration, state)?;
+            self.iterate(iteration, state)?;
             if self.res.converged() {
                 self.res.add_converged();
                 break;
@@ -259,8 +263,7 @@ impl<'a> SolverImplicit<'a> {
 
         // arc-length step adaptation
         if self.config.arc_length_method {
-            self.arc
-                .adapt(timestep, state, self.res.converged(), &self.com.ls.ff_ext)?;
+            self.arc.adapt(state, self.res.converged(), &self.com.ls.ff_ext)?;
         }
 
         // check if many iterations failed to converge in a single time step
@@ -275,7 +278,6 @@ impl<'a> SolverImplicit<'a> {
     ///
     /// # Arguments
     ///
-    /// * `timestep` - Current timestep number
     /// * `iteration` - Current iteration number
     /// * `state` - FEM state to update
     ///
@@ -295,7 +297,7 @@ impl<'a> SolverImplicit<'a> {
     /// At this point, time t corresponds to the new (updated) time, but primary
     /// variables (displacements) and secondary variables (e.g., stresses) are still
     /// at the old time. Therefore, iterations are required to reduce the residuals.
-    fn iterate(&mut self, timestep: usize, iteration: usize, state: &mut FemState) -> Result<(), StrError> {
+    fn iterate(&mut self, iteration: usize, state: &mut FemState) -> Result<(), StrError> {
         // assemble internal forces vector F_int
         self.com.assemble_ff_int(state)?;
 
@@ -309,7 +311,7 @@ impl<'a> SolverImplicit<'a> {
 
         // calculate arc-length constraint and derivatives
         let g = if self.config.arc_length_method {
-            self.arc.constraint(timestep, state, &self.com.ls.ff_ext)?
+            self.arc.constraint(state, &self.com.ls.ff_ext)?
         } else {
             0.0
         };
@@ -318,7 +320,7 @@ impl<'a> SolverImplicit<'a> {
         self.res.reset();
         self.res.analyze_rr(iteration, &self.com.ls.rr, g)?;
         if self.res.converged() {
-            self.res.print_iteration();
+            self.print.iteration(iteration, &self.res);
             return Ok(());
         }
 
@@ -347,7 +349,7 @@ impl<'a> SolverImplicit<'a> {
 
         // check convergence on corrective displacement
         self.res.analyze_mdu(iteration, &self.com.ls.mdu)?;
-        self.res.print_iteration();
+        self.print.iteration(iteration, &self.res);
         if self.res.converged() {
             return Ok(());
         }

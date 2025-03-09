@@ -19,6 +19,14 @@ pub struct FemState {
     /// Loading factor λ
     pub lambda: f64,
 
+    /// Current (time) step
+    pub step: usize,
+
+    /// Indicates whether a load reversal occurred from stage(i) to stage(i+1)
+    ///
+    /// Note: this flag works with quasi-static simulations only
+    pub reverse: bool,
+
     /// Time
     pub t: f64,
 
@@ -190,6 +198,8 @@ impl FemState {
         Ok(FemState {
             stage: 0,
             lambda: 0.0,
+            step: 0,
+            reverse: false,
             t: 0.0,
             ddt: 0.0,    // needs initialization
             alpha1: 0.0, // needs initialization

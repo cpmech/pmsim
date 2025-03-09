@@ -2,8 +2,6 @@ use crate::base::Config;
 use crate::StrError;
 use russell_lab::{vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
-const NCHAR: usize = 84;
-
 /// Controls the residual and convergence of nonlinear iterations in FEM analysis
 ///
 /// This struct tracks convergence metrics and provides methods to analyze whether the
@@ -15,38 +13,35 @@ pub struct ControlResidual<'a> {
     /// Configuration parameters including tolerances
     config: &'a Config<'a>,
 
-    /// Current iteration number
-    iteration: usize,
-
     /// Previous residual forces norm
     norm_rr_prev: f64,
 
     /// Current residual forces norm
-    norm_rr: f64,
+    pub(crate) norm_rr: f64,
 
     /// Initial displacement increment vector
     mdu0: Vector,
 
     /// Norm of current displacement increment
-    norm_mdu: f64,
+    pub(crate) norm_mdu: f64,
 
     /// Previous relative displacement increment
     rel_mdu_prev: f64,
 
     /// Current relative displacement increment
-    rel_mdu: f64,
+    pub(crate) rel_mdu: f64,
 
     /// Whether convergence was achieved based on residual forces
-    converged_on_norm_rr: bool,
+    pub(crate) converged_on_norm_rr: bool,
 
     /// Whether solution is diverging based on residual forces
-    diverging_on_norm_rr: bool,
+    pub(crate) diverging_on_norm_rr: bool,
 
     /// Whether convergence was achieved based on displacement increment
-    converged_on_rel_mdu: bool,
+    pub(crate) converged_on_rel_mdu: bool,
 
     /// Whether solution is diverging based on displacement increment
-    diverging_on_rel_mdu: bool,
+    pub(crate) diverging_on_rel_mdu: bool,
 
     /// Total number of converged steps
     n_converged_total: usize,
@@ -65,7 +60,6 @@ impl<'a> ControlResidual<'a> {
     pub fn new(config: &'a Config<'a>, neq_total: usize) -> Self {
         Self {
             config,
-            iteration: 0,
             norm_rr_prev: 0.0,
             norm_rr: 0.0,
             mdu0: Vector::new(neq_total),
@@ -144,9 +138,6 @@ impl<'a> ControlResidual<'a> {
     /// * `Ok(())` if analysis succeeded
     /// * `Err(StrError)` if NaN or Inf values are detected
     pub(crate) fn analyze_rr(&mut self, iteration: usize, rr: &Vector, g: f64) -> Result<(), StrError> {
-        // record iteration index
-        self.iteration = iteration;
-
         // compute the norm of R
         self.norm_rr = f64::max(vec_norm(rr, Norm::Max), f64::abs(g));
 
@@ -197,7 +188,7 @@ impl<'a> ControlResidual<'a> {
         let found_nan_or_inf = !self.norm_mdu.is_finite();
 
         // set the first mdu value
-        if self.iteration == 0 {
+        if iteration == 0 {
             vec_copy(&mut self.mdu0, mdu).unwrap();
             self.rel_mdu = 1.0;
         }
@@ -228,93 +219,6 @@ impl<'a> ControlResidual<'a> {
             Err("Found NaN or Inf in mdu")
         } else {
             Ok(())
-        }
-    }
-
-    /// Prints the header before time stepping and convergence statistics
-    pub fn print_header(&self) {
-        if self.config.verbose_timesteps || self.config.verbose_iterations {
-            println!("TIME STEPPING =======================================================================\n");
-            if self.config.verbose_legend {
-                println!("Legend:");
-                println!("➖ ─ unknown");
-                println!("✅ ─ converged");
-                println!("🔹 ─ converging");
-                println!("🎈 ─ diverging");
-                println!("🔙 ─ load reversal detected");
-                println!("\"rev\" means load reversal");
-                println!("\"iter\" means iteration\n");
-            }
-            println!("{}", "─".repeat(NCHAR));
-            println!(
-                "{:5} {:8} {:>11} {:>11} {:3} {:>5} {:>9} {:>9} ➖ {:>9} ➖",
-                "stage", "timestep", "t", "Δt", "rev", "iter", "‖mdu‖∞", "rel(mdu)", "‖R‖∞"
-            );
-            println!("{}", "─".repeat(NCHAR));
-        }
-    }
-
-    /// Prints stage information
-    pub(crate) fn print_stage(&self, stage: usize, timestep: usize, t: f64) {
-        if self.config.verbose_timesteps {
-            println!("{:>5} {:>8} {:>11.6e}", stage, timestep, t);
-        }
-    }
-
-    /// Prints timestep information
-    #[rustfmt::skip]
-    pub(crate) fn print_timestep(&self, timestep: usize, t: f64, dt: f64, load_reversal: bool) {
-        if self.config.verbose_timesteps {
-            let str_rev = if load_reversal { "🔙" } else { "" };
-            println!("{:>5} {:>8} {:>11.6e} {:>11.6e} {:>2}", ".", timestep + 1, t, dt, str_rev);
-        }
-    }
-
-    /// Prints iteration information
-    pub(crate) fn print_iteration(&self) {
-        if self.config.verbose_iterations {
-            let it = self.iteration;
-            if self.iteration == 0 {
-                println!(
-                    "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} {:>9} ➖ {:>9.2e} ➖",
-                    ".", "·", "·", "·", "", it, self.norm_mdu, "·", self.norm_rr
-                );
-            } else {
-                let icon_rr = if self.converged_on_norm_rr {
-                    "✅"
-                } else if self.diverging_on_norm_rr {
-                    "🎈"
-                } else {
-                    "🔹"
-                };
-                if self.iteration == 1 && self.converged_on_norm_rr {
-                    // handle linear problems: show only the norm of R at it=1 (the norm of mdu was shown at it=0)
-                    println!(
-                        "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9} {:>9} ➖ {:>9.2e} {}",
-                        ".", "·", "·", "·", "", it, "·", "·", self.norm_rr, icon_rr
-                    );
-                } else {
-                    // handle non-linear problems
-                    let icon_mdu = if self.converged_on_rel_mdu {
-                        "✅"
-                    } else if self.diverging_on_rel_mdu {
-                        "🎈"
-                    } else {
-                        "🔹"
-                    };
-                    println!(
-                        "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} {:>9.2e} {} {:>9.2e} {}",
-                        ".", "·", "·", "·", "", it, self.norm_mdu, self.rel_mdu, icon_mdu, self.norm_rr, icon_rr
-                    );
-                }
-            }
-        }
-    }
-
-    /// Prints the horizontal line at the end of the analysis
-    pub(crate) fn print_footer(&self) {
-        if self.config.verbose_timesteps || self.config.verbose_iterations {
-            println!("{}", "─".repeat(NCHAR));
         }
     }
 }

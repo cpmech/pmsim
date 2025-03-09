@@ -34,5 +34,5 @@ pub trait ElementTrait {
     fn restore_secondary_values(&self, state: &mut FemState, alternative: bool);
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut FemState, load_reversal: bool);
+    fn reset_algorithmic_variables(&self, state: &mut FemState);
 }
