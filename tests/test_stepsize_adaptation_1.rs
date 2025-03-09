@@ -3,6 +3,7 @@ use plotpy::Curve;
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
 use pmsim::prelude::*;
 use pmsim::StrError;
+use russell_lab::approx_eq;
 use russell_lab::math::{PI, SQRT_3};
 
 // This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
@@ -36,7 +37,7 @@ use russell_lab::math::{PI, SQRT_3};
 
 const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME: &str = "test_stepsize_adaptation_1";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
@@ -84,12 +85,7 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_richardson_extrapolation(true)
-        .set_rex_print_all_timesteps(false)
-        .set_rex_ddt_ini(0.05)
-        // .set_ddt(0.05)
-        // .set_ddt_out(0.01)
-        // .set_t_fin(T_FIN)
+        .set_steady(PP.len())
         .set_consider_load_reversal(true)
         .update_model_settings(1)
         .set_save_strain(true);
@@ -156,6 +152,7 @@ fn analyze_results() -> Result<(), StrError> {
 
         // convert to polar coordinates and compare with analytical solution
         if state.stage == 1 {
+            println!("pp = {}", pp);
             pp_arr.push(pp);
             sh_arr.push(Vec::new());
             sr_arr.push(Vec::new());
@@ -166,9 +163,9 @@ fn analyze_results() -> Result<(), StrError> {
                 }
                 sh_arr.last_mut().unwrap().push(sh);
                 sr_arr.last_mut().unwrap().push(sr);
-                // let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
-                // approx_eq(sr, sr_ana, 0.003);
-                // approx_eq(sh, sh_ana, 0.003);
+                let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
+                approx_eq(sr, sr_ana, 0.0003);
+                approx_eq(sh, sh_ana, 0.0027);
             }
             first_rr = false;
         }
@@ -178,7 +175,7 @@ fn analyze_results() -> Result<(), StrError> {
     if SAVE_FIGURE {
         // results
         ana.set_legend_precision(3);
-        let mut plot = ana.plot_results(&pp_arr, false, P_MAX_RES, |plot, index| {
+        let mut plot = ana.plot_results(&pp_arr, true, P_MAX_RES, |plot, index| {
             let mut curve = Curve::new();
             curve
                 .set_label("numerical")

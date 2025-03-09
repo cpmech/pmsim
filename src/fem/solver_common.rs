@@ -135,7 +135,7 @@ impl<'a> SolverCommon<'a> {
 
         // check if load reversal occurred
         let dot = vec_inner(&self.ls.ddff_ext_old, &self.ls.ddff_ext);
-        let reverse = dot < 0.0;
+        let reverse = dot < 0.0 && self.config.consider_load_reversal;
         Ok(reverse)
     }
 
