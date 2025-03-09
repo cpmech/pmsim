@@ -128,7 +128,7 @@ impl<'a> ControlArcLength<'a> {
     /// # Errors
     ///
     /// Returns error if previous arc-length increment is too small
-    pub(crate) fn trial_increments(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
+    pub(crate) fn trial(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
         // set first loading factor
         if timestep == 0 {
             state.lambda = self.config.arc_first_trial_ell;
@@ -173,12 +173,7 @@ impl<'a> ControlArcLength<'a> {
     /// * g = 0
     /// * ∂g/∂ℓ = 1
     /// * ∂g/∂u = 0
-    pub(crate) fn constraint_and_derivatives(
-        &mut self,
-        timestep: usize,
-        state: &FemState,
-        ff_ext: &Vector,
-    ) -> Result<f64, StrError> {
+    pub(crate) fn constraint(&mut self, timestep: usize, state: &FemState, ff_ext: &Vector) -> Result<f64, StrError> {
         if timestep > 0 {
             let psi = self.config.arc_psi;
             let inc = vec_inner(&state.ddu, &state.ddu);
@@ -243,7 +238,7 @@ impl<'a> ControlArcLength<'a> {
     /// Updates:
     /// * ℓ ← ℓ + δℓ
     /// * Δℓ ← Δℓ + δℓ
-    pub(crate) fn update_load_factor(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    pub(crate) fn update(&mut self, state: &mut FemState) -> Result<(), StrError> {
         state.lambda += self.dl;
         self.ddl += self.dl;
         Ok(())
@@ -271,7 +266,7 @@ impl<'a> ControlArcLength<'a> {
     /// For failed steps:
     /// * If previous step converged: Δs ← max(Δs/2, Δs_min)
     /// * If previous step failed: Δs ← max(Δs/4, Δs_min)
-    pub(crate) fn step_adaptation(
+    pub(crate) fn adapt(
         &mut self,
         timestep: usize,
         state: &FemState,

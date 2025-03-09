@@ -228,7 +228,7 @@ impl<'a> SolverImplicit<'a> {
 
         // trial displacement u, displacement increment Δu, and trial loading factor ℓ
         if self.config.arc_length_method {
-            self.arc.trial_increments(timestep, state)?;
+            self.arc.trial(timestep, state)?;
         } else {
             // the trial displacement is the displacement at the old time (unchanged)
             state.ddu.fill(0.0);
@@ -260,7 +260,7 @@ impl<'a> SolverImplicit<'a> {
         // arc-length step adaptation
         if self.config.arc_length_method {
             self.arc
-                .step_adaptation(timestep, state, self.cc.converged(), &self.com.ls.ff_ext)?;
+                .adapt(timestep, state, self.cc.converged(), &self.com.ls.ff_ext)?;
         }
 
         // check if many iterations failed to converge in a single time step
@@ -309,8 +309,7 @@ impl<'a> SolverImplicit<'a> {
 
         // calculate arc-length constraint and derivatives
         let g = if self.config.arc_length_method {
-            self.arc
-                .constraint_and_derivatives(timestep, state, &self.com.ls.ff_ext)?
+            self.arc.constraint(timestep, state, &self.com.ls.ff_ext)?
         } else {
             0.0
         };
@@ -358,7 +357,7 @@ impl<'a> SolverImplicit<'a> {
 
         // update loading factor
         if self.config.arc_length_method {
-            self.arc.update_load_factor(state)?;
+            self.arc.update(state)?;
         }
 
         // backup/restore secondary variables
