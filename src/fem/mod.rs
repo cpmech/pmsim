@@ -19,7 +19,7 @@ mod file_io_write_vtu;
 mod linear_system;
 mod post_processing;
 mod secondary_values;
-mod solver_data;
+mod solver_common;
 mod solver_implicit;
 
 pub use bc_concentrated::*;
@@ -40,5 +40,5 @@ pub use file_io::*;
 pub use linear_system::*;
 pub use post_processing::*;
 pub use secondary_values::*;
-use solver_data::*;
+use solver_common::*;
 pub use solver_implicit::*;
