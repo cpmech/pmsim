@@ -63,8 +63,8 @@ impl ControlPrinter {
         }
     }
 
-    /// Prints timestep information
-    pub(crate) fn timestep(&self, state: &FemState) {
+    /// Prints (time) step information
+    pub(crate) fn step(&self, state: &FemState) {
         if self.verbose {
             let str_rev = if state.reverse { "🔙" } else { "" };
             println!(

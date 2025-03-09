@@ -246,7 +246,7 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // print time information
-        self.print.timestep(state);
+        self.print.step(state);
 
         // iteration loop
         for iteration in 0..self.config.n_max_iterations {
