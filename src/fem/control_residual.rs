@@ -4,14 +4,14 @@ use russell_lab::{vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
 
 const NCHAR: usize = 84;
 
-/// Controls the convergence of nonlinear iterations in FEM analysis
+/// Controls the residual and convergence of nonlinear iterations in FEM analysis
 ///
 /// This struct tracks convergence metrics and provides methods to analyze whether the
 /// solution is converging, diverging, or has reached convergence based on:
 ///
 /// 1. Residual forces norm (`norm_rr`)
 /// 2. Relative displacement increment (`rel_mdu`)
-pub struct ControlConvergence<'a> {
+pub struct ControlResidual<'a> {
     /// Configuration parameters including tolerances
     config: &'a Config<'a>,
 
@@ -55,8 +55,8 @@ pub struct ControlConvergence<'a> {
     n_failed_per_step: usize,
 }
 
-impl<'a> ControlConvergence<'a> {
-    /// Creates a new convergence controller
+impl<'a> ControlResidual<'a> {
+    /// Creates a new instance
     ///
     /// # Arguments
     ///

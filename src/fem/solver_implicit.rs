@@ -1,4 +1,4 @@
-use super::{ControlArcLength, ControlConvergence, ControlTime};
+use super::{ControlArcLength, ControlResidual, ControlTime};
 use super::{FemBase, FemState, FileIo, SolverCommon};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
@@ -27,11 +27,11 @@ pub struct SolverImplicit<'a> {
     /// Common functionality
     com: SolverCommon<'a>,
 
-    /// Convergence control
-    cc: ControlConvergence<'a>,
+    /// Residual control
+    res: ControlResidual<'a>,
 
     /// Time stepping and integration control
-    ct: ControlTime<'a>,
+    time: ControlTime<'a>,
 
     /// Arc-length control for path-following analysis
     arc: ControlArcLength<'a>,
@@ -70,9 +70,9 @@ impl<'a> SolverImplicit<'a> {
         let com = SolverCommon::new(mesh, base, config, essential, natural)?;
         let neq_total = com.ls.neq_total;
 
-        // allocate convergence and time control structures
-        let cc = ControlConvergence::new(config, neq_total);
-        let ct = ControlTime::new(config)?;
+        // allocate residual and time control structures
+        let res = ControlResidual::new(config, neq_total);
+        let time = ControlTime::new(config)?;
 
         // allocate arc-length control structure
         let arc = if config.arc_length_method {
@@ -85,15 +85,15 @@ impl<'a> SolverImplicit<'a> {
         Ok(SolverImplicit {
             config,
             com,
-            cc,
-            ct,
+            res,
+            time,
             arc,
         })
     }
 
     /// Returns the total number of converged iterations across all time steps
     pub fn n_converged_iterations(&self) -> usize {
-        self.cc.n_converged_total()
+        self.res.n_converged_total()
     }
 
     /// Solves the system of equations
@@ -155,20 +155,20 @@ impl<'a> SolverImplicit<'a> {
         file_io.write_state(state)?;
 
         // print convergence information
-        self.cc.print_header();
+        self.res.print_header();
 
         // stages loop
         let mut timestep = 0;
         for stage in 0..self.config.nstage {
             // initialize stage
-            self.ct.initialize_stage(stage, state);
-            self.cc.print_stage(stage, timestep, state.t);
+            self.time.initialize_stage(stage, state);
+            self.res.print_stage(stage, timestep, state.t);
 
             // time loop
             while timestep < self.config.n_max_timesteps {
                 // done if last timestep
-                if self.ct.last() {
-                    self.cc.print_footer();
+                if self.time.last() {
+                    self.res.print_footer();
                     break;
                 }
 
@@ -176,7 +176,7 @@ impl<'a> SolverImplicit<'a> {
                 run!(self.step(timestep, state));
 
                 // perform output
-                if self.ct.out(state) && self.cc.converged() {
+                if self.time.out(state) && self.res.converged() {
                     file_io.write_state(state)?;
                 }
                 timestep += 1;
@@ -216,7 +216,7 @@ impl<'a> SolverImplicit<'a> {
     /// 7. Checks convergence status
     fn step(&mut self, timestep: usize, state: &mut FemState) -> Result<(), StrError> {
         // update time-related variables
-        self.ct.update(state)?;
+        self.time.update(state)?;
 
         // update external forces vector F_ext
         self.com.assemble_ff_ext(state.stage, state.t)?;
@@ -241,13 +241,13 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // print time information
-        self.cc.print_timestep(timestep, state.t, state.ddt, self.com.reversal);
+        self.res.print_timestep(timestep, state.t, state.ddt, self.com.reversal);
 
         // iteration loop
         for iteration in 0..self.config.n_max_iterations {
             self.iterate(timestep, iteration, state)?;
-            if self.cc.converged() {
-                self.cc.add_converged();
+            if self.res.converged() {
+                self.res.add_converged();
                 break;
             }
             if !self.config.arc_length_method {
@@ -260,12 +260,12 @@ impl<'a> SolverImplicit<'a> {
         // arc-length step adaptation
         if self.config.arc_length_method {
             self.arc
-                .adapt(timestep, state, self.cc.converged(), &self.com.ls.ff_ext)?;
+                .adapt(timestep, state, self.res.converged(), &self.com.ls.ff_ext)?;
         }
 
         // check if many iterations failed to converge in a single time step
-        self.cc.add_failed();
-        if self.cc.too_many_failures() {
+        self.res.add_failed();
+        if self.res.too_many_failures() {
             return Err("too many iterations failed to converge");
         }
         Ok(())
@@ -315,10 +315,10 @@ impl<'a> SolverImplicit<'a> {
         };
 
         // check convergence on residual
-        self.cc.reset();
-        self.cc.analyze_rr(iteration, &self.com.ls.rr, g)?;
-        if self.cc.converged() {
-            self.cc.print_iteration();
+        self.res.reset();
+        self.res.analyze_rr(iteration, &self.com.ls.rr, g)?;
+        if self.res.converged() {
+            self.res.print_iteration();
             return Ok(());
         }
 
@@ -346,9 +346,9 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // check convergence on corrective displacement
-        self.cc.analyze_mdu(iteration, &self.com.ls.mdu)?;
-        self.cc.print_iteration();
-        if self.cc.converged() {
+        self.res.analyze_mdu(iteration, &self.com.ls.mdu)?;
+        self.res.print_iteration();
+        if self.res.converged() {
             return Ok(());
         }
 
@@ -374,7 +374,7 @@ impl<'a> SolverImplicit<'a> {
 
         // exit if linear problem
         if self.config.linear_problem {
-            self.cc.set_converged_linear_problem();
+            self.res.set_converged_linear_problem();
             return Ok(());
         }
         Ok(())
