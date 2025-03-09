@@ -113,7 +113,7 @@ impl<'a> ControlTime<'a> {
     }
 
     /// Returns whether the last timestep has been reached
-    pub fn is_last_timestep(&self) -> bool {
+    pub fn last(&self) -> bool {
         self.last_timestep
     }
 
@@ -242,6 +242,6 @@ mod tests {
 
         // check last_timestep flag
         control.update(&mut state).unwrap();
-        assert_eq!(control.is_last_timestep(), false);
+        assert_eq!(control.last(), false);
     }
 }

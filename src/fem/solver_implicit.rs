@@ -167,7 +167,7 @@ impl<'a> SolverImplicit<'a> {
             // time loop
             while timestep < self.config.n_max_timesteps {
                 // done if last timestep
-                if self.ct.is_last_timestep() {
+                if self.ct.last() {
                     self.cc.print_footer();
                     break;
                 }
