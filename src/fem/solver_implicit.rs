@@ -1,5 +1,5 @@
 use super::{ControlArcLength, ControlConvergence, ControlTime};
-use super::{FemBase, FemState, FileIo, SolverData};
+use super::{FemBase, FemState, FileIo, SolverCommon};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -24,8 +24,8 @@ pub struct SolverImplicit<'a> {
     /// Configuration parameters including solver settings and tolerances
     config: &'a Config<'a>,
 
-    /// Solver data containing matrices, vectors and element data
-    data: SolverData<'a>,
+    /// Common solver functionality
+    com: SolverCommon<'a>,
 
     /// Convergence control for nonlinear iterations
     control_conv: ControlConvergence<'a>,
@@ -66,9 +66,9 @@ impl<'a> SolverImplicit<'a> {
         essential: &'a Essential,
         natural: &'a Natural,
     ) -> Result<Self, StrError> {
-        // allocate data
-        let data = SolverData::new(mesh, base, config, essential, natural)?;
-        let neq_total = data.ls.neq_total;
+        // allocate common solver functionality
+        let com = SolverCommon::new(mesh, base, config, essential, natural)?;
+        let neq_total = com.ls.neq_total;
 
         // allocate convergence and time control structures
         let control_conv = ControlConvergence::new(config, neq_total);
@@ -84,7 +84,7 @@ impl<'a> SolverImplicit<'a> {
         // allocate new instance
         Ok(SolverImplicit {
             config,
-            data,
+            com,
             control_conv,
             control_time,
             control_arc,
@@ -140,16 +140,16 @@ impl<'a> SolverImplicit<'a> {
 
         // check if there are non-zero prescribed values
         if !self.config.lagrange_mult_method {
-            if self.data.bc_prescribed.has_non_zero() {
+            if self.com.bc_prescribed.has_non_zero() {
                 return Err("the Lagrange multiplier method is required for non-zero prescribed values");
             }
         }
 
         // start stopwatch
-        self.data.stopwatch.reset();
+        self.com.stopwatch.reset();
 
         // initialize internal variables
-        self.data.elements.initialize_internal_values(state)?;
+        self.com.elements.initialize_internal_values(state)?;
 
         // first output (must occur after initialize_internal_values)
         file_io.write_state(state)?;
@@ -187,9 +187,9 @@ impl<'a> SolverImplicit<'a> {
         file_io.write_self()?;
 
         // show computer time
-        self.data.stopwatch.stop();
+        self.com.stopwatch.stop();
         if self.config.verbose_timesteps {
-            println!("\nelapsed computer time = {}", self.data.stopwatch);
+            println!("\nelapsed computer time = {}", self.com.stopwatch);
         }
         Ok(())
     }
@@ -219,7 +219,7 @@ impl<'a> SolverImplicit<'a> {
         self.control_time.update(state)?;
 
         // update external forces vector F_ext
-        self.data.assemble_ff_ext(state.stage, state.t)?;
+        self.com.assemble_ff_ext(state.stage, state.t)?;
 
         // transient/dynamics: old state variables
         if self.config.transient {
@@ -237,14 +237,12 @@ impl<'a> SolverImplicit<'a> {
 
         // reset algorithmic variables
         if !self.config.linear_problem {
-            self.data
-                .elements
-                .reset_algorithmic_variables(state, self.data.reversal);
+            self.com.elements.reset_algorithmic_variables(state, self.com.reversal);
         }
 
         // print time information
         self.control_conv
-            .print_timestep(timestep, state.t, state.ddt, self.data.reversal);
+            .print_timestep(timestep, state.t, state.ddt, self.com.reversal);
 
         // iteration loop
         for iteration in 0..self.config.n_max_iterations {
@@ -263,7 +261,7 @@ impl<'a> SolverImplicit<'a> {
         // arc-length step adaptation
         if self.config.arc_length_method {
             self.control_arc
-                .step_adaptation(timestep, state, self.control_conv.converged(), &self.data.ls.ff_ext)?;
+                .step_adaptation(timestep, state, self.control_conv.converged(), &self.com.ls.ff_ext)?;
         }
 
         // check if many iterations failed to converge in a single time step
@@ -300,27 +298,27 @@ impl<'a> SolverImplicit<'a> {
     /// at the old time. Therefore, iterations are required to reduce the residuals.
     fn iterate(&mut self, timestep: usize, iteration: usize, state: &mut FemState) -> Result<(), StrError> {
         // assemble internal forces vector F_int
-        self.data.assemble_ff_int(state)?;
+        self.com.assemble_ff_int(state)?;
 
         // calculate residual vector: R = F_int - lf * F_ext
-        self.data.calculate_residuals_vector(state.lambda);
+        self.com.calculate_residuals_vector(state.lambda);
 
         // add Lagrange multiplier contributions to R
         if self.config.lagrange_mult_method {
-            self.data.bc_prescribed.assemble_rr_lmm(&mut self.data.ls.rr, state);
+            self.com.bc_prescribed.assemble_rr_lmm(&mut self.com.ls.rr, state);
         }
 
         // calculate arc-length constraint and derivatives
         let g = if self.config.arc_length_method {
             self.control_arc
-                .constraint_and_derivatives(timestep, state, &self.data.ls.ff_ext)?
+                .constraint_and_derivatives(timestep, state, &self.com.ls.ff_ext)?
         } else {
             0.0
         };
 
         // check convergence on residual
         self.control_conv.reset();
-        self.control_conv.analyze_rr(iteration, &self.data.ls.rr, g)?;
+        self.control_conv.analyze_rr(iteration, &self.com.ls.rr, g)?;
         if self.control_conv.converged() {
             self.control_conv.print_iteration();
             return Ok(());
@@ -329,35 +327,35 @@ impl<'a> SolverImplicit<'a> {
         // compute Jacobian matrix
         if iteration == 0 || !self.config.constant_tangent {
             // assemble K matrix
-            self.data.assemble_kk(state)?;
+            self.com.assemble_kk(state)?;
 
             // modify K
             if self.config.lagrange_mult_method {
-                self.data.bc_prescribed.assemble_kk_lmm(&mut self.data.ls.kk);
+                self.com.bc_prescribed.assemble_kk_lmm(&mut self.com.ls.kk);
             } else {
-                self.data.bc_prescribed.assemble_kk_rsm(&mut self.data.ls.kk);
+                self.com.bc_prescribed.assemble_kk_rsm(&mut self.com.ls.kk);
             }
 
             // factorize K matrix
-            self.data.ls.factorize()?;
+            self.com.ls.factorize()?;
         }
 
         // solve linear system
         if self.config.arc_length_method {
-            self.control_arc.solve(&mut self.data.ls)?;
+            self.control_arc.solve(&mut self.com.ls)?;
         } else {
-            self.data.ls.solve()?;
+            self.com.ls.solve()?;
         }
 
         // check convergence on corrective displacement
-        self.control_conv.analyze_mdu(iteration, &self.data.ls.mdu)?;
+        self.control_conv.analyze_mdu(iteration, &self.com.ls.mdu)?;
         self.control_conv.print_iteration();
         if self.control_conv.converged() {
             return Ok(());
         }
 
         // update primary variables
-        self.data.update_primary_variables(state)?;
+        self.com.update_primary_variables(state)?;
 
         // update loading factor
         if self.config.arc_length_method {
@@ -367,14 +365,14 @@ impl<'a> SolverImplicit<'a> {
         // backup/restore secondary variables
         if !self.config.linear_problem {
             if iteration == 0 {
-                self.data.elements.backup_secondary_values(state, false);
+                self.com.elements.backup_secondary_values(state, false);
             } else {
-                self.data.elements.restore_secondary_values(state, false);
+                self.com.elements.restore_secondary_values(state, false);
             }
         }
 
         // update secondary variables
-        self.data.elements.update_secondary_values(state)?;
+        self.com.elements.update_secondary_values(state)?;
 
         // exit if linear problem
         if self.config.linear_problem {

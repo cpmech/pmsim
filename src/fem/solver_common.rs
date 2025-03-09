@@ -5,8 +5,8 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_add, vec_copy, vec_inner, Stopwatch};
 
-/// Holds data for FEM solvers
-pub(crate) struct SolverData<'a> {
+/// Implements common (shared) functionality for all FEM solvers
+pub(crate) struct SolverCommon<'a> {
     /// Holds the configuration
     config: &'a Config<'a>,
 
@@ -40,7 +40,7 @@ pub(crate) struct SolverData<'a> {
     pub(crate) reversal: bool,
 }
 
-impl<'a> SolverData<'a> {
+impl<'a> SolverCommon<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
@@ -83,7 +83,7 @@ impl<'a> SolverData<'a> {
         }
 
         // return new instance
-        Ok(SolverData {
+        Ok(SolverCommon {
             config,
             bc_concentrated,
             bc_distributed,
@@ -192,7 +192,7 @@ impl<'a> SolverData<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::SolverData;
+    use super::SolverCommon;
     use crate::base::{Config, Elem, Essential, Natural, ParamSolid};
     use crate::fem::FemBase;
     use gemlab::mesh::Samples;
@@ -210,7 +210,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_transient().set_ddt_min(-1.0);
         assert_eq!(
-            SolverData::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverCommon::new(&mesh, &base, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
     }
