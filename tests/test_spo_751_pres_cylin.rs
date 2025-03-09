@@ -180,7 +180,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
     let eq_ux = base.dofs.eq(outer_point, Dof::Ux)?;
 
     // analytical solution
-    let ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
+    let mut ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
 
     // loop over time stations
     let mut inner_pp = vec![0.0; post.n_state()];
@@ -236,6 +236,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
 
     // plot
     if SAVE_FIGURE {
+        ana.set_legend_precision(3);
         let mut plot = ana.plot_results(&pp_arr, residual, P_MAX_RES, |plot, index| {
             // reference curve
             let mut curve_ref = Curve::new();
