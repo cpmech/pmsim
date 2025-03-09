@@ -55,46 +55,46 @@ pub struct LinearSystem<'a> {
     /// ```
     pub nnz_sup: usize,
 
-    /// Holds the vector of internal forces F_int (including dynamic terms)
+    /// Vector of internal forces F_int (including dynamic terms)
     ///
     /// (neq_total)
     pub ff_int: Vector,
 
-    /// Holds the vector of external forces F_ext
+    /// Vector of external forces F_ext
     ///
     /// (neq_total)
     pub ff_ext: Vector,
 
-    /// Holds the previous vector of external forces F_ext_old
-    ///
-    /// (neq_total)
-    pub ff_ext_old: Vector,
-
-    /// Holds the total increment of external forces ΔF_ext = F_ext - F_ext_old
+    /// Total increment of external forces ΔF_ext
     ///
     /// (neq_total)
     pub ddff_ext: Vector,
 
-    /// Holds the previous total increment of external forces
+    /// Previous total increment of external forces
     ///
     /// (neq_total)
     pub ddff_ext_old: Vector,
 
-    /// Holds the residual vector R
+    /// Residual vector R
     ///
     /// (neq_total)
     pub rr: Vector,
 
-    /// Holds the global Jacobian matrix K
+    /// Global Jacobian matrix K
     ///
     /// (neq_total, neq_total, nnz_sup)
     pub kk: CooMatrix,
 
-    /// Holds the linear solver
+    /// Linear solver
     pub solver: LinSolver<'a>,
 
-    /// Holds the "minus-delta-U" vector (the solution of the linear system)
+    /// "minus-delta-U" vector (the solution of the linear system)
     pub mdu: Vector,
+
+    /// Temporary vector
+    ///
+    /// (neq_total)
+    pub tmp: Vector,
 
     /// Indicates whether debugging of the K matrix is enabled or not
     debug_kk_matrix: bool,
@@ -188,13 +188,13 @@ impl<'a> LinearSystem<'a> {
             nnz_sup,
             ff_int: Vector::new(neq_total),
             ff_ext: Vector::new(neq_total),
-            ff_ext_old: Vector::new(neq_total),
             ddff_ext: Vector::new(neq_total),
             ddff_ext_old: Vector::new(neq_total),
             rr: Vector::new(neq_total),
             kk: CooMatrix::new(neq_total, neq_total, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,
             mdu: Vector::new(neq_total),
+            tmp: Vector::new(neq_total),
             debug_kk_matrix: config.save_matrix_market_file || config.save_vismatrix_file,
         })
     }

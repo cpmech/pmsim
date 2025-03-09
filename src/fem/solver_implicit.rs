@@ -170,6 +170,7 @@ impl<'a> SolverImplicit<'a> {
             self.print.stage(state);
 
             // time loop
+            state.lambda = 1.0;
             while state.step < self.config.n_max_timesteps {
                 // done if last timestep
                 if self.time.last() {
@@ -223,7 +224,7 @@ impl<'a> SolverImplicit<'a> {
         self.time.update(state)?;
 
         // update external forces vector F_ext (also updates the load reversal flag)
-        state.reverse = self.com.assemble_ff_ext(state.stage, state.t)?;
+        state.reverse = self.com.assemble_ff_ext(state.stage, state.lambda, state.t)?;
 
         // transient/dynamics: old state variables
         if self.config.transient {

@@ -11,6 +11,7 @@ const NCHAR: usize = 84;
 /// 1. Residual forces norm (`norm_rr`)
 /// 2. Relative displacement increment (`rel_mdu`)
 pub struct ControlPrinter {
+    steady: bool,
     verbose: bool,
     verbose_legend: bool,
     verbose_iterations: bool,
@@ -24,6 +25,7 @@ impl ControlPrinter {
     /// * `config` - Configuration parameters including convergence tolerances
     pub fn new(config: &Config) -> Self {
         Self {
+            steady: config.steady,
             verbose: config.verbose_timesteps || config.verbose_iterations,
             verbose_legend: config.verbose_legend,
             verbose_iterations: config.verbose_iterations,
@@ -45,9 +47,10 @@ impl ControlPrinter {
                 println!("\"iter\" means iteration\n");
             }
             println!("{}", "─".repeat(NCHAR));
+            let (st, sdt) = if self.steady { ("λ", "Δλ") } else { ("t", "Δt") };
             println!(
                 "{:5} {:8} {:>11} {:>11} {:3} {:>5} {:>9} {:>9} ➖ {:>9} ➖",
-                "stage", "timestep", "t", "Δt", "rev", "iter", "‖mdu‖∞", "rel(mdu)", "‖R‖∞"
+                "stage", "step", st, sdt, "rev", "iter", "‖mdu‖∞", "rel(mdu)", "‖R‖∞"
             );
             println!("{}", "─".repeat(NCHAR));
         }

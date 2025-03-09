@@ -3,7 +3,7 @@ use super::{Elements, FemBase, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::{vec_add, vec_copy, vec_inner, Stopwatch};
+use russell_lab::{vec_add, vec_copy, vec_inner, vec_minus, vec_update, Stopwatch};
 
 /// Implements common (shared) functionality for all FEM solvers
 pub(crate) struct SolverCommon<'a> {
@@ -109,33 +109,65 @@ impl<'a> SolverCommon<'a> {
     /// Assembles the external forces vector (F_ext)
     ///
     /// Returns the load reversal flag
-    pub fn assemble_ff_ext(&mut self, stage: usize, t: f64) -> Result<bool, StrError> {
-        // make a copy of F_ext
-        vec_copy(&mut self.ls.ff_ext_old, &self.ls.ff_ext).unwrap();
+    ///
+    /// ```text
+    ///         ⎧ F_ext_old + λ ΔF_ext  if quasi-static/steady
+    /// F_ext = ⎨
+    ///         ⎩ F_ext(t)              if transient/dynamics
+    /// ```
+    pub fn assemble_ff_ext(&mut self, stage: usize, lambda: f64, t: f64) -> Result<bool, StrError> {
+        let reverse = if self.config.steady {
+            // make a copy of ΔF_ext
+            vec_copy(&mut self.ls.ddff_ext_old, &self.ls.ddff_ext).unwrap();
 
-        // clear F_ext vector
-        self.ls.ff_ext.fill(0.0);
+            // assemble F_ext into tmp ------------------------------------------------
 
-        // calculate all element local vectors and add them to F_ext
-        self.elements
-            .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored_eqs)?;
+            // clear tmp vector
+            self.ls.tmp.fill(0.0);
 
-        // calculate all boundary elements local vectors and add them to F_ext
-        self.bc_distributed
-            .assemble_f_ext(&mut self.ls.ff_ext, stage, t, &self.ignored_eqs)?;
+            // calculate all element local vectors and add them to tmp
+            self.elements.assemble_f_ext(&mut self.ls.tmp, t, &self.ignored_eqs)?;
 
-        // add concentrated loads to F_ext
-        self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff_ext, stage, t);
+            // calculate all boundary elements local vectors and add them to tmp
+            self.bc_distributed
+                .assemble_f_ext(&mut self.ls.tmp, stage, t, &self.ignored_eqs)?;
 
-        // make a copy of ΔF_ext
-        vec_copy(&mut self.ls.ddff_ext_old, &self.ls.ddff_ext).unwrap();
+            // add concentrated loads to tmp
+            self.bc_concentrated.add_to_ff_ext(&mut self.ls.tmp, stage, t);
 
-        // calculate the total increment ΔF_ext = F_ext - F_ext_old
-        vec_add(&mut self.ls.ddff_ext, 1.0, &self.ls.ff_ext, -1.0, &self.ls.ff_ext_old).unwrap();
+            // ------------------------------------------------------------------------
 
-        // check if load reversal occurred
-        let dot = vec_inner(&self.ls.ddff_ext_old, &self.ls.ddff_ext);
-        let reverse = dot < 0.0 && self.config.consider_load_reversal;
+            // calculate ΔF_ext = tmp - F_ext
+            vec_minus(&mut self.ls.ddff_ext, &self.ls.tmp, &self.ls.ff_ext).unwrap();
+
+            // calculate F_ext += λ ΔF_ext
+            vec_update(&mut self.ls.ff_ext, lambda, &self.ls.ddff_ext).unwrap();
+
+            // check if load reversal occurred
+            let dot = vec_inner(&self.ls.ddff_ext_old, &self.ls.ddff_ext);
+            dot < 0.0 && self.config.consider_load_reversal
+        } else {
+            // assemble F_ext ---------------------------------------------------------
+
+            // clear F_ext vector
+            self.ls.ff_ext.fill(0.0);
+
+            // calculate all element local vectors and add them to F_ext
+            self.elements
+                .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored_eqs)?;
+
+            // calculate all boundary elements local vectors and add them to F_ext
+            self.bc_distributed
+                .assemble_f_ext(&mut self.ls.ff_ext, stage, t, &self.ignored_eqs)?;
+
+            // add concentrated loads to F_ext
+            self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff_ext, stage, t);
+
+            // ------------------------------------------------------------------------
+
+            // ignore load reversal
+            false
+        };
         Ok(reverse)
     }
 
