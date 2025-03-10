@@ -22,6 +22,8 @@ mod post_processing;
 mod secondary_values;
 mod solver_common;
 mod solver_implicit;
+mod solver_implicit_steady;
+mod solver_implicit_transient;
 
 pub use bc_concentrated::*;
 pub use bc_distributed::*;
@@ -44,3 +46,5 @@ pub use post_processing::*;
 pub use secondary_values::*;
 use solver_common::*;
 pub use solver_implicit::*;
+use solver_implicit_steady::*;
+use solver_implicit_transient::*;
