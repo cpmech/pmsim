@@ -28,25 +28,18 @@ impl<'a> SolverImplicit<'a> {
                 state.reverse = self.com.assemble_ff_ext(state.stage, state.lambda, state.t)?;
 
                 // transient/dynamics: old state variables
-                if self.config.transient {
-                    vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
-                };
+                vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
 
-                // trial displacement u, displacement increment Δu, and trial loading factor ℓ
-                if self.config.arc_length_method {
-                    self.arc.trial(state)?;
-                } else {
-                    // the trial displacement is the displacement at the old time (unchanged)
-                    state.ddu.fill(0.0);
-                    state.lambda = 1.0;
-                }
+                // trial displacement u and displacement increment Δu
+                // the trial displacement is the previous displacement (unchanged)
+                state.ddu.fill(0.0);
 
                 // reset algorithmic variables
                 if !self.config.linear_problem {
                     self.com.elements.reset_algorithmic_variables(state);
                 }
 
-                // print time information
+                // print information
                 self.print.step(state);
 
                 // iteration loop
@@ -56,16 +49,9 @@ impl<'a> SolverImplicit<'a> {
                         self.res.add_converged();
                         break;
                     }
-                    if !self.config.arc_length_method {
-                        if iteration == self.config.n_max_iterations - 1 {
-                            return Err("Newton-Raphson did not converge");
-                        }
+                    if iteration == self.config.n_max_iterations - 1 {
+                        return Err("Newton-Raphson did not converge");
                     }
-                }
-
-                // arc-length step adaptation
-                if self.config.arc_length_method {
-                    self.arc.adapt(state, self.res.converged(), &self.com.ls.ff_ext)?;
                 }
 
                 // check if many iterations failed to converge in a single time step
