@@ -1,15 +1,9 @@
 use super::{control_residual::ControlResidual, FemState};
 use crate::base::Config;
 
-const NCHAR: usize = 84;
+const NCHAR: usize = 75;
 
-/// Controls the residual and convergence of nonlinear iterations in FEM analysis
-///
-/// This struct tracks convergence metrics and provides methods to analyze whether the
-/// solution is converging, diverging, or has reached convergence based on:
-///
-/// 1. Residual forces norm (`norm_rr`)
-/// 2. Relative displacement increment (`rel_mdu`)
+/// Prints information during time stepping
 pub struct ControlPrinter {
     steady: bool,
     verbose: bool,
@@ -35,7 +29,7 @@ impl ControlPrinter {
     /// Prints the header before time stepping and convergence statistics
     pub fn header(&self) {
         if self.verbose {
-            println!("TIME STEPPING =======================================================================\n");
+            println!("TIME STEPPING ==============================================================\n");
             if self.verbose_legend {
                 println!("Legend:");
                 println!("➖ ─ unknown");
@@ -49,8 +43,8 @@ impl ControlPrinter {
             println!("{}", "─".repeat(NCHAR));
             let (st, sdt) = if self.steady { ("λ", "Δλ") } else { ("t", "Δt") };
             println!(
-                "{:5} {:8} {:>11} {:>11} {:3} {:>5} {:>9} {:>9} ➖ {:>9} ➖",
-                "stage", "step", st, sdt, "rev", "iter", "‖mdu‖∞", "rel(mdu)", "‖R‖∞"
+                "{:5} {:8} {:>11} {:>11} {:3} {:>5} {:>9} ➖ {:>9} ➖",
+                "stage", "step", st, sdt, "rev", "iter", "‖mdu‖∞", "‖R‖∞"
             );
             println!("{}", "─".repeat(NCHAR));
         }
@@ -79,8 +73,8 @@ impl ControlPrinter {
         if self.verbose_iterations {
             if it == 0 {
                 println!(
-                    "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} {:>9} ➖ {:>9.2e} ➖",
-                    ".", "·", "·", "·", "", it, res.norm_mdu, "·", res.norm_rr
+                    "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} ➖ {:>9.2e} ➖",
+                    ".", "·", "·", "·", "", it, res.norm_mdu, res.norm_rr
                 );
             } else {
                 let icon_rr = if res.converged_on_norm_rr {
@@ -93,8 +87,8 @@ impl ControlPrinter {
                 if it == 1 && res.converged_on_norm_rr {
                     // handle linear problems: show only the norm of R at it=1 (the norm of mdu was shown at it=0)
                     println!(
-                        "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9} {:>9} ➖ {:>9.2e} {}",
-                        ".", "·", "·", "·", "", it, "·", "·", res.norm_rr, icon_rr
+                        "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9} ➖ {:>9.2e} {}",
+                        ".", "·", "·", "·", "", it, "·", res.norm_rr, icon_rr
                     );
                 } else {
                     // handle non-linear problems
@@ -106,8 +100,8 @@ impl ControlPrinter {
                         "🔹"
                     };
                     println!(
-                        "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} {:>9.2e} {} {:>9.2e} {}",
-                        ".", "·", "·", "·", "", it, res.norm_mdu, res.rel_mdu, icon_mdu, res.norm_rr, icon_rr
+                        "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} {} {:>9.2e} {}",
+                        ".", "·", "·", "·", "", it, res.norm_mdu, icon_mdu, res.norm_rr, icon_rr
                     );
                 }
             }
