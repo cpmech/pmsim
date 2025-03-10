@@ -163,6 +163,11 @@ pub struct Config<'a> {
     /// The minimum allowed value is [CONTROL_MIN_TOL]
     pub(crate) tol_rr_abs: f64,
 
+    /// Absolute tolerance for the corrective (augmented) displacement vector (mdu)
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub(crate) tol_mdu_abs: f64,
+
     /// Relative tolerance for the corrective (augmented) displacement vector (mdu)
     ///
     /// The minimum allowed value is [CONTROL_MIN_TOL]
@@ -288,7 +293,8 @@ impl<'a> Config<'a> {
             // Newton-Raphson method
             n_max_iterations: 10,
             tol_rr_abs: 1e-10,
-            tol_mdu_rel: 1e-8,
+            tol_mdu_abs: 1e-10,
+            tol_mdu_rel: 1e-10,
             constant_tangent: false,
             verbose_iterations: true,
             // Transient/dynamics parameters
@@ -384,6 +390,12 @@ impl<'a> Config<'a> {
             return Some(format!(
                 "tol_rr_abs = {:?} is incorrect; it must be ≥ {:e}",
                 self.tol_rr_abs, CONFIG_MIN_TOL
+            ));
+        }
+        if self.tol_mdu_abs < CONFIG_MIN_TOL {
+            return Some(format!(
+                "tol_mdu_abs = {:?} is incorrect; it must be ≥ {:e}",
+                self.tol_mdu_abs, CONFIG_MIN_TOL
             ));
         }
         if self.tol_mdu_rel < CONFIG_MIN_TOL {
@@ -747,6 +759,14 @@ impl<'a> Config<'a> {
         self
     }
 
+    /// Sets the absolute tolerance for the corrective (augmented) displacement vector (mdu)
+    ///
+    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    pub fn set_tol_mdu_abs(&mut self, tol_absolute: f64) -> &mut Self {
+        self.tol_mdu_abs = tol_absolute;
+        self
+    }
+
     /// Sets the relative tolerance for the corrective (augmented) displacement vector (mdu)
     ///
     /// The minimum allowed value is [CONTROL_MIN_TOL]
@@ -1078,6 +1098,13 @@ mod tests {
             Some("tol_rr_abs = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
         );
         config.tol_rr_abs = 1e-8;
+
+        config.tol_mdu_abs = 0.0;
+        assert_eq!(
+            config.validate(),
+            Some("tol_mdu_abs = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
+        );
+        config.tol_mdu_abs = 1e-8;
 
         config.tol_mdu_rel = 0.0;
         assert_eq!(

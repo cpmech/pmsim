@@ -1,6 +1,6 @@
 use crate::base::Config;
 use crate::StrError;
-use russell_lab::{vec_copy, vec_max_scaled, vec_norm, Norm, Vector};
+use russell_lab::{vec_copy, vec_norm, vec_rms_scaled, Norm, Vector};
 
 /// Controls the residual and convergence of nonlinear iterations in FEM analysis
 ///
@@ -197,11 +197,9 @@ impl<'a> ControlResidual<'a> {
         self.converged_on_rel_mdu = if found_nan_or_inf || iteration == 0 {
             false
         } else {
-            //                 ⎛    |mduᵢ|   ⎞
-            // rel_mdu = max_i ⎜ ——————————— ⎟
-            //                 ⎝ 1 + |mdu0ᵢ| ⎠
-            self.rel_mdu = vec_max_scaled(mdu, &self.mdu0);
-            self.rel_mdu < self.config.tol_mdu_rel
+            let rerr = vec_rms_scaled(mdu, &self.mdu0, self.config.tol_mdu_abs, self.config.tol_mdu_rel);
+            self.rel_mdu = rerr;
+            rerr < 1.0
         };
 
         // check if diverging
