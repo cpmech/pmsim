@@ -54,4 +54,9 @@ impl<'a> ControlLoader<'a> {
         state.ddu.fill(0.0);
         Ok(())
     }
+
+    pub fn adapt(&mut self, _state: &mut FemState, _converged: bool) -> Result<(), StrError> {
+        // TODO
+        Ok(())
+    }
 }

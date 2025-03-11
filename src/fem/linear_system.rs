@@ -65,6 +65,11 @@ pub struct LinearSystem<'a> {
     /// (neq_total)
     pub ff: Vector,
 
+    /// Previous external forces vector
+    ///
+    /// (neq_total)
+    pub ff_old: Vector,
+
     /// Total increment of external forces ΔF
     ///
     /// (neq_total)
@@ -90,11 +95,6 @@ pub struct LinearSystem<'a> {
 
     /// "minus-delta-U" vector (the solution of the linear system)
     pub mdu: Vector,
-
-    /// Temporary vector
-    ///
-    /// (neq_total)
-    pub tmp: Vector,
 
     /// Indicates whether debugging of the K matrix is enabled or not
     debug_kk_matrix: bool,
@@ -188,13 +188,13 @@ impl<'a> LinearSystem<'a> {
             nnz_sup,
             pp: Vector::new(neq_total),
             ff: Vector::new(neq_total),
+            ff_old: Vector::new(neq_total),
             ddff: Vector::new(neq_total),
             ddff_old: Vector::new(neq_total),
             rr: Vector::new(neq_total),
             kk: CooMatrix::new(neq_total, neq_total, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,
             mdu: Vector::new(neq_total),
-            tmp: Vector::new(neq_total),
             debug_kk_matrix: config.save_matrix_market_file || config.save_vismatrix_file,
         })
     }

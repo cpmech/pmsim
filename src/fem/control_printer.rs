@@ -53,23 +53,23 @@ impl ControlPrinter {
             let s = state.step + 1;
             if increment == 0 {
                 let str_rev = if state.reverse { "🔙" } else { "" };
-                println!("{:>8} {:>8.3e} {:>8.3e}   {}", s, state.time, state.ddt, str_rev);
+                println!("{:>8} {:>8.3e} {:>8.3e}  {}", s, state.time, state.ddt, str_rev);
             } else {
                 println!(
-                    "{:>8} {:>8} {:>8} {:>8.3e} {:>8.3e}",
-                    ".", ".", ".", state.lambda, state.ddl,
+                    "{:>8} {:>8} {:>8} {:>4} {:>8.3e} {:>8.3e}",
+                    ".", ".", ".", "", state.lambda, state.ddl,
                 );
             }
         }
     }
 
     /// Prints iteration information
-    pub(crate) fn iteration(&self, it: usize, res: &ControlResidual) {
+    pub(crate) fn iteration(&self, it: usize, lambda: f64, ddl: f64, res: &ControlResidual) {
         if self.verbose_iterations {
             if it == 0 {
                 println!(
-                    "{:>8} {:>8} {:>8} {:>4} {:>8} {:>8} {:>5} {:>9.2e} ➖ {:>9.2e} ➖",
-                    "·", "·", "·", "·", "·", "", it, res.norm_mdu, res.norm_rr
+                    "{:>8} {:>8} {:>8} {:>4} {:>8.3e} {:>8.3e} {:>5} {:>9.2e} ➖ {:>9.2e} ➖",
+                    "·", "·", "·", "", lambda, ddl, it, res.norm_mdu, res.norm_rr
                 );
             } else {
                 let icon_rr = if res.converged_on_norm_rr {
@@ -82,8 +82,8 @@ impl ControlPrinter {
                 if it == 1 && res.converged_on_norm_rr {
                     // handle linear problems: show only the norm of R at it=1 (the norm of mdu was shown at it=0)
                     println!(
-                        "{:>8} {:>8} {:>8} {:>4} {:>8} {:>8} {:>5} {:>9} ➖ {:>9.2e} {}",
-                        "·", "·", "·", "·", "·", "", it, "·", res.norm_rr, icon_rr
+                        "{:>8} {:>8} {:>8} {:>4} {:>8.3e} {:>8.3e} {:>5} {:>9} ➖ {:>9.2e} {}",
+                        "·", "·", "·", "", lambda, ddl, it, "·", res.norm_rr, icon_rr
                     );
                 } else {
                     // handle non-linear problems
@@ -95,8 +95,8 @@ impl ControlPrinter {
                         "🔹"
                     };
                     println!(
-                        "{:>8} {:>8} {:>8} {:>4} {:>8} {:>8} {:>5} {:>9.2e} {} {:>9.2e} {}",
-                        "·", "·", "·", "·", "·", "", it, res.norm_mdu, icon_mdu, res.norm_rr, icon_rr
+                        "{:>8} {:>8} {:>8} {:>4} {:>8.3e} {:>8.3e} {:>5} {:>9.2e} {} {:>9.2e} {}",
+                        "·", "·", "·", "", lambda, ddl, it, res.norm_mdu, icon_mdu, res.norm_rr, icon_rr
                     );
                 }
             }

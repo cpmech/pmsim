@@ -106,37 +106,39 @@ impl<'a> SolverCommon<'a> {
         Ok(())
     }
 
-    /// Calculates ΔF (increment of external forces)
+    /// Calculates F and ΔF
     ///
     /// Returns the load reversal flag
     ///
     /// ```text
+    /// F_old := F(t)
     /// ΔF = F(t+Δt) - F(t)
     /// ```
-    pub fn calc_ddff(&mut self, step: usize, time: f64) -> Result<bool, StrError> {
-        // make a copy of ΔF
+    pub fn calc_ff_and_ddff(&mut self, step: usize, time: f64) -> Result<bool, StrError> {
+        // make a copy of F and ΔF
+        vec_copy(&mut self.ls.ff_old, &self.ls.ff).unwrap();
         vec_copy(&mut self.ls.ddff_old, &self.ls.ddff).unwrap();
 
-        // assemble F into tmp ----------------------------------------------------
+        // update F ---------------------------------------------------------------
 
         // clear vector
-        self.ls.tmp.fill(0.0);
+        self.ls.ff.fill(0.0);
 
         // calculate all element local vectors
         self.elements
-            .assemble_f_ext(&mut self.ls.tmp, step, time, &self.ignored_eqs)?;
+            .assemble_f_ext(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
         self.bc_distributed
-            .assemble_f_ext(&mut self.ls.tmp, step, time, &self.ignored_eqs)?;
+            .assemble_f_ext(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
 
         // add concentrated loads
-        self.bc_concentrated.add_to_ff_ext(&mut self.ls.tmp, step, time);
+        self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff, step, time);
 
         // ------------------------------------------------------------------------
 
-        // calculate ΔF = tmp - F
-        vec_minus(&mut self.ls.ddff, &self.ls.tmp, &self.ls.ff).unwrap();
+        // calculate ΔF = F - F_old
+        vec_minus(&mut self.ls.ddff, &self.ls.ff, &self.ls.ff_old).unwrap();
 
         // check if load reversal occurred
         let dot = vec_inner(&self.ls.ddff_old, &self.ls.ddff);

@@ -3,7 +3,7 @@ use super::{FemBase, FemState, FileIo, SolverCommon};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::{vec_add, vec_update};
+use russell_lab::vec_add;
 
 /// Implements the implicit finite element method solver
 pub struct SolverImplicit<'a> {
@@ -111,7 +111,7 @@ impl<'a> SolverImplicit<'a> {
 
     /// Performs the solution process
     fn do_solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
-        // time loop
+        // time/step loop
         for step in 0..self.config.max_steps {
             state.step = step;
 
@@ -128,6 +128,9 @@ impl<'a> SolverImplicit<'a> {
                 vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
             }
 
+            // assemble external forces vector F (also updates the load reversal flag)
+            state.reverse = self.com.calc_ff_and_ddff(state.step, state.time)?;
+
             // initialize lambda
             self.loader.initialize(state);
 
@@ -140,9 +143,6 @@ impl<'a> SolverImplicit<'a> {
 
                 // next increment
                 self.loader.next(state)?;
-
-                // assemble external forces vector F (also updates the load reversal flag)
-                state.reverse = self.com.calc_ddff(state.step, state.time)?;
 
                 // print information
                 self.print.step(increment, state);
@@ -158,27 +158,26 @@ impl<'a> SolverImplicit<'a> {
                     if self.res.converged() {
                         self.res.add_converged();
                         break;
+                    } else {
+                        self.res.add_failed();
                     }
                     if iteration == self.config.max_iterations - 1 {
                         return Err("Newton-Raphson did not converge");
                     }
                 }
 
-                // update external forces: F += λ ΔF
-                if self.res.converged() {
-                    vec_update(&mut self.com.ls.ff, state.lambda, &self.com.ls.ddff).unwrap();
-                }
-
                 // check if many iterations failed to converge
-                self.res.add_failed();
                 if self.res.too_many_failures() {
                     return Err("too many iterations failed to converge");
                 }
 
                 // perform output
-                if self.stepper.out(state) && self.res.converged() {
-                    file_io.write_state(state)?;
-                }
+                // if self.stepper.out(state) && self.res.converged() {
+                file_io.write_state(state)?;
+                // }
+
+                // adapt loading parameter
+                self.loader.adapt(state, self.res.converged())?;
             }
         }
 
@@ -192,9 +191,9 @@ impl<'a> SolverImplicit<'a> {
         // calculates P (internal forces)
         self.com.calc_pp(state)?;
 
-        // calculates R (residuals): R = P - (F + λ ΔF)
+        // calculates R (residuals): R(t+Δt) = P(t+Δt) - (F(t) + λ ΔF)
         for i in 0..self.com.ls.neq_total {
-            self.com.ls.rr[i] = self.com.ls.pp[i] - (self.com.ls.ff[i] + state.lambda * self.com.ls.ddff[i]);
+            self.com.ls.rr[i] = self.com.ls.pp[i] - (self.com.ls.ff_old[i] + state.lambda * self.com.ls.ddff[i]);
         }
 
         // add Lagrange multiplier contributions to R
@@ -206,7 +205,7 @@ impl<'a> SolverImplicit<'a> {
         self.res.reset();
         self.res.analyze_rr(iteration, &self.com.ls.rr, 0.0)?;
         if self.res.converged() {
-            self.print.iteration(iteration, &self.res);
+            self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
             return Ok(());
         }
 
@@ -231,7 +230,7 @@ impl<'a> SolverImplicit<'a> {
 
         // check convergence on corrective displacement
         self.res.analyze_mdu(iteration, &self.com.ls.mdu)?;
-        self.print.iteration(iteration, &self.res);
+        self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
         if self.res.converged() {
             return Ok(());
         }
