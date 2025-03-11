@@ -104,7 +104,7 @@ impl<'a> BcPrescribed<'a> {
             let i = self.equations[p];
             let j = ndof + p;
             let lambda = state.u[j];
-            let c = self.value(p, state.stage, state.t);
+            let c = self.value(p, state.step, state.time);
             rr[i] += lambda; // Aᵀ λ  →  1 * λ
             rr[j] = state.u[i] - c; // A u - c  →  1 * u - c
         }

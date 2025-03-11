@@ -71,7 +71,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         .set_steady(PP.len())
         .set_lagrange_mult_method(true)
         .set_symmetry_check_tolerance(Some(1e-5))
-        .set_n_max_iterations(20);
+        .set_max_iterations(20);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
@@ -131,7 +131,7 @@ fn analyze_results() -> Result<(), StrError> {
         let state = post.read_state(index)?;
 
         // load
-        let pp = PP[state.stage];
+        let pp = PP[state.step];
         load[index] = pp;
 
         // deflection

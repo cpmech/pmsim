@@ -172,7 +172,7 @@ impl FileIo {
 
             // update counters
             self.indices.push(self.counter);
-            self.times.push(state.t);
+            self.times.push(state.time);
             self.counter += 1;
         }
         Ok(())

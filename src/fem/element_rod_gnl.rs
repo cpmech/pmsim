@@ -188,7 +188,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
     }
 
     /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, _f_ext: &mut Vector, _time: f64) -> Result<(), StrError> {
+    fn calc_f_ext(&mut self, _f_ext: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
         Ok(())
     }
 

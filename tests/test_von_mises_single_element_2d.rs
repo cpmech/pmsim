@@ -105,7 +105,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     config
         .set_lagrange_mult_method(true)
         .set_steady(NSTAGE)
-        .set_n_max_iterations(20);
+        .set_max_iterations(20);
     solve_and_check(&mesh, &base, &essential, &natural, &config)?;
 
     // solve and check with MUMPS

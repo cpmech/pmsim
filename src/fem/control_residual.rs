@@ -107,7 +107,7 @@ impl<'a> ControlResidual<'a> {
 
     /// Checks if the number of failed attempts exceeds the allowed maximum
     pub fn too_many_failures(&self) -> bool {
-        self.n_failed_per_step >= self.config.n_max_failed_steps
+        self.n_failed_per_step >= self.config.max_failed_steps
     }
 
     /// Returns the total number of converged steps

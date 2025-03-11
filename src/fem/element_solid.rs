@@ -142,7 +142,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, f_ext: &mut Vector, time: f64) -> Result<(), StrError> {
+    fn calc_f_ext(&mut self, f_ext: &mut Vector, step: usize, time: f64) -> Result<(), StrError> {
         if let Some(gravity) = self.config.gravity.as_ref() {
             // constants
             let ndim = self.config.ndim;
@@ -161,7 +161,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             //          Ωₑ
             integ::vec_02_nv(f_ext, &mut args, |b, _, _| {
                 b.fill(0.0);
-                b[ndim - 1] = rho * (-gravity(time)); // ρ·(-g)
+                b[ndim - 1] = rho * (-gravity(step, time)); // ρ·(-g)
                 Ok(())
             })?;
         }
@@ -687,7 +687,7 @@ mod tests {
         config.ideal.axisymmetric = true;
 
         // vertical acceleration (must be positive)
-        config.set_gravity(|_| 0.5); // 1/2 because rho = 2
+        config.set_gravity(|_, _| 0.5); // 1/2 because rho = 2
 
         // element
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
@@ -700,7 +700,7 @@ mod tests {
         let mut f_int_minus_f_ext = Vector::new(neq);
         elem.initialize_internal_values(&mut state).unwrap();
         elem.calc_f_int(&mut f_int, &state).unwrap();
-        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
+        elem.calc_f_ext(&mut f_ext, state.step, state.time).unwrap();
         vec_add(&mut f_int_minus_f_ext, 1.0, &f_int, -1.0, &f_ext).unwrap();
 
         // check residual vector

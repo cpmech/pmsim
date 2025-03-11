@@ -1,11 +1,10 @@
 use super::{control_residual::ControlResidual, FemState};
 use crate::base::Config;
 
-const NCHAR: usize = 75;
+const NCHAR: usize = 81;
 
 /// Prints information during time stepping
 pub struct ControlPrinter {
-    steady: bool,
     verbose: bool,
     verbose_legend: bool,
     verbose_iterations: bool,
@@ -19,7 +18,6 @@ impl ControlPrinter {
     /// * `config` - Configuration parameters including convergence tolerances
     pub fn new(config: &Config) -> Self {
         Self {
-            steady: config.steady,
             verbose: config.verbose_timesteps || config.verbose_iterations,
             verbose_legend: config.verbose_legend,
             verbose_iterations: config.verbose_iterations,
@@ -29,7 +27,7 @@ impl ControlPrinter {
     /// Prints the header before time stepping and convergence statistics
     pub fn header(&self) {
         if self.verbose {
-            println!("TIME STEPPING ==============================================================\n");
+            println!("TIME STEPPING ===================================================================\n");
             if self.verbose_legend {
                 println!("Legend:");
                 println!("➖ ─ unknown");
@@ -41,30 +39,27 @@ impl ControlPrinter {
                 println!("\"iter\" means iteration\n");
             }
             println!("{}", "─".repeat(NCHAR));
-            let (st, sdt) = if self.steady { ("λ", "Δλ") } else { ("t", "Δt") };
             println!(
-                "{:5} {:8} {:>11} {:>11} {:3} {:>5} {:>9} ➖ {:>9} ➖",
-                "stage", "step", st, sdt, "rev", "iter", "‖mdu‖∞", "‖R‖∞"
+                "{:>8} {:>8} {:>8} {:>4} {:>8} {:>8} {:>5} {:>9} ➖ {:>9} ➖",
+                "step", "t", "Δt", "rev", "λ", "Δλ", "iter", "‖mdu‖∞", "‖R‖∞"
             );
             println!("{}", "─".repeat(NCHAR));
         }
     }
 
-    /// Prints stage information
-    pub(crate) fn stage(&self, state: &FemState) {
-        if self.verbose {
-            println!("{:>5} {:>8} {:>11.6e}", state.stage, state.step, state.t);
-        }
-    }
-
     /// Prints (time) step information
-    pub(crate) fn step(&self, state: &FemState) {
+    pub(crate) fn step(&self, increment: usize, state: &FemState) {
         if self.verbose {
-            let str_rev = if state.reverse { "🔙" } else { "" };
-            println!(
-                "{:>5} {:>8} {:>11.6e} {:>11.6e} {:>2}",
-                ".", state.step, state.t, state.ddt, str_rev
-            );
+            let s = state.step + 1;
+            if increment == 0 {
+                let str_rev = if state.reverse { "🔙" } else { "" };
+                println!("{:>8} {:>8.3e} {:>8.3e}   {}", s, state.time, state.ddt, str_rev);
+            } else {
+                println!(
+                    "{:>8} {:>8} {:>8} {:>8.3e} {:>8.3e}",
+                    ".", ".", ".", state.lambda, state.ddl,
+                );
+            }
         }
     }
 
@@ -73,8 +68,8 @@ impl ControlPrinter {
         if self.verbose_iterations {
             if it == 0 {
                 println!(
-                    "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} ➖ {:>9.2e} ➖",
-                    ".", "·", "·", "·", "", it, res.norm_mdu, res.norm_rr
+                    "{:>8} {:>8} {:>8} {:>4} {:>8} {:>8} {:>5} {:>9.2e} ➖ {:>9.2e} ➖",
+                    "·", "·", "·", "·", "·", "", it, res.norm_mdu, res.norm_rr
                 );
             } else {
                 let icon_rr = if res.converged_on_norm_rr {
@@ -87,8 +82,8 @@ impl ControlPrinter {
                 if it == 1 && res.converged_on_norm_rr {
                     // handle linear problems: show only the norm of R at it=1 (the norm of mdu was shown at it=0)
                     println!(
-                        "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9} ➖ {:>9.2e} {}",
-                        ".", "·", "·", "·", "", it, "·", res.norm_rr, icon_rr
+                        "{:>8} {:>8} {:>8} {:>4} {:>8} {:>8} {:>5} {:>9} ➖ {:>9.2e} {}",
+                        "·", "·", "·", "·", "·", "", it, "·", res.norm_rr, icon_rr
                     );
                 } else {
                     // handle non-linear problems
@@ -100,8 +95,8 @@ impl ControlPrinter {
                         "🔹"
                     };
                     println!(
-                        "{:>5} {:>8} {:>11} {:>11} {:>3} {:>5} {:>9.2e} {} {:>9.2e} {}",
-                        ".", "·", "·", "·", "", it, res.norm_mdu, icon_mdu, res.norm_rr, icon_rr
+                        "{:>8} {:>8} {:>8} {:>4} {:>8} {:>8} {:>5} {:>9.2e} {} {:>9.2e} {}",
+                        "·", "·", "·", "·", "·", "", it, res.norm_mdu, icon_mdu, res.norm_rr, icon_rr
                     );
                 }
             }

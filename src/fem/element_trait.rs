@@ -17,7 +17,7 @@ pub trait ElementTrait {
     fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError>;
 
     /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, f_ext: &mut Vector, time: f64) -> Result<(), StrError>;
+    fn calc_f_ext(&mut self, f_ext: &mut Vector, step: usize, time: f64) -> Result<(), StrError>;
 
     /// Calculates the Jacobian matrix
     fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError>;

@@ -16,6 +16,8 @@ const CONFIG_MIN_TOL: f64 = 1e-12;
 const CONFIG_MIN_THETA: f64 = 0.0001;
 
 /// Holds configuration parameters
+///
+/// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
 pub struct Config<'a> {
     // Essential constants --------------------------------------------------------------------
     //
@@ -64,6 +66,8 @@ pub struct Config<'a> {
     //
     /// Gravity acceleration (a positive value)
     ///
+    /// The function is `(step, time) -> gravity`.
+    ///
     /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
     ///
     /// ```text
@@ -77,7 +81,7 @@ pub struct Config<'a> {
     /// const GRAVITY: f64 = 10.0;
     /// config.set_gravity(GRAVITY);
     /// ```
-    pub(crate) gravity: Option<Box<dyn Fn(f64) -> f64 + 'a>>,
+    pub(crate) gravity: Option<Box<dyn Fn(usize, f64) -> f64 + 'a>>,
 
     /// Option to initialize all stress states
     pub(crate) initialization: Init,
@@ -115,37 +119,26 @@ pub struct Config<'a> {
 
     // Time stepping --------------------------------------------------------------------------
     //
-    // Number of stages
-    pub(crate) nstage: usize,
+    /// Indicates constant time step (Δt)
+    pub(crate) constant_ddt: bool,
 
-    /// Final time per stage
-    ///
-    /// (nstage)
-    pub(crate) t_fin: Vec<f64>,
+    /// Final time
+    pub(crate) t_fin: f64,
 
     /// Initial or constant stepsize Δt
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     pub(crate) ddt: f64,
 
     /// Time increment Δt for the output of results
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     pub(crate) ddt_out: f64,
 
     /// Minimum allowed time increment min(Δt)
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     pub(crate) ddt_min: f64,
 
-    /// Maximum number of time steps
-    pub(crate) n_max_timesteps: usize,
+    /// Maximum number of (time) steps
+    pub(crate) max_steps: usize,
 
     /// Maximum number of time steps allowed to fail
-    pub(crate) n_max_failed_steps: usize,
-
-    /// Considers the load reversal in the calculation of the model tangent modulus
-    pub(crate) consider_load_reversal: bool,
+    pub(crate) max_failed_steps: usize,
 
     /// Prints information about timesteps
     pub(crate) verbose_timesteps: bool,
@@ -153,10 +146,28 @@ pub struct Config<'a> {
     /// Prints the legend if showing the information about timesteps
     pub(crate) verbose_legend: bool,
 
+    // Load increment -------------------------------------------------------------------------
+    //
+    /// Indicates constant loading increment (Δλ)
+    pub(crate) constant_ddl: bool,
+
+    /// Initial or constant loading parameter Δλ
+    ///
+    pub(crate) ddl: f64,
+
+    /// Minimum allowed time increment min(Δλ)
+    pub(crate) ddl_min: f64,
+
+    /// Maximum number of load increments (λ)
+    pub(crate) max_nlambda: usize,
+
+    /// Considers the load reversal in the calculation of the model tangent modulus
+    pub(crate) consider_load_reversal: bool,
+
     // Newton-Raphson method ------------------------------------------------------------------
     //
     /// Maximum number of iterations
-    pub(crate) n_max_iterations: usize,
+    pub(crate) max_iterations: usize,
 
     /// Absolute tolerance for the global residual vector
     ///
@@ -195,60 +206,6 @@ pub struct Config<'a> {
 
     /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
     pub(crate) hht_alpha: f64,
-
-    // Arc-length control ---------------------------------------------------------------------
-    //
-    /// Uses the arc-length method to control the loading (path follower)
-    pub(crate) arc_length_method: bool,
-
-    /// Parameter to select the arc-length method
-    ///
-    /// `0 ≤ ψ ≤ 1`
-    ///
-    /// * ψ = 0.0: (hyper) cylindrical arc-length control
-    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
-    pub(crate) arc_psi: f64,
-
-    /// First trial loading factor ℓ₀ used by the arc-length method
-    pub(crate) arc_first_trial_ell: f64,
-
-    // Richardson extrapolation ---------------------------------------------------------------
-    //
-    /// Uses Richardson extrapolation in the time loop
-    pub(crate) richardson_extrapolation: bool,
-
-    /// Initial timestep for Richardson extrapolation
-    pub(crate) rex_ddt_ini: f64,
-
-    /// Absolute tolerance for Richardson extrapolation
-    pub(crate) rex_abs_tol: f64,
-
-    /// Relative tolerance for Richardson extrapolation
-    pub(crate) rex_rel_tol: f64,
-
-    /// Minimum multiplier for Richardson extrapolation
-    pub(crate) rex_m_min: f64,
-
-    /// Maximum multiplier for Richardson extrapolation
-    pub(crate) rex_m_max: f64,
-
-    /// Multiplier reduction factor for Richardson extrapolation
-    pub(crate) rex_m_factor: f64,
-
-    /// Maximum number of diverging steps for Richardson extrapolation
-    pub(crate) rex_n_divergence_max: usize,
-
-    /// Maximum number of substeps for Richardson extrapolation
-    pub(crate) rex_n_substep_max: usize,
-
-    /// Enables/disables divergence control for Richardson extrapolation
-    pub(crate) rex_divergence_control: bool,
-
-    /// Enables/disables Gustafsson step size control for Richardson extrapolation
-    pub(crate) rex_gustafsson_control: bool,
-
-    /// Prints all timesteps in the Richardson extrapolation method
-    pub(crate) rex_print_all_timesteps: bool,
 }
 
 impl<'a> Config<'a> {
@@ -280,18 +237,23 @@ impl<'a> Config<'a> {
             save_vismatrix_file: false,
             verbose_lin_sys_solve: false,
             // Time stepping
-            nstage: 1,
-            t_fin: vec![1.0],
+            constant_ddt: true,
+            t_fin: 1.0,
             ddt: 1.0,
             ddt_out: 1.0,
             ddt_min: CONFIG_DT_MIN,
-            n_max_timesteps: 10_000,
-            n_max_failed_steps: 100,
-            consider_load_reversal: true,
+            max_steps: 10_000,
+            max_failed_steps: 100,
             verbose_timesteps: true,
             verbose_legend: false,
+            // Load increment
+            constant_ddl: true,
+            ddl: 1.0,
+            ddl_min: CONFIG_DT_MIN,
+            max_nlambda: 100,
+            consider_load_reversal: true,
             // Newton-Raphson method
-            n_max_iterations: 10,
+            max_iterations: 10,
             tol_rr_abs: 1e-10,
             tol_mdu_abs: 1e-10,
             tol_mdu_rel: 1e-10,
@@ -303,23 +265,6 @@ impl<'a> Config<'a> {
             theta2: 0.5,
             hht_method: false,
             hht_alpha: 0.0,
-            // Arc-length control
-            arc_length_method: false,
-            arc_psi: 1.0,
-            arc_first_trial_ell: 0.01,
-            // Richardson extrapolation
-            richardson_extrapolation: false,
-            rex_ddt_ini: 1.0,
-            rex_abs_tol: 1e-6,
-            rex_rel_tol: 1e-6,
-            rex_m_min: 0.1,
-            rex_m_max: 2.0,
-            rex_m_factor: 0.9,
-            rex_n_divergence_max: 20,
-            rex_n_substep_max: 10_000,
-            rex_divergence_control: true,
-            rex_gustafsson_control: true,
-            rex_print_all_timesteps: false,
         }
     }
 
@@ -346,11 +291,6 @@ impl<'a> Config<'a> {
                 "thickness = {:?} is incorrect; it must be = 1.0 for plane-strain or 3D",
                 self.ideal.thickness
             ));
-        }
-
-        // Problem definition
-        if self.nstage == 0 {
-            return Some("nstage = 0 is incorrect; it must be ≥ 1".to_string());
         }
 
         // Initialization
@@ -382,6 +322,23 @@ impl<'a> Config<'a> {
                 "ddt_min = {:?} is incorrect; it must be ≥ {:e}",
                 self.ddt_min, CONFIG_DT_MIN
             ));
+        }
+
+        if self.max_steps == 0 {
+            return Some("max_steps = 0 is incorrect; it must be ≥ 1".to_string());
+        }
+
+        // Load increment
+
+        if self.ddl_min < CONFIG_DT_MIN {
+            return Some(format!(
+                "ddl_min = {:?} is incorrect; it must be ≥ {:e}",
+                self.ddl_min, CONFIG_DT_MIN
+            ));
+        }
+
+        if self.max_nlambda == 0 {
+            return Some("max_nlambda = 0 is incorrect; it must be ≥ 1".to_string());
         }
 
         // Newton-Raphson method
@@ -429,51 +386,6 @@ impl<'a> Config<'a> {
             return Some(format!(
                 "hht_alpha = {:?} is incorrect; it must be -1/3 ≤ α ≤ 0.0",
                 self.hht_alpha,
-            ));
-        }
-
-        // Arc-length control
-
-        if self.arc_psi < 0.0 || self.arc_psi > 1.0 {
-            return Some(format!(
-                "arc_length_psi = {:?} is incorrect; it must be 0.0 ≤ ψ ≤ 1.0",
-                self.arc_psi
-            ));
-        }
-        if f64::abs(self.arc_first_trial_ell) < 1e-12 {
-            return Some(format!(
-                "absolute first trial loading factor |ℓ₀| = {:?} is incorrect; it must be ≥ 1e-12",
-                self.arc_first_trial_ell
-            ));
-        }
-
-        // Richardson extrapolation
-
-        if self.rex_abs_tol < 0.0 {
-            return Some(format!(
-                "rex_abs_tol = {} is incorrect; it must be ≥ 0",
-                self.rex_abs_tol
-            ));
-        }
-        if self.rex_rel_tol < 0.0 {
-            return Some(format!(
-                "rex_rel_tol = {} is incorrect; it must be ≥ 0",
-                self.rex_rel_tol
-            ));
-        }
-        if self.rex_m_min <= 0.0 {
-            return Some(format!("rex_m_min = {} is incorrect; it must be > 0", self.rex_m_min));
-        }
-        if self.rex_m_max <= self.rex_m_min {
-            return Some(format!(
-                "rex_m_max = {} is incorrect; it must be > rex_m_min = {}",
-                self.rex_m_max, self.rex_m_min
-            ));
-        }
-        if self.rex_m_factor < 0.0001 || self.rex_m_factor >= 1.0 {
-            return Some(format!(
-                "rex_m_factor = {} is incorrect; it must be between 0.0001 and 1",
-                self.rex_m_factor
             ));
         }
 
@@ -530,15 +442,12 @@ impl<'a> Config<'a> {
     ///
     /// # Input
     ///
-    /// * `nstage` -- the number of stages (≥ 1)
-    pub fn set_steady(&mut self, nstage: usize) -> &mut Self {
+    /// * `nstep` -- the number of loading steps (≥ 1)
+    pub fn set_steady(&mut self, nstep: usize) -> &mut Self {
         self.steady = true;
         self.transient = false;
         self.dynamics = false;
-        self.nstage = nstage;
-        self.t_fin = (1..=nstage).map(|i| i as f64).collect();
-        self.ddt = 1.0;
-        self.ddt_out = 1.0;
+        self.t_fin = (1 + nstep) as f64;
         self
     }
 
@@ -584,6 +493,8 @@ impl<'a> Config<'a> {
 
     /// Sets the gravity acceleration (a positive value)
     ///
+    /// The function is `(step, time) -> gravity`.
+    ///
     /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
     ///
     /// ```text
@@ -597,7 +508,7 @@ impl<'a> Config<'a> {
     /// const GRAVITY: f64 = 10.0;
     /// config.set_gravity(GRAVITY);
     /// ```
-    pub fn set_gravity(&mut self, gravity_function: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    pub fn set_gravity(&mut self, gravity_function: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
         self.gravity = Some(Box::new(gravity_function));
         self
     }
@@ -671,13 +582,11 @@ impl<'a> Config<'a> {
     /// This function only works if !steady.
     pub fn set_t_fin(&mut self, t_fin: f64) -> &mut Self {
         assert!(!self.steady, "set_t_fin only works if !steady");
-        self.t_fin = vec![t_fin];
+        self.t_fin = t_fin;
         self
     }
 
     /// Sets the initial or constant stepsize Δt
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     ///
     /// # Panics
     ///
@@ -689,16 +598,12 @@ impl<'a> Config<'a> {
     }
 
     /// Sets the time increment Δt for the output of results
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     pub fn set_ddt_out(&mut self, ddt_out: f64) -> &mut Self {
         self.ddt_out = ddt_out;
         self
     }
 
     /// Sets the minimum allowed time increment min(Δt)
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
     ///
     /// # Panics
     ///
@@ -714,20 +619,14 @@ impl<'a> Config<'a> {
     /// # Panics
     ///
     /// This function only works if !steady.
-    pub fn set_n_max_timesteps(&mut self, n_max_time_steps: usize) -> &mut Self {
-        self.n_max_timesteps = n_max_time_steps;
+    pub fn set_max_timesteps(&mut self, max_time_steps: usize) -> &mut Self {
+        self.max_steps = max_time_steps;
         self
     }
 
     /// Sets the maximum number of time steps allowed to fail
-    pub fn set_n_max_failed_steps(&mut self, n_allowed: usize) -> &mut Self {
-        self.n_max_failed_steps = n_allowed;
-        self
-    }
-
-    /// Considers the load reversal in the calculation of the model tangent modulus
-    pub fn set_consider_load_reversal(&mut self, enabled: bool) -> &mut Self {
-        self.consider_load_reversal = enabled;
+    pub fn set_max_failed_steps(&mut self, max_failed_steps: usize) -> &mut Self {
+        self.max_failed_steps = max_failed_steps;
         self
     }
 
@@ -743,11 +642,37 @@ impl<'a> Config<'a> {
         self
     }
 
+    // Load increment -------------------------------------------------------------------------
+
+    /// Sets the initial or constant load increment Δλ
+    pub fn set_ddl(&mut self, ddl: f64) -> &mut Self {
+        self.ddl = ddl;
+        self
+    }
+
+    /// Sets the minimum allowed load increment min(Δλ)
+    pub fn set_ddl_min(&mut self, ddl_min: f64) -> &mut Self {
+        self.ddl_min = ddl_min;
+        self
+    }
+
+    /// Maximum number of load increments (lambda)
+    pub fn set_max_increments(&mut self, max_nlambda: usize) -> &mut Self {
+        self.max_nlambda = max_nlambda;
+        self
+    }
+
+    /// Considers the load reversal in the calculation of the model tangent modulus
+    pub fn set_consider_load_reversal(&mut self, enabled: bool) -> &mut Self {
+        self.consider_load_reversal = enabled;
+        self
+    }
+
     // Newton-Raphson method ------------------------------------------------------------------
 
     /// Sets the maximum number of iterations
-    pub fn set_n_max_iterations(&mut self, n_max_iterations: usize) -> &mut Self {
-        self.n_max_iterations = n_max_iterations;
+    pub fn set_max_iterations(&mut self, max_iterations: usize) -> &mut Self {
+        self.max_iterations = max_iterations;
         self
     }
 
@@ -816,127 +741,6 @@ impl<'a> Config<'a> {
     /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
     pub fn set_hht_alpha(&mut self, alpha: f64) -> &mut Self {
         self.hht_alpha = alpha;
-        self
-    }
-
-    // Arc-length control ---------------------------------------------------------------------
-
-    /// Uses the arc-length method to control the loading (path follower)
-    pub fn set_arc_length_method(&mut self, enable: bool) -> &mut Self {
-        self.arc_length_method = enable;
-        self
-    }
-
-    /// Sets the parameter to select the arc-length method
-    ///
-    /// `0 ≤ ψ ≤ 1`
-    ///
-    /// * ψ = 0.0: (hyper) cylindrical arc-length control
-    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
-    pub fn set_arc_psi(&mut self, psi: f64) -> &mut Self {
-        self.arc_psi = psi;
-        self
-    }
-
-    /// Sets the initial trial loading factor ℓ₀ used by the arc-length method
-    ///
-    /// Only for the arc-length method
-    pub fn set_arc_first_trial_ell(&mut self, ell0: f64) -> &mut Self {
-        self.arc_first_trial_ell = ell0;
-        self
-    }
-
-    // Richardson extrapolation ---------------------------------------------------------------
-
-    /// Uses Richardson extrapolation in the time loop
-    pub fn set_richardson_extrapolation(&mut self, enable: bool) -> &mut Self {
-        self.richardson_extrapolation = enable;
-        self
-    }
-
-    /// Sets the initial timestep for Richardson extrapolation
-    pub fn set_rex_ddt_ini(&mut self, ddt_ini: f64) -> &mut Self {
-        self.rex_ddt_ini = ddt_ini;
-        self
-    }
-
-    /// Sets the absolute tolerance for Richardson extrapolation
-    ///
-    /// # Arguments
-    ///
-    /// * `tol` - Absolute tolerance (must be ≥ 0)
-    pub fn set_rex_abs_tol(&mut self, tol: f64) -> &mut Self {
-        self.rex_abs_tol = tol;
-        self
-    }
-
-    /// Sets the relative tolerance for Richardson extrapolation
-    ///
-    /// # Arguments
-    ///
-    /// * `tol` - Relative tolerance (must be ≥ 0)
-    pub fn set_rex_rel_tol(&mut self, tol: f64) -> &mut Self {
-        self.rex_rel_tol = tol;
-        self
-    }
-
-    /// Sets the minimum multiplier for Richardson extrapolation
-    ///
-    /// # Arguments
-    ///
-    /// * `m_min` - Minimum multiplier (must be > 0)
-    pub fn set_rex_m_min(&mut self, m_min: f64) -> &mut Self {
-        self.rex_m_min = m_min;
-        self
-    }
-
-    /// Sets the maximum multiplier for Richardson extrapolation
-    ///
-    /// # Arguments
-    ///
-    /// * `m_max` - Maximum multiplier (must be > m_min)
-    pub fn set_rex_m_max(&mut self, m_max: f64) -> &mut Self {
-        self.rex_m_max = m_max;
-        self
-    }
-
-    /// Sets the multiplier reduction factor for Richardson extrapolation
-    ///
-    /// # Arguments
-    ///
-    /// * `factor` - Reduction factor (must be between 0.0001 and 1)
-    pub fn set_rex_m_factor(&mut self, factor: f64) -> &mut Self {
-        self.rex_m_factor = factor;
-        self
-    }
-
-    /// Sets the maximum number of diverging steps for Richardson extrapolation
-    pub fn set_rex_n_divergence_max(&mut self, n_max: usize) -> &mut Self {
-        self.rex_n_divergence_max = n_max;
-        self
-    }
-
-    /// Sets the maximum number of substeps for Richardson extrapolation
-    pub fn set_rex_n_substep_max(&mut self, n_max: usize) -> &mut Self {
-        self.rex_n_substep_max = n_max;
-        self
-    }
-
-    /// Enables/disables divergence control for Richardson extrapolation
-    pub fn set_rex_divergence_control(&mut self, enable: bool) -> &mut Self {
-        self.rex_divergence_control = enable;
-        self
-    }
-
-    /// Enables/disables Gustafsson step size control for Richardson extrapolation
-    pub fn set_rex_gustafsson_control(&mut self, enable: bool) -> &mut Self {
-        self.rex_gustafsson_control = enable;
-        self
-    }
-
-    /// Prints all timesteps in the Richardson extrapolation method
-    pub fn set_rex_print_all_timesteps(&mut self, enable: bool) -> &mut Self {
-        self.rex_print_all_timesteps = enable;
         self
     }
 }
@@ -1046,15 +850,6 @@ mod tests {
         );
         config.ideal.thickness = 1.0;
 
-        // Problem definition
-
-        config.nstage = 0;
-        assert_eq!(
-            config.validate(),
-            Some("nstage = 0 is incorrect; it must be ≥ 1".to_string())
-        );
-        config.nstage = 1;
-
         // Initialization
 
         config.initialization = Init::Geostatic(123.0);
@@ -1089,6 +884,29 @@ mod tests {
             Some("ddt_min = 0.0 is incorrect; it must be ≥ 1e-7".to_string())
         );
         config.ddt_min = 1e-3;
+
+        config.max_steps = 0;
+        assert_eq!(
+            config.validate(),
+            Some("max_steps = 0 is incorrect; it must be ≥ 1".to_string())
+        );
+        config.max_steps = 1;
+
+        // Load increment
+
+        config.ddl_min = 0.0;
+        assert_eq!(
+            config.validate(),
+            Some("ddl_min = 0.0 is incorrect; it must be ≥ 1e-7".to_string())
+        );
+        config.ddl_min = 1e-3;
+
+        config.max_nlambda = 0;
+        assert_eq!(
+            config.validate(),
+            Some("max_nlambda = 0 is incorrect; it must be ≥ 1".to_string())
+        );
+        config.max_nlambda = 1;
 
         // Newton-Raphson method
 
@@ -1158,22 +976,6 @@ mod tests {
         );
         config.hht_alpha = 0.0;
 
-        // Arc-length control
-
-        config.arc_psi = -0.1;
-        assert_eq!(
-            config.validate(),
-            Some("arc_length_psi = -0.1 is incorrect; it must be 0.0 ≤ ψ ≤ 1.0".to_string())
-        );
-        config.arc_psi = 1.0;
-
-        config.arc_first_trial_ell = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("absolute first trial loading factor |ℓ₀| = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
-        );
-        config.arc_first_trial_ell = 1.0;
-
         // All good
 
         config.ideal.plane_stress = false;
@@ -1200,11 +1002,7 @@ mod tests {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
         config.set_steady(3);
-        assert_eq!(config.t_fin, &[1.0, 2.0, 3.0]);
-        assert_eq!(config.ddt, 1.0);
-        assert_eq!(config.ddt, 1.0);
-        assert_eq!(config.ddt_out, 1.0);
-        assert_eq!(config.ddt_out, 1.0);
+        assert_eq!(config.t_fin, 4.0);
     }
 
     #[test]

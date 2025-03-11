@@ -113,7 +113,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     config
         .set_lagrange_mult_method(true)
         .set_steady(NSTAGE)
-        .set_n_max_iterations(20);
+        .set_max_iterations(20);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;

@@ -13,14 +13,14 @@ use std::path::Path;
 /// Holds the state of a simulation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemState {
-    /// Current stage
-    pub stage: usize,
+    /// Current (time) step
+    pub step: usize,
 
     /// Loading factor λ
     pub lambda: f64,
 
-    /// Current (time) step
-    pub step: usize,
+    /// Delta loading factor Δλ
+    pub ddl: f64,
 
     /// Indicates whether a load reversal occurred from stage(i) to stage(i+1)
     ///
@@ -28,7 +28,7 @@ pub struct FemState {
     pub reverse: bool,
 
     /// Time
-    pub t: f64,
+    pub time: f64,
 
     /// Delta time Δt
     ///
@@ -196,11 +196,11 @@ impl FemState {
 
         // allocate new instance
         Ok(FemState {
-            stage: 0,
-            lambda: 0.0,
             step: 0,
+            lambda: 0.0,
+            ddl: 0.0,
             reverse: false,
-            t: 0.0,
+            time: 0.0,
             ddt: 0.0,    // needs initialization
             alpha1: 0.0, // needs initialization
             alpha2: 0.0, // needs initialization

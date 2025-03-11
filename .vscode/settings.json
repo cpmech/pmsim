@@ -28,6 +28,7 @@
     "nafems",
     "ncomp",
     "ngauss",
+    "nlambda",
     "nocapture",
     "Nonlin",
     "nonlinearities",

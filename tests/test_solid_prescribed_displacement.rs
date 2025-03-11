@@ -228,7 +228,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     let mut f_int = Vector::new(neq);
     let mut f_ext = Vector::new(neq);
     elem.calc_f_int(&mut f_int, &state)?;
-    elem.calc_f_ext(&mut f_ext, state.t)?;
+    elem.calc_f_ext(&mut f_ext, state.step, state.time)?;
     println!("f_int = \n{}", f_int);
     println!("f_ext = \n{}", f_ext);
     let mut rr_local = Vector::new(neq);

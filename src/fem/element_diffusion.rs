@@ -148,7 +148,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, f_ext: &mut Vector, _time: f64) -> Result<(), StrError> {
+    fn calc_f_ext(&mut self, f_ext: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
         if let Some(s) = self.param.source {
             // arguments for the integrator
             let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
@@ -389,7 +389,7 @@ mod tests {
 
         // check f_ext vector
         let mut f_ext = Vector::new(neq);
-        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
+        elem.calc_f_ext(&mut f_ext, state.step, state.time).unwrap();
         let correct_f_ext = ana.vec_01_ns(source, false);
         vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
     }
@@ -454,7 +454,7 @@ mod tests {
 
         // check f_ext vector
         let mut f_ext = Vector::new(neq);
-        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
+        elem.calc_f_ext(&mut f_ext, state.step, state.time).unwrap();
         let correct_f_ext = Vector::from(&ana.vec_01_ns(source));
         vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
     }

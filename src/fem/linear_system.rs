@@ -55,25 +55,25 @@ pub struct LinearSystem<'a> {
     /// ```
     pub nnz_sup: usize,
 
-    /// Vector of internal forces F_int (including dynamic terms)
+    /// Vector of internal forces (including dynamic terms) P
     ///
     /// (neq_total)
-    pub ff_int: Vector,
+    pub pp: Vector,
 
-    /// Vector of external forces F_ext
+    /// Vector of external forces F
     ///
     /// (neq_total)
-    pub ff_ext: Vector,
+    pub ff: Vector,
 
-    /// Total increment of external forces ΔF_ext
+    /// Total increment of external forces ΔF
     ///
     /// (neq_total)
-    pub ddff_ext: Vector,
+    pub ddff: Vector,
 
     /// Previous total increment of external forces
     ///
     /// (neq_total)
-    pub ddff_ext_old: Vector,
+    pub ddff_old: Vector,
 
     /// Residual vector R
     ///
@@ -186,10 +186,10 @@ impl<'a> LinearSystem<'a> {
             n_lagrange,
             neq_total,
             nnz_sup,
-            ff_int: Vector::new(neq_total),
-            ff_ext: Vector::new(neq_total),
-            ddff_ext: Vector::new(neq_total),
-            ddff_ext_old: Vector::new(neq_total),
+            pp: Vector::new(neq_total),
+            ff: Vector::new(neq_total),
+            ddff: Vector::new(neq_total),
+            ddff_old: Vector::new(neq_total),
             rr: Vector::new(neq_total),
             kk: CooMatrix::new(neq_total, neq_total, nnz_sup, sym)?,
             solver: LinSolver::new(config.lin_sol_genie)?,

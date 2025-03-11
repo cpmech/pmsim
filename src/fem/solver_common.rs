@@ -3,7 +3,7 @@ use super::{Elements, FemBase, LinearSystem};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::{vec_add, vec_copy, vec_inner, vec_minus, vec_update, Stopwatch};
+use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch};
 
 /// Implements common (shared) functionality for all FEM solvers
 pub(crate) struct SolverCommon<'a> {
@@ -73,7 +73,7 @@ impl<'a> SolverCommon<'a> {
 
         // show information
         if config.verbose_timesteps || config.verbose_iterations {
-            println!("\nINFORMATION ================================================================");
+            println!("\nINFORMATION =====================================================================");
             println!("\n{}", linear_system.get_info());
         }
 
@@ -91,96 +91,57 @@ impl<'a> SolverCommon<'a> {
         })
     }
 
-    /// Assembles the internal forces vector (F_int)
-    pub fn assemble_ff_int(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        // clear F_int vector
-        self.ls.ff_int.fill(0.0);
+    /// Calculates P (internal forces)
+    pub fn calc_pp(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        // clear vector
+        self.ls.pp.fill(0.0);
 
-        // calculate all element local vectors and add them to F_int
+        // calculate all element local vectors
         self.elements
-            .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored_eqs)?;
+            .assemble_f_int(&mut self.ls.pp, state, &self.ignored_eqs)?;
 
-        // calculate all boundary elements local vectors and add them to F_int
+        // calculate all boundary elements local vectors
         self.bc_distributed
-            .assemble_f_int(&mut self.ls.ff_int, state, &self.ignored_eqs)?;
+            .assemble_f_int(&mut self.ls.pp, state, &self.ignored_eqs)?;
         Ok(())
     }
 
-    /// Assembles the external forces vector (F_ext)
+    /// Calculates ΔF (increment of external forces)
     ///
     /// Returns the load reversal flag
     ///
     /// ```text
-    ///         ⎧ F_ext_old + λ ΔF_ext  if quasi-static/steady
-    /// F_ext = ⎨
-    ///         ⎩ F_ext(t)              if transient/dynamics
+    /// ΔF = F(t+Δt) - F(t)
     /// ```
-    pub fn assemble_ff_ext(&mut self, stage: usize, lambda: f64, t: f64) -> Result<bool, StrError> {
-        let reverse = if self.config.steady {
-            // make a copy of ΔF_ext
-            vec_copy(&mut self.ls.ddff_ext_old, &self.ls.ddff_ext).unwrap();
+    pub fn calc_ddff(&mut self, step: usize, time: f64) -> Result<bool, StrError> {
+        // make a copy of ΔF
+        vec_copy(&mut self.ls.ddff_old, &self.ls.ddff).unwrap();
 
-            // assemble F_ext into tmp ------------------------------------------------
+        // assemble F into tmp ----------------------------------------------------
 
-            // clear tmp vector
-            self.ls.tmp.fill(0.0);
+        // clear vector
+        self.ls.tmp.fill(0.0);
 
-            // calculate all element local vectors and add them to tmp
-            self.elements.assemble_f_ext(&mut self.ls.tmp, t, &self.ignored_eqs)?;
+        // calculate all element local vectors
+        self.elements
+            .assemble_f_ext(&mut self.ls.tmp, step, time, &self.ignored_eqs)?;
 
-            // calculate all boundary elements local vectors and add them to tmp
-            self.bc_distributed
-                .assemble_f_ext(&mut self.ls.tmp, stage, t, &self.ignored_eqs)?;
+        // calculate all boundary elements local vectors
+        self.bc_distributed
+            .assemble_f_ext(&mut self.ls.tmp, step, time, &self.ignored_eqs)?;
 
-            // add concentrated loads to tmp
-            self.bc_concentrated.add_to_ff_ext(&mut self.ls.tmp, stage, t);
+        // add concentrated loads
+        self.bc_concentrated.add_to_ff_ext(&mut self.ls.tmp, step, time);
 
-            // ------------------------------------------------------------------------
+        // ------------------------------------------------------------------------
 
-            // calculate ΔF_ext = tmp - F_ext
-            vec_minus(&mut self.ls.ddff_ext, &self.ls.tmp, &self.ls.ff_ext).unwrap();
+        // calculate ΔF = tmp - F
+        vec_minus(&mut self.ls.ddff, &self.ls.tmp, &self.ls.ff).unwrap();
 
-            // calculate F_ext += λ ΔF_ext
-            vec_update(&mut self.ls.ff_ext, lambda, &self.ls.ddff_ext).unwrap();
-
-            // check if load reversal occurred
-            let dot = vec_inner(&self.ls.ddff_ext_old, &self.ls.ddff_ext);
-            dot < 0.0 && self.config.consider_load_reversal
-        } else {
-            // assemble F_ext ---------------------------------------------------------
-
-            // clear F_ext vector
-            self.ls.ff_ext.fill(0.0);
-
-            // calculate all element local vectors and add them to F_ext
-            self.elements
-                .assemble_f_ext(&mut self.ls.ff_ext, t, &self.ignored_eqs)?;
-
-            // calculate all boundary elements local vectors and add them to F_ext
-            self.bc_distributed
-                .assemble_f_ext(&mut self.ls.ff_ext, stage, t, &self.ignored_eqs)?;
-
-            // add concentrated loads to F_ext
-            self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff_ext, stage, t);
-
-            // ------------------------------------------------------------------------
-
-            // ignore load reversal
-            false
-        };
+        // check if load reversal occurred
+        let dot = vec_inner(&self.ls.ddff_old, &self.ls.ddff);
+        let reverse = dot < 0.0 && self.config.consider_load_reversal;
         Ok(reverse)
-    }
-
-    /// Calculates the residual vector R
-    ///
-    /// ```text
-    /// R = F_int - lf * F_ext
-    /// ```
-    ///
-    /// where `lf` is the loading factor.
-    pub fn calculate_residuals_vector(&mut self, loading_factor: f64) {
-        // R = F_int - lf * F_ext
-        vec_add(&mut self.ls.rr, 1.0, &self.ls.ff_int, -loading_factor, &self.ls.ff_ext).unwrap();
     }
 
     /// Assembles the (augmented) global matrix K

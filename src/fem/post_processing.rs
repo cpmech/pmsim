@@ -931,12 +931,12 @@ mod tests {
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
-        state.t = 1.0;
+        state.time = 1.0;
         file_io.write_state(&state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
-        state.t = 2.0;
+        state.time = 2.0;
         file_io.write_state(&state).unwrap();
 
         file_io.write_self().unwrap();
@@ -994,12 +994,12 @@ mod tests {
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
-        state.t = 1.0;
+        state.time = 1.0;
         file_io.write_state(&state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
-        state.t = 2.0;
+        state.time = 2.0;
         file_io.write_state(&state).unwrap();
 
         file_io.write_self().unwrap();

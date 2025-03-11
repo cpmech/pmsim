@@ -1,9 +1,9 @@
-use super::{ControlArcLength, ControlPrinter, ControlResidual, ControlTime};
+use super::{ControlLoader, ControlPrinter, ControlResidual, ControlStepper};
 use super::{FemBase, FemState, FileIo, SolverCommon};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::vec_add;
+use russell_lab::{vec_add, vec_update};
 
 /// Implements the implicit finite element method solver
 pub struct SolverImplicit<'a> {
@@ -13,17 +13,17 @@ pub struct SolverImplicit<'a> {
     /// Common functionality
     pub(crate) com: SolverCommon<'a>,
 
-    /// Arc-length control for path-following analysis
-    pub(crate) arc: ControlArcLength<'a>,
-
     /// Printer control
     pub(crate) print: ControlPrinter,
 
     /// Residual control
     pub(crate) res: ControlResidual<'a>,
 
-    /// Time stepping and integration control
-    pub(crate) time: ControlTime<'a>,
+    /// Stepper control
+    pub(crate) stepper: ControlStepper<'a>,
+
+    /// Loader control
+    pub(crate) loader: ControlLoader<'a>,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -39,26 +39,20 @@ impl<'a> SolverImplicit<'a> {
         let com = SolverCommon::new(mesh, base, config, essential, natural)?;
         let neq_total = com.ls.neq_total;
 
-        // allocate arc-length control structure
-        let arc = if config.arc_length_method {
-            ControlArcLength::new(config, neq_total)
-        } else {
-            ControlArcLength::new(config, 0)
-        };
-
         // allocate controls
         let print = ControlPrinter::new(config);
         let res = ControlResidual::new(config, neq_total);
-        let time = ControlTime::new(config)?;
+        let stepper = ControlStepper::new(config)?;
+        let loader = ControlLoader::new(config);
 
         // allocate new instance
         Ok(SolverImplicit {
             config,
             com,
-            arc,
             print,
             res,
-            time,
+            stepper,
+            loader,
         })
     }
 
@@ -117,108 +111,100 @@ impl<'a> SolverImplicit<'a> {
 
     /// Performs the solution process
     fn do_solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
-        // stages loop
-        state.step = 0;
-        for stage in 0..self.config.nstage {
-            // initialize stage
-            self.time.initialize_stage(stage, state);
-            self.print.stage(state);
+        // time loop
+        for step in 0..self.config.max_steps {
+            state.step = step;
 
-            // time loop
-            state.lambda = 1.0;
-            while state.step < self.config.n_max_timesteps {
-                // done if last timestep
-                if self.time.last() {
-                    self.print.footer();
+            // done if last (time) step
+            if self.stepper.last() {
+                break;
+            }
+
+            // next (time) step
+            self.stepper.next(state)?;
+
+            // calculate previous transient/dynamics state variables
+            if !self.config.steady {
+                vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
+            }
+
+            // initialize lambda
+            self.loader.initialize(state);
+
+            // lambda loop
+            for increment in 0..self.config.max_nlambda {
+                // done if last loading increment
+                if self.loader.last() {
                     break;
                 }
 
-                // update time-related variables
-                self.time.update(state)?;
+                // next increment
+                self.loader.next(state)?;
 
-                // update external forces vector F_ext (also updates the load reversal flag)
-                state.reverse = self.com.assemble_ff_ext(state.stage, state.lambda, state.t)?;
+                // assemble external forces vector F (also updates the load reversal flag)
+                state.reverse = self.com.calc_ddff(state.step, state.time)?;
 
-                // transient/dynamics: old state variables
-                if !self.config.steady {
-                    vec_add(&mut state.u_star, state.beta1, &state.u, state.beta2, &state.v).unwrap();
-                }
-
-                // trial displacement u, displacement increment Δu, and trial loading factor ℓ
-                if self.config.arc_length_method {
-                    self.arc.trial(state)?;
-                } else {
-                    // the trial displacement is the displacement at the old time (unchanged)
-                    state.ddu.fill(0.0);
-                    state.lambda = 1.0;
-                }
+                // print information
+                self.print.step(increment, state);
 
                 // reset algorithmic variables
                 if !self.config.linear_problem {
                     self.com.elements.reset_algorithmic_variables(state);
                 }
 
-                // print information
-                self.print.step(state);
-
                 // iteration loop
-                for iteration in 0..self.config.n_max_iterations {
+                for iteration in 0..self.config.max_iterations {
                     self.iterate(iteration, state)?;
                     if self.res.converged() {
                         self.res.add_converged();
                         break;
                     }
-                    if !self.config.arc_length_method {
-                        if iteration == self.config.n_max_iterations - 1 {
-                            return Err("Newton-Raphson did not converge");
-                        }
+                    if iteration == self.config.max_iterations - 1 {
+                        return Err("Newton-Raphson did not converge");
                     }
                 }
 
-                // arc-length step adaptation
-                if self.config.arc_length_method {
-                    self.arc.adapt(state, self.res.converged(), &self.com.ls.ff_ext)?;
+                // update external forces: F += λ ΔF
+                if self.res.converged() {
+                    vec_update(&mut self.com.ls.ff, state.lambda, &self.com.ls.ddff).unwrap();
                 }
 
-                // check if many iterations failed to converge in a single time step
+                // check if many iterations failed to converge
                 self.res.add_failed();
                 if self.res.too_many_failures() {
                     return Err("too many iterations failed to converge");
                 }
 
                 // perform output
-                if self.time.out(state) && self.res.converged() {
+                if self.stepper.out(state) && self.res.converged() {
                     file_io.write_state(state)?;
                 }
-                state.step += 1;
             }
         }
+
+        // print footer
+        self.print.footer();
         Ok(())
     }
 
     /// Performs iterations to reduce residuals at current (time) step
     fn iterate(&mut self, iteration: usize, state: &mut FemState) -> Result<(), StrError> {
-        // assemble internal forces vector F_int
-        self.com.assemble_ff_int(state)?;
+        // calculates P (internal forces)
+        self.com.calc_pp(state)?;
 
-        // calculate residual vector: R = F_int - lf * F_ext
-        self.com.calculate_residuals_vector(state.lambda);
+        // calculates R (residuals): R = P - (F + λ ΔF)
+        for i in 0..self.com.ls.neq_total {
+            self.com.ls.rr[i] = self.com.ls.pp[i] - (self.com.ls.ff[i] + state.lambda * self.com.ls.ddff[i]);
+        }
 
         // add Lagrange multiplier contributions to R
         if self.config.lagrange_mult_method {
             self.com.bc_prescribed.assemble_rr_lmm(&mut self.com.ls.rr, state);
         }
 
-        // calculate arc-length constraint and derivatives
-        let g = if self.config.arc_length_method {
-            self.arc.constraint(state, &self.com.ls.ff_ext)?
-        } else {
-            0.0
-        };
-
         // check convergence on residual
         self.res.reset();
-        self.res.analyze_rr(iteration, &self.com.ls.rr, g)?;
+        self.res.analyze_rr(iteration, &self.com.ls.rr, 0.0)?;
         if self.res.converged() {
             self.print.iteration(iteration, &self.res);
             return Ok(());
@@ -241,11 +227,7 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // solve linear system
-        if self.config.arc_length_method {
-            self.arc.solve(&mut self.com.ls)?;
-        } else {
-            self.com.ls.solve()?;
-        }
+        self.com.ls.solve()?;
 
         // check convergence on corrective displacement
         self.res.analyze_mdu(iteration, &self.com.ls.mdu)?;
@@ -256,11 +238,6 @@ impl<'a> SolverImplicit<'a> {
 
         // update primary variables
         self.com.update_primary_variables(state)?;
-
-        // update loading factor
-        if self.config.arc_length_method {
-            self.arc.update(state)?;
-        }
 
         // backup/restore secondary variables
         if !self.config.linear_problem {

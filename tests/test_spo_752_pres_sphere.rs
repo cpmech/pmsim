@@ -197,7 +197,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
         let state = post.read_state(index)?;
 
         // pressure
-        let pp = pp_array[state.stage];
+        let pp = pp_array[state.step];
         inner_pp[index] = pp;
 
         // radial displacement
@@ -211,7 +211,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
         })?;
 
         // convert to polar coordinates and compare with analytical solution
-        if select_stage.contains(&state.stage) {
+        if select_stage.contains(&state.step) {
             pp_arr.push(pp);
             sh_arr.push(Vec::new());
             sr_arr.push(Vec::new());

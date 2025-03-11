@@ -39,7 +39,7 @@ use crate::StrError;
 ///
 /// * `dt_min` - Minimum allowed timestep
 /// * `t_out` - Next output time
-pub struct ControlTime<'a> {
+pub struct ControlStepper<'a> {
     /// Holds configuration parameters
     config: &'a Config<'a>,
 
@@ -52,11 +52,11 @@ pub struct ControlTime<'a> {
     /// Output time
     t_out: f64,
 
-    /// Flag to indicate the last timestep
-    last_timestep: bool,
+    /// Flag to indicate the last (time) step
+    last: bool,
 }
 
-impl<'a> ControlTime<'a> {
+impl<'a> ControlStepper<'a> {
     /// Creates a new time control instance
     ///
     /// # Arguments
@@ -103,43 +103,47 @@ impl<'a> ControlTime<'a> {
         };
 
         // return new instance
-        Ok(ControlTime {
+        Ok(ControlStepper {
             config,
             theta1,
             theta2,
             t_out: 0.0,
-            last_timestep: false,
+            last: false,
         })
     }
 
-    /// Returns whether the last timestep has been reached
+    /// Returns whether the last (time) step has been reached
     pub fn last(&self) -> bool {
-        self.last_timestep
+        self.last
     }
 
-    /// Initializes the current stage index and resets the last timestep flag
-    pub fn initialize_stage(&mut self, stage: usize, state: &mut FemState) {
-        state.stage = stage;
-        self.last_timestep = false;
-    }
-
-    /// Updates time stepping parameters for the next step
-    ///
-    /// # Arguments
-    ///
-    /// * `state` - Current FEM state
-    ///
-    /// # Returns
-    ///
-    /// * an error if timestep is below minimum
-    pub fn update(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        state.ddt = self.config.ddt;
-        if state.ddt < self.config.ddt_min {
-            return Err("Δt is smaller than the allowed minimum");
+    /// Updates (time) stepping parameters for the next step
+    pub fn next(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        // set Δt and t
+        let t_fin = self.config.t_fin;
+        if self.config.steady {
+            state.ddt = 1.0;
+            state.time += state.ddt;
+            if state.time + state.ddt >= t_fin {
+                self.last = true;
+            }
+        } else {
+            state.ddt = self.config.ddt;
+            if state.ddt < self.config.ddt_min {
+                return Err("Δt is smaller than the allowed minimum");
+            }
+            if state.time + state.ddt >= t_fin {
+                if !self.config.constant_ddt {
+                    if state.time + state.ddt != t_fin {
+                        // only truncates if t+Δt is not exactly equal to t_fin
+                        state.ddt = f64::max(self.config.ddt_min, t_fin - state.time);
+                    }
+                }
+                self.last = true;
+            }
+            state.time += state.ddt;
+            self.calculate_coefficients(state);
         }
-        self.handle_last_timestep(state);
-        state.t += state.ddt;
-        self.calculate_coefficients(state);
         Ok(())
     }
 
@@ -154,24 +158,9 @@ impl<'a> ControlTime<'a> {
     /// * `true` if output should be generated
     /// * `false` otherwise
     pub fn out(&mut self, state: &FemState) -> bool {
-        // no need to flag output if the last timestep is reached because the
-        // output will be carried out anyway when the finished flag becomes true
-        let do_output = state.t >= self.t_out || self.last_timestep;
+        let do_output = state.time >= self.t_out || self.last;
         self.t_out += self.config.ddt_out;
         do_output
-    }
-
-    /// Truncates Δt if t+Δt  exceeds the final time and sets the last timestep flag
-    fn handle_last_timestep(&mut self, state: &mut FemState) {
-        let t_fin = self.config.t_fin[state.stage];
-        if state.t + state.ddt >= t_fin {
-            if state.t + state.ddt != t_fin && !self.config.steady {
-                // only truncates if t+Δt is not exactly equal to t_fin
-                // also, only truncates if the analysis is not quasi-steady/quasi-static
-                state.ddt = f64::max(self.config.ddt_min, t_fin - state.t);
-            }
-            self.last_timestep = true;
-        }
     }
 
     /// Calculates all derived coefficients for given timestep Δt
@@ -207,13 +196,13 @@ impl<'a> ControlTime<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::ControlTime;
+    use super::ControlStepper;
     use crate::base::{Config, Elem, Essential, ParamSolid};
     use crate::fem::{FemBase, FemState};
     use gemlab::mesh::Samples;
 
     #[test]
-    fn time_control_works() {
+    fn constants_are_correct() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
@@ -223,11 +212,11 @@ mod tests {
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         // θ=0.5, θ1=0.5, θ2=0.5, α=0
-        let mut control = ControlTime::new(&config).unwrap();
+        let mut control = ControlStepper::new(&config).unwrap();
 
         // update
-        control.update(&mut state).unwrap();
-        assert_eq!(state.t, 0.0001);
+        control.next(&mut state).unwrap();
+        assert_eq!(state.time, 0.0001);
         assert_eq!(state.ddt, 0.0001);
         assert_eq!(state.alpha1, 4e8); // no changes
         assert_eq!(state.alpha2, 40000.0);
@@ -241,7 +230,7 @@ mod tests {
         assert_eq!(state.beta2, 1.0);
 
         // check last_timestep flag
-        control.update(&mut state).unwrap();
+        control.next(&mut state).unwrap();
         assert_eq!(control.last(), false);
     }
 }
