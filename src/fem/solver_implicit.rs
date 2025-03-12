@@ -43,7 +43,7 @@ impl<'a> SolverImplicit<'a> {
         let print = ControlPrinter::new(config);
         let res = ControlResidual::new(config, neq_total);
         let stepper = ControlStepper::new(config)?;
-        let loader = ControlLoader::new(config);
+        let loader = ControlLoader::new(config, neq_total);
 
         // allocate new instance
         Ok(SolverImplicit {
@@ -141,8 +141,11 @@ impl<'a> SolverImplicit<'a> {
                     break;
                 }
 
+                // backup state variables
+                self.loader.backup(state, &mut self.com.elements);
+
                 // next increment
-                self.loader.next(state)?;
+                self.loader.next(increment, state)?;
 
                 // print information
                 self.print.step(increment, state);
@@ -154,32 +157,61 @@ impl<'a> SolverImplicit<'a> {
 
                 // iteration loop
                 for iteration in 0..self.config.max_iterations {
+                    // run Newton-Raphson iteration
                     self.iterate(iteration, state)?;
+
+                    // check convergence
                     if self.res.converged() {
                         self.res.add_converged();
                         break;
                     } else {
                         self.res.add_failed();
                     }
-                    if iteration == self.config.max_iterations - 1 {
+
+                    // check if norm(mdu) is too large
+                    if self.res.is_norm_mdu_large() {
+                        if self.config.substepping {
+                            break; // OK, will try again with smaller Δλ
+                        } else {
+                            return Err("norm(mdu) is too large");
+                        }
+                    }
+                }
+
+                // check if Newton-Raphson failed to converge
+                if self.config.substepping {
+                    if self.res.too_many_failures() {
+                        return Err("too many iterations failed to converge");
+                    }
+                } else {
+                    if !self.res.converged() {
                         return Err("Newton-Raphson did not converge");
                     }
                 }
 
-                // check if many iterations failed to converge
-                if self.res.too_many_failures() {
-                    return Err("too many iterations failed to converge");
-                }
+                // adapt loading parameter
+                let (ddl_new, accept) = self.loader.adapt(increment, state, self.res.converged())?;
 
                 // perform output
-                // if self.stepper.out(state) && self.res.converged() {
-                file_io.write_state(state)?;
-                // }
+                if accept {
+                    // if self.stepper.out(state) && self.res.converged()
+                    file_io.write_state(state)?;
+                } else {
+                    self.loader.restore(state, &mut self.com.elements);
+                }
 
-                // adapt loading parameter
-                self.loader.adapt(state, self.res.converged())?;
+                // update Δλ
+                state.ddl = ddl_new;
+
+                // check if maximum number of loading increments reached
+                if increment == self.config.max_nlambda - 1 {
+                    return Err("maximum number of loading increments reached");
+                }
             }
         }
+
+        // print stats
+        self.loader.print_stats();
 
         // print footer
         self.print.footer();
@@ -232,6 +264,11 @@ impl<'a> SolverImplicit<'a> {
         self.res.analyze_mdu(iteration, &self.com.ls.mdu)?;
         self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
         if self.res.converged() {
+            return Ok(());
+        }
+
+        // avoid large norm(mdu)
+        if self.res.is_norm_mdu_large() {
             return Ok(());
         }
 

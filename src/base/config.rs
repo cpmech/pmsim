@@ -148,9 +148,6 @@ pub struct Config<'a> {
 
     // Load increment -------------------------------------------------------------------------
     //
-    /// Indicates constant loading increment (Δλ)
-    pub(crate) constant_ddl: bool,
-
     /// Initial or constant loading parameter Δλ
     ///
     pub(crate) ddl: f64,
@@ -184,6 +181,9 @@ pub struct Config<'a> {
     /// The minimum allowed value is [CONTROL_MIN_TOL]
     pub(crate) tol_mdu_rel: f64,
 
+    /// Maximum allowed norm of mdu
+    pub(crate) max_norm_mdu: f64,
+
     /// Enables pseudo-Newton method with constant-tangent operator
     pub(crate) constant_tangent: bool,
 
@@ -206,6 +206,41 @@ pub struct Config<'a> {
 
     /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
     pub(crate) hht_alpha: f64,
+
+    // Substepping parameters -----------------------------------------------------------------
+    //
+    /// Substepping flag
+    pub(crate) substepping: bool,
+
+    /// Substepping initial load increment Δλ
+    pub(crate) ss_ddl_ini: f64,
+
+    /// Substepping minimum multiplier
+    pub(crate) ss_mmin: f64,
+
+    /// Substepping maximum multiplier
+    pub(crate) ss_mmax: f64,
+
+    /// Substepping safety factor
+    pub(crate) ss_mfac: f64,
+
+    /// Substepping absolute tolerance
+    pub(crate) ss_atol: f64,
+
+    /// Substepping relative tolerance
+    pub(crate) ss_rtol: f64,
+
+    /// Substepping minimum relative error
+    pub(crate) ss_rerr_min: f64,
+
+    /// Substepping proportional parameter
+    pub(crate) ss_kp: f64,
+
+    /// Substepping integral parameter
+    pub(crate) ss_ki: f64,
+
+    /// Substepping derivative parameter
+    pub(crate) ss_kd: f64,
 }
 
 impl<'a> Config<'a> {
@@ -247,7 +282,6 @@ impl<'a> Config<'a> {
             verbose_timesteps: true,
             verbose_legend: false,
             // Load increment
-            constant_ddl: true,
             ddl: 1.0,
             ddl_min: CONFIG_DT_MIN,
             max_nlambda: 100,
@@ -257,6 +291,7 @@ impl<'a> Config<'a> {
             tol_rr_abs: 1e-10,
             tol_mdu_abs: 1e-10,
             tol_mdu_rel: 1e-10,
+            max_norm_mdu: 1e8,
             constant_tangent: false,
             verbose_iterations: true,
             // Transient/dynamics parameters
@@ -265,6 +300,18 @@ impl<'a> Config<'a> {
             theta2: 0.5,
             hht_method: false,
             hht_alpha: 0.0,
+            // Substepping parameters
+            substepping: false,
+            ss_ddl_ini: 0.1,
+            ss_mmin: 1e-4,
+            ss_mmax: 10.0,
+            ss_mfac: 0.9,
+            ss_atol: 0.01,
+            ss_rtol: 0.1,
+            ss_rerr_min: 1e-12,
+            ss_kp: 0.075,
+            ss_ki: 0.175,
+            ss_kd: 0.01,
         }
     }
 
@@ -741,6 +788,12 @@ impl<'a> Config<'a> {
     /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
     pub fn set_hht_alpha(&mut self, alpha: f64) -> &mut Self {
         self.hht_alpha = alpha;
+        self
+    }
+
+    /// Enables substepping
+    pub fn set_substepping(&mut self, enable: bool) -> &mut Self {
+        self.substepping = enable;
         self
     }
 }

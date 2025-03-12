@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use super::FemState;
 use crate::base::Config;
 use crate::StrError;

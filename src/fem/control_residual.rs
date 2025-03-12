@@ -105,6 +105,15 @@ impl<'a> ControlResidual<'a> {
 
     // getters
 
+    /// Returns whether the norm of mdu is too large
+    pub fn is_norm_mdu_large(&self) -> bool {
+        if self.norm_mdu > self.config.max_norm_mdu {
+            true
+        } else {
+            false
+        }
+    }
+
     /// Checks if the number of failed attempts exceeds the allowed maximum
     pub fn too_many_failures(&self) -> bool {
         self.n_failed_per_step >= self.config.max_failed_steps

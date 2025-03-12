@@ -37,7 +37,7 @@ use russell_lab::math::{PI, SQRT_3};
 
 const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME: &str = "test_stepsize_adaptation_1";
-const SAVE_FIGURE: bool = false;
+const SAVE_FIGURE: bool = true;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
@@ -86,7 +86,8 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_steady(PP.len())
-        .set_consider_load_reversal(true)
+        .set_substepping(true)
+        .set_consider_load_reversal(false)
         .update_model_settings(1)
         .set_save_strain(true);
 
