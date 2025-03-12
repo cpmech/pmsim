@@ -46,6 +46,9 @@ pub(crate) struct ControlLoader<'a> {
 
     /// Previous second time derivative of primary unknowns d²u/dt²
     old_a: Vector,
+
+    /// Unknowns vector calculated with full Δλ
+    u_full: Vector,
 }
 
 impl<'a> ControlLoader<'a> {
@@ -71,19 +74,27 @@ impl<'a> ControlLoader<'a> {
             old_u: Vector::new(nu),
             old_v: Vector::new(nv),
             old_a: Vector::new(na),
+            u_full: Vector::new(nu),
         }
     }
 
     /// Initializes the control loader
     pub fn initialize(&mut self, state: &mut FemState) {
         state.lambda = 0.0;
+        if self.config.substepping {
+            state.ddl = self.config.ss_ddl_ini;
+        } else {
+            state.ddl = self.config.ddl;
+        }
         self.last = false;
     }
 
     /// Prints statistics
     pub fn print_stats(&self) {
-        println!("\nnaccept = {}", self.naccept);
-        println!("nreject = {}", self.nreject);
+        if self.config.verbose_timesteps && self.config.substepping {
+            println!("\nnaccept = {}", self.naccept);
+            println!("nreject = {}", self.nreject);
+        }
     }
 
     /// Returns whether the last (time) loading increment (lambda) has been reached
@@ -91,17 +102,13 @@ impl<'a> ControlLoader<'a> {
         self.last
     }
 
-    /// Advances to the next loading increment
-    pub fn next(&mut self, increment: usize, state: &mut FemState) -> Result<(), StrError> {
-        // set first Δλ
-        if increment == 0 {
-            if self.config.substepping {
-                state.ddl = self.config.ss_ddl_ini;
-            } else {
-                state.ddl = self.config.ddl;
-            }
-        }
+    /// Saves u calculated with full Δλ
+    pub fn save_u_full(&mut self, state: &FemState) {
+        vec_copy(&mut self.u_full, &state.u).unwrap();
+    }
 
+    /// Advances to the next loading increment
+    pub fn next(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // check for Δλ too small
         if state.ddl < self.config.ddl_min {
             return Err("Δλ is smaller than the allowed minimum");
@@ -130,14 +137,14 @@ impl<'a> ControlLoader<'a> {
     /// Performs step adaptation
     ///
     /// Returns `(ddl_new, accept)`
-    pub fn adapt(&mut self, _increment: usize, state: &mut FemState, converged: bool) -> Result<(f64, bool), StrError> {
+    pub fn adapt(&mut self, state: &mut FemState, converged: bool) -> Result<(f64, bool), StrError> {
         // handle constant Δλ
         if !self.config.substepping {
             return Ok((state.ddl, converged));
         }
 
         // compute relative error
-        let rerr = vec_rms_scaled_diff(&state.u, &self.old_u, self.config.ss_atol, self.config.ss_rtol);
+        let rerr = vec_rms_scaled_diff(&state.u, &self.u_full, self.config.ss_atol, self.config.ss_rtol);
 
         // check relative error
         if rerr < self.config.ss_rerr_min {

@@ -131,11 +131,11 @@ impl<'a> SolverImplicit<'a> {
             // assemble external forces vector F (also updates the load reversal flag)
             state.reverse = self.com.calc_ff_and_ddff(state.step, state.time)?;
 
-            // initialize lambda
+            // initialize λ and Δλ
             self.loader.initialize(state);
 
             // lambda loop
-            for increment in 0..self.config.max_nlambda {
+            for substep in 0..self.config.max_nlambda {
                 // done if last loading increment
                 if self.loader.last() {
                     break;
@@ -144,39 +144,22 @@ impl<'a> SolverImplicit<'a> {
                 // backup state variables
                 self.loader.backup(state, &mut self.com.elements);
 
-                // next increment
-                self.loader.next(increment, state)?;
+                // run substep with full Δλ
+                self.do_substep(state, false)?;
+
+                // run two substeps with half Δλ each
+                if self.config.substepping {
+                    self.loader.save_u_full(state);
+                    self.loader.restore(state, &mut self.com.elements);
+                    let ddl_full = state.ddl;
+                    state.ddl *= 0.5;
+                    self.do_substep(state, true)?;
+                    self.do_substep(state, true)?;
+                    state.ddl = ddl_full;
+                }
 
                 // print information
-                self.print.step(increment, state);
-
-                // reset algorithmic variables
-                if !self.config.linear_problem {
-                    self.com.elements.reset_algorithmic_variables(state);
-                }
-
-                // iteration loop
-                for iteration in 0..self.config.max_iterations {
-                    // run Newton-Raphson iteration
-                    self.iterate(iteration, state)?;
-
-                    // check convergence
-                    if self.res.converged() {
-                        self.res.add_converged();
-                        break;
-                    } else {
-                        self.res.add_failed();
-                    }
-
-                    // check if norm(mdu) is too large
-                    if self.res.is_norm_mdu_large() {
-                        if self.config.substepping {
-                            break; // OK, will try again with smaller Δλ
-                        } else {
-                            return Err("norm(mdu) is too large");
-                        }
-                    }
-                }
+                self.print.step(substep, state);
 
                 // check if Newton-Raphson failed to converge
                 if self.config.substepping {
@@ -190,7 +173,7 @@ impl<'a> SolverImplicit<'a> {
                 }
 
                 // adapt loading parameter
-                let (ddl_new, accept) = self.loader.adapt(increment, state, self.res.converged())?;
+                let (ddl_new, accept) = self.loader.adapt(state, self.res.converged())?;
 
                 // perform output
                 if accept {
@@ -204,22 +187,55 @@ impl<'a> SolverImplicit<'a> {
                 state.ddl = ddl_new;
 
                 // check if maximum number of loading increments reached
-                if increment == self.config.max_nlambda - 1 {
+                if substep == self.config.max_nlambda - 1 {
                     return Err("maximum number of loading increments reached");
                 }
             }
         }
 
-        // print stats
-        self.loader.print_stats();
-
         // print footer
         self.print.footer();
+        self.loader.print_stats();
         Ok(())
     }
 
-    /// Performs iterations to reduce residuals at current (time) step
-    fn iterate(&mut self, iteration: usize, state: &mut FemState) -> Result<(), StrError> {
+    /// Performs a single substep
+    fn do_substep(&mut self, state: &mut FemState, silent: bool) -> Result<(), StrError> {
+        // next loading increment
+        self.loader.next(state)?;
+
+        // reset algorithmic variables
+        if !self.config.linear_problem {
+            self.com.elements.reset_algorithmic_variables(state);
+        }
+
+        // iteration loop
+        for iteration in 0..self.config.max_iterations {
+            // run Newton-Raphson iteration
+            self.do_iteration(iteration, state, silent)?;
+
+            // check convergence
+            if self.res.converged() {
+                self.res.add_converged();
+                break;
+            } else {
+                self.res.add_failed();
+            }
+
+            // check if norm(mdu) is too large
+            if self.res.is_norm_mdu_large() {
+                if self.config.substepping {
+                    break; // OK, will try again with smaller Δλ
+                } else {
+                    return Err("norm(mdu) is too large");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Performs a single iteration
+    fn do_iteration(&mut self, iteration: usize, state: &mut FemState, silent: bool) -> Result<(), StrError> {
         // calculates P (internal forces)
         self.com.calc_pp(state)?;
 
@@ -237,7 +253,9 @@ impl<'a> SolverImplicit<'a> {
         self.res.reset();
         self.res.analyze_rr(iteration, &self.com.ls.rr, 0.0)?;
         if self.res.converged() {
-            self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
+            if !silent {
+                self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
+            }
             return Ok(());
         }
 
@@ -262,7 +280,9 @@ impl<'a> SolverImplicit<'a> {
 
         // check convergence on corrective displacement
         self.res.analyze_mdu(iteration, &self.com.ls.mdu)?;
-        self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
+        if !silent {
+            self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
+        }
         if self.res.converged() {
             return Ok(());
         }

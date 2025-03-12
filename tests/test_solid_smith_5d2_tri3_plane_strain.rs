@@ -76,7 +76,11 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_verbose_legend(true).set_lin_sol_unsymmetric(true);
+    config
+        .set_linear_problem(true)
+        .set_substepping(true)
+        .set_verbose_legend(true)
+        .set_lin_sol_unsymmetric(true);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
