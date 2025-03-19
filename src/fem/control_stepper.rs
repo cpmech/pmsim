@@ -39,7 +39,7 @@ use crate::StrError;
 ///
 /// * `dt_min` - Minimum allowed timestep
 /// * `t_out` - Next output time
-pub struct ControlStepper<'a> {
+pub(crate) struct ControlStepper<'a> {
     /// Holds configuration parameters
     config: &'a Config<'a>,
 

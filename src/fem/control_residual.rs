@@ -9,7 +9,7 @@ use russell_lab::{vec_copy, vec_norm, vec_rms_scaled, Norm, Vector};
 ///
 /// 1. Residual forces norm (`norm_rr`)
 /// 2. Relative displacement increment (`rel_mdu`)
-pub struct ControlResidual<'a> {
+pub(crate) struct ControlResidual<'a> {
     /// Configuration parameters including tolerances
     config: &'a Config<'a>,
 
@@ -117,7 +117,7 @@ impl<'a> ControlResidual<'a> {
     ///
     /// * `Ok(())` if analysis succeeded
     /// * `Err(StrError)` if NaN or Inf values are detected
-    pub(crate) fn analyze_rr(&mut self, iteration: usize, rr: &Vector, g: f64) -> Result<(), StrError> {
+    pub fn analyze_rr(&mut self, iteration: usize, rr: &Vector, g: f64) -> Result<(), StrError> {
         // compute the norm of R
         self.norm_rr = f64::max(vec_norm(rr, Norm::Max), f64::abs(g));
 
@@ -160,7 +160,7 @@ impl<'a> ControlResidual<'a> {
     ///
     /// * `Ok(())` if analysis succeeded
     /// * `Err(StrError)` if NaN or Inf values are detected
-    pub(crate) fn analyze_mdu(&mut self, iteration: usize, mdu: &Vector) -> Result<(), StrError> {
+    pub fn analyze_mdu(&mut self, iteration: usize, mdu: &Vector) -> Result<(), StrError> {
         // compute the norm of mdu
         self.norm_mdu = vec_norm(mdu, Norm::Max);
 
