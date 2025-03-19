@@ -4,13 +4,14 @@ use crate::base::Config;
 const NCHAR: usize = 81;
 
 /// Prints information during time stepping
-pub struct ControlPrinter {
+pub struct Logger {
     verbose: bool,
     verbose_legend: bool,
     verbose_iterations: bool,
+    error_message: String,
 }
 
-impl ControlPrinter {
+impl Logger {
     /// Creates a new instance
     ///
     /// # Arguments
@@ -21,6 +22,7 @@ impl ControlPrinter {
             verbose: config.verbose_timesteps || config.verbose_iterations,
             verbose_legend: config.verbose_legend,
             verbose_iterations: config.verbose_iterations,
+            error_message: String::new(),
         }
     }
 
@@ -48,7 +50,7 @@ impl ControlPrinter {
     }
 
     /// Prints (time) step information
-    pub(crate) fn step(&self, increment: usize, state: &FemState) {
+    pub fn step(&self, increment: usize, state: &FemState) {
         if self.verbose {
             let s = state.step + 1;
             if increment == 0 {
@@ -64,7 +66,7 @@ impl ControlPrinter {
     }
 
     /// Prints iteration information
-    pub(crate) fn iteration(&self, it: usize, lambda: f64, ddl: f64, res: &ControlResidual) {
+    pub fn iteration(&self, it: usize, lambda: f64, ddl: f64, res: &ControlResidual) {
         if self.verbose_iterations {
             if it == 0 {
                 println!(
@@ -104,9 +106,19 @@ impl ControlPrinter {
     }
 
     /// Prints the horizontal line at the end of the analysis
-    pub(crate) fn footer(&self) {
+    pub fn footer(&self) {
         if self.verbose {
             println!("{}", "─".repeat(NCHAR));
+        }
+    }
+
+    pub fn set_error(&mut self, message: &str) {
+        self.error_message = message.to_string();
+    }
+
+    pub fn errors(&self) {
+        if self.error_message.len() > 0 {
+            println!("\n❌ SIMULATION FAILED:\n{}\n", self.error_message);
         }
     }
 }
