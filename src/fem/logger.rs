@@ -156,9 +156,9 @@ impl Logger {
     pub fn footer(&self) {
         if self.verbose {
             println!("{}\n", "─".repeat(NCHAR));
-            println!("steps:            n_accepted = {}", self.n_accepted);
-            println!("steps:            n_rejected = {}", self.n_rejected);
-            println!("iterations: n_diverged_total = {}", self.n_diverged_total);
+            println!("n_accepted = {}", self.n_accepted);
+            println!("n_rejected = {}", self.n_rejected);
+            println!("n_diverged = {}", self.n_diverged_total);
         }
         if self.error_messages.len() > 0 {
             println!("\n❌❌❌❌❌❌ SIMULATION FAILED ❌❌❌❌❌❌\n");
