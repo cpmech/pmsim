@@ -129,10 +129,10 @@ impl Logger {
     pub fn footer(&self, stats: &Stats) {
         if self.verbose {
             println!("{}\n", "─".repeat(NCHAR));
-            println!("n_accepted_steps      = {}", stats.n_accepted_steps());
-            println!("n_rejected_steps      = {}", stats.n_rejected_steps());
-            println!("n_iteration_succeeded = {}", stats.n_iteration_succeeded());
-            println!("n_iteration_failed    = {}", stats.n_iteration_failed());
+            println!("n_accepted_steps = {}", stats.n_accepted_steps());
+            println!("n_rejected_steps = {}", stats.n_rejected_steps());
+            println!("n_iteration      = {}", stats.n_iteration());
+            println!("n_failure        = {}", stats.n_iteration_failed());
         }
         if self.error_messages.len() > 0 {
             println!("\n❌❌❌❌❌❌ SIMULATION FAILED ❌❌❌❌❌❌\n");

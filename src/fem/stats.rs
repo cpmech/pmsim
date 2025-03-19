@@ -5,15 +5,32 @@ pub(crate) struct Stats {
     /// Number of rejected steps
     n_step_rejected: usize,
 
-    /// Number of iterations per step
-    ///
-    /// (n_step * n_substep)
-    n_iteration_success: Vec<usize>,
+    /// Current (step) number of iterations
+    n_iteration_current: usize,
 
-    /// Number of failed iterations per step
-    ///
-    /// (n_step * n_substep)
-    n_iteration_fail: Vec<usize>,
+    /// Minimum number of iterations per step
+    n_iteration_min: usize,
+
+    /// Maximum number of iterations per step
+    n_iteration_max: usize,
+
+    /// Total number of iterations
+    n_iteration_total: usize,
+
+    /// Indicates if there are failed iterations
+    has_failed_iteration: bool,
+
+    /// Current (step) number of failed iterations
+    n_failed_iteration_current: usize,
+
+    /// Minimum number of failed iterations per step
+    n_failed_iteration_min: usize,
+
+    /// Maximum number of failed iterations per step
+    n_failed_iteration_max: usize,
+
+    /// Total number of failed iterations
+    n_failed_iteration_total: usize,
 
     /// Indicates whether to record iterations
     recording: bool,
@@ -24,8 +41,15 @@ impl Stats {
         Self {
             n_step_accepted: 0,
             n_step_rejected: 0,
-            n_iteration_success: Vec::new(),
-            n_iteration_fail: Vec::new(),
+            n_iteration_current: 0,
+            n_iteration_min: usize::MAX,
+            n_iteration_max: 0,
+            n_iteration_total: 0,
+            has_failed_iteration: false,
+            n_failed_iteration_current: 0,
+            n_failed_iteration_min: usize::MAX,
+            n_failed_iteration_max: 0,
+            n_failed_iteration_total: 0,
             recording: false,
         }
     }
@@ -39,26 +63,41 @@ impl Stats {
     }
 
     pub fn start_recording(&mut self) {
-        self.n_iteration_success.push(0);
-        self.n_iteration_fail.push(0);
+        self.n_iteration_current = 0;
+        self.n_failed_iteration_current = 0;
         self.recording = true;
     }
 
     pub fn stop_recording(&mut self) {
+        if self.n_iteration_current < self.n_iteration_min {
+            self.n_iteration_min = self.n_iteration_current;
+        }
+        if self.n_iteration_current > self.n_iteration_max {
+            self.n_iteration_max = self.n_iteration_current;
+        }
+        if self.has_failed_iteration {
+            if self.n_failed_iteration_current < self.n_failed_iteration_min {
+                self.n_failed_iteration_min = self.n_failed_iteration_current;
+            }
+            if self.n_failed_iteration_current > self.n_failed_iteration_max {
+                self.n_failed_iteration_max = self.n_failed_iteration_current;
+            }
+        }
         self.recording = false;
     }
 
-    pub fn add_iteration_success(&mut self) {
-        if self.recording {
-            let n = self.n_iteration_success.len();
-            self.n_iteration_success[n - 1] += 1;
+    pub fn add_iteration(&mut self, iteration: usize) {
+        if self.recording && iteration > 0 {
+            self.n_iteration_current += 1;
+            self.n_iteration_total += 1;
         }
     }
 
     pub fn add_iteration_fail(&mut self) {
         if self.recording {
-            let n = self.n_iteration_fail.len();
-            self.n_iteration_fail[n - 1] += 1;
+            self.has_failed_iteration = true;
+            self.n_failed_iteration_current += 1;
+            self.n_failed_iteration_total += 1;
         }
     }
 
@@ -70,11 +109,21 @@ impl Stats {
         self.n_step_rejected
     }
 
-    pub fn n_iteration_succeeded(&self) -> usize {
-        self.n_iteration_success.iter().sum()
+    pub fn n_iteration(&self) -> String {
+        format!(
+            "(min: {}, max: {}, total: {})",
+            self.n_iteration_min, self.n_iteration_max, self.n_iteration_total
+        )
     }
 
-    pub fn n_iteration_failed(&self) -> usize {
-        self.n_iteration_fail.iter().sum()
+    pub fn n_iteration_failed(&self) -> String {
+        if self.has_failed_iteration {
+            format!(
+                "(min: {}, max: {}, total: {})",
+                self.n_failed_iteration_min, self.n_failed_iteration_max, self.n_failed_iteration_total
+            )
+        } else {
+            "None".to_string()
+        }
     }
 }

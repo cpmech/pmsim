@@ -47,16 +47,16 @@ neq_total  = 102 │ sym(K)     = YesFull   │
        .        .        .       1.000e0 3.000e-1
 ─────────────────────────────────────────────────────────────────────────────────
 
-n_accepted_steps      = 8
-n_rejected_steps      = 0
-n_iteration_succeeded = 8
-n_iteration_failed    = 9
+n_accepted_steps = 8
+n_rejected_steps = 0
+n_iteration      = (min: 1, max: 6, total: 17)
+n_failure        = None
 
-elapsed computer time = 109.615663ms
+elapsed computer time = 127.635216ms
 
 ═════════════════════════════════════════════════════════════════════════════════
 
 test test_stepsize_adaptation_1 ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
 

@@ -225,24 +225,24 @@ impl<'a> SolverImplicit<'a> {
 
         // iteration loop
         for iteration in 0..self.config.max_iterations {
+            self.stats.add_iteration(iteration);
+
             // run Newton-Raphson iteration
             self.do_iteration(iteration, state, logging)?;
 
             // check convergence
             if self.res.converged() {
-                self.stats.add_iteration_success();
                 break;
-            } else {
-                if iteration > 0 {
-                    self.stats.add_iteration_fail();
-                }
             }
 
             // check if norm(mdu) is too large
-            if !self.config.substepping && self.res.is_norm_mdu_large() {
-                self.log
-                    .error(&format!("norm(δu) = {:.3e} is too large", self.res.norm_mdu));
-                break;
+            if self.res.is_norm_mdu_large() {
+                self.stats.add_iteration_fail();
+                if !self.config.substepping {
+                    self.log
+                        .error(&format!("norm(δu) = {:.3e} is too large", self.res.norm_mdu));
+                    break;
+                }
             }
         }
         Ok(())
