@@ -42,12 +42,6 @@ pub struct ControlResidual<'a> {
 
     /// Whether solution is diverging based on displacement increment
     pub(crate) diverging_on_rel_mdu: bool,
-
-    /// Total number of converged steps
-    n_converged_total: usize,
-
-    /// Number of failed attempts in current step
-    n_failed_per_step: usize,
 }
 
 impl<'a> ControlResidual<'a> {
@@ -70,8 +64,6 @@ impl<'a> ControlResidual<'a> {
             diverging_on_norm_rr: false,
             converged_on_rel_mdu: false,
             diverging_on_rel_mdu: false,
-            n_converged_total: 0,
-            n_failed_per_step: 0,
         }
     }
 
@@ -85,22 +77,11 @@ impl<'a> ControlResidual<'a> {
         self.diverging_on_norm_rr = false;
         self.converged_on_rel_mdu = false;
         self.diverging_on_rel_mdu = false;
-        self.n_failed_per_step = 0;
     }
 
     /// Marks the problem as converged for linear analysis
     pub fn set_converged_linear_problem(&mut self) {
         self.converged_on_norm_rr = true;
-    }
-
-    /// Increments the total number of converged steps
-    pub fn add_converged(&mut self) {
-        self.n_converged_total += 1;
-    }
-
-    /// Increments the number of failed attempts in current step
-    pub fn add_failed(&mut self) {
-        self.n_failed_per_step += 1;
     }
 
     // getters
@@ -112,16 +93,6 @@ impl<'a> ControlResidual<'a> {
         } else {
             false
         }
-    }
-
-    /// Checks if the number of failed attempts exceeds the allowed maximum
-    pub fn too_many_failures(&self) -> bool {
-        self.n_failed_per_step >= self.config.max_failed_steps
-    }
-
-    /// Returns the total number of converged steps
-    pub fn n_converged_total(&self) -> usize {
-        self.n_converged_total
     }
 
     /// Checks if the solution has converged based on any criterion

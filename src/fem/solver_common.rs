@@ -71,12 +71,6 @@ impl<'a> SolverCommon<'a> {
             .filter(|&eq| config.lagrange_mult_method || !ignored_eqs[eq])
             .collect();
 
-        // show information
-        if config.verbose_timesteps || config.verbose_iterations {
-            println!("\nINFORMATION =====================================================================");
-            println!("\n{}", linear_system.get_info());
-        }
-
         // return new instance
         Ok(SolverCommon {
             config,

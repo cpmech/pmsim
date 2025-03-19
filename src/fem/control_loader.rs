@@ -11,12 +11,6 @@ pub(crate) struct ControlLoader<'a> {
     /// Has last load increment reached?
     last: bool,
 
-    /// Number of accepted substeps
-    naccept: usize,
-
-    /// Number of rejected substeps
-    nreject: usize,
-
     /// With velocity vector
     with_v: bool,
 
@@ -62,8 +56,6 @@ impl<'a> ControlLoader<'a> {
         ControlLoader {
             config,
             last: false,
-            naccept: 0,
-            nreject: 0,
             with_v,
             with_a,
             old_ddl: 0.0,
@@ -87,14 +79,6 @@ impl<'a> ControlLoader<'a> {
             state.ddl = self.config.ddl;
         }
         self.last = false;
-    }
-
-    /// Prints statistics
-    pub fn print_stats(&self) {
-        if self.config.verbose_timesteps && self.config.substepping {
-            println!("\nnaccept = {}", self.naccept);
-            println!("nreject = {}", self.nreject);
-        }
     }
 
     /// Returns whether the last (time) loading increment (lambda) has been reached
@@ -150,7 +134,6 @@ impl<'a> ControlLoader<'a> {
         if rerr < self.config.ss_rerr_min {
             let m = self.config.ss_mmax;
             let ddl_new = m * state.ddl;
-            self.naccept += 1;
             return Ok((ddl_new, true));
         }
 
@@ -167,11 +150,6 @@ impl<'a> ControlLoader<'a> {
 
         // handle acceptance
         let accept = rerr <= 1.0 && converged;
-        if accept {
-            self.naccept += 1;
-        } else {
-            self.nreject += 1;
-        }
 
         // record previous values
         self.old_ddl = state.ddl;

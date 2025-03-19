@@ -137,9 +137,6 @@ pub struct Config<'a> {
     /// Maximum number of (time) steps
     pub(crate) max_steps: usize,
 
-    /// Maximum number of time steps allowed to fail
-    pub(crate) max_failed_steps: usize,
-
     /// Prints information about timesteps
     pub(crate) verbose_timesteps: bool,
 
@@ -278,13 +275,12 @@ impl<'a> Config<'a> {
             ddt_out: 1.0,
             ddt_min: CONFIG_DT_MIN,
             max_steps: 10_000,
-            max_failed_steps: 100,
             verbose_timesteps: true,
             verbose_legend: false,
             // Load increment
             ddl: 1.0,
             ddl_min: CONFIG_DT_MIN,
-            max_nlambda: 100,
+            max_nlambda: 10,
             consider_load_reversal: true,
             // Newton-Raphson method
             max_iterations: 10,
@@ -668,12 +664,6 @@ impl<'a> Config<'a> {
     /// This function only works if !steady.
     pub fn set_max_timesteps(&mut self, max_time_steps: usize) -> &mut Self {
         self.max_steps = max_time_steps;
-        self
-    }
-
-    /// Sets the maximum number of time steps allowed to fail
-    pub fn set_max_failed_steps(&mut self, max_failed_steps: usize) -> &mut Self {
-        self.max_failed_steps = max_failed_steps;
         self
     }
 

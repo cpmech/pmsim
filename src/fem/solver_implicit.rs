@@ -1,4 +1,4 @@
-use super::{ControlLoader, ControlPrinter, ControlResidual, ControlStepper};
+use super::{ControlLoader, ControlResidual, ControlStepper, Logger};
 use super::{FemBase, FemState, FileIo, SolverCommon};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
@@ -13,8 +13,8 @@ pub struct SolverImplicit<'a> {
     /// Common functionality
     pub(crate) com: SolverCommon<'a>,
 
-    /// Printer control
-    pub(crate) print: ControlPrinter,
+    /// Logger
+    pub(crate) log: Logger,
 
     /// Residual control
     pub(crate) res: ControlResidual<'a>,
@@ -39,8 +39,10 @@ impl<'a> SolverImplicit<'a> {
         let com = SolverCommon::new(mesh, base, config, essential, natural)?;
         let neq_total = com.ls.neq_total;
 
+        // logger
+        let log = Logger::new(config, &com.ls);
+
         // allocate controls
-        let print = ControlPrinter::new(config);
         let res = ControlResidual::new(config, neq_total);
         let stepper = ControlStepper::new(config)?;
         let loader = ControlLoader::new(config, neq_total);
@@ -49,16 +51,11 @@ impl<'a> SolverImplicit<'a> {
         Ok(SolverImplicit {
             config,
             com,
-            print,
+            log,
             res,
             stepper,
             loader,
         })
-    }
-
-    /// Returns the total number of converged iterations across all time steps
-    pub fn n_converged_iterations(&self) -> usize {
-        self.res.n_converged_total()
     }
 
     /// Solves the system of equations
@@ -80,7 +77,7 @@ impl<'a> SolverImplicit<'a> {
         file_io.write_state(state)?;
 
         // print convergence information
-        self.print.header();
+        self.log.header();
 
         // do solve
         match self.do_solve(state, file_io) {
@@ -103,9 +100,7 @@ impl<'a> SolverImplicit<'a> {
 
         // show computer time
         self.com.stopwatch.stop();
-        if self.config.verbose_timesteps {
-            println!("\nelapsed computer time = {}", self.com.stopwatch);
-        }
+        self.log.computer_time(&self.com.stopwatch);
         Ok(())
     }
 
@@ -159,17 +154,15 @@ impl<'a> SolverImplicit<'a> {
                 }
 
                 // print information
-                self.print.step(substep, state);
+                self.log.step(substep, state);
 
                 // check if Newton-Raphson failed to converge
-                if self.config.substepping {
-                    if self.res.too_many_failures() {
-                        return Err("too many iterations failed to converge");
-                    }
-                } else {
-                    if !self.res.converged() {
-                        return Err("Newton-Raphson did not converge");
-                    }
+                if !self.config.substepping && !self.res.converged() {
+                    self.log.push_error(&format!(
+                        "Newton-Raphson did not converge; step = {}, substep = {}, max_iterations = {}",
+                        step, substep, self.config.max_iterations
+                    ));
+                    break;
                 }
 
                 // adapt loading parameter
@@ -179,8 +172,10 @@ impl<'a> SolverImplicit<'a> {
                 if accept {
                     // if self.stepper.out(state) && self.res.converged()
                     file_io.write_state(state)?;
+                    self.log.increment_accepted();
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
+                    self.log.increment_rejected();
                 }
 
                 // update Δλ
@@ -188,14 +183,17 @@ impl<'a> SolverImplicit<'a> {
 
                 // check if maximum number of loading increments reached
                 if substep == self.config.max_nlambda - 1 {
-                    return Err("maximum number of loading increments reached");
+                    self.log.push_error(&format!(
+                        "maximum number of loading increments reached; max_nlambda = {}",
+                        self.config.max_nlambda
+                    ));
+                    break;
                 }
             }
         }
 
         // print footer
-        self.print.footer();
-        self.loader.print_stats();
+        self.log.footer();
         Ok(())
     }
 
@@ -216,10 +214,11 @@ impl<'a> SolverImplicit<'a> {
 
             // check convergence
             if self.res.converged() {
-                self.res.add_converged();
                 break;
             } else {
-                self.res.add_failed();
+                if iteration > 0 {
+                    self.log.increment_diverged();
+                }
             }
 
             // check if norm(mdu) is too large
@@ -254,7 +253,7 @@ impl<'a> SolverImplicit<'a> {
         self.res.analyze_rr(iteration, &self.com.ls.rr, 0.0)?;
         if self.res.converged() {
             if !silent {
-                self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
+                self.log.iteration(iteration, state.lambda, state.ddl, &self.res);
             }
             return Ok(());
         }
@@ -281,7 +280,7 @@ impl<'a> SolverImplicit<'a> {
         // check convergence on corrective displacement
         self.res.analyze_mdu(iteration, &self.com.ls.mdu)?;
         if !silent {
-            self.print.iteration(iteration, state.lambda, state.ddl, &self.res);
+            self.log.iteration(iteration, state.lambda, state.ddl, &self.res);
         }
         if self.res.converged() {
             return Ok(());

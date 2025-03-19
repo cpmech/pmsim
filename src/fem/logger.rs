@@ -1,14 +1,34 @@
-use super::{control_residual::ControlResidual, FemState};
+use super::{control_residual::ControlResidual, FemState, LinearSystem};
 use crate::base::Config;
+use russell_lab::Stopwatch;
 
 const NCHAR: usize = 81;
 
 /// Prints information during time stepping
 pub struct Logger {
+    /// Enables verbose output
     verbose: bool,
+
+    /// Enables the legend output
     verbose_legend: bool,
+
+    /// Enables verbose output for iterations
     verbose_iterations: bool,
-    error_message: String,
+
+    /// Information about the linear system
+    linear_system_info: String,
+
+    /// List of error messages
+    error_messages: Vec<String>,
+
+    /// Number of accepted substeps
+    n_accepted: usize,
+
+    /// Number of rejected substeps
+    n_rejected: usize,
+
+    /// Total number of iterations that diverged
+    n_diverged_total: usize,
 }
 
 impl Logger {
@@ -17,19 +37,46 @@ impl Logger {
     /// # Arguments
     ///
     /// * `config` - Configuration parameters including convergence tolerances
-    pub fn new(config: &Config) -> Self {
+    pub fn new(config: &Config, ls: &LinearSystem) -> Self {
+        let verbose = config.verbose_timesteps || config.verbose_iterations;
         Self {
-            verbose: config.verbose_timesteps || config.verbose_iterations,
+            verbose,
             verbose_legend: config.verbose_legend,
             verbose_iterations: config.verbose_iterations,
-            error_message: String::new(),
+            linear_system_info: if verbose { ls.get_info() } else { String::new() },
+            error_messages: Vec::new(),
+            n_accepted: 0,
+            n_rejected: 0,
+            n_diverged_total: 0,
         }
+    }
+
+    /// Increments the number of accepted substeps
+    pub fn increment_accepted(&mut self) {
+        self.n_accepted += 1;
+    }
+
+    /// Increments the number of rejected substeps
+    pub fn increment_rejected(&mut self) {
+        self.n_rejected += 1;
+    }
+
+    /// Increments the number of diverged iterations
+    pub fn increment_diverged(&mut self) {
+        self.n_diverged_total += 1;
+    }
+
+    /// Pushes an error message to the list of error messages
+    pub fn push_error(&mut self, message: &str) {
+        self.error_messages.push(message.to_string());
     }
 
     /// Prints the header before time stepping and convergence statistics
     pub fn header(&self) {
         if self.verbose {
-            println!("TIME STEPPING ===================================================================\n");
+            println!("\n{:═^1$}", " INFORMATION ", NCHAR);
+            println!("\n{}", self.linear_system_info);
+            println!("{:═^1$}\n", " TIME STEPPING ", NCHAR);
             if self.verbose_legend {
                 println!("Legend:");
                 println!("➖ ─ unknown");
@@ -108,17 +155,25 @@ impl Logger {
     /// Prints the horizontal line at the end of the analysis
     pub fn footer(&self) {
         if self.verbose {
-            println!("{}", "─".repeat(NCHAR));
+            println!("{}\n", "─".repeat(NCHAR));
+            println!("steps:            n_accepted = {}", self.n_accepted);
+            println!("steps:            n_rejected = {}", self.n_rejected);
+            println!("iterations: n_diverged_total = {}", self.n_diverged_total);
+        }
+        if self.error_messages.len() > 0 {
+            println!("\n❌❌❌❌❌❌ SIMULATION FAILED ❌❌❌❌❌❌\n");
+            println!("{:═^1$}\n", " ERRORS ", NCHAR);
+            for message in &self.error_messages {
+                println!("ERROR: {}", message);
+            }
         }
     }
 
-    pub fn set_error(&mut self, message: &str) {
-        self.error_message = message.to_string();
-    }
-
-    pub fn errors(&self) {
-        if self.error_message.len() > 0 {
-            println!("\n❌ SIMULATION FAILED:\n{}\n", self.error_message);
+    /// Prints the computer time
+    pub fn computer_time(&self, stopwatch: &Stopwatch) {
+        if self.verbose {
+            println!("\nelapsed computer time = {}\n", stopwatch);
+            println!("{}\n", "═".repeat(NCHAR));
         }
     }
 }
