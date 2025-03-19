@@ -22,6 +22,7 @@ mod post_processing;
 mod secondary_values;
 mod solver_common;
 mod solver_implicit;
+mod stats;
 
 pub use bc_concentrated::*;
 pub use bc_distributed::*;
@@ -44,3 +45,4 @@ pub use post_processing::*;
 pub use secondary_values::*;
 use solver_common::*;
 pub use solver_implicit::*;
+use stats::*;

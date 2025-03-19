@@ -1,11 +1,11 @@
-use super::{control_residual::ControlResidual, FemState, LinearSystem};
+use super::{ControlResidual, FemState, LinearSystem, Stats};
 use crate::base::Config;
 use russell_lab::Stopwatch;
 
 const NCHAR: usize = 81;
 
 /// Prints information during time stepping
-pub struct Logger {
+pub(crate) struct Logger {
     /// Enables verbose output
     verbose: bool,
 
@@ -20,15 +20,6 @@ pub struct Logger {
 
     /// List of error messages
     error_messages: Vec<String>,
-
-    /// Number of accepted substeps
-    n_accepted: usize,
-
-    /// Number of rejected substeps
-    n_rejected: usize,
-
-    /// Total number of iterations that diverged
-    n_diverged_total: usize,
 }
 
 impl Logger {
@@ -45,29 +36,11 @@ impl Logger {
             verbose_iterations: config.verbose_iterations,
             linear_system_info: if verbose { ls.get_info() } else { String::new() },
             error_messages: Vec::new(),
-            n_accepted: 0,
-            n_rejected: 0,
-            n_diverged_total: 0,
         }
     }
 
-    /// Increments the number of accepted substeps
-    pub fn increment_accepted(&mut self) {
-        self.n_accepted += 1;
-    }
-
-    /// Increments the number of rejected substeps
-    pub fn increment_rejected(&mut self) {
-        self.n_rejected += 1;
-    }
-
-    /// Increments the number of diverged iterations
-    pub fn increment_diverged(&mut self) {
-        self.n_diverged_total += 1;
-    }
-
     /// Pushes an error message to the list of error messages
-    pub fn push_error(&mut self, message: &str) {
+    pub fn error(&mut self, message: &str) {
         self.error_messages.push(message.to_string());
     }
 
@@ -153,12 +126,13 @@ impl Logger {
     }
 
     /// Prints the horizontal line at the end of the analysis
-    pub fn footer(&self) {
+    pub fn footer(&self, stats: &Stats) {
         if self.verbose {
             println!("{}\n", "─".repeat(NCHAR));
-            println!("n_accepted = {}", self.n_accepted);
-            println!("n_rejected = {}", self.n_rejected);
-            println!("n_diverged = {}", self.n_diverged_total);
+            println!("n_accepted_steps      = {}", stats.n_accepted_steps());
+            println!("n_rejected_steps      = {}", stats.n_rejected_steps());
+            println!("n_iteration_succeeded = {}", stats.n_iteration_succeeded());
+            println!("n_iteration_failed    = {}", stats.n_iteration_failed());
         }
         if self.error_messages.len() > 0 {
             println!("\n❌❌❌❌❌❌ SIMULATION FAILED ❌❌❌❌❌❌\n");

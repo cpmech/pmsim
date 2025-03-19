@@ -46,11 +46,12 @@ neq_total  = 102 │ sym(K)     = YesFull   │
        5  5.000e0  1.000e0  
 ─────────────────────────────────────────────────────────────────────────────────
 
-n_accepted = 5
-n_rejected = 0
-n_diverged = 17
+n_accepted_steps      = 5
+n_rejected_steps      = 0
+n_iteration_succeeded = 5
+n_iteration_failed    = 17
 
-elapsed computer time = 76.496543ms
+elapsed computer time = 73.487964ms
 
 ═════════════════════════════════════════════════════════════════════════════════
 
@@ -92,11 +93,12 @@ neq_total  = 102 │ sym(K)     = YesFull   │
        4  4.000e0  1.000e0  🔙
 ─────────────────────────────────────────────────────────────────────────────────
 
-n_accepted = 4
-n_rejected = 0
-n_diverged = 7
+n_accepted_steps      = 4
+n_rejected_steps      = 0
+n_iteration_succeeded = 4
+n_iteration_failed    = 7
 
-elapsed computer time = 51.771281ms
+elapsed computer time = 28.16628ms
 
 ═════════════════════════════════════════════════════════════════════════════════
 
@@ -107,5 +109,5 @@ diff_stress_max       =  9.67e-15
 
 test test_spo_751_pres_cylin ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
 

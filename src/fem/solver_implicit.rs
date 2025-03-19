@@ -1,4 +1,4 @@
-use super::{ControlLoader, ControlResidual, ControlStepper, Logger};
+use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
 use super::{FemBase, FemState, FileIo, SolverCommon};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
@@ -24,6 +24,12 @@ pub struct SolverImplicit<'a> {
 
     /// Loader control
     pub(crate) loader: ControlLoader<'a>,
+
+    /// Statistics
+    pub(crate) stats: Stats,
+
+    /// Indicates whether the iterations failed to converge
+    failed: bool,
 }
 
 impl<'a> SolverImplicit<'a> {
@@ -35,19 +41,13 @@ impl<'a> SolverImplicit<'a> {
         essential: &'a Essential,
         natural: &'a Natural,
     ) -> Result<Self, StrError> {
-        // allocate common solver functionality
         let com = SolverCommon::new(mesh, base, config, essential, natural)?;
         let neq_total = com.ls.neq_total;
-
-        // logger
         let log = Logger::new(config, &com.ls);
-
-        // allocate controls
         let res = ControlResidual::new(config, neq_total);
         let stepper = ControlStepper::new(config)?;
         let loader = ControlLoader::new(config, neq_total);
-
-        // allocate new instance
+        let stats = Stats::new();
         Ok(SolverImplicit {
             config,
             com,
@@ -55,7 +55,14 @@ impl<'a> SolverImplicit<'a> {
             res,
             stepper,
             loader,
+            stats,
+            failed: false,
         })
+    }
+
+    /// Returns true if the iterations failed to converge
+    pub fn has_failed(&self) -> bool {
+        self.failed
     }
 
     /// Solves the system of equations
@@ -130,6 +137,7 @@ impl<'a> SolverImplicit<'a> {
             self.loader.initialize(state);
 
             // lambda loop
+            self.failed = false;
             for substep in 0..self.config.max_nlambda {
                 // done if last loading increment
                 if self.loader.last() {
@@ -140,7 +148,9 @@ impl<'a> SolverImplicit<'a> {
                 self.loader.backup(state, &mut self.com.elements);
 
                 // run substep with full Δλ
-                self.do_substep(state, false)?;
+                self.stats.start_recording();
+                self.do_substep(state, true)?;
+                self.stats.stop_recording();
 
                 // run two substeps with half Δλ each
                 if self.config.substepping {
@@ -148,8 +158,8 @@ impl<'a> SolverImplicit<'a> {
                     self.loader.restore(state, &mut self.com.elements);
                     let ddl_full = state.ddl;
                     state.ddl *= 0.5;
-                    self.do_substep(state, true)?;
-                    self.do_substep(state, true)?;
+                    self.do_substep(state, false)?;
+                    self.do_substep(state, false)?;
                     state.ddl = ddl_full;
                 }
 
@@ -158,10 +168,11 @@ impl<'a> SolverImplicit<'a> {
 
                 // check if Newton-Raphson failed to converge
                 if !self.config.substepping && !self.res.converged() {
-                    self.log.push_error(&format!(
-                        "Newton-Raphson did not converge; step = {}, substep = {}, max_iterations = {}",
-                        step, substep, self.config.max_iterations
+                    self.log.error(&format!(
+                        "Newton-Raphson did not converge; max_iterations = {}",
+                        self.config.max_iterations
                     ));
+                    self.failed = true;
                     break;
                 }
 
@@ -172,10 +183,10 @@ impl<'a> SolverImplicit<'a> {
                 if accept {
                     // if self.stepper.out(state) && self.res.converged()
                     file_io.write_state(state)?;
-                    self.log.increment_accepted();
+                    self.stats.add_step_accepted();
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
-                    self.log.increment_rejected();
+                    self.stats.add_step_rejected();
                 }
 
                 // update Δλ
@@ -183,22 +194,27 @@ impl<'a> SolverImplicit<'a> {
 
                 // check if maximum number of loading increments reached
                 if substep == self.config.max_nlambda - 1 {
-                    self.log.push_error(&format!(
+                    self.log.error(&format!(
                         "maximum number of loading increments reached; max_nlambda = {}",
                         self.config.max_nlambda
                     ));
                     break;
                 }
             }
+
+            // stop if failed
+            if self.failed {
+                break;
+            }
         }
 
         // print footer
-        self.log.footer();
+        self.log.footer(&self.stats);
         Ok(())
     }
 
     /// Performs a single substep
-    fn do_substep(&mut self, state: &mut FemState, silent: bool) -> Result<(), StrError> {
+    fn do_substep(&mut self, state: &mut FemState, logging: bool) -> Result<(), StrError> {
         // next loading increment
         self.loader.next(state)?;
 
@@ -210,31 +226,30 @@ impl<'a> SolverImplicit<'a> {
         // iteration loop
         for iteration in 0..self.config.max_iterations {
             // run Newton-Raphson iteration
-            self.do_iteration(iteration, state, silent)?;
+            self.do_iteration(iteration, state, logging)?;
 
             // check convergence
             if self.res.converged() {
+                self.stats.add_iteration_success();
                 break;
             } else {
                 if iteration > 0 {
-                    self.log.increment_diverged();
+                    self.stats.add_iteration_fail();
                 }
             }
 
             // check if norm(mdu) is too large
-            if self.res.is_norm_mdu_large() {
-                if self.config.substepping {
-                    break; // OK, will try again with smaller Δλ
-                } else {
-                    return Err("norm(mdu) is too large");
-                }
+            if !self.config.substepping && self.res.is_norm_mdu_large() {
+                self.log
+                    .error(&format!("norm(δu) = {:.3e} is too large", self.res.norm_mdu));
+                break;
             }
         }
         Ok(())
     }
 
     /// Performs a single iteration
-    fn do_iteration(&mut self, iteration: usize, state: &mut FemState, silent: bool) -> Result<(), StrError> {
+    fn do_iteration(&mut self, iteration: usize, state: &mut FemState, logging: bool) -> Result<(), StrError> {
         // calculates P (internal forces)
         self.com.calc_pp(state)?;
 
@@ -252,7 +267,7 @@ impl<'a> SolverImplicit<'a> {
         self.res.reset();
         self.res.analyze_rr(iteration, &self.com.ls.rr, 0.0)?;
         if self.res.converged() {
-            if !silent {
+            if logging {
                 self.log.iteration(iteration, state.lambda, state.ddl, &self.res);
             }
             return Ok(());
@@ -279,7 +294,7 @@ impl<'a> SolverImplicit<'a> {
 
         // check convergence on corrective displacement
         self.res.analyze_mdu(iteration, &self.com.ls.mdu)?;
-        if !silent {
+        if logging {
             self.log.iteration(iteration, state.lambda, state.ddl, &self.res);
         }
         if self.res.converged() {
