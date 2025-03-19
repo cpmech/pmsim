@@ -22,10 +22,11 @@ neq_total  = 102 │ sym(K)     = YesFull   │
        1  1.000e0  1.000e0  
 ─────────────────────────────────────────────────────────────────────────────────
 
-n_accepted_steps = 0
-n_rejected_steps = 0
-n_iteration      = (min: 6, max: 6, total: 6)
-n_failure        = (min: 1, max: 1, total: 1)
+n_step_accepted = 0
+n_step_rejected = 0
+n_ddl_reduction = 0
+n_iteration     = (min: 6, max: 6, total: 6)
+n_large_du      = (min: 1, max: 1, total: 1)
 
 ❌❌❌❌❌❌ SIMULATION FAILED ❌❌❌❌❌❌
 
@@ -34,7 +35,7 @@ n_failure        = (min: 1, max: 1, total: 1)
 ERROR: norm(δu) = 3.197e12 is too large
 ERROR: Newton-Raphson did not converge; max_iterations = 10
 
-elapsed computer time = 26.791484ms
+elapsed computer time = 30.823328ms
 
 ═════════════════════════════════════════════════════════════════════════════════
 

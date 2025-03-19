@@ -5,6 +5,9 @@ pub(crate) struct Stats {
     /// Number of rejected steps
     n_step_rejected: usize,
 
+    /// Number of reductions on Δλ
+    n_ddl_reduction: usize,
+
     /// Current (step) number of iterations
     n_iteration_current: usize,
 
@@ -17,20 +20,17 @@ pub(crate) struct Stats {
     /// Total number of iterations
     n_iteration_total: usize,
 
-    /// Indicates if there are failed iterations
-    has_failed_iteration: bool,
+    /// Current (step) number of iterations with large norm(δu)
+    n_large_du_current: usize,
 
-    /// Current (step) number of failed iterations
-    n_failed_iteration_current: usize,
+    /// Minimum number of iterations with large norm(δu) per step
+    n_large_du_min: usize,
 
-    /// Minimum number of failed iterations per step
-    n_failed_iteration_min: usize,
+    /// Maximum number of iterations with large norm(δu) per step
+    n_large_du_max: usize,
 
-    /// Maximum number of failed iterations per step
-    n_failed_iteration_max: usize,
-
-    /// Total number of failed iterations
-    n_failed_iteration_total: usize,
+    /// Total number of iterations with large norm(δu)
+    n_large_du_total: usize,
 
     /// Indicates whether to record iterations
     recording: bool,
@@ -41,15 +41,15 @@ impl Stats {
         Self {
             n_step_accepted: 0,
             n_step_rejected: 0,
+            n_ddl_reduction: 0,
             n_iteration_current: 0,
             n_iteration_min: usize::MAX,
             n_iteration_max: 0,
             n_iteration_total: 0,
-            has_failed_iteration: false,
-            n_failed_iteration_current: 0,
-            n_failed_iteration_min: usize::MAX,
-            n_failed_iteration_max: 0,
-            n_failed_iteration_total: 0,
+            n_large_du_current: 0,
+            n_large_du_min: usize::MAX,
+            n_large_du_max: 0,
+            n_large_du_total: 0,
             recording: false,
         }
     }
@@ -62,9 +62,13 @@ impl Stats {
         self.n_step_rejected += 1;
     }
 
+    pub fn add_ddl_reduction(&mut self) {
+        self.n_ddl_reduction += 1;
+    }
+
     pub fn start_recording(&mut self) {
         self.n_iteration_current = 0;
-        self.n_failed_iteration_current = 0;
+        self.n_large_du_current = 0;
         self.recording = true;
     }
 
@@ -75,13 +79,11 @@ impl Stats {
         if self.n_iteration_current > self.n_iteration_max {
             self.n_iteration_max = self.n_iteration_current;
         }
-        if self.has_failed_iteration {
-            if self.n_failed_iteration_current < self.n_failed_iteration_min {
-                self.n_failed_iteration_min = self.n_failed_iteration_current;
-            }
-            if self.n_failed_iteration_current > self.n_failed_iteration_max {
-                self.n_failed_iteration_max = self.n_failed_iteration_current;
-            }
+        if self.n_large_du_current < self.n_large_du_min {
+            self.n_large_du_min = self.n_large_du_current;
+        }
+        if self.n_large_du_current > self.n_large_du_max {
+            self.n_large_du_max = self.n_large_du_current;
         }
         self.recording = false;
     }
@@ -93,20 +95,23 @@ impl Stats {
         }
     }
 
-    pub fn add_iteration_fail(&mut self) {
+    pub fn add_large_du(&mut self) {
         if self.recording {
-            self.has_failed_iteration = true;
-            self.n_failed_iteration_current += 1;
-            self.n_failed_iteration_total += 1;
+            self.n_large_du_current += 1;
+            self.n_large_du_total += 1;
         }
     }
 
-    pub fn n_accepted_steps(&self) -> usize {
+    pub fn n_step_accepted(&self) -> usize {
         self.n_step_accepted
     }
 
-    pub fn n_rejected_steps(&self) -> usize {
+    pub fn n_step_rejected(&self) -> usize {
         self.n_step_rejected
+    }
+
+    pub fn n_ddl_reduction(&self) -> usize {
+        self.n_ddl_reduction
     }
 
     pub fn n_iteration(&self) -> String {
@@ -116,11 +121,11 @@ impl Stats {
         )
     }
 
-    pub fn n_iteration_failed(&self) -> String {
-        if self.has_failed_iteration {
+    pub fn n_large_du(&self) -> String {
+        if self.n_large_du_total > 0 {
             format!(
                 "(min: {}, max: {}, total: {})",
-                self.n_failed_iteration_min, self.n_failed_iteration_max, self.n_failed_iteration_total
+                self.n_large_du_min, self.n_large_du_max, self.n_large_du_total
             )
         } else {
             "None".to_string()

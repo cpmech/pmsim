@@ -46,12 +46,13 @@ neq_total  = 102 │ sym(K)     = YesFull   │
        5  5.000e0  1.000e0  
 ─────────────────────────────────────────────────────────────────────────────────
 
-n_accepted_steps = 5
-n_rejected_steps = 0
-n_iteration      = (min: 1, max: 8, total: 22)
-n_failure        = None
+n_step_accepted = 5
+n_step_rejected = 0
+n_ddl_reduction = 0
+n_iteration     = (min: 1, max: 8, total: 22)
+n_large_du      = None
 
-elapsed computer time = 76.745585ms
+elapsed computer time = 78.11328ms
 
 ═════════════════════════════════════════════════════════════════════════════════
 
@@ -93,12 +94,13 @@ neq_total  = 102 │ sym(K)     = YesFull   │
        4  4.000e0  1.000e0  🔙
 ─────────────────────────────────────────────────────────────────────────────────
 
-n_accepted_steps = 4
-n_rejected_steps = 0
-n_iteration      = (min: 1, max: 5, total: 11)
-n_failure        = None
+n_step_accepted = 4
+n_step_rejected = 0
+n_ddl_reduction = 0
+n_iteration     = (min: 1, max: 5, total: 11)
+n_large_du      = None
 
-elapsed computer time = 27.896109ms
+elapsed computer time = 29.071342ms
 
 ═════════════════════════════════════════════════════════════════════════════════
 

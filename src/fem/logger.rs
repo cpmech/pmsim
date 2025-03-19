@@ -5,43 +5,34 @@ use russell_lab::Stopwatch;
 const NCHAR: usize = 81;
 
 /// Prints information during time stepping
-pub(crate) struct Logger {
+pub(crate) struct Logger<'a> {
+    /// Configuration parameters
+    config: &'a Config<'a>,
+
     /// Enables verbose output
     verbose: bool,
-
-    /// Enables the legend output
-    verbose_legend: bool,
-
-    /// Enables verbose output for iterations
-    verbose_iterations: bool,
 
     /// Information about the linear system
     linear_system_info: String,
 
     /// List of error messages
-    error_messages: Vec<String>,
+    errors: Vec<String>,
 }
 
-impl Logger {
+impl<'a> Logger<'a> {
     /// Creates a new instance
     ///
     /// # Arguments
     ///
     /// * `config` - Configuration parameters including convergence tolerances
-    pub fn new(config: &Config, ls: &LinearSystem) -> Self {
+    pub fn new(config: &'a Config, ls: &LinearSystem) -> Self {
         let verbose = config.verbose_timesteps || config.verbose_iterations;
         Self {
+            config,
             verbose,
-            verbose_legend: config.verbose_legend,
-            verbose_iterations: config.verbose_iterations,
             linear_system_info: if verbose { ls.get_info() } else { String::new() },
-            error_messages: Vec::new(),
+            errors: Vec::new(),
         }
-    }
-
-    /// Pushes an error message to the list of error messages
-    pub fn error(&mut self, message: &str) {
-        self.error_messages.push(message.to_string());
     }
 
     /// Prints the header before time stepping and convergence statistics
@@ -50,7 +41,7 @@ impl Logger {
             println!("\n{:═^1$}", " INFORMATION ", NCHAR);
             println!("\n{}", self.linear_system_info);
             println!("{:═^1$}\n", " TIME STEPPING ", NCHAR);
-            if self.verbose_legend {
+            if self.config.verbose_legend {
                 println!("Legend:");
                 println!("➖ ─ unknown");
                 println!("✅ ─ converged");
@@ -87,7 +78,7 @@ impl Logger {
 
     /// Prints iteration information
     pub fn iteration(&self, it: usize, lambda: f64, ddl: f64, res: &ControlResidual) {
-        if self.verbose_iterations {
+        if self.config.verbose_iterations {
             if it == 0 {
                 println!(
                     "{:>8} {:>8} {:>8} {:>4} {:>8.3e} {:>8.3e} {:>5} {:>9.2e} ➖ {:>9.2e} ➖",
@@ -129,15 +120,23 @@ impl Logger {
     pub fn footer(&self, stats: &Stats) {
         if self.verbose {
             println!("{}\n", "─".repeat(NCHAR));
-            println!("n_accepted_steps = {}", stats.n_accepted_steps());
-            println!("n_rejected_steps = {}", stats.n_rejected_steps());
-            println!("n_iteration      = {}", stats.n_iteration());
-            println!("n_failure        = {}", stats.n_iteration_failed());
+            println!(
+                "n_step_accepted = {}\n\
+                 n_step_rejected = {}\n\
+                 n_ddl_reduction = {}\n\
+                 n_iteration     = {}\n\
+                 n_large_du      = {}",
+                stats.n_step_accepted(),
+                stats.n_step_rejected(),
+                stats.n_ddl_reduction(),
+                stats.n_iteration(),
+                stats.n_large_du()
+            );
         }
-        if self.error_messages.len() > 0 {
+        if self.errors.len() > 0 {
             println!("\n❌❌❌❌❌❌ SIMULATION FAILED ❌❌❌❌❌❌\n");
             println!("{:═^1$}\n", " ERRORS ", NCHAR);
-            for message in &self.error_messages {
+            for message in &self.errors {
                 println!("ERROR: {}", message);
             }
         }
@@ -149,5 +148,35 @@ impl Logger {
             println!("\nelapsed computer time = {}\n", stopwatch);
             println!("{}\n", "═".repeat(NCHAR));
         }
+    }
+
+    // Errors
+
+    /// Logs an error when the maximum number of loading increments is reached
+    pub fn error_max_nlambda(&mut self) {
+        self.errors.push(
+            format!(
+                "max number of load steps reached; max_nlambda = {}",
+                self.config.max_nlambda
+            )
+            .to_string(),
+        );
+    }
+
+    /// Logs an error when the Newton-Raphson method does not converge
+    pub fn error_newton(&mut self) {
+        self.errors.push(
+            format!(
+                "Newton-Raphson did not converge; max_iterations = {}",
+                self.config.max_iterations
+            )
+            .to_string(),
+        );
+    }
+
+    /// Logs an error when the norm of δu is too large
+    pub fn error_norm_du(&mut self, norm_mdu: f64) {
+        self.errors
+            .push(format!("norm(δu) = {:.3e} is too large", norm_mdu).to_string());
     }
 }

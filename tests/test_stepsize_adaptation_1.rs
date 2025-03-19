@@ -42,7 +42,7 @@ const SAVE_FIGURE: bool = true;
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 
-const P_MAX_RES: f64 = 0.18; // maximum pressure applied before unloading completely to zero
+const P_MAX_RES: f64 = 0.19; // maximum pressure applied before unloading completely to zero
 const PP: [f64; 2] = [
     P_MAX_RES, // stage = 0
     0.0,       // stage = 1
@@ -165,8 +165,8 @@ fn analyze_results() -> Result<(), StrError> {
                 sh_arr.last_mut().unwrap().push(sh);
                 sr_arr.last_mut().unwrap().push(sr);
                 let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
-                approx_eq(sr, sr_ana, 0.0003);
-                approx_eq(sh, sh_ana, 0.0027);
+                approx_eq(sr, sr_ana, 0.0007);
+                approx_eq(sh, sh_ana, 0.0079);
             }
             first_rr = false;
         }

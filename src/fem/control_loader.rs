@@ -1,4 +1,4 @@
-use super::{Elements, FemState};
+use super::{ControlResidual, Elements, FemState};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::{vec_copy, vec_rms_scaled_diff, Vector};
@@ -118,13 +118,42 @@ impl<'a> ControlLoader<'a> {
         Ok(())
     }
 
-    /// Performs step adaptation
+    /// Adapts the stepsize based on convergence information
     ///
-    /// Returns `(ddl_new, accept)`
-    pub fn adapt(&mut self, state: &mut FemState, converged: bool) -> Result<(f64, bool), StrError> {
+    /// Returns `(accept, failed)` where `failed` corresponds to Newton-Raphson not converged
+    pub fn adapt_on_convergence(
+        &mut self,
+        state: &mut FemState,
+        res: &ControlResidual,
+    ) -> Result<(bool, bool), StrError> {
         // handle constant Δλ
         if !self.config.substepping {
-            return Ok((state.ddl, converged));
+            let failed = !res.converged() || res.is_norm_mdu_large();
+            return Ok((true, failed));
+        }
+
+        // adapt stepsize
+        if res.converged() {
+            Ok((true, false))
+        } else {
+            state.ddl = f64::max(self.config.ddl_min, 0.5 * state.ddl);
+            let accept = !res.is_norm_mdu_large();
+            Ok((accept, false))
+        }
+    }
+
+    /// Adapts the stepsize based on the relative error
+    ///
+    /// Returns `(accept, failed)` where `failed` corresponds to the error on `max_nlambda`
+    pub fn adapt_on_rerr(&mut self, substep: usize, state: &mut FemState) -> Result<(bool, bool), StrError> {
+        // handle constant Δλ
+        if !self.config.substepping {
+            return Ok((true, false));
+        }
+
+        // check max number of loading increments
+        if substep == self.config.max_nlambda - 1 {
+            return Ok((false, true));
         }
 
         // compute relative error
@@ -133,8 +162,8 @@ impl<'a> ControlLoader<'a> {
         // check relative error
         if rerr < self.config.ss_rerr_min {
             let m = self.config.ss_mmax;
-            let ddl_new = m * state.ddl;
-            return Ok((ddl_new, true));
+            state.ddl = m * state.ddl;
+            return Ok((true, false));
         }
 
         // collect parameters
@@ -149,7 +178,7 @@ impl<'a> ControlLoader<'a> {
         let m = f64::min(mmax, f64::max(mmin, mfac * m_tmp));
 
         // handle acceptance
-        let accept = rerr <= 1.0 && converged;
+        let accept = rerr <= 1.0;
 
         // record previous values
         self.old_ddl = state.ddl;
@@ -157,8 +186,8 @@ impl<'a> ControlLoader<'a> {
         self.old_rerr = rerr;
 
         // new Δλ
-        let ddl_new = m * state.ddl;
-        Ok((ddl_new, accept))
+        state.ddl = m * state.ddl;
+        Ok((accept, false))
     }
 
     /// Creates a backup of the current state

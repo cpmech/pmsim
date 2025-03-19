@@ -14,7 +14,7 @@ pub struct SolverImplicit<'a> {
     pub(crate) com: SolverCommon<'a>,
 
     /// Logger
-    pub(crate) log: Logger,
+    pub(crate) log: Logger<'a>,
 
     /// Residual control
     pub(crate) res: ControlResidual<'a>,
@@ -152,6 +152,24 @@ impl<'a> SolverImplicit<'a> {
                 self.do_substep(state, true)?;
                 self.stats.stop_recording();
 
+                // print information
+                self.log.step(substep, state);
+
+                // adapt loading parameter Δλ based on Newton-Raphson convergence
+                let (accept, failed) = self.loader.adapt_on_convergence(state, &self.res)?;
+                self.failed = failed;
+                if self.failed {
+                    self.log.error_newton();
+                    break;
+                }
+
+                // try again with reduced step
+                if !accept {
+                    self.loader.restore(state, &mut self.com.elements);
+                    self.stats.add_ddl_reduction();
+                    continue;
+                }
+
                 // run two substeps with half Δλ each
                 if self.config.substepping {
                     self.loader.save_u_full(state);
@@ -163,21 +181,13 @@ impl<'a> SolverImplicit<'a> {
                     state.ddl = ddl_full;
                 }
 
-                // print information
-                self.log.step(substep, state);
-
-                // check if Newton-Raphson failed to converge
-                if !self.config.substepping && !self.res.converged() {
-                    self.log.error(&format!(
-                        "Newton-Raphson did not converge; max_iterations = {}",
-                        self.config.max_iterations
-                    ));
-                    self.failed = true;
+                // adapt loading parameter Δλ based on relative error
+                let (accept, failed) = self.loader.adapt_on_rerr(substep, state)?;
+                self.failed = failed;
+                if self.failed {
+                    self.log.error_max_nlambda();
                     break;
                 }
-
-                // adapt loading parameter
-                let (ddl_new, accept) = self.loader.adapt(state, self.res.converged())?;
 
                 // perform output
                 if accept {
@@ -187,18 +197,6 @@ impl<'a> SolverImplicit<'a> {
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
                     self.stats.add_step_rejected();
-                }
-
-                // update Δλ
-                state.ddl = ddl_new;
-
-                // check if maximum number of loading increments reached
-                if substep == self.config.max_nlambda - 1 {
-                    self.log.error(&format!(
-                        "maximum number of loading increments reached; max_nlambda = {}",
-                        self.config.max_nlambda
-                    ));
-                    break;
                 }
             }
 
@@ -230,19 +228,18 @@ impl<'a> SolverImplicit<'a> {
             // run Newton-Raphson iteration
             self.do_iteration(iteration, state, logging)?;
 
-            // check convergence
+            // stop if converged
             if self.res.converged() {
                 break;
             }
 
-            // check if norm(mdu) is too large
+            // stop if norm(mdu) is too large
             if self.res.is_norm_mdu_large() {
-                self.stats.add_iteration_fail();
+                self.stats.add_large_du();
                 if !self.config.substepping {
-                    self.log
-                        .error(&format!("norm(δu) = {:.3e} is too large", self.res.norm_mdu));
-                    break;
+                    self.log.error_norm_du(self.res.norm_mdu);
                 }
+                break;
             }
         }
         Ok(())
