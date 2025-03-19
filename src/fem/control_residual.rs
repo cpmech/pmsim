@@ -122,17 +122,15 @@ impl<'a> ControlResidual<'a> {
         self.norm_rr = f64::max(vec_norm(rr, Norm::Max), f64::abs(g));
 
         // check for NaN or Inf
-        let found_nan_or_inf = !self.norm_rr.is_finite();
+        if !self.norm_rr.is_finite() {
+            return Err("Found NaN or Inf in norm(R)");
+        }
 
         // check convergence
-        self.converged_on_norm_rr = if found_nan_or_inf {
-            false
-        } else {
-            self.norm_rr < self.config.tol_rr_abs
-        };
+        self.converged_on_norm_rr = self.norm_rr < self.config.tol_rr_abs;
 
         // check if diverging
-        self.diverging_on_norm_rr = if found_nan_or_inf || iteration == 0 {
+        self.diverging_on_norm_rr = if iteration == 0 {
             false
         } else {
             self.norm_rr > self.norm_rr_prev
@@ -140,13 +138,7 @@ impl<'a> ControlResidual<'a> {
 
         // record the norm at subsequent iterations
         self.norm_rr_prev = self.norm_rr;
-
-        // done
-        if found_nan_or_inf {
-            Err("Found NaN or Inf")
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
 
     /// Analyzes convergence based on displacement increment
@@ -165,7 +157,9 @@ impl<'a> ControlResidual<'a> {
         self.norm_mdu = vec_norm(mdu, Norm::Max);
 
         // check for NaN or Inf
-        let found_nan_or_inf = !self.norm_mdu.is_finite();
+        if !self.norm_mdu.is_finite() {
+            return Err("Found NaN or Inf in norm(δu)");
+        }
 
         // set the first mdu value
         if iteration == 0 {
@@ -174,7 +168,7 @@ impl<'a> ControlResidual<'a> {
         }
 
         // set the first mdu value and check convergence
-        self.converged_on_rel_mdu = if found_nan_or_inf || iteration == 0 {
+        self.converged_on_rel_mdu = if iteration == 0 {
             false
         } else {
             let rerr = vec_rms_scaled(mdu, &self.mdu0, self.config.tol_mdu_abs, self.config.tol_mdu_rel);
@@ -183,7 +177,7 @@ impl<'a> ControlResidual<'a> {
         };
 
         // check if diverging
-        self.diverging_on_rel_mdu = if found_nan_or_inf || iteration < 2 {
+        self.diverging_on_rel_mdu = if iteration < 2 {
             false
         } else {
             self.rel_mdu > self.rel_mdu_prev
@@ -191,12 +185,6 @@ impl<'a> ControlResidual<'a> {
 
         // record the norm at subsequent iterations
         self.rel_mdu_prev = self.rel_mdu;
-
-        // done
-        if found_nan_or_inf {
-            Err("Found NaN or Inf in mdu")
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
 }
