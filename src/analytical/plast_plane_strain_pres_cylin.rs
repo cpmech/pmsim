@@ -160,6 +160,31 @@ impl PlastPlaneStrainPresCylin {
         self.legend_precision = precision;
     }
 
+    /// Plots the pressure-displacement curve
+    ///
+    /// # Input
+    ///
+    /// * `callback` -- a `(plot)` function to add extra (e.g. numerical) results.
+    pub fn plot_pp_ub<F>(&self, callback: F) -> Plot
+    where
+        F: Fn(&mut Plot),
+    {
+        let mut curve = Curve::new();
+        let ppp = linspace(0.0, self.get_pp_lim() - 1e-10, 201);
+        let uub: Vec<_> = ppp.iter().map(|pp| self.calc_ub(*pp).unwrap()).collect();
+        curve.set_label("analytical").draw(&uub, &ppp);
+
+        let mut plot = Plot::new();
+        plot.add(&curve);
+        callback(&mut plot);
+        let mut leg1 = Legend::new();
+        leg1.set_location("lower right").draw();
+        plot.add(&leg1)
+            .grid_and_labels("Radial displacement at outer face $u_b$", "Internal pressure $P$");
+
+        plot
+    }
+
     /// Generates a Plot with the results
     ///
     /// # Input

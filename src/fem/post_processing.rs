@@ -927,18 +927,32 @@ mod tests {
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
+
+        if qua8 {
+            results.select_displacement(18, &base).unwrap();
+            results.select_stress(2, &state).unwrap();
+            results.select_strain(2, &state).unwrap();
+        } else {
+            results.select_displacement(3, &base).unwrap();
+            results.select_stress(1, &state).unwrap();
+            results.select_strain(1, &state).unwrap();
+        }
+
         results.write_state(&state).unwrap();
+        results.save_selected(&base, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
         state.time = 1.0;
         results.write_state(&state).unwrap();
+        results.save_selected(&base, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
         state.time = 2.0;
         results.write_state(&state).unwrap();
 
+        results.save_selected(&base, &state).unwrap();
         results.write_self().unwrap();
     }
 
@@ -990,18 +1004,26 @@ mod tests {
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
+
+        results.select_displacement(10, &base).unwrap();
+        results.select_stress(1, &state).unwrap();
+        results.select_strain(1, &state).unwrap();
+
         results.write_state(&state).unwrap();
+        results.save_selected(&base, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
         state.time = 1.0;
         results.write_state(&state).unwrap();
+        results.save_selected(&base, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
         state.time = 2.0;
         results.write_state(&state).unwrap();
 
+        results.save_selected(&base, &state).unwrap();
         results.write_self().unwrap();
     }
 
@@ -1052,6 +1074,64 @@ mod tests {
                 1e-15,
             );
         }
+
+        // check selected time and loading factor
+        assert_eq!(post.results.has_selected, true);
+        assert_eq!(&post.results.sel_time, &[0.0, 1.0, 2.0]);
+        assert_eq!(&post.results.sel_lambda, &[0.0, 0.0, 0.0]);
+
+        // check selected displacements
+        let point = 3;
+        assert_eq!(post.results.sel_disp.len(), 1);
+        let disp = post.results.sel_disp.get(&point).unwrap();
+        assert_eq!(disp.ux.len(), 3);
+        assert_eq!(disp.uy.len(), 3);
+        assert_eq!(disp.uz.len(), 0);
+        let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
+        let duu_v = generate_vertical_displacement_field(&post.mesh, STRAIN);
+        let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
+        let eqx = post.base.dofs.eq(point, Dof::Ux).unwrap();
+        let eqy = post.base.dofs.eq(point, Dof::Uy).unwrap();
+        let (time0, time1, time2) = (0, 1, 2);
+        approx_eq(disp.ux[time0], duu_h[eqx], 1e-15);
+        approx_eq(disp.uy[time0], duu_h[eqy], 1e-15);
+        approx_eq(disp.ux[time1], duu_v[eqx], 1e-15);
+        approx_eq(disp.uy[time1], duu_v[eqy], 1e-15);
+        approx_eq(disp.ux[time2], duu_s[eqx], 1e-15);
+        approx_eq(disp.uy[time2], duu_s[eqy], 1e-15);
+
+        // check selected stresses
+        let cell = 1;
+        let s1 = post.results.sel_stress.get(&cell).unwrap();
+        assert_eq!(s1.txx.len(), 3);
+        approx_eq(s1.txx[time0], stress_h.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time0], stress_h.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time0], stress_h.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time0], stress_h.get(0, 1), 1e-14);
+        approx_eq(s1.txx[time1], stress_v.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time1], stress_v.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time1], stress_v.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time1], stress_v.get(0, 1), 1e-14);
+        approx_eq(s1.txx[time2], stress_s.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time2], stress_s.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time2], stress_s.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time2], stress_s.get(0, 1), 1e-14);
+
+        // check selected strains
+        let s1 = post.results.sel_strain.get(&cell).unwrap();
+        assert_eq!(s1.txx.len(), 3);
+        approx_eq(s1.txx[time0], strain_h.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time0], strain_h.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time0], strain_h.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time0], strain_h.get(0, 1), 1e-14);
+        approx_eq(s1.txx[time1], strain_v.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time1], strain_v.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time1], strain_v.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time1], strain_v.get(0, 1), 1e-14);
+        approx_eq(s1.txx[time2], strain_s.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time2], strain_s.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time2], strain_s.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time2], strain_s.get(0, 1), 1e-14);
     }
 
     #[test]
@@ -1100,6 +1180,76 @@ mod tests {
                 1e-15,
             );
         }
+
+        // check selected displacements
+        let point = 10;
+        assert_eq!(post.results.sel_disp.len(), 1);
+        let disp = post.results.sel_disp.get(&point).unwrap();
+        assert_eq!(disp.ux.len(), 3);
+        assert_eq!(disp.uy.len(), 3);
+        assert_eq!(disp.uz.len(), 3);
+        let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
+        let duu_v = generate_vertical_displacement_field(&post.mesh, STRAIN);
+        let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
+        let eqx = post.base.dofs.eq(point, Dof::Ux).unwrap();
+        let eqy = post.base.dofs.eq(point, Dof::Uy).unwrap();
+        let eqz = post.base.dofs.eq(point, Dof::Uz).unwrap();
+        let (time0, time1, time2) = (0, 1, 2);
+        approx_eq(disp.ux[time0], duu_h[eqx], 1e-15);
+        approx_eq(disp.uy[time0], duu_h[eqy], 1e-15);
+        approx_eq(disp.uz[time0], duu_h[eqz], 1e-15);
+        approx_eq(disp.ux[time1], duu_v[eqx], 1e-15);
+        approx_eq(disp.uy[time1], duu_v[eqy], 1e-15);
+        approx_eq(disp.uz[time1], duu_v[eqz], 1e-15);
+        approx_eq(disp.ux[time2], duu_s[eqx], 1e-15);
+        approx_eq(disp.uy[time2], duu_s[eqy], 1e-15);
+        approx_eq(disp.uz[time2], duu_s[eqz], 1e-15);
+
+        // check selected stresses
+        let cell = 1;
+        let s1 = post.results.sel_stress.get(&cell).unwrap();
+        assert_eq!(s1.txx.len(), 3);
+        approx_eq(s1.txx[time0], stress_h.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time0], stress_h.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time0], stress_h.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time0], stress_h.get(0, 1), 1e-14);
+        approx_eq(s1.tyz[time0], stress_h.get(1, 2), 1e-14);
+        approx_eq(s1.tzx[time0], stress_h.get(2, 0), 1e-14);
+        approx_eq(s1.txx[time1], stress_v.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time1], stress_v.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time1], stress_v.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time1], stress_v.get(0, 1), 1e-14);
+        approx_eq(s1.tyz[time1], stress_v.get(1, 2), 1e-14);
+        approx_eq(s1.tzx[time1], stress_v.get(2, 0), 1e-14);
+        approx_eq(s1.txx[time2], stress_s.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time2], stress_s.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time2], stress_s.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time2], stress_s.get(0, 1), 1e-14);
+        approx_eq(s1.tyz[time2], stress_s.get(1, 2), 1e-14);
+        approx_eq(s1.tzx[time2], stress_s.get(2, 0), 1e-14);
+
+        // check selected strains
+        let cell = 1;
+        let s1 = post.results.sel_strain.get(&cell).unwrap();
+        assert_eq!(s1.txx.len(), 3);
+        approx_eq(s1.txx[time0], strain_h.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time0], strain_h.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time0], strain_h.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time0], strain_h.get(0, 1), 1e-14);
+        approx_eq(s1.tyz[time0], strain_h.get(1, 2), 1e-14);
+        approx_eq(s1.tzx[time0], strain_h.get(2, 0), 1e-14);
+        approx_eq(s1.txx[time1], strain_v.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time1], strain_v.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time1], strain_v.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time1], strain_v.get(0, 1), 1e-14);
+        approx_eq(s1.tyz[time1], strain_v.get(1, 2), 1e-14);
+        approx_eq(s1.tzx[time1], strain_v.get(2, 0), 1e-14);
+        approx_eq(s1.txx[time2], strain_s.get(0, 0), 1e-14);
+        approx_eq(s1.tyy[time2], strain_s.get(1, 1), 1e-14);
+        approx_eq(s1.tzz[time2], strain_s.get(2, 2), 1e-14);
+        approx_eq(s1.txy[time2], strain_s.get(0, 1), 1e-14);
+        approx_eq(s1.tyz[time2], strain_s.get(1, 2), 1e-14);
+        approx_eq(s1.tzx[time2], strain_s.get(2, 0), 1e-14);
     }
 
     #[test]

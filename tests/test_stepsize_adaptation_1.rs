@@ -53,6 +53,11 @@ const POISSON: f64 = 0.3; // Poisson's coefficient
 const Y: f64 = 2.0 * 0.24 / SQRT_3; // uniaxial yield strength (2 σy_spo / sq3)
 const NGAUSS: usize = 4; // number of gauss points
 
+fn calc_pp(step: usize, lambda: f64) -> f64 {
+    let pp_old = if step == 0 { 0.0 } else { PP[step - 1] };
+    pp_old + lambda * (PP[step] - pp_old)
+}
+
 #[test]
 fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     // mesh
@@ -64,6 +69,7 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let left = features.search_edges(At::X(0.0), any_x)?;
     let inner_circle = features.search_edges(At::Circle(0.0, 0.0, A), any_x)?;
+    let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
 
     // parameters
     let param1 = ParamSolid {
@@ -101,12 +107,48 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     // FEM results
     let mut results = FemResults::new();
     results.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    results.select_displacement(outer_point, &base)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // analyze results
+    let ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
+    let n_out = results.sel_step.len();
+    let mut pp_arr = Vec::with_capacity(n_out);
+    let mut ur_arr = Vec::with_capacity(n_out);
+    for i in 0..n_out {
+        let pp = calc_pp(results.sel_step[i], results.sel_lambda[i]);
+        let ux = results.sel_disp.get(&outer_point).unwrap().ux[i];
+        let ub = ana.calc_ub(pp)?;
+        if results.sel_step[i] == 0 {
+            println!("loading:   pp = {:.3}, ux = {} ({})", pp, ux, ub);
+            approx_eq(ux, ub, 0.0069);
+        } else {
+            println!("unloading: pp = {:.3}, ux = {}", pp, ux);
+        }
+        if SAVE_FIGURE {
+            pp_arr.push(pp);
+            ur_arr.push(ux);
+        }
+    }
+    if SAVE_FIGURE {
+        let mut curve = Curve::new();
+        curve
+            .set_label("numerical")
+            .set_line_style("--")
+            .set_line_color("black")
+            .set_marker_color("black")
+            .set_marker_style(".");
+        curve.draw(&ur_arr, &pp_arr);
+        let plot = ana.plot_pp_ub(|plot| {
+            plot.add(&curve);
+        });
+        plot.save(&format!("/tmp/pmsim/{}-pp-ub.svg", NAME))?;
+    }
+
+    // further analyze results
     analyze_results()?;
     Ok(())
 }
@@ -138,8 +180,7 @@ fn analyze_results() -> Result<(), StrError> {
         let state = post.read_state(index)?;
 
         // pressure
-        let pp_old = if state.step == 0 { 0.0 } else { PP[state.step - 1] };
-        let pp = pp_old + state.lambda * (PP[state.step] - pp_old);
+        let pp = calc_pp(state.step, state.lambda);
         inner_pp[index] = pp;
 
         // radial displacement

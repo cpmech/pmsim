@@ -82,6 +82,7 @@ impl<'a> SolverImplicit<'a> {
 
         // first output (must occur after initialize_internal_values)
         results.write_state(state)?;
+        results.save_selected(&self.com.base, state)?;
 
         // print convergence information
         self.log.header();
@@ -189,15 +190,19 @@ impl<'a> SolverImplicit<'a> {
                     break;
                 }
 
-                // perform output
+                // handle acceptance/rejection
                 if accept {
-                    // if self.stepper.out(state) && self.res.converged()
-                    results.write_state(state)?;
+                    results.save_selected(&self.com.base, state)?;
                     self.stats.add_step_accepted();
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
                     self.stats.add_step_rejected();
                 }
+            }
+
+            // output results
+            if self.stepper.out(state) {
+                results.write_state(state)?;
             }
 
             // stop if failed

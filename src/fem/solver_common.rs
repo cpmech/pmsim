@@ -10,6 +10,9 @@ pub(crate) struct SolverCommon<'a> {
     /// Holds the configuration
     config: &'a Config<'a>,
 
+    /// Holds the material parameters, element attributes, and equation numbers
+    pub(crate) base: &'a FemBase,
+
     // Holds a collection of concentrated loads
     pub(crate) bc_concentrated: BcConcentratedArray<'a>,
 
@@ -74,6 +77,7 @@ impl<'a> SolverCommon<'a> {
         // return new instance
         Ok(SolverCommon {
             config,
+            base,
             bc_concentrated,
             bc_distributed,
             bc_prescribed,
