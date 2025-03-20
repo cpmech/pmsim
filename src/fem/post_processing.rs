@@ -1,4 +1,4 @@
-use super::{FemBase, FemState, FileIo};
+use super::{FemBase, FemState, FemResults};
 use crate::base::Dof;
 use crate::util::{SpatialTensor, TensorComponentsMap};
 use crate::StrError;
@@ -14,7 +14,7 @@ use std::collections::HashMap;
 /// This structure also implements the extrapolation from Gauss points to nodes.
 pub struct PostProc {
     /// Holds the FileIo instance
-    file_io: FileIo,
+    file_io: FemResults,
 
     /// Holds the Mesh
     mesh: Mesh,
@@ -57,7 +57,7 @@ impl PostProc {
     pub fn new(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
         // load FileIo
         let full_path = format!("{}/{}-summary.json", dir, fn_stem);
-        let mut file_io = FileIo::read_json(&full_path)?;
+        let mut file_io = FemResults::read_json(&full_path)?;
 
         // update output_dir because the files may have been moved
         file_io.dir = dir.to_string();
@@ -834,7 +834,7 @@ mod tests {
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
     use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
-    use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FileIo};
+    use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FemResults};
     use gemlab::mesh::{At, Cell, Edges, Features, Figure, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
@@ -922,7 +922,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.update_model_settings(1).save_strain = true;
 
-        let mut file_io = FileIo::new();
+        let mut file_io = FemResults::new();
         file_io.activate(&mesh, &base, "/tmp/pmsim", name).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
@@ -983,7 +983,7 @@ mod tests {
         config.update_model_settings(1).save_strain = true;
         config.update_model_settings(2).save_strain = true;
 
-        let mut file_io = FileIo::new();
+        let mut file_io = FemResults::new();
         file_io
             .activate(&mesh, &base, "/tmp/pmsim", "artificial-elastic-3d")
             .unwrap();
@@ -1109,7 +1109,7 @@ mod tests {
         p1.ngauss = Some(1);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let post = PostProc {
-            file_io: FileIo::new(),
+            file_io: FemResults::new(),
             mesh,
             base,
         };
@@ -1129,7 +1129,7 @@ mod tests {
         p1.ngauss = Some(8);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let post = PostProc {
-            file_io: FileIo::new(),
+            file_io: FemResults::new(),
             mesh,
             base,
         };
@@ -1690,7 +1690,7 @@ mod tests {
         state.u[4] = 5.0;
         state.u[5] = 6.0;
         let post = PostProc {
-            file_io: FileIo::new(),
+            file_io: FemResults::new(),
             mesh: mesh.clone(),
             base,
         };
@@ -1799,7 +1799,7 @@ mod tests {
 
         // allocate post-processor
         let post = PostProc {
-            file_io: FileIo::new(),
+            file_io: FemResults::new(),
             mesh: mesh.clone(),
             base,
         };

@@ -1,6 +1,6 @@
 use super::{ReferenceData, ReferenceDataType};
 use crate::base::Dof;
-use crate::fem::{FemBase, FemState, FileIo};
+use crate::fem::{FemBase, FemState, FemResults};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
@@ -42,7 +42,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 pub fn compare_results(
     mesh: &Mesh,
     base: &FemBase,
-    file_io: &FileIo,
+    file_io: &FemResults,
     ref_type: ReferenceDataType,
     ref_path: &str,
     tol_displacement: f64,
@@ -77,7 +77,7 @@ pub fn compare_results(
 
     // compare results
     let mut all_good = true;
-    let summary = FileIo::read_json(&file_io.path_summary())?;
+    let summary = FemResults::read_json(&file_io.path_summary())?;
     if summary.indices.len() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }

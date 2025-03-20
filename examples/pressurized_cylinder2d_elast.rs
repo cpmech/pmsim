@@ -64,7 +64,7 @@ fn main() -> Result<(), StrError> {
 
     // numerical solution arrays
     let n = sizes.len();
-    let mut results = ConvergenceResults::new(n);
+    let mut cr = ConvergenceResults::new(n);
 
     // print header
     println!(
@@ -208,13 +208,13 @@ fn main() -> Result<(), StrError> {
         let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
         // File IO
-        let mut file_io = FileIo::new();
+        let mut file_io = FemResults::new();
 
         // solution
         let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
         solver.solve(&mut state, &mut file_io)?;
-        results.time[idx] = stopwatch.stop();
+        cr.time[idx] = stopwatch.stop();
 
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
@@ -229,10 +229,10 @@ fn main() -> Result<(), StrError> {
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results
-        results.name = kind.to_string();
-        results.ndof[idx] = ndof;
-        results.error[idx] = error;
-        let ns = format_nanoseconds(results.time[idx]);
+        cr.name = kind.to_string();
+        cr.ndof[idx] = ndof;
+        cr.error[idx] = error;
+        let ns = format_nanoseconds(cr.time[idx]);
         let lx = f64::log10(ndof as f64);
         println!(
             "{:>15} {:>6} {:>11.2} {:>9.2e} {:>10.2e}",
@@ -244,6 +244,6 @@ fn main() -> Result<(), StrError> {
     }
 
     // save results
-    results.write_json(&path_json)?;
+    cr.write_json(&path_json)?;
     Ok(())
 }

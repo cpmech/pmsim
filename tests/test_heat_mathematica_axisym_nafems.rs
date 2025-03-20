@@ -103,7 +103,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
-    let mut file_io = FileIo::new();
+    let mut file_io = FemResults::new();
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;

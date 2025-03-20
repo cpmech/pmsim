@@ -9,7 +9,7 @@ use std::path::Path;
 
 /// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FileIo {
+pub struct FemResults {
     /// Holds a flag to activate the file generation
     pub(crate) active: bool,
 
@@ -29,10 +29,10 @@ pub struct FileIo {
     pub times: Vec<f64>,
 }
 
-impl FileIo {
+impl FemResults {
     /// Allocates a new instance with deactivated generation of files
     pub fn new() -> Self {
-        FileIo {
+        FemResults {
             active: false,
             dir: String::new(),
             fn_stem: String::new(),

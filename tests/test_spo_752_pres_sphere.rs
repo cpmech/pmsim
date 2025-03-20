@@ -126,7 +126,7 @@ fn run_test(
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
-    let mut file_io = FileIo::new();
+    let mut file_io = FemResults::new();
     file_io.activate(&mesh, &base, "/tmp/pmsim", name)?;
 
     // solution

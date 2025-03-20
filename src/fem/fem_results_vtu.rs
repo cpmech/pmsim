@@ -1,4 +1,4 @@
-use super::{FemBase, FileIo};
+use super::{FemBase, FemResults};
 use crate::base::Dof;
 use crate::fem::FemState;
 use crate::StrError;
@@ -7,7 +7,7 @@ use std::fmt::Write;
 use std::fs::File;
 use std::io::Write as IoWrite;
 
-impl FileIo {
+impl FemResults {
     /// Writes a file associated with a single time station to perform visualization with ParaView
     ///
     /// The files will be indexed with `index` corresponding to each time station.
@@ -211,7 +211,7 @@ impl FileIo {
 #[cfg(test)]
 mod tests {
     use crate::base::{Config, Dof, Elem, Essential, ParamBeam, ParamPorousSldLiq, ParamSolid};
-    use crate::fem::{FemBase, FemState, FileIo};
+    use crate::fem::{FemBase, FemResults, FemState};
     use gemlab::mesh::Samples;
     use std::fs;
 
@@ -223,7 +223,7 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let file_io = FileIo::new();
+        let file_io = FemResults::new();
         assert_eq!(
             file_io.write_vtu(&mesh, &base, &state, 0).err(),
             Some("FileIo must be activated first")
@@ -251,7 +251,7 @@ mod tests {
 
         let index = 0;
         let fn_stem = "test_write_vtu_works";
-        let mut file_io = FileIo::new();
+        let mut file_io = FemResults::new();
         file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
         file_io.write_vtu(&mesh, &base, &state, index).unwrap();
 
@@ -343,7 +343,7 @@ mod tests {
 
         let index = 0;
         let fn_stem = "test_write_vtu_works_mixed";
-        let mut file_io = FileIo::new();
+        let mut file_io = FemResults::new();
         file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
         file_io.write_vtu(&mesh, &base, &state, index).unwrap();
 
@@ -391,7 +391,7 @@ mod tests {
 
     #[test]
     fn write_pvd_captures_errors() {
-        let file_io = FileIo::new();
+        let file_io = FemResults::new();
         assert_eq!(file_io.write_pvd().err(), Some("FileIo must be activated first"));
     }
 
@@ -404,7 +404,7 @@ mod tests {
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let fn_stem = "test_write_pvd_works";
-        let mut file_io = FileIo::new();
+        let mut file_io = FemResults::new();
 
         file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
         file_io.write_state(&state).unwrap();

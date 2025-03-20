@@ -1,5 +1,5 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
-use super::{FemBase, FemState, FileIo, SolverCommon};
+use super::{FemBase, FemResults, FemState, SolverCommon};
 use crate::base::{Config, Essential, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -66,7 +66,7 @@ impl<'a> SolverImplicit<'a> {
     }
 
     /// Solves the system of equations
-    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
+    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FemResults) -> Result<(), StrError> {
         // check if there are non-zero prescribed values
         if !self.config.lagrange_mult_method {
             if self.com.bc_prescribed.has_non_zero() {
@@ -112,7 +112,7 @@ impl<'a> SolverImplicit<'a> {
     }
 
     /// Performs the solution process
-    fn do_solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
+    fn do_solve(&mut self, state: &mut FemState, file_io: &mut FemResults) -> Result<(), StrError> {
         // time/step loop
         for step in 0..self.config.max_steps {
             state.step = step;
@@ -333,7 +333,7 @@ impl<'a> SolverImplicit<'a> {
 mod tests {
     use super::SolverImplicit;
     use crate::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, Pbc};
-    use crate::fem::{FemBase, FemState, FileIo};
+    use crate::fem::{FemBase, FemResults, FemState};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 
     #[test]
@@ -403,7 +403,7 @@ mod tests {
         let natural = Natural::new();
         let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let mut file_io = FileIo::new();
+        let mut file_io = FemResults::new();
         assert_eq!(
             solver.solve(&mut state, &mut file_io).err(),
             Some("Δt is smaller than the allowed minimum")

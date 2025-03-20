@@ -119,7 +119,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // File IO
-    let mut file_io = FileIo::new();
+    let mut file_io = FemResults::new();
     file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution

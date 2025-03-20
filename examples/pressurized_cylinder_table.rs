@@ -52,23 +52,23 @@ fn run(name: &str, suffix: &str, str_kinds: &[&str]) -> Result<(), StrError> {
             let path_json = Path::new(&json);
             if path_json.exists() {
                 // load results
-                let results = ConvergenceResults::read_json(&path_json)?;
-                assert_eq!(results.name, *str_kind);
+                let cr = ConvergenceResults::read_json(&path_json)?;
+                assert_eq!(cr.name, *str_kind);
                 match *str_genie {
                     "mumps" => {
-                        ndof = results.ndof.clone();
-                        for i in 0..results.ndof.len() {
-                            mumps.insert(results.ndof[i], (results.time[i], results.error[i]));
+                        ndof = cr.ndof.clone();
+                        for i in 0..cr.ndof.len() {
+                            mumps.insert(cr.ndof[i], (cr.time[i], cr.error[i]));
                         }
                     }
                     "umfpack" => {
-                        for i in 0..results.ndof.len() {
-                            umfpack.insert(results.ndof[i], (results.time[i], results.error[i]));
+                        for i in 0..cr.ndof.len() {
+                            umfpack.insert(cr.ndof[i], (cr.time[i], cr.error[i]));
                         }
                     }
                     "inteldss" => {
-                        for i in 0..results.ndof.len() {
-                            inteldss.insert(results.ndof[i], (results.time[i], results.error[i]));
+                        for i in 0..cr.ndof.len() {
+                            inteldss.insert(cr.ndof[i], (cr.time[i], cr.error[i]));
                         }
                     }
                     _ => panic!("genie not available"),
