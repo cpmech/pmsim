@@ -78,12 +78,12 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // File IO
-    let mut file_io = FemResults::new();
+    // FEM results
+    let mut results = FemResults::new();
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    solver.solve(&mut state, &mut results)?;
     let eps_x = -DY * POISSON / (POISSON - 1.0);
     println!("eps_x = {}", eps_x);
     println!("u =\n{}", state.u);

@@ -82,12 +82,12 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // File IO
-    let mut file_io = FemResults::new();
+    // FEM results
+    let mut results = FemResults::new();
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    solver.solve(&mut state, &mut results)?;
 
     // check displacements
     #[rustfmt::skip]

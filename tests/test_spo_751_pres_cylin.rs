@@ -123,13 +123,13 @@ fn run_test(
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // File IO
-    let mut file_io = FemResults::new();
-    file_io.activate(&mesh, &base, "/tmp/pmsim", name)?;
+    // FEM results
+    let mut results = FemResults::new();
+    results.activate(&mesh, &base, "/tmp/pmsim", name)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    solver.solve(&mut state, &mut results)?;
 
     // compare the results with Ref #1
     let tol_displacement = if residual { 1e-13 } else { 1e-11 };
@@ -137,7 +137,7 @@ fn run_test(
     let all_good = compare_results(
         &mesh,
         &base,
-        &file_io,
+        &results,
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", name),
         tol_displacement,

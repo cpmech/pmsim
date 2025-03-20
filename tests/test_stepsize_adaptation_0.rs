@@ -60,12 +60,12 @@ fn test_stepsize_adaptation_0() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // File IO
-    let mut file_io = FemResults::new();
+    // FEM results
+    let mut results = FemResults::new();
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    solver.solve(&mut state, &mut results)?;
 
     // check if the solver indeed failed
     assert_eq!(solver.has_failed(), true);

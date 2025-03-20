@@ -223,9 +223,9 @@ mod tests {
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let file_io = FemResults::new();
+        let results = FemResults::new();
         assert_eq!(
-            file_io.write_vtu(&mesh, &base, &state, 0).err(),
+            results.write_vtu(&mesh, &base, &state, 0).err(),
             Some("FileIo must be activated first")
         );
     }
@@ -251,11 +251,11 @@ mod tests {
 
         let index = 0;
         let fn_stem = "test_write_vtu_works";
-        let mut file_io = FemResults::new();
-        file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
-        file_io.write_vtu(&mesh, &base, &state, index).unwrap();
+        let mut results = FemResults::new();
+        results.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
+        results.write_vtu(&mesh, &base, &state, index).unwrap();
 
-        let fn_path = file_io.path_vtu(index);
+        let fn_path = results.path_vtu(index);
         let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,
@@ -343,11 +343,11 @@ mod tests {
 
         let index = 0;
         let fn_stem = "test_write_vtu_works_mixed";
-        let mut file_io = FemResults::new();
-        file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
-        file_io.write_vtu(&mesh, &base, &state, index).unwrap();
+        let mut results = FemResults::new();
+        results.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
+        results.write_vtu(&mesh, &base, &state, index).unwrap();
 
-        let fn_path = file_io.path_vtu(index);
+        let fn_path = results.path_vtu(index);
         let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,
@@ -391,8 +391,8 @@ mod tests {
 
     #[test]
     fn write_pvd_captures_errors() {
-        let file_io = FemResults::new();
-        assert_eq!(file_io.write_pvd().err(), Some("FileIo must be activated first"));
+        let results = FemResults::new();
+        assert_eq!(results.write_pvd().err(), Some("FileIo must be activated first"));
     }
 
     #[test]
@@ -404,13 +404,13 @@ mod tests {
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let fn_stem = "test_write_pvd_works";
-        let mut file_io = FemResults::new();
+        let mut results = FemResults::new();
 
-        file_io.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
-        file_io.write_state(&state).unwrap();
-        file_io.write_pvd().unwrap();
+        results.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
+        results.write_state(&state).unwrap();
+        results.write_pvd().unwrap();
 
-        let fn_path = file_io.path_pvd();
+        let fn_path = results.path_pvd();
         let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,

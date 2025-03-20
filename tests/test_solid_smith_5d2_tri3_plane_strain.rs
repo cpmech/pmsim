@@ -85,12 +85,12 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // File IO
-    let mut file_io = FemResults::new();
+    // FEM results
+    let mut results = FemResults::new();
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    solver.solve(&mut state, &mut results)?;
     println!("{}", state.u);
 
     // check displacements

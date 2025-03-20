@@ -1,6 +1,6 @@
 use super::{ReferenceData, ReferenceDataType};
 use crate::base::Dof;
-use crate::fem::{FemBase, FemState, FemResults};
+use crate::fem::{FemBase, FemResults, FemState};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
@@ -26,7 +26,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 /// # Input
 ///
 /// * `mesh` -- The mesh
-/// * `file_io` -- The file output struct
+/// * `results` -- The FemResults instance
 /// * `ref_type` -- The type (origin) of the reference data
 /// * `ref_path` -- The full path of the file with the reference results
 /// * `tol_displacement` -- A tolerance to compare displacements
@@ -42,7 +42,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 pub fn compare_results(
     mesh: &Mesh,
     base: &FemBase,
-    file_io: &FemResults,
+    results: &FemResults,
     ref_type: ReferenceDataType,
     ref_path: &str,
     tol_displacement: f64,
@@ -77,7 +77,7 @@ pub fn compare_results(
 
     // compare results
     let mut all_good = true;
-    let summary = FemResults::read_json(&file_io.path_summary())?;
+    let summary = FemResults::read_json(&results.path_summary())?;
     if summary.indices.len() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
@@ -86,7 +86,7 @@ pub fn compare_results(
         let step = index - 1;
 
         // load state
-        let fem_state = FemState::read_json(&file_io.path_state(index))?;
+        let fem_state = FemState::read_json(&results.path_state(index))?;
 
         if verbose > 0 {
             println!(

@@ -99,13 +99,13 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // File IO
-    let mut file_io = FemResults::new();
-    file_io.activate(&mesh, &base, "/tmp/pmsim/", "test_solid_smith_5d17_qua4_axisym")?;
+    // FEM results
+    let mut results = FemResults::new();
+    results.activate(&mesh, &base, "/tmp/pmsim/", "test_solid_smith_5d17_qua4_axisym")?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    solver.solve(&mut state, &mut results)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -146,7 +146,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     let all_good = compare_results(
         &mesh,
         &base,
-        &file_io,
+        &results,
         ReferenceDataType::SGM,
         "data/sgm/sgm_5d17_ref.json",
         tol_displacement,

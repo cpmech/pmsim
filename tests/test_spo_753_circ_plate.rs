@@ -76,13 +76,13 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // File IO
-    let mut file_io = FemResults::new();
-    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    // FEM results
+    let mut results = FemResults::new();
+    results.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    solver.solve(&mut state, &mut results)?;
 
     // verify the results
     let tol_displacement = 1e-9;
@@ -90,7 +90,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let all_good = compare_results(
         &mesh,
         &base,
-        &file_io,
+        &results,
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,

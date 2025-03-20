@@ -40,10 +40,10 @@ index 45ead02..c4977d8 100644
      }
  
      /// Solves the associated system of partial differential equations
--    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<(), StrError> {
+-    pub fn solve(&mut self, state: &mut FemState, results: &mut FileIo) -> Result<(), StrError> {
 +    ///
 +    /// Returns the total number of converged iterations.
-+    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FileIo) -> Result<usize, StrError> {
++    pub fn solve(&mut self, state: &mut FemState, results: &mut FileIo) -> Result<usize, StrError> {
          // helper macro to save the state before returning an error
          macro_rules! run {
              ($e:expr) => {
@@ -61,7 +61,7 @@ index 45ead02..c4977d8 100644
              // update time-related variables
              let finished = run!(self.time_control.update(state));
              if finished {
-+                file_io.write_state(state)?;
++                results.write_state(state)?;
                  break;
              }
  
@@ -112,7 +112,7 @@ index 45ead02..c4977d8 100644
              let last_timestep = timestep == self.config.n_max_time_steps - 1;
 -            if state.t >= t_out || last_timestep {
 +            if converged && state.t >= t_out || last_timestep {
-                 file_io.write_state(state)?;
+                 results.write_state(state)?;
                  t_out += (self.config.ddt_out)(state.t);
              }
  
@@ -128,9 +128,9 @@ index 45ead02..c4977d8 100644
 @@ -138,7 +171,10 @@ impl<'a> SolverImplicit<'a> {
          }
  
-         // write the file_io file
--        file_io.write_self()
-+        file_io.write_self()?;
+         // write the results file
+-        results.write_self()
++        results.write_self()?;
 +
 +        // return the number of converged iterations
 +        Ok(n_converged)

@@ -66,7 +66,7 @@ impl<'a> SolverImplicit<'a> {
     }
 
     /// Solves the system of equations
-    pub fn solve(&mut self, state: &mut FemState, file_io: &mut FemResults) -> Result<(), StrError> {
+    pub fn solve(&mut self, state: &mut FemState, results: &mut FemResults) -> Result<(), StrError> {
         // check if there are non-zero prescribed values
         if !self.config.lagrange_mult_method {
             if self.com.bc_prescribed.has_non_zero() {
@@ -81,20 +81,20 @@ impl<'a> SolverImplicit<'a> {
         self.com.elements.initialize_internal_values(state)?;
 
         // first output (must occur after initialize_internal_values)
-        file_io.write_state(state)?;
+        results.write_state(state)?;
 
         // print convergence information
         self.log.header();
 
         // do solve
-        match self.do_solve(state, file_io) {
+        match self.do_solve(state, results) {
             Ok(_) => (),
             Err(err) => {
-                match file_io.write_state(state) {
+                match results.write_state(state) {
                     Ok(_) => (),
                     Err(e) => println!("ERROR-ON-ERROR: cannot write state due to: {}", e),
                 }
-                match file_io.write_self() {
+                match results.write_self() {
                     Ok(_) => (),
                     Err(e) => println!("ERROR-ON-ERROR: cannot write summary due to: {}", e),
                 }
@@ -102,8 +102,8 @@ impl<'a> SolverImplicit<'a> {
             }
         }
 
-        // write the file_io file
-        file_io.write_self()?;
+        // write the results file
+        results.write_self()?;
 
         // show computer time
         self.com.stopwatch.stop();
@@ -112,7 +112,7 @@ impl<'a> SolverImplicit<'a> {
     }
 
     /// Performs the solution process
-    fn do_solve(&mut self, state: &mut FemState, file_io: &mut FemResults) -> Result<(), StrError> {
+    fn do_solve(&mut self, state: &mut FemState, results: &mut FemResults) -> Result<(), StrError> {
         // time/step loop
         for step in 0..self.config.max_steps {
             state.step = step;
@@ -192,7 +192,7 @@ impl<'a> SolverImplicit<'a> {
                 // perform output
                 if accept {
                     // if self.stepper.out(state) && self.res.converged()
-                    file_io.write_state(state)?;
+                    results.write_state(state)?;
                     self.stats.add_step_accepted();
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
@@ -403,9 +403,9 @@ mod tests {
         let natural = Natural::new();
         let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let mut file_io = FemResults::new();
+        let mut results = FemResults::new();
         assert_eq!(
-            solver.solve(&mut state, &mut file_io).err(),
+            solver.solve(&mut state, &mut results).err(),
             Some("Δt is smaller than the allowed minimum")
         );
     }

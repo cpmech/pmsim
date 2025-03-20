@@ -1,4 +1,4 @@
-use super::{FemBase, FemState, FemResults};
+use super::{FemBase, FemResults, FemState};
 use crate::base::Dof;
 use crate::util::{SpatialTensor, TensorComponentsMap};
 use crate::StrError;
@@ -13,8 +13,8 @@ use std::collections::HashMap;
 ///
 /// This structure also implements the extrapolation from Gauss points to nodes.
 pub struct PostProc {
-    /// Holds the FileIo instance
-    file_io: FemResults,
+    /// Holds the FemResults instance
+    results: FemResults,
 
     /// Holds the Mesh
     mesh: Mesh,
@@ -57,22 +57,22 @@ impl PostProc {
     pub fn new(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
         // load FileIo
         let full_path = format!("{}/{}-summary.json", dir, fn_stem);
-        let mut file_io = FemResults::read_json(&full_path)?;
+        let mut results = FemResults::read_json(&full_path)?;
 
         // update output_dir because the files may have been moved
-        file_io.dir = dir.to_string();
+        results.dir = dir.to_string();
 
         // reads the mesh
-        let path_mesh = file_io.path_mesh();
+        let path_mesh = results.path_mesh();
         let mesh = Mesh::read(&path_mesh)?;
 
         // reads the FemBase
-        let path_base = file_io.path_base();
+        let path_base = results.path_base();
         let base = FemBase::read_json(&path_base)?;
 
         // return new instance
         Ok((
-            PostProc { file_io, mesh, base },
+            PostProc { results, mesh, base },
             PostProcMemo {
                 all_gauss: HashMap::new(),
                 all_pads: HashMap::new(),
@@ -102,7 +102,7 @@ impl PostProc {
 
     /// Returns the number of state files (to define the index in read_state)
     pub fn n_state(&self) -> usize {
-        self.file_io.indices.len()
+        self.results.indices.len()
     }
 
     /// Reads a JSON file with the FEM state at a given index (time station)
@@ -112,7 +112,7 @@ impl PostProc {
     ///
     /// # Arguments
     ///
-    /// * `file_io` - The file I/O handler containing the paths to the state files.
+    /// * `results` - The FemResults instance containing the paths to the state files.
     /// * `index` - The index of the time station for which the state data is to be read.
     ///   The index should be in the range `[0, n_state_files)`. Use [PostProc::n_state_files()]
     ///   to get the number of state files.
@@ -125,7 +125,7 @@ impl PostProc {
     ///
     /// Returns an error if the state file cannot be read or parsed.
     pub fn read_state(&self, index: usize) -> Result<FemState, StrError> {
-        let path_state = self.file_io.path_state(index);
+        let path_state = self.results.path_state(index);
         FemState::read_json(&path_state)
     }
 
@@ -811,15 +811,15 @@ impl PostProc {
 
     /// Writes Paraview's VTK file
     pub fn write_vtu(&self, state: &FemState, index: usize) -> Result<(), StrError> {
-        self.file_io.write_vtu(&self.mesh, &self.base, state, index)
+        self.results.write_vtu(&self.mesh, &self.base, state, index)
     }
 
     /// Writes Paraview's PVD file
     ///
     /// Returns the path to the PVD file
     pub fn write_pvd(&self) -> Result<String, StrError> {
-        self.file_io.write_pvd()?;
-        Ok(self.file_io.path_pvd())
+        self.results.write_pvd()?;
+        Ok(self.results.path_pvd())
     }
 }
 
@@ -834,7 +834,7 @@ mod tests {
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
     use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
-    use crate::fem::{ElementSolid, ElementTrait, FemBase, FemState, FemResults};
+    use crate::fem::{ElementSolid, ElementTrait, FemBase, FemResults, FemState};
     use gemlab::mesh::{At, Cell, Edges, Features, Figure, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
@@ -922,24 +922,24 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.update_model_settings(1).save_strain = true;
 
-        let mut file_io = FemResults::new();
-        file_io.activate(&mesh, &base, "/tmp/pmsim", name).unwrap();
+        let mut results = FemResults::new();
+        results.activate(&mesh, &base, "/tmp/pmsim", name).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
-        file_io.write_state(&state).unwrap();
+        results.write_state(&state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
         state.time = 1.0;
-        file_io.write_state(&state).unwrap();
+        results.write_state(&state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
         state.time = 2.0;
-        file_io.write_state(&state).unwrap();
+        results.write_state(&state).unwrap();
 
-        file_io.write_self().unwrap();
+        results.write_self().unwrap();
     }
 
     /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 3D
@@ -983,26 +983,26 @@ mod tests {
         config.update_model_settings(1).save_strain = true;
         config.update_model_settings(2).save_strain = true;
 
-        let mut file_io = FemResults::new();
-        file_io
+        let mut results = FemResults::new();
+        results
             .activate(&mesh, &base, "/tmp/pmsim", "artificial-elastic-3d")
             .unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
-        file_io.write_state(&state).unwrap();
+        results.write_state(&state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
         state.time = 1.0;
-        file_io.write_state(&state).unwrap();
+        results.write_state(&state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
         state.time = 2.0;
-        file_io.write_state(&state).unwrap();
+        results.write_state(&state).unwrap();
 
-        file_io.write_self().unwrap();
+        results.write_self().unwrap();
     }
 
     #[test]
@@ -1013,8 +1013,8 @@ mod tests {
 
         // read essential
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
-        assert_eq!(post.file_io.indices, &[0, 1, 2]);
-        assert_eq!(post.file_io.times, &[0.0, 1.0, 2.0]);
+        assert_eq!(post.results.indices, &[0, 1, 2]);
+        assert_eq!(post.results.times, &[0.0, 1.0, 2.0]);
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
@@ -1061,8 +1061,8 @@ mod tests {
 
         // read essential
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
-        assert_eq!(post.file_io.indices, &[0, 1, 2]);
-        assert_eq!(post.file_io.times, &[0.0, 1.0, 2.0]);
+        assert_eq!(post.results.indices, &[0, 1, 2]);
+        assert_eq!(post.results.times, &[0.0, 1.0, 2.0]);
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
@@ -1109,7 +1109,7 @@ mod tests {
         p1.ngauss = Some(1);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let post = PostProc {
-            file_io: FemResults::new(),
+            results: FemResults::new(),
             mesh,
             base,
         };
@@ -1129,7 +1129,7 @@ mod tests {
         p1.ngauss = Some(8);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let post = PostProc {
-            file_io: FemResults::new(),
+            results: FemResults::new(),
             mesh,
             base,
         };
@@ -1690,7 +1690,7 @@ mod tests {
         state.u[4] = 5.0;
         state.u[5] = 6.0;
         let post = PostProc {
-            file_io: FemResults::new(),
+            results: FemResults::new(),
             mesh: mesh.clone(),
             base,
         };
@@ -1799,7 +1799,7 @@ mod tests {
 
         // allocate post-processor
         let post = PostProc {
-            file_io: FemResults::new(),
+            results: FemResults::new(),
             mesh: mesh.clone(),
             base,
         };

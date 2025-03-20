@@ -95,13 +95,13 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
-    // File IO
-    let mut file_io = FemResults::new();
-    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    // FEM results
+    let mut results = FemResults::new();
+    results.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    solver.solve(&mut state, &mut results)?;
 
     // check
     let ref_id = 0;
