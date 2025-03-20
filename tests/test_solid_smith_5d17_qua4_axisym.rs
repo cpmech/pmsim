@@ -45,6 +45,7 @@ use russell_lab::{vec_approx_eq, Matrix};
 // Plane-strain
 // NOTE: using 9 integration points
 
+const NAME: &str = "test_solid_smith_5d17_qua4_axisym";
 const VERBOSE_LEVEL: usize = 0;
 
 #[test]
@@ -101,7 +102,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
 
     // FEM results
     let mut results = FemResults::new();
-    results.activate(&mesh, &base, "/tmp/pmsim/", "test_solid_smith_5d17_qua4_axisym")?;
+    results.activate(&mesh, &base, "/tmp/pmsim/", NAME)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -146,7 +147,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     let all_good = compare_results(
         &mesh,
         &base,
-        &results,
+        &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SGM,
         "data/sgm/sgm_5d17_ref.json",
         tol_displacement,

@@ -138,7 +138,7 @@ fn solve_and_check(
     let all_good = compare_results(
         &mesh,
         &base,
-        &results,
+        &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,

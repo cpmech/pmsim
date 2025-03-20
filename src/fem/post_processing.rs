@@ -56,7 +56,7 @@ impl PostProc {
     /// Returns an error if any of the files cannot be read or parsed.
     pub fn new(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
         // load FileIo
-        let full_path = format!("{}/{}-summary.json", dir, fn_stem);
+        let full_path = format!("{}/{}.json", dir, fn_stem);
         let mut results = FemResults::read_json(&full_path)?;
 
         // update output_dir because the files may have been moved

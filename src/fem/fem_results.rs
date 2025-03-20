@@ -90,10 +90,10 @@ impl FemResults {
         }
     }
 
-    /// Generates the filename path for the summary file
-    pub fn path_summary(&self) -> String {
+    /// Generates the filename path
+    pub fn path(&self) -> String {
         if self.active {
-            format!("{}/{}-summary.json", self.dir, self.fn_stem)
+            format!("{}/{}.json", self.dir, self.fn_stem)
         } else {
             "".to_string()
         }
@@ -142,8 +142,8 @@ impl FemResults {
         let path = Path::new(full_path).to_path_buf();
         let data = File::open(path).map_err(|_| "cannot open JSON file")?;
         let buffered = BufReader::new(data);
-        let summary = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
-        Ok(summary)
+        let results = serde_json::from_reader(buffered).map_err(|_| "cannot parse JSON file")?;
+        Ok(results)
     }
 
     /// Writes a JSON file with this struct
@@ -181,7 +181,7 @@ impl FemResults {
     /// Writes this struct to a file
     pub(crate) fn write_self(&self) -> Result<(), StrError> {
         if self.active {
-            let path = self.path_summary();
+            let path = self.path();
             self.write_json(&path)?;
         }
         Ok(())

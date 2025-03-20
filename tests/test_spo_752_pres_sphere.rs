@@ -139,7 +139,7 @@ fn run_test(
     let all_good = compare_results(
         &mesh,
         &base,
-        &results,
+        &format!("/tmp/pmsim/{}.json", name),
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", name),
         tol_displacement,

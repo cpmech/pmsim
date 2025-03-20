@@ -26,7 +26,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 /// # Input
 ///
 /// * `mesh` -- The mesh
-/// * `results` -- The FemResults instance
+/// * `res_path` -- The full path to the results files; e.g., "/tmp/pmsim/simulation.json"
 /// * `ref_type` -- The type (origin) of the reference data
 /// * `ref_path` -- The full path of the file with the reference results
 /// * `tol_displacement` -- A tolerance to compare displacements
@@ -42,7 +42,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 pub fn compare_results(
     mesh: &Mesh,
     base: &FemBase,
-    results: &FemResults,
+    res_path: &str,
     ref_type: ReferenceDataType,
     ref_path: &str,
     tol_displacement: f64,
@@ -77,11 +77,11 @@ pub fn compare_results(
 
     // compare results
     let mut all_good = true;
-    let summary = FemResults::read_json(&results.path_summary())?;
-    if summary.indices.len() != dat.actual.nstep() + 1 {
+    let results = FemResults::read_json(res_path)?;
+    if results.indices.len() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
-    for index in 1..summary.indices.len() {
+    for index in 1..results.indices.len() {
         // set the number of steps in the reference data (where the initial state is absent)
         let step = index - 1;
 
