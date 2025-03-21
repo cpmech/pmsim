@@ -100,13 +100,15 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // natural boundary conditions
     let natural = Natural::new();
 
-    // solve and check with UMFPACK
+    // configuration
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", NAME, 1.0)
         .set_lagrange_mult_method(true)
         .set_steady(NSTAGE)
         .set_max_iterations(20);
+
+    // solve and check with UMFPACK
     solve_and_check(&mesh, &base, &essential, &natural, &config)?;
 
     // solve and check with MUMPS
