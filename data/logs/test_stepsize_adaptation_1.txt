@@ -62,11 +62,21 @@ n_ddl_reduction = 1
 n_iteration     = (min: 1, max: 6, total: 22)
 n_large_du      = (min: 0, max: 1, total: 1)
 
-elapsed computer time = 148.940859ms
+elapsed computer time = 120.926976ms
 
 ═════════════════════════════════════════════════════════════════════════════════
 
+loading:   pp = 0.000, ux = 0 (0)
+loading:   pp = 0.019, ux = 0.01097956206011669 (0.010977777777777779)
+loading:   pp = 0.057, ux = 0.03293868618035009 (0.03293333333333334)
+loading:   pp = 0.133, ux = 0.08076998060837115 (0.0807233649161772)
+loading:   pp = 0.190, ux = 0.2076783060290047 (0.20083658837188076)
+unloading: pp = 0.180, ux = 0.20218852499892415 (0.19534769948299185)
+unloading: pp = 0.162, ux = 0.19120896293880726 (0.1843699217052141)
+unloading: pp = 0.124, ux = 0.16924983881857397 (0.16241436614965854)
+unloading: pp = 0.047, ux = 0.12533159057810717 (0.1185032550385474)
+unloading: pp = 0.000, ux = 0.09788268542781536 (0.09105881059410297)
 test test_stepsize_adaptation_1 ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
 

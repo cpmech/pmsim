@@ -94,6 +94,7 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
         .set_steady(PP.len())
         .set_substepping(true)
         .set_consider_load_reversal(false)
+        .set_out_dof(outer_point, Dof::Ux)
         .update_model_settings(1)
         .set_save_strain(true);
 
@@ -126,7 +127,6 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
             println!("loading:   pp = {:.3}, ux = {} ({})", pp, ux, ub);
             approx_eq(ux, ub, 0.00685);
         } else {
-            // let ub = ana.calc_ur_elastic(B, 0.019);
             let ub = ana.calc_ub_elastic(P_MAX_RES, pp)?;
             println!("unloading: pp = {:.3}, ux = {} ({})", pp, ux, ub);
             approx_eq(ux, ub, 0.00685);
