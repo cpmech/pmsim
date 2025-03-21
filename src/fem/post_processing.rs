@@ -13,6 +13,12 @@ use std::collections::HashMap;
 ///
 /// This structure also implements the extrapolation from Gauss points to nodes.
 pub struct PostProc {
+    /// Directory with the results
+    dir: String,
+
+    /// Filename stem
+    fn_stem: String,
+
     /// Holds the FemResults instance
     results: FemResults,
 
@@ -55,24 +61,24 @@ impl PostProc {
     ///
     /// Returns an error if any of the files cannot be read or parsed.
     pub fn new(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
-        // load FileIo
-        let full_path = format!("{}/{}.json", dir, fn_stem);
-        let mut results = FemResults::read_json(&full_path)?;
-
-        // update output_dir because the files may have been moved
-        results.dir = dir.to_string();
+        // load results
+        let results = FemResults::read_json(&format!("{}/{}.json", dir, fn_stem))?;
 
         // reads the mesh
-        let path_mesh = results.path_mesh();
-        let mesh = Mesh::read(&path_mesh)?;
+        let mesh = Mesh::read(&format!("{}/{}-mesh.msh", dir, fn_stem))?;
 
         // reads the FemBase
-        let path_base = results.path_base();
-        let base = FemBase::read_json(&path_base)?;
+        let base = FemBase::read_json(&format!("{}/{}-base.json", dir, fn_stem))?;
 
         // return new instance
         Ok((
-            PostProc { results, mesh, base },
+            PostProc {
+                dir: dir.to_string(),
+                fn_stem: fn_stem.to_string(),
+                results,
+                mesh,
+                base,
+            },
             PostProcMemo {
                 all_gauss: HashMap::new(),
                 all_pads: HashMap::new(),
@@ -125,8 +131,8 @@ impl PostProc {
     ///
     /// Returns an error if the state file cannot be read or parsed.
     pub fn read_state(&self, index: usize) -> Result<FemState, StrError> {
-        let path_state = self.results.path_state(index);
-        FemState::read_json(&path_state)
+        let path = format!("{}/{}-{:0>20}.json", self.dir, self.fn_stem, index);
+        FemState::read_json(&path)
     }
 
     /// Returns the real coordinates of all Gauss points of a cell
@@ -810,16 +816,18 @@ impl PostProc {
     }
 
     /// Writes Paraview's VTK file
-    pub fn write_vtu(&self, state: &FemState, index: usize) -> Result<(), StrError> {
-        self.results.write_vtu(&self.mesh, &self.base, state, index)
+    ///
+    /// Returns the path to the VTK file
+    pub fn write_vtu(&self, dir: &str, fn_stem: &str, state: &FemState, index: usize) -> Result<String, StrError> {
+        self.results
+            .write_vtu(&self.mesh, &self.base, dir, fn_stem, state, index)
     }
 
     /// Writes Paraview's PVD file
     ///
     /// Returns the path to the PVD file
-    pub fn write_pvd(&self) -> Result<String, StrError> {
-        self.results.write_pvd()?;
-        Ok(self.results.path_pvd())
+    pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
+        self.results.write_pvd(dir, fn_stem)
     }
 }
 
@@ -920,40 +928,38 @@ mod tests {
         };
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.update_model_settings(1).save_strain = true;
+        config
+            .set_out_files("/tmp/pmsim", name, 0.0)
+            .update_model_settings(1)
+            .save_strain = true;
 
-        let mut results = FemResults::new();
-        results.activate(&mesh, &base, "/tmp/pmsim", name).unwrap();
+        let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
+        config
+            .set_out_dof(point_id, Dof::Ux)
+            .set_out_dof(point_id, Dof::Uy)
+            .set_out_stress(cell_id)
+            .set_out_strain(cell_id);
+
+        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
-
-        if qua8 {
-            results.select_displacement(18, &base).unwrap();
-            results.select_stress(2, &state).unwrap();
-            results.select_strain(2, &state).unwrap();
-        } else {
-            results.select_displacement(3, &base).unwrap();
-            results.select_stress(1, &state).unwrap();
-            results.select_strain(1, &state).unwrap();
-        }
-
-        results.write_state(&state).unwrap();
-        results.save_selected(&base, &state).unwrap();
+        results.write_state(&config, &state).unwrap();
+        results.save_selected(&config, &base, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
         state.time = 1.0;
-        results.write_state(&state).unwrap();
-        results.save_selected(&base, &state).unwrap();
+        results.write_state(&config, &state).unwrap();
+        results.save_selected(&config, &base, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
         state.time = 2.0;
-        results.write_state(&state).unwrap();
+        results.write_state(&config, &state).unwrap();
 
-        results.save_selected(&base, &state).unwrap();
-        results.write_self().unwrap();
+        results.save_selected(&config, &base, &state).unwrap();
+        results.write_self(&config).unwrap();
     }
 
     /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 3D
@@ -997,34 +1003,35 @@ mod tests {
         config.update_model_settings(1).save_strain = true;
         config.update_model_settings(2).save_strain = true;
 
-        let mut results = FemResults::new();
-        results
-            .activate(&mesh, &base, "/tmp/pmsim", "artificial-elastic-3d")
-            .unwrap();
+        let (point_id, cell_id) = (10, 1);
+        config
+            .set_out_files("/tmp/pmsim", "artificial-elastic-3d", 0.0)
+            .set_out_dof(point_id, Dof::Ux)
+            .set_out_dof(point_id, Dof::Uy)
+            .set_out_dof(point_id, Dof::Uz)
+            .set_out_stress(cell_id)
+            .set_out_strain(cell_id);
+
+        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
-
-        results.select_displacement(10, &base).unwrap();
-        results.select_stress(1, &state).unwrap();
-        results.select_strain(1, &state).unwrap();
-
-        results.write_state(&state).unwrap();
-        results.save_selected(&base, &state).unwrap();
+        results.write_state(&config, &state).unwrap();
+        results.save_selected(&config, &base, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
         state.time = 1.0;
-        results.write_state(&state).unwrap();
-        results.save_selected(&base, &state).unwrap();
+        results.write_state(&config, &state).unwrap();
+        results.save_selected(&config, &base, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
         state.time = 2.0;
-        results.write_state(&state).unwrap();
+        results.write_state(&config, &state).unwrap();
 
-        results.save_selected(&base, &state).unwrap();
-        results.write_self().unwrap();
+        results.save_selected(&config, &base, &state).unwrap();
+        results.write_self(&config).unwrap();
     }
 
     #[test]
@@ -1075,63 +1082,47 @@ mod tests {
             );
         }
 
-        // check selected time and loading factor
-        assert_eq!(post.results.has_selected, true);
+        // check selected step, time and loading factor
+        assert_eq!(&post.results.sel_step, &[0, 0, 0]);
         assert_eq!(&post.results.sel_time, &[0.0, 1.0, 2.0]);
         assert_eq!(&post.results.sel_lambda, &[0.0, 0.0, 0.0]);
 
         // check selected displacements
-        let point = 3;
-        assert_eq!(post.results.sel_disp.len(), 1);
-        let disp = post.results.sel_disp.get(&point).unwrap();
-        assert_eq!(disp.ux.len(), 3);
-        assert_eq!(disp.uy.len(), 3);
-        assert_eq!(disp.uz.len(), 0);
+        let point_id = 3;
         let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
         let duu_v = generate_vertical_displacement_field(&post.mesh, STRAIN);
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
-        let eqx = post.base.dofs.eq(point, Dof::Ux).unwrap();
-        let eqy = post.base.dofs.eq(point, Dof::Uy).unwrap();
-        let (time0, time1, time2) = (0, 1, 2);
-        approx_eq(disp.ux[time0], duu_h[eqx], 1e-15);
-        approx_eq(disp.uy[time0], duu_h[eqy], 1e-15);
-        approx_eq(disp.ux[time1], duu_v[eqx], 1e-15);
-        approx_eq(disp.uy[time1], duu_v[eqy], 1e-15);
-        approx_eq(disp.ux[time2], duu_s[eqx], 1e-15);
-        approx_eq(disp.uy[time2], duu_s[eqy], 1e-15);
+        let eqx = post.base.dofs.eq(point_id, Dof::Ux).unwrap();
+        let eqy = post.base.dofs.eq(point_id, Dof::Uy).unwrap();
+        let sel_ux = post.results.get_dof(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.results.get_dof(point_id, Dof::Uy).unwrap();
+        let correct = [duu_h, duu_v, duu_s];
+        for i in 0..3 {
+            approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
+            approx_eq(sel_uy[i], correct[i][eqy], 1e-15);
+        }
 
         // check selected stresses
-        let cell = 1;
-        let s1 = post.results.sel_stress.get(&cell).unwrap();
-        assert_eq!(s1.txx.len(), 3);
-        approx_eq(s1.txx[time0], stress_h.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time0], stress_h.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time0], stress_h.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time0], stress_h.get(0, 1), 1e-14);
-        approx_eq(s1.txx[time1], stress_v.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time1], stress_v.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time1], stress_v.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time1], stress_v.get(0, 1), 1e-14);
-        approx_eq(s1.txx[time2], stress_s.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time2], stress_s.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time2], stress_s.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time2], stress_s.get(0, 1), 1e-14);
+        let cell_id = 1;
+        let s = post.results.get_stress(cell_id).unwrap();
+        let correct = [stress_h, stress_v, stress_s];
+        for i in 0..3 {
+            approx_eq(s.txx[i], correct[i].get(0, 0), 1e-14);
+            approx_eq(s.tyy[i], correct[i].get(1, 1), 1e-14);
+            approx_eq(s.tzz[i], correct[i].get(2, 2), 1e-14);
+            approx_eq(s.txy[i], correct[i].get(0, 1), 1e-14);
+        }
 
         // check selected strains
-        let s1 = post.results.sel_strain.get(&cell).unwrap();
-        assert_eq!(s1.txx.len(), 3);
-        approx_eq(s1.txx[time0], strain_h.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time0], strain_h.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time0], strain_h.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time0], strain_h.get(0, 1), 1e-14);
-        approx_eq(s1.txx[time1], strain_v.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time1], strain_v.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time1], strain_v.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time1], strain_v.get(0, 1), 1e-14);
-        approx_eq(s1.txx[time2], strain_s.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time2], strain_s.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time2], strain_s.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time2], strain_s.get(0, 1), 1e-14);
+        let cell_id = 1;
+        let s = post.results.get_strain(cell_id).unwrap();
+        let correct = [strain_h, strain_v, strain_s];
+        for i in 0..3 {
+            approx_eq(s.txx[i], correct[i].get(0, 0), 1e-14);
+            approx_eq(s.tyy[i], correct[i].get(1, 1), 1e-14);
+            approx_eq(s.tzz[i], correct[i].get(2, 2), 1e-14);
+            approx_eq(s.txy[i], correct[i].get(0, 1), 1e-14);
+        }
     }
 
     #[test]
@@ -1182,74 +1173,48 @@ mod tests {
         }
 
         // check selected displacements
-        let point = 10;
-        assert_eq!(post.results.sel_disp.len(), 1);
-        let disp = post.results.sel_disp.get(&point).unwrap();
-        assert_eq!(disp.ux.len(), 3);
-        assert_eq!(disp.uy.len(), 3);
-        assert_eq!(disp.uz.len(), 3);
+        let point_id = 10;
         let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
         let duu_v = generate_vertical_displacement_field(&post.mesh, STRAIN);
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
-        let eqx = post.base.dofs.eq(point, Dof::Ux).unwrap();
-        let eqy = post.base.dofs.eq(point, Dof::Uy).unwrap();
-        let eqz = post.base.dofs.eq(point, Dof::Uz).unwrap();
-        let (time0, time1, time2) = (0, 1, 2);
-        approx_eq(disp.ux[time0], duu_h[eqx], 1e-15);
-        approx_eq(disp.uy[time0], duu_h[eqy], 1e-15);
-        approx_eq(disp.uz[time0], duu_h[eqz], 1e-15);
-        approx_eq(disp.ux[time1], duu_v[eqx], 1e-15);
-        approx_eq(disp.uy[time1], duu_v[eqy], 1e-15);
-        approx_eq(disp.uz[time1], duu_v[eqz], 1e-15);
-        approx_eq(disp.ux[time2], duu_s[eqx], 1e-15);
-        approx_eq(disp.uy[time2], duu_s[eqy], 1e-15);
-        approx_eq(disp.uz[time2], duu_s[eqz], 1e-15);
+        let eqx = post.base.dofs.eq(point_id, Dof::Ux).unwrap();
+        let eqy = post.base.dofs.eq(point_id, Dof::Uy).unwrap();
+        let eqz = post.base.dofs.eq(point_id, Dof::Uz).unwrap();
+        let sel_ux = post.results.get_dof(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.results.get_dof(point_id, Dof::Uy).unwrap();
+        let sel_uz = post.results.get_dof(point_id, Dof::Uz).unwrap();
+        let correct = [duu_h, duu_v, duu_s];
+        for i in 0..3 {
+            approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
+            approx_eq(sel_uy[i], correct[i][eqy], 1e-15);
+            approx_eq(sel_uz[i], correct[i][eqz], 1e-15);
+        }
 
         // check selected stresses
-        let cell = 1;
-        let s1 = post.results.sel_stress.get(&cell).unwrap();
-        assert_eq!(s1.txx.len(), 3);
-        approx_eq(s1.txx[time0], stress_h.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time0], stress_h.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time0], stress_h.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time0], stress_h.get(0, 1), 1e-14);
-        approx_eq(s1.tyz[time0], stress_h.get(1, 2), 1e-14);
-        approx_eq(s1.tzx[time0], stress_h.get(2, 0), 1e-14);
-        approx_eq(s1.txx[time1], stress_v.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time1], stress_v.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time1], stress_v.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time1], stress_v.get(0, 1), 1e-14);
-        approx_eq(s1.tyz[time1], stress_v.get(1, 2), 1e-14);
-        approx_eq(s1.tzx[time1], stress_v.get(2, 0), 1e-14);
-        approx_eq(s1.txx[time2], stress_s.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time2], stress_s.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time2], stress_s.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time2], stress_s.get(0, 1), 1e-14);
-        approx_eq(s1.tyz[time2], stress_s.get(1, 2), 1e-14);
-        approx_eq(s1.tzx[time2], stress_s.get(2, 0), 1e-14);
+        let cell_id = 1;
+        let s = post.results.get_stress(cell_id).unwrap();
+        let correct = [stress_h, stress_v, stress_s];
+        for i in 0..3 {
+            approx_eq(s.txx[i], correct[i].get(0, 0), 1e-14);
+            approx_eq(s.tyy[i], correct[i].get(1, 1), 1e-14);
+            approx_eq(s.tzz[i], correct[i].get(2, 2), 1e-14);
+            approx_eq(s.txy[i], correct[i].get(0, 1), 1e-14);
+            approx_eq(s.tyz[i], correct[i].get(1, 2), 1e-14);
+            approx_eq(s.tzx[i], correct[i].get(2, 0), 1e-14);
+        }
 
         // check selected strains
-        let cell = 1;
-        let s1 = post.results.sel_strain.get(&cell).unwrap();
-        assert_eq!(s1.txx.len(), 3);
-        approx_eq(s1.txx[time0], strain_h.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time0], strain_h.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time0], strain_h.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time0], strain_h.get(0, 1), 1e-14);
-        approx_eq(s1.tyz[time0], strain_h.get(1, 2), 1e-14);
-        approx_eq(s1.tzx[time0], strain_h.get(2, 0), 1e-14);
-        approx_eq(s1.txx[time1], strain_v.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time1], strain_v.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time1], strain_v.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time1], strain_v.get(0, 1), 1e-14);
-        approx_eq(s1.tyz[time1], strain_v.get(1, 2), 1e-14);
-        approx_eq(s1.tzx[time1], strain_v.get(2, 0), 1e-14);
-        approx_eq(s1.txx[time2], strain_s.get(0, 0), 1e-14);
-        approx_eq(s1.tyy[time2], strain_s.get(1, 1), 1e-14);
-        approx_eq(s1.tzz[time2], strain_s.get(2, 2), 1e-14);
-        approx_eq(s1.txy[time2], strain_s.get(0, 1), 1e-14);
-        approx_eq(s1.tyz[time2], strain_s.get(1, 2), 1e-14);
-        approx_eq(s1.tzx[time2], strain_s.get(2, 0), 1e-14);
+        let cell_id = 1;
+        let s = post.results.get_strain(cell_id).unwrap();
+        let correct = [strain_h, strain_v, strain_s];
+        for i in 0..3 {
+            approx_eq(s.txx[i], correct[i].get(0, 0), 1e-14);
+            approx_eq(s.tyy[i], correct[i].get(1, 1), 1e-14);
+            approx_eq(s.tzz[i], correct[i].get(2, 2), 1e-14);
+            approx_eq(s.txy[i], correct[i].get(0, 1), 1e-14);
+            approx_eq(s.tyz[i], correct[i].get(1, 2), 1e-14);
+            approx_eq(s.tzx[i], correct[i].get(2, 0), 1e-14);
+        }
     }
 
     #[test]
@@ -1258,8 +1223,11 @@ mod tests {
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(1);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let config = Config::new(&mesh);
         let post = PostProc {
-            results: FemResults::new(),
+            dir: String::new(),
+            fn_stem: String::new(),
+            results: FemResults::new(&mesh, &base, &config).unwrap(),
             mesh,
             base,
         };
@@ -1278,8 +1246,11 @@ mod tests {
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(8);
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let config = Config::new(&mesh);
         let post = PostProc {
-            results: FemResults::new(),
+            dir: String::new(),
+            fn_stem: String::new(),
+            results: FemResults::new(&mesh, &base, &config).unwrap(),
             mesh,
             base,
         };
@@ -1840,7 +1811,9 @@ mod tests {
         state.u[4] = 5.0;
         state.u[5] = 6.0;
         let post = PostProc {
-            results: FemResults::new(),
+            dir: String::new(),
+            fn_stem: String::new(),
+            results: FemResults::new(&mesh, &base, &config).unwrap(),
             mesh: mesh.clone(),
             base,
         };
@@ -1949,7 +1922,9 @@ mod tests {
 
         // allocate post-processor
         let post = PostProc {
-            results: FemResults::new(),
+            dir: String::new(),
+            fn_stem: String::new(),
+            results: FemResults::new(&mesh, &base, &config).unwrap(),
             mesh: mesh.clone(),
             base,
         };

@@ -221,7 +221,7 @@ fn main() -> Result<(), StrError> {
         let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
         // FEM results
-        let mut results = FemResults::new();
+        let mut results = FemResults::new(&mesh, &base, &config)?;
 
         // println!("5. running simulation");
 

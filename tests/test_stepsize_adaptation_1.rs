@@ -94,7 +94,11 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
         .set_steady(PP.len())
         .set_substepping(true)
         .set_consider_load_reversal(false)
+        .set_out_files("/tmp/pmsim", NAME, 1.0)
         .set_out_dof(outer_point, Dof::Ux)
+        .set_out_dof(outer_point, Dof::Ux) // ignored
+        .set_out_dof(outer_point, Dof::Uy)
+        .set_out_dof(outer_point, Dof::Pl) // ignored
         .update_model_settings(1)
         .set_save_strain(true);
 
@@ -106,9 +110,7 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new();
-    results.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
-    results.select_displacement(outer_point, &base)?;
+    let mut results = FemResults::new(&mesh, &base, &config)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -121,7 +123,7 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     let mut ur_arr = Vec::with_capacity(n_out);
     for i in 0..n_out {
         let pp = calc_pp(results.sel_step[i], results.sel_lambda[i]);
-        let ux = results.sel_disp.get(&outer_point).unwrap().ux[i];
+        let ux = results.get_dof(outer_point, Dof::Ux).unwrap()[i];
         if results.sel_step[i] == 0 {
             let ub = ana.calc_ub(pp)?;
             println!("loading:   pp = {:.3}, ux = {} ({})", pp, ux, ub);

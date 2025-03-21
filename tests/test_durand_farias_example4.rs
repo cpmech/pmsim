@@ -51,14 +51,14 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     natural.edges(&footing, Nbc::Qn, -QN);
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.set_out_files("/tmp/pmsim", NAME, 1.0);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new();
-    results.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    let mut results = FemResults::new(&mesh, &base, &config)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;

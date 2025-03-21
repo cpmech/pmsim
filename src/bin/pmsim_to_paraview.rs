@@ -24,11 +24,11 @@ fn main() -> Result<(), StrError> {
     // write VTU files
     for index in 0..post.n_state() {
         let state = post.read_state(index)?;
-        post.write_vtu(&state, index)?;
+        post.write_vtu(&options.out_dir, &options.fn_stem, &state, index)?;
     }
 
     // write PVD file
-    let path_pvd = post.write_pvd()?;
+    let path_pvd = post.write_pvd(&options.out_dir, &options.fn_stem)?;
 
     // message
     let thin_line = format!("{:─^1$}", "", path_pvd.len());

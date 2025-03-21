@@ -75,7 +75,7 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new();
+    let mut results = FemResults::new(&mesh, &base, &config)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;

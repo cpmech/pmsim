@@ -79,14 +79,17 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_transient().set_ddt(0.1).set_t_fin(T_FIN);
+    config
+        .set_out_files("/tmp/pmsim", NAME, 1.0)
+        .set_transient()
+        .set_ddt(0.1)
+        .set_t_fin(T_FIN);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new();
-    results.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    let mut results = FemResults::new(&mesh, &base, &config)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;

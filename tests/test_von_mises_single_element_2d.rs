@@ -103,6 +103,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // solve and check with UMFPACK
     let mut config = Config::new(&mesh);
     config
+        .set_out_files("/tmp/pmsim", NAME, 1.0)
         .set_lagrange_mult_method(true)
         .set_steady(NSTAGE)
         .set_max_iterations(20);
@@ -125,8 +126,7 @@ fn solve_and_check(
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new();
-    results.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    let mut results = FemResults::new(&mesh, &base, &config)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -138,6 +138,7 @@ fn solve_and_check(
     let all_good = compare_results(
         &mesh,
         &base,
+        &config,
         &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),

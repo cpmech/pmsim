@@ -81,8 +81,8 @@ impl<'a> SolverImplicit<'a> {
         self.com.elements.initialize_internal_values(state)?;
 
         // first output (must occur after initialize_internal_values)
-        results.write_state(state)?;
-        results.save_selected(&self.com.base, state)?;
+        results.write_state(&self.config, state)?;
+        results.save_selected(&self.config, &self.com.base, state)?;
 
         // print convergence information
         self.log.header();
@@ -91,11 +91,11 @@ impl<'a> SolverImplicit<'a> {
         match self.do_solve(state, results) {
             Ok(_) => (),
             Err(err) => {
-                match results.write_state(state) {
+                match results.write_state(&self.config, state) {
                     Ok(_) => (),
                     Err(e) => println!("ERROR-ON-ERROR: cannot write state due to: {}", e),
                 }
-                match results.write_self() {
+                match results.write_self(&self.config) {
                     Ok(_) => (),
                     Err(e) => println!("ERROR-ON-ERROR: cannot write summary due to: {}", e),
                 }
@@ -104,7 +104,7 @@ impl<'a> SolverImplicit<'a> {
         }
 
         // write the results file
-        results.write_self()?;
+        results.write_self(&self.config)?;
 
         // show computer time
         self.com.stopwatch.stop();
@@ -192,7 +192,7 @@ impl<'a> SolverImplicit<'a> {
 
                 // handle acceptance/rejection
                 if accept {
-                    results.save_selected(&self.com.base, state)?;
+                    results.save_selected(&self.config, &self.com.base, state)?;
                     self.stats.add_step_accepted();
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
@@ -202,7 +202,7 @@ impl<'a> SolverImplicit<'a> {
 
             // output results
             if self.stepper.out(state) {
-                results.write_state(state)?;
+                results.write_state(&self.config, state)?;
             }
 
             // stop if failed
@@ -408,7 +408,7 @@ mod tests {
         let natural = Natural::new();
         let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let mut results = FemResults::new();
+        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
         assert_eq!(
             solver.solve(&mut state, &mut results).err(),
             Some("Δt is smaller than the allowed minimum")

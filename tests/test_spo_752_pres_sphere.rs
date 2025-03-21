@@ -121,13 +121,13 @@ fn run_test(
         config.set_steady(PP_COLLAPSE.len());
         NAME_COLLAPSE
     };
+    config.set_out_files("/tmp/pmsim", name, 1.0);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new();
-    results.activate(&mesh, &base, "/tmp/pmsim", name)?;
+    let mut results = FemResults::new(&mesh, &base, &config)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -139,6 +139,7 @@ fn run_test(
     let all_good = compare_results(
         &mesh,
         &base,
+        &config,
         &format!("/tmp/pmsim/{}.json", name),
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", name),

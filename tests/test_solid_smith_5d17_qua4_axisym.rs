@@ -95,14 +95,16 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_alt_bb_matrix_method(true).set_axisymmetric();
+    config
+        .set_out_files("/tmp/pmsim", NAME, 1.0)
+        .set_alt_bb_matrix_method(true)
+        .set_axisymmetric();
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new();
-    results.activate(&mesh, &base, "/tmp/pmsim/", NAME)?;
+    let mut results = FemResults::new(&mesh, &base, &config)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -147,6 +149,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     let all_good = compare_results(
         &mesh,
         &base,
+        &config,
         &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SGM,
         "data/sgm/sgm_5d17_ref.json",

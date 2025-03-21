@@ -10,12 +10,18 @@ use std::io::Write as IoWrite;
 impl FemResults {
     /// Writes a file associated with a single time station to perform visualization with ParaView
     ///
+    /// Returns the path to the VTU file
+    ///
     /// The files will be indexed with `index` corresponding to each time station.
-    pub fn write_vtu(&self, mesh: &Mesh, base: &FemBase, state: &FemState, index: usize) -> Result<(), StrError> {
-        if !self.active {
-            return Err("File generation must be activated first");
-        }
-
+    pub fn write_vtu(
+        &self,
+        mesh: &Mesh,
+        base: &FemBase,
+        dir: &str,
+        fn_stem: &str,
+        state: &FemState,
+        index: usize,
+    ) -> Result<String, StrError> {
         let ndim = mesh.ndim;
         let npoint = mesh.points.len();
         let ncell = mesh.cells.len();
@@ -168,25 +174,23 @@ impl FemResults {
         .unwrap();
 
         // write file
-        let path = self.path_vtu(index);
+        let path = format!("{}/{}-{:0>20}.vtu", dir, fn_stem, index);
         let mut file = File::create(&path).map_err(|_| "cannot create VTU file")?;
         file.write_all(buffer.as_bytes()).map_err(|_| "cannot write VTU file")?;
-        Ok(())
+        Ok(path)
     }
 
     /// Writes a summary file for all time stations to perform visualization with ParaView
-    pub fn write_pvd(&self) -> Result<(), StrError> {
-        if !self.active {
-            return Err("File generation must be activated first");
-        }
-
+    ///
+    /// Returns the path to the PVD file
+    pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
         // header
         let mut buffer = String::new();
         write!(&mut buffer, "<?xml version=\"1.0\"?>\n<VTKFile type=\"Collection\" version=\"0.1\" byte_order=\"LittleEndian\">\n<Collection>\n").unwrap();
 
         // add VTU entries to PVD file
         for index in &self.indices {
-            let vtu_fn = self.path_vtu(*index);
+            let vtu_fn = format!("{}/{}-{:0>20}.vtu", dir, fn_stem, *index);
             write!(
                 &mut buffer,
                 "<DataSet timestep=\"{:?}\" file=\"{}\" />\n",
@@ -199,10 +203,10 @@ impl FemResults {
         write!(&mut buffer, "</Collection>\n</VTKFile>\n").unwrap();
 
         // write file
-        let path = self.path_pvd();
+        let path = format!("{}/{}.pvd", dir, fn_stem);
         let mut file = File::create(&path).map_err(|_| "cannot create PVD file")?;
         file.write_all(buffer.as_bytes()).map_err(|_| "cannot write PVD file")?;
-        Ok(())
+        Ok(path)
     }
 }
 
@@ -214,21 +218,6 @@ mod tests {
     use crate::fem::{FemBase, FemResults, FemState};
     use gemlab::mesh::Samples;
     use std::fs;
-
-    #[test]
-    fn write_vtu_captures_errors() {
-        let mesh = Samples::three_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let essential = Essential::new();
-        let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let results = FemResults::new();
-        assert_eq!(
-            results.write_vtu(&mesh, &base, &state, 0).err(),
-            Some("File generation must be activated first")
-        );
-    }
 
     #[test]
     fn write_vtu_works() {
@@ -250,13 +239,13 @@ mod tests {
         }
 
         let index = 0;
-        let fn_stem = "test_write_vtu_works";
-        let mut results = FemResults::new();
-        results.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
-        results.write_vtu(&mesh, &base, &state, index).unwrap();
+        let results = FemResults::new(&mesh, &base, &config).unwrap();
+        let name = "test_write_vtu_works";
+        let path = results
+            .write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index)
+            .unwrap();
 
-        let fn_path = results.path_vtu(index);
-        let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
+        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,
             r#"<?xml version="1.0"?>
@@ -342,13 +331,13 @@ mod tests {
         }
 
         let index = 0;
-        let fn_stem = "test_write_vtu_works_mixed";
-        let mut results = FemResults::new();
-        results.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
-        results.write_vtu(&mesh, &base, &state, index).unwrap();
+        let results = FemResults::new(&mesh, &base, &config).unwrap();
+        let name = "test_write_vtu_works_mixed";
+        let path = results
+            .write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index)
+            .unwrap();
 
-        let fn_path = results.path_vtu(index);
-        let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
+        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,
             r#"<?xml version="1.0"?>
@@ -390,31 +379,22 @@ mod tests {
     }
 
     #[test]
-    fn write_pvd_captures_errors() {
-        let results = FemResults::new();
-        assert_eq!(
-            results.write_pvd().err(),
-            Some("File generation must be activated first")
-        );
-    }
-
-    #[test]
     fn write_pvd_works() {
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
-        let config = Config::new(&mesh);
+        let mut config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let fn_stem = "test_write_pvd_works";
-        let mut results = FemResults::new();
 
-        results.activate(&mesh, &base, "/tmp/pmsim", fn_stem).unwrap();
-        results.write_state(&state).unwrap();
-        results.write_pvd().unwrap();
+        let name = "test_write_pvd_works";
+        config.set_out_files("/tmp/pmsim", name, 0.0);
+        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
-        let fn_path = results.path_pvd();
-        let contents = fs::read_to_string(&fn_path).map_err(|_| "cannot open file").unwrap();
+        results.write_state(&config, &state).unwrap();
+        let path = results.write_pvd("/tmp/pmsim", name).unwrap();
+
+        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,
             r#"<?xml version="1.0"?>

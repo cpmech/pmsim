@@ -1,5 +1,5 @@
 use super::{ReferenceData, ReferenceDataType};
-use crate::base::Dof;
+use crate::base::{Config, Dof};
 use crate::fem::{FemBase, FemResults, FemState};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -42,6 +42,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 pub fn compare_results(
     mesh: &Mesh,
     base: &FemBase,
+    config: &Config,
     res_path: &str,
     ref_type: ReferenceDataType,
     ref_path: &str,
@@ -86,7 +87,10 @@ pub fn compare_results(
         let step = index - 1;
 
         // load state
-        let fem_state = FemState::read_json(&results.path_state(index))?;
+        let fem_state = FemState::read_json(&format!(
+            "{}/{}-{:0>20}.json",
+            config.out_dir, config.out_fn_stem, index
+        ))?;
 
         if verbose > 0 {
             println!(

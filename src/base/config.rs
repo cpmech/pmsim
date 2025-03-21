@@ -1,9 +1,9 @@
-use super::{Idealization, Init, ParamFluids};
+use super::{Dof, Idealization, Init, ParamFluids};
 use crate::material::Settings;
-use gemlab::mesh::{CellAttribute, Mesh};
+use gemlab::mesh::{CellAttribute, CellId, Mesh, PointId};
 use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 /// Defines the smallest allowed Δt
@@ -128,9 +128,6 @@ pub struct Config<'a> {
     /// Initial or constant stepsize Δt
     pub(crate) ddt: f64,
 
-    /// Time increment Δt for the output of results
-    pub(crate) ddt_out: f64,
-
     /// Minimum allowed time increment min(Δt)
     pub(crate) ddt_min: f64,
 
@@ -238,6 +235,32 @@ pub struct Config<'a> {
 
     /// Substepping derivative parameter
     pub(crate) ss_kd: f64,
+
+    // Output of results ----------------------------------------------------------------------
+    //
+    /// Flag indicating that the file generation is enabled
+    pub(crate) out_files: bool,
+
+    /// Directory with the results
+    pub(crate) out_dir: String,
+
+    /// Filename stem
+    pub(crate) out_fn_stem: String,
+
+    /// Time increment Δt for the output of results
+    pub(crate) out_ddt: f64,
+
+    /// Output DOF values at selected points
+    pub(crate) out_dof: HashSet<(PointId, Dof)>,
+
+    /// Output stress values at selected integration points
+    pub(crate) out_stress: HashSet<CellId>,
+
+    /// Output strain values at selected integration points
+    pub(crate) out_strain: HashSet<CellId>,
+
+    /// Indicates whether the output of selected points and cells are active
+    pub(crate) out_has_selected: bool,
 }
 
 impl<'a> Config<'a> {
@@ -272,7 +295,6 @@ impl<'a> Config<'a> {
             constant_ddt: true,
             t_fin: 1.0,
             ddt: 1.0,
-            ddt_out: 1.0,
             ddt_min: CONFIG_DT_MIN,
             max_steps: 10_000,
             verbose_timesteps: true,
@@ -308,6 +330,15 @@ impl<'a> Config<'a> {
             ss_kp: 0.075,
             ss_ki: 0.175,
             ss_kd: 0.01,
+            // Output of results
+            out_files: false,
+            out_dir: String::new(),
+            out_fn_stem: String::new(),
+            out_ddt: 1.0,
+            out_dof: HashSet::new(),
+            out_stress: HashSet::new(),
+            out_strain: HashSet::new(),
+            out_has_selected: false,
         }
     }
 
@@ -640,12 +671,6 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the time increment Δt for the output of results
-    pub fn set_ddt_out(&mut self, ddt_out: f64) -> &mut Self {
-        self.ddt_out = ddt_out;
-        self
-    }
-
     /// Sets the minimum allowed time increment min(Δt)
     ///
     /// # Panics
@@ -784,6 +809,42 @@ impl<'a> Config<'a> {
     /// Enables substepping
     pub fn set_substepping(&mut self, enable: bool) -> &mut Self {
         self.substepping = enable;
+        self
+    }
+
+    // Output of results ----------------------------------------------------------------------
+
+    /// Enables the generation of output files
+    pub fn set_out_files(&mut self, dir: &str, fn_stem: &str, ddt_out: f64) -> &mut Self {
+        self.out_dir = dir.to_string();
+        self.out_fn_stem = fn_stem.to_string();
+        self.out_ddt = ddt_out;
+        self.out_files = true;
+        self
+    }
+
+    /// Sets the output DOF values at selected points
+    pub fn set_out_dof(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+        self.out_dof.insert((point_id, dof));
+        self.out_has_selected = true;
+        self
+    }
+
+    /// Sets the output stress values at selected integration points
+    ///
+    /// Note: only the first integration point is considered.
+    pub fn set_out_stress(&mut self, cell_id: CellId) -> &mut Self {
+        self.out_stress.insert(cell_id);
+        self.out_has_selected = true;
+        self
+    }
+
+    /// Output strain values at selected integration points
+    ///
+    /// Note: only the first integration point is considered.
+    pub fn set_out_strain(&mut self, cell_id: CellId) -> &mut Self {
+        self.out_strain.insert(cell_id);
+        self.out_has_selected = true;
         self
     }
 }

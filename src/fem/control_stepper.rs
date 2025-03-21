@@ -159,7 +159,7 @@ impl<'a> ControlStepper<'a> {
     /// * `false` otherwise
     pub fn out(&mut self, state: &FemState) -> bool {
         let do_output = state.time >= self.t_out || self.last;
-        self.t_out += self.config.ddt_out;
+        self.t_out += self.config.out_ddt;
         do_output
     }
 

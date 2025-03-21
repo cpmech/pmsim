@@ -67,6 +67,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
+        .set_out_files("/tmp/pmsim", NAME, 1.0)
         .set_axisymmetric()
         .set_steady(PP.len())
         .set_lagrange_mult_method(true)
@@ -77,8 +78,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new();
-    results.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    let mut results = FemResults::new(&mesh, &base, &config)?;
 
     // solution
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
@@ -90,6 +90,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let all_good = compare_results(
         &mesh,
         &base,
+        &config,
         &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
