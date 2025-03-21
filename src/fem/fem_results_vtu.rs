@@ -1,4 +1,4 @@
-use super::{FemBase, FemResults};
+use super::FemBase;
 use crate::base::Dof;
 use crate::fem::FemState;
 use crate::StrError;
@@ -7,215 +7,213 @@ use std::fmt::Write;
 use std::fs::File;
 use std::io::Write as IoWrite;
 
-impl FemResults {
-    /// Writes a file associated with a single time station to perform visualization with ParaView
-    ///
-    /// Returns the path to the VTU file
-    ///
-    /// The files will be indexed with `index` corresponding to each time station.
-    pub fn write_vtu(
-        &self,
-        mesh: &Mesh,
-        base: &FemBase,
-        dir: &str,
-        fn_stem: &str,
-        state: &FemState,
-        index: usize,
-    ) -> Result<String, StrError> {
-        let ndim = mesh.ndim;
-        let npoint = mesh.points.len();
-        let ncell = mesh.cells.len();
-        if ncell < 1 {
-            return Err("there are no cells to write");
-        }
+/// Writes a file associated with a single time station to perform visualization with ParaView
+///
+/// Returns the path to the VTU file
+///
+/// The files will be indexed with `index` corresponding to each time station.
+pub(crate) fn write_vtu(
+    mesh: &Mesh,
+    base: &FemBase,
+    dir: &str,
+    fn_stem: &str,
+    state: &FemState,
+    index: usize,
+) -> Result<String, StrError> {
+    let ndim = mesh.ndim;
+    let npoint = mesh.points.len();
+    let ncell = mesh.cells.len();
+    if ncell < 1 {
+        return Err("there are no cells to write");
+    }
 
-        // auxiliary information
-        let enabled_dofs = base.dofs.enabled();
-        let not_displacement_dof: Vec<_> = enabled_dofs
-            .iter()
-            .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
-            .copied()
-            .collect();
+    // auxiliary information
+    let enabled_dofs = base.dofs.enabled();
+    let not_displacement_dof: Vec<_> = enabled_dofs
+        .iter()
+        .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
+        .copied()
+        .collect();
 
-        // output buffer
-        let mut buffer = String::new();
+    // output buffer
+    let mut buffer = String::new();
 
-        // header
-        write!(
-            &mut buffer,
-            "<?xml version=\"1.0\"?>\n\
+    // header
+    write!(
+        &mut buffer,
+        "<?xml version=\"1.0\"?>\n\
              <VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n\
              <UnstructuredGrid>\n\
              <Piece NumberOfPoints=\"{}\" NumberOfCells=\"{}\">\n",
-            npoint, ncell
-        )
-        .unwrap();
+        npoint, ncell
+    )
+    .unwrap();
 
-        // nodes: coordinates
-        write!(
-            &mut buffer,
-            "<Points>\n\
+    // nodes: coordinates
+    write!(
+        &mut buffer,
+        "<Points>\n\
              <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n",
-        )
-        .unwrap();
-        for index in 0..npoint {
-            for dim in 0..ndim {
-                write!(&mut buffer, "{:?} ", mesh.points[index].coords[dim]).unwrap();
-            }
-            if ndim == 2 {
-                write!(&mut buffer, "0.0 ").unwrap();
-            }
+    )
+    .unwrap();
+    for index in 0..npoint {
+        for dim in 0..ndim {
+            write!(&mut buffer, "{:?} ", mesh.points[index].coords[dim]).unwrap();
         }
-        write!(
-            &mut buffer,
-            "\n</DataArray>\n\
+        if ndim == 2 {
+            write!(&mut buffer, "0.0 ").unwrap();
+        }
+    }
+    write!(
+        &mut buffer,
+        "\n</DataArray>\n\
              </Points>\n"
-        )
-        .unwrap();
+    )
+    .unwrap();
 
-        // elements: connectivity
-        write!(
-            &mut buffer,
-            "<Cells>\n\
+    // elements: connectivity
+    write!(
+        &mut buffer,
+        "<Cells>\n\
              <DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\n"
-        )
-        .unwrap();
-        for cell in &mesh.cells {
-            if cell.kind.vtk_type().is_none() {
-                return Err("cannot generate VTU file because VTK cell type is not available");
-            }
-            for p in &cell.points {
-                write!(&mut buffer, "{} ", p).unwrap();
-            }
+    )
+    .unwrap();
+    for cell in &mesh.cells {
+        if cell.kind.vtk_type().is_none() {
+            return Err("cannot generate VTU file because VTK cell type is not available");
         }
+        for p in &cell.points {
+            write!(&mut buffer, "{} ", p).unwrap();
+        }
+    }
 
-        // elements: offsets
-        write!(
-            &mut buffer,
-            "\n</DataArray>\n\
+    // elements: offsets
+    write!(
+        &mut buffer,
+        "\n</DataArray>\n\
              <DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n"
-        )
-        .unwrap();
-        let mut offset = 0;
-        for cell in &mesh.cells {
-            offset += cell.points.len();
-            write!(&mut buffer, "{} ", offset).unwrap();
-        }
+    )
+    .unwrap();
+    let mut offset = 0;
+    for cell in &mesh.cells {
+        offset += cell.points.len();
+        write!(&mut buffer, "{} ", offset).unwrap();
+    }
 
-        // elements: types
-        write!(
-            &mut buffer,
-            "\n</DataArray>\n\
+    // elements: types
+    write!(
+        &mut buffer,
+        "\n</DataArray>\n\
              <DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n"
-        )
-        .unwrap();
-        for cell in &mesh.cells {
-            if let Some(vtk) = cell.kind.vtk_type() {
-                write!(&mut buffer, "{} ", vtk).unwrap();
-            }
+    )
+    .unwrap();
+    for cell in &mesh.cells {
+        if let Some(vtk) = cell.kind.vtk_type() {
+            write!(&mut buffer, "{} ", vtk).unwrap();
         }
-        write!(
-            &mut buffer,
-            "\n</DataArray>\n\
+    }
+    write!(
+        &mut buffer,
+        "\n</DataArray>\n\
              </Cells>\n"
-        )
-        .unwrap();
+    )
+    .unwrap();
 
-        // data: points
-        write!(&mut buffer, "<PointData Scalars=\"TheScalars\">\n").unwrap();
-        if enabled_dofs.contains(&Dof::Ux) {
-            write!(
-                &mut buffer,
-                "<DataArray type=\"Float64\" Name=\"displacement\" NumberOfComponents=\"3\" format=\"ascii\">\n"
-            )
-            .unwrap();
-            for point in &mesh.points {
-                let ux = match base.dofs.eq(point.id, Dof::Ux).ok() {
-                    Some(eq) => state.u[eq],
-                    None => 0.0,
-                };
-                let uy = match base.dofs.eq(point.id, Dof::Uy).ok() {
-                    Some(eq) => state.u[eq],
-                    None => 0.0,
-                };
-                let uz = match base.dofs.eq(point.id, Dof::Uz).ok() {
-                    Some(eq) => state.u[eq],
-                    None => 0.0,
-                };
-                write!(&mut buffer, "{:?} {:?} {:?} ", ux, uy, uz).unwrap();
-            }
-            write!(&mut buffer, "\n</DataArray>\n").unwrap();
-        }
-        for dof in &not_displacement_dof {
-            write!(
-                &mut buffer,
-                "<DataArray type=\"Float64\" Name=\"{:?}\" NumberOfComponents=\"1\" format=\"ascii\">\n",
-                dof
-            )
-            .unwrap();
-            for point in &mesh.points {
-                let value = match base.dofs.eq(point.id, *dof).ok() {
-                    Some(eq) => state.u[eq],
-                    None => 0.0,
-                };
-                write!(&mut buffer, "{:?} ", value).unwrap();
-            }
-            write!(&mut buffer, "\n</DataArray>\n").unwrap();
-        }
-        write!(&mut buffer, "</PointData>\n").unwrap();
-
-        // footer
+    // data: points
+    write!(&mut buffer, "<PointData Scalars=\"TheScalars\">\n").unwrap();
+    if enabled_dofs.contains(&Dof::Ux) {
         write!(
             &mut buffer,
-            "</Piece>\n\
+            "<DataArray type=\"Float64\" Name=\"displacement\" NumberOfComponents=\"3\" format=\"ascii\">\n"
+        )
+        .unwrap();
+        for point in &mesh.points {
+            let ux = match base.dofs.eq(point.id, Dof::Ux).ok() {
+                Some(eq) => state.u[eq],
+                None => 0.0,
+            };
+            let uy = match base.dofs.eq(point.id, Dof::Uy).ok() {
+                Some(eq) => state.u[eq],
+                None => 0.0,
+            };
+            let uz = match base.dofs.eq(point.id, Dof::Uz).ok() {
+                Some(eq) => state.u[eq],
+                None => 0.0,
+            };
+            write!(&mut buffer, "{:?} {:?} {:?} ", ux, uy, uz).unwrap();
+        }
+        write!(&mut buffer, "\n</DataArray>\n").unwrap();
+    }
+    for dof in &not_displacement_dof {
+        write!(
+            &mut buffer,
+            "<DataArray type=\"Float64\" Name=\"{:?}\" NumberOfComponents=\"1\" format=\"ascii\">\n",
+            dof
+        )
+        .unwrap();
+        for point in &mesh.points {
+            let value = match base.dofs.eq(point.id, *dof).ok() {
+                Some(eq) => state.u[eq],
+                None => 0.0,
+            };
+            write!(&mut buffer, "{:?} ", value).unwrap();
+        }
+        write!(&mut buffer, "\n</DataArray>\n").unwrap();
+    }
+    write!(&mut buffer, "</PointData>\n").unwrap();
+
+    // footer
+    write!(
+        &mut buffer,
+        "</Piece>\n\
              </UnstructuredGrid>\n\
              </VTKFile>\n"
+    )
+    .unwrap();
+
+    // write file
+    let path = format!("{}/{}-{:0>20}.vtu", dir, fn_stem, index);
+    let mut file = File::create(&path).map_err(|_| "cannot create VTU file")?;
+    file.write_all(buffer.as_bytes()).map_err(|_| "cannot write VTU file")?;
+    Ok(path)
+}
+
+/// Writes a summary file for all time stations to perform visualization with ParaView
+///
+/// Returns the path to the PVD file
+pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f64]) -> Result<String, StrError> {
+    // header
+    let mut buffer = String::new();
+    write!(&mut buffer, "<?xml version=\"1.0\"?>\n<VTKFile type=\"Collection\" version=\"0.1\" byte_order=\"LittleEndian\">\n<Collection>\n").unwrap();
+
+    // add VTU entries to PVD file
+    for index in indices {
+        let vtu_fn = format!("{}/{}-{:0>20}.vtu", dir, fn_stem, *index);
+        write!(
+            &mut buffer,
+            "<DataSet timestep=\"{:?}\" file=\"{}\" />\n",
+            times[*index], vtu_fn
         )
         .unwrap();
-
-        // write file
-        let path = format!("{}/{}-{:0>20}.vtu", dir, fn_stem, index);
-        let mut file = File::create(&path).map_err(|_| "cannot create VTU file")?;
-        file.write_all(buffer.as_bytes()).map_err(|_| "cannot write VTU file")?;
-        Ok(path)
     }
 
-    /// Writes a summary file for all time stations to perform visualization with ParaView
-    ///
-    /// Returns the path to the PVD file
-    pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
-        // header
-        let mut buffer = String::new();
-        write!(&mut buffer, "<?xml version=\"1.0\"?>\n<VTKFile type=\"Collection\" version=\"0.1\" byte_order=\"LittleEndian\">\n<Collection>\n").unwrap();
+    // footer
+    write!(&mut buffer, "</Collection>\n</VTKFile>\n").unwrap();
 
-        // add VTU entries to PVD file
-        for index in &self.indices {
-            let vtu_fn = format!("{}/{}-{:0>20}.vtu", dir, fn_stem, *index);
-            write!(
-                &mut buffer,
-                "<DataSet timestep=\"{:?}\" file=\"{}\" />\n",
-                self.times[*index], vtu_fn
-            )
-            .unwrap();
-        }
-
-        // footer
-        write!(&mut buffer, "</Collection>\n</VTKFile>\n").unwrap();
-
-        // write file
-        let path = format!("{}/{}.pvd", dir, fn_stem);
-        let mut file = File::create(&path).map_err(|_| "cannot create PVD file")?;
-        file.write_all(buffer.as_bytes()).map_err(|_| "cannot write PVD file")?;
-        Ok(path)
-    }
+    // write file
+    let path = format!("{}/{}.pvd", dir, fn_stem);
+    let mut file = File::create(&path).map_err(|_| "cannot create PVD file")?;
+    file.write_all(buffer.as_bytes()).map_err(|_| "cannot write PVD file")?;
+    Ok(path)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
+    use super::{write_pvd, write_vtu};
     use crate::base::{Config, Dof, Elem, Essential, ParamBeam, ParamPorousSldLiq, ParamSolid};
-    use crate::fem::{FemBase, FemResults, FemState};
+    use crate::fem::{FemBase, FemState};
     use gemlab::mesh::Samples;
     use std::fs;
 
@@ -239,11 +237,8 @@ mod tests {
         }
 
         let index = 0;
-        let results = FemResults::new(&mesh, &base, &config).unwrap();
         let name = "test_write_vtu_works";
-        let path = results
-            .write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index)
-            .unwrap();
+        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index).unwrap();
 
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
@@ -331,11 +326,8 @@ mod tests {
         }
 
         let index = 0;
-        let results = FemResults::new(&mesh, &base, &config).unwrap();
         let name = "test_write_vtu_works_mixed";
-        let path = results
-            .write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index)
-            .unwrap();
+        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index).unwrap();
 
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
@@ -381,18 +373,12 @@ mod tests {
     #[test]
     fn write_pvd_works() {
         let mesh = Samples::three_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let essential = Essential::new();
         let mut config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
         let name = "test_write_pvd_works";
         config.set_out_files("/tmp/pmsim", name, 0.0);
-        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
-        results.write_state(&config, &state).unwrap();
-        let path = results.write_pvd("/tmp/pmsim", name).unwrap();
+        let path = write_pvd("/tmp/pmsim", name, &[0], &[0.0]).unwrap();
 
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(

@@ -1,3 +1,4 @@
+use super::fem_results_vtu::{write_pvd, write_vtu};
 use super::{FemBase, FemResults, FemState};
 use crate::base::Dof;
 use crate::util::{SpatialTensor, TensorComponentsMap};
@@ -819,15 +820,14 @@ impl PostProc {
     ///
     /// Returns the path to the VTK file
     pub fn write_vtu(&self, dir: &str, fn_stem: &str, state: &FemState, index: usize) -> Result<String, StrError> {
-        self.results
-            .write_vtu(&self.mesh, &self.base, dir, fn_stem, state, index)
+        write_vtu(&self.mesh, &self.base, dir, fn_stem, state, index)
     }
 
     /// Writes Paraview's PVD file
     ///
     /// Returns the path to the PVD file
     pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
-        self.results.write_pvd(dir, fn_stem)
+        write_pvd(dir, fn_stem, &self.results.indices, &self.results.times)
     }
 }
 
