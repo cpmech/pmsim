@@ -936,8 +936,7 @@ mod tests {
         config
             .set_out_dof(point_id, Dof::Ux)
             .set_out_dof(point_id, Dof::Uy)
-            .set_out_stress(cell_id)
-            .set_out_strain(cell_id);
+            .set_out_local_state(cell_id);
 
         let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
@@ -1008,8 +1007,7 @@ mod tests {
             .set_out_dof(point_id, Dof::Ux)
             .set_out_dof(point_id, Dof::Uy)
             .set_out_dof(point_id, Dof::Uz)
-            .set_out_stress(cell_id)
-            .set_out_strain(cell_id);
+            .set_out_local_state(cell_id);
 
         let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
@@ -1095,32 +1093,23 @@ mod tests {
         let eqy = post.base.dofs.eq(point_id, Dof::Uy).unwrap();
         let sel_ux = post.results.get_dof(point_id, Dof::Ux).unwrap();
         let sel_uy = post.results.get_dof(point_id, Dof::Uy).unwrap();
-        let correct = [duu_h, duu_v, duu_s];
+        let correct = [&duu_h, &duu_v, &duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
             approx_eq(sel_uy[i], correct[i][eqy], 1e-15);
         }
 
-        // check selected stresses
+        // check selected stresses and strains
         let cell_id = 1;
-        let s = post.results.get_stress(cell_id).unwrap();
-        let correct = [stress_h, stress_v, stress_s];
+        let s = post.results.get_local_state(cell_id).unwrap();
+        let sig = [&stress_h, &stress_v, &stress_s];
+        let eps = [&strain_h, &strain_v, &strain_s];
+        let ncp = 4;
         for i in 0..3 {
-            approx_eq(s.txx[i], correct[i].get(0, 0), 1e-14);
-            approx_eq(s.tyy[i], correct[i].get(1, 1), 1e-14);
-            approx_eq(s.tzz[i], correct[i].get(2, 2), 1e-14);
-            approx_eq(s.txy[i], correct[i].get(0, 1), 1e-14);
-        }
-
-        // check selected strains
-        let cell_id = 1;
-        let s = post.results.get_strain(cell_id).unwrap();
-        let correct = [strain_h, strain_v, strain_s];
-        for i in 0..3 {
-            approx_eq(s.txx[i], correct[i].get(0, 0), 1e-14);
-            approx_eq(s.tyy[i], correct[i].get(1, 1), 1e-14);
-            approx_eq(s.tzz[i], correct[i].get(2, 2), 1e-14);
-            approx_eq(s.txy[i], correct[i].get(0, 1), 1e-14);
+            for j in 0..ncp {
+                approx_eq(s[i].stress.vector()[j], sig[i].vector()[j], 1e-14);
+                approx_eq(s[i].strain.as_ref().unwrap().vector()[j], eps[i].vector()[j], 1e-14);
+            }
         }
     }
 
@@ -1189,30 +1178,17 @@ mod tests {
             approx_eq(sel_uz[i], correct[i][eqz], 1e-15);
         }
 
-        // check selected stresses
+        // check selected stresses and strains
         let cell_id = 1;
-        let s = post.results.get_stress(cell_id).unwrap();
-        let correct = [stress_h, stress_v, stress_s];
+        let s = post.results.get_local_state(cell_id).unwrap();
+        let sig = [&stress_h, &stress_v, &stress_s];
+        let eps = [&strain_h, &strain_v, &strain_s];
+        let ncp = 6;
         for i in 0..3 {
-            approx_eq(s.txx[i], correct[i].get(0, 0), 1e-14);
-            approx_eq(s.tyy[i], correct[i].get(1, 1), 1e-14);
-            approx_eq(s.tzz[i], correct[i].get(2, 2), 1e-14);
-            approx_eq(s.txy[i], correct[i].get(0, 1), 1e-14);
-            approx_eq(s.tyz[i], correct[i].get(1, 2), 1e-14);
-            approx_eq(s.tzx[i], correct[i].get(2, 0), 1e-14);
-        }
-
-        // check selected strains
-        let cell_id = 1;
-        let s = post.results.get_strain(cell_id).unwrap();
-        let correct = [strain_h, strain_v, strain_s];
-        for i in 0..3 {
-            approx_eq(s.txx[i], correct[i].get(0, 0), 1e-14);
-            approx_eq(s.tyy[i], correct[i].get(1, 1), 1e-14);
-            approx_eq(s.tzz[i], correct[i].get(2, 2), 1e-14);
-            approx_eq(s.txy[i], correct[i].get(0, 1), 1e-14);
-            approx_eq(s.tyz[i], correct[i].get(1, 2), 1e-14);
-            approx_eq(s.tzx[i], correct[i].get(2, 0), 1e-14);
+            for j in 0..ncp {
+                approx_eq(s[i].stress.vector()[j], sig[i].vector()[j], 1e-14);
+                approx_eq(s[i].strain.as_ref().unwrap().vector()[j], eps[i].vector()[j], 1e-14);
+            }
         }
     }
 

@@ -253,11 +253,8 @@ pub struct Config<'a> {
     /// Output DOF values at selected points
     pub(crate) out_dof: HashSet<(PointId, Dof)>,
 
-    /// Output stress values at selected integration points
-    pub(crate) out_stress: HashSet<CellId>,
-
-    /// Output strain values at selected integration points
-    pub(crate) out_strain: HashSet<CellId>,
+    /// Output local state at selected integration points
+    pub(crate) out_local_state: HashSet<CellId>,
 
     /// Indicates whether the output of selected points and cells are active
     pub(crate) out_has_selected: bool,
@@ -336,8 +333,7 @@ impl<'a> Config<'a> {
             out_fn_stem: String::new(),
             out_ddt: 1.0,
             out_dof: HashSet::new(),
-            out_stress: HashSet::new(),
-            out_strain: HashSet::new(),
+            out_local_state: HashSet::new(),
             out_has_selected: false,
         }
     }
@@ -830,20 +826,11 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the output stress values at selected integration points
+    /// Sets the output local state at selected integration points
     ///
     /// Note: only the first integration point is considered.
-    pub fn set_out_stress(&mut self, cell_id: CellId) -> &mut Self {
-        self.out_stress.insert(cell_id);
-        self.out_has_selected = true;
-        self
-    }
-
-    /// Output strain values at selected integration points
-    ///
-    /// Note: only the first integration point is considered.
-    pub fn set_out_strain(&mut self, cell_id: CellId) -> &mut Self {
-        self.out_strain.insert(cell_id);
+    pub fn set_out_local_state(&mut self, cell_id: CellId) -> &mut Self {
+        self.out_local_state.insert(cell_id);
         self.out_has_selected = true;
         self
     }

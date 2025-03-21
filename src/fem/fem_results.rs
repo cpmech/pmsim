@@ -1,5 +1,6 @@
 use crate::base::{Config, Dof};
 use crate::fem::{FemBase, FemState};
+use crate::material::LocalState;
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh, PointId};
 use serde::{Deserialize, Serialize};
@@ -8,31 +9,6 @@ use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
-
-/// Holds a tensor-valued quantity at a Gauss point along time
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TemporalTensor {
-    pub txx: Vec<f64>,
-    pub tyy: Vec<f64>,
-    pub tzz: Vec<f64>,
-    pub txy: Vec<f64>,
-    pub tyz: Vec<f64>,
-    pub tzx: Vec<f64>,
-}
-
-impl TemporalTensor {
-    /// Allocates a new instance
-    pub fn new() -> Self {
-        TemporalTensor {
-            txx: Vec::new(),
-            tyy: Vec::new(),
-            tzz: Vec::new(),
-            txy: Vec::new(),
-            tyz: Vec::new(),
-            tzx: Vec::new(),
-        }
-    }
-}
 
 /// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -60,15 +36,10 @@ pub struct FemResults {
     /// Maps "PointId,Dof" to an array with the values along time
     sel_dof: HashMap<String, Vec<f64>>,
 
-    /// Stresses at selected integration points along time
+    /// LocalState at selected integration points along time
     ///
     /// The results at the first integration point are saved only.
-    sel_stress: HashMap<CellId, TemporalTensor>,
-
-    /// Strains at selected integration points along time
-    ///
-    /// The results at the first integration point are saved only.
-    sel_strain: HashMap<CellId, TemporalTensor>,
+    sel_local_state: HashMap<CellId, Vec<LocalState>>,
 }
 
 impl FemResults {
@@ -92,8 +63,7 @@ impl FemResults {
             sel_step: Vec::new(),
             sel_lambda: Vec::new(),
             sel_dof: HashMap::new(),
-            sel_stress: HashMap::new(),
-            sel_strain: HashMap::new(),
+            sel_local_state: HashMap::new(),
         })
     }
 
@@ -104,13 +74,8 @@ impl FemResults {
     }
 
     /// Returns the temporal output of stresses at selected integration points
-    pub fn get_stress(&self, cell_id: CellId) -> Option<&TemporalTensor> {
-        self.sel_stress.get(&cell_id)
-    }
-
-    /// Returns the temporal output of strains at selected integration points
-    pub fn get_strain(&self, cell_id: CellId) -> Option<&TemporalTensor> {
-        self.sel_strain.get(&cell_id)
+    pub fn get_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+        self.sel_local_state.get(&cell_id)
     }
 
     /// Reads a JSON file containing this struct
@@ -186,32 +151,12 @@ impl FemResults {
             }
 
             // stresses
-            for cell_id in config.out_stress.iter() {
-                if let Some(s) = state.gauss[*cell_id].stress(0).ok() {
-                    let r = self.sel_stress.entry(*cell_id).or_insert(TemporalTensor::new());
-                    r.txx.push(s.get(0, 0));
-                    r.tyy.push(s.get(1, 1));
-                    r.tzz.push(s.get(2, 2));
-                    r.txy.push(s.get(0, 1));
-                    if s.dim() > 4 {
-                        r.tyz.push(s.get(1, 2));
-                        r.tzx.push(s.get(2, 0));
-                    }
-                }
-            }
-
-            // strains
-            for cell_id in config.out_strain.iter() {
-                if let Some(s) = state.gauss[*cell_id].strain(0).ok() {
-                    let r = self.sel_strain.entry(*cell_id).or_insert(TemporalTensor::new());
-                    r.txx.push(s.get(0, 0));
-                    r.tyy.push(s.get(1, 1));
-                    r.tzz.push(s.get(2, 2));
-                    r.txy.push(s.get(0, 1));
-                    if s.dim() > 4 {
-                        r.tyz.push(s.get(1, 2));
-                        r.tzx.push(s.get(2, 0));
-                    }
+            for cell_id in config.out_local_state.iter() {
+                if let Some(s) = state.gauss[*cell_id].get_local_state(0).ok() {
+                    self.sel_local_state
+                        .entry(*cell_id)
+                        .or_insert(Vec::new())
+                        .push(s.clone());
                 }
             }
         }
