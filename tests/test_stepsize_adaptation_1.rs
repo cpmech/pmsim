@@ -121,12 +121,15 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
     for i in 0..n_out {
         let pp = calc_pp(results.sel_step[i], results.sel_lambda[i]);
         let ux = results.sel_disp.get(&outer_point).unwrap().ux[i];
-        let ub = ana.calc_ub(pp)?;
         if results.sel_step[i] == 0 {
+            let ub = ana.calc_ub(pp)?;
             println!("loading:   pp = {:.3}, ux = {} ({})", pp, ux, ub);
-            approx_eq(ux, ub, 0.0069);
+            approx_eq(ux, ub, 0.00685);
         } else {
-            println!("unloading: pp = {:.3}, ux = {}", pp, ux);
+            // let ub = ana.calc_ur_elastic(B, 0.019);
+            let ub = ana.calc_ub_elastic(P_MAX_RES, pp)?;
+            println!("unloading: pp = {:.3}, ux = {} ({})", pp, ux, ub);
+            approx_eq(ux, ub, 0.00685);
         }
         if SAVE_FIGURE {
             pp_arr.push(pp);

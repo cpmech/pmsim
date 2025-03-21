@@ -93,13 +93,25 @@ impl PlastPlaneStrainPresCylin {
         Ok(ub)
     }
 
-    /// Calculates the radial and hoop stress components for a purely elastic problem
-    pub fn calc_sr_sh_elastic(&self, r: f64, pp: f64) -> (f64, f64) {
-        let m = self.b * self.b / (self.a * self.a);
-        let d = self.b * self.b / (r * r);
-        let sr = -pp * (d - 1.0) / (m - 1.0);
-        let sh = pp * (d + 1.0) / (m - 1.0);
-        (sr, sh)
+    /// Calculates the radial displacement for a purely elastic problem
+    fn calc_ur_elastic(&self, r: f64, pp: f64) -> f64 {
+        let opp = 1.0 + self.poisson;
+        let omp = 1.0 - 2.0 * self.poisson;
+        let ee = self.young;
+        let m = self.b * self.b / (self.a * self.a) - 1.0;
+        let d = self.b * self.b / r;
+        pp * opp * (omp * r + d) / (ee * m)
+    }
+
+    /// Calculates the radial displacement (ub = ur(b)) at the outer face during the elastic unloading
+    pub fn calc_ub_elastic(&self, pp_max: f64, pp: f64) -> Result<f64, StrError> {
+        if pp < 0.0 || pp > pp_max {
+            return Err("pp must be in 0 ≤ pp ≤ pp_max");
+        }
+        let ub_max = self.calc_ub(pp_max)?;
+        let ub_ela_max = self.calc_ur_elastic(self.b, pp_max);
+        let ub_ela = self.calc_ur_elastic(self.b, pp);
+        Ok(ub_max - (ub_ela_max - ub_ela))
     }
 
     /// Calculates the radial and hoop stress components
@@ -127,6 +139,15 @@ impl PlastPlaneStrainPresCylin {
             let d = 0.5 * c * c / (self.b * self.b) - f64::ln(c / r);
             Ok((self.yy * (d - 0.5), self.yy * (d + 0.5)))
         }
+    }
+
+    /// Calculates the radial and hoop stress components for a purely elastic problem
+    fn calc_sr_sh_elastic(&self, r: f64, pp: f64) -> (f64, f64) {
+        let m = self.b * self.b / (self.a * self.a) - 1.0;
+        let d = self.b * self.b / (r * r);
+        let sr = -pp * (d - 1.0) / m;
+        let sh = pp * (d + 1.0) / m;
+        (sr, sh)
     }
 
     /// Calculates the residual radial and hoop stresses after the loading is completely removed
