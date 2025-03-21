@@ -3,10 +3,15 @@ use gemlab::prelude::*;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
+use russell_sparse::Genie;
+use serial_test::serial;
 
-// von Mises plasticity with a four Qua8 elements
+// IMPORTANT:
+// Since MUMPS is not thread-safe, we need to use serial_test::serial
+
+// von Mises plasticity with a single-element
 //
-// This test runs a plane-strain compression of a square represented
+// This test runs a plane-strain compression of a single element represented
 // by the von Mises model. The results are compared with the code HYPLAS
 // discussed in Ref #1.
 //
@@ -16,28 +21,16 @@ use pmsim::StrError;
 //
 // MESH
 //
-//                 prescribed vertical displacement
-//                 ↓       ↓       ↓       ↓       ↓
-// 2.0   fix ux > 14------16------13------20------18
-//                 |               |               |
-//                 |               |               |
-// 1.5   fix ux > 17      [2]     15      [3]     19
-//                 |               |               |
-//                 |               |               |
-// 1.0   fix ux >  3-------6-------2------12-------9
-//                 |               |               |
-//                 |               |               |
-// 0.5   fix ux >  7      [0]      5      [1]     11
-//                 |               |               |
-//                 |               |               |
-// 0.0   fix ux >  0-------4-------1------10-------8
-//                 ^       ^       ^       ^       ^
-//             fix uy  fix uy  fix uy  fix uy  fix uy
+// Unit square
 //
-//                0.0     0.5     1.0     1.5     2.0
-//
-// xmin = 0.0, xmax = 2.0          E = 1500  z0 = 9.0
-// ymin = 0.0, ymax = 2.0          ν = 0.25  H = 800
+// displacement    displacement
+//         ↓         ↓
+//  roller 3---------2
+//         |         |   E = 1500  z0 = 9.0
+//         |         |   ν = 0.25  H = 800
+//         |         |
+//         0---------1
+//      fixed       roller
 //
 // BOUNDARY CONDITIONS
 //
@@ -53,14 +46,12 @@ use pmsim::StrError;
 // * Young: E = 1500, Poisson: ν = 0.25
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 //
-// The results are compared with the code HYPLAS discussed in Ref #1.
-//
 // # Reference
 //
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const NAME: &str = "test_von_mises_2x2_elements_2d";
+const NAME: &str = "spo_von_mises_single_element";
 
 // constants
 const YOUNG: f64 = 1500.0;
@@ -68,19 +59,20 @@ const POISSON: f64 = 0.25;
 const Z_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
-const NGAUSS: usize = 4;
+const NGAUSS: usize = 1;
 const NSTAGE: usize = 5;
 
 #[test]
-fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
+#[serial]
+fn test_spo_von_mises_single_element() -> Result<(), StrError> {
     // mesh
-    let mesh = Samples::block_2d_four_qua8();
+    let mesh = Samples::one_qua4();
 
     // features
     let features = Features::new(&mesh, false);
     let left = features.search_edges(At::X(0.0), any_x)?;
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
-    let top = features.search_edges(At::Y(2.0), any_x)?;
+    let top = features.search_edges(At::Y(1.0), any_x)?;
 
     // parameters
     let p1 = ParamSolid {
@@ -116,6 +108,22 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
         .set_steady(NSTAGE)
         .set_max_iterations(20);
 
+    // solve and check with UMFPACK
+    solve_and_check(&mesh, &base, &essential, &natural, &config)?;
+
+    // solve and check with MUMPS
+    config.set_lin_sol_genie(Genie::Mumps);
+    solve_and_check(&mesh, &base, &essential, &natural, &config)?;
+    Ok(())
+}
+
+fn solve_and_check(
+    mesh: &Mesh,
+    base: &FemBase,
+    essential: &Essential,
+    natural: &Natural,
+    config: &Config,
+) -> Result<(), StrError> {
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;
 
@@ -127,15 +135,15 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     solver.solve(&mut state, &mut results)?;
 
     // compare the results with Ref #1
-    let tol_displacement = 1e-12;
-    let tol_stress = 1e-9;
+    let tol_displacement = 1e-13;
+    let tol_stress = 1e-10;
     let all_good = compare_results(
         &mesh,
         &base,
         &config,
         &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SPO,
-        &format!("data/spo/{}_ref.json", NAME),
+        &format!("data/spo/{}.json", NAME),
         tol_displacement,
         tol_stress,
         0,
