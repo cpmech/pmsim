@@ -1,8 +1,11 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
-use pmsim::material::{Plotter, PlotterData};
+use plotpy::Canvas;
+use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::StrError;
+use russell_lab::approx_eq;
+use russell_lab::math::SQRT_2_BY_3;
 
 // von Mises plasticity with a single-element
 //
@@ -42,7 +45,7 @@ use pmsim::StrError;
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 
 const NAME: &str = "test_von_mises_single_element_2d";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 // constants
 const YOUNG: f64 = 1500.0;
@@ -79,13 +82,14 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // stage-wise vertical displacement increment
     let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+    let calc_uy = |s, _| delta_y * ((1 + s) as f64);
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, 1.0, |s, _| delta_y * ((1 + s) as f64));
+        .edges_fn(&top, Dof::Uy, 1.0, calc_uy);
 
     // natural boundary conditions
     let natural = Natural::new();
@@ -97,7 +101,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_out_local_state(0)
         .set_lagrange_mult_method(true)
         .set_steady(NSTAGE)
-        .set_substepping(true)
+        .set_substepping(false)
         .set_max_iterations(20)
         .update_model_settings(1)
         .set_save_strain(true);
@@ -112,17 +116,46 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
-    // analysis
+    // check the results
+    let l0 = 1.0; // initial length of the element
     let ss = results.get_local_state(0).unwrap();
-    for s in ss {
-        println!("{:?}", s.elastic);
+    let mut zz = vec![0.0; results.sel_time.len()];
+    for i in 0..results.sel_step.len() {
+        let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
+        let time = results.sel_time[i];
+        if time == 0.0 {
+            assert_eq!(ey, 0.0);
+            continue;
+        }
+        let step = results.sel_step[i];
+        if step == 0 {
+            assert_eq!(ss[i].elastic, true);
+        } else {
+            assert_eq!(ss[i].elastic, false);
+        }
+        let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
+        let ey_ref = calc_uy(results.sel_step[i], 0.0) / l0;
+        approx_eq(ey, ey_ref, 1e-15);
+        zz[i] = ss[i].int_vars[0];
     }
 
     // figure
     if SAVE_FIGURE {
         let data = PlotterData::from_states(ss);
         let mut plotter = Plotter::new();
-        plotter.add_3x2(&data, false, |_, _, _| {})?;
+        plotter.set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});
+        plotter.set_extra(Axis::OctX, Axis::OctY, |plot| {
+            let mut circle = Canvas::new();
+            circle.set_face_color("None").set_edge_color("#8c77f4");
+            for i in 2..zz.len() {
+                circle.draw_circle(0.0, 0.0, zz[i] * SQRT_2_BY_3);
+            }
+            circle.draw_circle(0.0, 0.0, zz[2] * SQRT_2_BY_3);
+            plot.add(&circle);
+        });
+        plotter.add_2x2(&data, false, |curve, _, _| {
+            curve.set_marker_style(".");
+        })?;
         plotter.save(&format!("/tmp/pmsim/{}.svg", NAME))?;
     }
 
