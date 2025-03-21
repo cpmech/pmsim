@@ -1,5 +1,4 @@
-use super::fem_results_vtu::{write_pvd, write_vtu};
-use super::{FemBase, FemResults, FemState};
+use super::{write_pvd, write_vtu, FemBase, FemResults, FemState};
 use crate::base::Dof;
 use crate::util::{SpatialTensor, TensorComponentsMap};
 use crate::StrError;
