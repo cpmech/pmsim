@@ -157,7 +157,7 @@ mod tests {
     use super::ReferenceDataSPO;
     use crate::util::ReferenceDataTrait;
 
-    const TEST_FILE: &str = "data/spo/test_von_mises_single_element_2d_ref.json";
+    const TEST_FILE: &str = "data/spo/spo_von_mises_single_element.json";
 
     #[test]
     fn test_read_json_works() {
