@@ -51,7 +51,7 @@ use serial_test::serial;
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const NAME: &str = "test_von_mises_single_element_2d";
+const NAME: &str = "test_von_mises_single_element_2d_solvers";
 
 // constants
 const YOUNG: f64 = 1500.0;
