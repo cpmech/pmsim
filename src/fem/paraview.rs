@@ -172,7 +172,7 @@ pub(crate) fn write_vtu(
     .unwrap();
 
     // write file
-    let path = format!("{}/{}-{:0>20}.vtu", dir, fn_stem, index);
+    let path = format!("{}/{}-{}.vtu", dir, fn_stem, index);
     let mut file = File::create(&path).map_err(|_| "cannot create VTU file")?;
     file.write_all(buffer.as_bytes()).map_err(|_| "cannot write VTU file")?;
     Ok(path)
@@ -188,7 +188,7 @@ pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f6
 
     // add VTU entries to PVD file
     for index in indices {
-        let vtu_fn = format!("{}/{}-{:0>20}.vtu", dir, fn_stem, *index);
+        let vtu_fn = format!("{}/{}-{}.vtu", dir, fn_stem, *index);
         write!(
             &mut buffer,
             "<DataSet timestep=\"{:?}\" file=\"{}\" />\n",
@@ -386,7 +386,7 @@ mod tests {
             r#"<?xml version="1.0"?>
 <VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
 <Collection>
-<DataSet timestep="0.0" file="/tmp/pmsim/test_write_pvd_works-00000000000000000000.vtu" />
+<DataSet timestep="0.0" file="/tmp/pmsim/test_write_pvd_works-0.vtu" />
 </Collection>
 </VTKFile>
 "#

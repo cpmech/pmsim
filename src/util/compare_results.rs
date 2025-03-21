@@ -87,10 +87,7 @@ pub fn compare_results(
         let step = index - 1;
 
         // load state
-        let fem_state = FemState::read_json(&format!(
-            "{}/{}-{:0>20}.json",
-            config.out_dir, config.out_fn_stem, index
-        ))?;
+        let fem_state = FemState::read_json(&format!("{}/{}-{}.json", config.out_dir, config.out_fn_stem, index))?;
 
         if verbose > 0 {
             println!(

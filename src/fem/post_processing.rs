@@ -131,7 +131,7 @@ impl PostProc {
     ///
     /// Returns an error if the state file cannot be read or parsed.
     pub fn read_state(&self, index: usize) -> Result<FemState, StrError> {
-        let path = format!("{}/{}-{:0>20}.json", self.dir, self.fn_stem, index);
+        let path = format!("{}/{}-{}.json", self.dir, self.fn_stem, index);
         FemState::read_json(&path)
     }
 

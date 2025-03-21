@@ -149,7 +149,7 @@ impl FemResults {
         if config.out_files {
             // save the state
             state.write_json(&format!(
-                "{}/{}-{:0>20}.json",
+                "{}/{}-{}.json",
                 config.out_dir, config.out_fn_stem, self.counter
             ))?;
 
