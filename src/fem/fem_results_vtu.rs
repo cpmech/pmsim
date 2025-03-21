@@ -13,7 +13,7 @@ impl FemResults {
     /// The files will be indexed with `index` corresponding to each time station.
     pub fn write_vtu(&self, mesh: &Mesh, base: &FemBase, state: &FemState, index: usize) -> Result<(), StrError> {
         if !self.active {
-            return Err("FileIo must be activated first");
+            return Err("File generation must be activated first");
         }
 
         let ndim = mesh.ndim;
@@ -177,7 +177,7 @@ impl FemResults {
     /// Writes a summary file for all time stations to perform visualization with ParaView
     pub fn write_pvd(&self) -> Result<(), StrError> {
         if !self.active {
-            return Err("FileIo must be activated first");
+            return Err("File generation must be activated first");
         }
 
         // header
@@ -226,7 +226,7 @@ mod tests {
         let results = FemResults::new();
         assert_eq!(
             results.write_vtu(&mesh, &base, &state, 0).err(),
-            Some("FileIo must be activated first")
+            Some("File generation must be activated first")
         );
     }
 
@@ -392,7 +392,10 @@ mod tests {
     #[test]
     fn write_pvd_captures_errors() {
         let results = FemResults::new();
-        assert_eq!(results.write_pvd().err(), Some("FileIo must be activated first"));
+        assert_eq!(
+            results.write_pvd().err(),
+            Some("File generation must be activated first")
+        );
     }
 
     #[test]
