@@ -131,11 +131,11 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
-        // →        ⌠     →
-        // fᵐ_int = │ σ · Bᵐ dΩ
-        //          ⌡ ▔
-        //          Ωₑ
-        integ::vec_04_tb(f_int, &mut args, |sig, p, _, _| {
+        // →        ⌠ →            ⌠     →
+        // fᵐ_int = │ Bᵐ · σᵀ dΩ = │ σ · Bᵐ dΩ
+        //          ⌡      ▔       ⌡ ▔
+        //          Ωₑ             Ωₑ
+        integ::vec_04_bt(f_int, &mut args, |sig, p, _, _| {
             sig.set_tensor(1.0, &state.gauss[self.cell_id].solid[p].stress);
             Ok(())
         })
@@ -354,7 +354,7 @@ mod tests {
         // check f_int vector
         elem.calc_f_int(&mut f_int, &state).unwrap();
         let sigma = &state.gauss[0].solid[0].stress;
-        let correct = ana.vec_04_tb(sigma, false);
+        let correct = ana.vec_04_bt(sigma, false);
         vec_approx_eq(&f_int, &correct, 1e-15);
     }
 
@@ -425,7 +425,7 @@ mod tests {
         // check f_int vector
         elem.calc_f_int(&mut f_int, &state).unwrap();
         let sigma = &state.gauss[0].solid[0].stress;
-        let correct = ana.vec_04_tb(sigma);
+        let correct = ana.vec_04_bt(sigma);
         vec_approx_eq(&f_int, &correct, 1e-15);
     }
 

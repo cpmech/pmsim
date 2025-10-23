@@ -486,7 +486,7 @@ mod tests {
             }
             let mut pad = Mesh::get_pad(&mesh, e);
             let ana = integ::AnalyticalTri3::new(&mut pad);
-            let c = ana.vec_04_tb(&sigma, false);
+            let c = ana.vec_04_bt(&sigma, false);
             for l in 0..6 {
                 rr_correct[l2g[e][l]] += c[l];
             }
