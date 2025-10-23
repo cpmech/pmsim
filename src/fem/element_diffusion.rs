@@ -108,7 +108,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         args.axisymmetric = self.config.ideal.axisymmetric;
 
         // the conductivity term is always present, so we calculate it first with clear=true
-        integ::vec_03_vb(f_int, &mut args, |w, _, nn, bb| {
+        integ::vec_03_bv(f_int, &mut args, |w, _, nn, bb| {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
             for m in 0..nnode {
@@ -368,7 +368,7 @@ mod tests {
         let dtt_dx = 5.0;
         let w0 = -KX * dtt_dx;
         let w1 = 0.0;
-        let correct_f_int = Vector::from(&ana.vec_03_vb(-w0, -w1));
+        let correct_f_int = Vector::from(&ana.vec_03_bv(-w0, -w1));
         vec_approx_eq(&f_int, &correct_f_int, 1e-15);
 
         // check Jacobian matrix
@@ -431,7 +431,7 @@ mod tests {
         let w0 = -KX * dtt_dx;
         let w1 = 0.0;
         let w2 = -KZ * dtt_dz;
-        let correct_f_int = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
+        let correct_f_int = Vector::from(&ana.vec_03_bv(-w0, -w1, -w2));
         vec_approx_eq(&f_int, &correct_f_int, 1e-15);
 
         // check Jacobian matrix
