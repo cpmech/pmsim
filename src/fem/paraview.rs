@@ -4,10 +4,13 @@ use crate::fem::FemState;
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use std::fmt::Write;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Write as IoWrite;
+use std::path::Path;
 
 /// Writes a file associated with a single time station to perform visualization with ParaView
+///
+/// **Warning:** This function **does not** create the output directory if it does not exist.
 ///
 /// Returns the path to the VTU file
 ///
@@ -180,6 +183,8 @@ pub(crate) fn write_vtu(
 
 /// Writes a summary file for all time stations to perform visualization with ParaView
 ///
+/// **Note:** This function creates the output directory if it does not exist.
+///
 /// Returns the path to the PVD file
 pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f64]) -> Result<String, StrError> {
     // header
@@ -200,11 +205,15 @@ pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f6
     // footer
     write!(&mut buffer, "</Collection>\n</VTKFile>\n").unwrap();
 
-    // write file
-    let path = format!("{}/{}.pvd", dir, fn_stem);
+    // create directory and write file
+    let full_path = format!("{}/{}.pvd", dir, fn_stem);
+    let path = Path::new(&full_path).to_path_buf();
+    if let Some(p) = path.parent() {
+        fs::create_dir_all(p).map_err(|_| "cannot create directory")?;
+    }
     let mut file = File::create(&path).map_err(|_| "cannot create PVD file")?;
     file.write_all(buffer.as_bytes()).map_err(|_| "cannot write PVD file")?;
-    Ok(path)
+    Ok(full_path)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -219,6 +228,7 @@ mod tests {
 
     #[test]
     fn write_vtu_works() {
+        // load mesh and setup FEM structures
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
@@ -236,10 +246,17 @@ mod tests {
             state.u[eq] = strain * y;
         }
 
+        // create directory
+        fs::create_dir_all("/tmp/pmsim")
+            .map_err(|_| "cannot create directory")
+            .unwrap();
+
+        // write VTU file
         let index = 0;
         let name = "test_write_vtu_works";
         let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index).unwrap();
 
+        // check contents
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,
