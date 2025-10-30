@@ -325,6 +325,84 @@ mod tests {
     }
 
     #[test]
+    fn try_new_dof_mapping_3() {
+        let global_dofs = [Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl];
+        let mesh = SampleMeshes::hughes_fig261_qua4();
+        let given_dofs = [(0, Dof::Ux), (0, Dof::Uy), (2, Dof::Uy), (9, Dof::Ux)];
+        let npoint = mesh.points.len();
+        let mut active_dofs = vec![false; npoint * Dof::n()];
+
+        // Build local-equation-identifier (LEQ) to global-equation-identifier (GEQ) map
+        let nele = mesh.cells.len();
+        let mut leq_to_geq = vec![Vec::new(); nele]; // one for each element
+        let elem_dofs = [Dof::Ux, Dof::Uy];
+        let elem_ndof = elem_dofs.len();
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            leq_to_geq[e].resize(nnode * elem_ndof, 0);
+            for m in 0..nnode {
+                let a = mesh.cells[e].points[m]; // connectivity
+                for &dof in &elem_dofs {
+                    active_dofs[dof.i()] = true;
+                    let leq = dof.i() + m * elem_ndof; // local equation identifier
+                    let geq = dof.i() + a * Dof::n(); // global equation identifier
+                    leq_to_geq[e][leq] = geq;
+                }
+            }
+        }
+
+        // Build the global-equation-identifier (GEQ) to reduced-equation-identifier (REQ) map
+        const GIVEN: usize = usize::MAX;
+        let mut geq_to_req = vec![GIVEN; npoint * Dof::n()];
+        let mut req = 0; // reduced equation identifier
+        for a in 0..npoint {
+            for &dof in &global_dofs {
+                if active_dofs[dof.i()] && !given_dofs.contains(&(a, dof)) {
+                    let geq = dof.i() + a * Dof::n(); // global equation identifier
+                    geq_to_req[geq] = req;
+                    req += 1;
+                }
+            }
+        }
+
+        // Build Tom Hughes' LM array for testing
+        let mut nnode_max = 0;
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            nnode_max = usize::max(nnode_max, nnode);
+        }
+        assert_eq!(nnode_max, 4);
+        assert_eq!(elem_ndof, 2);
+        let mut lm_array = NumMatrix::<usize>::new(nnode_max * elem_ndof, nele);
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            for m in 0..nnode {
+                let a = mesh.cells[e].points[m]; // connectivity
+                for &dof in &elem_dofs {
+                    let leq = dof.i() + m * elem_ndof; // local equation identifier
+                    let geq = dof.i() + a * Dof::n(); // global equation identifier
+                    let req = geq_to_req[geq]; // reduced equation identifier
+                    if req != GIVEN {
+                        lm_array.set(leq, e, req + 1);
+                    }
+                }
+            }
+        }
+        println!("lm_array =\n{}", lm_array);
+        let correct = "┌                   ┐\n\
+                       │  0  1  4  6 10 12 │\n\
+                       │  0  2  5  7 11 13 │\n\
+                       │  1  3  6  8 12 14 │\n\
+                       │  2  0  7  9 13 15 │\n\
+                       │  6  8 12 14 17 19 │\n\
+                       │  7  9 13 15 18 20 │\n\
+                       │  4  6 10 12  0 17 │\n\
+                       │  5  7 11 13 16 18 │\n\
+                       └                   ┘";
+        assert_eq!(format!("{}", lm_array), correct);
+    }
+
+    #[test]
     fn compute_local_to_global_works() {
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id

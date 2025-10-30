@@ -40,6 +40,18 @@ pub enum Dof {
     Fso = 9,
 }
 
+impl Dof {
+    /// Returns the number of DOFs
+    pub fn n() -> usize {
+        10 // need to update this if another entry is added to Dof
+    }
+
+    /// Converts the enum to usize
+    pub fn i(&self) -> usize {
+        *self as usize
+    }
+}
+
 /// Defines natural boundary conditions (NBC)
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Nbc {
