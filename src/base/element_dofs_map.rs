@@ -34,8 +34,8 @@ impl ElementDofsMap {
 
 impl fmt::Display for ElementDofsMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Elements: DOFs and local equation numbers\n").unwrap();
-        write!(f, "=========================================\n").unwrap();
+        write!(f, "Elements: DOFs and local equation identifiers\n").unwrap();
+        write!(f, "=============================================\n").unwrap();
         let mut keys: Vec<_> = self.all.keys().collect();
         keys.sort_by(|a, b| {
             let aa = a.split_once(",").unwrap();
@@ -46,7 +46,7 @@ impl fmt::Display for ElementDofsMap {
             let info = self.all.get(key).unwrap();
             write!(f, "{}\n", key).unwrap();
             write!(f, "{}", info).unwrap();
-            write!(f, "-----------------------------------------\n").unwrap();
+            write!(f, "---------------------------------------------\n").unwrap();
         }
         Ok(())
     }
@@ -111,14 +111,14 @@ mod tests {
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(
             format!("{}", emap),
-            "Elements: DOFs and local equation numbers\n\
-             =========================================\n\
+            "Elements: DOFs and local equation identifiers\n\
+             =============================================\n\
              1,Tri3\n\
              0: [(Ux, 0), (Uy, 1)]\n\
              1: [(Ux, 2), (Uy, 3)]\n\
              2: [(Ux, 4), (Uy, 5)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
-             -----------------------------------------\n"
+             ---------------------------------------------\n"
         );
 
         // 3------------2------------5
@@ -135,21 +135,21 @@ mod tests {
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(
             format!("{}", emap),
-            "Elements: DOFs and local equation numbers\n\
-             =========================================\n\
+            "Elements: DOFs and local equation identifiers\n\
+             =============================================\n\
              1,Tri3\n\
              0: [(Pl, 0)]\n\
              1: [(Pl, 1)]\n\
              2: [(Pl, 2)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
-             -----------------------------------------\n\
+             ---------------------------------------------\n\
              2,Qua4\n\
              0: [(Pl, 0)]\n\
              1: [(Pl, 1)]\n\
              2: [(Pl, 2)]\n\
              3: [(Pl, 3)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
-             -----------------------------------------\n"
+             ---------------------------------------------\n"
         );
 
         // 8------7------6._
@@ -167,8 +167,8 @@ mod tests {
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(
             format!("{}", emap),
-            "Elements: DOFs and local equation numbers\n\
-             =========================================\n\
+            "Elements: DOFs and local equation identifiers\n\
+             =============================================\n\
              1,Qua8\n\
              0: [(Ux, 0), (Uy, 1), (Pl, 16)]\n\
              1: [(Ux, 2), (Uy, 3), (Pl, 17)]\n\
@@ -179,7 +179,7 @@ mod tests {
              6: [(Ux, 12), (Uy, 13)]\n\
              7: [(Ux, 14), (Uy, 15)]\n\
              (Pl @ Some(16), Pg @ None, T @ None)\n\
-             -----------------------------------------\n\
+             ---------------------------------------------\n\
              2,Tri6\n\
              0: [(Ux, 0), (Uy, 1)]\n\
              1: [(Ux, 2), (Uy, 3)]\n\
@@ -188,12 +188,12 @@ mod tests {
              4: [(Ux, 8), (Uy, 9)]\n\
              5: [(Ux, 10), (Uy, 11)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
-             -----------------------------------------\n\
+             ---------------------------------------------\n\
              3,Lin2\n\
              0: [(Ux, 0), (Uy, 1), (Rz, 2)]\n\
              1: [(Ux, 3), (Uy, 4), (Rz, 5)]\n\
              (Pl @ None, Pg @ None, T @ None)\n\
-             -----------------------------------------\n"
+             ---------------------------------------------\n"
         );
     }
 
