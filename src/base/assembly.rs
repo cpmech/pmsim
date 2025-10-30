@@ -143,10 +143,10 @@ pub fn assemble_matrix(
 #[cfg(test)]
 mod tests {
     use super::{assemble_matrix, assemble_vector};
-    use crate::base::{compute_local_to_global, AllDofs, Attributes, Elem, ElementDofsMap};
-    use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
+    use crate::base::{compute_local_to_global, AllDofs, Attributes, Dof, Elem, ElementDofsMap};
+    use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid, SampleMeshes};
     use gemlab::{mesh::Samples, shapes::GeoKind};
-    use russell_lab::{mat_approx_eq, Matrix, Vector};
+    use russell_lab::{mat_approx_eq, Matrix, NumMatrix, Vector};
     use russell_sparse::{CooMatrix, Sym};
 
     #[test]
@@ -167,6 +167,82 @@ mod tests {
             compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
+    }
+
+    #[test]
+    fn try_new_dof_mapping_1() {
+        // Replicate tables in page 94 of Hughes' book
+        let dofs = [Dof::Ux, Dof::Uy];
+        let mesh = SampleMeshes::hughes_fig261_qua4();
+        let ndof = 2;
+        let npoint = mesh.points.len();
+        let given = [(0, Dof::Ux), (0, Dof::Uy), (2, Dof::Uy), (9, Dof::Ux)];
+
+        // ID array
+        let mut id_array = NumMatrix::<usize>::new(ndof, npoint);
+        let mut count = 0;
+        for a in 0..mesh.points.len() {
+            for &dof in &dofs {
+                if !given.contains(&(a, dof)) {
+                    id_array.set(dof as usize, a, count + 1);
+                    count += 1;
+                }
+            }
+        }
+        println!("id_array =\n{}", id_array);
+        let correct = "┌                                     ┐\n\
+                       │  0  1  3  4  6  8 10 12 14  0 17 19 │\n\
+                       │  0  2  0  5  7  9 11 13 15 16 18 20 │\n\
+                       └                                     ┘";
+        assert_eq!(format!("{}", id_array), correct);
+
+        // IEN array (corresponds to μ)
+        let nele = mesh.cells.len();
+        let mut nnode_max = 0;
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            nnode_max = usize::max(nnode_max, nnode);
+        }
+        assert_eq!(nnode_max, 4);
+        let mut ien_array = NumMatrix::<usize>::new(nnode_max, nele);
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            for m in 0..nnode {
+                ien_array.set(m, e, mesh.cells[e].points[m] + 1);
+            }
+        }
+        println!("ien_array =\n{}", ien_array);
+        let correct = "┌                   ┐\n\
+                       │  1  2  4  5  7  8 │\n\
+                       │  2  3  5  6  8  9 │\n\
+                       │  5  6  8  9 11 12 │\n\
+                       │  4  5  7  8 10 11 │\n\
+                       └                   ┘";
+        assert_eq!(format!("{}", ien_array), correct);
+
+        // LM array
+        let mut lm_array = NumMatrix::<usize>::new(nnode_max * ndof, nele);
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            for m in 0..nnode {
+                for &dof in &dofs {
+                    let p = (dof as usize) + m * 2;
+                    lm_array.set(p, e, id_array.get(dof as usize, ien_array.get(m, e) - 1));
+                }
+            }
+        }
+        println!("lm_array =\n{}", lm_array);
+        let correct = "┌                   ┐\n\
+                       │  0  1  4  6 10 12 │\n\
+                       │  0  2  5  7 11 13 │\n\
+                       │  1  3  6  8 12 14 │\n\
+                       │  2  0  7  9 13 15 │\n\
+                       │  6  8 12 14 17 19 │\n\
+                       │  7  9 13 15 18 20 │\n\
+                       │  4  6 10 12  0 17 │\n\
+                       │  5  7 11 13 16 18 │\n\
+                       └                   ┘";
+        assert_eq!(format!("{}", lm_array), correct);
     }
 
     #[test]
