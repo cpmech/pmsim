@@ -174,14 +174,14 @@ mod tests {
         // Replicate tables in page 94 of Hughes' book
         let dofs = [Dof::Ux, Dof::Uy];
         let mesh = SampleMeshes::hughes_fig261_qua4();
-        let ndof = 2;
+        let ndof = dofs.len();
         let npoint = mesh.points.len();
         let given = [(0, Dof::Ux), (0, Dof::Uy), (2, Dof::Uy), (9, Dof::Ux)];
 
         // ID array
         let mut id_array = NumMatrix::<usize>::new(ndof, npoint);
         let mut count = 0;
-        for a in 0..mesh.points.len() {
+        for a in 0..npoint {
             for &dof in &dofs {
                 if !given.contains(&(a, dof)) {
                     id_array.set(dof as usize, a, count + 1);
@@ -196,7 +196,7 @@ mod tests {
                        └                                     ┘";
         assert_eq!(format!("{}", id_array), correct);
 
-        // IEN array (corresponds to μ)
+        // IEN array (corresponds to μ and is not necessary because mesh.cells[..].points provides the same info)
         let nele = mesh.cells.len();
         let mut nnode_max = 0;
         for e in 0..nele {
@@ -226,8 +226,87 @@ mod tests {
             let nnode = mesh.cells[e].points.len();
             for m in 0..nnode {
                 for &dof in &dofs {
-                    let p = (dof as usize) + m * 2;
+                    let p = (dof as usize) + m * 2; // local equation number (depends on the element type)
                     lm_array.set(p, e, id_array.get(dof as usize, ien_array.get(m, e) - 1));
+                }
+            }
+        }
+        println!("lm_array =\n{}", lm_array);
+        let correct = "┌                   ┐\n\
+                       │  0  1  4  6 10 12 │\n\
+                       │  0  2  5  7 11 13 │\n\
+                       │  1  3  6  8 12 14 │\n\
+                       │  2  0  7  9 13 15 │\n\
+                       │  6  8 12 14 17 19 │\n\
+                       │  7  9 13 15 18 20 │\n\
+                       │  4  6 10 12  0 17 │\n\
+                       │  5  7 11 13 16 18 │\n\
+                       └                   ┘";
+        assert_eq!(format!("{}", lm_array), correct);
+    }
+
+    #[test]
+    fn try_new_dof_mapping_2() {
+        let dofs = [Dof::Ux, Dof::Uy];
+        let mesh = SampleMeshes::hughes_fig261_qua4();
+        let ndof = dofs.len();
+        let given_pairs = [(0, Dof::Ux), (0, Dof::Uy), (2, Dof::Uy), (9, Dof::Ux)];
+        let given: Vec<_> = given_pairs.iter().map(|&(a, dof)| (dof as usize) + a * ndof).collect();
+        println!("given = {:?}", given);
+
+        // Unless we need a global-DOF-to-local-DOF, we don't need to build the id_array, since every global DOF will have a unique ID.
+        // The LM array works as our local-eq-to-global-eq array, however we don't put them in a single matrix.
+        let nele = mesh.cells.len();
+        let mut local_eq_to_global_eq = vec![Vec::new(); nele]; // one for each element
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            local_eq_to_global_eq[e].resize(nnode * ndof, 0);
+            for m in 0..nnode {
+                let a = mesh.cells[e].points[m]; // μ: local-to-global point mapping (connectivity)
+                for &dof in &dofs {
+                    let i_dof = dof as usize; // DOF index
+                    let iota = i_dof + m * ndof; // local equation number
+                    let alpha = i_dof + a * ndof; // global equation number
+                    local_eq_to_global_eq[e][iota] = alpha;
+                }
+            }
+        }
+        println!("{:?}", local_eq_to_global_eq);
+
+        // Global equation number to reduced system equation number
+        let npoint = mesh.points.len();
+        let mut global_eq_to_reduced_eq = vec![0; npoint * ndof];
+        let mut reduced_eq = 0;
+        for a in 0..npoint {
+            for &dof in &dofs {
+                if !given_pairs.contains(&(a, dof)) {
+                    let i_dof = dof as usize; // DOF index
+                    let alpha = i_dof + a * ndof; // global equation number
+                    global_eq_to_reduced_eq[alpha] = reduced_eq;
+                    reduced_eq += 1;
+                }
+            }
+        }
+
+        // Convert local_eq_to_global_eq to LM
+        let mut nnode_max = 0;
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            nnode_max = usize::max(nnode_max, nnode);
+        }
+        assert_eq!(nnode_max, 4);
+        let mut lm_array = NumMatrix::<usize>::new(nnode_max * ndof, nele);
+        for e in 0..nele {
+            let nnode = mesh.cells[e].points.len();
+            for m in 0..nnode {
+                let a = mesh.cells[e].points[m]; // μ: local-to-global point mapping (connectivity)
+                for &dof in &dofs {
+                    let i_dof = dof as usize; // DOF index
+                    let iota = i_dof + m * ndof; // local equation number
+                    let alpha = i_dof + a * ndof; // global equation number
+                    if !given_pairs.contains(&(a, dof)) {
+                        lm_array.set(iota, e, global_eq_to_reduced_eq[alpha] + 1);
+                    }
                 }
             }
         }
