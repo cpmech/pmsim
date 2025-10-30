@@ -143,10 +143,10 @@ pub fn assemble_matrix(
 #[cfg(test)]
 mod tests {
     use super::{assemble_matrix, assemble_vector};
-    use crate::base::{compute_local_to_global, AllDofs, Attributes, Dof, Elem, ElementDofsMap};
-    use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid, SampleMeshes};
+    use crate::base::{compute_local_to_global, AllDofs, Attributes, Elem, ElementDofsMap};
+    use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
     use gemlab::{mesh::Samples, shapes::GeoKind};
-    use russell_lab::{mat_approx_eq, Matrix, NumMatrix, Vector};
+    use russell_lab::{mat_approx_eq, Matrix, Vector};
     use russell_sparse::{CooMatrix, Sym};
 
     #[test]
@@ -167,85 +167,6 @@ mod tests {
             compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
             Some("cannot find equation number because PointId is out-of-bounds")
         );
-    }
-
-    #[test]
-    fn try_new_dof_mapping_3() {
-        let mesh = SampleMeshes::hughes_fig261_qua4();
-        let given_dofs = [(0, Dof::Ux), (0, Dof::Uy), (2, Dof::Uy), (9, Dof::Ux)];
-        let npoint = mesh.points.len();
-        let mut active_dofs = vec![false; npoint * Dof::n()];
-
-        // Build local-equation-identifier (LEQ) to global-equation-identifier (GEQ) map
-        let nele = mesh.cells.len();
-        let mut leq_to_geq = vec![Vec::new(); nele]; // one for each element
-        let elem_dofs = [Dof::Ux, Dof::Uy];
-        let elem_ndof = elem_dofs.len();
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            leq_to_geq[e].resize(nnode * elem_ndof, 0);
-            for m in 0..nnode {
-                let a = mesh.cells[e].points[m]; // connectivity
-                for i in 0..elem_dofs.len() {
-                    let dof = elem_dofs[i];
-                    active_dofs[dof.i()] = true;
-                    let leq = i + m * elem_ndof; // local equation identifier
-                    let geq = dof.i() + a * Dof::n(); // global equation identifier
-                    leq_to_geq[e][leq] = geq;
-                }
-            }
-        }
-
-        // Build the global-equation-identifier (GEQ) to reduced-equation-identifier (REQ) map
-        const GIVEN: usize = usize::MAX;
-        let mut geq_to_req = vec![GIVEN; npoint * Dof::n()];
-        let mut req = 0; // reduced equation identifier
-        for a in 0..npoint {
-            for dof in Dof::all() {
-                if active_dofs[dof.i()] && !given_dofs.contains(&(a, dof)) {
-                    let geq = dof.i() + a * Dof::n(); // global equation identifier
-                    geq_to_req[geq] = req;
-                    req += 1;
-                }
-            }
-        }
-
-        // Build Tom Hughes' LM array for testing
-        let mut nnode_max = 0;
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            nnode_max = usize::max(nnode_max, nnode);
-        }
-        assert_eq!(nnode_max, 4);
-        assert_eq!(elem_ndof, 2);
-        let mut lm_array = NumMatrix::<usize>::new(nnode_max * elem_ndof, nele);
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            for m in 0..nnode {
-                let a = mesh.cells[e].points[m]; // connectivity
-                for i in 0..elem_dofs.len() {
-                    let dof = elem_dofs[i];
-                    let leq = i + m * elem_ndof; // local equation identifier
-                    let geq = dof.i() + a * Dof::n(); // global equation identifier
-                    let req = geq_to_req[geq]; // reduced equation identifier
-                    if req != GIVEN {
-                        lm_array.set(leq, e, req + 1);
-                    }
-                }
-            }
-        }
-        println!("lm_array =\n{}", lm_array);
-        let correct = "┌                   ┐\n\
-                       │  0  1  4  6 10 12 │\n\
-                       │  0  2  5  7 11 13 │\n\
-                       │  1  3  6  8 12 14 │\n\
-                       │  2  0  7  9 13 15 │\n\
-                       │  6  8 12 14 17 19 │\n\
-                       │  7  9 13 15 18 20 │\n\
-                       │  4  6 10 12  0 17 │\n\
-                       │  5  7 11 13 16 18 │\n\
-                       └                   ┘";
-        assert_eq!(format!("{}", lm_array), correct);
     }
 
     #[test]

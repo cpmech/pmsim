@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 /// Defines degrees-of-freedom (DOF) types
 ///
-/// Note: The fixed numbering scheme assists in sorting the DOFs.
+/// Note: The fixed numbers are only for sorting the DOFs which is useful for TESTING.
+/// This numbering scheme is not actually necessary.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum Dof {
     /// Primary scalar quantity for diffusion problems (e.g. temperature)
@@ -36,34 +37,6 @@ pub enum Dof {
 
     /// Free-surface-output (fso) enrichment
     Fso = 9,
-}
-
-impl Dof {
-    /// Returns an array with all DOFs available
-    pub fn all() -> Vec<Dof> {
-        vec![
-            Dof::Phi,
-            Dof::Ux,
-            Dof::Uy,
-            Dof::Uz,
-            Dof::Rx,
-            Dof::Ry,
-            Dof::Rz,
-            Dof::Pl,
-            Dof::Pg,
-            Dof::Fso,
-        ]
-    }
-
-    /// Returns the number of DOFs
-    pub fn n() -> usize {
-        10 // need to update this if another entry is added to Dof
-    }
-
-    /// Converts the enum to usize
-    pub fn i(&self) -> usize {
-        *self as usize
-    }
 }
 
 /// Defines natural boundary conditions (NBC)
