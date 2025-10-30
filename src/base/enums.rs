@@ -7,28 +7,26 @@ use serde::{Deserialize, Serialize};
 /// Note: The fixed numbering scheme assists in sorting the DOFs.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum Dof {
+    /// Primary scalar quantity for diffusion problems (e.g. temperature)
+    Phi = 0,
+
     /// Displacement along the first dimension
-    Ux = 0,
+    Ux = 1,
 
     /// Displacement along the second dimension
-    Uy = 1,
+    Uy = 2,
 
     /// Displacement along the third dimension
-    Uz = 2,
+    Uz = 3,
 
     /// Rotation around the first axis
-    Rx = 3,
+    Rx = 4,
 
     /// Rotation around the second axis
-    Ry = 4,
+    Ry = 5,
 
     /// Rotation around the third axis
-    Rz = 5,
-
-    /// Primary scalar quantity for diffusion problems (such as the temperature)
-    ///
-    /// Examples: Liquid pressure, temperature
-    Phi = 6,
+    Rz = 6,
 
     /// Liquid pressure
     Pl = 7,
@@ -41,6 +39,22 @@ pub enum Dof {
 }
 
 impl Dof {
+    /// Returns an array with all DOFs available
+    pub fn all() -> Vec<Dof> {
+        vec![
+            Dof::Phi,
+            Dof::Ux,
+            Dof::Uy,
+            Dof::Uz,
+            Dof::Rx,
+            Dof::Ry,
+            Dof::Rz,
+            Dof::Pl,
+            Dof::Pg,
+            Dof::Fso,
+        ]
+    }
+
     /// Returns the number of DOFs
     pub fn n() -> usize {
         10 // need to update this if another entry is added to Dof

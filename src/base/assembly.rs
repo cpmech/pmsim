@@ -170,163 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn try_new_dof_mapping_1() {
-        // Replicate tables in page 94 of Hughes' book
-        let dofs = [Dof::Ux, Dof::Uy];
-        let mesh = SampleMeshes::hughes_fig261_qua4();
-        let ndof = dofs.len();
-        let npoint = mesh.points.len();
-        let given = [(0, Dof::Ux), (0, Dof::Uy), (2, Dof::Uy), (9, Dof::Ux)];
-
-        // ID array
-        let mut id_array = NumMatrix::<usize>::new(ndof, npoint);
-        let mut count = 0;
-        for a in 0..npoint {
-            for &dof in &dofs {
-                if !given.contains(&(a, dof)) {
-                    id_array.set(dof as usize, a, count + 1);
-                    count += 1;
-                }
-            }
-        }
-        println!("id_array =\n{}", id_array);
-        let correct = "┌                                     ┐\n\
-                       │  0  1  3  4  6  8 10 12 14  0 17 19 │\n\
-                       │  0  2  0  5  7  9 11 13 15 16 18 20 │\n\
-                       └                                     ┘";
-        assert_eq!(format!("{}", id_array), correct);
-
-        // IEN array (corresponds to μ and is not necessary because mesh.cells[..].points provides the same info)
-        let nele = mesh.cells.len();
-        let mut nnode_max = 0;
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            nnode_max = usize::max(nnode_max, nnode);
-        }
-        assert_eq!(nnode_max, 4);
-        let mut ien_array = NumMatrix::<usize>::new(nnode_max, nele);
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            for m in 0..nnode {
-                ien_array.set(m, e, mesh.cells[e].points[m] + 1);
-            }
-        }
-        println!("ien_array =\n{}", ien_array);
-        let correct = "┌                   ┐\n\
-                       │  1  2  4  5  7  8 │\n\
-                       │  2  3  5  6  8  9 │\n\
-                       │  5  6  8  9 11 12 │\n\
-                       │  4  5  7  8 10 11 │\n\
-                       └                   ┘";
-        assert_eq!(format!("{}", ien_array), correct);
-
-        // LM array
-        let mut lm_array = NumMatrix::<usize>::new(nnode_max * ndof, nele);
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            for m in 0..nnode {
-                for &dof in &dofs {
-                    let p = (dof as usize) + m * 2; // local equation number (depends on the element type)
-                    lm_array.set(p, e, id_array.get(dof as usize, ien_array.get(m, e) - 1));
-                }
-            }
-        }
-        println!("lm_array =\n{}", lm_array);
-        let correct = "┌                   ┐\n\
-                       │  0  1  4  6 10 12 │\n\
-                       │  0  2  5  7 11 13 │\n\
-                       │  1  3  6  8 12 14 │\n\
-                       │  2  0  7  9 13 15 │\n\
-                       │  6  8 12 14 17 19 │\n\
-                       │  7  9 13 15 18 20 │\n\
-                       │  4  6 10 12  0 17 │\n\
-                       │  5  7 11 13 16 18 │\n\
-                       └                   ┘";
-        assert_eq!(format!("{}", lm_array), correct);
-    }
-
-    #[test]
-    fn try_new_dof_mapping_2() {
-        let dofs = [Dof::Ux, Dof::Uy];
-        let mesh = SampleMeshes::hughes_fig261_qua4();
-        let ndof = dofs.len();
-        let given_pairs = [(0, Dof::Ux), (0, Dof::Uy), (2, Dof::Uy), (9, Dof::Ux)];
-        let given: Vec<_> = given_pairs.iter().map(|&(a, dof)| (dof as usize) + a * ndof).collect();
-        println!("given = {:?}", given);
-
-        // Unless we need a global-DOF-to-local-DOF, we don't need to build the id_array, since every global DOF will have a unique ID.
-        // The LM array works as our local-eq-to-global-eq array, however we don't put them in a single matrix.
-        let nele = mesh.cells.len();
-        let mut local_eq_to_global_eq = vec![Vec::new(); nele]; // one for each element
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            local_eq_to_global_eq[e].resize(nnode * ndof, 0);
-            for m in 0..nnode {
-                let a = mesh.cells[e].points[m]; // μ: local-to-global point mapping (connectivity)
-                for &dof in &dofs {
-                    let i_dof = dof as usize; // DOF index
-                    let iota = i_dof + m * ndof; // local equation number
-                    let alpha = i_dof + a * ndof; // global equation number
-                    local_eq_to_global_eq[e][iota] = alpha;
-                }
-            }
-        }
-        println!("{:?}", local_eq_to_global_eq);
-
-        // Global equation number to reduced system equation number
-        let npoint = mesh.points.len();
-        let mut global_eq_to_reduced_eq = vec![0; npoint * ndof];
-        let mut reduced_eq = 0;
-        for a in 0..npoint {
-            for &dof in &dofs {
-                if !given_pairs.contains(&(a, dof)) {
-                    let i_dof = dof as usize; // DOF index
-                    let alpha = i_dof + a * ndof; // global equation number
-                    global_eq_to_reduced_eq[alpha] = reduced_eq;
-                    reduced_eq += 1;
-                }
-            }
-        }
-
-        // Convert local_eq_to_global_eq to LM
-        let mut nnode_max = 0;
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            nnode_max = usize::max(nnode_max, nnode);
-        }
-        assert_eq!(nnode_max, 4);
-        let mut lm_array = NumMatrix::<usize>::new(nnode_max * ndof, nele);
-        for e in 0..nele {
-            let nnode = mesh.cells[e].points.len();
-            for m in 0..nnode {
-                let a = mesh.cells[e].points[m]; // μ: local-to-global point mapping (connectivity)
-                for &dof in &dofs {
-                    let i_dof = dof as usize; // DOF index
-                    let iota = i_dof + m * ndof; // local equation number
-                    let alpha = i_dof + a * ndof; // global equation number
-                    if !given_pairs.contains(&(a, dof)) {
-                        lm_array.set(iota, e, global_eq_to_reduced_eq[alpha] + 1);
-                    }
-                }
-            }
-        }
-        println!("lm_array =\n{}", lm_array);
-        let correct = "┌                   ┐\n\
-                       │  0  1  4  6 10 12 │\n\
-                       │  0  2  5  7 11 13 │\n\
-                       │  1  3  6  8 12 14 │\n\
-                       │  2  0  7  9 13 15 │\n\
-                       │  6  8 12 14 17 19 │\n\
-                       │  7  9 13 15 18 20 │\n\
-                       │  4  6 10 12  0 17 │\n\
-                       │  5  7 11 13 16 18 │\n\
-                       └                   ┘";
-        assert_eq!(format!("{}", lm_array), correct);
-    }
-
-    #[test]
     fn try_new_dof_mapping_3() {
-        let global_dofs = [Dof::Ux, Dof::Uy, Dof::Rz, Dof::Pl];
         let mesh = SampleMeshes::hughes_fig261_qua4();
         let given_dofs = [(0, Dof::Ux), (0, Dof::Uy), (2, Dof::Uy), (9, Dof::Ux)];
         let npoint = mesh.points.len();
@@ -342,9 +186,10 @@ mod tests {
             leq_to_geq[e].resize(nnode * elem_ndof, 0);
             for m in 0..nnode {
                 let a = mesh.cells[e].points[m]; // connectivity
-                for &dof in &elem_dofs {
+                for i in 0..elem_dofs.len() {
+                    let dof = elem_dofs[i];
                     active_dofs[dof.i()] = true;
-                    let leq = dof.i() + m * elem_ndof; // local equation identifier
+                    let leq = i + m * elem_ndof; // local equation identifier
                     let geq = dof.i() + a * Dof::n(); // global equation identifier
                     leq_to_geq[e][leq] = geq;
                 }
@@ -356,7 +201,7 @@ mod tests {
         let mut geq_to_req = vec![GIVEN; npoint * Dof::n()];
         let mut req = 0; // reduced equation identifier
         for a in 0..npoint {
-            for &dof in &global_dofs {
+            for dof in Dof::all() {
                 if active_dofs[dof.i()] && !given_dofs.contains(&(a, dof)) {
                     let geq = dof.i() + a * Dof::n(); // global equation identifier
                     geq_to_req[geq] = req;
@@ -378,8 +223,9 @@ mod tests {
             let nnode = mesh.cells[e].points.len();
             for m in 0..nnode {
                 let a = mesh.cells[e].points[m]; // connectivity
-                for &dof in &elem_dofs {
-                    let leq = dof.i() + m * elem_ndof; // local equation identifier
+                for i in 0..elem_dofs.len() {
+                    let dof = elem_dofs[i];
+                    let leq = i + m * elem_ndof; // local equation identifier
                     let geq = dof.i() + a * Dof::n(); // global equation identifier
                     let req = geq_to_req[geq]; // reduced equation identifier
                     if req != GIVEN {
