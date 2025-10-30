@@ -257,6 +257,57 @@ impl SampleMeshes {
         }
     }
 
+    /// Returns the mesh from Hughes' Figure 2.6.1 on page 72
+    ///
+    /// Hughes TJR (2000) The Finite Element Method, Dover Publications Inc.
+    ///
+    /// ```text
+    ///  1.5  9--------10--------11
+    ///       |         |         |
+    ///       |    4    |    5    |
+    ///       |         |         |
+    ///  1.0  6---------7---------8
+    ///       |         |         |
+    ///       |    2    |    3    |
+    ///       |         |         |
+    ///  0.5  3---------4---------5
+    ///       |         |         |
+    ///       |    0    |    1    |
+    ///       |         |         |
+    ///  0.0  0---------1---------2
+    ///      0.0       0.5       1.0
+    /// ```
+    ///
+    /// ![mesh_hughes_fig261_qua4](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_hughes_fig261_qua4.svg)
+    #[rustfmt::skip]
+    pub fn hughes_fig261_qua4() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id:  0, marker: 0, coords: vec![0.0, 0.0] },
+                Point { id:  1, marker: 0, coords: vec![0.5, 0.0] },
+                Point { id:  2, marker: 0, coords: vec![1.0, 0.0] },
+                Point { id:  3, marker: 0, coords: vec![0.0, 0.5] },
+                Point { id:  4, marker: 0, coords: vec![0.5, 0.5] },
+                Point { id:  5, marker: 0, coords: vec![1.0, 0.5] },
+                Point { id:  6, marker: 0, coords: vec![0.0, 1.0] },
+                Point { id:  7, marker: 0, coords: vec![0.5, 1.0] },
+                Point { id:  8, marker: 0, coords: vec![1.0, 1.0] },
+                Point { id:  9, marker: 0, coords: vec![0.0, 1.5] },
+                Point { id: 10, marker: 0, coords: vec![0.5, 1.5] },
+                Point { id: 11, marker: 0, coords: vec![1.0, 1.5] },
+            ],
+            cells: vec![
+                Cell { id: 0, attribute: 1, kind: GeoKind::Qua4, points: vec![0,  1,  4,  3] },
+                Cell { id: 1, attribute: 1, kind: GeoKind::Qua4, points: vec![1,  2,  5,  4] },
+                Cell { id: 2, attribute: 1, kind: GeoKind::Qua4, points: vec![3,  4,  7,  6] },
+                Cell { id: 3, attribute: 1, kind: GeoKind::Qua4, points: vec![4,  5,  8,  7] },
+                Cell { id: 4, attribute: 1, kind: GeoKind::Qua4, points: vec![6,  7, 10,  9] },
+                Cell { id: 5, attribute: 1, kind: GeoKind::Qua4, points: vec![7,  8, 11, 10] },
+            ],
+        }
+    }
+
     /// Returns the mesh from Smith's Example 4.22 (Figure 4.22) on page 138
     ///
     /// Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
@@ -979,6 +1030,14 @@ mod tests {
         assert_eq!(mesh.cells.len(), 2);
         if SAVE_FIGURE {
             draw(&mesh, false, true, "/tmp/pmsim/mesh_bhatti_example_6d22_heat.svg");
+        }
+
+        let mesh = SampleMeshes::hughes_fig261_qua4();
+        mesh.check_all().unwrap();
+        assert_eq!(mesh.points.len(), 12);
+        assert_eq!(mesh.cells.len(), 6);
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_hughes_fig261_qua4.svg");
         }
 
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
