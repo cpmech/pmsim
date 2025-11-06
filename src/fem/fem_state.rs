@@ -134,7 +134,7 @@ impl FemState {
                 Elem::Diffusion(..) => {
                     has_diffusion = true;
                     if config.out_flow_vectors {
-                        gauss[cell.id].allocate_diffusion_post_proc(ngauss, mesh.ndim);
+                        gauss[cell.id].allocate_diffusion(ngauss, mesh.ndim);
                     }
                 }
                 Elem::Rod(..) => {

@@ -241,7 +241,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 )?;
                 // conductivity and flow vector
                 self.model.calc_k(&mut self.conductivity, phi)?;
-                let w = &mut state.gauss[self.cell_id].diffusion_post_proc[p];
+                let w = &mut state.gauss[self.cell_id].diffusion[p];
                 t2_dot_vec(w, -1.0, &self.conductivity, &self.grad_phi); // w  = -k  · ∇φ
             }
         }

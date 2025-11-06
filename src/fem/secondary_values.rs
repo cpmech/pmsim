@@ -12,10 +12,10 @@ pub struct SecondaryValues {
 
     /// Holds the flow vector at all integration points of a diffusion element
     ///
-    /// Optional: only for post-processing
+    /// **Note:** This field is used in post-processing only.
     ///
     /// (ngauss)
-    pub(crate) diffusion_post_proc: Vec<Vector>,
+    pub(crate) diffusion: Vec<Vector>,
 
     /// Holds the local states at all integration points of a solid element
     ///
@@ -48,7 +48,7 @@ impl SecondaryValues {
     pub(crate) fn new_empty() -> Self {
         SecondaryValues {
             ngauss: 0,
-            diffusion_post_proc: Vec::new(),
+            diffusion: Vec::new(),
             solid: Vec::new(),
             porous_liq: Vec::new(),
             porous_liq_gas: Vec::new(),
@@ -58,9 +58,9 @@ impl SecondaryValues {
     }
 
     /// Allocates secondary values used in post-processing only of Diffusion elements
-    pub(crate) fn allocate_diffusion_post_proc(&mut self, ngauss: usize, ndim: usize) {
+    pub(crate) fn allocate_diffusion(&mut self, ngauss: usize, ndim: usize) {
         let zero = Vector::new(ndim);
-        self.diffusion_post_proc = vec![zero; ngauss];
+        self.diffusion = vec![zero; ngauss];
         self.ngauss = ngauss;
     }
 
@@ -111,7 +111,7 @@ impl SecondaryValues {
         if p >= self.ngauss {
             return Err("index of integration point is out of bounds");
         }
-        if self.diffusion_post_proc.len() == self.ngauss {
+        if self.diffusion.len() == self.ngauss {
             Err("LocalState is not available for Diffusion")
         } else if self.solid.len() == self.ngauss {
             Ok(&self.solid[p])
@@ -133,8 +133,8 @@ impl SecondaryValues {
         if p >= self.ngauss {
             return Err("index of integration point is out of bounds");
         }
-        if self.diffusion_post_proc.len() == self.ngauss {
-            Ok(&self.diffusion_post_proc[p])
+        if self.diffusion.len() == self.ngauss {
+            Ok(&self.diffusion[p])
         } else if self.solid.len() == self.ngauss {
             Err("flow vector is not available for Solid")
         } else if self.porous_liq.len() == self.ngauss {
@@ -160,7 +160,7 @@ impl SecondaryValues {
         if p >= self.ngauss {
             return Err("index of integration point is out of bounds");
         }
-        if self.diffusion_post_proc.len() == self.ngauss {
+        if self.diffusion.len() == self.ngauss {
             Err("stress is not available for Diffusion")
         } else if self.solid.len() == self.ngauss {
             Ok(&self.solid[p].stress)
@@ -194,7 +194,7 @@ impl SecondaryValues {
         if p >= self.ngauss {
             return Err("index of integration point is out of bounds");
         }
-        if self.diffusion_post_proc.len() == self.ngauss {
+        if self.diffusion.len() == self.ngauss {
             Err("strain is not available for Diffusion")
         } else if self.solid.len() == self.ngauss {
             Ok(self.solid[p]
@@ -230,7 +230,7 @@ mod tests {
     fn new_empty_works() {
         let sv = SecondaryValues::new_empty();
         assert_eq!(sv.ngauss, 0);
-        assert_eq!(sv.diffusion_post_proc.len(), 0);
+        assert_eq!(sv.diffusion.len(), 0);
         assert_eq!(sv.solid.len(), 0);
         assert_eq!(sv.porous_liq.len(), 0);
         assert_eq!(sv.porous_liq_gas.len(), 0);
@@ -239,17 +239,17 @@ mod tests {
     }
 
     #[test]
-    fn allocate_diffusion_post_proc_works() {
+    fn allocate_diffusion_works() {
         let mut sv = SecondaryValues::new_empty();
         let ngauss = 4;
         let ndim = 2;
 
-        sv.allocate_diffusion_post_proc(ngauss, ndim);
+        sv.allocate_diffusion(ngauss, ndim);
 
         assert_eq!(sv.ngauss, ngauss);
-        assert_eq!(sv.diffusion_post_proc.len(), ngauss);
+        assert_eq!(sv.diffusion.len(), ngauss);
         for i in 0..ngauss {
-            assert_eq!(sv.diffusion_post_proc[i].dim(), ndim);
+            assert_eq!(sv.diffusion[i].dim(), ndim);
         }
     }
 
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     fn get_local_state_fails_for_diffusion() {
         let mut sv = SecondaryValues::new_empty();
-        sv.allocate_diffusion_post_proc(2, 2);
+        sv.allocate_diffusion(2, 2);
 
         assert_eq!(
             sv.get_local_state(0).err(),
@@ -406,10 +406,7 @@ mod tests {
         let mut sv = SecondaryValues::new_empty();
         sv.allocate_porous_sld_liq_gas(Mandel::new(2), 2, 1);
 
-        assert_eq!(
-            sv.get_local_state(0).err(),
-            Some("LocalState is not available")
-        );
+        assert_eq!(sv.get_local_state(0).err(), Some("LocalState is not available"));
     }
 
     #[test]
@@ -424,7 +421,7 @@ mod tests {
 
         // Allocate diffusion and test valid access
         let mut sv = SecondaryValues::new_empty();
-        sv.allocate_diffusion_post_proc(4, 2);
+        sv.allocate_diffusion(4, 2);
 
         // Valid access
         assert!(sv.get_flow_vector(0).is_ok());
@@ -440,7 +437,7 @@ mod tests {
     #[test]
     fn get_flow_vector_works_for_diffusion() {
         let mut sv = SecondaryValues::new_empty();
-        sv.allocate_diffusion_post_proc(2, 3);
+        sv.allocate_diffusion(2, 3);
 
         let flow = sv.get_flow_vector(0).unwrap();
         assert_eq!(flow.dim(), 3);
@@ -495,10 +492,7 @@ mod tests {
         let mut sv = SecondaryValues::new_empty();
         sv.allocate_porous_sld_liq_gas(Mandel::new(2), 2, 1);
 
-        assert_eq!(
-            sv.get_flow_vector(0).err(),
-            Some("flow vector is not available")
-        );
+        assert_eq!(sv.get_flow_vector(0).err(), Some("flow vector is not available"));
     }
 
     #[test]
@@ -550,7 +544,7 @@ mod tests {
     #[test]
     fn stress_fails_for_diffusion() {
         let mut sv = SecondaryValues::new_empty();
-        sv.allocate_diffusion_post_proc(2, 2);
+        sv.allocate_diffusion(2, 2);
 
         assert_eq!(sv.stress(0).err(), Some("stress is not available for Diffusion"));
     }
@@ -632,7 +626,7 @@ mod tests {
     #[test]
     fn strain_fails_for_diffusion() {
         let mut sv = SecondaryValues::new_empty();
-        sv.allocate_diffusion_post_proc(2, 2);
+        sv.allocate_diffusion(2, 2);
 
         assert_eq!(sv.strain(0).err(), Some("strain is not available for Diffusion"));
     }
