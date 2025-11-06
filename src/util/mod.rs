@@ -7,7 +7,9 @@ mod reference_data;
 mod reference_data_sgm;
 mod reference_data_spo;
 mod spatial_tensor;
+mod spatial_vector;
 mod tensor_components_map;
+mod vector_components_map;
 
 pub use compare_results::*;
 pub use convergence_results::*;
@@ -16,4 +18,6 @@ pub use reference_data::*;
 pub(crate) use reference_data_sgm::*;
 pub(crate) use reference_data_spo::*;
 pub use spatial_tensor::*;
+pub use spatial_vector::*;
 pub(crate) use tensor_components_map::*;
+pub(crate) use vector_components_map::*;
