@@ -64,7 +64,7 @@ fn test_seep_craig_2d9() -> Result<(), StrError> {
     config
         .set_axisymmetric()
         .set_lagrange_mult_method(true)
-        .set_out_flow_vectors(true)
+        .set_out_flux(true)
         .set_out_files(OUT_DIR, NAME, 1.0);
 
     // FEM state
@@ -108,7 +108,7 @@ fn post_processing() -> Result<(), StrError> {
 
     // analysis
     let state = post.read_state(post.n_state() - 1)?;
-    let gauss = post.gauss_flow_vectors(&mut memo, &state, &gap_cells, Dof::Phi, |_, _, _| true)?;
+    let gauss = post.gauss_fluxes_patch(&mut memo, &state, &gap_cells, Dof::Phi, |_, _, _| true)?;
     println!("wx = {:?}", gauss.vvx);
     println!("wy = {:?}", gauss.vvy);
 

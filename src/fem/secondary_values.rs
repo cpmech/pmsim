@@ -10,9 +10,9 @@ pub struct SecondaryValues {
     /// Holds the number of integration points
     pub ngauss: usize,
 
-    /// Holds the flow vector at all integration points of a diffusion element
+    /// Holds the flux vector at all integration points of a diffusion element
     ///
-    /// **Note:** This field is used in post-processing only.
+    /// **Note:** This field is used in post-processing only and must be enabled via [crate::base::Config::set_out_flux()].
     ///
     /// (ngauss)
     pub(crate) diffusion: Vec<Vector>,
@@ -126,7 +126,7 @@ impl SecondaryValues {
         }
     }
 
-    pub fn get_flow_vector(&self, p: usize) -> Result<&Vector, StrError> {
+    pub fn get_flux_vector(&self, p: usize) -> Result<&Vector, StrError> {
         if self.ngauss == 0 {
             return Err("secondary values have not been allocated yet");
         }
@@ -415,7 +415,7 @@ mod tests {
 
         // Not allocated yet
         assert_eq!(
-            sv.get_flow_vector(0).err(),
+            sv.get_flux_vector(0).err(),
             Some("secondary values have not been allocated yet")
         );
 
@@ -424,12 +424,12 @@ mod tests {
         sv.allocate_diffusion(4, 2);
 
         // Valid access
-        assert!(sv.get_flow_vector(0).is_ok());
-        assert!(sv.get_flow_vector(3).is_ok());
+        assert!(sv.get_flux_vector(0).is_ok());
+        assert!(sv.get_flux_vector(3).is_ok());
 
         // Out of bounds
         assert_eq!(
-            sv.get_flow_vector(4).err(),
+            sv.get_flux_vector(4).err(),
             Some("index of integration point is out of bounds")
         );
     }
@@ -439,7 +439,7 @@ mod tests {
         let mut sv = SecondaryValues::new_empty();
         sv.allocate_diffusion(2, 3);
 
-        let flow = sv.get_flow_vector(0).unwrap();
+        let flow = sv.get_flux_vector(0).unwrap();
         assert_eq!(flow.dim(), 3);
     }
 
@@ -449,7 +449,7 @@ mod tests {
         sv.allocate_solid(Mandel::new(2), 2, 1);
 
         assert_eq!(
-            sv.get_flow_vector(0).err(),
+            sv.get_flux_vector(0).err(),
             Some("flow vector is not available for Solid")
         );
     }
@@ -460,7 +460,7 @@ mod tests {
         sv.allocate_porous_liq(2);
 
         assert_eq!(
-            sv.get_flow_vector(0).err(),
+            sv.get_flux_vector(0).err(),
             Some("flow vector is not available for PorousLiq")
         );
     }
@@ -471,7 +471,7 @@ mod tests {
         sv.allocate_porous_liq_gas(2);
 
         assert_eq!(
-            sv.get_flow_vector(0).err(),
+            sv.get_flux_vector(0).err(),
             Some("flow vector is not available for PorousLiqGas")
         );
     }
@@ -482,7 +482,7 @@ mod tests {
         sv.allocate_porous_sld_liq(Mandel::new(2), 2, 1);
 
         assert_eq!(
-            sv.get_flow_vector(0).err(),
+            sv.get_flux_vector(0).err(),
             Some("flow vector is not available for PorousSldLiq")
         );
     }
@@ -492,7 +492,7 @@ mod tests {
         let mut sv = SecondaryValues::new_empty();
         sv.allocate_porous_sld_liq_gas(Mandel::new(2), 2, 1);
 
-        assert_eq!(sv.get_flow_vector(0).err(), Some("flow vector is not available"));
+        assert_eq!(sv.get_flux_vector(0).err(), Some("flow vector is not available"));
     }
 
     #[test]

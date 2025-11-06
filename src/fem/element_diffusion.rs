@@ -229,7 +229,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Note that state.u, state.v, and state.a have been updated already
     fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // save the flow vector for post-processing, if requested
-        if self.config.out_flow_vectors {
+        if self.config.out_flux_vectors {
             for p in 0..self.gauss.npoint() {
                 // calculate the gradient at integration point (from global vector)
                 let phi = calculate_gradient(

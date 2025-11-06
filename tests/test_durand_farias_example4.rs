@@ -82,8 +82,8 @@ fn analyze_results() -> Result<(), StrError> {
 
     // stresses
     let state = post.read_state(post.n_state() - 1)?;
-    let gauss = post.gauss_stresses(&mut memo, &state, &left_cells, |x, _, _| x < hdx)?;
-    let nodal = post.nodal_stresses(&mut memo, &state, &left_cells, |x, _, _| x < hdx)?;
+    let gauss = post.gauss_stresses_patch(&mut memo, &state, &left_cells, |x, _, _| x < hdx)?;
+    let nodal = post.nodal_stresses_patch(&mut memo, &state, &left_cells, |x, _, _| x < hdx)?;
 
     // verification
     let ana = ElastPlaneStrainFlexibleFoot {

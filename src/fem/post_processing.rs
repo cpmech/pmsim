@@ -120,7 +120,7 @@ impl PostProc {
     ///
     /// * `results` - The FemResults instance containing the paths to the state files.
     /// * `index` - The index of the time station for which the state data is to be read.
-    ///   The index should be in the range `[0, n_state_files)`. Use [PostProc::n_state_files()]
+    ///   The index should be in the range `[0, n_state_files)`. Use [PostProc::n_state()]
     ///   to get the number of state files.
     ///
     /// # Returns
@@ -161,9 +161,145 @@ impl PostProc {
         get_points_coords(&mut pad, &gauss)
     }
 
-    /// Returns all stress components at the Gauss points of a cell
+    /// Returns the real coordinates of all Gauss points of a patch of cells
     ///
-    /// This function retrieves all stress components at the Gauss points for a given cell.
+    /// The results are filtered and sorted such that the Gauss point coordinates are in ascending order by `x → y → z`.
+    ///
+    /// # Arguments
+    ///
+    /// * `memo` - A mutable reference to the `PostProcMemo` instance for memoization.
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///
+    /// # Returns
+    ///
+    /// A tuple `(xx, yy, zz, indices, accepted)` where:
+    ///
+    /// * `xx` - x coordinates of the filtered Gauss points.
+    /// * `yy` - y coordinates of the filtered Gauss points.
+    /// * `zz` - z coordinates of the filtered Gauss points (empty in 2D).
+    /// * `indices` - Indices of the filtered and sorted Gauss points.
+    /// * `accepted` - List of accepted Gauss points as `(cell_id, gauss_point_index)` pairs.
+    ///
+    /// The `indices` and `accepted` arrays can be used as follows:
+    ///
+    /// ```text
+    /// for index in &indices {
+    ///     let (cell_id, p) = accepted[*index];
+    ///     println!("Cell Id: {}, Gauss Point Index: {}", cell_id, p);
+    ///     println!("Coordinates: ({}, {}, {})", xx[*index], yy[*index], zz[*index]);
+    ///     ...
+    /// }
+    /// ```
+    pub fn gauss_coords_patch<F>(
+        &self,
+        memo: &mut PostProcMemo,
+        cell_ids: &[CellId],
+        filter: F,
+    ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<usize>, Vec<(CellId, usize)>), StrError>
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
+        // collect the coordinates
+        let ndim = self.mesh.ndim;
+        let n_entries = cell_ids.len() * 64; // 64 is the maximum number of Gauss points possible (in gemlab)
+        let mut accepted: Vec<(CellId, usize)> = Vec::with_capacity(n_entries); // tracks accepted Gauss points
+        let mut xx = Vec::with_capacity(n_entries);
+        let mut yy = Vec::with_capacity(n_entries);
+        let mut zz = if ndim == 3 {
+            Vec::with_capacity(n_entries)
+        } else {
+            Vec::new()
+        };
+        for cell_id in cell_ids {
+            let coords = self.gauss_coords(memo, *cell_id)?;
+            let ngauss = coords.len();
+            for p in 0..ngauss {
+                let x = coords[p][0];
+                let y = coords[p][1];
+                let z = if ndim == 3 { coords[p][2] } else { 0.0 };
+                if filter(x, y, z) {
+                    xx.push(x);
+                    yy.push(y);
+                    if ndim == 3 {
+                        zz.push(z);
+                    }
+                    accepted.push((*cell_id, p));
+                }
+            }
+        }
+
+        // sort the accepted Gauss points
+        let (min, max) = self.mesh.get_limits();
+        let indices = if ndim == 3 {
+            let tol = &[
+                TOL_COMPARE_POINTS * (max[0] - min[0]),
+                TOL_COMPARE_POINTS * (max[1] - min[1]),
+                TOL_COMPARE_POINTS * (max[2] - min[2]),
+            ];
+            argsort3_f64(&zz, &yy, &xx, tol)
+        } else {
+            let tol = &[
+                TOL_COMPARE_POINTS * (max[0] - min[0]),
+                TOL_COMPARE_POINTS * (max[1] - min[1]),
+            ];
+            argsort2_f64(&yy, &xx, tol)
+        };
+
+        // return the filtered and sorted coordinates
+        Ok((xx, yy, zz, indices, accepted))
+    }
+
+    /// Returns flux vector components at all Gauss points of a cell
+    ///
+    /// Note: The recording of flux vectors must be enabled in [crate::base::Config] first.
+    /// For example:
+    ///
+    /// ```text
+    /// config.set_out_flux(true);
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_id` - The ID of the cell.
+    /// * `state` - The FEM state holding all results.
+    /// * `dof` - Use to select which flux vector to compute:
+    ///     - `Dof::Phi →   w  = - k  · ∇φ`
+    ///     - `Dof::Pl  →   wl = - kl · ∇pl`
+    ///     - `Dof::Pg  →   wg = - kg · ∇pg`
+    ///
+    /// # Returns
+    ///
+    /// A matrix `(ngauss, 2 space_ndim)` containing the vector components at each Gauss point.
+    /// For example:
+    ///
+    /// * 2D: returns an `(ngauss, 2)` matrix where each row corresponds to `[wx, wy]`
+    /// * 3D: returns an `(ngauss, 3)` matrix where each row corresponds to `[wx, wy, wz]`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the vector components cannot be retrieved.
+    pub fn gauss_fluxes(&self, state: &FemState, cell_id: CellId, dof: Dof) -> Result<Matrix, StrError> {
+        let ndim = self.mesh.ndim;
+        let second = &state.gauss[cell_id];
+        let mut res = Matrix::new(second.ngauss, ndim * 2);
+        if dof == Dof::Phi {
+            if second.ngauss == 0 {
+                return Err("no Gauss points found for this cell (output of flux vectors must be enabled first)");
+            }
+            for p in 0..second.ngauss {
+                let w = state.gauss[cell_id].get_flux_vector(p)?;
+                for i in 0..ndim {
+                    res.set(p, i, w[i]);
+                }
+            }
+        } else {
+            return Err("flux vector is only available for Dof::Phi at the moment");
+        }
+        Ok(res)
+    }
+
+    /// Returns stress components at all Gauss points of a cell
     ///
     /// # Arguments
     ///
@@ -172,7 +308,7 @@ impl PostProc {
     ///
     /// # Returns
     ///
-    /// A matrix (ngauss, 2 space_ndim) containing the stress components at each Gauss point.
+    /// A matrix `(ngauss, 2 space_ndim)` containing the stress components at each Gauss point.
     /// For example:
     ///
     /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[σxx, σyy, σzz, σxy]`
@@ -181,13 +317,11 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the stress components cannot be retrieved.
-    pub fn gauss_stress(&self, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
-        self.gauss_tensor(state, cell_id, false)
+    pub fn gauss_stresses(&self, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
+        self.gauss_tensors(state, cell_id, false)
     }
 
-    /// Returns all strain components at the Gauss points of a cell
-    ///
-    /// This function retrieves all strain components at the Gauss points for a given cell.
+    /// Returns strain components at all Gauss points of a cell
     ///
     /// Note: The recording of strains must be enabled in [crate::base::Config] first.
     /// For example:
@@ -203,7 +337,7 @@ impl PostProc {
     ///
     /// # Returns
     ///
-    /// A matrix (ngauss, 2 space_ndim) containing the strain components at each Gauss point.
+    /// A matrix `(ngauss, 2 space_ndim)` containing the strain components at each Gauss point.
     /// For example:
     ///
     /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[εxx, εyy, εzz, εxy]`
@@ -212,13 +346,11 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the strain components cannot be retrieved.
-    pub fn gauss_strain(&self, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
-        self.gauss_tensor(state, cell_id, true)
+    pub fn gauss_strains(&self, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
+        self.gauss_tensors(state, cell_id, true)
     }
 
-    /// Returns all tensor components at the Gauss points of a cell
-    ///
-    /// This function retrieves all tensor components (stress or strain) at the Gauss points for a given cell.
+    /// Returns tensor components at all Gauss points of a cell
     ///
     /// # Arguments
     ///
@@ -228,7 +360,7 @@ impl PostProc {
     ///
     /// # Returns
     ///
-    /// A matrix (ngauss, 2 space_ndim) containing the tensor components at each Gauss point.
+    /// A matrix `(ngauss, 2 space_ndim)` containing the tensor components at each Gauss point.
     /// For example:
     ///
     /// * 2D: returns an `(ngauss, 4)` matrix where each row corresponds to `[txx, tyy, tzz, txy]`
@@ -237,7 +369,7 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the tensor components cannot be retrieved.
-    fn gauss_tensor(&self, state: &FemState, cell_id: CellId, strain: bool) -> Result<Matrix, StrError> {
+    fn gauss_tensors(&self, state: &FemState, cell_id: CellId, strain: bool) -> Result<Matrix, StrError> {
         let ndim = self.mesh.ndim;
         let second = &state.gauss[cell_id];
         let mut res = Matrix::new(second.ngauss, ndim * 2);
@@ -269,27 +401,91 @@ impl PostProc {
         Ok(res)
     }
 
-    /// Returns all stress components at the Gauss points of a patch of cells
+    /// Returns all flux vector components at the Gauss points of a patch of cells
     ///
-    /// This function retrieves all stress components at the Gauss points for a given patch of cells.
+    /// Note: The recording of flux vectors must be enabled in [crate::base::Config] first.
+    /// For example:
+    ///
+    /// ```text
+    /// config.set_out_flux(true);
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
+    /// * `dof` - Use to select which flux vector to compute:
+    ///     - `Dof::Phi →   w  = - k  · ∇φ`
+    ///     - `Dof::Pl  →   wl = - kl · ∇pl`
+    ///     - `Dof::Pg  →   wg = - kg · ∇pg`
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///   The `z` coordinate may be ignored in 2D.
+    ///
+    /// # Returns
+    ///
+    /// A `SpatialVector` instance containing the coordinates of points and components at each point.
+    ///
+    /// **Note:** The arrays in `SpatialVector` are listed such that the coordinates are sorted by `x → y → z`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the vector components cannot be retrieved.
+    pub fn gauss_fluxes_patch<F>(
+        &self,
+        memo: &mut PostProcMemo,
+        state: &FemState,
+        cell_ids: &[CellId],
+        dof: Dof,
+        filter: F,
+    ) -> Result<SpatialVector, StrError>
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
+        // collect the coordinates and sort Gauss points
+        let (xx, yy, zz, indices, accepted) = self.gauss_coords_patch(memo, cell_ids, filter)?;
+
+        // retrieve the vector components at Gauss points
+        let ndim = self.mesh.ndim;
+        let capacity = indices.len();
+        let mut res = SpatialVector::new(ndim, capacity);
+        for index in &indices {
+            let (cell_id, p) = accepted[*index];
+            let vv = self.gauss_fluxes(state, cell_id, dof)?;
+            let id = res.id2k.len();
+            let k = res.k2id.len();
+            res.id2k.insert(id, k);
+            res.k2id.push(id);
+            res.vvx.push(vv.get(p, 0));
+            res.vvy.push(vv.get(p, 1));
+            res.xx.push(xx[*index]);
+            res.yy.push(yy[*index]);
+            if ndim == 3 {
+                res.zz.push(zz[*index]);
+                res.vvz.push(vv.get(p, 4));
+            }
+        }
+        Ok(res)
+    }
+
+    /// Returns all stress components at the Gauss points of a patch of cells
     ///
     /// # Arguments
     ///
     /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
     /// * `state` - A reference to the `FemState` instance holding all results.
     /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
-    ///              The `z` coordinate may be ignored in 2D.
+    ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Returns
     ///
     /// A `SpatialTensor` instance containing the coordinates of nodes and stress components at each node.
     ///
-    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
+    /// **Note:** The arrays in `SpatialTensor` are listed such that the coordinates are sorted by `x → y → z`.
     ///
     /// # Errors
     ///
     /// Returns an error if the stress components cannot be retrieved.
-    pub fn gauss_stresses<F>(
+    pub fn gauss_stresses_patch<F>(
         &self,
         memo: &mut PostProcMemo,
         state: &FemState,
@@ -299,30 +495,35 @@ impl PostProc {
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        self.gauss_tensors(memo, state, cell_ids, filter, false)
+        self.gauss_tensors_patch(memo, state, cell_ids, false, filter)
     }
 
     /// Returns all strain components at the Gauss points of a patch of cells
     ///
-    /// This function retrieves all strain components at the Gauss points for a given patch of cells.
+    /// Note: The recording of strains must be enabled in [crate::base::Config] first.
+    /// For example:
+    ///
+    /// ```text
+    /// config.update_model_settings(cell_attribute).save_strain = true;
+    /// ```
     ///
     /// # Arguments
     ///
     /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
     /// * `state` - A reference to the `FemState` instance holding all results.
     /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
-    ///              The `z` coordinate may be ignored in 2D.
+    ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Returns
     ///
     /// A `SpatialTensor` instance containing the coordinates of nodes and strain components at each node.
     ///
-    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
+    /// **Note:** The arrays in `SpatialTensor` are listed such that the coordinates are sorted by `x → y → z`.
     ///
     /// # Errors
     ///
     /// Returns an error if the strain components cannot be retrieved.
-    pub fn gauss_strains<F>(
+    pub fn gauss_strains_patch<F>(
         &self,
         memo: &mut PostProcMemo,
         state: &FemState,
@@ -332,93 +533,49 @@ impl PostProc {
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        self.gauss_tensors(memo, state, cell_ids, filter, true)
+        self.gauss_tensors_patch(memo, state, cell_ids, true, filter)
     }
 
     /// Returns all tensor components at the Gauss points of a patch of cells
-    ///
-    /// This function retrieves all tensor components (stress or strain) at the Gauss points for a given patch of cells.
     ///
     /// # Arguments
     ///
     /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
     /// * `state` - A reference to the `FemState` instance holding all results.
-    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
-    ///              The `z` coordinate may be ignored in 2D.
     /// * `strain` - A boolean indicating whether to return strains instead of stresses.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Returns
     ///
     /// A `SpatialTensor` instance containing the coordinates of nodes and tensor components at each node.
     ///
-    /// **Note:** The arrays in `SpatialTensor` will be ordered such that the coordinates are sorted by `x → y → z`.
+    /// **Note:** The arrays in `SpatialTensor` are listed such that the coordinates are sorted by `x → y → z`.
     ///
     /// # Errors
     ///
     /// Returns an error if the tensor components cannot be retrieved.
-    fn gauss_tensors<F>(
+    fn gauss_tensors_patch<F>(
         &self,
         memo: &mut PostProcMemo,
         state: &FemState,
         cell_ids: &[CellId],
-        filter: F,
         strain: bool,
+        filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        // collect the coordinates
-        let ndim = self.mesh.ndim;
-        let n_entries = cell_ids.len() * 32;
-        let mut accepted: Vec<(CellId, usize)> = Vec::with_capacity(n_entries); // tracks accepted Gauss points
-        let mut xx = Vec::with_capacity(n_entries);
-        let mut yy = Vec::with_capacity(n_entries);
-        let mut zz = if ndim == 3 {
-            Vec::with_capacity(n_entries)
-        } else {
-            Vec::new()
-        };
-        for cell_id in cell_ids {
-            let coords = self.gauss_coords(memo, *cell_id)?;
-            let ngauss = coords.len();
-            for p in 0..ngauss {
-                let x = coords[p][0];
-                let y = coords[p][1];
-                let z = if ndim == 3 { coords[p][2] } else { 0.0 };
-                if filter(x, y, z) {
-                    xx.push(x);
-                    yy.push(y);
-                    if ndim == 3 {
-                        zz.push(z);
-                    }
-                    accepted.push((*cell_id, p));
-                }
-            }
-        }
-
-        // sort the accepted Gauss points
-        let (min, max) = self.mesh.get_limits();
-        let sorted_indices = if ndim == 3 {
-            let tol = &[
-                TOL_COMPARE_POINTS * (max[0] - min[0]),
-                TOL_COMPARE_POINTS * (max[1] - min[1]),
-                TOL_COMPARE_POINTS * (max[2] - min[2]),
-            ];
-            argsort3_f64(&zz, &yy, &xx, tol)
-        } else {
-            let tol = &[
-                TOL_COMPARE_POINTS * (max[0] - min[0]),
-                TOL_COMPARE_POINTS * (max[1] - min[1]),
-            ];
-            argsort2_f64(&yy, &xx, tol)
-        };
+        // collect the coordinates and sort Gauss points
+        let (xx, yy, zz, indices, accepted) = self.gauss_coords_patch(memo, cell_ids, filter)?;
 
         // retrieve the tensor components at Gauss points
-        let capacity = sorted_indices.len();
+        let ndim = self.mesh.ndim;
+        let capacity = indices.len();
         let mut res = SpatialTensor::new(ndim, capacity);
-        for index in &sorted_indices {
+        for index in &indices {
             let (cell_id, p) = accepted[*index];
-            let tt = self.gauss_tensor(state, cell_id, strain)?;
+            let tt = self.gauss_tensors(state, cell_id, strain)?;
             let id = res.id2k.len();
             let k = res.k2id.len();
             res.id2k.insert(id, k);
@@ -438,162 +595,50 @@ impl PostProc {
         Ok(res)
     }
 
-    /// Returns all flow vector components at the Gauss points of a cell
+    /// Returns flux vector components at all nodes of a cell using extrapolation from Gauss to Node
     ///
-    /// This function retrieves all vector components at the Gauss points for a given cell.
+    /// Note: The recording of flux vectors must be enabled in [crate::base::Config] first.
+    /// For example:
+    ///
+    /// ```text
+    /// config.set_out_flux(true);
+    /// ```
     ///
     /// # Arguments
     ///
     /// * `cell_id` - The ID of the cell.
-    /// * `state` - The FEM state holding all results.
-    /// * `dof` - Use to select which flow vector to compute, from the following options (the other options are invalid):
-    ///
-    /// ```text
-    /// Dof::Phi →   w  = - k  · ∇φ
-    /// Dof::Pl  →   wl = - kl · ∇pl
-    /// Dof::Pg  →   wg = - kg · ∇pg
-    /// ```
-    ///
-    /// # Returns
-    ///
-    /// A matrix (ngauss, 2 space_ndim) containing the vector components at each Gauss point.
-    /// For example:
-    ///
-    /// * 2D: returns an `(ngauss, 2)` matrix where each row corresponds to `[vx, vy]`
-    /// * 3D: returns an `(ngauss, 3)` matrix where each row corresponds to `[vx, vy, vz]`
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the vector components cannot be retrieved.
-    fn gauss_vector(&self, state: &FemState, cell_id: CellId, dof: Dof) -> Result<Matrix, StrError> {
-        let ndim = self.mesh.ndim;
-        let second = &state.gauss[cell_id];
-        let mut res = Matrix::new(second.ngauss, ndim * 2);
-        if dof == Dof::Phi {
-            if second.ngauss == 0 {
-                return Err("no Gauss points found for this cell");
-            }
-            for p in 0..second.ngauss {
-                let w = state.gauss[cell_id].get_flow_vector(p)?;
-                for i in 0..ndim {
-                    res.set(p, i, w[i]);
-                }
-            }
-        } else {
-            return Err("flow vector is only available for Dof::Phi at the moment");
-        }
-        Ok(res)
-    }
-
-    /// Returns all flow vector components at the Gauss points of a patch of cells
-    ///
-    /// # Arguments
-    ///
     /// * `state` - A reference to the `FemState` instance holding all results.
-    /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
-    /// * `dof` - Use to select which flow vector to compute, from the following options (the other options are invalid):
-    ///
-    /// ```text
-    /// Dof::Phi →   w  = - k  · ∇φ
-    /// Dof::Pl  →   wl = - kl · ∇pl
-    /// Dof::Pg  →   wg = - kg · ∇pg
-    /// ```
-    ///
-    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
-    ///              The `z` coordinate may be ignored in 2D.
+    /// * `dof` - Use to select which flux vector to compute:
+    ///     - `Dof::Phi →   w  = - k  · ∇φ`
+    ///     - `Dof::Pl  →   wl = - kl · ∇pl`
+    ///     - `Dof::Pg  →   wg = - kg · ∇pg`
     ///
     /// # Returns
     ///
-    /// A `SpatialVector` instance containing the coordinates of points and components at each point.
+    /// A matrix containing the flux vector components at each node.
     ///
-    /// **Note:** The arrays in `SpatialVector` will be ordered such that the coordinates are sorted by `x → y → z`.
+    /// * 2D: returns an `(nnode, 2)` matrix where each row corresponds to `[wx, wy]`
+    /// * 3D: returns an `(nnode, 3)` matrix where each row corresponds to `[wx, wy, wz]`
     ///
     /// # Errors
     ///
     /// Returns an error if the vector components cannot be retrieved.
-    pub fn gauss_flow_vectors<F>(
+    pub fn nodal_fluxes(
         &self,
         memo: &mut PostProcMemo,
         state: &FemState,
-        cell_ids: &[CellId],
+        cell_id: CellId,
         dof: Dof,
-        filter: F,
-    ) -> Result<SpatialVector, StrError>
-    where
-        F: Fn(f64, f64, f64) -> bool,
-    {
-        // collect the coordinates
-        let ndim = self.mesh.ndim;
-        let n_entries = cell_ids.len() * 32;
-        let mut accepted: Vec<(CellId, usize)> = Vec::with_capacity(n_entries); // tracks accepted Gauss points
-        let mut xx = Vec::with_capacity(n_entries);
-        let mut yy = Vec::with_capacity(n_entries);
-        let mut zz = if ndim == 3 {
-            Vec::with_capacity(n_entries)
-        } else {
-            Vec::new()
-        };
-        for cell_id in cell_ids {
-            let coords = self.gauss_coords(memo, *cell_id)?;
-            let ngauss = coords.len();
-            for p in 0..ngauss {
-                let x = coords[p][0];
-                let y = coords[p][1];
-                let z = if ndim == 3 { coords[p][2] } else { 0.0 };
-                if filter(x, y, z) {
-                    xx.push(x);
-                    yy.push(y);
-                    if ndim == 3 {
-                        zz.push(z);
-                    }
-                    accepted.push((*cell_id, p));
-                }
-            }
-        }
-
-        // sort the accepted Gauss points
-        let (min, max) = self.mesh.get_limits();
-        let sorted_indices = if ndim == 3 {
-            let tol = &[
-                TOL_COMPARE_POINTS * (max[0] - min[0]),
-                TOL_COMPARE_POINTS * (max[1] - min[1]),
-                TOL_COMPARE_POINTS * (max[2] - min[2]),
-            ];
-            argsort3_f64(&zz, &yy, &xx, tol)
-        } else {
-            let tol = &[
-                TOL_COMPARE_POINTS * (max[0] - min[0]),
-                TOL_COMPARE_POINTS * (max[1] - min[1]),
-            ];
-            argsort2_f64(&yy, &xx, tol)
-        };
-
-        // retrieve the vector components at Gauss points
-        let capacity = sorted_indices.len();
-        let mut res = SpatialVector::new(ndim, capacity);
-        for index in &sorted_indices {
-            let (cell_id, p) = accepted[*index];
-            let vv = self.gauss_vector(state, cell_id, dof)?;
-            let id = res.id2k.len();
-            let k = res.k2id.len();
-            res.id2k.insert(id, k);
-            res.k2id.push(id);
-            res.vvx.push(vv.get(p, 0));
-            res.vvy.push(vv.get(p, 1));
-            res.xx.push(xx[*index]);
-            res.yy.push(yy[*index]);
-            if ndim == 3 {
-                res.zz.push(zz[*index]);
-                res.vvz.push(vv.get(p, 4));
-            }
-        }
-        Ok(res)
+    ) -> Result<Matrix, StrError> {
+        let nnode = self.mesh.cells[cell_id].points.len();
+        let ww_gauss = self.gauss_fluxes(state, cell_id, dof)?;
+        let mut ww_nodal = Matrix::new(nnode, ww_gauss.ncol());
+        let ee = self.get_extrap_matrix(memo, cell_id)?;
+        mat_mat_mul(&mut ww_nodal, 1.0, &ee, &ww_gauss, 0.0)?; // wn = E · wg
+        Ok(ww_nodal)
     }
 
-    /// Returns all extrapolated stress components at the nodes of a cell
-    ///
-    /// This function retrieves the stress components at the nodes for a given cell by extrapolating
-    /// the stress components from the Gauss points.
+    /// Returns stress components at all nodes of a cell using extrapolation from Gauss to Node
     ///
     /// # Arguments
     ///
@@ -610,14 +655,16 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the stress components cannot be retrieved.
-    pub fn nodal_stress(&self, memo: &mut PostProcMemo, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
-        self.nodal_tensor(memo, state, cell_id, false)
+    pub fn nodal_stresses(
+        &self,
+        memo: &mut PostProcMemo,
+        state: &FemState,
+        cell_id: CellId,
+    ) -> Result<Matrix, StrError> {
+        self.nodal_tensors(memo, state, cell_id, false)
     }
 
-    /// Returns the extrapolated strain components at the nodes of a cell
-    ///
-    /// This function retrieves the strain components at the nodes for a given cell by extrapolating
-    /// the strain components from the Gauss points.
+    /// Returns strain components at all nodes of a cell using extrapolation from Gauss to Node
     ///
     /// Note: The recording of strains must be enabled in [crate::base::Config] first.
     /// For example:
@@ -641,13 +688,16 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the strain components cannot be retrieved.
-    pub fn nodal_strain(&self, memo: &mut PostProcMemo, state: &FemState, cell_id: CellId) -> Result<Matrix, StrError> {
-        self.nodal_tensor(memo, state, cell_id, true)
+    pub fn nodal_strains(
+        &self,
+        memo: &mut PostProcMemo,
+        state: &FemState,
+        cell_id: CellId,
+    ) -> Result<Matrix, StrError> {
+        self.nodal_tensors(memo, state, cell_id, true)
     }
 
-    /// Returns all extrapolated tensor components at the nodes of a cell
-    ///
-    /// This function performs the extrapolation from Gauss points to nodes.
+    /// Returns tensor components at all nodes of a cell using extrapolation from Gauss to Node
     ///
     /// # Arguments
     ///
@@ -658,13 +708,14 @@ impl PostProc {
     /// # Returns
     ///
     /// A matrix containing the tensor components at each node.
+    ///
     /// * 2D: returns an `(nnode, 4)` matrix where each row corresponds to `[txx, tyy, tzz, txy]`
     /// * 3D: returns an `(nnode, 6)` matrix where each row corresponds to `[txx, tyy, tzz, txy, tyz, tzx]`
     ///
     /// # Errors
     ///
     /// Returns an error if the tensor components cannot be retrieved.
-    fn nodal_tensor(
+    fn nodal_tensors(
         &self,
         memo: &mut PostProcMemo,
         state: &FemState,
@@ -672,25 +723,98 @@ impl PostProc {
         strain: bool,
     ) -> Result<Matrix, StrError> {
         let nnode = self.mesh.cells[cell_id].points.len();
-        let ten_gauss = self.gauss_tensor(state, cell_id, strain)?;
-        let mut ten_nodal = Matrix::new(nnode, ten_gauss.ncol());
+        let tt_gauss = self.gauss_tensors(state, cell_id, strain)?;
+        let mut tt_nodal = Matrix::new(nnode, tt_gauss.ncol());
         let ee = self.get_extrap_matrix(memo, cell_id)?;
-        mat_mat_mul(&mut ten_nodal, 1.0, &ee, &ten_gauss, 0.0)?;
-        Ok(ten_nodal)
+        mat_mat_mul(&mut tt_nodal, 1.0, &ee, &tt_gauss, 0.0)?; // tn = E · tg
+        Ok(tt_nodal)
     }
 
-    /// Extrapolates stress components from Gauss points to the nodes of cells (averaging)
+    /// Returns flux vector components at all nodes of a patch of cells using extrapolation from Gauss to Node and averaging
     ///
-    /// This function extrapolates the stress components from the Gauss points to the nodes of the given cells.
+    /// The vector components are averaged at nodes shared by multiple cells.
     ///
-    /// **Note:** The stress components are averaged at nodes shared by multiple cells.
+    /// Note: The recording of flux vectors must be enabled in [crate::base::Config] first.
+    /// For example:
+    ///
+    /// ```text
+    /// config.set_out_flux(true);
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells sharing the nodes with extrapolated results.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `dof` - Use to select which flux vector to compute:
+    ///     - `Dof::Phi →   w  = - k  · ∇φ`
+    ///     - `Dof::Pl  →   wl = - kl · ∇pl`
+    ///     - `Dof::Pg  →   wg = - kg · ∇pg`
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///   The `z` coordinate may be ignored in 2D.
+    ///
+    /// # Returns
+    ///
+    /// A `SpatialVector` instance containing the coordinates of nodes and vector components at each node.
+    ///
+    /// **Note:** The arrays in `SpatialVector` will be ordered such that the coordinates are sorted by `x → y → z`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the vector components cannot be retrieved.
+    pub fn nodal_fluxes_patch<F>(
+        &self,
+        memo: &mut PostProcMemo,
+        state: &FemState,
+        cell_ids: &[CellId],
+        dof: Dof,
+        filter: F,
+    ) -> Result<SpatialVector, StrError>
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
+        // perform the extrapolation and store the results in a temporary map
+        let ndim = self.mesh.ndim;
+        let mut map = VectorComponentsMap::new(ndim);
+        for cell_id in cell_ids {
+            let vv = self.nodal_fluxes(memo, state, *cell_id, dof)?;
+            let nnode = vv.nrow(); // = cell.points.len()
+            if ndim == 3 {
+                for m in 0..nnode {
+                    map.add_vector(
+                        self.mesh.cells[*cell_id].points[m],
+                        vv.get(m, 0),
+                        vv.get(m, 1),
+                        Some(vv.get(m, 2)),
+                    )
+                    .unwrap();
+                }
+            } else {
+                for m in 0..nnode {
+                    map.add_vector(self.mesh.cells[*cell_id].points[m], vv.get(m, 0), vv.get(m, 1), None)
+                        .unwrap();
+                }
+            }
+        }
+
+        // collect the sorted and filtered node coordinates
+        let unsorted_ids: Vec<_> = map.counter.keys().copied().collect();
+        let sorted_ids = self.mesh.get_sorted_points(&unsorted_ids, filter);
+
+        // average the results
+        let res = SpatialVector::from_map(&self.mesh, &map, &sorted_ids);
+        Ok(res)
+    }
+
+    /// Returns stress components at all nodes of a patch of cells using extrapolation from Gauss to Node and averaging
+    ///
+    /// The stress components are averaged at nodes shared by multiple cells.
     ///
     /// # Arguments
     ///
     /// * `cell_ids` - A slice of cell IDs representing the patch of cells sharing the nodes with extrapolated results.
     /// * `state` - A reference to the `FemState` instance holding all results.
     /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
-    ///              The `z` coordinate may be ignored in 2D.
+    ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Returns
     ///
@@ -701,7 +825,7 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the stress components cannot be retrieved.
-    pub fn nodal_stresses<F>(
+    pub fn nodal_stresses_patch<F>(
         &self,
         memo: &mut PostProcMemo,
         state: &FemState,
@@ -711,21 +835,19 @@ impl PostProc {
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        self.extrapolate_tensor(memo, state, cell_ids, filter, false)
+        self.nodal_tensors_patch(memo, state, cell_ids, false, filter)
     }
 
-    /// Extrapolates strain components from Gauss points to the nodes of cells (averaging)
+    /// Returns strain components at all nodes of a patch of cells using extrapolation from Gauss to Node and averaging
     ///
-    /// This function extrapolates the strain components from the Gauss points to the nodes of the given cells.
-    ///
-    /// **Note:** The stress components are averaged at nodes shared by multiple cells.
+    /// The strain components are averaged at nodes shared by multiple cells.
     ///
     /// # Arguments
     ///
     /// * `cell_ids` - A slice of cell IDs representing the patch of cells sharing the nodes with extrapolated results.
     /// * `state` - A reference to the `FemState` instance holding all results.
     /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
-    ///              The `z` coordinate may be ignored in 2D.
+    ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Returns
     ///
@@ -736,7 +858,7 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the strain components cannot be retrieved.
-    pub fn nodal_strains<F>(
+    pub fn nodal_strains_patch<F>(
         &self,
         memo: &mut PostProcMemo,
         state: &FemState,
@@ -746,22 +868,20 @@ impl PostProc {
     where
         F: Fn(f64, f64, f64) -> bool,
     {
-        self.extrapolate_tensor(memo, state, cell_ids, filter, true)
+        self.nodal_tensors_patch(memo, state, cell_ids, true, filter)
     }
 
-    /// Extrapolates tensor components from Gauss points to the nodes of cells (averaging)
+    /// Returns tensor components at all nodes of a patch of cells using extrapolation from Gauss to Node and averaging
     ///
-    /// This function extrapolates the tensor components (stress or strain) from the Gauss points to the nodes of the given cells.
-    ///
-    /// **Note:** The stress components are averaged at nodes shared by multiple cells.
+    /// The stress components are averaged at nodes shared by multiple cells.
     ///
     /// # Arguments
     ///
     /// * `cell_ids` - A slice of cell IDs representing the patch of cells sharing the nodes with extrapolated results.
     /// * `state` - A reference to the `FemState` instance holding all results.
-    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
-    ///              The `z` coordinate may be ignored in 2D.
     /// * `strain` - A boolean indicating whether to return strains instead of stresses.
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///   The `z` coordinate may be ignored in 2D.
     ///
     /// # Returns
     ///
@@ -772,13 +892,13 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the tensor components cannot be retrieved.
-    fn extrapolate_tensor<F>(
+    fn nodal_tensors_patch<F>(
         &self,
         memo: &mut PostProcMemo,
         state: &FemState,
         cell_ids: &[CellId],
-        filter: F,
         strain: bool,
+        filter: F,
     ) -> Result<SpatialTensor, StrError>
     where
         F: Fn(f64, f64, f64) -> bool,
@@ -787,7 +907,7 @@ impl PostProc {
         let ndim = self.mesh.ndim;
         let mut map = TensorComponentsMap::new(ndim);
         for cell_id in cell_ids {
-            let tt = self.nodal_tensor(memo, state, *cell_id, strain)?;
+            let tt = self.nodal_tensors(memo, state, *cell_id, strain)?;
             let nnode = tt.nrow(); // = cell.points.len()
             if ndim == 3 {
                 for m in 0..nnode {
@@ -1435,8 +1555,8 @@ mod tests {
     fn gauss_stress_and_strain_work_2d() {
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
-            let sig = post.gauss_stress(&state, 0).unwrap();
-            let eps = post.gauss_strain(&state, 0).unwrap();
+            let sig = post.gauss_stresses(&state, 0).unwrap();
+            let eps = post.gauss_strains(&state, 0).unwrap();
             let ngauss = sig.nrow();
             for p in 0..ngauss {
                 // stress
@@ -1457,8 +1577,8 @@ mod tests {
     fn gauss_stress_and_strain_work_3d() {
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
-            let sig = post.gauss_stress(&state, 0).unwrap();
-            let eps = post.gauss_strain(&state, 0).unwrap();
+            let sig = post.gauss_stresses(&state, 0).unwrap();
+            let eps = post.gauss_strains(&state, 0).unwrap();
             let ngauss = sig.nrow();
             for p in 0..ngauss {
                 // stress
@@ -1501,7 +1621,7 @@ mod tests {
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
-                .gauss_stresses(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
+                .gauss_stresses_patch(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.k2id.len() {
                 assert_eq!(*sig.id2k.get(&k).unwrap(), k);
@@ -1520,7 +1640,7 @@ mod tests {
             }
             // strain (unfiltered)
             let eps = post
-                .gauss_strains(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
+                .gauss_strains_patch(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
                 .unwrap();
             for k in 0..eps.k2id.len() {
                 assert_eq!(*eps.id2k.get(&k).unwrap(), k);
@@ -1597,7 +1717,7 @@ mod tests {
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
-                .gauss_stresses(&mut memo, &state, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
+                .gauss_stresses_patch(&mut memo, &state, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.k2id.len() {
                 assert_eq!(*sig.id2k.get(&k).unwrap(), k);
@@ -1617,7 +1737,9 @@ mod tests {
                 }
             }
             // strain (unfiltered)
-            let eps = post.gauss_strains(&mut memo, &state, &[0, 1], |_, _, _| true).unwrap();
+            let eps = post
+                .gauss_strains_patch(&mut memo, &state, &[0, 1], |_, _, _| true)
+                .unwrap();
             for k in 0..eps.k2id.len() {
                 assert_eq!(*eps.id2k.get(&k).unwrap(), k);
                 assert_eq!(eps.k2id[k], k);
@@ -1689,8 +1811,8 @@ mod tests {
     fn nodal_stress_and_strain_work_2d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
-            let sig = post.nodal_stress(&mut memo, &state, 0).unwrap();
-            let eps = post.nodal_strain(&mut memo, &state, 0).unwrap();
+            let sig = post.nodal_stresses(&mut memo, &state, 0).unwrap();
+            let eps = post.nodal_strains(&mut memo, &state, 0).unwrap();
             let nnode = sig.nrow();
             for m in 0..nnode {
                 // stress
@@ -1711,8 +1833,8 @@ mod tests {
     fn nodal_stress_and_strain_work_3d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
-            let sig = post.nodal_stress(&mut memo, &state, 0).unwrap();
-            let eps = post.nodal_strain(&mut memo, &state, 0).unwrap();
+            let sig = post.nodal_stresses(&mut memo, &state, 0).unwrap();
+            let eps = post.nodal_strains(&mut memo, &state, 0).unwrap();
             let nnode = sig.nrow();
             for m in 0..nnode {
                 // stress
@@ -1755,7 +1877,7 @@ mod tests {
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
-                .nodal_stresses(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
+                .nodal_stresses_patch(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.xx.len() {
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
@@ -1777,7 +1899,7 @@ mod tests {
                 .for_each(|k| assert_eq!(k, k));
             // strain (unfiltered)
             let eps = post
-                .nodal_strains(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
+                .nodal_strains_patch(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
                 .unwrap();
             for k in 0..eps.xx.len() {
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
@@ -1849,7 +1971,7 @@ mod tests {
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
-                .nodal_stresses(&mut memo, &state, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
+                .nodal_stresses_patch(&mut memo, &state, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.xx.len() {
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-13);
@@ -1872,7 +1994,9 @@ mod tests {
                 .map(|id| sig.id2k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
             // strain (unfiltered)
-            let eps = post.nodal_strains(&mut memo, &state, &[0, 1], |_, _, _| true).unwrap();
+            let eps = post
+                .nodal_strains_patch(&mut memo, &state, &[0, 1], |_, _, _| true)
+                .unwrap();
             for k in 0..eps.xx.len() {
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);

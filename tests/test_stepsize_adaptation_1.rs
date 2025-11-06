@@ -193,7 +193,7 @@ fn analyze_results() -> Result<(), StrError> {
         outer_ur[index] = ub_num;
 
         // get stresses
-        let res = post.gauss_stresses(&mut memo, &state, &lower_cells, |x, y, _| {
+        let res = post.gauss_stresses_patch(&mut memo, &state, &lower_cells, |x, y, _| {
             let alpha = f64::atan2(y, x) * 180.0 / PI;
             alpha < 15.0
         })?;

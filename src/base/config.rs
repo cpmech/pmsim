@@ -7,13 +7,13 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 /// Defines the smallest allowed Δt
-const CONFIG_DT_MIN: f64 = 1e-7;
+pub const CONFIG_DT_MIN: f64 = 1e-7;
 
 /// Defines the smallest allowed tolerance
-const CONFIG_MIN_TOL: f64 = 1e-12;
+pub const CONFIG_MIN_TOL: f64 = 1e-12;
 
 /// Defines the smallest allowed theta{1,2}
-const CONFIG_MIN_THETA: f64 = 0.0001;
+pub const CONFIG_MIN_THETA: f64 = 0.0001;
 
 /// Holds configuration parameters
 ///
@@ -256,7 +256,7 @@ pub struct Config<'a> {
     /// Output local state at selected integration points
     pub(crate) out_local_state: HashSet<CellId>,
 
-    /// Output flow vectors from Diffusion elements
+    /// Output flux vectors at Gauss points
     ///
     /// Examples:
     ///
@@ -265,7 +265,7 @@ pub struct Config<'a> {
     /// Dof::Pl  →   wl = -kl · ∇pl
     /// Dof::Pg  →   wg = -kg · ∇pg
     /// ```
-    pub(crate) out_flow_vectors: bool,
+    pub(crate) out_flux_vectors: bool,
 
     /// Indicates whether the output of selected points and cells are active
     pub(crate) out_has_selected: bool,
@@ -345,7 +345,7 @@ impl<'a> Config<'a> {
             out_ddt: 1.0,
             out_dof: HashSet::new(),
             out_local_state: HashSet::new(),
-            out_flow_vectors: false,
+            out_flux_vectors: false,
             out_has_selected: false,
         }
     }
@@ -748,7 +748,7 @@ impl<'a> Config<'a> {
 
     /// Sets the absolute tolerance for the global residual vector
     ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    /// The minimum allowed value is [CONFIG_MIN_TOL]
     pub fn set_tol_rr_abs(&mut self, tol_absolute: f64) -> &mut Self {
         self.tol_rr_abs = tol_absolute;
         self
@@ -756,7 +756,7 @@ impl<'a> Config<'a> {
 
     /// Sets the absolute tolerance for the corrective (augmented) displacement vector (mdu)
     ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    /// The minimum allowed value is [CONFIG_MIN_TOL]
     pub fn set_tol_mdu_abs(&mut self, tol_absolute: f64) -> &mut Self {
         self.tol_mdu_abs = tol_absolute;
         self
@@ -764,7 +764,7 @@ impl<'a> Config<'a> {
 
     /// Sets the relative tolerance for the corrective (augmented) displacement vector (mdu)
     ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
+    /// The minimum allowed value is [CONFIG_MIN_TOL]
     pub fn set_tol_mdu_rel(&mut self, tol_relative: f64) -> &mut Self {
         self.tol_mdu_rel = tol_relative;
         self
@@ -847,7 +847,7 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Enables the output of flow vectors
+    /// Enables the output of flux vectors at Gauss points
     ///
     /// Examples:
     ///
@@ -856,8 +856,8 @@ impl<'a> Config<'a> {
     /// Dof::Pl  →   wl = -kl · ∇pl
     /// Dof::Pg  →   wg = -kg · ∇pg
     /// ```
-    pub fn set_out_flow_vectors(&mut self, enable: bool) -> &mut Self {
-        self.out_flow_vectors = enable;
+    pub fn set_out_flux(&mut self, enable: bool) -> &mut Self {
+        self.out_flux_vectors = enable;
         self
     }
 }
