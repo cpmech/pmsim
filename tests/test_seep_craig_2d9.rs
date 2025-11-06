@@ -64,6 +64,7 @@ fn test_seep_craig_2d9() -> Result<(), StrError> {
     config
         .set_axisymmetric()
         .set_lagrange_mult_method(true)
+        .set_out_flow_vectors(true)
         .set_out_files(OUT_DIR, NAME, 1.0);
 
     // FEM state
@@ -77,7 +78,39 @@ fn test_seep_craig_2d9() -> Result<(), StrError> {
     solver.solve(&mut state, &mut results)?;
 
     // post-processing
-    let (post, _) = PostProc::new(OUT_DIR, NAME)?;
+    post_processing()
+}
+
+fn post_processing() -> Result<(), StrError> {
+    // post-processing tool
+    let (post, mut memo) = PostProc::new(OUT_DIR, NAME)?;
+
+    // load mesh and find vertical section along the gap underneath the wall
+    let mesh = post.mesh();
+    let with_internal_edges = true;
+    let features = Features::new(&mesh, with_internal_edges); // need internal edges
+    let gap_section = features.search_edges(At::X(M), |x| x[1] <= G)?;
+    let cells_around_gap_section = features.get_cells_via_2d_edges(&gap_section);
+    let gap_cells: Vec<_> = cells_around_gap_section
+        .iter()
+        .filter(|&&c| {
+            for a in &mesh.cells[c].points {
+                if mesh.points[*a].coords[0] < M {
+                    return false;
+                }
+            }
+            true
+        })
+        .copied()
+        .collect();
+    println!("section = {}", gap_section);
+    println!("gap_cells = {:?}", gap_cells);
+
+    // analysis
+    let state = post.read_state(post.n_state() - 1)?;
+    let gauss = post.gauss_flow_vectors(&mut memo, &state, &gap_cells, Dof::Phi, |_, _, _| true)?;
+    println!("wx = {:?}", gauss.vvx);
+    println!("wy = {:?}", gauss.vvy);
 
     // write Paraview files
     let path_pvd = post.write_paraview(OUT_DIR, NAME)?;

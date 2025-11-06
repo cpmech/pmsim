@@ -1,6 +1,6 @@
 use super::{write_pvd, write_vtu, FemBase, FemResults, FemState};
 use crate::base::Dof;
-use crate::util::{SpatialTensor, TensorComponentsMap};
+use crate::util::{SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::{At, CellId, Edges, Features, Mesh, PointId, TOL_COMPARE_POINTS};
@@ -433,6 +433,158 @@ impl PostProc {
                 res.zz.push(zz[*index]);
                 res.tyz.push(tt.get(p, 4));
                 res.tzx.push(tt.get(p, 5));
+            }
+        }
+        Ok(res)
+    }
+
+    /// Returns all flow vector components at the Gauss points of a cell
+    ///
+    /// This function retrieves all vector components at the Gauss points for a given cell.
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_id` - The ID of the cell.
+    /// * `state` - The FEM state holding all results.
+    /// * `dof` - Use to select which flow vector to compute, from the following options (the other options are invalid):
+    ///
+    /// ```text
+    /// Dof::Phi →   w  = - k  · ∇φ
+    /// Dof::Pl  →   wl = - kl · ∇pl
+    /// Dof::Pg  →   wg = - kg · ∇pg
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// A matrix (ngauss, 2 space_ndim) containing the vector components at each Gauss point.
+    /// For example:
+    ///
+    /// * 2D: returns an `(ngauss, 2)` matrix where each row corresponds to `[vx, vy]`
+    /// * 3D: returns an `(ngauss, 3)` matrix where each row corresponds to `[vx, vy, vz]`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the vector components cannot be retrieved.
+    fn gauss_vector(&self, state: &FemState, cell_id: CellId, dof: Dof) -> Result<Matrix, StrError> {
+        let ndim = self.mesh.ndim;
+        let second = &state.gauss[cell_id];
+        let mut res = Matrix::new(second.ngauss, ndim * 2);
+        if dof == Dof::Phi {
+            if second.ngauss == 0 {
+                return Err("no Gauss points found for this cell");
+            }
+            for p in 0..second.ngauss {
+                let w = state.gauss[cell_id].get_flow_vector(p)?;
+                for i in 0..ndim {
+                    res.set(p, i, w[i]);
+                }
+            }
+        } else {
+            return Err("flow vector is only available for Dof::Phi at the moment");
+        }
+        Ok(res)
+    }
+
+    /// Returns all flow vector components at the Gauss points of a patch of cells
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
+    /// * `dof` - Use to select which flow vector to compute, from the following options (the other options are invalid):
+    ///
+    /// ```text
+    /// Dof::Phi →   w  = - k  · ∇φ
+    /// Dof::Pl  →   wl = - kl · ∇pl
+    /// Dof::Pg  →   wg = - kg · ∇pg
+    /// ```
+    ///
+    /// * `filter` - A closure that takes the coordinates `(x, y, z)` and returns `true` to keep the results.
+    ///              The `z` coordinate may be ignored in 2D.
+    ///
+    /// # Returns
+    ///
+    /// A `SpatialVector` instance containing the coordinates of points and components at each point.
+    ///
+    /// **Note:** The arrays in `SpatialVector` will be ordered such that the coordinates are sorted by `x → y → z`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the vector components cannot be retrieved.
+    pub fn gauss_flow_vectors<F>(
+        &self,
+        memo: &mut PostProcMemo,
+        state: &FemState,
+        cell_ids: &[CellId],
+        dof: Dof,
+        filter: F,
+    ) -> Result<SpatialVector, StrError>
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
+        // collect the coordinates
+        let ndim = self.mesh.ndim;
+        let n_entries = cell_ids.len() * 32;
+        let mut accepted: Vec<(CellId, usize)> = Vec::with_capacity(n_entries); // tracks accepted Gauss points
+        let mut xx = Vec::with_capacity(n_entries);
+        let mut yy = Vec::with_capacity(n_entries);
+        let mut zz = if ndim == 3 {
+            Vec::with_capacity(n_entries)
+        } else {
+            Vec::new()
+        };
+        for cell_id in cell_ids {
+            let coords = self.gauss_coords(memo, *cell_id)?;
+            let ngauss = coords.len();
+            for p in 0..ngauss {
+                let x = coords[p][0];
+                let y = coords[p][1];
+                let z = if ndim == 3 { coords[p][2] } else { 0.0 };
+                if filter(x, y, z) {
+                    xx.push(x);
+                    yy.push(y);
+                    if ndim == 3 {
+                        zz.push(z);
+                    }
+                    accepted.push((*cell_id, p));
+                }
+            }
+        }
+
+        // sort the accepted Gauss points
+        let (min, max) = self.mesh.get_limits();
+        let sorted_indices = if ndim == 3 {
+            let tol = &[
+                TOL_COMPARE_POINTS * (max[0] - min[0]),
+                TOL_COMPARE_POINTS * (max[1] - min[1]),
+                TOL_COMPARE_POINTS * (max[2] - min[2]),
+            ];
+            argsort3_f64(&zz, &yy, &xx, tol)
+        } else {
+            let tol = &[
+                TOL_COMPARE_POINTS * (max[0] - min[0]),
+                TOL_COMPARE_POINTS * (max[1] - min[1]),
+            ];
+            argsort2_f64(&yy, &xx, tol)
+        };
+
+        // retrieve the vector components at Gauss points
+        let capacity = sorted_indices.len();
+        let mut res = SpatialVector::new(ndim, capacity);
+        for index in &sorted_indices {
+            let (cell_id, p) = accepted[*index];
+            let vv = self.gauss_vector(state, cell_id, dof)?;
+            let id = res.id2k.len();
+            let k = res.k2id.len();
+            res.id2k.insert(id, k);
+            res.k2id.push(id);
+            res.vvx.push(vv.get(p, 0));
+            res.vvy.push(vv.get(p, 1));
+            res.xx.push(xx[*index]);
+            res.yy.push(yy[*index]);
+            if ndim == 3 {
+                res.zz.push(zz[*index]);
+                res.vvz.push(vv.get(p, 4));
             }
         }
         Ok(res)

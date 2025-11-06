@@ -22,6 +22,27 @@ pub(crate) fn new_empty_mesh_3d() -> Mesh {
     }
 }
 
+/// Generates a 2D scalar field such that φ = a x + b y
+///
+/// Thus, the gradient is: ∇φ = [a, b]ᵀ in 2D and ∇φ = [a, b, 0]ᵀ in 3D
+///
+/// Note: This function only works for a homogeneous mesh; with same element kinds.
+///
+/// # Input
+///
+/// * `mesh` -- the mesh
+#[allow(dead_code)]
+pub(crate) fn generate_scalar_field_ax_plus_by(mesh: &Mesh, a: f64, b: f64) -> Vector {
+    let npoint = mesh.points.len();
+    let mut uu = Vector::new(mesh.ndim * npoint);
+    for p in 0..npoint {
+        let x = mesh.points[p].coords[0];
+        let y = mesh.points[p].coords[1];
+        uu[p] = a * x + b * y;
+    }
+    uu
+}
+
 /// Generates a displacement field corresponding to a horizontal stretching
 ///
 /// Note: This function only works for a homogeneous mesh; with same element kinds.

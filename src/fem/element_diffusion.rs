@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemBase, FemState};
-use crate::base::{compute_local_to_global, Config, ParamDiffusion};
+use crate::base::{calculate_gradient, compute_local_to_global, Config, ParamDiffusion};
 use crate::material::ModelConductivity;
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -10,6 +10,9 @@ use russell_tensor::{t2_dot_vec, Tensor2};
 
 /// Implements the local Diffusion Element equations
 pub struct ElementDiffusion<'a> {
+    /// Holds the ID of the associated cell in the Mesh
+    cell_id: CellId,
+
     /// Global configuration
     pub config: &'a Config<'a>,
 
@@ -67,6 +70,7 @@ impl<'a> ElementDiffusion<'a> {
 
         // allocate new instance
         Ok(ElementDiffusion {
+            cell_id,
             config,
             param,
             local_to_global,
@@ -223,7 +227,24 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.u, state.v, and state.a have been updated already
-    fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        // save the flow vector for post-processing, if requested
+        if self.config.out_flow_vectors {
+            for p in 0..self.gauss.npoint() {
+                // calculate the gradient at integration point (from global vector)
+                let phi = calculate_gradient(
+                    &mut self.grad_phi,
+                    &state.u,
+                    &self.local_to_global,
+                    self.gauss.coords(p),
+                    &mut self.pad,
+                )?;
+                // conductivity and flow vector
+                self.model.calc_k(&mut self.conductivity, phi)?;
+                let w = &mut state.gauss[self.cell_id].diffusion_post_proc[p];
+                t2_dot_vec(w, -1.0, &self.conductivity, &self.grad_phi); // w  = -k  · ∇φ
+            }
+        }
         Ok(())
     }
 

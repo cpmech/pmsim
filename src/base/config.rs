@@ -256,6 +256,17 @@ pub struct Config<'a> {
     /// Output local state at selected integration points
     pub(crate) out_local_state: HashSet<CellId>,
 
+    /// Output flow vectors from Diffusion elements
+    ///
+    /// Examples:
+    ///
+    /// ```text
+    /// Dof::Phi →   w  = -k  · ∇φ
+    /// Dof::Pl  →   wl = -kl · ∇pl
+    /// Dof::Pg  →   wg = -kg · ∇pg
+    /// ```
+    pub(crate) out_flow_vectors: bool,
+
     /// Indicates whether the output of selected points and cells are active
     pub(crate) out_has_selected: bool,
 }
@@ -334,6 +345,7 @@ impl<'a> Config<'a> {
             out_ddt: 1.0,
             out_dof: HashSet::new(),
             out_local_state: HashSet::new(),
+            out_flow_vectors: false,
             out_has_selected: false,
         }
     }
@@ -832,6 +844,20 @@ impl<'a> Config<'a> {
     pub fn set_out_local_state(&mut self, cell_id: CellId) -> &mut Self {
         self.out_local_state.insert(cell_id);
         self.out_has_selected = true;
+        self
+    }
+
+    /// Enables the output of flow vectors
+    ///
+    /// Examples:
+    ///
+    /// ```text
+    /// Dof::Phi →   w  = -k  · ∇φ
+    /// Dof::Pl  →   wl = -kl · ∇pl
+    /// Dof::Pg  →   wg = -kg · ∇pg
+    /// ```
+    pub fn set_out_flow_vectors(&mut self, enable: bool) -> &mut Self {
+        self.out_flow_vectors = enable;
         self
     }
 }

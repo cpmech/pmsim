@@ -133,6 +133,9 @@ impl FemState {
             match elem {
                 Elem::Diffusion(..) => {
                     has_diffusion = true;
+                    if config.out_flow_vectors {
+                        gauss[cell.id].allocate_diffusion_post_proc(ngauss, mesh.ndim);
+                    }
                 }
                 Elem::Rod(..) => {
                     has_rod_or_beam = true;

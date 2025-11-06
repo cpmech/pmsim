@@ -3,6 +3,7 @@
 mod all_dofs;
 mod assembly;
 mod attributes;
+mod calculate_gradient;
 mod calculate_strain;
 mod config;
 mod constants;
@@ -20,6 +21,7 @@ mod testing;
 pub use all_dofs::*;
 pub use assembly::*;
 pub use attributes::*;
+pub(crate) use calculate_gradient::*;
 pub(crate) use calculate_strain::*;
 pub use config::*;
 pub use constants::*;
