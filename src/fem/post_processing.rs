@@ -1318,7 +1318,7 @@ mod tests {
     }
 
     #[test]
-    fn read_essential_and_state_work_2d() {
+    fn new_works_2d() {
         // generate files (uncomment the next two lines)
         // generate_artificial_2d(false);
         // generate_artificial_2d(true);
@@ -1400,7 +1400,7 @@ mod tests {
     }
 
     #[test]
-    fn read_essential_and_state_work_3d() {
+    fn new_works_3d() {
         // generate files (uncomment the next line)
         // generate_artificial_3d();
 
@@ -1552,7 +1552,7 @@ mod tests {
     }
 
     #[test]
-    fn gauss_stress_and_strain_work_2d() {
+    fn gauss_stresses_and_gauss_strains_work_2d() {
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stresses(&state, 0).unwrap();
@@ -1574,7 +1574,7 @@ mod tests {
     }
 
     #[test]
-    fn gauss_stress_and_strain_work_3d() {
+    fn gauss_stresses_and_gauss_strains_work_3d() {
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stresses(&state, 0).unwrap();
@@ -1600,7 +1600,7 @@ mod tests {
     }
 
     #[test]
-    fn gauss_stresses_and_strains_work_2d() {
+    fn gauss_stresses_patch_and_gauss_strains_patch_work_2d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
@@ -1696,7 +1696,7 @@ mod tests {
     }
 
     #[test]
-    fn gauss_stresses_and_strains_work_3d() {
+    fn gauss_stresses_patch_and_gauss_strains_patch_work_3d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
@@ -1808,7 +1808,7 @@ mod tests {
     }
 
     #[test]
-    fn nodal_stress_and_strain_work_2d() {
+    fn nodal_stresses_and_nodal_strains_work_2d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.nodal_stresses(&mut memo, &state, 0).unwrap();
@@ -1830,7 +1830,7 @@ mod tests {
     }
 
     #[test]
-    fn nodal_stress_and_strain_work_3d() {
+    fn nodal_stresses_and_nodal_strains_work_3d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.nodal_stresses(&mut memo, &state, 0).unwrap();
@@ -1856,7 +1856,7 @@ mod tests {
     }
 
     #[test]
-    fn nodal_stresses_and_strains_work_2d() {
+    fn nodal_stresses_patch_and_nodal_strains_patch_work_2d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
@@ -1950,7 +1950,7 @@ mod tests {
     }
 
     #[test]
-    fn nodal_stresses_and_strains_work_3d() {
+    fn nodal_stresses_patch_and_nodal_strains_patch_work_3d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
@@ -2061,7 +2061,7 @@ mod tests {
     }
 
     #[test]
-    fn values_along_x_works_2d() {
+    fn values_along_x_works() {
         let mesh = Samples::one_tri6();
         let features = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
@@ -2089,7 +2089,7 @@ mod tests {
     }
 
     #[test]
-    fn values_along_edges_work_1() {
+    fn values_along_edges_works_case_1() {
         // 2.0  14------16------13------20------18
         //       |               |               |
         //       |               |               |
@@ -2159,7 +2159,7 @@ mod tests {
     }
 
     #[test]
-    fn values_along_edges_work_2() {
+    fn values_along_edges_works_case_2() {
         // generate the mesh
         let mesh = sample_mesh_2();
 
