@@ -828,6 +828,20 @@ impl PostProc {
     pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
         write_pvd(dir, fn_stem, &self.results.indices, &self.results.times)
     }
+
+    /// Loads all states and writes Paraview's VTU and PVD files
+    ///
+    /// Returns the path to the PVD file
+    pub fn write_paraview(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
+        // write VTU files
+        for index in 0..self.n_state() {
+            let state = self.read_state(index)?;
+            write_vtu(&self.mesh, &self.base, dir, fn_stem, &state, index)?;
+        }
+
+        // write PVD file
+        self.write_pvd(dir, fn_stem)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

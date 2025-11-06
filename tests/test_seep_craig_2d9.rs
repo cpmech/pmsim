@@ -79,14 +79,8 @@ fn test_seep_craig_2d9() -> Result<(), StrError> {
     // post-processing
     let (post, _) = PostProc::new(OUT_DIR, NAME)?;
 
-    // write VTU files
-    for index in 0..post.n_state() {
-        let state = post.read_state(index)?;
-        post.write_vtu(OUT_DIR, NAME, &state, index)?;
-    }
-
-    // write PVD file
-    let path_pvd = post.write_pvd(OUT_DIR, NAME)?;
+    // write Paraview files
+    let path_pvd = post.write_paraview(OUT_DIR, NAME)?;
     println!("Paraview File: {}", path_pvd);
 
     // done
