@@ -1815,6 +1815,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn gauss_coords_patch_works_3d() {
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        let (xx, yy, zz, indices, accepted) = post
+            .gauss_coords_patch(&mut memo, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
+            .unwrap();
+        let mut coords = String::new();
+        for index in &indices {
+            let (cell_id, p) = accepted[*index];
+            if cell_id == 0 {
+                assert!(p != 0); // filtered out
+            }
+            write!(&mut coords, "{:.5},{:.5},{:.5}\n", xx[*index], yy[*index], zz[*index]).unwrap();
+        }
+        assert_eq!(
+            coords,
+            "0.78868,0.21132,0.21132\n\
+             0.21132,0.78868,0.21132\n\
+             0.78868,0.78868,0.21132\n\
+             0.78868,0.21132,0.78868\n\
+             0.21132,0.78868,0.78868\n\
+             0.78868,0.78868,0.78868\n\
+             0.78868,0.21132,1.21132\n\
+             0.21132,0.78868,1.21132\n\
+             0.78868,0.78868,1.21132\n\
+             0.78868,0.21132,1.78868\n\
+             0.21132,0.78868,1.78868\n\
+             0.78868,0.78868,1.78868\n"
+        );
+    }
+
     fn load_states_and_solutions(post: &PostProc) -> [(FemState, Tensor2, Tensor2); 3] {
         let state_h = post.read_state(0).unwrap();
         let state_v = post.read_state(1).unwrap();
