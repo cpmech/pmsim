@@ -38,6 +38,16 @@ pub(crate) fn write_vtu(
         .copied()
         .collect();
 
+    // has flux vector?
+    let mut has_flux = false;
+    for g in &state.gauss {
+        if g.diffusion.len() > 0 {
+            has_flux = true;
+            break;
+        }
+    }
+    println!("has_flux = {}", has_flux);
+
     // output buffer
     let mut buffer = String::new();
 
@@ -221,13 +231,13 @@ pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f6
 #[cfg(test)]
 mod tests {
     use super::{write_pvd, write_vtu};
-    use crate::base::{Config, Dof, Elem, Essential, ParamBeam, ParamPorousSldLiq, ParamSolid};
+    use crate::base::{Config, Dof, Elem, Essential, ParamBeam, ParamDiffusion, ParamPorousSldLiq, ParamSolid};
     use crate::fem::{FemBase, FemState};
     use gemlab::mesh::Samples;
     use std::fs;
 
     #[test]
-    fn write_vtu_works() {
+    fn write_vtu_works_1() {
         // load mesh and setup FEM structures
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
@@ -283,6 +293,71 @@ mod tests {
 <PointData Scalars="TheScalars">
 <DataArray type="Float64" Name="displacement" NumberOfComponents="3" format="ascii">
 0.246 0.0 0.0 0.0 0.0 0.0 0.123 0.0 0.0 1.23 0.0 0.0 1.476 0.0 0.0 
+</DataArray>
+</PointData>
+</Piece>
+</UnstructuredGrid>
+</VTKFile>
+"#
+        );
+    }
+
+    #[test]
+    fn write_vtu_works_2() {
+        // load mesh and setup FEM structures
+        let mesh = Samples::three_tri3();
+        let p1 = ParamDiffusion::sample();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let essential = Essential::new();
+        let config = Config::new(&mesh);
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+
+        // Generates temperature field
+        let npoint = mesh.points.len();
+        for p in 0..npoint {
+            let x = mesh.points[p].coords[0];
+            let y = mesh.points[p].coords[1];
+            let eq = base.dofs.eq(p, Dof::Phi).unwrap();
+            state.u[eq] = 2.0 * x + 5.0 * y;
+        }
+
+        // create directory
+        fs::create_dir_all("/tmp/pmsim")
+            .map_err(|_| "cannot create directory")
+            .unwrap();
+
+        // write VTU file
+        let index = 0;
+        let name = "test_write_vtu_works";
+        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index).unwrap();
+
+        // check contents
+        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
+        assert_eq!(
+            contents,
+            r#"<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">
+<UnstructuredGrid>
+<Piece NumberOfPoints="5" NumberOfCells="3">
+<Points>
+<DataArray type="Float64" NumberOfComponents="3" format="ascii">
+0.0 0.2 0.0 1.2 0.0 0.0 2.2 0.1 0.0 1.8 1.0 0.0 0.5 1.2 0.0 
+</DataArray>
+</Points>
+<Cells>
+<DataArray type="Int32" Name="connectivity" format="ascii">
+0 1 4 1 3 4 1 2 3 
+</DataArray>
+<DataArray type="Int32" Name="offsets" format="ascii">
+3 6 9 
+</DataArray>
+<DataArray type="UInt8" Name="types" format="ascii">
+5 5 5 
+</DataArray>
+</Cells>
+<PointData Scalars="TheScalars">
+<DataArray type="Float64" Name="Phi" NumberOfComponents="1" format="ascii">
+1.0 2.4 4.9 8.6 7.0 
 </DataArray>
 </PointData>
 </Piece>
