@@ -377,7 +377,8 @@ mod tests {
         };
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
-        let config = Config::new(&mesh);
+        let mut config = Config::new(&mesh);
+        config.update_model_settings(1).save_flux = true;
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
@@ -405,6 +406,15 @@ mod tests {
         elem.calc_jacobian(&mut jacobian, &state).unwrap();
         let correct_kk = ana.mat_03_btb(KX, KY, false);
         mat_approx_eq(&jacobian, &correct_kk, 1e-15);
+
+        // check flux vector at gauss points
+        elem.update_secondary_values(&mut state).unwrap();
+        let ngauss = elem.gauss.npoint();
+        for p in 0..ngauss {
+            let w = &state.gauss[0].diffusion[p];
+            assert_eq!(w[0], w0);
+            assert_eq!(w[1], w1);
+        }
 
         // with source term -------------------------------------------------
 
