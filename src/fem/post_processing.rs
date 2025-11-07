@@ -188,7 +188,6 @@ impl PostProc {
     ///     let (cell_id, p) = accepted[*index];
     ///     println!("Cell Id: {}, Gauss Point Index: {}", cell_id, p);
     ///     println!("Coordinates: ({}, {}, {})", xx[*index], yy[*index], zz[*index]);
-    ///     ...
     /// }
     /// ```
     pub fn gauss_coords_patch<F>(
@@ -1787,6 +1786,33 @@ mod tests {
         vec_approx_eq(&res[5], &[b, a, b], 1e-15);
         vec_approx_eq(&res[6], &[a, b, b], 1e-15);
         vec_approx_eq(&res[7], &[b, b, b], 1e-15);
+    }
+
+    #[test]
+    fn gauss_coords_patch_works_2d() {
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let (xx, yy, _, indices, accepted) = post
+            .gauss_coords_patch(&mut memo, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
+            .unwrap();
+        let mut coords = String::new();
+        for index in &indices {
+            let (cell_id, p) = accepted[*index];
+            if cell_id == 0 {
+                assert!(p != 0); // filtered out
+            }
+            write!(&mut coords, "{:.5},{:.5}\n", xx[*index], yy[*index]).unwrap();
+        }
+        assert_eq!(
+            coords,
+            "1.46667,0.18333\n\
+             0.88333,0.23333\n\
+             1.96667,0.23333\n\
+             1.18333,0.36667\n\
+             1.76667,0.68333\n\
+             0.53333,0.83333\n\
+             1.48333,0.86667\n\
+             0.83333,0.96667\n"
+        );
     }
 
     fn load_states_and_solutions(post: &PostProc) -> [(FemState, Tensor2, Tensor2); 3] {
