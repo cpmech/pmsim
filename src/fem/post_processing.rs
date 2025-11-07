@@ -2274,6 +2274,70 @@ mod tests {
     }
 
     #[test]
+    fn nodal_fluxes_patch_works_2d() {
+        let ndim = 2;
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let ww = post
+            .nodal_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
+            .unwrap();
+        let mut coords = String::new();
+        for k in 0..ww.xx.len() {
+            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
+            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
+            write!(&mut coords, "{:.5},{:.5}\n", ww.xx[k], ww.yy[k]).unwrap();
+        }
+        assert_eq!(&ww.k2id, &[1, 2, 3, 4]);
+        ww.k2id
+            .iter()
+            .map(|id| ww.id2k.get(id).unwrap())
+            .for_each(|k| assert_eq!(k, k));
+        assert_eq!(
+            coords,
+            "1.20000,0.00000\n\
+             2.20000,0.10000\n\
+             1.80000,1.00000\n\
+             0.50000,1.20000\n"
+        );
+    }
+
+    #[test]
+    fn nodal_fluxes_patch_works_3d() {
+        let ndim = 3;
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let ww = post
+            .nodal_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
+            .unwrap();
+        let mut coords = String::new();
+        for k in 0..ww.xx.len() {
+            approx_eq(ww.vvx[k], w_correct[0], 1e-13);
+            approx_eq(ww.vvy[k], w_correct[1], 1e-13);
+            approx_eq(ww.vvz[k], w_correct[2], 1e-13);
+            write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.xx[k], ww.yy[k], ww.zz[k]).unwrap();
+        }
+        assert_eq!(&ww.k2id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
+        ww.k2id
+            .iter()
+            .map(|id| ww.id2k.get(id).unwrap())
+            .for_each(|k| assert_eq!(k, k));
+        assert_eq!(
+            coords,
+            "1.00000,0.00000,0.00000\n\
+             0.00000,1.00000,0.00000\n\
+             1.00000,1.00000,0.00000\n\
+             1.00000,0.00000,1.00000\n\
+             0.00000,1.00000,1.00000\n\
+             1.00000,1.00000,1.00000\n\
+             1.00000,0.00000,2.00000\n\
+             0.00000,1.00000,2.00000\n\
+             1.00000,1.00000,2.00000\n"
+        );
+    }
+
+    #[test]
     fn nodal_stresses_and_nodal_strains_work_2d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
