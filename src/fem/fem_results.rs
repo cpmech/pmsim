@@ -3,6 +3,7 @@ use crate::fem::{FemBase, FemState};
 use crate::material::LocalState;
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh, PointId};
+use russell_lab::Vector;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -36,6 +37,9 @@ pub struct FemResults {
     /// Maps "PointId,Dof" to an array with the values along time
     sel_dof: HashMap<String, Vec<f64>>,
 
+    /// Flux vectors at selected integration points along time
+    sel_local_flux: HashMap<CellId, Vec<Vector>>,
+
     /// LocalState at selected integration points along time
     ///
     /// The results at the first integration point are saved only.
@@ -63,6 +67,7 @@ impl FemResults {
             sel_step: Vec::new(),
             sel_lambda: Vec::new(),
             sel_dof: HashMap::new(),
+            sel_local_flux: HashMap::new(),
             sel_local_state: HashMap::new(),
         })
     }
@@ -71,6 +76,11 @@ impl FemResults {
     pub fn get_dof(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
         let key = format!("{:?},{:?}", point_id, dof);
         self.sel_dof.get(&key)
+    }
+
+    /// Returns the temporal output of flux vectors at selected points
+    pub fn get_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+        self.sel_local_flux.get(&cell_id)
     }
 
     /// Returns the temporal output of stresses at selected integration points
@@ -150,8 +160,14 @@ impl FemResults {
                 }
             }
 
-            // stresses
+            // local states
             for cell_id in config.out_local_state.iter() {
+                if let Some(w) = state.gauss[*cell_id].get_flux_vector(0).ok() {
+                    self.sel_local_flux
+                        .entry(*cell_id)
+                        .or_insert(Vec::new())
+                        .push(w.clone());
+                }
                 if let Some(s) = state.gauss[*cell_id].get_local_state(0).ok() {
                     self.sel_local_state
                         .entry(*cell_id)

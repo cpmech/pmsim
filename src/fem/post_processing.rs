@@ -1255,10 +1255,7 @@ mod tests {
             .save_flux = true;
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
-        config
-            .set_out_dof(point_id, Dof::Ux)
-            .set_out_dof(point_id, Dof::Uy)
-            .set_out_local_state(cell_id);
+        config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
         let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
@@ -1450,6 +1447,27 @@ mod tests {
             for w in &state.gauss[id].diffusion {
                 vec_approx_eq(w, &w_correct, 1e-14);
             }
+        }
+
+        // check selected step, time and loading factor
+        assert_eq!(&post.results.sel_step, &[0]);
+        assert_eq!(&post.results.sel_time, &[0.0]);
+        assert_eq!(&post.results.sel_lambda, &[0.0]);
+
+        // check selected temperatures
+        let point_id = 3;
+        let x = post.mesh.points[point_id].coords[0];
+        let y = post.mesh.points[point_id].coords[1];
+        let phi_correct = A_COEF * x + B_COEF * y;
+        let sel_phi = post.results.get_dof(point_id, Dof::Phi).unwrap();
+        // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
+        approx_eq(sel_phi[0], phi_correct, 1e-15);
+
+        // check selected flux vectors
+        let cell_id = 1;
+        let s = post.results.get_local_fluxes(cell_id).unwrap();
+        for i in 0..ndim {
+            approx_eq(s[0][i], w_correct[i], 1e-14);
         }
     }
 
