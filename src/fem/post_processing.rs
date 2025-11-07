@@ -1217,6 +1217,17 @@ mod tests {
     /// OR
     ///
     /// ```text
+    /// 1.0  3-----------2-----------5
+    ///      |(-4)       |(-3)       |(-6)
+    ///      |    [0]    |    [1]    |
+    ///      |    (1)    |    (2)    |
+    ///      |(-1)       |(-2)       |(-5)
+    /// 0.0  0-----------1-----------4  → x
+    /// ```
+    ///
+    /// OR
+    ///
+    /// ```text
     /// 2.0  14------16------13------20------18
     ///       |               |               |
     ///       |               |               |
@@ -1234,8 +1245,10 @@ mod tests {
     ///      0.0     0.5     1.0     1.5     2.0
     /// ```
     #[allow(unused)]
-    fn generate_artificial_temperature_field_2d(qua8: bool) {
-        let (mesh, name) = if qua8 {
+    fn generate_artificial_temperature_field_2d(qua4: bool, qua8: bool) {
+        let (mesh, name) = if qua4 {
+            (Samples::two_qua4(), "artificial-diffusion-2d-qua4")
+        } else if qua8 {
             (Samples::block_2d_four_qua8(), "artificial-diffusion-2d-qua8")
         } else {
             (Samples::three_tri3(), "artificial-diffusion-2d")
@@ -1246,7 +1259,7 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config
             .set_out_files("/tmp/pmsim", name, 0.0)
@@ -1473,9 +1486,10 @@ mod tests {
 
     #[test]
     fn new_works_diffusion_2d() {
-        // generate files (uncomment the next two lines)
-        // generate_artificial_temperature_field_2d(false);
-        // generate_artificial_temperature_field_2d(true);
+        // generate files (uncomment the next three lines)
+        // generate_artificial_temperature_field_2d(false, false);
+        // generate_artificial_temperature_field_2d(true, false);
+        // generate_artificial_temperature_field_2d(false, true);
 
         // read essential
         let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
@@ -1524,8 +1538,8 @@ mod tests {
 
     #[test]
     fn new_works_diffusion_3d() {
-        // generate files (uncomment the next two lines)
-        generate_artificial_temperature_field_3d();
+        // generate files (uncomment the next lines)
+        // generate_artificial_temperature_field_3d();
 
         // read essential
         let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
@@ -1842,6 +1856,20 @@ mod tests {
              0.78868,0.21132,1.78868\n\
              0.21132,0.78868,1.78868\n\
              0.78868,0.78868,1.78868\n"
+        );
+    }
+
+    #[test]
+    fn gauss_fluxes_captures_errors() {
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-2d-qua4").unwrap();
+        let state = post.read_state(0).unwrap();
+        assert_eq!(
+            post.gauss_fluxes(&state, 1, Dof::Phi).err(),
+            Some("no Gauss points found for this cell (output of flux vectors must be enabled first)")
+        );
+        assert_eq!(
+            post.gauss_fluxes(&state, 0, Dof::Pl).err(),
+            Some("flux vector is only available for Dof::Phi at the moment")
         );
     }
 
