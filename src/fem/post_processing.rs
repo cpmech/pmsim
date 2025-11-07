@@ -460,7 +460,7 @@ impl PostProc {
             res.yy.push(yy[*index]);
             if ndim == 3 {
                 res.zz.push(zz[*index]);
-                res.vvz.push(vv.get(p, 4));
+                res.vvz.push(vv.get(p, 2));
             }
         }
         Ok(res)
@@ -1301,10 +1301,9 @@ mod tests {
         };
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config
-            .set_out_files("/tmp/pmsim", "artificial-diffusion-3d", 0.0)
-            .update_model_settings(2)
-            .save_flux = true;
+        config.set_out_files("/tmp/pmsim", "artificial-diffusion-3d", 0.0);
+        config.update_model_settings(1).save_flux = true;
+        config.update_model_settings(2).save_flux = true;
 
         let (point_id, cell_id) = (10, 1);
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
@@ -1526,7 +1525,7 @@ mod tests {
     #[test]
     fn new_works_diffusion_3d() {
         // generate files (uncomment the next two lines)
-        // generate_artificial_temperature_field_3d();
+        generate_artificial_temperature_field_3d();
 
         // read essential
         let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
@@ -1855,11 +1854,13 @@ mod tests {
         assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
-        let w_matrix = post.gauss_fluxes(&state, 0, Dof::Phi).unwrap();
-        assert_eq!(w_matrix.dims(), (ngauss, ncomp));
-        for p in 0..ngauss {
-            for i in 0..ndim {
-                approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
+        for cell_id in [0, 1, 2] {
+            let w_matrix = post.gauss_fluxes(&state, cell_id, Dof::Phi).unwrap();
+            assert_eq!(w_matrix.dims(), (ngauss, ncomp));
+            for p in 0..ngauss {
+                for i in 0..ndim {
+                    approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
+                }
             }
         }
     }
@@ -1873,15 +1874,13 @@ mod tests {
         assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
-        assert_eq!(
-            post.gauss_fluxes(&state, 0, Dof::Phi).err(),
-            Some("no Gauss points found for this cell (output of flux vectors must be enabled first)")
-        );
-        let w_matrix = post.gauss_fluxes(&state, 1, Dof::Phi).unwrap();
-        assert_eq!(w_matrix.dims(), (ngauss, ncomp));
-        for p in 0..ngauss {
-            for i in 0..ndim {
-                approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
+        for cell_id in [0, 1] {
+            let w_matrix = post.gauss_fluxes(&state, cell_id, Dof::Phi).unwrap();
+            assert_eq!(w_matrix.dims(), (ngauss, ncomp));
+            for p in 0..ngauss {
+                for i in 0..ndim {
+                    approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
+                }
             }
         }
     }
@@ -1893,7 +1892,6 @@ mod tests {
         assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
-        println!("w_correct = {:?}", w_correct);
         let ww = post
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
@@ -1915,6 +1913,42 @@ mod tests {
              0.53333,0.83333\n\
              1.48333,0.86667\n\
              0.83333,0.96667\n"
+        );
+    }
+
+    #[test]
+    fn gauss_fluxes_patch_works_3d() {
+        let ndim = 3;
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        assert!(post.mesh.ndim == ndim);
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let ww = post
+            .gauss_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
+            .unwrap();
+        let mut coords = String::new();
+        for k in 0..ww.k2id.len() {
+            assert_eq!(*ww.id2k.get(&k).unwrap(), k);
+            assert_eq!(ww.k2id[k], k);
+            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
+            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
+            approx_eq(ww.vvz[k], w_correct[2], 1e-14);
+            write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.xx[k], ww.yy[k], ww.zz[k]).unwrap();
+        }
+        assert_eq!(
+            coords,
+            "0.78868,0.21132,0.21132\n\
+             0.21132,0.78868,0.21132\n\
+             0.78868,0.78868,0.21132\n\
+             0.78868,0.21132,0.78868\n\
+             0.21132,0.78868,0.78868\n\
+             0.78868,0.78868,0.78868\n\
+             0.78868,0.21132,1.21132\n\
+             0.21132,0.78868,1.21132\n\
+             0.78868,0.78868,1.21132\n\
+             0.78868,0.21132,1.78868\n\
+             0.21132,0.78868,1.78868\n\
+             0.78868,0.78868,1.78868\n"
         );
     }
 
