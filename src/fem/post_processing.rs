@@ -1123,11 +1123,12 @@ mod tests {
     use super::{PostProc, PostProcMemo};
     use crate::base::{
         elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
-        elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
-        generate_shear_displacement_field, generate_vertical_displacement_field,
+        elastic_solution_vertical_displacement_field, flux_vector_solution_scalar_field_ax_plus_by,
+        generate_horizontal_displacement_field, generate_scalar_field_ax_plus_by, generate_shear_displacement_field,
+        generate_vertical_displacement_field, Conductivity,
     };
     use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
-    use crate::fem::{ElementSolid, ElementTrait, FemBase, FemResults, FemState};
+    use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemBase, FemResults, FemState};
     use gemlab::mesh::{At, Cell, Edges, Features, Figure, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
@@ -1138,13 +1139,50 @@ mod tests {
     use std::fmt::Write;
 
     const SAVE_FIGURE: bool = false;
+    const KX: f64 = 2.0;
+    const KY: f64 = 4.0;
+    const KZ: f64 = 8.0;
+    const A_COEF: f64 = 10.0;
+    const B_COEF: f64 = 5.0;
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
     const STRAIN: f64 = 0.0123;
 
+    /// Generates temperature and flux vector fields
+    #[allow(unused)]
+    fn generate_state_diffusion(
+        param: &ParamDiffusion,
+        mesh: &Mesh,
+        base: &FemBase,
+        config: &Config,
+        phi: &Vector,
+    ) -> FemState {
+        // update displacement
+        let essential = Essential::new();
+        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        vec_copy(&mut state.u, &phi).unwrap();
+
+        // update flux vectors
+        let ncell = mesh.cells.len();
+        let mut elements = Vec::with_capacity(ncell);
+        for cell_id in 0..mesh.cells.len() {
+            let mut elem = ElementDiffusion::new(&mesh, &base, &config, &param, cell_id).unwrap();
+            elem.initialize_internal_values(&mut state).unwrap();
+            elem.update_secondary_values(&mut state).unwrap();
+            elements.push(elem);
+        }
+        state
+    }
+
     /// Generates displacement, stress, and strain state given displacements
     #[allow(unused)]
-    fn generate_state(param: &ParamSolid, mesh: &Mesh, base: &FemBase, config: &Config, duu: &Vector) -> FemState {
+    fn generate_state_solid(
+        param: &ParamSolid,
+        mesh: &Mesh,
+        base: &FemBase,
+        config: &Config,
+        duu: &Vector,
+    ) -> FemState {
         // update displacement
         let essential = Essential::new();
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -1161,6 +1199,71 @@ mod tests {
             elements.push(elem);
         }
         state
+    }
+
+    /// Generates artificial temperature and flux vector fields in 2D
+    ///
+    /// ```text
+    ///       4---.__
+    ///      / \     `--.___3    [#] indicates id
+    ///     /   \          / \   (#) indicates attribute
+    ///    /     \  [1]   /   \
+    ///   /  [0]  \ (1)  / [2] \
+    ///  /   (1)   \    /  (1)  \
+    /// 0---.__     \  /      ___2
+    ///        `--.__\/__.---'
+    ///               1
+    /// ```
+    ///
+    /// OR
+    ///
+    /// ```text
+    /// 2.0  14------16------13------20------18
+    ///       |               |               |
+    ///       |               |               |
+    /// 1.5  17      [2]     15      [3]     19
+    ///       |               |               |
+    ///       |               |               |
+    /// 1.0   3-------6-------2------12-------9
+    ///       |               |               |
+    ///       |               |               |
+    /// 0.5   7      [0]      5      [1]     11
+    ///       |               |               |
+    ///       |               |               |
+    /// 0.0   0-------4-------1------10-------8
+    ///
+    ///      0.0     0.5     1.0     1.5     2.0
+    /// ```
+    #[allow(unused)]
+    fn generate_artificial_temperature_field_2d(qua8: bool) {
+        let (mesh, name) = if qua8 {
+            (Samples::block_2d_four_qua8(), "artificial-diffusion-2d-qua8")
+        } else {
+            (Samples::three_tri3(), "artificial-diffusion-2d")
+        };
+        let p1 = ParamDiffusion {
+            rho: 1.0,
+            conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
+            source: None,
+            ngauss: None,
+        };
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut config = Config::new(&mesh);
+        config.set_out_flux(true).set_out_files("/tmp/pmsim", name, 0.0);
+
+        let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
+        config
+            .set_out_dof(point_id, Dof::Ux)
+            .set_out_dof(point_id, Dof::Uy)
+            .set_out_local_state(cell_id);
+
+        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
+
+        let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
+        let state = generate_state_diffusion(&p1, &mesh, &base, &config, &phi);
+        results.write_state(&config, &state).unwrap();
+        results.save_selected(&config, &base, &state).unwrap();
+        results.write_self(&config).unwrap();
     }
 
     /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 2D (plane strain)
@@ -1197,7 +1300,7 @@ mod tests {
     ///      0.0     0.5     1.0     1.5     2.0
     /// ```
     #[allow(unused)]
-    fn generate_artificial_2d(qua8: bool) {
+    fn generate_artificial_displacement_field_2d(qua8: bool) {
         let (mesh, name) = if qua8 {
             (Samples::block_2d_four_qua8(), "artificial-elastic-2d-qua8")
         } else {
@@ -1227,18 +1330,18 @@ mod tests {
         let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
-        let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
+        let state = generate_state_solid(&p1, &mesh, &base, &config, &duu_h);
         results.write_state(&config, &state).unwrap();
         results.save_selected(&config, &base, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
-        let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
+        let mut state = generate_state_solid(&p1, &mesh, &base, &config, &duu_v);
         state.time = 1.0;
         results.write_state(&config, &state).unwrap();
         results.save_selected(&config, &base, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
-        let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
+        let mut state = generate_state_solid(&p1, &mesh, &base, &config, &duu_s);
         state.time = 2.0;
         results.write_state(&config, &state).unwrap();
 
@@ -1272,7 +1375,7 @@ mod tests {
     /// 0.0            1.0
     /// ```
     #[allow(unused)]
-    fn generate_artificial_3d() {
+    fn generate_artificial_displacement_field_3d() {
         let mesh = Samples::two_hex8();
         let p1 = ParamSolid {
             density: 1.0,
@@ -1298,18 +1401,18 @@ mod tests {
         let mut results = FemResults::new(&mesh, &base, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
-        let state = generate_state(&p1, &mesh, &base, &config, &duu_h);
+        let state = generate_state_solid(&p1, &mesh, &base, &config, &duu_h);
         results.write_state(&config, &state).unwrap();
         results.save_selected(&config, &base, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
-        let mut state = generate_state(&p1, &mesh, &base, &config, &duu_v);
+        let mut state = generate_state_solid(&p1, &mesh, &base, &config, &duu_v);
         state.time = 1.0;
         results.write_state(&config, &state).unwrap();
         results.save_selected(&config, &base, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
-        let mut state = generate_state(&p1, &mesh, &base, &config, &duu_s);
+        let mut state = generate_state_solid(&p1, &mesh, &base, &config, &duu_s);
         state.time = 2.0;
         results.write_state(&config, &state).unwrap();
 
@@ -1318,10 +1421,40 @@ mod tests {
     }
 
     #[test]
-    fn new_works_2d() {
+    fn new_works_diffusion_2d() {
         // generate files (uncomment the next two lines)
-        // generate_artificial_2d(false);
-        // generate_artificial_2d(true);
+        // generate_artificial_temperature_field_2d(false);
+        // generate_artificial_temperature_field_2d(true);
+
+        // read essential
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        assert_eq!(post.results.indices, &[0]);
+        assert_eq!(post.results.times, &[0.0]);
+        assert_eq!(post.mesh.ndim, 2);
+        assert_eq!(post.mesh.points.len(), 5);
+        assert_eq!(post.mesh.cells.len(), 3);
+        assert_eq!(post.base.amap.get(1).unwrap().name(), "Diffusion");
+        assert_eq!(post.base.emap.get(&post.mesh.cells[0]).unwrap().n_equation, 3); // 3 nodes
+        assert_eq!(post.base.emap.get(&post.mesh.cells[1]).unwrap().n_equation, 3);
+        assert_eq!(post.base.emap.get(&post.mesh.cells[2]).unwrap().n_equation, 3);
+        assert_eq!(post.base.dofs.size(), 5); // 5 points
+
+        // read state
+        let ndim = post.mesh.ndim;
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        for id in 0..post.mesh.cells.len() {
+            for w in &state.gauss[id].diffusion {
+                vec_approx_eq(w, &w_correct, 1e-14);
+            }
+        }
+    }
+
+    #[test]
+    fn new_works_solid_2d() {
+        // generate files (uncomment the next two lines)
+        // generate_artificial_displacement_field_2d(false);
+        // generate_artificial_displacement_field_2d(true);
 
         // read essential
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
@@ -1400,9 +1533,9 @@ mod tests {
     }
 
     #[test]
-    fn new_works_3d() {
+    fn new_works_solid_3d() {
         // generate files (uncomment the next line)
-        // generate_artificial_3d();
+        // generate_artificial_displacement_field_3d();
 
         // read essential
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();

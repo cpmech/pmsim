@@ -34,7 +34,7 @@ pub(crate) fn new_empty_mesh_3d() -> Mesh {
 #[allow(dead_code)]
 pub(crate) fn generate_scalar_field_ax_plus_by(mesh: &Mesh, a: f64, b: f64) -> Vector {
     let npoint = mesh.points.len();
-    let mut uu = Vector::new(mesh.ndim * npoint);
+    let mut uu = Vector::new(npoint);
     for p in 0..npoint {
         let x = mesh.points[p].coords[0];
         let y = mesh.points[p].coords[1];
@@ -99,6 +99,20 @@ pub(crate) fn generate_shear_displacement_field(mesh: &Mesh, eps_xy: f64) -> Vec
         uu[0 + mesh.ndim * p] = gamma_xy * y;
     }
     uu
+}
+
+/// Returns the flux vector solution for a constant gradient field
+///
+/// The temperature field is given by φ = a x + b y.
+/// Thus, the gradient is: ∇φ = [a, b]ᵀ in 2D and ∇φ = [a, b, 0]ᵀ in 3D.
+/// The flux is given by: q = -[[kx, 0, 0], [0, ky, 0], [0, 0, kz]] ∇φ = [-kx a, -ky b, 0]ᵀ in 3D.
+#[allow(dead_code)]
+pub(crate) fn flux_vector_solution_scalar_field_ax_plus_by(a: f64, b: f64, kx: f64, ky: f64, ndim: usize) -> Vector {
+    if ndim == 2 {
+        Vector::from(&[-kx * a, -ky * b])
+    } else {
+        Vector::from(&[-kx * a, -ky * b, 0.0])
+    }
 }
 
 /// Returns the elastic solution (plane-strain or 3D) corresponding to a horizontal stretching
