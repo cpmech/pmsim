@@ -2237,6 +2237,43 @@ mod tests {
     }
 
     #[test]
+    fn nodal_fluxes_works_2d() {
+        let ndim = 2;
+        let nnode = 3;
+        let ncomp = ndim;
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        for cell_id in [0, 1, 2] {
+            let w_matrix = post.nodal_fluxes(&mut memo, &state, cell_id, Dof::Phi).unwrap();
+            assert_eq!(w_matrix.dims(), (nnode, ncomp));
+            for m in 0..nnode {
+                approx_eq(w_matrix.get(m, 0), w_correct[0], 1e-14);
+                approx_eq(w_matrix.get(m, 1), w_correct[1], 1e-14);
+            }
+        }
+    }
+
+    #[test]
+    fn nodal_fluxes_works_3d() {
+        let ndim = 3;
+        let nnode = 8;
+        let ncomp = ndim;
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        for cell_id in [0, 1] {
+            let w_matrix = post.nodal_fluxes(&mut memo, &state, cell_id, Dof::Phi).unwrap();
+            assert_eq!(w_matrix.dims(), (nnode, ncomp));
+            for m in 0..nnode {
+                approx_eq(w_matrix.get(m, 0), w_correct[0], 1e-13);
+                approx_eq(w_matrix.get(m, 1), w_correct[1], 1e-13);
+                approx_eq(w_matrix.get(m, 2), w_correct[2], 1e-13);
+            }
+        }
+    }
+
+    #[test]
     fn nodal_stresses_and_nodal_strains_work_2d() {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
