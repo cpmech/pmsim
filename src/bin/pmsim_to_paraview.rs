@@ -19,12 +19,12 @@ fn main() -> Result<(), StrError> {
     let options = Options::from_args();
 
     // load data
-    let (post, _) = PostProc::new(&options.out_dir, &options.fn_stem)?;
+    let (post, mut memo) = PostProc::new(&options.out_dir, &options.fn_stem)?;
 
     // write VTU files
     for index in 0..post.n_state() {
         let state = post.read_state(index)?;
-        post.write_vtu(&options.out_dir, &options.fn_stem, &state, index)?;
+        post.write_vtu(&mut memo, &options.out_dir, &options.fn_stem, &state, index)?;
     }
 
     // write PVD file

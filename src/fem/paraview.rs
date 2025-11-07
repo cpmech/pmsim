@@ -1,6 +1,7 @@
 use super::FemBase;
 use crate::base::Dof;
 use crate::fem::FemState;
+use crate::util::SpatialVector;
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use std::fmt::Write;
@@ -22,6 +23,7 @@ pub(crate) fn write_vtu(
     fn_stem: &str,
     state: &FemState,
     index: usize,
+    extrapolated_vectors: Option<SpatialVector>,
 ) -> Result<String, StrError> {
     let ndim = mesh.ndim;
     let npoint = mesh.points.len();
@@ -37,16 +39,6 @@ pub(crate) fn write_vtu(
         .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
         .copied()
         .collect();
-
-    // has flux vector?
-    let mut has_flux = false;
-    for g in &state.gauss {
-        if g.diffusion.len() > 0 {
-            has_flux = true;
-            break;
-        }
-    }
-    println!("has_flux = {}", has_flux);
 
     // output buffer
     let mut buffer = String::new();
@@ -173,6 +165,21 @@ pub(crate) fn write_vtu(
         }
         write!(&mut buffer, "\n</DataArray>\n").unwrap();
     }
+    if let Some(data) = extrapolated_vectors {
+        write!(
+            &mut buffer,
+            "<DataArray type=\"Float64\" Name=\"{}\" NumberOfComponents=\"3\" format=\"ascii\">\n",
+            data.label
+        )
+        .unwrap();
+        for point in &mesh.points {
+            let vx = data.vvx[point.id];
+            let vy = data.vvy[point.id];
+            let vz = if ndim == 3 { data.vvz[point.id] } else { 0.0 };
+            write!(&mut buffer, "{:?} {:?} {:?} ", vx, vy, vz).unwrap();
+        }
+        write!(&mut buffer, "\n</DataArray>\n").unwrap();
+    }
     write!(&mut buffer, "</PointData>\n").unwrap();
 
     // footer
@@ -263,8 +270,8 @@ mod tests {
 
         // write VTU file
         let index = 0;
-        let name = "test_write_vtu_works";
-        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index).unwrap();
+        let name = "test_write_vtu_works_1";
+        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index, None).unwrap();
 
         // check contents
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
@@ -328,8 +335,8 @@ mod tests {
 
         // write VTU file
         let index = 0;
-        let name = "test_write_vtu_works";
-        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index).unwrap();
+        let name = "test_write_vtu_works_2";
+        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index, None).unwrap();
 
         // check contents
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
@@ -419,7 +426,7 @@ mod tests {
 
         let index = 0;
         let name = "test_write_vtu_works_mixed";
-        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index).unwrap();
+        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index, None).unwrap();
 
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(

@@ -114,7 +114,7 @@ fn post_processing() -> Result<(), StrError> {
     println!("wy = {:?}", gauss.vvy);
 
     // write Paraview files
-    let path_pvd = post.write_paraview(OUT_DIR, NAME)?;
+    let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;
     println!("Paraview File: {}", path_pvd);
 
     // done

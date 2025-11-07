@@ -443,10 +443,18 @@ impl PostProc {
         // collect the coordinates and sort Gauss points
         let (xx, yy, zz, indices, accepted) = self.gauss_coords_patch(memo, cell_ids, filter)?;
 
+        // set the label
+        let label = match dof {
+            Dof::Phi => "w",
+            Dof::Pl => "wl",
+            Dof::Pg => "wg",
+            _ => return Err("flux vector is only available for Dof::Phi, Dof::Pl, and Dof::Pg"),
+        };
+
         // retrieve the vector components at Gauss points
         let ndim = self.mesh.ndim;
         let capacity = indices.len();
-        let mut res = SpatialVector::new(ndim, capacity);
+        let mut res = SpatialVector::new(label, ndim, capacity);
         for index in &indices {
             let (cell_id, p) = accepted[*index];
             let vv = self.gauss_fluxes(state, cell_id, dof)?;
@@ -799,8 +807,16 @@ impl PostProc {
         let unsorted_ids: Vec<_> = map.counter.keys().copied().collect();
         let sorted_ids = self.mesh.get_sorted_points(&unsorted_ids, filter);
 
+        // set the label
+        let label = match dof {
+            Dof::Phi => "w",
+            Dof::Pl => "wl",
+            Dof::Pg => "wg",
+            _ => return Err("flux vector is only available for Dof::Phi, Dof::Pl, and Dof::Pg"),
+        };
+
         // average the results
-        let res = SpatialVector::from_map(&self.mesh, &map, &sorted_ids);
+        let res = SpatialVector::from_map(label, &self.mesh, &map, &sorted_ids);
         Ok(res)
     }
 
@@ -1089,8 +1105,33 @@ impl PostProc {
     /// Writes Paraview's VTK file
     ///
     /// Returns the path to the VTK file
-    pub fn write_vtu(&self, dir: &str, fn_stem: &str, state: &FemState, index: usize) -> Result<String, StrError> {
-        write_vtu(&self.mesh, &self.base, dir, fn_stem, state, index)
+    pub fn write_vtu(
+        &self,
+        memo: &mut PostProcMemo,
+        dir: &str,
+        fn_stem: &str,
+        state: &FemState,
+        index: usize,
+    ) -> Result<String, StrError> {
+        // has phi flux vector?
+        let mut has_phi_flux = false;
+        for g in &state.gauss {
+            if g.diffusion.len() > 0 {
+                has_phi_flux = true;
+                break;
+            }
+        }
+
+        // extrapolate flux from Gauss points to points
+        let ww = if has_phi_flux {
+            let all_cell_ids = (0..self.mesh.cells.len()).collect::<Vec<usize>>();
+            Some(self.nodal_fluxes_patch(memo, state, &all_cell_ids, Dof::Phi, |_, _, _| true)?)
+        } else {
+            None
+        };
+
+        // write VTU file
+        write_vtu(&self.mesh, &self.base, dir, fn_stem, state, index, ww)
     }
 
     /// Writes Paraview's PVD file
@@ -1103,11 +1144,11 @@ impl PostProc {
     /// Loads all states and writes Paraview's VTU and PVD files
     ///
     /// Returns the path to the PVD file
-    pub fn write_paraview(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
+    pub fn write_paraview(&self, memo: &mut PostProcMemo, dir: &str, fn_stem: &str) -> Result<String, StrError> {
         // write VTU files
         for index in 0..self.n_state() {
             let state = self.read_state(index)?;
-            write_vtu(&self.mesh, &self.base, dir, fn_stem, &state, index)?;
+            self.write_vtu(memo, dir, fn_stem, &state, index)?;
         }
 
         // write PVD file
@@ -1136,6 +1177,7 @@ mod tests {
     use russell_tensor::Tensor2;
     use std::collections::HashMap;
     use std::fmt::Write;
+    use std::fs;
 
     const SAVE_FIGURE: bool = false;
     const KX: f64 = 2.0;
@@ -2805,6 +2847,61 @@ mod tests {
         assert_eq!(
             post.values_along_edges(&state, &edges, Dof::Phi).err(),
             Some("not enough points along the path of edges")
+        );
+    }
+
+    #[test]
+    fn post_proc_write_vtu_works_1() {
+        // load results
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let state = post.read_state(0).unwrap();
+
+        // create directory
+        fs::create_dir_all("/tmp/pmsim")
+            .map_err(|_| "cannot create directory")
+            .unwrap();
+
+        // write VTU file
+        let index = 0;
+        let name = "post_proc_write_vtu_works_1";
+        let path = post.write_vtu(&mut memo, "/tmp/pmsim", name, &state, index).unwrap();
+
+        // check contents
+        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
+        assert_eq!(
+            contents,
+            r#"<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">
+<UnstructuredGrid>
+<Piece NumberOfPoints="5" NumberOfCells="3">
+<Points>
+<DataArray type="Float64" NumberOfComponents="3" format="ascii">
+0.0 0.2 0.0 1.2 0.0 0.0 2.2 0.1 0.0 1.8 1.0 0.0 0.5 1.2 0.0 
+</DataArray>
+</Points>
+<Cells>
+<DataArray type="Int32" Name="connectivity" format="ascii">
+0 1 4 1 3 4 1 2 3 
+</DataArray>
+<DataArray type="Int32" Name="offsets" format="ascii">
+3 6 9 
+</DataArray>
+<DataArray type="UInt8" Name="types" format="ascii">
+5 5 5 
+</DataArray>
+</Cells>
+<PointData Scalars="TheScalars">
+<DataArray type="Float64" Name="Phi" NumberOfComponents="1" format="ascii">
+1.0 3.5999999999999996 7.1000000000000005 10.4 7.5 
+</DataArray>
+<DataArray type="Float64" Name="w" NumberOfComponents="3" format="ascii">
+-6.0 -20.0 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.0 -20.0 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.0 -20.0 0.0 
+</DataArray>
+</PointData>
+</Piece>
+</UnstructuredGrid>
+</VTKFile>
+"#
         );
     }
 }

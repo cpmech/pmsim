@@ -5,6 +5,9 @@ use std::collections::HashMap;
 /// Holds the vector components distributed in space (Gauss point or extrapolated from nodes)
 #[derive(Clone, Debug)]
 pub struct SpatialVector {
+    /// The label of the spatial vector
+    pub label: String,
+
     /// Maps the node ID to the index in the associated data arrays (xx, yy, vxx, vyy, ...)
     ///
     /// In the case of Gauss data, the ID will be a randomly assigned number.
@@ -52,10 +55,11 @@ pub struct SpatialVector {
 
 impl SpatialVector {
     /// Allocates a new instance
-    pub(crate) fn new(ndim: usize, with_capacity: usize) -> Self {
+    pub(crate) fn new(label: &str, ndim: usize, with_capacity: usize) -> Self {
         assert!(ndim == 2 || ndim == 3);
         let n = with_capacity;
         SpatialVector {
+            label: label.to_string(),
             id2k: HashMap::with_capacity(n),
             k2id: Vec::with_capacity(n),
             xx: Vec::with_capacity(n),
@@ -68,9 +72,9 @@ impl SpatialVector {
     }
 
     /// Allocates a new instance from a VectorComponentsMap applying the average of coincident nodes
-    pub(crate) fn from_map(mesh: &Mesh, map: &VectorComponentsMap, point_ids: &[PointId]) -> Self {
+    pub(crate) fn from_map(label: &str, mesh: &Mesh, map: &VectorComponentsMap, point_ids: &[PointId]) -> Self {
         assert_eq!(mesh.ndim, map.ndim);
-        let mut res = SpatialVector::new(map.ndim, point_ids.len());
+        let mut res = SpatialVector::new(label, map.ndim, point_ids.len());
         for nid in point_ids {
             let k = res.k2id.len();
             let count = *map.counter.get(&nid).unwrap() as f64;
@@ -104,7 +108,8 @@ mod tests {
     fn test_spatial_vector_new_2d() {
         let ndim = 2;
         let capacity = 10;
-        let vector = SpatialVector::new(ndim, capacity);
+        let vector = SpatialVector::new("grad_phi", ndim, capacity);
+        assert_eq!(vector.label, "grad_phi");
         assert!(vector.id2k.capacity() >= capacity);
         assert_eq!(vector.k2id.capacity(), capacity);
         assert_eq!(vector.xx.capacity(), capacity);
@@ -119,7 +124,8 @@ mod tests {
     fn test_spatial_vector_new_3d() {
         let ndim = 3;
         let capacity = 10;
-        let vector = SpatialVector::new(ndim, capacity);
+        let vector = SpatialVector::new("w_pl", ndim, capacity);
+        assert_eq!(vector.label, "w_pl");
         assert!(vector.id2k.capacity() >= capacity);
         assert_eq!(vector.k2id.capacity(), capacity);
         assert_eq!(vector.xx.capacity(), capacity);
@@ -152,7 +158,7 @@ mod tests {
         map.add_vector(0, 10.0, 20.0, None).unwrap();
 
         let point_ids = vec![2, 0, 3];
-        let vector = SpatialVector::from_map(&mesh, &map, &point_ids);
+        let vector = SpatialVector::from_map("", &mesh, &map, &point_ids);
 
         assert_eq!(&vector.k2id, &[2, 0, 3]);
         assert_eq!(vector.id2k.get(&0).unwrap(), &1);
@@ -188,7 +194,7 @@ mod tests {
         map.add_vector(3, 10.0, 20.0, Some(30.0)).unwrap();
 
         let point_ids = vec![3, 1];
-        let vector = SpatialVector::from_map(&mesh, &map, &point_ids);
+        let vector = SpatialVector::from_map("", &mesh, &map, &point_ids);
 
         assert_eq!(&vector.k2id, &[3, 1]);
         assert_eq!(vector.id2k.get(&1).unwrap(), &1);
