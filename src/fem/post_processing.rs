@@ -281,7 +281,7 @@ impl PostProc {
     pub fn gauss_fluxes(&self, state: &FemState, cell_id: CellId, dof: Dof) -> Result<Matrix, StrError> {
         let ndim = self.mesh.ndim;
         let second = &state.gauss[cell_id];
-        let mut res = Matrix::new(second.ngauss, ndim * 2);
+        let mut res = Matrix::new(second.ngauss, ndim);
         if dof == Dof::Phi {
             if second.ngauss == 0 {
                 return Err("no Gauss points found for this cell (output of flux vectors must be enabled first)");
@@ -1844,6 +1844,20 @@ mod tests {
              0.21132,0.78868,1.78868\n\
              0.78868,0.78868,1.78868\n"
         );
+    }
+
+    #[test]
+    fn gauss_fluxes_works_2d() {
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, 2);
+        let w_matrix = post.gauss_fluxes(&state, 0, Dof::Phi).unwrap();
+        let (nrow, ncol) = w_matrix.dims();
+        for p in 0..nrow {
+            for i in 0..ncol {
+                approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
+            }
+        }
     }
 
     fn load_states_and_solutions(post: &PostProc) -> [(FemState, Tensor2, Tensor2); 3] {
