@@ -64,8 +64,9 @@ fn test_seep_craig_2d9() -> Result<(), StrError> {
     config
         .set_axisymmetric()
         .set_lagrange_mult_method(true)
-        .set_out_flux(true)
-        .set_out_files(OUT_DIR, NAME, 1.0);
+        .set_out_files(OUT_DIR, NAME, 1.0)
+        .update_model_settings(1)
+        .set_save_flux(true);
 
     // FEM state
     let mut state = FemState::new(&mesh, &base, &essential, &config)?;

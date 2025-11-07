@@ -1249,7 +1249,10 @@ mod tests {
         };
         let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_out_flux(true).set_out_files("/tmp/pmsim", name, 0.0);
+        config
+            .set_out_files("/tmp/pmsim", name, 0.0)
+            .update_model_settings(1)
+            .save_flux = true;
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config

@@ -38,6 +38,9 @@ pub struct ElementDiffusion<'a> {
     ///
     /// ∇ϕ @ ip
     pub grad_phi: Vector,
+
+    /// Indicates that the calculation of flux vectors is performed (for post-processing)
+    save_flux: bool,
 }
 
 impl<'a> ElementDiffusion<'a> {
@@ -65,6 +68,10 @@ impl<'a> ElementDiffusion<'a> {
         // auxiliary conductivity tensor
         let conductivity = Tensor2::new_sym_ndim(ndim);
 
+        // set a flag to output flux vectors (for post-processing)
+        let settings = config.model_settings(mesh.cells[cell_id].attribute);
+        let save_flux = settings.save_flux;
+
         // auxiliary gradient tensor
         let grad_phi = Vector::new(ndim);
 
@@ -79,6 +86,7 @@ impl<'a> ElementDiffusion<'a> {
             model,
             conductivity,
             grad_phi,
+            save_flux,
         })
     }
 }
@@ -229,7 +237,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Note that state.u, state.v, and state.a have been updated already
     fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // save the flow vector for post-processing, if requested
-        if self.config.out_flux_vectors {
+        if self.save_flux {
             for p in 0..self.gauss.npoint() {
                 // calculate the gradient at integration point (from global vector)
                 let phi = calculate_gradient(

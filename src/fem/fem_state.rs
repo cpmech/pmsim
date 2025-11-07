@@ -133,7 +133,7 @@ impl FemState {
             match elem {
                 Elem::Diffusion(..) => {
                     has_diffusion = true;
-                    if config.out_flux_vectors {
+                    if config.model_settings(cell.attribute).save_flux {
                         gauss[cell.id].allocate_diffusion(ngauss, mesh.ndim);
                     }
                 }
