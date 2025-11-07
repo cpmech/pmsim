@@ -1848,13 +1848,36 @@ mod tests {
 
     #[test]
     fn gauss_fluxes_works_2d() {
+        let ndim = 2;
+        let ngauss = 3;
+        let ncomp = ndim;
         let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, 2);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         let w_matrix = post.gauss_fluxes(&state, 0, Dof::Phi).unwrap();
-        let (nrow, ncol) = w_matrix.dims();
-        for p in 0..nrow {
-            for i in 0..ncol {
+        assert_eq!(w_matrix.dims(), (ngauss, ncomp));
+        for p in 0..ngauss {
+            for i in 0..ndim {
+                approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
+            }
+        }
+    }
+
+    #[test]
+    fn gauss_fluxes_works_3d() {
+        let ndim = 3;
+        let ngauss = 8;
+        let ncomp = ndim;
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        assert!(post.mesh.ndim == ndim);
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        assert_eq!(post.gauss_fluxes(&state, 0, Dof::Phi).err(), Some("no Gauss points found for this cell (output of flux vectors must be enabled first)"));
+        let w_matrix = post.gauss_fluxes(&state, 1, Dof::Phi).unwrap();
+        assert_eq!(w_matrix.dims(), (ngauss, ncomp));
+        for p in 0..ngauss {
+            for i in 0..ndim {
                 approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
             }
         }
@@ -1880,11 +1903,16 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_gauss_strains_work_2d() {
+        let ndim = 2;
+        let ngauss = 3;
+        let ncomp = ndim * 2;
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
+        assert!(post.mesh.ndim == ndim);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stresses(&state, 0).unwrap();
             let eps = post.gauss_strains(&state, 0).unwrap();
-            let ngauss = sig.nrow();
+            assert_eq!(sig.dims(), (ngauss, ncomp));
+            assert_eq!(eps.dims(), (ngauss, ncomp));
             for p in 0..ngauss {
                 // stress
                 approx_eq(sig.get(p, 0), sig_ref.get(0, 0), 1e-14);
@@ -1902,11 +1930,16 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_gauss_strains_work_3d() {
+        let ndim = 3;
+        let ngauss = 8;
+        let ncomp = ndim * 2;
         let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
+        assert!(post.mesh.ndim == ndim);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stresses(&state, 0).unwrap();
             let eps = post.gauss_strains(&state, 0).unwrap();
-            let ngauss = sig.nrow();
+            assert_eq!(sig.dims(), (ngauss, ncomp));
+            assert_eq!(eps.dims(), (ngauss, ncomp));
             for p in 0..ngauss {
                 // stress
                 approx_eq(sig.get(p, 0), sig_ref.get(0, 0), 1e-14);
