@@ -38,11 +38,13 @@ pub struct FemResults {
     sel_dof: HashMap<String, Vec<f64>>,
 
     /// Flux vectors at selected integration points along time
+    ///
+    /// Note: Only the results at the first integration point are saved.
     sel_local_flux: HashMap<CellId, Vec<Vector>>,
 
     /// LocalState at selected integration points along time
     ///
-    /// The results at the first integration point are saved only.
+    /// Note: Only the results at the first integration point are saved.
     sel_local_state: HashMap<CellId, Vec<LocalState>>,
 }
 
@@ -78,12 +80,12 @@ impl FemResults {
         self.sel_dof.get(&key)
     }
 
-    /// Returns the temporal output of flux vectors at selected points
+    /// Returns the temporal output of flux vectors at the first integration point of selected cells
     pub fn get_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
         self.sel_local_flux.get(&cell_id)
     }
 
-    /// Returns the temporal output of stresses at selected integration points
+    /// Returns the temporal output of stresses at the first integration point of selected cells
     pub fn get_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
         self.sel_local_state.get(&cell_id)
     }
