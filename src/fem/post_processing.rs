@@ -1266,6 +1266,59 @@ mod tests {
         results.write_self(&config).unwrap();
     }
 
+    /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 3D
+    ///
+    /// ```text
+    ///       8-------------11  2.0
+    ///      /.             /|
+    ///     / .            / |
+    ///    /  .           /  |
+    ///   /   .          /   |
+    ///  9-------------10    |
+    ///  |    .         |    |
+    ///  |    4---------|----7  1.0
+    ///  |   /. [1]     |   /|
+    ///  |  / . (2)     |  / |
+    ///  | /  .         | /  |
+    ///  |/   .         |/   |
+    ///  5--------------6    |          z
+    ///  |    .         |    |          ↑
+    ///  |    0---------|----3  0.0     o → y
+    ///  |   /  [0]     |   /          ↙
+    ///  |  /   (1)     |  /          x
+    ///  | /            | /
+    ///  |/             |/
+    ///  1--------------2   1.0
+    /// 0.0            1.0
+    /// ```
+    #[allow(unused)]
+    fn generate_artificial_temperature_field_3d() {
+        let mesh = Samples::two_hex8();
+        let p1 = ParamDiffusion {
+            rho: 1.0,
+            conductivity: Conductivity::Constant { kx: KX, ky: KY, kz: KZ },
+            source: None,
+            ngauss: None,
+        };
+        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
+        let mut config = Config::new(&mesh);
+        config
+            .set_out_files("/tmp/pmsim", "artificial-diffusion-3d", 0.0)
+            .update_model_settings(2)
+            .save_flux = true;
+
+        let (point_id, cell_id) = (10, 1);
+        config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
+
+        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
+
+        let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
+        let state = generate_state_diffusion(&p1, &mesh, &base, &config, &phi);
+        results.write_state(&config, &state).unwrap();
+        results.save_selected(&config, &base, &state).unwrap();
+        results.write_self(&config).unwrap();
+    }
+
     /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 2D (plane strain)
     ///
     /// ```text
@@ -1456,6 +1509,55 @@ mod tests {
 
         // check selected temperatures
         let point_id = 3;
+        let x = post.mesh.points[point_id].coords[0];
+        let y = post.mesh.points[point_id].coords[1];
+        let phi_correct = A_COEF * x + B_COEF * y;
+        let sel_phi = post.results.get_dof(point_id, Dof::Phi).unwrap();
+        // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
+        approx_eq(sel_phi[0], phi_correct, 1e-15);
+
+        // check selected flux vectors
+        let cell_id = 1;
+        let s = post.results.get_local_fluxes(cell_id).unwrap();
+        for i in 0..ndim {
+            approx_eq(s[0][i], w_correct[i], 1e-14);
+        }
+    }
+
+    #[test]
+    fn new_works_diffusion_3d() {
+        // generate files (uncomment the next two lines)
+        // generate_artificial_temperature_field_3d();
+
+        // read essential
+        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        assert_eq!(post.results.indices, &[0]);
+        assert_eq!(post.results.times, &[0.0]);
+        assert_eq!(post.mesh.ndim, 3);
+        assert_eq!(post.mesh.points.len(), 12);
+        assert_eq!(post.mesh.cells.len(), 2);
+        assert_eq!(post.base.amap.get(1).unwrap().name(), "Diffusion");
+        assert_eq!(post.base.emap.get(&post.mesh.cells[0]).unwrap().n_equation, 8); // 8 nodes
+        assert_eq!(post.base.emap.get(&post.mesh.cells[1]).unwrap().n_equation, 8);
+        assert_eq!(post.base.dofs.size(), 12); // 12 points
+
+        // read state
+        let ndim = post.mesh.ndim;
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        for id in 0..post.mesh.cells.len() {
+            for w in &state.gauss[id].diffusion {
+                vec_approx_eq(w, &w_correct, 1e-14);
+            }
+        }
+
+        // check selected step, time and loading factor
+        assert_eq!(&post.results.sel_step, &[0]);
+        assert_eq!(&post.results.sel_time, &[0.0]);
+        assert_eq!(&post.results.sel_lambda, &[0.0]);
+
+        // check selected temperatures
+        let point_id = 10;
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
