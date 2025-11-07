@@ -1,1 +1,1 @@
-{"counter":1,"indices":[0],"times":[0.0],"sel_step":[0],"sel_time":[0.0],"sel_lambda":[0.0],"sel_dof":{"3,Phi":[23.0]},"sel_local_flux":{"1":[{"data":[-20.000000000000007,-19.999999999999996]}]},"sel_local_state":{}}
+{"counter":1,"indices":[0],"times":[0.0],"sel_step":[0],"sel_time":[0.0],"sel_lambda":[0.0],"sel_dof":{"3,Phi":[10.4]},"sel_local_flux":{"1":[{"data":[-6.000000000000002,-20.000000000000004]}]},"sel_local_state":{}}

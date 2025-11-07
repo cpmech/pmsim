@@ -1141,7 +1141,7 @@ mod tests {
     const KX: f64 = 2.0;
     const KY: f64 = 4.0;
     const KZ: f64 = 8.0;
-    const A_COEF: f64 = 10.0;
+    const A_COEF: f64 = 3.0;
     const B_COEF: f64 = 5.0;
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
@@ -1873,7 +1873,10 @@ mod tests {
         assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
-        assert_eq!(post.gauss_fluxes(&state, 0, Dof::Phi).err(), Some("no Gauss points found for this cell (output of flux vectors must be enabled first)"));
+        assert_eq!(
+            post.gauss_fluxes(&state, 0, Dof::Phi).err(),
+            Some("no Gauss points found for this cell (output of flux vectors must be enabled first)")
+        );
         let w_matrix = post.gauss_fluxes(&state, 1, Dof::Phi).unwrap();
         assert_eq!(w_matrix.dims(), (ngauss, ncomp));
         for p in 0..ngauss {
@@ -1881,6 +1884,38 @@ mod tests {
                 approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
             }
         }
+    }
+
+    #[test]
+    fn gauss_fluxes_patch_works_2d() {
+        let ndim = 2;
+        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        assert!(post.mesh.ndim == ndim);
+        let state = post.read_state(0).unwrap();
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        println!("w_correct = {:?}", w_correct);
+        let ww = post
+            .gauss_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
+            .unwrap();
+        let mut coords = String::new();
+        for k in 0..ww.k2id.len() {
+            assert_eq!(*ww.id2k.get(&k).unwrap(), k);
+            assert_eq!(ww.k2id[k], k);
+            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
+            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
+            write!(&mut coords, "{:.5},{:.5}\n", ww.xx[k], ww.yy[k]).unwrap();
+        }
+        assert_eq!(
+            coords,
+            "1.46667,0.18333\n\
+             0.88333,0.23333\n\
+             1.96667,0.23333\n\
+             1.18333,0.36667\n\
+             1.76667,0.68333\n\
+             0.53333,0.83333\n\
+             1.48333,0.86667\n\
+             0.83333,0.96667\n"
+        );
     }
 
     fn load_states_and_solutions(post: &PostProc) -> [(FemState, Tensor2, Tensor2); 3] {
