@@ -5,6 +5,9 @@ use std::collections::HashMap;
 /// Holds the tensor (stress/strain) components distributed in space (Gauss point or extrapolated from nodes)
 #[derive(Clone, Debug)]
 pub struct SpatialTensor {
+    /// The label of the spatial tensor
+    label: String,
+
     /// Maps the node ID to the index in the associated data arrays (xx, yy, txx, tyy, ...)
     ///
     /// In the case of Gauss data, the ID will be a randomly assigned number.
@@ -67,10 +70,11 @@ pub struct SpatialTensor {
 
 impl SpatialTensor {
     /// Allocates a new instance
-    pub(crate) fn new(ndim: usize, with_capacity: usize) -> Self {
+    pub(crate) fn new(label: &str, ndim: usize, with_capacity: usize) -> Self {
         assert!(ndim == 2 || ndim == 3);
         let n = with_capacity;
         SpatialTensor {
+            label: label.to_string(),
             id2k: HashMap::with_capacity(n),
             k2id: Vec::with_capacity(n),
             xx: Vec::with_capacity(n),
@@ -86,9 +90,9 @@ impl SpatialTensor {
     }
 
     /// Allocates a new instance from a TensorComponentsMap applying the average of coincident nodes
-    pub(crate) fn from_map(mesh: &Mesh, map: &TensorComponentsMap, point_ids: &[PointId]) -> Self {
+    pub(crate) fn from_map(label: &str, mesh: &Mesh, map: &TensorComponentsMap, point_ids: &[PointId]) -> Self {
         assert_eq!(mesh.ndim, map.ndim);
-        let mut res = SpatialTensor::new(map.ndim, point_ids.len());
+        let mut res = SpatialTensor::new(label, map.ndim, point_ids.len());
         for nid in point_ids {
             let k = res.k2id.len();
             let count = *map.counter.get(&nid).unwrap() as f64;
@@ -114,6 +118,11 @@ impl SpatialTensor {
         }
         res
     }
+
+    /// Returns the label of the spatial tensor
+    pub fn label(&self) -> &str {
+        &self.label
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -128,7 +137,7 @@ mod tests {
     fn test_spatial_tensor_new_2d() {
         let ndim = 2;
         let capacity = 10;
-        let tensor = SpatialTensor::new(ndim, capacity);
+        let tensor = SpatialTensor::new("", ndim, capacity);
         assert!(tensor.id2k.capacity() >= capacity);
         assert_eq!(tensor.k2id.capacity(), capacity);
         assert_eq!(tensor.xx.capacity(), capacity);
@@ -146,7 +155,7 @@ mod tests {
     fn test_spatial_tensor_new_3d() {
         let ndim = 3;
         let capacity = 10;
-        let tensor = SpatialTensor::new(ndim, capacity);
+        let tensor = SpatialTensor::new("", ndim, capacity);
         assert!(tensor.id2k.capacity() >= capacity);
         assert_eq!(tensor.k2id.capacity(), capacity);
         assert_eq!(tensor.xx.capacity(), capacity);
@@ -182,7 +191,8 @@ mod tests {
         map.add_tensor(0, 10.0, 20.0, 30.0, 40.0, None, None).unwrap();
 
         let point_ids = vec![2, 0, 3];
-        let tensor = SpatialTensor::from_map(&mesh, &map, &point_ids);
+        let tensor = SpatialTensor::from_map("T2D", &mesh, &map, &point_ids);
+        assert_eq!(tensor.label(), "T2D");
 
         assert_eq!(&tensor.k2id, &[2, 0, 3]);
         assert_eq!(tensor.id2k.get(&0).unwrap(), &1);
@@ -223,7 +233,8 @@ mod tests {
             .unwrap();
 
         let point_ids = vec![3, 1];
-        let tensor = SpatialTensor::from_map(&mesh, &map, &point_ids);
+        let tensor = SpatialTensor::from_map("T3D", &mesh, &map, &point_ids);
+        assert_eq!(tensor.label(), "T3D");
 
         assert_eq!(&tensor.k2id, &[3, 1]);
         assert_eq!(tensor.id2k.get(&1).unwrap(), &1);
