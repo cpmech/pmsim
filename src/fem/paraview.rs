@@ -173,9 +173,10 @@ pub(crate) fn write_vtu(
         )
         .unwrap();
         for point in &mesh.points {
-            let vx = data.vvx[point.id];
-            let vy = data.vvy[point.id];
-            let vz = if ndim == 3 { data.vvz[point.id] } else { 0.0 };
+            let k = data.id2k.get(&point.id).unwrap();
+            let vx = data.vvx[*k];
+            let vy = data.vvy[*k];
+            let vz = if ndim == 3 { data.vvz[*k] } else { 0.0 };
             write!(&mut buffer, "{:?} {:?} {:?} ", vx, vy, vz).unwrap();
         }
         write!(&mut buffer, "\n</DataArray>\n").unwrap();

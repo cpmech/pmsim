@@ -37,11 +37,11 @@ const NYP_FINER: usize = 4; // number of divisions for the pile
 #[test]
 fn test_seep_craig_2d9() -> Result<(), StrError> {
     // mesh
-    let finer = true;
-    let o2 = true;
+    let finer = false;
+    let o2 = false;
     // let mesh = generate_or_read_mesh(GENERATE_MESH, finer, o2);
-    // let mesh = generate_or_read_mesh_simple();
-    let mesh = generate_or_read_mesh_simple_tri();
+    let mesh = generate_or_read_mesh_simple();
+    // let mesh = generate_or_read_mesh_simple_tri();
 
     // features
     let features = Features::new(&mesh, false);
@@ -71,7 +71,6 @@ fn test_seep_craig_2d9() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_axisymmetric()
         .set_lagrange_mult_method(true)
         .set_out_files(OUT_DIR, NAME, 1.0)
         .update_model_settings(1)
@@ -121,9 +120,25 @@ fn post_processing() -> Result<(), StrError> {
 
     // analysis
     let state = post.read_state(post.n_state() - 1)?;
-    // let gauss = post.gauss_fluxes_patch(&mut memo, &state, &gap_cells, Dof::Phi, |_, _, _| true)?;
+    let gauss = post.gauss_fluxes_patch(&mut memo, &state, &[6, 7], Dof::Phi, |_, _, _| true)?;
     // println!("wx = {:?}", gauss.vvx);
     // println!("wy = {:?}", gauss.vvy);
+
+    let vv = post.nodal_fluxes_patch(
+        &mut memo,
+        &state,
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        Dof::Phi,
+        |_, _, _| true,
+    )?;
+    // println!();
+    // println!("wx = {:?}", vv.vvx);
+    // println!("wy = {:?}", vv.vvy);
+    // println!();
+    for p in 0..mesh.points.len() {
+        let k = vv.id2k.get(&p).unwrap();
+        println!("point {:>2}: vx = {:15.10}, vy = {:15.10}", p, vv.vvx[*k], vv.vvy[*k]);
+    }
 
     // write Paraview files
     let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;
@@ -200,9 +215,9 @@ fn generate_or_read_mesh_simple() -> Mesh {
     let mut block1 = Block::new(&[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]).unwrap();
     let mut block2 = Block::new(&[[0.0, 1.0], [1.0, 1.0], [1.0, 2.0], [0.0, 2.0]]).unwrap();
     let mut block3 = Block::new(&[[1.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0]]).unwrap();
-    block1.set_ndiv(&[4, 4]).unwrap();
-    block2.set_ndiv(&[4, 4]).unwrap();
-    block3.set_ndiv(&[4, 4]).unwrap();
+    block1.set_ndiv(&[2, 2]).unwrap();
+    block2.set_ndiv(&[2, 2]).unwrap();
+    block3.set_ndiv(&[2, 2]).unwrap();
     let mesh1 = block1.subdivide(GeoKind::Qua4).unwrap();
     let mesh2 = block2.subdivide(GeoKind::Qua4).unwrap();
     let mesh3 = block3.subdivide(GeoKind::Qua4).unwrap();
