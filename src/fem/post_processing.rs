@@ -2856,6 +2856,14 @@ mod tests {
         let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
         let state = post.read_state(0).unwrap();
 
+        // let vv = post
+        //     .nodal_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |_, _, _| true)
+        //     .unwrap();
+        // for p in 0..post.mesh.points.len() {
+        //     let k = vv.id2k.get(&p).unwrap();
+        //     println!("point {:>2}: vx = {}, vy = {}", p, vv.vvx[*k], vv.vvy[*k]);
+        // }
+
         // create directory
         fs::create_dir_all("/tmp/pmsim")
             .map_err(|_| "cannot create directory")
@@ -2895,7 +2903,7 @@ mod tests {
 1.0 3.5999999999999996 7.1000000000000005 10.4 7.5 
 </DataArray>
 <DataArray type="Float64" Name="w" NumberOfComponents="3" format="ascii">
--6.0 -20.0 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.0 -20.0 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.0 -20.0 0.0 
+-6.0 -20.0 0.0 -6.0 -20.0 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.0 -20.0 0.0 
 </DataArray>
 </PointData>
 </Piece>
