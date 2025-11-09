@@ -136,8 +136,7 @@ fn post_processing() -> Result<(), StrError> {
     // println!("wy = {:?}", vv.vvy);
     // println!();
     for p in 0..mesh.points.len() {
-        let k = vv.id2k.get(&p).unwrap();
-        println!("point {:>2}: vx = {:15.10}, vy = {:15.10}", p, vv.vvx[*k], vv.vvy[*k]);
+        println!("point {:>2}: vx = {:15.10}, vy = {:15.10}", p, vv.vx(p), vv.vy(p));
     }
 
     // write Paraview files
