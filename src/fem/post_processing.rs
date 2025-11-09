@@ -455,13 +455,20 @@ impl PostProc {
         let ndim = self.mesh.ndim;
         let capacity = indices.len();
         let mut res = SpatialVector::new(label, ndim, capacity);
-        for id in &indices {
-            let (cell_id, p) = accepted[*id];
+        for index in &indices {
+            let (cell_id, p) = accepted[*index];
             let vv = self.gauss_fluxes(state, cell_id, dof)?;
-            if ndim == 2 {
-                res.push_2d(*id, xx[*id], yy[*id], vv.get(p, 0), vv.get(p, 1));
-            } else {
-                res.push_3d(*id, xx[*id], yy[*id], zz[*id], vv.get(p, 0), vv.get(p, 1), vv.get(p, 2));
+            let id = res.id2k.len();
+            let k = res.k2id.len();
+            res.id2k.insert(id, k);
+            res.k2id.push(id);
+            res.vvx.push(vv.get(p, 0));
+            res.vvy.push(vv.get(p, 1));
+            res.xx.push(xx[*index]);
+            res.yy.push(yy[*index]);
+            if ndim == 3 {
+                res.zz.push(zz[*index]);
+                res.vvz.push(vv.get(p, 2));
             }
         }
         Ok(res)
@@ -1961,10 +1968,12 @@ mod tests {
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         let mut coords = String::new();
-        for id in ww.ids() {
-            approx_eq(ww.vx(*id), w_correct[0], 1e-14);
-            approx_eq(ww.vy(*id), w_correct[1], 1e-14);
-            write!(&mut coords, "{:.5},{:.5}\n", ww.x(*id), ww.y(*id)).unwrap();
+        for k in 0..ww.k2id.len() {
+            assert_eq!(*ww.id2k.get(&k).unwrap(), k);
+            assert_eq!(ww.k2id[k], k);
+            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
+            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
+            write!(&mut coords, "{:.5},{:.5}\n", ww.xx[k], ww.yy[k]).unwrap();
         }
         assert_eq!(
             coords,
@@ -1990,11 +1999,13 @@ mod tests {
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         let mut coords = String::new();
-        for id in ww.ids() {
-            approx_eq(ww.vx(*id), w_correct[0], 1e-14);
-            approx_eq(ww.vy(*id), w_correct[1], 1e-14);
-            approx_eq(ww.vz(*id), w_correct[2], 1e-14);
-            write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.x(*id), ww.y(*id), ww.z(*id)).unwrap();
+        for k in 0..ww.k2id.len() {
+            assert_eq!(*ww.id2k.get(&k).unwrap(), k);
+            assert_eq!(ww.k2id[k], k);
+            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
+            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
+            approx_eq(ww.vvz[k], w_correct[2], 1e-14);
+            write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.xx[k], ww.yy[k], ww.zz[k]).unwrap();
         }
         assert_eq!(
             coords,
@@ -2346,12 +2357,16 @@ mod tests {
             .nodal_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         let mut coords = String::new();
-        for id in ww.ids() {
-            approx_eq(ww.vx(*id), w_correct[0], 1e-14);
-            approx_eq(ww.vy(*id), w_correct[1], 1e-14);
-            write!(&mut coords, "{:.5},{:.5}\n", ww.x(*id), ww.y(*id)).unwrap();
+        for k in 0..ww.xx.len() {
+            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
+            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
+            write!(&mut coords, "{:.5},{:.5}\n", ww.xx[k], ww.yy[k]).unwrap();
         }
-        assert_eq!(&ww.ids(), &[1, 2, 3, 4]);
+        assert_eq!(&ww.k2id, &[1, 2, 3, 4]);
+        ww.k2id
+            .iter()
+            .map(|id| ww.id2k.get(id).unwrap())
+            .for_each(|k| assert_eq!(k, k));
         assert_eq!(
             coords,
             "1.20000,0.00000\n\
@@ -2371,13 +2386,17 @@ mod tests {
             .nodal_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         let mut coords = String::new();
-        for id in ww.ids() {
-            approx_eq(ww.vx(*id), w_correct[0], 1e-13);
-            approx_eq(ww.vy(*id), w_correct[1], 1e-13);
-            approx_eq(ww.vz(*id), w_correct[2], 1e-13);
-            write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.x(*id), ww.y(*id), ww.z(*id)).unwrap();
+        for k in 0..ww.xx.len() {
+            approx_eq(ww.vvx[k], w_correct[0], 1e-13);
+            approx_eq(ww.vvy[k], w_correct[1], 1e-13);
+            approx_eq(ww.vvz[k], w_correct[2], 1e-13);
+            write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.xx[k], ww.yy[k], ww.zz[k]).unwrap();
         }
-        assert_eq!(&ww.ids(), &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
+        assert_eq!(&ww.k2id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
+        ww.k2id
+            .iter()
+            .map(|id| ww.id2k.get(id).unwrap())
+            .for_each(|k| assert_eq!(k, k));
         assert_eq!(
             coords,
             "1.00000,0.00000,0.00000\n\

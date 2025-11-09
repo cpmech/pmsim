@@ -6,51 +6,51 @@ use std::collections::HashMap;
 #[derive(Clone, Debug)]
 pub struct SpatialVector {
     /// The label of the spatial vector
-    label: String,
+    pub label: String,
 
     /// Maps the node ID to the index in the associated data arrays (xx, yy, vxx, vyy, ...)
     ///
     /// In the case of Gauss data, the ID will be a randomly assigned number.
     ///
     /// (nnode or ngauss)
-    id2k: HashMap<PointId, usize>,
+    pub id2k: HashMap<PointId, usize>,
 
     /// Maps the index in the associated data arrays (xx, yy, txx, tyy, ...) to the node ID
     ///
     /// In the case of Gauss data, the ID will be a randomly assigned number.
     ///
     /// (nnode or ngauss)
-    k2id: Vec<PointId>,
+    pub k2id: Vec<PointId>,
 
     /// The x coordinates of nodes
     ///
     /// (nnode or ngauss)
-    xx: Vec<f64>,
+    pub xx: Vec<f64>,
 
     /// The y coordinates of nodes
     ///
     /// (nnode or ngauss)
-    yy: Vec<f64>,
+    pub yy: Vec<f64>,
 
     /// The z coordinates of nodes (3D only)
     ///
     /// (nnode or ngauss)
-    zz: Vec<f64>,
+    pub zz: Vec<f64>,
 
     /// The extrapolated vx components @ each node
     ///
     /// (nnode or ngauss)
-    vvx: Vec<f64>,
+    pub vvx: Vec<f64>,
 
     /// The extrapolated vy components @ each node
     ///
     /// (nnode or ngauss)
-    vvy: Vec<f64>,
+    pub vvy: Vec<f64>,
 
     /// The extrapolated vz components @ each node
     ///
     /// (nnode or ngauss)
-    vvz: Vec<f64>,
+    pub vvz: Vec<f64>,
 }
 
 impl SpatialVector {
@@ -75,124 +75,24 @@ impl SpatialVector {
     pub(crate) fn from_map(label: &str, mesh: &Mesh, map: &VectorComponentsMap, point_ids: &[PointId]) -> Self {
         assert_eq!(mesh.ndim, map.ndim);
         let mut res = SpatialVector::new(label, map.ndim, point_ids.len());
-        if mesh.ndim == 2 {
-            for id in point_ids {
-                let x = mesh.points[*id].coords[0];
-                let y = mesh.points[*id].coords[1];
-                let count = *map.counter.get(&id).unwrap() as f64;
-                let vx = *map.vvx.get(id).unwrap() / count;
-                let vy = *map.vvy.get(id).unwrap() / count;
-                res.push_2d(*id, x, y, vx, vy);
-            }
-        } else {
-            for id in point_ids {
-                let x = mesh.points[*id].coords[0];
-                let y = mesh.points[*id].coords[1];
-                let z = mesh.points[*id].coords[2];
-                let count = *map.counter.get(&id).unwrap() as f64;
-                let vx = *map.vvx.get(id).unwrap() / count;
-                let vy = *map.vvy.get(id).unwrap() / count;
-                let vz = *map.vvz.get(id).unwrap() / count;
-                res.push_3d(*id, x, y, z, vx, vy, vz);
+        for nid in point_ids {
+            let k = res.k2id.len();
+            let count = *map.counter.get(&nid).unwrap() as f64;
+            let vx = map.vvx.get(nid).unwrap();
+            let vy = map.vvy.get(nid).unwrap();
+            res.id2k.insert(*nid, k);
+            res.k2id.push(*nid);
+            res.xx.push(mesh.points[*nid].coords[0]);
+            res.yy.push(mesh.points[*nid].coords[1]);
+            res.vvx.push(*vx / count);
+            res.vvy.push(*vy / count);
+            if map.ndim == 3 {
+                let vz = map.vvz.get(nid).unwrap();
+                res.zz.push(mesh.points[*nid].coords[2]);
+                res.vvz.push(*vz / count);
             }
         }
         res
-    }
-
-    /// Pushes a new 2D entry
-    pub(crate) fn push_2d(&mut self, id: PointId, x: f64, y: f64, vx: f64, vy: f64) {
-        let k = self.k2id.len();
-        self.id2k.insert(id, k);
-        self.k2id.push(id);
-        self.xx.push(x);
-        self.yy.push(y);
-        self.vvx.push(vx);
-        self.vvy.push(vy);
-    }
-
-    /// Pushes a new 3D entry
-    pub(crate) fn push_3d(&mut self, id: PointId, x: f64, y: f64, z: f64, vx: f64, vy: f64, vz: f64) {
-        let k = self.k2id.len();
-        self.id2k.insert(id, k);
-        self.k2id.push(id);
-        self.xx.push(x);
-        self.yy.push(y);
-        self.zz.push(z);
-        self.vvx.push(vx);
-        self.vvy.push(vy);
-        self.vvz.push(vz);
-    }
-
-    /// Returns the label of the spatial vector
-    pub fn label(&self) -> &str {
-        &self.label
-    }
-
-    /// Returns a slice of all point IDs in sorted order
-    ///
-    /// The order corresponds to order used in `from_map` or the order they were added via `push_2d` or `push_3d`.
-    pub fn ids(&self) -> &[PointId] {
-        &self.k2id
-    }
-
-    /// Returns the x-coordinate for a given point ID
-    ///
-    /// # Panics
-    ///
-    /// Panics if the point ID is not found in the spatial vector.
-    pub fn x(&self, id: PointId) -> f64 {
-        let k = self.id2k.get(&id).unwrap();
-        self.xx[*k]
-    }
-
-    /// Returns the y-coordinate for a given point ID
-    ///
-    /// # Panics
-    ///
-    /// Panics if the point ID is not found in the spatial vector.
-    pub fn y(&self, id: PointId) -> f64 {
-        let k = self.id2k.get(&id).unwrap();
-        self.yy[*k]
-    }
-
-    /// Returns the z-coordinate for a given point ID (3D only)
-    ///
-    /// # Panics
-    ///
-    /// Panics if the point ID is not found in the spatial vector.
-    pub fn z(&self, id: PointId) -> f64 {
-        let k = self.id2k.get(&id).unwrap();
-        self.zz[*k]
-    }
-
-    /// Returns the x-component of the vector for a given point ID
-    ///
-    /// # Panics
-    ///
-    /// Panics if the point ID is not found in the spatial vector.
-    pub fn vx(&self, id: PointId) -> f64 {
-        let k = self.id2k.get(&id).unwrap();
-        self.vvx[*k]
-    }
-
-    /// Returns the y-component of the vector for a given point ID
-    ///
-    /// # Panics
-    ///
-    /// Panics if the point ID is not found in the spatial vector.
-    pub fn vy(&self, id: PointId) -> f64 {
-        let k = self.id2k.get(&id).unwrap();
-        self.vvy[*k]
-    }
-
-    /// Returns the z-component of the vector for a given point ID (3D only)
-    ///
-    /// # Panics
-    ///
-    /// Panics if the point ID is not found in the spatial vector.
-    pub fn vz(&self, id: PointId) -> f64 {
-        let k = self.id2k.get(&id).unwrap();
-        self.vvz[*k]
     }
 }
 

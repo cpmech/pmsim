@@ -169,13 +169,14 @@ pub(crate) fn write_vtu(
         write!(
             &mut buffer,
             "<DataArray type=\"Float64\" Name=\"{}\" NumberOfComponents=\"3\" format=\"ascii\">\n",
-            data.label()
+            data.label
         )
         .unwrap();
         for point in &mesh.points {
-            let vx = data.vx(point.id);
-            let vy = data.vy(point.id);
-            let vz = if ndim == 3 { data.vz(point.id) } else { 0.0 };
+            let k = data.id2k[&point.id];
+            let vx = data.vvx[k];
+            let vy = data.vvy[k];
+            let vz = if ndim == 3 { data.vvz[k] } else { 0.0 };
             write!(&mut buffer, "{:?} {:?} {:?} ", vx, vy, vz).unwrap();
         }
         write!(&mut buffer, "\n</DataArray>\n").unwrap();
