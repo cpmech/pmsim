@@ -2124,7 +2124,7 @@ mod tests {
             let sig = post
                 .gauss_stresses_patch(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
-            assert_eq!(sig.label(), "stress");
+            assert_eq!(sig.label, "stress");
             for k in 0..sig.k_to_id.len() {
                 assert_eq!(*sig.id_to_k.get(&k).unwrap(), k);
                 assert_eq!(sig.k_to_id[k], k);
@@ -2144,7 +2144,7 @@ mod tests {
             let eps = post
                 .gauss_strains_patch(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
                 .unwrap();
-            assert_eq!(eps.label(), "strain");
+            assert_eq!(eps.label, "strain");
             for k in 0..eps.k_to_id.len() {
                 assert_eq!(*eps.id_to_k.get(&k).unwrap(), k);
                 assert_eq!(eps.k_to_id[k], k);
@@ -2483,7 +2483,7 @@ mod tests {
             let sig = post
                 .nodal_stresses_patch(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
-            assert_eq!(sig.label(), "stress");
+            assert_eq!(sig.label, "stress");
             for k in 0..sig.xx.len() {
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
                 approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
@@ -2506,7 +2506,7 @@ mod tests {
             let eps = post
                 .nodal_strains_patch(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
                 .unwrap();
-            assert_eq!(eps.label(), "strain");
+            assert_eq!(eps.label, "strain");
             for k in 0..eps.xx.len() {
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);

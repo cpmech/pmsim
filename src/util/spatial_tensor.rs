@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug)]
 pub struct SpatialTensor {
     /// The label of the spatial tensor
-    label: String,
+    pub label: String,
 
     /// Maps the node ID to the index in the associated data arrays (xx, yy, txx, tyy, ...)
     ///
@@ -118,11 +118,6 @@ impl SpatialTensor {
         }
         res
     }
-
-    /// Returns the label of the spatial tensor
-    pub fn label(&self) -> &str {
-        &self.label
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +187,7 @@ mod tests {
 
         let point_ids = vec![2, 0, 3];
         let tensor = SpatialTensor::from_map("T2D", &mesh, &map, &point_ids);
-        assert_eq!(tensor.label(), "T2D");
+        assert_eq!(tensor.label, "T2D");
 
         assert_eq!(&tensor.k_to_id, &[2, 0, 3]);
         assert_eq!(tensor.id_to_k.get(&0).unwrap(), &1);
@@ -234,7 +229,7 @@ mod tests {
 
         let point_ids = vec![3, 1];
         let tensor = SpatialTensor::from_map("T3D", &mesh, &map, &point_ids);
-        assert_eq!(tensor.label(), "T3D");
+        assert_eq!(tensor.label, "T3D");
 
         assert_eq!(&tensor.k_to_id, &[3, 1]);
         assert_eq!(tensor.id_to_k.get(&1).unwrap(), &1);
