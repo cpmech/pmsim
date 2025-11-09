@@ -37,17 +37,17 @@ pub struct SpatialVector {
     /// (nnode or ngauss)
     pub zz: Vec<f64>,
 
-    /// The extrapolated σxx components @ each node
+    /// The extrapolated vx components @ each node
     ///
     /// (nnode or ngauss)
     pub vvx: Vec<f64>,
 
-    /// The extrapolated σyy components @ each node
+    /// The extrapolated vy components @ each node
     ///
     /// (nnode or ngauss)
     pub vvy: Vec<f64>,
 
-    /// The extrapolated σzz components @ each node
+    /// The extrapolated vz components @ each node
     ///
     /// (nnode or ngauss)
     pub vvz: Vec<f64>,
