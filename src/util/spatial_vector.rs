@@ -29,25 +29,35 @@ pub struct SpatialVector {
 
     /// The y coordinates of nodes
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub yy: Vec<f64>,
 
     /// The z coordinates of nodes (3D only)
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub zz: Vec<f64>,
 
     /// The extrapolated vx components @ each node
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub vvx: Vec<f64>,
 
     /// The extrapolated vy components @ each node
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub vvy: Vec<f64>,
 
     /// The extrapolated vz components @ each node
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub vvz: Vec<f64>,
@@ -158,7 +168,17 @@ mod tests {
         map.add_vector(0, 10.0, 20.0, None).unwrap();
 
         let point_ids = vec![2, 0, 3];
-        let vector = SpatialVector::from_map("", &mesh, &map, &point_ids);
+        let vector = SpatialVector::from_map("V2D", &mesh, &map, &point_ids);
+        assert_eq!(vector.label, "V2D");
+
+        assert_eq!(vector.id_to_k.len(), 3);
+        assert_eq!(vector.k_to_id.len(), 3);
+        assert_eq!(vector.xx.len(), 3);
+        assert_eq!(vector.yy.len(), 3);
+        assert_eq!(vector.zz.len(), 0);
+        assert_eq!(vector.vvx.len(), 3);
+        assert_eq!(vector.vvy.len(), 3);
+        assert_eq!(vector.vvz.len(), 0);
 
         assert_eq!(&vector.k_to_id, &[2, 0, 3]);
         assert_eq!(vector.id_to_k.get(&0).unwrap(), &1);
@@ -194,7 +214,17 @@ mod tests {
         map.add_vector(3, 10.0, 20.0, Some(30.0)).unwrap();
 
         let point_ids = vec![3, 1];
-        let vector = SpatialVector::from_map("", &mesh, &map, &point_ids);
+        let vector = SpatialVector::from_map("V3D", &mesh, &map, &point_ids);
+        assert_eq!(vector.label, "V3D");
+
+        assert_eq!(vector.id_to_k.len(), 2);
+        assert_eq!(vector.k_to_id.len(), 2);
+        assert_eq!(vector.xx.len(), 2);
+        assert_eq!(vector.yy.len(), 2);
+        assert_eq!(vector.zz.len(), 2);
+        assert_eq!(vector.vvx.len(), 2);
+        assert_eq!(vector.vvy.len(), 2);
+        assert_eq!(vector.vvz.len(), 2);
 
         assert_eq!(&vector.k_to_id, &[3, 1]);
         assert_eq!(vector.id_to_k.get(&1).unwrap(), &1);

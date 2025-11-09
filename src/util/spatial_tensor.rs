@@ -24,45 +24,63 @@ pub struct SpatialTensor {
 
     /// The x coordinates of nodes
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub xx: Vec<f64>,
 
     /// The y coordinates of nodes
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub yy: Vec<f64>,
 
     /// The z coordinates of nodes (3D only)
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub zz: Vec<f64>,
 
     /// The extrapolated σxx components @ each node
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub txx: Vec<f64>,
 
     /// The extrapolated σyy components @ each node
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub tyy: Vec<f64>,
 
     /// The extrapolated σzz components @ each node
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub tzz: Vec<f64>,
 
     /// The extrapolated σxy components @ each node
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub txy: Vec<f64>,
 
     /// The extrapolated σyx components @ each node (3D only)
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub tyz: Vec<f64>,
 
     /// The extrapolated σxz components @ each node (3D only)
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub tzx: Vec<f64>,
@@ -189,6 +207,18 @@ mod tests {
         let tensor = SpatialTensor::from_map("T2D", &mesh, &map, &point_ids);
         assert_eq!(tensor.label, "T2D");
 
+        assert_eq!(tensor.id_to_k.len(), 3);
+        assert_eq!(tensor.k_to_id.len(), 3);
+        assert_eq!(tensor.xx.len(), 3);
+        assert_eq!(tensor.yy.len(), 3);
+        assert_eq!(tensor.zz.len(), 0);
+        assert_eq!(tensor.txx.len(), 3);
+        assert_eq!(tensor.tyy.len(), 3);
+        assert_eq!(tensor.tzz.len(), 3);
+        assert_eq!(tensor.txy.len(), 3);
+        assert_eq!(tensor.tyz.len(), 0);
+        assert_eq!(tensor.tzx.len(), 0);
+
         assert_eq!(&tensor.k_to_id, &[2, 0, 3]);
         assert_eq!(tensor.id_to_k.get(&0).unwrap(), &1);
         assert_eq!(tensor.id_to_k.get(&2).unwrap(), &0);
@@ -230,6 +260,18 @@ mod tests {
         let point_ids = vec![3, 1];
         let tensor = SpatialTensor::from_map("T3D", &mesh, &map, &point_ids);
         assert_eq!(tensor.label, "T3D");
+
+        assert_eq!(tensor.id_to_k.len(), 2);
+        assert_eq!(tensor.k_to_id.len(), 2);
+        assert_eq!(tensor.xx.len(), 2);
+        assert_eq!(tensor.yy.len(), 2);
+        assert_eq!(tensor.zz.len(), 2);
+        assert_eq!(tensor.txx.len(), 2);
+        assert_eq!(tensor.tyy.len(), 2);
+        assert_eq!(tensor.tzz.len(), 2);
+        assert_eq!(tensor.txy.len(), 2);
+        assert_eq!(tensor.tyz.len(), 2);
+        assert_eq!(tensor.tzx.len(), 2);
 
         assert_eq!(&tensor.k_to_id, &[3, 1]);
         assert_eq!(tensor.id_to_k.get(&1).unwrap(), &1);
