@@ -577,10 +577,10 @@ impl PostProc {
         for index in &indices {
             let (cell_id, p) = accepted[*index];
             let tt = self.gauss_tensors(state, cell_id, strain)?;
-            let id = res.id2k.len();
-            let k = res.k2id.len();
-            res.id2k.insert(id, k);
-            res.k2id.push(id);
+            let id = res.id_to_k.len();
+            let k = res.k_to_id.len();
+            res.id_to_k.insert(id, k);
+            res.k_to_id.push(id);
             res.txx.push(tt.get(p, 0));
             res.tyy.push(tt.get(p, 1));
             res.tzz.push(tt.get(p, 2));
@@ -2114,9 +2114,9 @@ mod tests {
                 .gauss_stresses_patch(&mut memo, &state, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             assert_eq!(sig.label(), "stress");
-            for k in 0..sig.k2id.len() {
-                assert_eq!(*sig.id2k.get(&k).unwrap(), k);
-                assert_eq!(sig.k2id[k], k);
+            for k in 0..sig.k_to_id.len() {
+                assert_eq!(*sig.id_to_k.get(&k).unwrap(), k);
+                assert_eq!(sig.k_to_id[k], k);
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
                 approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
                 approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
@@ -2134,9 +2134,9 @@ mod tests {
                 .gauss_strains_patch(&mut memo, &state, &[0, 1, 2], |_, _, _| true)
                 .unwrap();
             assert_eq!(eps.label(), "strain");
-            for k in 0..eps.k2id.len() {
-                assert_eq!(*eps.id2k.get(&k).unwrap(), k);
-                assert_eq!(eps.k2id[k], k);
+            for k in 0..eps.k_to_id.len() {
+                assert_eq!(*eps.id_to_k.get(&k).unwrap(), k);
+                assert_eq!(eps.k_to_id[k], k);
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
@@ -2211,9 +2211,9 @@ mod tests {
             let sig = post
                 .gauss_stresses_patch(&mut memo, &state, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
-            for k in 0..sig.k2id.len() {
-                assert_eq!(*sig.id2k.get(&k).unwrap(), k);
-                assert_eq!(sig.k2id[k], k);
+            for k in 0..sig.k_to_id.len() {
+                assert_eq!(*sig.id_to_k.get(&k).unwrap(), k);
+                assert_eq!(sig.k_to_id[k], k);
                 approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
                 approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
                 approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
@@ -2232,9 +2232,9 @@ mod tests {
             let eps = post
                 .gauss_strains_patch(&mut memo, &state, &[0, 1], |_, _, _| true)
                 .unwrap();
-            for k in 0..eps.k2id.len() {
-                assert_eq!(*eps.id2k.get(&k).unwrap(), k);
-                assert_eq!(eps.k2id[k], k);
+            for k in 0..eps.k_to_id.len() {
+                assert_eq!(*eps.id_to_k.get(&k).unwrap(), k);
+                assert_eq!(eps.k_to_id[k], k);
                 approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
                 approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
@@ -2474,14 +2474,14 @@ mod tests {
                     write!(&mut coords_sig, "{:.5},{:.5}\n", sig.xx[k], sig.yy[k]).unwrap();
                     if SAVE_FIGURE {
                         curve_sig.draw(&[sig.xx[k]], &[sig.yy[k]]);
-                        text_sig.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", sig.k2id[k]));
+                        text_sig.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", sig.k_to_id[k]));
                     }
                 }
             }
-            assert_eq!(&sig.k2id, &[1, 2, 3, 4]);
-            sig.k2id
+            assert_eq!(&sig.k_to_id, &[1, 2, 3, 4]);
+            sig.k_to_id
                 .iter()
-                .map(|id| sig.id2k.get(id).unwrap())
+                .map(|id| sig.id_to_k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
             // strain (unfiltered)
             let eps = post
@@ -2497,14 +2497,14 @@ mod tests {
                     write!(&mut coords_eps, "{:.5},{:.5}\n", eps.xx[k], eps.yy[k]).unwrap();
                     if SAVE_FIGURE {
                         curve_eps.draw(&[eps.xx[k]], &[eps.yy[k]]);
-                        text_eps.draw(eps.xx[k] - 0.02, eps.yy[k], &format!("{}", eps.k2id[k]));
+                        text_eps.draw(eps.xx[k] - 0.02, eps.yy[k], &format!("{}", eps.k_to_id[k]));
                     }
                 }
             }
-            assert_eq!(&eps.k2id, &[1, 2, 0, 3, 4]);
-            eps.k2id
+            assert_eq!(&eps.k_to_id, &[1, 2, 0, 3, 4]);
+            eps.k_to_id
                 .iter()
-                .map(|id| eps.id2k.get(id).unwrap())
+                .map(|id| eps.id_to_k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
             first = false;
         }
@@ -2571,14 +2571,14 @@ mod tests {
                     write!(&mut coords_sig, "{:.5},{:.5},{:.5}\n", sig.xx[k], sig.yy[k], sig.zz[k]).unwrap();
                     if SAVE_FIGURE {
                         curve_sig.draw_3d(&[sig.xx[k]], &[sig.yy[k]], &[sig.zz[k]]);
-                        text_sig.draw_3d(sig.xx[k] + 0.02, sig.yy[k], sig.zz[k], &format!("{}", sig.k2id[k]));
+                        text_sig.draw_3d(sig.xx[k] + 0.02, sig.yy[k], sig.zz[k], &format!("{}", sig.k_to_id[k]));
                     }
                 }
             }
-            assert_eq!(&sig.k2id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
-            sig.k2id
+            assert_eq!(&sig.k_to_id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
+            sig.k_to_id
                 .iter()
-                .map(|id| sig.id2k.get(id).unwrap())
+                .map(|id| sig.id_to_k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
             // strain (unfiltered)
             let eps = post
@@ -2595,14 +2595,14 @@ mod tests {
                     write!(&mut coords_eps, "{:.5},{:.5},{:.5}\n", eps.xx[k], eps.yy[k], eps.zz[k]).unwrap();
                     if SAVE_FIGURE {
                         curve_eps.draw_3d(&[eps.xx[k]], &[eps.yy[k]], &[eps.zz[k]]);
-                        text_eps.draw_3d(eps.xx[k] - 0.02, eps.yy[k], eps.zz[k], &format!("{}", eps.k2id[k]));
+                        text_eps.draw_3d(eps.xx[k] - 0.02, eps.yy[k], eps.zz[k], &format!("{}", eps.k_to_id[k]));
                     }
                 }
             }
-            assert_eq!(&eps.k2id, &[0, 1, 3, 2, 4, 5, 7, 6, 8, 9, 11, 10]);
-            eps.k2id
+            assert_eq!(&eps.k_to_id, &[0, 1, 3, 2, 4, 5, 7, 6, 8, 9, 11, 10]);
+            eps.k_to_id
                 .iter()
-                .map(|id| eps.id2k.get(id).unwrap())
+                .map(|id| eps.id_to_k.get(id).unwrap())
                 .for_each(|k| assert_eq!(k, k));
             first = false;
         }
