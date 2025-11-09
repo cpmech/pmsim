@@ -13,14 +13,14 @@ pub struct SpatialVector {
     /// In the case of Gauss data, the ID will be a randomly assigned number.
     ///
     /// (nnode or ngauss)
-    pub id2k: HashMap<PointId, usize>,
+    pub id_to_k: HashMap<PointId, usize>,
 
     /// Maps the index in the associated data arrays (xx, yy, txx, tyy, ...) to the node ID
     ///
     /// In the case of Gauss data, the ID will be a randomly assigned number.
     ///
     /// (nnode or ngauss)
-    pub k2id: Vec<PointId>,
+    pub k_to_id: Vec<PointId>,
 
     /// The x coordinates of nodes
     ///
@@ -60,8 +60,8 @@ impl SpatialVector {
         let n = with_capacity;
         SpatialVector {
             label: label.to_string(),
-            id2k: HashMap::with_capacity(n),
-            k2id: Vec::with_capacity(n),
+            id_to_k: HashMap::with_capacity(n),
+            k_to_id: Vec::with_capacity(n),
             xx: Vec::with_capacity(n),
             yy: Vec::with_capacity(n),
             zz: if ndim == 3 { Vec::with_capacity(n) } else { Vec::new() },
@@ -76,12 +76,12 @@ impl SpatialVector {
         assert_eq!(mesh.ndim, map.ndim);
         let mut res = SpatialVector::new(label, map.ndim, point_ids.len());
         for nid in point_ids {
-            let k = res.k2id.len();
+            let k = res.k_to_id.len();
             let count = *map.counter.get(&nid).unwrap() as f64;
             let vx = map.vvx.get(nid).unwrap();
             let vy = map.vvy.get(nid).unwrap();
-            res.id2k.insert(*nid, k);
-            res.k2id.push(*nid);
+            res.id_to_k.insert(*nid, k);
+            res.k_to_id.push(*nid);
             res.xx.push(mesh.points[*nid].coords[0]);
             res.yy.push(mesh.points[*nid].coords[1]);
             res.vvx.push(*vx / count);
@@ -110,8 +110,8 @@ mod tests {
         let capacity = 10;
         let vector = SpatialVector::new("grad_phi", ndim, capacity);
         assert_eq!(vector.label, "grad_phi");
-        assert!(vector.id2k.capacity() >= capacity);
-        assert_eq!(vector.k2id.capacity(), capacity);
+        assert!(vector.id_to_k.capacity() >= capacity);
+        assert_eq!(vector.k_to_id.capacity(), capacity);
         assert_eq!(vector.xx.capacity(), capacity);
         assert_eq!(vector.yy.capacity(), capacity);
         assert_eq!(vector.zz.capacity(), 0);
@@ -126,8 +126,8 @@ mod tests {
         let capacity = 10;
         let vector = SpatialVector::new("w_pl", ndim, capacity);
         assert_eq!(vector.label, "w_pl");
-        assert!(vector.id2k.capacity() >= capacity);
-        assert_eq!(vector.k2id.capacity(), capacity);
+        assert!(vector.id_to_k.capacity() >= capacity);
+        assert_eq!(vector.k_to_id.capacity(), capacity);
         assert_eq!(vector.xx.capacity(), capacity);
         assert_eq!(vector.yy.capacity(), capacity);
         assert_eq!(vector.zz.capacity(), capacity);
@@ -160,10 +160,10 @@ mod tests {
         let point_ids = vec![2, 0, 3];
         let vector = SpatialVector::from_map("", &mesh, &map, &point_ids);
 
-        assert_eq!(&vector.k2id, &[2, 0, 3]);
-        assert_eq!(vector.id2k.get(&0).unwrap(), &1);
-        assert_eq!(vector.id2k.get(&2).unwrap(), &0);
-        assert_eq!(vector.id2k.get(&3).unwrap(), &2);
+        assert_eq!(&vector.k_to_id, &[2, 0, 3]);
+        assert_eq!(vector.id_to_k.get(&0).unwrap(), &1);
+        assert_eq!(vector.id_to_k.get(&2).unwrap(), &0);
+        assert_eq!(vector.id_to_k.get(&3).unwrap(), &2);
 
         assert_eq!(vector.xx.as_slice(), &[0.0, 1.0, 2.0]);
         assert_eq!(vector.yy.as_slice(), &[1.0, 2.0, 3.0]);
@@ -196,9 +196,9 @@ mod tests {
         let point_ids = vec![3, 1];
         let vector = SpatialVector::from_map("", &mesh, &map, &point_ids);
 
-        assert_eq!(&vector.k2id, &[3, 1]);
-        assert_eq!(vector.id2k.get(&1).unwrap(), &1);
-        assert_eq!(vector.id2k.get(&3).unwrap(), &0);
+        assert_eq!(&vector.k_to_id, &[3, 1]);
+        assert_eq!(vector.id_to_k.get(&1).unwrap(), &1);
+        assert_eq!(vector.id_to_k.get(&3).unwrap(), &0);
 
         assert_eq!(vector.xx, &[2.0, 3.0]);
         assert_eq!(vector.yy, &[3.0, 4.0]);

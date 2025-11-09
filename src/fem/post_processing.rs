@@ -458,10 +458,10 @@ impl PostProc {
         for index in &indices {
             let (cell_id, p) = accepted[*index];
             let vv = self.gauss_fluxes(state, cell_id, dof)?;
-            let id = res.id2k.len();
-            let k = res.k2id.len();
-            res.id2k.insert(id, k);
-            res.k2id.push(id);
+            let id = res.id_to_k.len();
+            let k = res.k_to_id.len();
+            res.id_to_k.insert(id, k);
+            res.k_to_id.push(id);
             res.vvx.push(vv.get(p, 0));
             res.vvy.push(vv.get(p, 1));
             res.xx.push(xx[*index]);
@@ -1968,9 +1968,9 @@ mod tests {
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         let mut coords = String::new();
-        for k in 0..ww.k2id.len() {
-            assert_eq!(*ww.id2k.get(&k).unwrap(), k);
-            assert_eq!(ww.k2id[k], k);
+        for k in 0..ww.k_to_id.len() {
+            assert_eq!(*ww.id_to_k.get(&k).unwrap(), k);
+            assert_eq!(ww.k_to_id[k], k);
             approx_eq(ww.vvx[k], w_correct[0], 1e-14);
             approx_eq(ww.vvy[k], w_correct[1], 1e-14);
             write!(&mut coords, "{:.5},{:.5}\n", ww.xx[k], ww.yy[k]).unwrap();
@@ -1999,9 +1999,9 @@ mod tests {
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         let mut coords = String::new();
-        for k in 0..ww.k2id.len() {
-            assert_eq!(*ww.id2k.get(&k).unwrap(), k);
-            assert_eq!(ww.k2id[k], k);
+        for k in 0..ww.k_to_id.len() {
+            assert_eq!(*ww.id_to_k.get(&k).unwrap(), k);
+            assert_eq!(ww.k_to_id[k], k);
             approx_eq(ww.vvx[k], w_correct[0], 1e-14);
             approx_eq(ww.vvy[k], w_correct[1], 1e-14);
             approx_eq(ww.vvz[k], w_correct[2], 1e-14);
@@ -2362,10 +2362,10 @@ mod tests {
             approx_eq(ww.vvy[k], w_correct[1], 1e-14);
             write!(&mut coords, "{:.5},{:.5}\n", ww.xx[k], ww.yy[k]).unwrap();
         }
-        assert_eq!(&ww.k2id, &[1, 2, 3, 4]);
-        ww.k2id
+        assert_eq!(&ww.k_to_id, &[1, 2, 3, 4]);
+        ww.k_to_id
             .iter()
-            .map(|id| ww.id2k.get(id).unwrap())
+            .map(|id| ww.id_to_k.get(id).unwrap())
             .for_each(|k| assert_eq!(k, k));
         assert_eq!(
             coords,
@@ -2392,10 +2392,10 @@ mod tests {
             approx_eq(ww.vvz[k], w_correct[2], 1e-13);
             write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.xx[k], ww.yy[k], ww.zz[k]).unwrap();
         }
-        assert_eq!(&ww.k2id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
-        ww.k2id
+        assert_eq!(&ww.k_to_id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
+        ww.k_to_id
             .iter()
-            .map(|id| ww.id2k.get(id).unwrap())
+            .map(|id| ww.id_to_k.get(id).unwrap())
             .for_each(|k| assert_eq!(k, k));
         assert_eq!(
             coords,

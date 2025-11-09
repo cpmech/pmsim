@@ -136,7 +136,7 @@ fn post_processing() -> Result<(), StrError> {
     // println!("wy = {:?}", vv.vvy);
     // println!();
     for p in 0..mesh.points.len() {
-        let k = vv.id2k[&p];
+        let k = vv.id_to_k[&p];
         println!("point {:>2}: vx = {:15.10}, vy = {:15.10}", p, vv.vvx[k], vv.vvy[k]);
     }
 

@@ -173,7 +173,7 @@ pub(crate) fn write_vtu(
         )
         .unwrap();
         for point in &mesh.points {
-            let k = data.id2k[&point.id];
+            let k = data.id_to_k[&point.id];
             let vx = data.vvx[k];
             let vy = data.vvy[k];
             let vz = if ndim == 3 { data.vvz[k] } else { 0.0 };
