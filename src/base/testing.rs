@@ -9,6 +9,8 @@ pub(crate) fn new_empty_mesh_2d() -> Mesh {
         ndim: 2,
         points: Vec::new(),
         cells: Vec::new(),
+        marked_edges: Vec::new(),
+        marked_faces: Vec::new(),
     }
 }
 
@@ -19,6 +21,8 @@ pub(crate) fn new_empty_mesh_3d() -> Mesh {
         ndim: 3,
         points: Vec::new(),
         cells: Vec::new(),
+        marked_edges: Vec::new(),
+        marked_faces: Vec::new(),
     }
 }
 

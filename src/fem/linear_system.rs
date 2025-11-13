@@ -315,6 +315,7 @@ mod tests {
         let edge_conv = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
+            marker: 0,
         };
         natural.edge(&edge_conv, Nbc::Cv(55.0), 123.0);
         let prescribed_values = BcPrescribed::new(&base, &essential).unwrap();
@@ -425,6 +426,7 @@ mod tests {
         let edge_conv = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
+            marker: 0,
         };
         natural.edge(&edge_conv, Nbc::Cv(55.0), 123.0);
         let prescribed = BcPrescribed::new(&base, &essential).unwrap();

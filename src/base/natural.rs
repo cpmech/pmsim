@@ -170,18 +170,22 @@ mod tests {
         let edge_a = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
+            marker: 0,
         };
         let edge_b = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
+            marker: 0,
         };
         let face_a = Face {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
+            marker: 0,
         };
         let face_b = Face {
             kind: GeoKind::Tri3,
             points: vec![6, 7, 8],
+            marker: 0,
         };
         natural
             .point(10, Pbc::Fy, -100.0)
@@ -198,18 +202,22 @@ mod tests {
         let edge_a = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
+            marker: 0,
         };
         let edge_b = Edge {
             kind: GeoKind::Lin2,
             points: vec![2, 3],
+            marker: 0,
         };
         let face_a = Face {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
+            marker: 0,
         };
         let face_b = Face {
             kind: GeoKind::Tri3,
             points: vec![6, 7, 8],
+            marker: 0,
         };
         let edges_a = Edges { all: vec![&edge_a] };
         let edges_b = Edges { all: vec![&edge_b] };

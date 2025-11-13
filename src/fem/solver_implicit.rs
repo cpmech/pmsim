@@ -389,6 +389,7 @@ mod tests {
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
+            marker: 0,
         };
         natural.edge(&edge, Nbc::Qn, 0.0);
         assert_eq!(

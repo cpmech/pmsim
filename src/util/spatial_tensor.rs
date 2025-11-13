@@ -194,7 +194,9 @@ mod tests {
         let mesh = Mesh {
             points,
             ndim: 2,
-            cells: vec![],
+            cells: Vec::new(),
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
 
         let mut map = TensorComponentsMap::new(mesh.ndim);
@@ -248,7 +250,9 @@ mod tests {
         let mesh = Mesh {
             points,
             ndim: 3,
-            cells: vec![],
+            cells: Vec::new(),
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
 
         let mut map = TensorComponentsMap::new(mesh.ndim);

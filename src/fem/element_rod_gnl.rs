@@ -246,6 +246,8 @@ mod tests {
                 Cell { id: 1, attribute: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
                 Cell { id: 2, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         }
     }
 

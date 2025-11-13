@@ -204,10 +204,12 @@ mod tests {
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
+            marker: 0,
         };
         let face = Face {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
+            marker: 0,
         };
         essential
             .point(0, Dof::Ux, 0.0)
@@ -222,10 +224,12 @@ mod tests {
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
+            marker: 0,
         };
         let face = Face {
             kind: GeoKind::Tri3,
             points: vec![3, 4, 5],
+            marker: 0,
         };
         let faces = Faces { all: vec![&face] };
         let edges = Edges { all: vec![&edge] };

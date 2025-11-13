@@ -156,6 +156,8 @@ mod tests {
             cells: vec![
                 Cell { id: 0, attribute: 1, kind: GeoKind::Lin3, points: vec![0, 1, 2] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
         let p1 = ParamRod {
             gnl: None,
@@ -183,6 +185,8 @@ mod tests {
             cells: vec![
                 Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
         let p1 = ParamRod {
             gnl: None,
@@ -224,6 +228,8 @@ mod tests {
             cells: vec![
                 Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
         let p1 = ParamRod {
             gnl: None,
@@ -268,6 +274,8 @@ mod tests {
             cells: vec![
                 Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
         let p1 = ParamRod {
             gnl: None,
@@ -322,6 +330,8 @@ mod tests {
                 Cell { id: 1, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 2] },
                 Cell { id: 2, attribute: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
         let p1 = ParamRod {
             gnl: None,

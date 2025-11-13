@@ -2,7 +2,7 @@ use super::{write_pvd, write_vtu, FemBase, FemResults, FemState};
 use crate::base::Dof;
 use crate::util::{SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
 use crate::StrError;
-use gemlab::integ::Gauss;
+use gemlab::integ::{self, Gauss};
 use gemlab::mesh::{At, CellId, Edges, Features, Mesh, PointId, TOL_COMPARE_POINTS};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
@@ -1155,6 +1155,30 @@ impl PostProc {
 
         // write PVD file
         self.write_pvd(dir, fn_stem)
+    }
+
+    pub fn integrate_over_edges<F>(
+        &self,
+        memo: &mut PostProcMemo,
+        edges: &Edges,
+        dof: Dof,
+        f: F,
+    ) -> Result<f64, StrError>
+    where
+        F: Fn(f64, f64, f64) -> f64,
+    {
+        let ndim = self.mesh.ndim;
+        for edge in &edges.all {
+            // pad and integration points
+            let mut pad = Scratchpad::new(ndim, edge.kind).unwrap();
+            self.mesh.set_pad(&mut pad, &edge.points);
+            let gauss = Gauss::new(pad.kind);
+            println!("not implemented yet");
+
+            // TODO
+            // integ::vec_01_ns_bry(a, args, fn_s)
+        }
+        Ok(0.0)
     }
 }
 
@@ -2761,6 +2785,8 @@ mod tests {
                 Cell { id: 0, attribute: 1, kind: GeoKind::Qua8, points: vec![10, 4, 0, 6, 12, 3, 1, 2] },
                 Cell { id: 1, attribute: 1, kind: GeoKind::Qua8, points: vec![10, 8, 11, 4,  9, 7, 5, 12] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         }
     }
 

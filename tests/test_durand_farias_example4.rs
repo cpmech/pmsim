@@ -156,7 +156,7 @@ fn analyze_results() -> Result<(), StrError> {
 }
 
 /// Generate or read mesh
-fn generate_or_read_mesh(att: usize, generate: bool) -> Mesh {
+fn generate_or_read_mesh(att: i32, generate: bool) -> Mesh {
     let k_str = KIND.to_string();
 
     if generate {

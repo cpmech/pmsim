@@ -235,6 +235,8 @@ mod tests {
             cells: vec![
                 Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
         let p1 = ParamBeam::sample();
         let base = FemBase::new(&mesh, [(1, Elem::Beam(p1))]).unwrap();

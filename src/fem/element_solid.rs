@@ -666,6 +666,8 @@ mod tests {
             cells: vec![
                 Cell { id: 0, attribute: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
 
         // number of integration points

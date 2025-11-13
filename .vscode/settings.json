@@ -33,6 +33,7 @@
     "ncomp",
     "ngauss",
     "nlambda",
+    "nmarked",
     "nocapture",
     "Nonlin",
     "nonlinearities",

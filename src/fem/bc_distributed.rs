@@ -403,6 +403,7 @@ mod tests {
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
+            marker: 0,
         };
 
         let p1 = ParamSolid::sample_linear_elastic();
@@ -420,6 +421,7 @@ mod tests {
         let face = Face {
             kind: GeoKind::Qua4,
             points: vec![4, 5, 6, 7],
+            marker: 0,
         };
         assert_eq!(
             BcDistributed::new(&mesh, &base, &config, face.kind, &face.points, Nbc::Ql, -10.0, None).err(), // << flux
@@ -554,6 +556,7 @@ mod tests {
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
+            marker: 0,
         };
 
         let p1 = ParamDiffusion::sample();
@@ -604,10 +607,12 @@ mod tests {
         let edge_flux = Edge {
             kind: GeoKind::Lin3,
             points: vec![10, 0, 11],
+            marker: 0,
         };
         let edge_conv = Edge {
             kind: GeoKind::Lin3,
             points: vec![0, 2, 1],
+            marker: 0,
         };
 
         let p1 = ParamDiffusion::sample();
