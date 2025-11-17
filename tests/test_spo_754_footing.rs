@@ -37,12 +37,12 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let mesh = Mesh::read(&format!("data/spo/{}.msh", NAME))?;
     if DRAW_MESH_AND_EXIT {
         mesh.check_all()?;
-        let mut fig = Figure::new();
-        return fig
-            .size(800.0, 800.0)
+        let mut draw = Draw::new();
+        return draw
+            .set_size(800.0, 800.0)
             .zoom_2d(15.0, 69.0, 448.0, 502.0, 0.5, 0.5, 0.5, 0.5)
-            .range_2d(-10.0, 600.0, -10.0, 600.0)
-            .draw(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME));
+            .set_range_2d(-10.0, 600.0, -10.0, 600.0)
+            .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME));
     }
 
     // features

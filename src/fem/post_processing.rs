@@ -1195,7 +1195,7 @@ mod tests {
     };
     use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
     use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemBase, FemResults, FemState};
-    use gemlab::mesh::{At, Cell, Edges, Features, Figure, GeoKind, Mesh, Point, Samples};
+    use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
     use russell_lab::math::SQRT_3;
@@ -2187,14 +2187,14 @@ mod tests {
             first = false;
         }
         if SAVE_FIGURE {
-            let mut fig = Figure::new();
+            let mut fig = Draw::new();
             fig.extra(|plot, before| {
                 if !before {
                     plot.add(&curve_sig).add(&text_sig);
                     plot.add(&curve_eps).add(&text_eps);
                 }
             })
-            .draw(&post.mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg")
+            .all(&post.mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -2287,7 +2287,7 @@ mod tests {
             first = false;
         }
         if SAVE_FIGURE {
-            let mut fig = Figure::new();
+            let mut fig = Draw::new();
             fig.extra(|plot, before| {
                 if !before {
                     plot.add(&curve_sig).add(&text_sig);
@@ -2295,7 +2295,7 @@ mod tests {
                     plot.set_figure_size_points(800.0, 800.0);
                 }
             })
-            .draw(&post.mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_3d.svg")
+            .all(&post.mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_3d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -2552,14 +2552,14 @@ mod tests {
             first = false;
         }
         if SAVE_FIGURE {
-            let mut fig = Figure::new();
+            let mut fig = Draw::new();
             fig.extra(|plot, before| {
                 if !before {
                     plot.add(&curve_sig).add(&text_sig);
                     plot.add(&curve_eps).add(&text_eps);
                 }
             })
-            .draw(&post.mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg")
+            .all(&post.mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -2650,7 +2650,7 @@ mod tests {
             first = false;
         }
         if SAVE_FIGURE {
-            let mut fig = Figure::new();
+            let mut fig = Draw::new();
             fig.extra(|plot, before| {
                 if !before {
                     plot.add(&curve_sig).add(&text_sig);
@@ -2658,7 +2658,7 @@ mod tests {
                     plot.set_figure_size_points(800.0, 800.0);
                 }
             })
-            .draw(&post.mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_3d.svg")
+            .all(&post.mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_3d.svg")
             .unwrap();
         }
         assert_eq!(
@@ -2797,9 +2797,9 @@ mod tests {
 
         // check and draw the mesh
         // mesh.check_all().unwrap();
-        // let mut fig = Figure::new();
-        // fig.show_point_ids(true);
-        // fig.draw(&mesh, "/tmp/pmsim/test_values_along_edges_work_2.svg").unwrap();
+        // let mut fig = Draw::new();
+        // draw.show_point_ids(true);
+        // draw.all(&mesh, "/tmp/pmsim/test_values_along_edges_work_2.svg").unwrap();
 
         // extract features
         let feat = Features::new(&mesh, true);

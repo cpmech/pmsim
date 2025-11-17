@@ -205,9 +205,9 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], bottom: &[PointId], top: &[PointId])
     assert_eq!(&left, &spo_left);
     assert_eq!(&bottom, &spo_bottom);
     assert_eq!(&top, &spo_top);
-    let mut fig = Figure::new();
-    fig.range_2d(-0.5, 15.5, -0.5, 15.5)
-        .size(1200.0, 1200.0)
+    let mut draw = Draw::new();
+    draw.set_range_2d(-0.5, 15.5, -0.5, 15.5)
+        .set_size(1200.0, 1200.0)
         .zoom_2d(-0.02, 0.52, -0.02, 0.52, 0.38, 0.1, 0.6, 0.6)
         .zoom_extra(|inset| {
             inset.add(&text);
@@ -217,5 +217,5 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], bottom: &[PointId], top: &[PointId])
                 plot.add(&text);
             }
         })
-        .draw(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
+        .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
 }

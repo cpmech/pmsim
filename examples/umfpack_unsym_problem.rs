@@ -23,9 +23,9 @@ fn generate_matrix(name: &str, nr: usize) -> Result<CooMatrix, StrError> {
 
     // draw mesh
     if SAVE_FIGURE {
-        let mut fig = Figure::new();
-        fig.size(800.0, 800.0)
-            .draw(&mesh, &format!("{}/{}.svg", OUT_DIR, name))?;
+        let mut draw = Draw::new();
+        draw.set_size(800.0, 800.0)
+            .all(&mesh, &format!("{}/{}.svg", OUT_DIR, name))?;
     }
 
     // features

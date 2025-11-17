@@ -144,19 +144,19 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         circle.draw_circle(rref, ya, 0.02 * (rout - rin));
 
         // configure plot
-        let mut fig = Figure::new();
-        fig.size(400.0, 600.0)
-            .canvas_points()
+        let mut draw = Draw::new();
+        draw.set_size(400.0, 600.0)
+            .get_canvas_points()
             .set_marker_size(3.0)
             .set_marker_line_color("None");
 
         // generate figure
-        fig.extra(|plot, before| {
+        draw.extra(|plot, before| {
             if !before {
                 plot.add(&circle);
             }
         })
-        .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+        .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
         .unwrap();
 
         // write mesh

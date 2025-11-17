@@ -167,12 +167,12 @@ fn main() -> Result<(), StrError> {
                 .draw_circle(0.0, 0.0, R2);
 
             // figure settings
-            let mut fig = Figure::new();
-            fig.size(800.0, 800.0)
-                .canvas_points()
+            let mut draw = Draw::new();
+            draw.set_size(800.0, 800.0)
+                .get_canvas_points()
                 .set_marker_size(2.5)
                 .set_marker_line_color("black");
-            fig.show_point_dots(if ndof < 3100 { true } else { false })
+            draw.show_point_dots(if ndof < 3100 { true } else { false })
                 .extra(|plot, before| {
                     if !before {
                         plot.add(&circle_in);
@@ -180,7 +180,7 @@ fn main() -> Result<(), StrError> {
                         plot.add(&curve);
                     }
                 })
-                .draw(&mesh, &path_mesh)?;
+                .all(&mesh, &path_mesh)?;
         }
 
         // essential boundary conditions

@@ -317,11 +317,11 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
         mesh.check_all().unwrap();
 
         // draw figure
-        let mut fig = Figure::new();
-        fig.show_point_ids(true)
+        let mut draw = Draw::new();
+        draw.show_point_ids(true)
             .show_cell_ids(true)
-            .size(600.0, 600.0)
-            .draw(&mesh, &format!("/tmp/pmsim/{}_{}.svg", NAME_MESH, k_str))
+            .set_size(600.0, 600.0)
+            .all(&mesh, &format!("/tmp/pmsim/{}_{}.svg", NAME_MESH, k_str))
             .unwrap();
 
         // write mesh

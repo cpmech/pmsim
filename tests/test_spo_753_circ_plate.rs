@@ -287,9 +287,9 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: Point
     assert_eq!(&left, &spo_left);
     assert_eq!(&top, &spo_loadings.iter().map(|x| x - 1).collect::<Vec<_>>());
     assert_eq!(&spo_right_corner, &[right_corner]);
-    let mut fig = Figure::new();
-    fig.range_2d(-0.5, 10.5, -0.5, 1.5)
-        .size(600.0, 200.0)
+    let mut draw = Draw::new();
+    draw.set_range_2d(-0.5, 10.5, -0.5, 1.5)
+        .set_size(600.0, 200.0)
         .zoom_extra(|inset| {
             inset.add(&text1);
         })
@@ -298,5 +298,5 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: Point
                 plot.add(&text1).add(&text2);
             }
         })
-        .draw(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
+        .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
 }

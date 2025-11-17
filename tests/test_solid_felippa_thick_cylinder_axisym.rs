@@ -115,10 +115,10 @@ fn generate_or_read_mesh(rin: f64, rout: f64, thickness: f64, generate: bool) ->
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
         // draw figure
-        let mut fig = Figure::new();
-        fig.show_point_ids(true)
+        let mut draw = Draw::new();
+        draw.show_point_ids(true)
             .show_cell_ids(true)
-            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh

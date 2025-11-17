@@ -106,12 +106,12 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
         // draw figure
-        let mut fig = Figure::new();
-        fig.show_point_ids(true)
+        let mut draw = Draw::new();
+        draw.show_point_ids(true)
             .show_cell_ids(true)
-            .range_2d(0.95, 2.05, -0.05, 0.15)
-            .size(600.0, 100.0)
-            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .set_range_2d(0.95, 2.05, -0.05, 0.15)
+            .set_size(600.0, 100.0)
+            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh

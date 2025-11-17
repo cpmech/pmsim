@@ -1006,19 +1006,19 @@ impl SampleMeshes {
 #[cfg(test)]
 mod tests {
     use super::SampleMeshes;
-    use gemlab::mesh::{Figure, Mesh};
+    use gemlab::mesh::{Draw, Mesh};
 
     const SAVE_FIGURE: bool = false;
 
     fn draw(mesh: &Mesh, larger: bool, show_ids: bool, filename: &str) {
-        let mut fig = Figure::new();
+        let mut draw = Draw::new();
         if show_ids {
-            fig.show_cell_ids(true).show_point_ids(true);
+            draw.show_cell_ids(true).show_point_ids(true);
         }
         if larger {
-            fig.size(600.0, 600.0);
+            draw.set_size(600.0, 600.0);
         }
-        fig.draw(&mesh, filename).unwrap();
+        draw.all(&mesh, filename).unwrap();
     }
 
     #[test]
@@ -1037,10 +1037,10 @@ mod tests {
         assert_eq!(mesh.points.len(), 9);
         assert_eq!(mesh.cells.len(), 12);
         if SAVE_FIGURE {
-            let mut fig = Figure::new();
-            fig.show_point_ids(true).canvas_point_ids().set_color("black");
-            fig.size(600.0, 600.0)
-                .draw(&mesh, "/tmp/pmsim/mesh_truss_12member_3d.svg")
+            let mut draw = Draw::new();
+            draw.show_point_ids(true).get_canvas_point_ids().set_color("black");
+            draw.set_size(600.0, 600.0)
+                .all(&mesh, "/tmp/pmsim/mesh_truss_12member_3d.svg")
                 .unwrap();
         }
 

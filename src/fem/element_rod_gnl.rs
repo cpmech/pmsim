@@ -226,7 +226,7 @@ mod tests {
     use super::ElementRodGnl;
     use crate::base::{Config, Elem, Essential, GnlStrain, ParamRod};
     use crate::fem::{ElementTrait, FemBase, FemState};
-    use gemlab::mesh::{Cell, Figure, GeoKind, Mesh, Point};
+    use gemlab::mesh::{Cell, Draw, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};
 
     const SAVE_FIGURE: bool = false;
@@ -256,9 +256,11 @@ mod tests {
         // mesh
         let mesh = small_truss_2d();
         if SAVE_FIGURE {
-            let mut fig = Figure::new();
-            fig.show_point_ids(true).show_cell_ids(true);
-            fig.draw(&mesh, "/tmp/pmsim/test_element_rod_gnl_works_1.svg").unwrap();
+            let mut draw = Draw::new();
+            draw.show_point_ids(true)
+                .show_cell_ids(true)
+                .all(&mesh, "/tmp/pmsim/test_element_rod_gnl_works_1.svg")
+                .unwrap();
         }
 
         // parameters and first element

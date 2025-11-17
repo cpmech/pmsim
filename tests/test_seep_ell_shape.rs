@@ -159,12 +159,12 @@ fn generate_or_read_mesh(generate: bool, triangle: bool, finer: bool, finest: bo
         if DRAW_MESH {
             let coarse = !finer && !finest;
             let show_ids = coarse;
-            let mut fig = Figure::new();
-            fig.show_point_ids(show_ids)
+            let mut draw = Draw::new();
+            draw.show_point_ids(show_ids)
                 .show_cell_ids(show_ids)
                 .show_cell_att(false)
-                .size(800.0, 800.0)
-                .draw(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
+                .set_size(800.0, 800.0)
+                .all(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
                 .unwrap();
         }
 

@@ -214,12 +214,12 @@ fn generate_or_read_mesh(generate: bool, triangle: bool, finer: bool, finest: bo
         mesh.check_all().unwrap();
 
         // draw figure
-        let mut fig = Figure::new();
-        fig.show_point_ids(true)
+        let mut draw = Draw::new();
+        draw.show_point_ids(true)
             .show_cell_ids(true)
             .show_cell_att(false)
-            .size(800.0, 800.0)
-            .draw(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
+            .set_size(800.0, 800.0)
+            .all(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
             .unwrap();
 
         // write mesh
@@ -243,12 +243,12 @@ fn generate_or_read_mesh_simple() -> Mesh {
     let mesh3 = block3.subdivide(GeoKind::Qua4).unwrap();
     let mesh = join_meshes(&[&mesh1, &mesh2, &mesh3]).unwrap();
     mesh.check_all().unwrap();
-    Figure::new()
+    Draw::new()
         .show_point_ids(true)
         .show_cell_ids(true)
         .show_cell_att(false)
-        .size(800.0, 800.0)
-        .draw(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
+        .set_size(800.0, 800.0)
+        .all(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
         .unwrap();
     mesh
 }

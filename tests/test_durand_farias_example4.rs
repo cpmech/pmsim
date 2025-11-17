@@ -179,11 +179,11 @@ fn generate_or_read_mesh(att: i32, generate: bool) -> Mesh {
         mesh.check_all().unwrap();
 
         // draw figure
-        let mut fig = Figure::new();
-        fig.show_point_ids(true)
+        let mut draw = Draw::new();
+        draw.show_point_ids(true)
             .show_cell_ids(true)
-            .size(1000.0, 1000.0)
-            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}_{}.svg", NAME, k_str))
+            .set_size(1000.0, 1000.0)
+            .all(&mesh, &format!("/tmp/pmsim/mesh_{}_{}.svg", NAME, k_str))
             .unwrap();
 
         // write mesh
