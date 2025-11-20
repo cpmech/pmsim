@@ -42,7 +42,7 @@ fn test_seep_craig_2d9() -> Result<(), StrError> {
     // mesh
     let generate = true;
     let triangle = true;
-    let finer = true;
+    let finer = false;
     let finest = false;
     let o2 = false;
     let mesh = generate_or_read_mesh(generate, triangle, finer, finest, o2);

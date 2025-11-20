@@ -15,10 +15,10 @@ const DRAW_MESH: bool = true;
 fn test_seep_ell_shape() -> Result<(), StrError> {
     // mesh
     let generate = true;
-    let triangle = true;
+    let triangle = false;
     let finer = false;
     let finest = false;
-    let o2 = true;
+    let o2 = false;
     let mesh = generate_or_read_mesh(generate, triangle, finer, finest, o2);
 
     // features
@@ -74,11 +74,12 @@ fn post_processing() -> Result<(), StrError> {
     let mesh = post.mesh();
     let with_internal_edges = true;
     let features = Features::new(&mesh, with_internal_edges); // need internal edges
-    let mid_section = features.search_edges(At::X(1.0), |_| true)?;
+    let mid_section = features.search_edges(At::X(1.0), |x| x[1] <= 1.0)?;
     println!("mid_section = {}", mid_section);
-    println!("TODO: update integrate_over_edges to work with marked edges");
-    // post.integrate_over_edges(&mut memo, &mid_section, |_, _, _| 0.0)
-    // .unwrap();
+    let cell_ids = features.get_cells_via_2d_edges(&mid_section);
+    let state = post.read_state(post.n_state() - 1)?;
+    let q = post.integrate_flux_through_edges(&mut memo, &state, &mid_section, &cell_ids, Dof::Phi)?;
+    println!("Flux through mid_section = {}", q);
 
     // write Paraview files
     let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;

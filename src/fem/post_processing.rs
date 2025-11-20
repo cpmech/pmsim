@@ -2,11 +2,11 @@ use super::{write_pvd, write_vtu, FemBase, FemResults, FemState};
 use crate::base::Dof;
 use crate::util::{SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
 use crate::StrError;
-use gemlab::integ::{self, Gauss};
+use gemlab::integ::{self, CommonArgs, Gauss};
 use gemlab::mesh::{At, CellId, Edges, Features, Mesh, PointId, TOL_COMPARE_POINTS};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
-use russell_lab::{argsort2_f64, argsort3_f64, mat_mat_mul, Matrix, Vector};
+use russell_lab::{argsort2_f64, argsort3_f64, mat_mat_mul, vec_inner, Matrix, Vector};
 use std::collections::HashMap;
 
 /// Assists in post-processing the results given at Gauss points
@@ -1157,28 +1157,56 @@ impl PostProc {
         self.write_pvd(dir, fn_stem)
     }
 
-    pub fn integrate_over_edges<F>(
+    pub fn integrate_flux_through_edges(
         &self,
         memo: &mut PostProcMemo,
+        state: &FemState,
         edges: &Edges,
+        shared_cell_ids: &Vec<CellId>,
         dof: Dof,
-        f: F,
-    ) -> Result<f64, StrError>
-    where
-        F: Fn(f64, f64, f64) -> f64,
-    {
+    ) -> Result<f64, StrError> {
         let ndim = self.mesh.ndim;
+        println!("shared_cell_ids: {:?}", shared_cell_ids);
+
+        let res = self.nodal_fluxes_patch(memo, state, shared_cell_ids, dof, |_, _, _| true)?;
+        println!("vvx: {:?}", res.vvx);
+
+        for k in 0..res.k_to_id.len() {
+            let nid = res.k_to_id[k];
+            let x = res.xx[k];
+            let y = res.yy[k];
+            println!("k = {}, nid = {}, x = {}, y = {}", k, nid, x, y);
+        }
+
+        let mut wm = Vector::new(ndim);
+        let mut ii_nv_m = Vector::new(ndim);
+
+        let mut area = 0.0;
         for edge in &edges.all {
             // pad and integration points
             let mut pad = Scratchpad::new(ndim, edge.kind).unwrap();
             self.mesh.set_pad(&mut pad, &edge.points);
-            let gauss = Gauss::new(pad.kind);
-            println!("not implemented yet");
+            let ips = Gauss::new(pad.kind);
 
-            // TODO
-            // integ::vec_01_ns_bry(a, args, fn_s)
+            // integration
+            let mut ii_nv = Vector::new(pad.kind.nnode() * ndim);
+            let mut args = CommonArgs::new(&mut pad, &ips);
+            integ::vec_02_nv_bry(&mut ii_nv, &mut args, |v, _, un, _| {
+                v.set_vector(un.as_data());
+                Ok(())
+            })?;
+            // println!("ii_nv: {:?}", ii_nv.as_data());
+            for m in 0..edge.points.len() {
+                let p = edge.points[m];
+                let k = res.id_to_k.get(&p).unwrap();
+                wm[0] = res.vvx[*k];
+                wm[1] = res.vvy[*k];
+                ii_nv_m[0] = ii_nv[0 + m * ndim];
+                ii_nv_m[1] = ii_nv[1 + m * ndim];
+                area += vec_inner(&wm, &ii_nv_m);
+            }
         }
-        Ok(0.0)
+        Ok(area)
     }
 }
 
