@@ -127,13 +127,13 @@ impl FemState {
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
         for cell in &mesh.cells {
-            let elem = base.amap.get(cell.attribute).unwrap(); // already checked by Data
-            let ngauss_opt = base.amap.ngauss(cell.attribute).unwrap();
+            let elem = base.amap.get(cell.marker).unwrap(); // already checked by Data
+            let ngauss_opt = base.amap.ngauss(cell.marker).unwrap();
             let ngauss = Gauss::new_or_sized(cell.kind, ngauss_opt)?.npoint();
             match elem {
                 Elem::Diffusion(..) => {
                     has_diffusion = true;
-                    if config.model_settings(cell.attribute).save_flux {
+                    if config.model_settings(cell.marker).save_flux {
                         gauss[cell.id].allocate_diffusion(ngauss, mesh.ndim);
                     }
                 }

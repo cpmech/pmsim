@@ -162,7 +162,7 @@ fn generate_or_read_mesh(generate: bool, triangle: bool, finer: bool, finest: bo
             let mut draw = Draw::new();
             draw.show_point_ids(show_ids)
                 .show_cell_ids(show_ids)
-                .show_cell_att(false)
+                .show_cell_marker(false)
                 .set_size(800.0, 800.0)
                 .all(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
                 .unwrap();

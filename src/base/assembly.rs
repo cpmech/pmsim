@@ -159,7 +159,7 @@ mod tests {
         mesh.cells[0].kind = GeoKind::Qua4; // never do this!
         assert_eq!(
             compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
+            Some("cannot find (CellMarker, GeoKind) in ElementDofsMap")
         );
         mesh.cells[0].kind = GeoKind::Tri3;
         mesh.cells[0].points[0] = 100; // never do this!
@@ -173,7 +173,7 @@ mod tests {
     fn compute_local_to_global_works() {
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates attribute
+        //         /   \          / \{7}   (#) indicates marker
         //        /     \  [1]   /   \     {#} indicates equation number
         //       /  [0]  \ (1)  / [2] \
         // {0}  /   (1)   \    /  (1)  \
@@ -195,7 +195,7 @@ mod tests {
 
         // 3------------2------------5
         // |`.      [1] |            |    [#] indicates id
-        // |  `.    (1) |            |    (#) indicates attribute
+        // |  `.    (1) |            |    (#) indicates marker
         // |    `.      |     [2]    |
         // |      `.    |     (2)    |
         // | [0]    `.  |            |
@@ -244,7 +244,7 @@ mod tests {
     fn assemble_vector_works_1() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \
@@ -269,7 +269,7 @@ mod tests {
     fn assemble_vector_works_2() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \
@@ -293,7 +293,7 @@ mod tests {
     fn assemble_matrix_works_unsymmetric_1() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \
@@ -344,7 +344,7 @@ mod tests {
     fn assemble_matrix_works_symmetric_1() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \
@@ -428,7 +428,7 @@ mod tests {
     fn assemble_matrix_works_unsymmetric_2() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \
@@ -478,7 +478,7 @@ mod tests {
     fn assemble_matrix_works_symmetric_2() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \

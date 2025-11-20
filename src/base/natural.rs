@@ -237,7 +237,7 @@ mod tests {
         //      4--------------7  1.0
         //     /.             /|
         //    / .            / |    [#] indicates id
-        //   /  .           /  |    (#) indicates attribute
+        //   /  .           /  |    (#) indicates marker
         //  /   .          /   |
         // 5--------------6    |          z
         // |    .         |    |          ↑

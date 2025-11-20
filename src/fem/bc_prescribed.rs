@@ -233,7 +233,7 @@ mod tests {
                 Point { id: 1, marker: 0, coords: vec![1.0, 1.0, 1.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),
@@ -372,7 +372,7 @@ mod tests {
     fn bc_prescribed_array_works_triangles() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \
@@ -392,7 +392,7 @@ mod tests {
 
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates attribute
+        //         /   \          / \{7}   (#) indicates marker
         //        /     \  [1]   /   \     {#} indicates equation number
         //       /  [0]  \ (1)  / [2] \
         // {0}  /   (1)   \    /  (1)  \

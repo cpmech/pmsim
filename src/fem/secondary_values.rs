@@ -181,7 +181,7 @@ impl SecondaryValues {
     /// For example:
     ///
     /// ````text
-    /// config.update_model_settings(cell_attribute).save_strain = true;
+    /// config.update_model_settings(cell_marker).save_strain = true;
     /// ```
     ///
     /// # Input

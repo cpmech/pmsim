@@ -298,7 +298,7 @@ mod tests {
     fn new_works() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \
@@ -409,7 +409,7 @@ mod tests {
     fn new_works_lagrange_multiplier_method() {
         //       {4} 4---.__
         //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates attribute
+        //         /   \          / \     (#) indicates marker
         //        /     \  [1]   /   \    {#} indicates equation id
         //       /  [0]  \ (1)  / [2] \
         //      /   (1)   \    /  (1)  \

@@ -65,7 +65,7 @@ impl<'a> ElementSolid<'a> {
         let gauss = Gauss::new_or_sized(pad.kind, param.ngauss)?;
 
         // material model
-        let settings = config.model_settings(mesh.cells[cell_id].attribute);
+        let settings = config.model_settings(mesh.cells[cell_id].marker);
         let model = ModelStressStrain::new(&config.ideal, &param.stress_strain, &settings)?;
 
         // auxiliary strain increment tensor
@@ -517,7 +517,7 @@ mod tests {
             let mut config = Config::new(&mesh);
 
             // enable saving strains
-            config.update_model_settings(cell.attribute).set_save_strain(true);
+            config.update_model_settings(cell.marker).set_save_strain(true);
 
             // check stress update (horizontal displacement field)
             let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
@@ -664,7 +664,7 @@ mod tests {
                 Point { id: 3, marker: 0, coords: vec![rin + 0.0,   b] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),

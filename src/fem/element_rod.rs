@@ -154,7 +154,7 @@ mod tests {
                 Point { id: 2, marker: 0, coords: vec![60.0, 80.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin3, points: vec![0, 1, 2] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Lin3, points: vec![0, 1, 2] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),
@@ -183,7 +183,7 @@ mod tests {
                 Point { id: 1, marker: 0, coords: vec![30.0, 40.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),
@@ -226,7 +226,7 @@ mod tests {
                 Point { id: 1, marker: 0, coords: vec![2.0, 3.0, 6.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),
@@ -272,7 +272,7 @@ mod tests {
                 Point { id: 1, marker: 0, coords: vec![l/3.0, 2.0*l/3.0, 2.0*l/3.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),
@@ -326,9 +326,9 @@ mod tests {
                 Point { id: 2, marker: 0, coords: vec![10.0, 10.0] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
-                Cell { id: 1, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 2] },
-                Cell { id: 2, attribute: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 1, marker: 2, kind: GeoKind::Lin2, points: vec![1, 2] },
+                Cell { id: 2, marker: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),

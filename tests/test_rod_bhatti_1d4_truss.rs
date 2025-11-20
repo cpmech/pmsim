@@ -26,7 +26,7 @@ use russell_lab::vec_approx_eq;
 //     |   /  [1]
 //     |  /
 //     | /    (#) indicates cell id
-//     0'     [#] indicates attribute id
+//     0'     [#] indicates marker
 //
 // BOUNDARY CONDITIONS
 //

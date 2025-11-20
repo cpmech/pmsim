@@ -1,6 +1,6 @@
 use crate::base::{AllDofs, Attributes, Elem, ElementDofsMap};
 use crate::StrError;
-use gemlab::mesh::{Cell, CellAttribute, Mesh};
+use gemlab::mesh::{Cell, CellMarker, Mesh};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs::{self, File};
@@ -22,7 +22,7 @@ pub struct FemBase {
 
 impl FemBase {
     /// Allocates a new instance
-    pub fn new<const N: usize>(mesh: &Mesh, arr: [(CellAttribute, Elem); N]) -> Result<Self, StrError> {
+    pub fn new<const N: usize>(mesh: &Mesh, arr: [(CellMarker, Elem); N]) -> Result<Self, StrError> {
         let amap = Attributes::from(arr);
         let emap = ElementDofsMap::new(&mesh, &amap)?;
         let dofs = AllDofs::new(&mesh, &emap).unwrap(); // cannot fail
@@ -84,7 +84,7 @@ mod tests {
         let p2 = ParamSolid::sample_linear_elastic();
         assert_eq!(
             FemBase::new(&mesh, [(2, Elem::Solid(p2))]).err(),
-            Some("cannot find CellAttribute in Attributes map")
+            Some("cannot find CellMarker in Attributes map")
         );
     }
 
@@ -105,13 +105,13 @@ mod tests {
 
         let wrong_cell = Cell {
             id: 0,
-            attribute: 1,
+            marker: 1,
             kind: GeoKind::Qua4,
             points: vec![0, 1, 2, 3],
         };
         assert_eq!(
             base.n_local_eq(&wrong_cell).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
+            Some("cannot find (CellMarker, GeoKind) in ElementDofsMap")
         );
     }
 

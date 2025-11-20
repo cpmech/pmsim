@@ -1,35 +1,35 @@
 use super::Elem;
 use crate::StrError;
-use gemlab::mesh::CellAttribute;
+use gemlab::mesh::CellMarker;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Holds all (CellAttribute, Elem) pairs
+/// Holds all (CellMarker, Elem) pairs
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Attributes {
-    all: HashMap<CellAttribute, Elem>,
+    all: HashMap<CellMarker, Elem>,
 }
 
 impl Attributes {
     /// Allocates a new instance from an Array
-    pub fn from<const N: usize>(arr: [(CellAttribute, Elem); N]) -> Self {
+    pub fn from<const N: usize>(arr: [(CellMarker, Elem); N]) -> Self {
         Attributes {
             all: HashMap::from(arr),
         }
     }
 
-    /// Returns the Elem associated with a CellAttribute
-    pub fn get(&self, att: CellAttribute) -> Result<&Elem, StrError> {
-        self.all.get(&att).ok_or("cannot find CellAttribute in Attributes map")
+    /// Returns the Elem associated with a CellMarker
+    pub fn get(&self, att: CellMarker) -> Result<&Elem, StrError> {
+        self.all.get(&att).ok_or("cannot find CellMarker in Attributes map")
     }
 
-    /// Returns the Elem name associated with a CellAttribute
-    pub fn name(&self, att: CellAttribute) -> Result<String, StrError> {
+    /// Returns the Elem name associated with a CellMarker
+    pub fn name(&self, att: CellMarker) -> Result<String, StrError> {
         Ok(self.get(att)?.name())
     }
 
-    /// Returns the Elem number of integration (Gauss) points associated with a CellAttribute
-    pub fn ngauss(&self, att: CellAttribute) -> Result<Option<usize>, StrError> {
+    /// Returns the Elem number of integration (Gauss) points associated with a CellMarker
+    pub fn ngauss(&self, att: CellMarker) -> Result<Option<usize>, StrError> {
         Ok(self.get(att)?.ngauss())
     }
 }
@@ -58,11 +58,11 @@ mod tests {
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(1);
         let amap = Attributes::from([(1, Elem::Solid(p1))]);
-        assert_eq!(amap.get(mesh.cells[0].attribute).unwrap().name(), "Solid");
-        mesh.cells[0].attribute = 2;
+        assert_eq!(amap.get(mesh.cells[0].marker).unwrap().name(), "Solid");
+        mesh.cells[0].marker = 2;
         assert_eq!(
-            amap.get(mesh.cells[0].attribute).err(),
-            Some("cannot find CellAttribute in Attributes map")
+            amap.get(mesh.cells[0].marker).err(),
+            Some("cannot find CellMarker in Attributes map")
         );
         assert_eq!(amap.name(1).unwrap(), "Solid");
         assert_eq!(amap.ngauss(1).unwrap(), Some(1));

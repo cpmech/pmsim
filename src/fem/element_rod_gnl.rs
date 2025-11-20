@@ -242,9 +242,9 @@ mod tests {
                 Point { id: 3, marker: 0, coords: vec![ 0.0, 1.86603] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
-                Cell { id: 1, attribute: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
-                Cell { id: 2, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 1, marker: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
+                Cell { id: 2, marker: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),

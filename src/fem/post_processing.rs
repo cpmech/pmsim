@@ -152,7 +152,7 @@ impl PostProc {
     /// Returns an error if the Gauss points cannot be retrieved.
     pub fn gauss_coords(&self, memo: &mut PostProcMemo, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
+        let ngauss_opt = self.base.amap.ngauss(cell.marker)?;
         let gauss = memo
             .all_gauss
             .entry(cell_id)
@@ -326,7 +326,7 @@ impl PostProc {
     /// For example:
     ///
     /// ```text
-    /// config.update_model_settings(cell_attribute).save_strain = true;
+    /// config.update_model_settings(cell_marker).save_strain = true;
     /// ```
     ///
     /// # Arguments
@@ -511,7 +511,7 @@ impl PostProc {
     /// For example:
     ///
     /// ```text
-    /// config.update_model_settings(cell_attribute).save_strain = true;
+    /// config.update_model_settings(cell_marker).save_strain = true;
     /// ```
     ///
     /// # Arguments
@@ -678,7 +678,7 @@ impl PostProc {
     /// For example:
     ///
     /// ```text
-    /// config.update_model_settings(cell_attribute).save_strain = true;
+    /// config.update_model_settings(cell_marker).save_strain = true;
     /// ```
     ///
     /// # Arguments
@@ -982,7 +982,7 @@ impl PostProc {
     /// Returns an error if the extrapolation matrix cannot be computed.
     fn get_extrap_matrix<'a>(&self, memo: &'a mut PostProcMemo, cell_id: CellId) -> Result<&'a Matrix, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let ngauss_opt = self.base.amap.ngauss(cell.attribute)?;
+        let ngauss_opt = self.base.amap.ngauss(cell.marker)?;
         let gauss = memo
             .all_gauss
             .entry(cell_id)
@@ -1273,7 +1273,7 @@ mod tests {
     /// ```text
     ///       4---.__
     ///      / \     `--.___3    [#] indicates id
-    ///     /   \          / \   (#) indicates attribute
+    ///     /   \          / \   (#) indicates marker
     ///    /     \  [1]   /   \
     ///   /  [0]  \ (1)  / [2] \
     ///  /   (1)   \    /  (1)  \
@@ -1403,7 +1403,7 @@ mod tests {
     /// ```text
     ///       4---.__
     ///      / \     `--.___3    [#] indicates id
-    ///     /   \          / \   (#) indicates attribute
+    ///     /   \          / \   (#) indicates marker
     ///    /     \  [1]   /   \
     ///   /  [0]  \ (1)  / [2] \
     ///  /   (1)   \    /  (1)  \
@@ -2782,8 +2782,8 @@ mod tests {
                 Point { id: 12, marker: 0, coords: vec![0.015, 0.0075] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Qua8, points: vec![10, 4, 0, 6, 12, 3, 1, 2] },
-                Cell { id: 1, attribute: 1, kind: GeoKind::Qua8, points: vec![10, 8, 11, 4,  9, 7, 5, 12] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Qua8, points: vec![10, 4, 0, 6, 12, 3, 1, 2] },
+                Cell { id: 1, marker: 1, kind: GeoKind::Qua8, points: vec![10, 8, 11, 4,  9, 7, 5, 12] },
             ],
             marked_edges: Vec::new(),
             marked_faces: Vec::new(),

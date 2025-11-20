@@ -512,7 +512,7 @@
 505 0 5.0 0.83333333333
 
 # cells
-# id attribute kind points
+# id marker kind points
 0 1 qua8 0 93 119 32 177 178 179 180
 1 1 qua8 32 119 48 1 179 181 182 183
 2 1 qua8 93 94 120 119 184 185 186 178

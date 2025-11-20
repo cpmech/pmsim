@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
-/// Maps "CellAttribute,GeoKind" to ElementDofs
+/// Maps "CellMarker,GeoKind" to ElementDofs
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ElementDofsMap {
     all: HashMap<String, ElementDofs>,
@@ -16,8 +16,8 @@ impl ElementDofsMap {
     pub fn new(mesh: &Mesh, att_map: &Attributes) -> Result<Self, StrError> {
         let mut all = HashMap::new();
         for cell in &mesh.cells {
-            let element = att_map.get(cell.attribute)?;
-            let key = format!("{:?},{:?}", cell.attribute, cell.kind);
+            let element = att_map.get(cell.marker)?;
+            let key = format!("{:?},{:?}", cell.marker, cell.kind);
             all.insert(key, ElementDofs::new(mesh.ndim, *element, cell.kind)?);
         }
         Ok(ElementDofsMap { all })
@@ -25,10 +25,10 @@ impl ElementDofsMap {
 
     /// Returns the ElementDofs corresponding to Cell
     pub fn get(&self, cell: &Cell) -> Result<&ElementDofs, StrError> {
-        let key = format!("{:?},{:?}", cell.attribute, cell.kind);
+        let key = format!("{:?},{:?}", cell.marker, cell.kind);
         self.all
             .get(&key)
-            .ok_or("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
+            .ok_or("cannot find (CellMarker, GeoKind) in ElementDofsMap")
     }
 }
 
@@ -68,7 +68,7 @@ mod tests {
         let amap = Attributes::from([(2, Elem::Solid(p2))]);
         assert_eq!(
             ElementDofsMap::new(&mesh, &amap).err(),
-            Some("cannot find CellAttribute in Attributes map")
+            Some("cannot find CellMarker in Attributes map")
         );
         let p1 = ParamRod::sample();
         let amap = Attributes::from([(1, Elem::Rod(p1))]);
@@ -86,10 +86,10 @@ mod tests {
         let amap = Attributes::from([(1, Elem::Solid(p1))]);
         let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
         assert_eq!(emap.get(&mesh.cells[0]).unwrap().n_equation, 6);
-        mesh_wrong.cells[0].attribute = 100; // never do this
+        mesh_wrong.cells[0].marker = 100; // never do this
         assert_eq!(
             emap.get(&mesh_wrong.cells[0]).err(),
-            Some("cannot find (CellAttribute, GeoKind) in ElementDofsMap")
+            Some("cannot find (CellMarker, GeoKind) in ElementDofsMap")
         );
     }
 
@@ -97,7 +97,7 @@ mod tests {
     fn new_map_display_works() {
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates attribute
+        //         /   \          / \{7}   (#) indicates marker
         //        /     \  [1]   /   \     {#} indicates equation number
         //       /  [0]  \ (1)  / [2] \
         // {0}  /   (1)   \    /  (1)  \
@@ -123,7 +123,7 @@ mod tests {
 
         // 3------------2------------5
         // |`.      [1] |            |    [#] indicates id
-        // |  `.    (1) |            |    (#) indicates attribute
+        // |  `.    (1) |            |    (#) indicates marker
         // |    `.      |     [2]    |
         // |      `.    |     (2)    |
         // | [0]    `.  |            |

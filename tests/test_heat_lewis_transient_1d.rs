@@ -161,7 +161,7 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
         let mut draw = Draw::new();
         draw.show_point_ids(true)
             .show_cell_ids(true)
-            .show_cell_att(false)
+            .show_cell_marker(false)
             .set_range_2d(-1.0, 21.0, -0.5, 1.5)
             .set_size(600.0, 100.0)
             .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))

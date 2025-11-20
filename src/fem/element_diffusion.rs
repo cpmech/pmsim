@@ -69,7 +69,7 @@ impl<'a> ElementDiffusion<'a> {
         let conductivity = Tensor2::new_sym_ndim(ndim);
 
         // set a flag to output flux vectors (for post-processing)
-        let settings = config.model_settings(mesh.cells[cell_id].attribute);
+        let settings = config.model_settings(mesh.cells[cell_id].marker);
         let save_flux = settings.save_flux;
 
         // auxiliary gradient tensor

@@ -43,7 +43,7 @@ struct ArgsForNumericalJacobian<'a> {
 impl<'a> GenericElement<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, base: &'a FemBase, config: &'a Config, cell: &Cell) -> Result<Self, StrError> {
-        let element = base.amap.get(cell.attribute).unwrap(); // already checked
+        let element = base.amap.get(cell.marker).unwrap(); // already checked
         let actual: Box<dyn ElementTrait> = match element {
             Elem::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, base, config, p, cell.id)?),
             Elem::Rod(p) => {
@@ -444,7 +444,7 @@ mod tests {
         // mesh and parameters
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates attribute
+        //         /   \          / \{7}   (#) indicates marker
         //        /     \  [1]   /   \     {#} indicates equation number
         //       /  [0]  \ (1)  / [2] \
         // {0}  /   (1)   \    /  (1)  \

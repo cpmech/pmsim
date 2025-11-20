@@ -1,6 +1,6 @@
 use super::{Dof, Idealization, Init, ParamFluids};
 use crate::material::Settings;
-use gemlab::mesh::{CellAttribute, CellId, Mesh, PointId};
+use gemlab::mesh::{CellId, CellMarker, Mesh, PointId};
 use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::{HashMap, HashSet};
@@ -94,8 +94,8 @@ pub struct Config<'a> {
 
     /// Extra configuration parameters for the material models
     ///
-    /// Maps the cell attribute to the material model settings.
-    pub(crate) model_settings: HashMap<CellAttribute, Settings>,
+    /// Maps the cell marker to the material model settings.
+    pub(crate) model_settings: HashMap<CellMarker, Settings>,
 
     // Linear solver --------------------------------------------------------------------------
     //
@@ -474,8 +474,8 @@ impl<'a> Config<'a> {
     }
 
     /// Returns the extra model settings
-    pub(crate) fn model_settings(&self, cell_attribute: CellAttribute) -> Settings {
-        match self.model_settings.get(&cell_attribute) {
+    pub(crate) fn model_settings(&self, cell_marker: CellMarker) -> Settings {
+        match self.model_settings.get(&cell_marker) {
             Some(s) => s.clone(),
             None => Settings::new(),
         }
@@ -601,9 +601,9 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Returns an access to the model parameters associated with a group of cells via their attribute
-    pub fn update_model_settings(&mut self, cell_attribute: CellAttribute) -> &mut Settings {
-        self.model_settings.entry(cell_attribute).or_insert(Settings::new())
+    /// Returns an access to the model parameters associated with a group of cells via their marker
+    pub fn update_model_settings(&mut self, cell_marker: CellMarker) -> &mut Settings {
+        self.model_settings.entry(cell_marker).or_insert(Settings::new())
     }
 
     // Linear solver --------------------------------------------------------------------------
@@ -1079,13 +1079,13 @@ mod tests {
     #[test]
     fn update_model_settings_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let att = mesh.cells[0].attribute;
+        let marker = mesh.cells[0].marker;
         let mut config = Config::new(&mesh);
         config
-            .update_model_settings(att)
+            .update_model_settings(marker)
             .set_general_plasticity(true)
             .set_gp_interp_nn_max(20);
-        assert_eq!(config.model_settings(att).general_plasticity, true);
+        assert_eq!(config.model_settings(marker).general_plasticity, true);
     }
 
     #[test]
