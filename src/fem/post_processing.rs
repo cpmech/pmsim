@@ -1055,17 +1055,11 @@ impl PostProc {
 
     /// Returns the primary values (DOFs) along a set of edges
     ///
-    /// Returns `(ll, uu)` where:
+    /// Returns `(point_ids, coords, dd)` where:
     ///
-    /// * `ll` -- The normalized coordinates along the edges.
-    /// * `uu` -- The values of the DOF along the edges.
-    ///
-    /// # Returns
-    ///
-    /// A tuple `(ids, xx, dd)` where:
-    /// * `ids` - A vector containing the IDs of the points along the x-axis.
-    /// * `coords` - A vector containing the coordinates of the points.
-    /// * `dd` - A vector containing the DOF values (e.g., temperature) along the x-axis corresponding to the `ids` and `xx`.
+    /// * `point_ids` -- The IDs of the points along the edges.
+    /// * `coords` -- The coordinates of the points along the edges.
+    /// * `dd` -- The DOF values along the edges.
     pub fn values_along_edges(
         &self,
         state: &FemState,
@@ -1102,6 +1096,59 @@ impl PostProc {
 
         // results
         Ok((point_ids, coords, dd))
+    }
+
+    /// Returns the vectors along a set of edges
+    ///
+    /// Returns `(point_ids, coords, vv)` where:
+    ///
+    /// * `point_ids` -- The IDs of the points along the edges.
+    /// * `coords` -- The coordinates of the points along the edges.
+    /// * `vv` -- The `(vx, vy)` values along the edges.
+    pub fn values_along_edges_vec(
+        &self,
+        vec: &SpatialVector,
+        edges: &Edges,
+    ) -> Result<(Vec<PointId>, Vec<Vec<f64>>, Vec<Vector>), StrError> {
+        // find points along path of edges
+        let (_, mut point_ids) = edges.any_path();
+        let npoint = point_ids.len();
+        if npoint < 2 {
+            return Err("not enough points along the path of edges");
+        }
+
+        // find direction with y_min then x_min
+        let xa = &self.mesh.points[point_ids[0]].coords;
+        let xb = &self.mesh.points[point_ids[npoint - 1]].coords;
+        if xb[1] < xa[1] {
+            point_ids.reverse();
+        } else if f64::abs(xb[1] - xa[1]) < TOL_COMPARE_POINTS && xb[0] < xa[0] {
+            point_ids.reverse();
+        }
+
+        // extract coordinates
+        let coords: Vec<_> = point_ids
+            .iter()
+            .map(|id| self.mesh.points[*id].coords.clone())
+            .collect();
+
+        // extract vector components
+        let vv: Vec<_> = point_ids
+            .iter()
+            .map(|id| {
+                let k = vec.id_to_k.get(id).unwrap();
+                let mut v = Vector::new(self.mesh.ndim);
+                v[0] = vec.vvx[*k];
+                v[1] = vec.vvy[*k];
+                if self.mesh.ndim == 3 {
+                    v[2] = vec.vvz[*k];
+                }
+                v
+            })
+            .collect();
+
+        // results
+        Ok((point_ids, coords, vv))
     }
 
     /// Writes Paraview's VTK file
@@ -1166,16 +1213,13 @@ impl PostProc {
         dof: Dof,
     ) -> Result<f64, StrError> {
         let ndim = self.mesh.ndim;
-        println!("shared_cell_ids: {:?}", shared_cell_ids);
 
         let res = self.nodal_fluxes_patch(memo, state, shared_cell_ids, dof, |_, _, _| true)?;
-        println!("vvx: {:?}", res.vvx);
 
         for k in 0..res.k_to_id.len() {
             let nid = res.k_to_id[k];
             let x = res.xx[k];
             let y = res.yy[k];
-            println!("k = {}, nid = {}, x = {}, y = {}", k, nid, x, y);
         }
 
         let mut wm = Vector::new(ndim);

@@ -3,6 +3,8 @@ use gemlab::prelude::*;
 use plotpy::Plot;
 use pmsim::prelude::*;
 use pmsim::StrError;
+use russell_lab::vec_inner;
+use russell_lab::Vector;
 use tritet::Trigen;
 
 const OUT_DIR: &str = "/tmp/pmsim";
@@ -74,12 +76,39 @@ fn post_processing() -> Result<(), StrError> {
     let mesh = post.mesh();
     let with_internal_edges = true;
     let features = Features::new(&mesh, with_internal_edges); // need internal edges
-    let mid_section = features.search_edges(At::X(1.0), |x| x[1] <= 1.0)?;
-    println!("mid_section = {}", mid_section);
-    let cell_ids = features.get_cells_via_2d_edges(&mid_section);
+    let section_a = features.search_edges(At::Y(1.5), |_| true)?;
+    let section_b = features.search_edges(At::X(1.0), |x| x[1] <= 1.0)?;
+    let cell_ids_a = features.get_cells_via_2d_edges(&section_a);
+    let cell_ids_b = features.get_cells_via_2d_edges(&section_b);
+
+    println!("Section_A = {}", section_a);
+    println!("Section_B = {}", section_b);
+    println!("Cells sharing section A = {:?}", cell_ids_a);
+    println!("Cells sharing section B = {:?}", cell_ids_b);
+
     let state = post.read_state(post.n_state() - 1)?;
-    let q = post.integrate_flux_through_edges(&mut memo, &state, &mid_section, &cell_ids, Dof::Phi)?;
-    println!("Flux through mid_section = {}", q);
+    let patch_b = post.nodal_fluxes_patch(&mut memo, &state, &cell_ids_b, Dof::Phi, |_, _, _| true)?;
+
+    let q = post.integrate_flux_through_edges(&mut memo, &state, &section_a, &cell_ids_a, Dof::Phi)?;
+    println!("Flux through section A = {}", q);
+
+    let (point_ids, coords, vv) = post.values_along_edges_vec(&patch_b, &section_b)?;
+    let mut area = 0.0;
+    let un = Vector::from(&[1.0, 0.0]); // vertical section
+    for i in 1..point_ids.len() {
+        println!(
+            "Point ID: {}, Coord: ({:.4}, {:.4}), Flux: ({:.6}, {:.6})",
+            point_ids[i], coords[i][0], coords[i][1], vv[i][0], vv[i][1]
+        );
+        let dy = coords[i][1] - coords[i - 1][1];
+        let dot_prev = vec_inner(&vv[i - 1], &un);
+        let dot = vec_inner(&vv[i], &un);
+        area += dy * (dot_prev + dot) / 2.0;
+    }
+    println!("Flux through section B = {}", area);
+
+    let q = post.integrate_flux_through_edges(&mut memo, &state, &section_b, &cell_ids_b, Dof::Phi)?;
+    println!("Flux through section B = {}", q);
 
     // write Paraview files
     let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;

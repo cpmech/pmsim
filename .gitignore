@@ -3,3 +3,6 @@ Cargo.lock
 tarpaulin-report.html
 .aider*
 log*.txt
+
+# Blender backup files
+*.blend[0-9]
