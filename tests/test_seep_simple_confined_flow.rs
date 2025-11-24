@@ -1,4 +1,5 @@
 use gemlab::prelude::*;
+use pmsim::analytical::ConfinedFlow;
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::{approx_eq, vec_inner, Vector};
@@ -103,7 +104,19 @@ fn post_processing() -> Result<(), StrError> {
         area += dy * (dot_prev + dot) / 2.0;
     }
     println!("Flux through vertical middle section = {}", area);
-    approx_eq(area, 2.18789, 1e-5); // the analytical value is 2.142; this is the value from Paraview
+    approx_eq(area, 2.18789, 1e-5); // the analytical value is 2.1495; this is the value from Paraview
+
+    // analytical solution
+    let k = 1.0;
+    let h = 12.0 - 8.0;
+    let s = 0.0;
+    let b = 4.0;
+    let tt = 8.0;
+    let s_by_tt = s / tt;
+    let b_by_tt = b / tt;
+    let q_by_kh = ConfinedFlow::normalized_discharge_symmetrically_placed_wall(s_by_tt, b_by_tt);
+    let q_analytical = q_by_kh * k * h;
+    println!("Analytical discharge: q = {}", q_analytical);
 
     // write Paraview files
     let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;
