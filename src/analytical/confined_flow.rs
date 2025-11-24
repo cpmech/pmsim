@@ -1,12 +1,65 @@
 use russell_lab::math::{elliptic_f, PI};
 
+/// Indicates the complete elliptic integral of the first kind; K(m) = F(π/2, m)
 const COMPLETE: f64 = PI / 2.0;
 
 /// Confined seepage flow underneath a dam using the Polubarinova-Kochina Solution
+///
+/// # Definitions
+///
+/// * Unit wight of water: `γw`
+/// * Pore water pressure: `p`
+/// * Elevation head: `z`
+/// * Hydraulic conductivity: `k`
+/// * Arbitrary constant: `C`
+/// * Hydraulic head: `H(x,y,z) = z + p / γw`
+/// * Velocity potential:` ϕ(x,y,z) = -k H(x,y,z) + C`
+/// * Discharge velocity: `w = (wx, wy, wz) = -k ∇H`
+/// * Quantity of discharge (discharge): `q`
 pub struct ConfinedFlow {}
 
 impl ConfinedFlow {
-    pub fn polubarinova_kochina_solution(s_by_tt: f64, b_by_tt: f64) -> f64 {
+    /// Returns the normalized discharge, q/(k h), for confined seepage flow underneath a dam
+    /// with a symmetrically placed sheet pile wall.
+    ///
+    /// This function reproduces Fig. 5-17 from Reference 1 on page 120. The corresponding equations
+    /// are Eq. 14b* on page 119 for the calculation of beta and Eq. 14c for the calculation of
+    /// the discharge q. The considered geometry is shown below.
+    ///
+    /// ```text
+    /// ---------WT-------._           ---
+    ///                   | `\          ↑
+    ///                   |   `-        |h
+    ///                   |     `\      ↓
+    ///                   | b   b |------------WT------
+    /// -----------------------------------------------
+    ///   ↑                   |  
+    ///   |T                  |s
+    ///   ↓
+    /// -----------------------------------------------
+    ///
+    /// ```
+    ///
+    /// where `WT` means Water Table.
+    ///
+    /// The normalized discharge is a function of the dimensionless parameters s/T and b/T, where:
+    /// - q is the discharge per unit width [L²/T] or  [L³/T/L]
+    /// - k is the hydraulic conductivity of the soil [L/T]
+    /// - h is the hydraulic head difference between upstream and downstream [L]
+    /// - s is the length of the pile wall [L]
+    /// - b is the position of the pile wall[L]
+    /// - T is the depth of the confined soil layer [L]
+    ///
+    /// # References
+    ///
+    /// 1. Harr, M. E. (1991). Groundwater and Seepage. Dover Publications, Inc.
+    /// 2. Polubarinova-Kochina, P. Y. (1962). Theory of the Motion of Ground Water Movement.
+    ///    Gostekhizdat, Moscow, USSR.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `s_by_tt` is not between 0 and 1, or if `b_by_tt` is negative.
+    pub fn normalized_discharge_symmetrically_placed_wall(s_by_tt: f64, b_by_tt: f64) -> f64 {
         if s_by_tt < 0.0 || s_by_tt > 1.0 {
             panic!("s/T must be between 0 and 1. {} is invalid", s_by_tt);
         }
@@ -31,7 +84,7 @@ mod test {
     use plotpy::{linspace, Curve, Plot};
     use std::collections::HashMap;
 
-    const SAVE_FIGURE: bool = true;
+    const SAVE_FIGURE: bool = false;
 
     #[test]
     fn test_confined_flow() {
@@ -146,7 +199,7 @@ mod test {
             let key = format!("{:03}", (b_by_tt * 100.0));
             let (ref_x, ref_y) = reference.get(key.as_str()).unwrap();
             for (i, s_by_tt) in ref_x.iter().enumerate() {
-                let q_by_kh = ConfinedFlow::polubarinova_kochina_solution(*s_by_tt, b_by_tt);
+                let q_by_kh = ConfinedFlow::normalized_discharge_symmetrically_placed_wall(*s_by_tt, b_by_tt);
                 let q_ref = ref_y[i];
                 let diff = f64::abs(q_by_kh - q_ref);
                 assert!(
@@ -168,9 +221,9 @@ mod test {
                         "b/T={}, s/T={} computed Q/(kH)={}",
                         b_by_tt,
                         x[i],
-                        ConfinedFlow::polubarinova_kochina_solution(x[i], b_by_tt)
+                        ConfinedFlow::normalized_discharge_symmetrically_placed_wall(x[i], b_by_tt)
                     );
-                    y[i] = ConfinedFlow::polubarinova_kochina_solution(x[i], b_by_tt);
+                    y[i] = ConfinedFlow::normalized_discharge_symmetrically_placed_wall(x[i], b_by_tt);
                 }
                 curve.set_label(&format!("b/T={:.2}", b_by_tt));
                 curve_ref.draw(ref_x, ref_y);
@@ -190,5 +243,23 @@ mod test {
                 .save("/tmp/pmsim/confined_seepage_flow_polubarinova_kochina_solution.svg")
                 .unwrap();
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "s/T must be between 0 and 1. -0.1 is invalid")]
+    fn test_normalized_discharge_panics_when_s_by_tt_is_negative() {
+        ConfinedFlow::normalized_discharge_symmetrically_placed_wall(-0.1, 0.5);
+    }
+
+    #[test]
+    #[should_panic(expected = "s/T must be between 0 and 1. 1.1 is invalid")]
+    fn test_normalized_discharge_panics_when_s_by_tt_is_greater_than_one() {
+        ConfinedFlow::normalized_discharge_symmetrically_placed_wall(1.1, 0.5);
+    }
+
+    #[test]
+    #[should_panic(expected = "b/T must be non-negative. -0.5 is invalid")]
+    fn test_normalized_discharge_panics_when_b_by_tt_is_negative() {
+        ConfinedFlow::normalized_discharge_symmetrically_placed_wall(0.5, -0.5);
     }
 }
