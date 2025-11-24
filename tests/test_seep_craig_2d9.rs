@@ -1,61 +1,73 @@
-#![allow(unused)]
-
 use gemlab::graph::GraphUnd;
 use gemlab::prelude::*;
-use plotpy::Plot;
 use pmsim::prelude::*;
 use pmsim::StrError;
-use tritet::Trigen;
+use russell_lab::approx_eq;
+use russell_lab::vec_inner;
+use russell_lab::Vector;
 
 const OUT_DIR: &str = "/tmp/pmsim";
 const NAME: &str = "test_seep_craig_2d9";
-const GENERATE_MESH: bool = true;
 
-// geometry constants
-const G: f64 = 2.25; // gap between the bedrock and pile wall
-const P: f64 = 6.0; // pile wall height
-const L: f64 = G + P + 2.0; // left height
-const R: f64 = G + P; // right height
-const M: f64 = 1.0 * L; // left distance (it should be > 1.5 L)
+// Geometry:
+//                      |←      5.5 m       →|
+//
+// ---WT--------------||                     ||
+//           ↑        ||                     ||
+//      A = 2.5 m     ||                     ||
+//           ↓        ||                     ||
+// ===================||                     ||===================
+//           ↑        ||                     ||
+//      D = 2.0 m     ||                     ||
+//           ↓        ||                     ||
+//          ---       ||===WT================||
+//           ↑        ||                     ||
+//           |        ||                     ||
+//           |        ||                     ||
+//      S = 6.0 m     ||                     ||
+//           |        ||                     ||
+//           |        ||                     ||
+//           ↓        ||                     ||
+//          ---       ||                     ||
+//           ↑
+//     F = 2.25 m
+//           ↓
+// ***********************IMPERMEABLE***DATUM*********************
+//
+// WT means water table
+//
+const A: f64 = 2.5; // height of water on the left side
+const D: f64 = 2.0; // depth of the excavation
+const S: f64 = 6.0; // pile wall height
+const F: f64 = 2.25; // "flow" section; gap between the bedrock and pile wall
+const L: f64 = D + S + F; // left height
+const R: f64 = S + F; // right height
+const M: f64 = 3.0 * L; // left distance
 const N: f64 = 5.5 / 2.0; // right distance
-const T: f64 = 0.5; // thickness of sheet pile wall
+const G: f64 = 0.01; // thickness of sheet pile wall
 
-// number of divisions (coarse)
-const NYM_COARSE: usize = 2; // number of divisions in M
-const NYN_COARSE: usize = 1; // number of divisions in N
-const NYL_COARSE: usize = 1; // number of divisions for the extra height on the left side
-const NYG_COARSE: usize = 1; // number of divisions for the gap
-const NYP_COARSE: usize = 2; // number of divisions for the pile
-
-// number of divisions (finer)
-const NYM_FINER: usize = 4; // number of divisions in M
-const NYN_FINER: usize = 3; // number of divisions in N
-const NYL_FINER: usize = 2; // number of divisions for the extra height on the left side
-const NYG_FINER: usize = 4; // number of divisions for the gap
-const NYP_FINER: usize = 4; // number of divisions for the pile
-
-// triangular mesh flag
-const TRI_MESH: bool = false;
+// number of divisions
+const NYM: [usize; 3] = [2, 4, 8]; // number of divisions in M
+const NYN: [usize; 3] = [1, 3, 6]; // number of divisions in N
+const NYL: [usize; 3] = [1, 2, 4]; // number of divisions for the extra height on the left side
+const NYF: [usize; 3] = [1, 4, 8]; // number of divisions for the "flow" section underneath the wall
+const NYS: [usize; 3] = [2, 4, 8]; // number of divisions for the sheet pile wall
 
 #[test]
 fn test_seep_craig_2d9() -> Result<(), StrError> {
     // mesh
     let generate = true;
-    let triangle = true;
-    let finer = false;
-    let finest = false;
-    let o2 = false;
-    let mesh = generate_or_read_mesh(generate, triangle, finer, finest, o2);
+    let o2 = true;
+    let index_refinement = 2; // 0, 1, or 2
+    let mesh = generate_or_read_mesh(generate, o2, index_refinement);
 
     // features
     let features = Features::new(&mesh, false);
-    // let left_top = features.search_edges(At::Y(L), |x| x[0] <= M)?;
-    // let right_top = features.search_edges(At::Y(R), |x| x[0] >= M + T)?;
-    let inlet = features.search_edges(At::Y(2.0), |_| true)?;
-    let outlet = features.search_edges(At::X(2.0), |_| true)?;
+    let inlet = features.search_edges(At::Y(L), |x| x[0] <= M)?;
+    let outlet = features.search_edges(At::Y(R), |x| x[0] >= M + G)?;
 
     // parameters
-    let (kx, ky) = (1.0, 1.0);
+    let (kx, ky) = (2.6e-5, 2.6e-5); // m/s
     let p1 = ParamDiffusion {
         rho: 1.0,
         conductivity: Conductivity::Constant { kx, ky, kz: 0.0 },
@@ -66,8 +78,8 @@ fn test_seep_craig_2d9() -> Result<(), StrError> {
 
     // essential boundary conditions
     let mut essential = Essential::new();
-    essential.edges(&inlet, Dof::Phi, 25.0);
-    essential.edges(&outlet, Dof::Phi, 0.0);
+    essential.edges(&inlet, Dof::Phi, L + A);
+    essential.edges(&outlet, Dof::Phi, R);
 
     // natural boundary conditions
     let natural = Natural::new();
@@ -102,123 +114,89 @@ fn post_processing() -> Result<(), StrError> {
     let mesh = post.mesh();
     let with_internal_edges = true;
     let features = Features::new(&mesh, with_internal_edges); // need internal edges
+    let mid_section = features.search_edges(At::X(M), |x| x[1] <= F)?;
 
-    /*
-    let gap_section = features.search_edges(At::X(M), |x| x[1] <= G)?;
-    let cells_around_gap_section = features.get_cells_via_2d_edges(&gap_section);
-    let gap_cells: Vec<_> = cells_around_gap_section
-        .iter()
-        .filter(|&&c| {
-            for a in &mesh.cells[c].points {
-                if mesh.points[*a].coords[0] < M {
-                    return false;
-                }
-            }
-            true
-        })
-        .copied()
-        .collect();
-    println!("section = {}", gap_section);
-    println!("gap_cells = {:?}", gap_cells);
-    */
+    // read last state
+    let last = post.n_state() - 1;
+    let state = post.read_state(last)?;
 
-    // analysis
-    // let state = post.read_state(post.n_state() - 1)?;
-    // let gauss = post.gauss_fluxes_patch(&mut memo, &state, &[6, 7], Dof::Phi, |_, _, _| true)?;
-    // println!("wx = {:?}", gauss.vvx);
-    // println!("wy = {:?}", gauss.vvy);
+    // extract fluxes along the mid section
+    let mid_cell_ids = features.get_cells_via_2d_edges(&mid_section);
+    let mid_patch = post.nodal_fluxes_patch(&mut memo, &state, &mid_cell_ids, Dof::Phi, |_, _, _| true)?;
+
+    // approximate the integral of fluxes along the vertical section
+    let (point_ids, coords, w_along_section) = post.values_along_edges_vec(&mid_patch, &mid_section)?;
+    let mut area = 0.0;
+    let un = Vector::from(&[1.0, 0.0]); // it's a vertical section
+    for i in 1..point_ids.len() {
+        let dy = coords[i][1] - coords[i - 1][1];
+        let dot_prev = vec_inner(&w_along_section[i - 1], &un);
+        let dot = vec_inner(&w_along_section[i], &un);
+        area += dy * (dot_prev + dot) / 2.0;
+    }
+    let q_computed = 2.0 * area * 3600.0; // m³/h per unit length (multiply by 2 because of symmetry)
+    let q_expected = 0.25; // m³/h as in the book
+    println!("Flux through vertical middle section = {} ({})", q_computed, q_expected);
+    approx_eq(q_computed, q_expected, 0.07);
 
     // write Paraview files
     let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;
-    println!("Paraview File: {}", path_pvd);
-
-    // done
+    println!("\nParaview File: {}\n", path_pvd);
     Ok(())
 }
 
 /// Generate or read mesh
-fn generate_or_read_mesh(generate: bool, triangle: bool, finer: bool, finest: bool, o2: bool) -> Mesh {
+fn generate_or_read_mesh(generate: bool, o2: bool, index_refinement: usize) -> Mesh {
     if generate {
-        let mut mesh = if triangle {
-            let mut gen = Trigen::new(7, Some(7), Some(2), None).unwrap();
-            gen.set_point(0, 0, 0.0, 0.0).unwrap();
-            gen.set_point(1, 0, 2.0, 0.0).unwrap();
-            gen.set_point(2, 0, 2.0, 1.0).unwrap();
-            gen.set_point(3, 0, 1.0, 1.0).unwrap();
-            gen.set_point(4, 0, 1.0, 2.0).unwrap();
-            gen.set_point(5, 0, 0.0, 2.0).unwrap();
-            gen.set_point(6, 0, 1.0, 0.0).unwrap();
-            gen.set_segment(0, 0, 0, 1).unwrap();
-            gen.set_segment(1, 1, 1, 2).unwrap();
-            gen.set_segment(2, 0, 2, 3).unwrap();
-            gen.set_segment(3, 0, 3, 4).unwrap();
-            gen.set_segment(4, 4, 4, 5).unwrap();
-            gen.set_segment(5, 0, 5, 0).unwrap();
-            gen.set_segment(6, 0, 6, 3).unwrap();
-            gen.set_region(0, 1, 0.1, 0.1, None).unwrap();
-            gen.set_region(1, 1, 1.1, 0.1, None).unwrap();
-            gen.generate_mesh(false, false, true, Some(0.01), None).unwrap();
+        assert!(index_refinement < 3, "index_refinement must be 0, 1, or 2");
+        let kind = if o2 { GeoKind::Qua8 } else { GeoKind::Qua4 };
+        let nym = NYM[index_refinement];
+        let nyn = NYN[index_refinement];
+        let nyl = NYL[index_refinement];
+        let nyf = NYF[index_refinement];
+        let nys = NYS[index_refinement];
 
-            let mut plot = Plot::new();
-            gen.draw_triangles(&mut plot, true, false, false, false, None, None, None);
-            plot.set_figure_size_points(800.0, 800.0)
-                .save(&format!("{}/mesh_{}_tri.svg", OUT_DIR, NAME))
-                .unwrap();
+        // set blocks on the left-hand side
+        let mut block1 = Block::new(&[[0.0, 0.0], [M, 0.0], [M, F], [0.0, F]]).unwrap();
+        let mut block2 = Block::new(&[[0.0, F], [M, F], [M, F + S], [0.0, F + S]]).unwrap();
+        let mut block3 = Block::new(&[[0.0, F + S], [M, F + S], [M, L], [0.0, L]]).unwrap();
 
-            Unstructured::from_trigen(&gen)
-        } else {
-            let kind = if o2 { GeoKind::Qua8 } else { GeoKind::Qua4 };
+        // set block under the sheet pile wall
+        let mut block4 = Block::new(&[[M, 0.0], [M + G, 0.0], [M + G, F], [M, F]]).unwrap();
 
-            // set blocks on the left-hand side
-            let mut block1 = Block::new(&[[0.0, 0.0], [M, 0.0], [M, G], [0.0, G]]).unwrap();
-            let mut block2 = Block::new(&[[0.0, G], [M, G], [M, G + P], [0.0, G + P]]).unwrap();
-            let mut block3 = Block::new(&[[0.0, G + P], [M, G + P], [M, L], [0.0, L]]).unwrap();
+        // set blocks on the right-hand side
+        let mut block5 = Block::new(&[[M + G, 0.0], [M + G + N, 0.0], [M + G + N, F], [M + G, F]]).unwrap();
+        let mut block6 = Block::new(&[[M + G, F], [M + G + N, F], [M + G + N, R], [M + G, R]]).unwrap();
 
-            // set block under the sheet pile wall
-            let mut block4 = Block::new(&[[M, 0.0], [M + T, 0.0], [M + T, G], [M, G]]).unwrap();
+        // set number of division
+        block1.set_ndiv(&[nym, nyf]).unwrap();
+        block2.set_ndiv(&[nym, nys]).unwrap();
+        block3.set_ndiv(&[nym, nyl]).unwrap();
+        block4.set_ndiv(&[1, nyf]).unwrap();
+        block5.set_ndiv(&[nyn, nyf]).unwrap();
+        block6.set_ndiv(&[nyn, nys]).unwrap();
 
-            // set blocks on the right-hand side
-            let mut block5 = Block::new(&[[M + T, 0.0], [M + T + N, 0.0], [M + T + N, G], [M + T, G]]).unwrap();
-            let mut block6 = Block::new(&[[M + T, G], [M + T + N, G], [M + T + N, R], [M + T, R]]).unwrap();
+        // subdivide blocks
+        let mesh1 = block1.subdivide(kind).unwrap();
+        let mesh2 = block2.subdivide(kind).unwrap();
+        let mesh3 = block3.subdivide(kind).unwrap();
+        let mesh4 = block4.subdivide(kind).unwrap();
+        let mesh5 = block5.subdivide(kind).unwrap();
+        let mesh6 = block6.subdivide(kind).unwrap();
 
-            // set number of division
-            if finer {
-                block1.set_ndiv(&[NYM_FINER, NYG_FINER]).unwrap();
-                block2.set_ndiv(&[NYM_FINER, NYP_FINER]).unwrap();
-                block3.set_ndiv(&[NYM_FINER, NYL_FINER]).unwrap();
-                block4.set_ndiv(&[1, NYG_FINER]).unwrap();
-                block5.set_ndiv(&[NYN_FINER, NYG_FINER]).unwrap();
-                block6.set_ndiv(&[NYN_FINER, NYP_FINER]).unwrap();
-            } else {
-                block1.set_ndiv(&[NYM_COARSE, NYG_COARSE]).unwrap();
-                block2.set_ndiv(&[NYM_COARSE, NYP_COARSE]).unwrap();
-                block3.set_ndiv(&[NYM_COARSE, NYL_COARSE]).unwrap();
-                block4.set_ndiv(&[1, NYG_COARSE]).unwrap();
-                block5.set_ndiv(&[NYN_COARSE, NYG_COARSE]).unwrap();
-                block6.set_ndiv(&[NYN_COARSE, NYP_COARSE]).unwrap();
-            }
-
-            // subdivide blocks
-            let mesh1 = block1.subdivide(kind).unwrap();
-            let mesh2 = block2.subdivide(kind).unwrap();
-            let mesh3 = block3.subdivide(kind).unwrap();
-            let mesh4 = block4.subdivide(kind).unwrap();
-            let mesh5 = block5.subdivide(kind).unwrap();
-            let mesh6 = block6.subdivide(kind).unwrap();
-
-            // join meshes
-            join_meshes(&[&mesh1, &mesh2, &mesh3, &mesh4, &mesh5, &mesh6]).unwrap()
-        };
+        // join meshes
+        let mut mesh = join_meshes(&[&mesh1, &mesh2, &mesh3, &mesh4, &mesh5, &mesh6]).unwrap();
 
         GraphUnd::renumber_mesh(&mut mesh, true).unwrap();
         mesh.check_all().unwrap();
 
         // draw figure
         let mut draw = Draw::new();
-        draw.show_point_ids(true)
-            .show_cell_ids(true)
+        draw.show_point_ids(false)
+            .show_cell_ids(false)
             .show_cell_marker(false)
-            .set_size(800.0, 800.0)
+            .set_view_flag(false)
+            .set_size(1200.0, 800.0)
             .all(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
             .unwrap();
 
@@ -229,26 +207,4 @@ fn generate_or_read_mesh(generate: bool, triangle: bool, finer: bool, finest: bo
         // read mesh
         Mesh::read(&format!("data/meshes/{}.msh", NAME)).unwrap()
     }
-}
-
-fn generate_or_read_mesh_simple() -> Mesh {
-    let mut block1 = Block::new(&[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]).unwrap();
-    let mut block2 = Block::new(&[[0.0, 1.0], [1.0, 1.0], [1.0, 2.0], [0.0, 2.0]]).unwrap();
-    let mut block3 = Block::new(&[[1.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0]]).unwrap();
-    block1.set_ndiv(&[2, 2]).unwrap();
-    block2.set_ndiv(&[2, 2]).unwrap();
-    block3.set_ndiv(&[2, 2]).unwrap();
-    let mesh1 = block1.subdivide(GeoKind::Qua4).unwrap();
-    let mesh2 = block2.subdivide(GeoKind::Qua4).unwrap();
-    let mesh3 = block3.subdivide(GeoKind::Qua4).unwrap();
-    let mesh = join_meshes(&[&mesh1, &mesh2, &mesh3]).unwrap();
-    mesh.check_all().unwrap();
-    Draw::new()
-        .show_point_ids(true)
-        .show_cell_ids(true)
-        .show_cell_marker(false)
-        .set_size(800.0, 800.0)
-        .all(&mesh, &format!("{}/mesh_{}.svg", OUT_DIR, NAME))
-        .unwrap();
-    mesh
 }
