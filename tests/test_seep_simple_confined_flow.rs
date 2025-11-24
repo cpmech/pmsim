@@ -11,6 +11,7 @@ const SAVE_FIGURE: bool = false;
 fn test_seep_simple_confined_flow() -> Result<(), StrError> {
     // mesh
     let mesh = Mesh::read("data/meshes/simple-confined-flow-2d.msh")?;
+    // let mesh = Mesh::read("data/meshes/simple-confined-flow-2d_fine.msh")?;
     if SAVE_FIGURE {
         let mut draw = Draw::new();
         draw.show_edge_markers(true)
