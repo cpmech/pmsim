@@ -13,14 +13,14 @@ pub trait ElementTrait {
     /// Initializes the internal variables
     fn initialize_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError>;
 
-    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
-    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError>;
+    /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError>;
 
-    /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, f_ext: &mut Vector, step: usize, time: f64) -> Result<(), StrError>;
+    /// Calculates the elemental vector of external forces Fe
+    fn calc_ffe(&mut self, ffe: &mut Vector, step: usize, time: f64) -> Result<(), StrError>;
 
-    /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError>;
+    /// Calculates the elemental Jacobian matrix Ke
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError>;
 
     /// Updates secondary values such as stresses and internal variables
     ///

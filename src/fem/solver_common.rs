@@ -95,12 +95,11 @@ impl<'a> SolverCommon<'a> {
         self.ls.pp.fill(0.0);
 
         // calculate all element local vectors
-        self.elements
-            .assemble_f_int(&mut self.ls.pp, state, &self.ignored_eqs)?;
+        self.elements.assemble_yy(&mut self.ls.pp, state, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
         self.bc_distributed
-            .assemble_f_int(&mut self.ls.pp, state, &self.ignored_eqs)?;
+            .assemble_yy(&mut self.ls.pp, state, &self.ignored_eqs)?;
         Ok(())
     }
 
@@ -124,11 +123,11 @@ impl<'a> SolverCommon<'a> {
 
         // calculate all element local vectors
         self.elements
-            .assemble_f_ext(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
+            .assemble_ff(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
         self.bc_distributed
-            .assemble_f_ext(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
+            .assemble_ff(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
 
         // add concentrated loads
         self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff, step, time);
@@ -149,10 +148,10 @@ impl<'a> SolverCommon<'a> {
         // reset pointer in K matrix == clear all values
         self.ls.kk.reset();
 
-        // calculates all Ke matrices (local Jacobian matrix; derivative of f_int w.r.t u) and adds them to K
-        self.elements.assemble_kke(&mut self.ls.kk, state, &self.ignored_eqs)?;
+        // calculates all Ke matrices (local Jacobian matrix; derivative of Ye w.r.t u) and adds them to K
+        self.elements.assemble_kk(&mut self.ls.kk, state, &self.ignored_eqs)?;
         self.bc_distributed
-            .assemble_kke(&mut self.ls.kk, state, &self.ignored_eqs)?;
+            .assemble_kk(&mut self.ls.kk, state, &self.ignored_eqs)?;
         Ok(())
     }
 

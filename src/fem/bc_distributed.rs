@@ -21,13 +21,13 @@ pub struct BcDistributed<'a> {
     /// Integration (Gauss) points
     gauss: Gauss,
 
-    /// Holds the local vector of "internal forces" (including dynamical forces)
-    f_int: Vector,
+    /// Holds the local vector of internal forces (including dynamical forces) Ye
+    yye: Vector,
 
-    /// Holds the local vector of "external forces"
-    f_ext: Vector,
+    /// Holds the local vector of external forces Fe
+    ffe: Vector,
 
-    /// Holds the Ke matrix (local Jacobian matrix; derivative of f_int w.r.t u)
+    /// Holds the Ke matrix (local Jacobian matrix; derivative of Ye w.r.t u)
     ///
     /// This optional Jacobian matrix appears, e.g., in convection problems
     kke: Option<Matrix>,
@@ -113,8 +113,8 @@ impl<'a> BcDistributed<'a> {
             config,
             pad,
             gauss,
-            f_int: Vector::new(neq),
-            f_ext: Vector::new(neq),
+            yye: Vector::new(neq),
+            ffe: Vector::new(neq),
             kke: if nbc.contributes_to_jacobian_matrix() {
                 Some(Matrix::new(neq, neq))
             } else {
@@ -127,13 +127,13 @@ impl<'a> BcDistributed<'a> {
         })
     }
 
-    /// Calculates the vector of internal forces f_int
-    pub fn calc_f_int(&mut self, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the vector of internal forces Ye
+    pub fn calc_yye(&mut self, state: &FemState) -> Result<(), StrError> {
         match self.nbc {
-            // →        ⌠
-            // fᵐ_int = │ Nᵐ T dΩ
-            //          ⌡
-            //          Ωₑ
+            // →     ⌠
+            // Yeₘ = │ Nₘ T dΩ
+            //       ⌡
+            //       Ωₑ
             Nbc::Cv(cc) => {
                 // constants
                 let (_, nnode) = self.pad.xxt.dims();
@@ -144,7 +144,7 @@ impl<'a> BcDistributed<'a> {
                 args.axisymmetric = self.config.ideal.axisymmetric;
 
                 // perform the integration
-                integ::vec_01_ns(&mut self.f_int, &mut args, |_, nn| {
+                integ::vec_01_ns(&mut self.yye, &mut args, |_, nn| {
                     // interpolate T from nodes to integration point
                     let mut tt = 0.0;
                     for m in 0..nnode {
@@ -158,8 +158,8 @@ impl<'a> BcDistributed<'a> {
         Ok(())
     }
 
-    /// Calculates the vector of external forces f_ext
-    pub fn calc_f_ext(&mut self, stage: usize, time: f64) -> Result<(), StrError> {
+    /// Calculates the vector of external forces Fe
+    pub fn calc_ffe(&mut self, stage: usize, time: f64) -> Result<(), StrError> {
         // constants
         let (ndim, _) = self.pad.xxt.dims();
 
@@ -182,11 +182,11 @@ impl<'a> BcDistributed<'a> {
         match self.nbc {
             // Normally distributed load
             //
-            // →        ⌠    →
-            // fᵐ_ext = │ Nᵐ v dΩ
-            //          ⌡
-            //          Ωₑ
-            Nbc::Qn => integ::vec_02_nv_bry(&mut self.f_ext, &mut args, |v, _, un, _| {
+            // →     ⌠    →
+            // Feₘ = │ Nₘ v dΩ
+            //       ⌡
+            //       Ωₑ
+            Nbc::Qn => integ::vec_02_nv_bry(&mut self.ffe, &mut args, |v, _, un, _| {
                 for i in 0..ndim {
                     v[i] = value * un[i];
                 }
@@ -195,12 +195,12 @@ impl<'a> BcDistributed<'a> {
 
             // Distributed load in x-direction
             //
-            // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
-            // →        ⌠    →
-            // fᵐ_ext = │ Nᵐ v dΩ
-            //          ⌡
-            //          Ωₑ
-            Nbc::Qx => integ::vec_02_nv(&mut self.f_ext, &mut args, |v, _, _| {
+            // (no need to use vec_02_nv_bry here because the normal vector is not considered)
+            // →     ⌠    →
+            // Feₘ = │ Nₘ v dΩ
+            //       ⌡
+            //       Ωₑ
+            Nbc::Qx => integ::vec_02_nv(&mut self.ffe, &mut args, |v, _, _| {
                 v.fill(0.0);
                 v[0] = value;
                 Ok(())
@@ -208,12 +208,12 @@ impl<'a> BcDistributed<'a> {
 
             // Distributed load in y-direction
             //
-            // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
-            // →        ⌠    →
-            // fᵐ_ext = │ Nᵐ v dΩ
-            //          ⌡
-            //          Ωₑ
-            Nbc::Qy => integ::vec_02_nv(&mut self.f_ext, &mut args, |v, _, _| {
+            // (no need to use vec_02_nv_bry here because the normal vector is not considered)
+            // →     ⌠    →
+            // Feₘ = │ Nₘ v dΩ
+            //       ⌡
+            //       Ωₑ
+            Nbc::Qy => integ::vec_02_nv(&mut self.ffe, &mut args, |v, _, _| {
                 v.fill(0.0);
                 v[1] = value;
                 Ok(())
@@ -221,12 +221,12 @@ impl<'a> BcDistributed<'a> {
 
             // Distributed load in z-direction
             //
-            // we don't need to use vec_02_nv_bry here because the normal vector is irrelevant
-            // →        ⌠    →
-            // fᵐ_ext = │ Nᵐ v dΩ
-            //          ⌡
-            //          Ωₑ
-            Nbc::Qz => integ::vec_02_nv(&mut self.f_ext, &mut args, |v, _, _| {
+            // (no need to use vec_02_nv_bry here because the normal vector is not considered)
+            // →     ⌠    →
+            // Feₘ = │ Nₘ v dΩ
+            //       ⌡
+            //       Ωₑ
+            Nbc::Qz => integ::vec_02_nv(&mut self.ffe, &mut args, |v, _, _| {
                 v.fill(0.0);
                 v[2] = value;
                 Ok(())
@@ -234,39 +234,39 @@ impl<'a> BcDistributed<'a> {
 
             // Liquid flux
             //
-            // →        ⌠
-            // fᵐ_ext = │ Nᵐ ql dΩ
-            //          ⌡
-            //          Ωₑ
-            Nbc::Ql => integ::vec_01_ns(&mut self.f_ext, &mut args, |_, _| Ok(value)),
+            // →     ⌠
+            // Feₘ = │ Nₘ ql dΩ
+            //       ⌡
+            //       Ωₑ
+            Nbc::Ql => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(value)),
 
             // Gas flux
             //
-            // →        ⌠
-            // fᵐ_ext = │ Nᵐ qg dΩ
-            //          ⌡
-            //          Ωₑ
-            Nbc::Qg => integ::vec_01_ns(&mut self.f_ext, &mut args, |_, _| Ok(value)),
+            // →     ⌠
+            // Feₘ = │ Nₘ qg dΩ
+            //       ⌡
+            //       Ωₑ
+            Nbc::Qg => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(value)),
 
             // Heat flux
             //
-            // →        ⌠
-            // fᵐ_ext = │ Nᵐ qt dΩ
-            //          ⌡
-            //          Ωₑ
-            Nbc::Qt => integ::vec_01_ns(&mut self.f_ext, &mut args, |_, _| Ok(value)),
+            // →     ⌠
+            // Feₘ = │ Nₘ qt dΩ
+            //       ⌡
+            //       Ωₑ
+            Nbc::Qt => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(value)),
 
             // Heat convection term
             //
-            // →        ⌠
-            // fᵐ_ext = │ Nᵐ cc T∞ dΩ
-            //          ⌡
-            //          Ωₑ
-            Nbc::Cv(cc) => integ::vec_01_ns(&mut self.f_ext, &mut args, |_, _| Ok(cc * value)),
+            // →     ⌠
+            // Feₘ = │ Nₘ cc T∞ dΩ
+            //       ⌡
+            //       Ωₑ
+            Nbc::Cv(cc) => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(cc * value)),
         }
     }
 
-    /// Calculates the Ke matrix (local Jacobian matrix; derivative of f_int w.r.t u)
+    /// Calculates the Ke matrix (local Jacobian matrix; derivative of Ye w.r.t u)
     pub fn calc_kke(&mut self, _state: &FemState) -> Result<(), StrError> {
         match self.nbc {
             Nbc::Cv(cc) => {
@@ -338,32 +338,26 @@ impl<'a> BcDistributedArray<'a> {
         Ok(BcDistributedArray { config, all })
     }
 
-    /// Calculates all local f_int vectors and assembles them into the global F_int vector
+    /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_f_int(&mut self, ff_int: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
         for e in &mut self.all {
-            e.calc_f_int(state)?;
-            assemble_vector(ff_int, &e.f_int, &e.local_to_global, ignore);
+            e.calc_yye(state)?;
+            assemble_vector(yy, &e.yye, &e.local_to_global, ignore);
         }
         Ok(())
     }
 
-    /// Calculates all local f_ext vectors and assembles them into the global F_ext vector
+    /// Calculates all local Fe vectors (external forces) and assembles them into the global F vector
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_f_ext(
-        &mut self,
-        ff_ext: &mut Vector,
-        stage: usize,
-        time: f64,
-        ignore: &[bool],
-    ) -> Result<(), StrError> {
+    pub fn assemble_ff(&mut self, ff: &mut Vector, stage: usize, time: f64, ignore: &[bool]) -> Result<(), StrError> {
         for e in &mut self.all {
-            e.calc_f_ext(stage, time)?;
-            assemble_vector(ff_ext, &e.f_ext, &e.local_to_global, ignore);
+            e.calc_ffe(stage, time)?;
+            assemble_vector(ff, &e.ffe, &e.local_to_global, ignore);
         }
         Ok(())
     }
@@ -372,7 +366,7 @@ impl<'a> BcDistributedArray<'a> {
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_kke(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_kk(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
         let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.all {
             e.calc_kke(state)?;
@@ -455,62 +449,62 @@ mod tests {
         // Qn
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, 2.0 * -Q / 3.0, 0.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qn, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         // Qx
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        bry.calc_ffe(0, time).unwrap();
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        bry.calc_ffe(0, time).unwrap();
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qx, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        bry.calc_ffe(0, time).unwrap();
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         // Qy
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, left.kind, &left.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        bry.calc_ffe(0, time).unwrap();
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, right.kind, &right.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        bry.calc_ffe(0, time).unwrap();
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, bottom.kind, &bottom.points, Nbc::Qy, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        bry.calc_ffe(0, time).unwrap();
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         // Qz
 
@@ -522,9 +516,9 @@ mod tests {
         let config = Config::new(&mesh);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qz, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[0.0, 0.0, Q / 2.0, 0.0, 0.0, Q / 2.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
     }
 
     #[test]
@@ -541,13 +535,13 @@ mod tests {
         let time = 0.0;
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Ql, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[Q / 6.0, Q / 6.0, 2.0 * Q / 3.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qg, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        bry.calc_ffe(0, time).unwrap();
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
     }
 
     #[test]
@@ -571,9 +565,9 @@ mod tests {
         // flux: not present in Bhatti's example but we can check the flux BC here
         const L: f64 = 0.3;
         let mut bry = BcDistributed::new(&mesh, &base, &config, edge.kind, &edge.points, Nbc::Qt, Q, None).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[Q * L / 2.0, Q * L / 2.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-14);
+        vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         // convection BC (it has an internal and an external part)
         let mut bry = BcDistributed::new(
@@ -587,11 +581,11 @@ mod tests {
             None,
         )
         .unwrap();
-        bry.calc_f_int(&state).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        let mut f_int_minus_f_ext = Vector::new(bry.f_int.dim());
-        vec_add(&mut f_int_minus_f_ext, 1.0, &bry.f_int, -1.0, &bry.f_ext).unwrap();
-        vec_approx_eq(&f_int_minus_f_ext, &[-81.0, -81.0], 1e-15);
+        bry.calc_yye(&state).unwrap();
+        bry.calc_ffe(0, time).unwrap();
+        let mut yye_minus_ffe = Vector::new(bry.yye.dim());
+        vec_add(&mut yye_minus_ffe, 1.0, &bry.yye, -1.0, &bry.ffe).unwrap();
+        vec_approx_eq(&yye_minus_ffe, &[-81.0, -81.0], 1e-15);
         bry.calc_kke(&state).unwrap();
         let jac = bry.kke.ok_or("error").unwrap();
         let jac_correct = Matrix::from(&[
@@ -636,9 +630,9 @@ mod tests {
             None,
         )
         .unwrap();
-        bry.calc_f_ext(0, time).unwrap();
+        bry.calc_ffe(0, time).unwrap();
         let correct = &[Q * L / 6.0, Q * L / 6.0, 2.0 * Q * L / 3.0];
-        vec_approx_eq(&bry.f_ext, correct, 1e-10);
+        vec_approx_eq(&bry.ffe, correct, 1e-10);
 
         // convection BC (it has an internal and an external part)
         let mut bry = BcDistributed::new(
@@ -652,11 +646,11 @@ mod tests {
             None,
         )
         .unwrap();
-        bry.calc_f_int(&state).unwrap();
-        bry.calc_f_ext(0, time).unwrap();
-        let mut f_int_minus_f_ext = Vector::new(bry.f_int.dim());
-        vec_add(&mut f_int_minus_f_ext, 1.0, &bry.f_int, -1.0, &bry.f_ext).unwrap();
-        vec_approx_eq(&f_int_minus_f_ext, &[-5.5, -5.5, -22.0], 1e-14);
+        bry.calc_yye(&state).unwrap();
+        bry.calc_ffe(0, time).unwrap();
+        let mut yye_minus_ffe = Vector::new(bry.yye.dim());
+        vec_add(&mut yye_minus_ffe, 1.0, &bry.yye, -1.0, &bry.ffe).unwrap();
+        vec_approx_eq(&yye_minus_ffe, &[-5.5, -5.5, -22.0], 1e-14);
         bry.calc_kke(&state).unwrap();
         #[rustfmt::skip]
         let correct = &[
@@ -697,13 +691,13 @@ mod tests {
         let mut bry = BcDistributedArray::new(&mesh, &base, &config, &natural).unwrap();
 
         let neq = base.dofs.size();
-        let mut ff_ext = Vector::new(neq);
+        let mut ff = Vector::new(neq);
         let ignore = vec![false; neq];
-        bry.assemble_f_ext(&mut ff_ext, 0, time, &ignore).unwrap();
-        // →        ⌠    →
-        // fᵐ_int = │ Nᵐ v dΓ
-        //          ⌡
-        //          Γₑ
+        bry.assemble_ff(&mut ff, 0, time, &ignore).unwrap();
+        // →     ⌠    →
+        // Feₘ = │ Nₘ v dΓ
+        //       ⌡
+        //       Γₑ
         #[rustfmt::skip]
         let correct = [
             0.0,  0.0,           // 0
@@ -713,11 +707,11 @@ mod tests {
             0.0,  0.0,           // 4
             0.0, -Q/2.0,         // 5
         ];
-        vec_approx_eq(&ff_ext, &correct, 1e-15);
+        vec_approx_eq(&ff, &correct, 1e-15);
 
         let nnz_sup = 2 * neq * neq;
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
-        bry.assemble_kke(&mut kk, &state, &ignore).unwrap();
+        bry.assemble_kk(&mut kk, &state, &ignore).unwrap();
         let correct = Matrix::new(neq, neq); // null
         assert_eq!(kk.as_dense().as_data(), correct.as_data());
     }

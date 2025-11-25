@@ -10,13 +10,13 @@ pub struct GenericElement<'a> {
     /// Connects to the "actual" implementation of local equations
     pub actual: Box<dyn ElementTrait + 'a>,
 
-    /// Holds the local vector of "internal forces" (including the dynamical forces)
-    pub f_int: Vector,
+    /// Holds the local vector of internal forces (including dynamical forces) Ye
+    pub yye: Vector,
 
-    /// Holds the local vector of "external forces"
-    pub f_ext: Vector,
+    /// Holds the local vector of external forces Fe
+    pub ffe: Vector,
 
-    /// Holds the Ke matrix (local Jacobian matrix; derivative of ϕ w.r.t u)
+    /// Holds the Ke matrix (local Jacobian matrix; derivative of Ye w.r.t u)
     pub kke: Matrix,
 }
 
@@ -33,8 +33,8 @@ pub struct Elements<'a> {
 
 /// Holds auxiliary arguments for the computation of numerical Jacobian matrices
 struct ArgsForNumericalJacobian<'a> {
-    /// Holds the local vector of "internal forces"
-    pub f_int: &'a mut Vector,
+    /// Holds the local vector of internal forces (including dynamical forces) Ye
+    pub yye: &'a mut Vector,
 
     /// Holds the current state
     pub state: &'a mut FemState,
@@ -63,8 +63,8 @@ impl<'a> GenericElement<'a> {
         let neq = base.n_local_eq(cell).unwrap();
         Ok(GenericElement {
             actual,
-            f_int: Vector::new(neq),
-            f_ext: Vector::new(neq),
+            yye: Vector::new(neq),
+            ffe: Vector::new(neq),
             kke: Matrix::new(neq, neq),
         })
     }
@@ -73,9 +73,9 @@ impl<'a> GenericElement<'a> {
     ///
     /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
     pub fn numerical_jacobian(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        let neq = self.f_int.dim();
+        let neq = self.yye.dim();
         let mut args = ArgsForNumericalJacobian {
-            f_int: &mut self.f_int,
+            yye: &mut self.yye,
             state,
         };
         for i in 0..neq {
@@ -88,11 +88,11 @@ impl<'a> GenericElement<'a> {
                     a.state.ddu[j] = u - original_u;
                     self.actual.backup_secondary_values(a.state, false);
                     self.actual.update_secondary_values(&mut a.state).unwrap();
-                    self.actual.calc_f_int(&mut a.f_int, &a.state).unwrap();
+                    self.actual.calc_yye(&mut a.yye, &a.state).unwrap();
                     self.actual.restore_secondary_values(&mut a.state, false);
                     a.state.u[j] = original_u;
                     a.state.ddu[j] = original_ddu;
-                    Ok(a.f_int[i])
+                    Ok(a.yye[i])
                 });
                 self.kke.set(i, j, res.unwrap());
             }
@@ -125,44 +125,38 @@ impl<'a> Elements<'a> {
         return true;
     }
 
-    /// Calculates all local f_int vectors and assembles them into the global F_int vector
+    /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_f_int(&mut self, ff_int: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
         for e in &mut self.all {
-            e.actual.calc_f_int(&mut e.f_int, state)?;
-            assemble_vector(ff_int, &e.f_int, &e.actual.local_to_global(), ignore);
+            e.actual.calc_yye(&mut e.yye, state)?;
+            assemble_vector(yy, &e.yye, &e.actual.local_to_global(), ignore);
         }
         Ok(())
     }
 
-    /// Calculates all local f_ext vectors and assembles them into the global F_ext vector
+    /// Calculates all local Fe vectors (external forces) and assembles them into the global F vector
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_f_ext(
-        &mut self,
-        ff_ext: &mut Vector,
-        step: usize,
-        time: f64,
-        ignore: &[bool],
-    ) -> Result<(), StrError> {
+    pub fn assemble_ff(&mut self, ff: &mut Vector, step: usize, time: f64, ignore: &[bool]) -> Result<(), StrError> {
         for e in &mut self.all {
-            e.actual.calc_f_ext(&mut e.f_ext, step, time)?;
-            assemble_vector(ff_ext, &e.f_ext, &e.actual.local_to_global(), ignore);
+            e.actual.calc_ffe(&mut e.ffe, step, time)?;
+            assemble_vector(ff, &e.ffe, &e.actual.local_to_global(), ignore);
         }
         Ok(())
     }
 
-    /// Calculates all local Ke matrices and assembles them into K
+    /// Calculates all local Ke Jacobian matrices and assembles them into the global K matrix
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_kke(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_kk(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
         let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.all {
-            e.actual.calc_jacobian(&mut e.kke, state)?;
+            e.actual.calc_kke(&mut e.kke, state)?;
             assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore, tol)?;
         }
         Ok(())
@@ -290,7 +284,7 @@ mod tests {
         state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
-        ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
+        ele.actual.calc_kke(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
         mat_approx_eq(&jj_ana, &ele.kke, 1e-11);
@@ -316,7 +310,7 @@ mod tests {
         state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
-        ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
+        ele.actual.calc_kke(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
         mat_approx_eq(&jj_ana, &ele.kke, 1e-11);
@@ -344,7 +338,7 @@ mod tests {
         state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
-        ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
+        ele.actual.calc_kke(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
         // println!("ana: J = \n{}", jj_ana);
@@ -377,7 +371,7 @@ mod tests {
         ele.actual.update_secondary_values(&mut state).unwrap();
         println!("uu =\n{}", state.u);
 
-        ele.actual.calc_jacobian(&mut ele.kke, &state).unwrap();
+        ele.actual.calc_kke(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
         ele.numerical_jacobian(&mut state).unwrap();
 
@@ -502,17 +496,15 @@ mod tests {
         let mut elements = Elements::new(&mesh, &base, &config).unwrap();
         let neq = base.dofs.size();
         let nnz_sup = 3 * neq * neq;
-        let mut f_int = Vector::new(neq);
-        let mut f_ext = Vector::new(neq);
+        let mut yye = Vector::new(neq);
+        let mut ffe = Vector::new(neq);
         let mut rr = Vector::new(neq);
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
         let ignore = vec![false; neq];
-        elements.assemble_f_int(&mut f_int, &state, &ignore).unwrap();
-        elements
-            .assemble_f_ext(&mut f_ext, state.step, state.time, &ignore)
-            .unwrap();
-        elements.assemble_kke(&mut kk, &state, &ignore).unwrap();
-        vec_add(&mut rr, 1.0, &f_int, -1.0, &f_ext).unwrap();
+        elements.assemble_yy(&mut yye, &state, &ignore).unwrap();
+        elements.assemble_ff(&mut ffe, state.step, state.time, &ignore).unwrap();
+        elements.assemble_kk(&mut kk, &state, &ignore).unwrap();
+        vec_add(&mut rr, 1.0, &yye, -1.0, &ffe).unwrap();
         let kk_mat = kk.as_dense();
         vec_approx_eq(&rr, &rr_correct, 1e-14);
         mat_approx_eq(&kk_mat, &kk_correct, 1e-12);

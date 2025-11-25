@@ -124,25 +124,25 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             .collect()
     }
 
-    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
-    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
         // arguments for the integrator
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
-        // →        ⌠ →            ⌠     →
-        // fᵐ_int = │ Bᵐ · σᵀ dΩ = │ σ · Bᵐ dΩ
-        //          ⌡      ▔       ⌡ ▔
-        //          Ωₑ             Ωₑ
-        integ::vec_04_bt(f_int, &mut args, |sig, p, _, _| {
+        // →     ⌠ →            ⌠     →
+        // Yeₘ = │ Bₘ · σᵀ dΩ = │ σ · Bₘ dΩ
+        //       ⌡      ▔       ⌡ ▔
+        //       Ωₑ             Ωₑ
+        integ::vec_04_bt(yye, &mut args, |sig, p, _, _| {
             sig.set_tensor(1.0, &state.gauss[self.cell_id].solid[p].stress);
             Ok(())
         })
     }
 
-    /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, f_ext: &mut Vector, step: usize, time: f64) -> Result<(), StrError> {
+    /// Calculates the elemental vector of external forces Fe
+    fn calc_ffe(&mut self, ffe: &mut Vector, step: usize, time: f64) -> Result<(), StrError> {
         if let Some(gravity) = self.config.gravity.as_ref() {
             // constants
             let ndim = self.config.ndim;
@@ -155,11 +155,11 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 
             // note that the gravity acceleration component is negative: bᵢ = -gravity
             //
-            // →        ⌠      →
-            // fᵐ_ext = │ Nᵐ ρ b dΩ
-            //          ⌡
-            //          Ωₑ
-            integ::vec_02_nv(f_ext, &mut args, |b, _, _| {
+            // →     ⌠      →
+            // Feₘ = │ Nₘ ρ b dΩ
+            //       ⌡
+            //       Ωₑ
+            integ::vec_02_nv(ffe, &mut args, |b, _, _| {
                 b.fill(0.0);
                 b[ndim - 1] = rho * (-gravity(step, time)); // ρ·(-g)
                 Ok(())
@@ -168,19 +168,19 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         Ok(())
     }
 
-    /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental Jacobian matrix Ke
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
         if self.config.alt_bb_matrix_method {
-            integ::mat_10_bdb_alt(jacobian, &mut args, |dd, p, _, _| {
+            integ::mat_10_bdb_alt(kke, &mut args, |dd, p, _, _| {
                 self.model
                     .actual
                     .stiffness(dd, &state.gauss[self.cell_id].solid[p], self.cell_id, p)
             })
         } else {
-            integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
+            integ::mat_10_bdb(kke, &mut args, |dd, p, _, _| {
                 self.model
                     .actual
                     .stiffness(dd, &state.gauss[self.cell_id].solid[p], self.cell_id, p)
@@ -336,26 +336,26 @@ mod tests {
     }
 
     #[test]
-    fn calc_f_int_works_2d() {
+    fn calc_yye_works_2d() {
         // allocate element
         let young = 10_000.0;
         let poisson = 0.2;
         let (mesh, p1, base, config, state) = get_sample(false, young, poisson, false);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
 
-        // allocate local f_int vector
+        // allocate local Ye vector
         let nnode = mesh.cells[0].kind.nnode();
         let neq = nnode * mesh.ndim;
-        let mut f_int = Vector::new(neq);
+        let mut yye = Vector::new(neq);
 
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
-        // check f_int vector
-        elem.calc_f_int(&mut f_int, &state).unwrap();
+        // check Ye vector
+        elem.calc_yye(&mut yye, &state).unwrap();
         let sigma = &state.gauss[0].solid[0].stress;
         let correct = ana.vec_04_bt(sigma, false);
-        vec_approx_eq(&f_int, &correct, 1e-15);
+        vec_approx_eq(&yye, &correct, 1e-15);
     }
 
     #[test]
@@ -375,7 +375,7 @@ mod tests {
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
         // check Jacobian matrix
-        elem.calc_jacobian(&mut kk, &state).unwrap();
+        elem.calc_kke(&mut kk, &state).unwrap();
         let correct = ana
             .mat_10_bdb(young, poisson, config.ideal.plane_stress, config.ideal.thickness)
             .unwrap();
@@ -399,7 +399,7 @@ mod tests {
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
         // check Jacobian matrix
-        elem.calc_jacobian(&mut kk, &state).unwrap();
+        elem.calc_kke(&mut kk, &state).unwrap();
         let correct = ana
             .mat_10_bdb(young, poisson, config.ideal.plane_stress, config.ideal.thickness)
             .unwrap();
@@ -407,26 +407,26 @@ mod tests {
     }
 
     #[test]
-    fn calc_f_int_works_3d() {
+    fn calc_yye_works_3d() {
         // allocate element
         let young = 10_000.0;
         let poisson = 0.2;
         let (mesh, p1, base, config, state) = get_sample(true, young, poisson, false);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
 
-        // allocate local f_int vector
+        // allocate local Ye vector
         let nnode = mesh.cells[0].kind.nnode();
         let neq = nnode * mesh.ndim;
-        let mut f_int = Vector::new(neq);
+        let mut yye = Vector::new(neq);
 
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);
 
-        // check f_int vector
-        elem.calc_f_int(&mut f_int, &state).unwrap();
+        // check Ye vector
+        elem.calc_yye(&mut yye, &state).unwrap();
         let sigma = &state.gauss[0].solid[0].stress;
         let correct = ana.vec_04_bt(sigma);
-        vec_approx_eq(&f_int, &correct, 1e-15);
+        vec_approx_eq(&yye, &correct, 1e-15);
     }
 
     #[test]
@@ -446,7 +446,7 @@ mod tests {
         let mut ana = integ::AnalyticalTet4::new(&elem.pad);
 
         // check Jacobian matrix
-        elem.calc_jacobian(&mut kk, &state).unwrap();
+        elem.calc_kke(&mut kk, &state).unwrap();
         let correct = ana.mat_10_bdb(young, poisson).unwrap();
         mat_approx_eq(&kk, &correct, 1e-12);
     }
@@ -468,7 +468,7 @@ mod tests {
         let mut ana = integ::AnalyticalTet4::new(&elem.pad);
 
         // check Jacobian matrix
-        elem.calc_jacobian(&mut kk, &state).unwrap();
+        elem.calc_kke(&mut kk, &state).unwrap();
         let correct = ana.mat_10_bdb(young, poisson).unwrap();
         mat_approx_eq(&kk, &correct, 1e-12);
     }
@@ -697,21 +697,21 @@ mod tests {
         // NOTE: since the stress is zero, the residual is due to the body force only
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 4 * 2;
-        let mut f_int = Vector::new(neq);
-        let mut f_ext = Vector::new(neq);
-        let mut f_int_minus_f_ext = Vector::new(neq);
+        let mut yye = Vector::new(neq);
+        let mut ffe = Vector::new(neq);
+        let mut yye_minus_ffe = Vector::new(neq);
         elem.initialize_internal_values(&mut state).unwrap();
-        elem.calc_f_int(&mut f_int, &state).unwrap();
-        elem.calc_f_ext(&mut f_ext, state.step, state.time).unwrap();
-        vec_add(&mut f_int_minus_f_ext, 1.0, &f_int, -1.0, &f_ext).unwrap();
+        elem.calc_yye(&mut yye, &state).unwrap();
+        elem.calc_ffe(&mut ffe, state.step, state.time).unwrap();
+        vec_add(&mut yye_minus_ffe, 1.0, &yye, -1.0, &ffe).unwrap();
 
         // check residual vector
         if reduced_integration {
             let felippa_neg_rr_1ip = &[0.0, 12.0, 0.0, 12.0, 0.0, 12.0, 0.0, 12.0];
-            vec_approx_eq(&f_int_minus_f_ext, felippa_neg_rr_1ip, 1e-15);
+            vec_approx_eq(&yye_minus_ffe, felippa_neg_rr_1ip, 1e-15);
         } else {
             let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
-            vec_approx_eq(&f_int_minus_f_ext, felippa_neg_rr_4ip, 1e-14);
+            vec_approx_eq(&yye_minus_ffe, felippa_neg_rr_4ip, 1e-14);
         }
     }
 

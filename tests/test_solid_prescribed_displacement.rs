@@ -86,7 +86,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
 
     // global = local Jacobian matrix (kk_global = kk_local because there is one element only)
     let mut kk = Matrix::new(neq, neq);
-    elem.calc_jacobian(&mut kk, &state)?;
+    elem.calc_kke(&mut kk, &state)?;
 
     // partitioned system
     let (n_prescribed, n_unknown) = (eq_prescribed.len(), eq_unknown.len());
@@ -152,11 +152,11 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     println!("\nexternal F2 = \n{}", ee2);
 
     // compute (local=global) internal forces vector
-    let mut f_int = Vector::new(neq);
-    elem.calc_f_int(&mut f_int, &state)?;
+    let mut yye = Vector::new(neq);
+    elem.calc_yye(&mut yye, &state)?;
     let mut rr2 = Vector::new(n_prescribed);
     for (i, ii) in eq_prescribed.iter().enumerate() {
-        rr2[i] = f_int[*ii];
+        rr2[i] = yye[*ii];
     }
     println!("internal F2 = \n{}", rr2);
     vec_approx_eq(&ee2, &rr2, 1e-15);
@@ -225,14 +225,14 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     }
 
     // compute internal and external forces vectors
-    let mut f_int = Vector::new(neq);
-    let mut f_ext = Vector::new(neq);
-    elem.calc_f_int(&mut f_int, &state)?;
-    elem.calc_f_ext(&mut f_ext, state.step, state.time)?;
-    println!("f_int = \n{}", f_int);
-    println!("f_ext = \n{}", f_ext);
+    let mut yye = Vector::new(neq);
+    let mut ffe = Vector::new(neq);
+    elem.calc_yye(&mut yye, &state)?;
+    elem.calc_ffe(&mut ffe, state.step, state.time)?;
+    println!("Ye = \n{}", yye);
+    println!("Fe = \n{}", ffe);
     let mut rr_local = Vector::new(neq);
-    vec_add(&mut rr_local, 1.0, &f_int, 1.0, &f_ext)?;
+    vec_add(&mut rr_local, 1.0, &yye, 1.0, &ffe)?;
     let mut ee1 = Vector::new(n_unknown); // external forces vector E1
     for (i, ii) in eq_unknown.iter().enumerate() {
         ee1[i] = -rr_local[*ii];
@@ -253,7 +253,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
 
     // local Jacobian matrix (== global Jacobian matrix)
     let mut kk_local = Matrix::new(neq, neq);
-    elem.calc_jacobian(&mut kk_local, &state)?;
+    elem.calc_kke(&mut kk_local, &state)?;
 
     // global Jacobian matrix
     let tol = Some(1e-14);

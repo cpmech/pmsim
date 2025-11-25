@@ -80,8 +80,8 @@ fn generate_matrix(name: &str, nr: usize) -> Result<CooMatrix, StrError> {
 
     // assemble jacobian matrix
     let ignore = &bc_prescribed.flags;
-    elements.assemble_kke(&mut lin_sys.kk, &state, &ignore)?;
-    boundaries.assemble_kke(&mut lin_sys.kk, &state, &ignore)?;
+    elements.assemble_kk(&mut lin_sys.kk, &state, &ignore)?;
+    boundaries.assemble_kk(&mut lin_sys.kk, &state, &ignore)?;
 
     // augment global Jacobian matrix
     for eq in &bc_prescribed.equations {

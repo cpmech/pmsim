@@ -93,24 +93,24 @@ impl<'a> ElementTrait for ElementRod<'a> {
         Ok(())
     }
 
-    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
-    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for local in 0..self.local_to_global.len() {
             let global = self.local_to_global[local];
             self.u[local] = state.u[global];
         }
-        mat_vec_mul(f_int, 1.0, &self.stiffness, &self.u).unwrap();
+        mat_vec_mul(yye, 1.0, &self.stiffness, &self.u).unwrap();
         Ok(())
     }
 
-    /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, _f_ext: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
+    /// Calculates the elemental vector of external forces Fe
+    fn calc_ffe(&mut self, _ffe: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, _state: &FemState) -> Result<(), StrError> {
-        mat_copy(jacobian, &self.stiffness).unwrap();
+    /// Calculates the elemental Jacobian matrix Ke
+    fn calc_kke(&mut self, kke: &mut Matrix, _state: &FemState) -> Result<(), StrError> {
+        mat_copy(kke, &self.stiffness).unwrap();
         Ok(())
     }
 
@@ -202,17 +202,17 @@ mod tests {
         let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 4;
-        let mut f_int = Vector::new(neq);
-        let mut jacobian = Matrix::new(neq, neq);
-        rod.calc_f_int(&mut f_int, &state).unwrap();
-        rod.calc_jacobian(&mut jacobian, &state).unwrap();
+        let mut yye = Vector::new(neq);
+        let mut kke = Matrix::new(neq, neq);
+        rod.calc_yye(&mut yye, &state).unwrap();
+        rod.calc_kke(&mut kke, &state).unwrap();
         let correct = &[
             [36.0, 48.0, -36.0, -48.0], // 0
             [48.0, 64.0, -48.0, -64.0], // 1
             [-36.0, -48.0, 36.0, 48.0], // 2
             [-48.0, -64.0, 48.0, 64.0], // 3
         ];
-        mat_approx_eq(&jacobian, correct, 1e-15);
+        mat_approx_eq(&kke, correct, 1e-15);
     }
 
     #[test]
@@ -245,10 +245,10 @@ mod tests {
         let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 6;
-        let mut f_int = Vector::new(neq);
-        let mut jacobian = Matrix::new(neq, neq);
-        rod.calc_f_int(&mut f_int, &state).unwrap();
-        rod.calc_jacobian(&mut jacobian, &state).unwrap();
+        let mut yye = Vector::new(neq);
+        let mut kke = Matrix::new(neq, neq);
+        rod.calc_yye(&mut yye, &state).unwrap();
+        rod.calc_kke(&mut kke, &state).unwrap();
         let correct = &[
             [40.0, 60.0, 120.0, -40.0, -60.0, -120.0],     // 0
             [60.0, 90.0, 180.0, -60.0, -90.0, -180.0],     // 1
@@ -257,7 +257,7 @@ mod tests {
             [-60.0, -90.0, -180.0, 60.0, 90.0, 180.0],     // 4
             [-120.0, -180.0, -360.0, 120.0, 180.0, 360.0], // 5
         ];
-        mat_approx_eq(&jacobian, correct, 1e-15);
+        mat_approx_eq(&kke, correct, 1e-15);
     }
 
     #[test]
@@ -291,10 +291,10 @@ mod tests {
         let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
         let neq = 6;
-        let mut f_int = Vector::new(neq);
-        let mut jacobian = Matrix::new(neq, neq);
-        rod.calc_f_int(&mut f_int, &state).unwrap();
-        rod.calc_jacobian(&mut jacobian, &state).unwrap();
+        let mut yye = Vector::new(neq);
+        let mut kke = Matrix::new(neq, neq);
+        rod.calc_yye(&mut yye, &state).unwrap();
+        rod.calc_kke(&mut kke, &state).unwrap();
         let correct = &[
             [1.0, 2.0, 2.0, -1.0, -2.0, -2.0], // 0
             [2.0, 4.0, 4.0, -2.0, -4.0, -4.0], // 1
@@ -303,7 +303,7 @@ mod tests {
             [-2.0, -4.0, -4.0, 2.0, 4.0, 4.0], // 4
             [-2.0, -4.0, -4.0, 2.0, 4.0, 4.0], // 5
         ];
-        mat_approx_eq(&jacobian, correct, 1e-15);
+        mat_approx_eq(&kke, correct, 1e-15);
     }
 
     #[test]
@@ -371,13 +371,13 @@ mod tests {
         let ignore = vec![false; neq_global];
 
         let tol = Some(1e-14);
-        rod0.calc_jacobian(&mut jacobian, &state).unwrap();
+        rod0.calc_kke(&mut jacobian, &state).unwrap();
         assemble_matrix(&mut kk, &jacobian, &rod0.local_to_global, &ignore, tol).unwrap();
 
-        rod1.calc_jacobian(&mut jacobian, &state).unwrap();
+        rod1.calc_kke(&mut jacobian, &state).unwrap();
         assemble_matrix(&mut kk, &jacobian, &rod1.local_to_global, &ignore, tol).unwrap();
 
-        rod2.calc_jacobian(&mut jacobian, &state).unwrap();
+        rod2.calc_kke(&mut jacobian, &state).unwrap();
         assemble_matrix(&mut kk, &jacobian, &rod2.local_to_global, &ignore, tol).unwrap();
 
         let kk_mat = kk.as_dense();

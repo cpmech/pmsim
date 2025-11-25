@@ -107,8 +107,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         Ok(())
     }
 
-    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
-    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
         // constants
         let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
@@ -120,7 +120,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         args.axisymmetric = self.config.ideal.axisymmetric;
 
         // the conductivity term is always present, so we calculate it first with clear=true
-        integ::vec_03_bv(f_int, &mut args, |w, _, nn, bb| {
+        integ::vec_03_bv(yye, &mut args, |w, _, nn, bb| {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
             for m in 0..nnode {
@@ -135,7 +135,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             }
             // compute conductivity tensor at integration point
             self.model.calc_k(&mut self.conductivity, phi)?;
-            // f_int must get -w; however w = -k·∇ϕ, thus -w = -(-k·∇ϕ) = k·∇ϕ
+            // Ye must get -w; however w = -k·∇ϕ, thus -w = -(-k·∇ϕ) = k·∇ϕ
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_phi);
             Ok(())
         })
@@ -146,7 +146,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // transient term
         if self.config.transient {
-            integ::vec_01_ns(f_int, &mut args, |_, nn| {
+            integ::vec_01_ns(yye, &mut args, |_, nn| {
                 // interpolate ϕ and ϕ★ to integration point
                 let (mut phi, mut phi_star) = (0.0, 0.0);
                 for m in 0..nnode {
@@ -159,25 +159,25 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         Ok(())
     }
 
-    /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, f_ext: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
+    /// Calculates the elemental vector of external forces Fe
+    fn calc_ffe(&mut self, ffe: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
         if let Some(s) = self.param.source {
             // arguments for the integrator
             let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
             args.alpha = self.config.ideal.thickness;
             args.axisymmetric = self.config.ideal.axisymmetric;
 
-            // →        ⌠
-            // fᵐ_ext = │ Nᵐ s dΩ
-            //          ⌡
-            //          Ωₑ
-            integ::vec_01_ns(f_ext, &mut args, |_, _| Ok(s))?;
+            // →     ⌠
+            // Feₘ = │ Nₘ s dΩ
+            //       ⌡
+            //       Ωₑ
+            integ::vec_01_ns(ffe, &mut args, |_, _| Ok(s))?;
         }
         Ok(())
     }
 
-    /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental Jacobian matrix Ke
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         // arguments for the integrator
         let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
@@ -187,7 +187,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         args.axisymmetric = self.config.ideal.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {
+        integ::mat_03_btb(kke, &mut args, |k, _, nn, _| {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
             for m in 0..nnode {
@@ -203,7 +203,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // variable k tensor
         if self.model.has_variable_k() {
-            integ::mat_02_bvn(jacobian, &mut args, |hk, _, nn, bb| {
+            integ::mat_02_bvn(kke, &mut args, |hk, _, nn, bb| {
                 // interpolate ϕ at integration point
                 let mut phi = 0.0;
                 for m in 0..nnode {
@@ -227,7 +227,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // diffusion (mass) matrix
         if self.config.transient {
-            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(state.beta1 * self.param.rho)).unwrap();
+            integ::mat_01_nsn(kke, &mut args, |_, _, _| Ok(state.beta1 * self.param.rho)).unwrap();
         }
         Ok(())
     }
@@ -314,7 +314,7 @@ mod tests {
         // calc Jacobian
         let neq = 3;
         let mut jacobian = Matrix::new(neq, neq);
-        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        elem.calc_kke(&mut jacobian, &state).unwrap();
         // if nonlinear {
         //     println!("J (nonlinear)= \n{}", jacobian);
         // } else {
@@ -391,19 +391,19 @@ mod tests {
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
-        // check f_int vector
+        // check Ye vector
         let neq = 3;
-        let mut f_int = Vector::new(neq);
-        elem.calc_f_int(&mut f_int, &state).unwrap();
+        let mut yye = Vector::new(neq);
+        elem.calc_yye(&mut yye, &state).unwrap();
         let dtt_dx = 5.0;
         let w0 = -KX * dtt_dx;
         let w1 = 0.0;
-        let correct_f_int = Vector::from(&ana.vec_03_bv(-w0, -w1));
-        vec_approx_eq(&f_int, &correct_f_int, 1e-15);
+        let correct_yye = Vector::from(&ana.vec_03_bv(-w0, -w1));
+        vec_approx_eq(&yye, &correct_yye, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
-        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        elem.calc_kke(&mut jacobian, &state).unwrap();
         let correct_kk = ana.mat_03_btb(KX, KY, false);
         mat_approx_eq(&jacobian, &correct_kk, 1e-15);
 
@@ -428,7 +428,7 @@ mod tests {
 
         // check f_ext vector
         let mut f_ext = Vector::new(neq);
-        elem.calc_f_ext(&mut f_ext, state.step, state.time).unwrap();
+        elem.calc_ffe(&mut f_ext, state.step, state.time).unwrap();
         let correct_f_ext = ana.vec_01_ns(source, false);
         vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
     }
@@ -462,20 +462,20 @@ mod tests {
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);
 
-        // check f_int vector
+        // check Ye vector
         let neq = 4;
-        let mut f_int = Vector::new(neq);
-        elem.calc_f_int(&mut f_int, &state).unwrap();
+        let mut yye = Vector::new(neq);
+        elem.calc_yye(&mut yye, &state).unwrap();
         let (dtt_dx, dtt_dz) = (7.0, 3.0);
         let w0 = -KX * dtt_dx;
         let w1 = 0.0;
         let w2 = -KZ * dtt_dz;
-        let correct_f_int = Vector::from(&ana.vec_03_bv(-w0, -w1, -w2));
-        vec_approx_eq(&f_int, &correct_f_int, 1e-15);
+        let correct_yye = Vector::from(&ana.vec_03_bv(-w0, -w1, -w2));
+        vec_approx_eq(&yye, &correct_yye, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
-        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        elem.calc_kke(&mut jacobian, &state).unwrap();
         let conductivity =
             Tensor2::from_matrix(&[[KX, 0.0, 0.0], [0.0, KY, 0.0], [0.0, 0.0, KZ]], Mandel::Symmetric).unwrap();
         let correct_kk = ana.mat_03_btb(&conductivity);
@@ -493,7 +493,7 @@ mod tests {
 
         // check f_ext vector
         let mut f_ext = Vector::new(neq);
-        elem.calc_f_ext(&mut f_ext, state.step, state.time).unwrap();
+        elem.calc_ffe(&mut f_ext, state.step, state.time).unwrap();
         let correct_f_ext = Vector::from(&ana.vec_01_ns(source));
         vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
     }

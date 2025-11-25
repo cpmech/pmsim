@@ -146,7 +146,7 @@ impl<'a> ElementRodGnl<'a> {
         }
     }
 
-    /// Calculates the strain and the denominator of F_int
+    /// Calculates the strain and the denominator used in Ye
     ///
     /// Returns `(axial_strain, den)`
     ///
@@ -176,24 +176,24 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
         Ok(())
     }
 
-    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
-    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let ll = self.update_bb(state);
         let (axial_strain, den) = self.calc_strain(ll);
         let axial_force = self.param.young * self.param.area * axial_strain;
         for i in 0..(2 * self.ndim) {
-            f_int[i] = axial_force * self.bb[i] / den;
+            yye[i] = axial_force * self.bb[i] / den;
         }
         Ok(())
     }
 
-    /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, _f_ext: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
+    /// Calculates the elemental vector of external forces Fe
+    fn calc_ffe(&mut self, _ffe: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental Jacobian matrix Ke
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let ll = self.update_bb(state);
         let (axial_strain, den) = self.calc_strain(ll);
         let ead = self.param.young * self.param.area / den;
@@ -306,20 +306,20 @@ mod tests {
         ];
         vec_approx_eq(&element.bb, bb_correct, 1e-15);
 
-        // check f_int
-        let mut f_int = Vector::new(4);
-        element.calc_f_int(&mut f_int, &state).unwrap();
-        let f_int_correct = &[
+        // check Ye
+        let mut yye = Vector::new(4);
+        element.calc_yye(&mut yye, &state).unwrap();
+        let yye_correct = &[
             0.014786924474443,
             0.024626044132262,
             -0.014786924474443,
             -0.024626044132262,
         ];
-        vec_approx_eq(&f_int, f_int_correct, 1e-15);
+        vec_approx_eq(&yye, yye_correct, 1e-15);
 
         // check Ke
         let mut kke = Matrix::new(4, 4);
-        element.calc_jacobian(&mut kke, &state).unwrap();
+        element.calc_kke(&mut kke, &state).unwrap();
         #[rustfmt::skip]
         let kke_correct = &[
             [ 0.243265799090590,   0.454385306779901, -0.243265799090590, -0.454385306779901],
