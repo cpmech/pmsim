@@ -30,7 +30,7 @@ use russell_lab::{array_approx_eq, mat_approx_eq, vec_add, vec_approx_eq, vec_co
 //
 // BOUNDARY CONDITIONS (see page 445)
 //
-// Flux Qt = 8,000 on left side, edge (0,10,11)
+// Inward flux Qt = -8,000 on left side, edge (0,10,11)
 // Convection Cc = (55, 20) on top edges (0,2,1), (2,4,3), and (4,6,5)
 // Prescribed temperature T = 110 on the bottom edge (8,10,9)
 //
@@ -69,7 +69,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .edges(&edges_flux, Nbc::Qt, 8000.0)
+        .edges(&edges_flux, Nbc::Qt, -8000.0) // negative values means inward flux
         .edges(&edges_conv_a, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_b, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);
@@ -262,7 +262,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     // natural boundary conditions
     let mut natural = Natural::new();
     natural
-        .edges(&edges_flux, Nbc::Qt, 8000.0)
+        .edges(&edges_flux, Nbc::Qt, -8000.0) // negative values means inward flux
         .edges(&edges_conv_a, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_b, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);

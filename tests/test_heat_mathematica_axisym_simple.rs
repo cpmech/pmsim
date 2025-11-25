@@ -27,7 +27,7 @@ use pmsim::{prelude::*, StrError};
 // BOUNDARY CONDITIONS
 //
 // Temperature T = 10.0 on the right edge
-// Flux Qt = 100.0 on the left edge
+// Inward Flux Qt = -100.0 on the left edge
 //
 // CONFIGURATION AND PARAMETERS
 //
@@ -67,7 +67,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&left, Nbc::Qt, 100.0);
+    natural.edges(&left, Nbc::Qt, -100.0); // inward flux
 
     // configuration
     let mut config = Config::new(&mesh);

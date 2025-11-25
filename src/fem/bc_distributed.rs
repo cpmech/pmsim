@@ -235,26 +235,26 @@ impl<'a> BcDistributed<'a> {
             // Liquid flux
             //
             // →     ⌠
-            // Feₘ = │ Nₘ ql dΩ
+            // Feₘ = │ Nₘ (-ql) dΩ
             //       ⌡
             //       Ωₑ
-            Nbc::Ql => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(value)),
+            Nbc::Ql => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(-value)),
 
             // Gas flux
             //
             // →     ⌠
-            // Feₘ = │ Nₘ qg dΩ
+            // Feₘ = │ Nₘ (-qg) dΩ
             //       ⌡
             //       Ωₑ
-            Nbc::Qg => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(value)),
+            Nbc::Qg => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(-value)),
 
             // Heat flux
             //
             // →     ⌠
-            // Feₘ = │ Nₘ qt dΩ
+            // Feₘ = │ Nₘ (-qt) dΩ
             //       ⌡
             //       Ωₑ
-            Nbc::Qt => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(value)),
+            Nbc::Qt => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(-value)),
 
             // Heat convection term
             //
@@ -418,7 +418,7 @@ mod tests {
             marker: 0,
         };
         assert_eq!(
-            BcDistributed::new(&mesh, &base, &config, face.kind, &face.points, Nbc::Ql, -10.0, None).err(), // << flux
+            BcDistributed::new(&mesh, &base, &config, face.kind, &face.points, Nbc::Ql, 10.0, None).err(), // << flux
             Some("cannot find the number of a (PointId, DOF) pair")
         );
 
@@ -536,7 +536,7 @@ mod tests {
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Ql, Q, None).unwrap();
         bry.calc_ffe(0, time).unwrap();
-        let correct = &[Q / 6.0, Q / 6.0, 2.0 * Q / 3.0];
+        let correct = &[-Q / 6.0, -Q / 6.0, -2.0 * Q / 3.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qg, Q, None).unwrap();
@@ -566,7 +566,7 @@ mod tests {
         const L: f64 = 0.3;
         let mut bry = BcDistributed::new(&mesh, &base, &config, edge.kind, &edge.points, Nbc::Qt, Q, None).unwrap();
         bry.calc_ffe(0, time).unwrap();
-        let correct = &[Q * L / 2.0, Q * L / 2.0];
+        let correct = &[-Q * L / 2.0, -Q * L / 2.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         // convection BC (it has an internal and an external part)
@@ -615,7 +615,7 @@ mod tests {
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
 
-        const Q: f64 = 5e6;
+        const Q: f64 = -5e6; // inwards heat flux
         let time = 0.0;
 
         const L: f64 = 0.03;
@@ -631,7 +631,7 @@ mod tests {
         )
         .unwrap();
         bry.calc_ffe(0, time).unwrap();
-        let correct = &[Q * L / 6.0, Q * L / 6.0, 2.0 * Q * L / 3.0];
+        let correct = &[-Q * L / 6.0, -Q * L / 6.0, -2.0 * Q * L / 3.0];
         vec_approx_eq(&bry.ffe, correct, 1e-10);
 
         // convection BC (it has an internal and an external part)

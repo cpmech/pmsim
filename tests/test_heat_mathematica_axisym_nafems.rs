@@ -35,7 +35,7 @@ use pmsim::{prelude::*, StrError};
 //
 // '+' indicates sides with T = 273.15
 // || means insulated
-// →→ means flux with Qt = 5e5
+// →→ means inward flux with Qt = -5e5
 // (#) indicates a reference point to check the results
 //
 // INITIAL CONDITIONS
@@ -45,7 +45,7 @@ use pmsim::{prelude::*, StrError};
 // BOUNDARY CONDITIONS
 //
 // Temperature T = 273.15 on the top, bottom, and right edges
-// Flux Qt = 5e5 on the middle-left edges from y=0.04 to y=0.10
+// Inward Flux Qt = -5e5 on the middle-left edges from y=0.04 to y=0.10
 //
 // CONFIGURATION AND PARAMETERS
 //
@@ -93,7 +93,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&edges_flux, Nbc::Qt, 5e5);
+    natural.edges(&edges_flux, Nbc::Qt, -5e5); // inward flux
 
     // configuration
     let mut config = Config::new(&mesh);

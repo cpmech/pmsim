@@ -27,7 +27,7 @@ use russell_lab::Vector;
 //
 // BOUNDARY CONDITIONS
 //
-// Flux Qt = 1 on left side @ x = 0
+// Inward Flux Qt = -1 on left side @ x = 0
 //
 // CONFIGURATION AND PARAMETERS
 //
@@ -75,7 +75,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = Natural::new();
-    natural.edges(&left, Nbc::Qt, 1.0);
+    natural.edges(&left, Nbc::Qt, -1.0); // inward flux
 
     // configuration
     let mut config = Config::new(&mesh);
