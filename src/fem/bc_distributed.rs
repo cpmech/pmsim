@@ -130,7 +130,7 @@ impl<'a> BcDistributed<'a> {
     /// Calculates the vector of internal forces Ye
     pub fn calc_yye(&mut self, state: &FemState) -> Result<(), StrError> {
         match self.nbc {
-            // →     ⌠
+            //       ⌠
             // Yeₘ = │ Nₘ α T dΩ
             //       ⌡
             //       Ωₑ
@@ -234,7 +234,7 @@ impl<'a> BcDistributed<'a> {
 
             // Liquid flux
             //
-            // →     ⌠
+            //       ⌠
             // Feₘ = │ Nₘ (-ql) dΩ
             //       ⌡
             //       Ωₑ
@@ -242,7 +242,7 @@ impl<'a> BcDistributed<'a> {
 
             // Gas flux
             //
-            // →     ⌠
+            //       ⌠
             // Feₘ = │ Nₘ (-qg) dΩ
             //       ⌡
             //       Ωₑ
@@ -250,7 +250,7 @@ impl<'a> BcDistributed<'a> {
 
             // Heat flux
             //
-            // →     ⌠
+            //       ⌠
             // Feₘ = │ Nₘ (-qt) dΩ
             //       ⌡
             //       Ωₑ
@@ -258,7 +258,7 @@ impl<'a> BcDistributed<'a> {
 
             // Heat convection term
             //
-            // →     ⌠
+            //       ⌠
             // Feₘ = │ Nₘ α T∞ dΩ
             //       ⌡
             //       Ωₑ

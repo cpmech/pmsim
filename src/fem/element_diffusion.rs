@@ -120,6 +120,10 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         args.axisymmetric = self.config.ideal.axisymmetric;
 
         // the conductivity term is always present, so we calculate it first with clear=true
+        //       ⌠ →      →
+        // Yeₘ = │ Bₘ · (-w) dΩ
+        //       ⌡
+        //       Ωₑ
         integ::vec_03_bv(yye, &mut args, |w, _, nn, bb| {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
@@ -135,7 +139,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             }
             // compute conductivity tensor at integration point
             self.model.calc_k(&mut self.conductivity, phi)?;
-            // Ye must get -w; however w = -k·∇ϕ, thus -w = -(-k·∇ϕ) = k·∇ϕ
+            // we need -w; however w = -k·∇ϕ, thus -w = -(-k·∇ϕ) = k·∇ϕ
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_phi);
             Ok(())
         })
@@ -146,6 +150,10 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // transient term
         if self.config.transient {
+            //        ⌠      .
+            // Yeₘ += │ Nₘ ρ ϕ dΩ
+            //        ⌡
+            //        Ωₑ
             integ::vec_01_ns(yye, &mut args, |_, nn| {
                 // interpolate ϕ and ϕ★ to integration point
                 let (mut phi, mut phi_star) = (0.0, 0.0);
@@ -166,8 +174,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
             args.alpha = self.config.ideal.thickness;
             args.axisymmetric = self.config.ideal.axisymmetric;
-
-            // →     ⌠
+            //       ⌠
             // Feₘ = │ Nₘ s dΩ
             //       ⌡
             //       Ωₑ
@@ -187,6 +194,10 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         args.axisymmetric = self.config.ideal.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
+        //        ⌠ →        →
+        // Keₘₙ = │ Bₘ ⋅ k ⋅ Bₙ dΩ
+        //        ⌡      ▔
+        //        Ωₑ
         integ::mat_03_btb(kke, &mut args, |k, _, nn, _| {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
@@ -203,6 +214,10 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // variable k tensor
         if self.model.has_variable_k() {
+            //        ⌠ →    →
+            // Keₘₙ = │ Bₘ ⋅ h Nₙ α dΩ
+            //        ⌡
+            //        Ωₑ
             integ::mat_02_bvn(kke, &mut args, |hk, _, nn, bb| {
                 // interpolate ϕ at integration point
                 let mut phi = 0.0;
@@ -227,6 +242,10 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // diffusion (mass) matrix
         if self.config.transient {
+            //         ⌠
+            // Keₘₙ += │ Nₘ (β₁ ρ) Nₙ dΩ
+            //         ⌡
+            //         Ωₑ
             integ::mat_01_nsn(kke, &mut args, |_, _, _| Ok(state.beta1 * self.param.rho)).unwrap();
         }
         Ok(())
