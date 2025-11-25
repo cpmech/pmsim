@@ -100,11 +100,11 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // assemble R
     let ignore = &bc_prescribed.flags;
     let rr = &mut lin_sys.rr;
-    elements.assemble_yy(&mut lin_sys.pp, &state, &ignore)?;
+    elements.assemble_yy(&mut lin_sys.yy, &state, &ignore)?;
     elements.assemble_ff(&mut lin_sys.ff, state.step, state.time, &ignore)?;
-    boundaries.assemble_yy(&mut lin_sys.pp, &state, &ignore)?;
+    boundaries.assemble_yy(&mut lin_sys.yy, &state, &ignore)?;
     boundaries.assemble_ff(&mut lin_sys.ff, state.step, state.time, &ignore)?;
-    vec_add(rr, 1.0, &lin_sys.pp, -1.0, &lin_sys.ff)?;
+    vec_add(rr, 1.0, &lin_sys.yy, -1.0, &lin_sys.ff)?;
     println!("rr =\n{}", rr);
     let bhatti_rr = &[
         2627.5555555555547,
@@ -216,14 +216,14 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     // set state with new U vector and check R
     vec_copy(&mut state.u, &uu_new)?;
     for eq in 0..lin_sys.neq_total {
-        lin_sys.pp[eq] = 0.0;
+        lin_sys.yy[eq] = 0.0;
         lin_sys.ff[eq] = 0.0;
     }
-    elements.assemble_yy(&mut lin_sys.pp, &state, &ignore)?;
+    elements.assemble_yy(&mut lin_sys.yy, &state, &ignore)?;
     elements.assemble_ff(&mut lin_sys.ff, state.step, state.time, &ignore)?;
-    boundaries.assemble_yy(&mut lin_sys.pp, &state, &ignore)?;
+    boundaries.assemble_yy(&mut lin_sys.yy, &state, &ignore)?;
     boundaries.assemble_ff(&mut lin_sys.ff, state.step, state.time, &ignore)?;
-    vec_add(rr, 1.0, &lin_sys.pp, -1.0, &lin_sys.ff)?;
+    vec_add(rr, 1.0, &lin_sys.yy, -1.0, &lin_sys.ff)?;
     println!("rr_new =\n{:?}", rr);
     let norm_rr = vec_norm(rr, Norm::Max);
     println!("norm_rr = {:?}", norm_rr);

@@ -89,17 +89,17 @@ impl<'a> SolverCommon<'a> {
         })
     }
 
-    /// Calculates P (internal forces)
-    pub fn calc_pp(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    /// Calculates Y (internal forces)
+    pub fn calc_yy(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // clear vector
-        self.ls.pp.fill(0.0);
+        self.ls.yy.fill(0.0);
 
         // calculate all element local vectors
-        self.elements.assemble_yy(&mut self.ls.pp, state, &self.ignored_eqs)?;
+        self.elements.assemble_yy(&mut self.ls.yy, state, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
         self.bc_distributed
-            .assemble_yy(&mut self.ls.pp, state, &self.ignored_eqs)?;
+            .assemble_yy(&mut self.ls.yy, state, &self.ignored_eqs)?;
         Ok(())
     }
 

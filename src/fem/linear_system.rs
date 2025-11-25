@@ -55,10 +55,10 @@ pub struct LinearSystem<'a> {
     /// ```
     pub nnz_sup: usize,
 
-    /// Vector of internal forces (including dynamic terms) P
+    /// Vector of internal forces (including dynamic terms) Y
     ///
     /// (neq_total)
-    pub pp: Vector,
+    pub yy: Vector,
 
     /// Vector of external forces F
     ///
@@ -186,7 +186,7 @@ impl<'a> LinearSystem<'a> {
             n_lagrange,
             neq_total,
             nnz_sup,
-            pp: Vector::new(neq_total),
+            yy: Vector::new(neq_total),
             ff: Vector::new(neq_total),
             ff_old: Vector::new(neq_total),
             ddff: Vector::new(neq_total),

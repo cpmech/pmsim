@@ -253,11 +253,11 @@ impl<'a> SolverImplicit<'a> {
     /// Performs a single iteration
     fn do_iteration(&mut self, iteration: usize, state: &mut FemState, logging: bool) -> Result<(), StrError> {
         // calculates P (internal forces)
-        self.com.calc_pp(state)?;
+        self.com.calc_yy(state)?;
 
         // calculates R (residuals): R(t+Δt) = P(t+Δt) - (F(t) + λ ΔF)
         for i in 0..self.com.ls.neq_total {
-            self.com.ls.rr[i] = self.com.ls.pp[i] - (self.com.ls.ff_old[i] + state.lambda * self.com.ls.ddff[i]);
+            self.com.ls.rr[i] = self.com.ls.yy[i] - (self.com.ls.ff_old[i] + state.lambda * self.com.ls.ddff[i]);
         }
 
         // add Lagrange multiplier contributions to R
