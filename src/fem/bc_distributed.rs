@@ -131,10 +131,10 @@ impl<'a> BcDistributed<'a> {
     pub fn calc_yye(&mut self, state: &FemState) -> Result<(), StrError> {
         match self.nbc {
             // →     ⌠
-            // Yeₘ = │ Nₘ T dΩ
+            // Yeₘ = │ Nₘ α T dΩ
             //       ⌡
             //       Ωₑ
-            Nbc::Cv(cc) => {
+            Nbc::Cv(alpha) => {
                 // constants
                 let (_, nnode) = self.pad.xxt.dims();
 
@@ -150,7 +150,7 @@ impl<'a> BcDistributed<'a> {
                     for m in 0..nnode {
                         tt += nn[m] * state.u[self.local_to_global[m]];
                     }
-                    Ok(cc * tt)
+                    Ok(alpha * tt)
                 })?;
             }
             _ => (),
@@ -259,22 +259,22 @@ impl<'a> BcDistributed<'a> {
             // Heat convection term
             //
             // →     ⌠
-            // Feₘ = │ Nₘ cc T∞ dΩ
+            // Feₘ = │ Nₘ α T∞ dΩ
             //       ⌡
             //       Ωₑ
-            Nbc::Cv(cc) => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(cc * value)),
+            Nbc::Cv(alpha) => integ::vec_01_ns(&mut self.ffe, &mut args, |_, _| Ok(alpha * value)),
         }
     }
 
     /// Calculates the Ke matrix (local Jacobian matrix; derivative of Ye w.r.t u)
     pub fn calc_kke(&mut self, _state: &FemState) -> Result<(), StrError> {
         match self.nbc {
-            Nbc::Cv(cc) => {
-                let kk = self.kke.as_mut().unwrap();
+            Nbc::Cv(alpha) => {
+                let kke = self.kke.as_mut().unwrap();
                 let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
                 args.alpha = self.config.ideal.thickness;
                 args.axisymmetric = self.config.ideal.axisymmetric;
-                integ::mat_01_nsn_bry(kk, &mut args, |_, _, _| Ok(cc))
+                integ::mat_01_nsn_bry(kke, &mut args, |_, _, _| Ok(alpha))
             }
             _ => Ok(()),
         }

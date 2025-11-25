@@ -65,7 +65,7 @@ pub enum Nbc {
 
     /// Heat convection
     ///
-    /// The value in parenthesis is constant and corresponds to is the convection coefficient `cc`.
+    /// The value in parenthesis is constant and corresponds to is the convection coefficient `α`.
     /// The specified value is the environment temperature `T∞`.
     Cv(f64),
 }
