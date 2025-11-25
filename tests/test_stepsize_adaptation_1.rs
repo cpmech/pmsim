@@ -37,7 +37,7 @@ use russell_lab::math::{PI, SQRT_3};
 
 const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME: &str = "test_stepsize_adaptation_1";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
