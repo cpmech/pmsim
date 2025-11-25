@@ -426,11 +426,11 @@ mod tests {
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
 
-        // check f_ext vector
-        let mut f_ext = Vector::new(neq);
-        elem.calc_ffe(&mut f_ext, state.step, state.time).unwrap();
-        let correct_f_ext = ana.vec_01_ns(source, false);
-        vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
+        // check Fe vector
+        let mut ffe = Vector::new(neq);
+        elem.calc_ffe(&mut ffe, state.step, state.time).unwrap();
+        let correct_ffe = ana.vec_01_ns(source, false);
+        vec_approx_eq(&ffe, &correct_ffe, 1e-15);
     }
 
     #[test]
@@ -491,10 +491,10 @@ mod tests {
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
 
-        // check f_ext vector
-        let mut f_ext = Vector::new(neq);
-        elem.calc_ffe(&mut f_ext, state.step, state.time).unwrap();
-        let correct_f_ext = Vector::from(&ana.vec_01_ns(source));
-        vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
+        // check Fe vector
+        let mut ffe = Vector::new(neq);
+        elem.calc_ffe(&mut ffe, state.step, state.time).unwrap();
+        let correct_ffe = Vector::from(&ana.vec_01_ns(source));
+        vec_approx_eq(&ffe, &correct_ffe, 1e-15);
     }
 }

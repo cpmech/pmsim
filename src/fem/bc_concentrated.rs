@@ -44,14 +44,14 @@ impl<'a> BcConcentratedArray<'a> {
         Ok(BcConcentratedArray { all })
     }
 
-    /// Adds all concentrated load values at given time to the external forces vector
-    pub fn add_to_ff_ext(&self, ff_ext: &mut Vector, stage: usize, time: f64) {
+    /// Adds all concentrated load values at given time to the external forces vector F
+    pub fn add_to_ff(&self, ff: &mut Vector, stage: usize, time: f64) {
         for e in &self.all {
             let value = match e.function {
                 Some(f) => (f)(stage, time),
                 None => e.value,
             };
-            ff_ext[e.eq] += value;
+            ff[e.eq] += value;
         }
     }
 }
@@ -81,7 +81,7 @@ mod tests {
     }
 
     #[test]
-    fn add_to_residual_works() {
+    fn add_to_ff_works() {
         let mesh = Samples::one_tet4();
         let p1 = ParamSolid::sample_linear_elastic();
         let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
@@ -90,10 +90,10 @@ mod tests {
         natural.points(&[1], Pbc::Fy, -20.0);
         natural.points(&[2], Pbc::Fz, -20.0);
         let b_points = BcConcentratedArray::new(&base, &natural).unwrap();
-        let mut ff_ext = Vector::new(4 * 3);
-        b_points.add_to_ff_ext(&mut ff_ext, 0, 0.0);
+        let mut ff = Vector::new(4 * 3);
+        b_points.add_to_ff(&mut ff, 0, 0.0);
         assert_eq!(
-            ff_ext.as_data(),
+            ff.as_data(),
             &[
                 -20.0, 0.0, 0.0, // 0
                 0.0, -20.0, 0.0, // 1

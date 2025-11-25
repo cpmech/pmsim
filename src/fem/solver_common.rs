@@ -130,7 +130,7 @@ impl<'a> SolverCommon<'a> {
             .assemble_ff(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
 
         // add concentrated loads
-        self.bc_concentrated.add_to_ff_ext(&mut self.ls.ff, step, time);
+        self.bc_concentrated.add_to_ff(&mut self.ls.ff, step, time);
 
         // ------------------------------------------------------------------------
 
