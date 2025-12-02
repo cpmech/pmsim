@@ -83,6 +83,13 @@ pub struct AllDofs {
 }
 
 impl AllDofs {
+    pub fn new_empty() -> Self {
+        AllDofs {
+            list: Vec::new(),
+            ndof: 0,
+        }
+    }
+
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, emap: &ElementDofsMap) -> Result<Self, StrError> {
         // auxiliary memoization data

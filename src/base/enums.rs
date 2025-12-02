@@ -2,6 +2,9 @@ use super::{ParamBeam, ParamDiffusion, ParamRod};
 use super::{ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
 use serde::{Deserialize, Serialize};
 
+/// Specifies the number of DOF types
+pub const DOF_N_TYPES: usize = 10;
+
 /// Defines degrees-of-freedom (DOF) types
 ///
 /// Note: The fixed numbers are only for sorting the DOFs which is useful for TESTING.
@@ -233,6 +236,22 @@ impl Elem {
             Elem::PorousLiqGas(..) => "PorousLiqGas".to_string(),
             Elem::PorousSldLiq(..) => "PorousSldLiq".to_string(),
             Elem::PorousSldLiqGas(..) => "PorousSldLiqGas".to_string(),
+        }
+    }
+
+    /// Indicates whether the element is a frame element
+    pub fn is_frame(&self) -> bool {
+        match self {
+            Elem::Rod(..) | Elem::Beam(..) => true,
+            _ => false,
+        }
+    }
+
+    /// Indicates whether the element must satisfy the LBB condition
+    pub fn must_satisfy_lbb(&self) -> bool {
+        match self {
+            Elem::PorousSldLiq(..) | Elem::PorousSldLiqGas(..) => true,
+            _ => false,
         }
     }
 

@@ -11,6 +11,10 @@ pub struct Attributes {
 }
 
 impl Attributes {
+    pub fn new_empty() -> Self {
+        Attributes { all: HashMap::new() }
+    }
+
     /// Allocates a new instance from an Array
     pub fn from<const N: usize>(arr: [(CellMarker, Elem); N]) -> Self {
         Attributes {

@@ -12,6 +12,10 @@ pub struct ElementDofsMap {
 }
 
 impl ElementDofsMap {
+    pub fn new_empty() -> Self {
+        ElementDofsMap { all: HashMap::new() }
+    }
+
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, att_map: &Attributes) -> Result<Self, StrError> {
         let mut all = HashMap::new();
