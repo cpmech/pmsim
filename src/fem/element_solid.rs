@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemState};
-use crate::base::{calculate_strain, compute_local_to_global, Config, FemBase, ParamSolid};
+use crate::base::{calculate_strain, compute_local_to_global, Config, Schema, ParamSolid};
 use crate::material::{LocalState, ModelStressStrain};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -50,7 +50,7 @@ impl<'a> ElementSolid<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &FemBase,
+        base: &Schema,
         config: &'a Config,
         param: &'a ParamSolid,
         cell_id: CellId,
@@ -280,7 +280,7 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Elem, Essential, FemBase, ParamSolid, StressStrain};
+    use crate::base::{Config, Elem, Essential, Schema, ParamSolid, StressStrain};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
@@ -292,7 +292,7 @@ mod tests {
         young: f64,
         poisson: f64,
         alt_bb_matrix: bool,
-    ) -> (Mesh, ParamSolid, FemBase, Config<'a>, FemState) {
+    ) -> (Mesh, ParamSolid, Schema, Config<'a>, FemState) {
         // mesh and parameters
         let mesh = if d3 { Samples::one_tet4() } else { Samples::one_tri3() };
         let p1 = ParamSolid {
@@ -302,7 +302,7 @@ mod tests {
         };
 
         // base, essential, config, and state
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.set_alt_bb_matrix_method(alt_bb_matrix);
@@ -327,7 +327,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
             ElementSolid::new(&mesh, &base, &config, &p1, 0).err(),
@@ -510,7 +510,7 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+            let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
             let essential = Essential::new();
 
             // configuration
@@ -607,7 +607,7 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+            let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
             let essential = Essential::new();
 
             // configuration
@@ -681,7 +681,7 @@ mod tests {
             stress_strain: StressStrain::LinearElastic { young, poisson },
             ngauss: Some(ngauss),
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
 
         // configuration

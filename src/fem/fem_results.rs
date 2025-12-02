@@ -1,4 +1,4 @@
-use crate::base::{Config, Dof, FemBase};
+use crate::base::{Config, Dof, Schema};
 use crate::fem::FemState;
 use crate::material::LocalState;
 use crate::StrError;
@@ -50,7 +50,7 @@ pub struct FemResults {
 
 impl FemResults {
     /// Allocates a new instance with deactivated generation of files
-    pub fn new(mesh: &Mesh, base: &FemBase, config: &Config) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, base: &Schema, config: &Config) -> Result<Self, StrError> {
         if config.out_files {
             // create directory
             fs::create_dir_all(&config.out_dir).map_err(|_| "cannot create output directory")?;
@@ -147,7 +147,7 @@ impl FemResults {
     }
 
     /// Saves the results at selected nodes and integration points
-    pub(crate) fn save_selected(&mut self, config: &Config, base: &FemBase, state: &FemState) -> Result<(), StrError> {
+    pub(crate) fn save_selected(&mut self, config: &Config, base: &Schema, state: &FemState) -> Result<(), StrError> {
         if config.out_has_selected {
             // step, time, and lambda
             self.sel_step.push(state.step);

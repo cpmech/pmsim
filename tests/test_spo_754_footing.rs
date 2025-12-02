@@ -64,7 +64,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

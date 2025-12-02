@@ -93,7 +93,7 @@ fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
 
     // stage-wise vertical displacement increment
     let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));

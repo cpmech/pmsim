@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemState};
-use crate::base::{calculate_gradient, compute_local_to_global, Config, FemBase, ParamDiffusion};
+use crate::base::{calculate_gradient, compute_local_to_global, Config, Schema, ParamDiffusion};
 use crate::material::ModelConductivity;
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -47,7 +47,7 @@ impl<'a> ElementDiffusion<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &FemBase,
+        base: &Schema,
         config: &'a Config,
         param: &'a ParamDiffusion,
         cell_id: CellId,
@@ -290,7 +290,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Conductivity, Config, Elem, Essential, FemBase, ParamDiffusion};
+    use crate::base::{Conductivity, Config, Elem, Essential, Schema, ParamDiffusion};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
@@ -318,7 +318,7 @@ mod tests {
         } else {
             ParamDiffusion::sample()
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
@@ -373,7 +373,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let mut p1 = ParamDiffusion::sample();
         p1.ngauss = Some(123); // wrong
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
             ElementDiffusion::new(&mesh, &base, &config, &p1, 0).err(),
@@ -394,7 +394,7 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.update_model_settings(1).save_flux = true;
@@ -441,7 +441,7 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
 
@@ -465,7 +465,7 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
@@ -506,7 +506,7 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
 

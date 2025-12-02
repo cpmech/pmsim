@@ -7,5 +7,5 @@ pub use crate::base::{
     Conductivity, GnlStrain, LiquidRetention, ParamBeam, ParamDiffusion, ParamFluids, ParamPorousLiq,
     ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, StressStrain,
 };
-pub use crate::base::{Config, Dof, Elem, Essential, FemBase, Natural, Nbc, Pbc};
+pub use crate::base::{Config, Dof, Elem, Essential, Natural, Nbc, Pbc, Schema};
 pub use crate::fem::{FemResults, FemState, PostProc, SolverImplicit};

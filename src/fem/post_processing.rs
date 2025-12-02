@@ -1,5 +1,5 @@
 use super::{write_pvd, write_vtu, FemResults, FemState};
-use crate::base::{Dof, FemBase};
+use crate::base::{Dof, Schema};
 use crate::util::{SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
 use crate::StrError;
 use gemlab::integ::Gauss;
@@ -26,7 +26,7 @@ pub struct PostProc {
     mesh: Mesh,
 
     /// Holds the FemBase
-    base: FemBase,
+    base: Schema,
 }
 
 /// Holds the memoization data for post-processing
@@ -68,7 +68,7 @@ impl PostProc {
         let mesh = Mesh::read(&format!("{}/{}-mesh.msh", dir, fn_stem))?;
 
         // reads the FemBase
-        let base = FemBase::read_json(&format!("{}/{}-base.json", dir, fn_stem))?;
+        let base = Schema::read_json(&format!("{}/{}-base.json", dir, fn_stem))?;
 
         // return new instance
         Ok((
@@ -93,7 +93,7 @@ impl PostProc {
     }
 
     /// Returns an access to the FemBase
-    pub fn base(&self) -> &FemBase {
+    pub fn base(&self) -> &Schema {
         &self.base
     }
 
@@ -1208,7 +1208,7 @@ mod tests {
         generate_horizontal_displacement_field, generate_scalar_field_ax_plus_by, generate_shear_displacement_field,
         generate_vertical_displacement_field, Conductivity,
     };
-    use crate::base::{Config, Dof, Elem, Essential, FemBase, ParamDiffusion, ParamSolid, StressStrain};
+    use crate::base::{Config, Dof, Elem, Essential, Schema, ParamDiffusion, ParamSolid, StressStrain};
     use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemResults, FemState};
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
@@ -1235,7 +1235,7 @@ mod tests {
     fn generate_state_diffusion(
         param: &ParamDiffusion,
         mesh: &Mesh,
-        base: &FemBase,
+        base: &Schema,
         config: &Config,
         phi: &Vector,
     ) -> FemState {
@@ -1261,7 +1261,7 @@ mod tests {
     fn generate_state_solid(
         param: &ParamSolid,
         mesh: &Mesh,
-        base: &FemBase,
+        base: &Schema,
         config: &Config,
         duu: &Vector,
     ) -> FemState {
@@ -1342,7 +1342,7 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config
             .set_out_files("/tmp/pmsim", name, 0.0)
@@ -1395,7 +1395,7 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_out_files("/tmp/pmsim", "artificial-diffusion-3d", 0.0);
         config.update_model_settings(1).save_flux = true;
@@ -1461,7 +1461,7 @@ mod tests {
             },
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config
             .set_out_files("/tmp/pmsim", name, 0.0)
@@ -1532,7 +1532,7 @@ mod tests {
             },
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid((p1)))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid((p1)))]).unwrap();
         let mut config = Config::new(&mesh);
         config.update_model_settings(1).save_strain = true;
         config.update_model_settings(2).save_strain = true;
@@ -1834,7 +1834,7 @@ mod tests {
         let mesh = Samples::one_qua4();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(1);
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let post = PostProc {
             dir: String::new(),
@@ -1857,7 +1857,7 @@ mod tests {
         let mesh = Samples::one_hex8();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(8);
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         let post = PostProc {
             dir: String::new(),
@@ -2711,7 +2711,7 @@ mod tests {
         let mesh = Samples::one_tri6();
         let features = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -2822,7 +2822,7 @@ mod tests {
 
         // allocate FEM data
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let essential = Essential::new();
 

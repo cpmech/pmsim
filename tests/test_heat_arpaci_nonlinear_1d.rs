@@ -80,7 +80,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
         source: Some(SOURCE),
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

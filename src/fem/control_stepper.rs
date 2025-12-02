@@ -197,7 +197,7 @@ impl<'a> ControlStepper<'a> {
 #[cfg(test)]
 mod tests {
     use super::ControlStepper;
-    use crate::base::{Config, Elem, Essential, FemBase, ParamSolid};
+    use crate::base::{Config, Elem, Essential, Schema, ParamSolid};
     use crate::fem::FemState;
     use gemlab::mesh::Samples;
 
@@ -205,7 +205,7 @@ mod tests {
     fn constants_are_correct() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.set_transient().set_t_fin(1.0001).set_ddt(0.0001);

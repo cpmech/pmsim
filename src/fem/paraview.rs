@@ -1,4 +1,4 @@
-use crate::base::{Dof, FemBase};
+use crate::base::{Dof, Schema};
 use crate::fem::FemState;
 use crate::util::SpatialVector;
 use crate::StrError;
@@ -17,7 +17,7 @@ use std::path::Path;
 /// The files will be indexed with `index` corresponding to each time station.
 pub(crate) fn write_vtu(
     mesh: &Mesh,
-    base: &FemBase,
+    base: &Schema,
     dir: &str,
     fn_stem: &str,
     state: &FemState,
@@ -238,7 +238,7 @@ pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f6
 #[cfg(test)]
 mod tests {
     use super::{write_pvd, write_vtu};
-    use crate::base::{Config, Dof, Elem, Essential, FemBase};
+    use crate::base::{Config, Dof, Elem, Essential, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousSldLiq, ParamSolid};
     use crate::fem::FemState;
     use gemlab::mesh::Samples;
@@ -249,7 +249,7 @@ mod tests {
         // load mesh and setup FEM structures
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -315,7 +315,7 @@ mod tests {
         // load mesh and setup FEM structures
         let mesh = Samples::three_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -397,7 +397,7 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let base = FemBase::new(
+        let base = Schema::new(
             &mesh,
             [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
         )

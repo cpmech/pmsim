@@ -1,5 +1,5 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
-use crate::base::{assemble_matrix, assemble_vector, Config, Elem, FemBase};
+use crate::base::{assemble_matrix, assemble_vector, Config, Elem, Schema};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{deriv1_central5, Matrix, Vector};
@@ -42,7 +42,7 @@ struct ArgsForNumericalJacobian<'a> {
 
 impl<'a> GenericElement<'a> {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &'a FemBase, config: &'a Config, cell: &Cell) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, base: &'a Schema, config: &'a Config, cell: &Cell) -> Result<Self, StrError> {
         let element = base.amap.get(cell.marker).unwrap(); // already checked
         let actual: Box<dyn ElementTrait> = match element {
             Elem::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, base, config, p, cell.id)?),
@@ -103,7 +103,7 @@ impl<'a> GenericElement<'a> {
 
 impl<'a> Elements<'a> {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &'a FemBase, config: &'a Config) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, base: &'a Schema, config: &'a Config) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = mesh
             .cells
             .iter()
@@ -211,7 +211,7 @@ impl<'a> Elements<'a> {
 mod tests {
     use super::{Elements, GenericElement};
     use crate::base::{Conductivity, Config, Elem, Essential, ParamBeam, ParamPorousLiqGas, StressStrain};
-    use crate::base::{FemBase, ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
+    use crate::base::{Schema, ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use crate::fem::FemState;
     use gemlab::integ;
     use gemlab::mesh::{Mesh, Samples};
@@ -226,7 +226,7 @@ mod tests {
 
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         assert_eq!(
             GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).err(),
             Some("requested number of integration points is not available for Tri class")
@@ -238,7 +238,7 @@ mod tests {
 
         let mut p1 = ParamDiffusion::sample();
         p1.ngauss = Some(123); // wrong
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         assert_eq!(
             GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).err(),
             Some("requested number of integration points is not available for Tri class")
@@ -253,12 +253,12 @@ mod tests {
     fn new_works() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
         GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
 
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
 
@@ -271,7 +271,7 @@ mod tests {
         // mesh
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
@@ -296,7 +296,7 @@ mod tests {
         // mesh
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.set_transient();
@@ -325,7 +325,7 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
@@ -352,7 +352,7 @@ mod tests {
     fn num_jacobian_solid() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
@@ -388,7 +388,7 @@ mod tests {
     fn new_panics_beam() {
         let mesh = Samples::one_lin2();
         let p1 = ParamBeam::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Beam(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Beam(p1))]).unwrap();
         let config = Config::new(&mesh);
         GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
     }
@@ -398,7 +398,7 @@ mod tests {
     fn new_panics_porous_liq() {
         let mesh = Samples::one_tri3();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let base = FemBase::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
         let config = Config::new(&mesh);
         GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
     }
@@ -408,7 +408,7 @@ mod tests {
     fn new_panics_porous_liq_gas() {
         let mesh = Samples::one_tri3();
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let base = FemBase::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
         GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
     }
@@ -418,7 +418,7 @@ mod tests {
     fn new_panics_porous_sld_liq() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::PorousSldLiq(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::PorousSldLiq(p1))]).unwrap();
         let config = Config::new(&mesh);
         GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
     }
@@ -428,7 +428,7 @@ mod tests {
     fn new_panics_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
         GenericElement::new(&mesh, &base, &config, &mesh.cells[0]).unwrap();
     }
@@ -454,7 +454,7 @@ mod tests {
             stress_strain: StressStrain::LinearElastic { young, poisson },
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();

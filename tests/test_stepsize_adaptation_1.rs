@@ -82,7 +82,7 @@ fn test_stepsize_adaptation_1() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Solid(param1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

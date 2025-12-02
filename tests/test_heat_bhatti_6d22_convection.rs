@@ -60,7 +60,7 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         source: Some(source),
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -251,7 +251,7 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         source: Some(source),
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
     let mut config = Config::new(&mesh);
     config.set_lagrange_mult_method(true);
 

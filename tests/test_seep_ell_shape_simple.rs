@@ -38,7 +38,7 @@ fn test_seep_ell_shape() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

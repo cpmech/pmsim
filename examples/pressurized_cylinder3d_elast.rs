@@ -142,7 +142,7 @@ fn main() -> Result<(), StrError> {
             },
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
+        let base = Schema::new(&mesh, [(1, Elem::Solid(param1))])?;
 
         // total number of DOF
         let ndof = base.dofs.size();

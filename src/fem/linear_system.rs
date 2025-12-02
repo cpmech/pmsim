@@ -1,5 +1,5 @@
 use super::{BcDistributedArray, BcPrescribed, Elements};
-use crate::base::{Config, FemBase};
+use crate::base::{Config, Schema};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{CooMatrix, CscMatrix, LinSolver};
@@ -103,7 +103,7 @@ pub struct LinearSystem<'a> {
 impl<'a> LinearSystem<'a> {
     /// Allocates a new instance
     pub fn new(
-        base: &FemBase,
+        base: &Schema,
         config: &'a Config,
         prescribed: &BcPrescribed,
         elements: &Elements,
@@ -272,7 +272,7 @@ impl<'a> LinearSystem<'a> {
 #[cfg(test)]
 mod tests {
     use super::LinearSystem;
-    use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, FemBase, Natural, Nbc, ParamDiffusion};
+    use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, Schema, Natural, Nbc, ParamDiffusion};
     use crate::fem::{BcDistributedArray, BcPrescribed, Elements};
     use gemlab::mesh::{Edge, GeoKind, Samples};
     use russell_sparse::{Genie, Sym};
@@ -281,7 +281,7 @@ mod tests {
     fn new_handles_errors() {
         let mesh = new_empty_mesh_2d();
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let config = Config::new(&mesh);
         let essential = Essential::new();
         let natural = Natural::new();
@@ -307,7 +307,7 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
 
         let mut essential = Essential::new();
         let mut natural = Natural::new();
@@ -418,7 +418,7 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
 
         let mut essential = Essential::new();
         let mut natural = Natural::new();

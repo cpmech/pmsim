@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemState};
-use crate::base::{compute_local_to_global, FemBase, ParamRod};
+use crate::base::{compute_local_to_global, Schema, ParamRod};
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
@@ -28,7 +28,7 @@ impl<'a> ElementRod<'a> {
     #[rustfmt::skip]
     pub fn new(
         mesh: &Mesh,
-        base: &FemBase,
+        base: &Schema,
         param: &'a ParamRod,
         cell_id: CellId,
     ) -> Result<Self, StrError> {
@@ -136,7 +136,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, Elem, Essential, FemBase, ParamRod};
+    use crate::base::{assemble_matrix, Config, Elem, Essential, Schema, ParamRod};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
     use russell_lab::math::SQRT_2;
@@ -166,7 +166,7 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         assert_eq!(
             ElementRod::new(&mesh, &base, &p1, 0).err(),
             Some("number of nodes for Rod must be 2")
@@ -195,7 +195,7 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
@@ -238,7 +238,7 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
@@ -284,7 +284,7 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
@@ -354,7 +354,7 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
         let essential = Essential::new();
 
         let config = Config::new(&mesh);

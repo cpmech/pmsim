@@ -1,5 +1,5 @@
 use super::SecondaryValues;
-use crate::base::{Config, Elem, Essential, FemBase};
+use crate::base::{Config, Elem, Essential, Schema};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::Mesh;
@@ -108,7 +108,7 @@ pub struct FemState {
 
 impl FemState {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &FemBase, essential: &Essential, config: &Config) -> Result<FemState, StrError> {
+    pub fn new(mesh: &Mesh, base: &Schema, essential: &Essential, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
         let ncell = mesh.cells.len();
         if ncell == 0 {
@@ -266,7 +266,7 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{new_empty_mesh_2d, Config, Elem, Essential, FemBase};
+    use crate::base::{new_empty_mesh_2d, Config, Elem, Essential, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use gemlab::mesh::Samples;
@@ -275,7 +275,7 @@ mod tests {
     fn new_handles_errors() {
         let mesh = new_empty_mesh_2d();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         assert_eq!(
@@ -287,7 +287,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamRod::sample();
-        let base = FemBase::new(
+        let base = Schema::new(
             &mesh,
             [(1, Elem::Diffusion(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
@@ -299,7 +299,7 @@ mod tests {
         );
 
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let base = FemBase::new(
+        let base = Schema::new(
             &mesh,
             [(1, Elem::PorousLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
@@ -311,7 +311,7 @@ mod tests {
         );
 
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let base = FemBase::new(
+        let base = Schema::new(
             &mesh,
             [(1, Elem::PorousLiqGas(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
         )
@@ -329,7 +329,7 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let base = FemBase::new(
+        let base = Schema::new(
             &mesh,
             [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
         )
@@ -345,7 +345,7 @@ mod tests {
     fn new_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.transient = true;
@@ -363,7 +363,7 @@ mod tests {
     fn new_works_rod_only() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -380,7 +380,7 @@ mod tests {
     fn new_works_porous_liq() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let base = FemBase::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -392,7 +392,7 @@ mod tests {
     fn new_works_porous_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let base = FemBase::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -404,7 +404,7 @@ mod tests {
     fn new_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -417,7 +417,7 @@ mod tests {
         let mesh = Samples::mixed_shapes_2d();
         let p1 = ParamRod::sample();
         let p2 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Solid(p2))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Solid(p2))]).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.dynamics = true;
@@ -435,7 +435,7 @@ mod tests {
     fn derive_works() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();

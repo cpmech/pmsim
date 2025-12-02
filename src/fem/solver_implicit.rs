@@ -1,6 +1,6 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
 use super::{FemResults, FemState, SolverCommon};
-use crate::base::{Config, Essential, FemBase, Natural};
+use crate::base::{Config, Essential, Schema, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
@@ -36,7 +36,7 @@ impl<'a> SolverImplicit<'a> {
     /// Creates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &'a FemBase,
+        base: &'a Schema,
         config: &'a Config,
         essential: &'a Essential,
         natural: &'a Natural,
@@ -337,7 +337,7 @@ impl<'a> SolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverImplicit;
-    use crate::base::{Config, Dof, Elem, Essential, FemBase, Natural, Nbc, ParamSolid, Pbc};
+    use crate::base::{Config, Dof, Elem, Essential, Schema, Natural, Nbc, ParamSolid, Pbc};
     use crate::fem::{FemResults, FemState};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 
@@ -346,7 +346,7 @@ mod tests {
         let mesh = Samples::one_hex8();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 
@@ -402,7 +402,7 @@ mod tests {
     fn solve_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config.set_transient().set_ddt(-1.0); // wrong
         let essential = Essential::new();

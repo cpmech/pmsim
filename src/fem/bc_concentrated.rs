@@ -1,4 +1,4 @@
-use crate::base::{FemBase, Natural};
+use crate::base::{Schema, Natural};
 use crate::StrError;
 use russell_lab::Vector;
 
@@ -26,7 +26,7 @@ pub struct BcConcentratedArray<'a> {
 
 impl<'a> BcConcentratedArray<'a> {
     /// Allocates a new instance
-    pub fn new(base: &FemBase, natural: &'a Natural) -> Result<Self, StrError> {
+    pub fn new(base: &Schema, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.at_points.len() + 1);
         for (point_id, pbc, value, f_index) in &natural.at_points {
             let eq = base.dofs.eq(*point_id, pbc.dof())?;
@@ -60,7 +60,7 @@ impl<'a> BcConcentratedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcConcentratedArray;
-    use crate::base::{Elem, FemBase, Natural, ParamSolid, Pbc};
+    use crate::base::{Elem, Schema, Natural, ParamSolid, Pbc};
     use gemlab::mesh::Samples;
     use russell_lab::Vector;
 
@@ -68,7 +68,7 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
 
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, -10.0);
@@ -82,7 +82,7 @@ mod tests {
     fn add_to_ff_works() {
         let mesh = Samples::one_tet4();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut natural = Natural::new();
         natural.points(&[0], Pbc::Fx, -20.0);
         natural.points(&[1], Pbc::Fy, -20.0);

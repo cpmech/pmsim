@@ -1,5 +1,5 @@
 use super::{ReferenceData, ReferenceDataType};
-use crate::base::{Config, Dof, FemBase};
+use crate::base::{Config, Dof, Schema};
 use crate::fem::{FemResults, FemState};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -41,7 +41,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
 pub fn compare_results(
     mesh: &Mesh,
-    base: &FemBase,
+    base: &Schema,
     config: &Config,
     res_path: &str,
     ref_type: ReferenceDataType,

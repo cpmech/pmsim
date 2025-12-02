@@ -76,7 +76,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         },
         ngauss: Some(9),
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();

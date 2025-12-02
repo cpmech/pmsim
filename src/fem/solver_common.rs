@@ -1,5 +1,5 @@
 use super::{BcConcentratedArray, BcDistributedArray, BcPrescribed, Elements, FemState, LinearSystem};
-use crate::base::{Config, Essential, FemBase, Natural};
+use crate::base::{Config, Essential, Schema, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch};
@@ -10,7 +10,7 @@ pub(crate) struct SolverCommon<'a> {
     config: &'a Config<'a>,
 
     /// Holds the material parameters, element attributes, and equation numbers
-    pub(crate) base: &'a FemBase,
+    pub(crate) base: &'a Schema,
 
     // Holds a collection of concentrated loads
     pub(crate) bc_concentrated: BcConcentratedArray<'a>,
@@ -41,7 +41,7 @@ impl<'a> SolverCommon<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &'a FemBase,
+        base: &'a Schema,
         config: &'a Config,
         essential: &'a Essential,
         natural: &'a Natural,
@@ -180,7 +180,7 @@ impl<'a> SolverCommon<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverCommon;
-    use crate::base::{Config, Elem, Essential, FemBase, Natural, ParamSolid};
+    use crate::base::{Config, Elem, Essential, Schema, Natural, ParamSolid};
     use gemlab::mesh::Samples;
 
     #[test]
@@ -188,7 +188,7 @@ mod tests {
         let mesh = Samples::one_hex8();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 

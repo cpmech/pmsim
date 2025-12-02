@@ -7,9 +7,9 @@ use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
 
-/// Holds the material parameters, element attributes, and equation numbers
+/// Holds element types, material parameters, and specifies the DOF numbering schema
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FemBase {
+pub struct Schema {
     /// Holds all attributes
     pub amap: Attributes,
 
@@ -20,13 +20,13 @@ pub struct FemBase {
     pub dofs: AllDofs,
 }
 
-impl FemBase {
+impl Schema {
     /// Allocates a new instance
     pub fn new<const N: usize>(mesh: &Mesh, arr: [(CellMarker, Elem); N]) -> Result<Self, StrError> {
         let amap = Attributes::from(arr);
         let emap = ElementDofsMap::new(&mesh, &amap)?;
         let dofs = AllDofs::new(&mesh, &emap).unwrap(); // cannot fail
-        Ok(FemBase { amap, emap, dofs })
+        Ok(Schema { amap, emap, dofs })
     }
 
     /// Returns the number of local equations
@@ -74,7 +74,7 @@ impl FemBase {
 
 #[cfg(test)]
 mod tests {
-    use super::FemBase;
+    use super::Schema;
     use crate::base::{Elem, ParamDiffusion, ParamSolid};
     use gemlab::mesh::{Cell, GeoKind, Samples};
 
@@ -83,7 +83,7 @@ mod tests {
         let mesh = Samples::one_tri3();
         let p2 = ParamSolid::sample_linear_elastic();
         assert_eq!(
-            FemBase::new(&mesh, [(2, Elem::Solid(p2))]).err(),
+            Schema::new(&mesh, [(2, Elem::Solid(p2))]).err(),
             Some("cannot find CellMarker in Attributes map")
         );
     }
@@ -92,7 +92,7 @@ mod tests {
     fn new_works() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         assert_eq!(base.dofs.size(), 6);
     }
 
@@ -100,7 +100,7 @@ mod tests {
     fn n_local_eq_works() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         assert_eq!(base.n_local_eq(&mesh.cells[0]).unwrap(), 3);
 
         let wrong_cell = Cell {
@@ -119,14 +119,14 @@ mod tests {
     fn derive_works() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let clone = base.clone();
         let str_ori = format!("{:?}", clone).to_string();
         assert_eq!(format!("{:?}", clone), str_ori);
         // serialize
         let json = serde_json::to_string(&clone).unwrap();
         // deserialize
-        let read: FemBase = serde_json::from_str(&json).unwrap();
+        let read: Schema = serde_json::from_str(&json).unwrap();
         assert_eq!(format!("{:?}", read.amap), format!("{:?}", base.amap));
         assert_eq!(format!("{:?}", read.emap), format!("{:?}", base.emap));
         assert_eq!(format!("{}", read.dofs), format!("{}", base.dofs));

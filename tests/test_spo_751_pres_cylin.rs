@@ -79,7 +79,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
+    let base = Schema::new(&mesh, [(1, Elem::Solid(param1))])?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -96,7 +96,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
 fn run_test(
     residual: bool,
     mesh: &Mesh,
-    base: &FemBase,
+    base: &Schema,
     essential: &Essential,
     inner_circle: &Edges,
 ) -> Result<(), StrError> {

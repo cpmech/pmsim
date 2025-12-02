@@ -1,6 +1,6 @@
 use super::FemState;
 use crate::base::{assemble_matrix, assemble_vector};
-use crate::base::{Config, FemBase, Natural, Nbc};
+use crate::base::{Config, Schema, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
 use gemlab::mesh::Mesh;
@@ -66,7 +66,7 @@ impl<'a> BcDistributed<'a> {
     /// The function is `(stage, t) -> load`
     pub fn new(
         mesh: &Mesh,
-        base: &FemBase,
+        base: &Schema,
         config: &'a Config,
         kind: GeoKind,
         points: &[usize],
@@ -301,7 +301,7 @@ impl<'a> BcDistributed<'a> {
 
 impl<'a> BcDistributedArray<'a> {
     // Allocates new instance
-    pub fn new(mesh: &Mesh, base: &FemBase, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, base: &Schema, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.on_edges.len() + natural.on_faces.len() + 1);
         for (edge, nbc, value, f_index) in &natural.on_edges {
             let function = match f_index {
@@ -383,7 +383,7 @@ impl<'a> BcDistributedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::{BcDistributed, BcDistributedArray};
-    use crate::base::{Config, Elem, Essential, FemBase, Natural, Nbc, SampleMeshes};
+    use crate::base::{Config, Elem, Essential, Schema, Natural, Nbc, SampleMeshes};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::FemState;
     use gemlab::mesh::{At, Edge, Face, Features, GeoKind, Samples};
@@ -401,7 +401,7 @@ mod tests {
         };
 
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
 
         assert_eq!(
@@ -440,7 +440,7 @@ mod tests {
         let bottom = features.edges.get(&(0, 1)).ok_or("cannot get edge").unwrap();
 
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
 
         const Q: f64 = 25.0;
@@ -512,7 +512,7 @@ mod tests {
         let features = Features::new(&mesh, false);
         let top = features.edges.get(&(4, 5)).ok_or("cannot get edge").unwrap();
 
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let config = Config::new(&mesh);
 
         let mut bry = BcDistributed::new(&mesh, &base, &config, top.kind, &top.points, Nbc::Qz, Q, None).unwrap();
@@ -528,7 +528,7 @@ mod tests {
         let top = features.edges.get(&(2, 3)).ok_or("cannot get edge").unwrap();
 
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let base = FemBase::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
         let config = Config::new(&mesh);
 
         const Q: f64 = -10.0;
@@ -554,7 +554,7 @@ mod tests {
         };
 
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -610,7 +610,7 @@ mod tests {
         };
 
         let p1 = ParamDiffusion::sample();
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -677,7 +677,7 @@ mod tests {
         let top = features.search_edges(At::Y(1.0), any_x).unwrap();
 
         let param = ParamSolid::sample_linear_elastic();
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(param)), (2, Elem::Solid(param))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Solid(param)), (2, Elem::Solid(param))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &base, &essential, &config).unwrap();

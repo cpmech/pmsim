@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemState};
-use crate::base::{compute_local_to_global, FemBase, GnlStrain, ParamRod};
+use crate::base::{compute_local_to_global, Schema, GnlStrain, ParamRod};
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_add, vec_outer, Matrix, Vector};
@@ -39,7 +39,7 @@ pub struct ElementRodGnl<'a> {
 
 impl<'a> ElementRodGnl<'a> {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &FemBase, param: &'a ParamRod, cell_id: CellId) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, base: &Schema, param: &'a ParamRod, cell_id: CellId) -> Result<Self, StrError> {
         let ndim = mesh.ndim;
         let cell = &mesh.cells[cell_id];
         let pp = &cell.points;
@@ -224,7 +224,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRodGnl;
-    use crate::base::{Config, Elem, Essential, FemBase, GnlStrain, ParamRod};
+    use crate::base::{Config, Elem, Essential, Schema, GnlStrain, ParamRod};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, Draw, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};
@@ -278,7 +278,7 @@ mod tests {
             area: 1.0,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2))]).unwrap();
+        let base = Schema::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2))]).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let mut element = ElementRodGnl::new(&mesh, &base, &p1, 0).unwrap();
