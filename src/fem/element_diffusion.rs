@@ -1,5 +1,5 @@
-use super::{ElementTrait, FemBase, FemState};
-use crate::base::{calculate_gradient, compute_local_to_global, Config, ParamDiffusion};
+use super::{ElementTrait, FemState};
+use crate::base::{calculate_gradient, compute_local_to_global, Config, FemBase, ParamDiffusion};
 use crate::material::ModelConductivity;
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -290,8 +290,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Conductivity, Config, Elem, Essential, ParamDiffusion};
-    use crate::fem::{ElementTrait, FemBase, FemState};
+    use crate::base::{Conductivity, Config, Elem, Essential, FemBase, ParamDiffusion};
+    use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix, Vector};

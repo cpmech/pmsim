@@ -1,5 +1,5 @@
-use super::{ElementTrait, FemBase, FemState};
-use crate::base::{calculate_strain, compute_local_to_global, Config, ParamSolid};
+use super::{ElementTrait, FemState};
+use crate::base::{calculate_strain, compute_local_to_global, Config, FemBase, ParamSolid};
 use crate::material::{LocalState, ModelStressStrain};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -280,8 +280,8 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Elem, Essential, ParamSolid, StressStrain};
-    use crate::fem::{ElementTrait, FemBase, FemState};
+    use crate::base::{Config, Elem, Essential, FemBase, ParamSolid, StressStrain};
+    use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
     use russell_lab::math::SQRT_2;

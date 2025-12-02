@@ -1,6 +1,6 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
-use super::{FemBase, FemResults, FemState, SolverCommon};
-use crate::base::{Config, Essential, Natural};
+use super::{FemResults, FemState, SolverCommon};
+use crate::base::{Config, Essential, FemBase, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
@@ -337,8 +337,8 @@ impl<'a> SolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverImplicit;
-    use crate::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, Pbc};
-    use crate::fem::{FemBase, FemResults, FemState};
+    use crate::base::{Config, Dof, Elem, Essential, FemBase, Natural, Nbc, ParamSolid, Pbc};
+    use crate::fem::{FemResults, FemState};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 
     #[test]

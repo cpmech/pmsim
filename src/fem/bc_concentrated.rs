@@ -1,5 +1,4 @@
-use super::FemBase;
-use crate::base::Natural;
+use crate::base::{FemBase, Natural};
 use crate::StrError;
 use russell_lab::Vector;
 
@@ -61,8 +60,7 @@ impl<'a> BcConcentratedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcConcentratedArray;
-    use crate::base::{Elem, Natural, ParamSolid, Pbc};
-    use crate::fem::FemBase;
+    use crate::base::{Elem, FemBase, Natural, ParamSolid, Pbc};
     use gemlab::mesh::Samples;
     use russell_lab::Vector;
 

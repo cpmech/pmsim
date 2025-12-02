@@ -16,6 +16,7 @@ mod natural;
 mod parameters;
 mod parameters_new;
 mod sample_meshes;
+mod schema;
 mod testing;
 
 pub use all_dofs::*;
@@ -34,6 +35,7 @@ pub use natural::*;
 pub use parameters::*;
 pub use parameters_new::*;
 pub use sample_meshes::*;
+pub use schema::*;
 
 #[allow(unused_imports)]
 pub(crate) use testing::*;

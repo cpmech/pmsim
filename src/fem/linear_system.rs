@@ -1,5 +1,5 @@
-use super::{BcDistributedArray, BcPrescribed, Elements, FemBase};
-use crate::base::Config;
+use super::{BcDistributedArray, BcPrescribed, Elements};
+use crate::base::{Config, FemBase};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{CooMatrix, CscMatrix, LinSolver};
@@ -272,8 +272,8 @@ impl<'a> LinearSystem<'a> {
 #[cfg(test)]
 mod tests {
     use super::LinearSystem;
-    use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, Natural, Nbc, ParamDiffusion};
-    use crate::fem::{BcDistributedArray, BcPrescribed, Elements, FemBase};
+    use crate::base::{new_empty_mesh_2d, Config, Dof, Elem, Essential, FemBase, Natural, Nbc, ParamDiffusion};
+    use crate::fem::{BcDistributedArray, BcPrescribed, Elements};
     use gemlab::mesh::{Edge, GeoKind, Samples};
     use russell_sparse::{Genie, Sym};
 

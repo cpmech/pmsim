@@ -1,5 +1,4 @@
-use super::FemBase;
-use crate::base::Dof;
+use crate::base::{Dof, FemBase};
 use crate::fem::FemState;
 use crate::util::SpatialVector;
 use crate::StrError;
@@ -239,8 +238,9 @@ pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f6
 #[cfg(test)]
 mod tests {
     use super::{write_pvd, write_vtu};
-    use crate::base::{Config, Dof, Elem, Essential, ParamBeam, ParamDiffusion, ParamPorousSldLiq, ParamSolid};
-    use crate::fem::{FemBase, FemState};
+    use crate::base::{Config, Dof, Elem, Essential, FemBase};
+    use crate::base::{ParamBeam, ParamDiffusion, ParamPorousSldLiq, ParamSolid};
+    use crate::fem::FemState;
     use gemlab::mesh::Samples;
     use std::fs;
 

@@ -1,6 +1,6 @@
 use super::{ReferenceData, ReferenceDataType};
-use crate::base::{Config, Dof};
-use crate::fem::{FemBase, FemResults, FemState};
+use crate::base::{Config, Dof, FemBase};
+use crate::fem::{FemResults, FemState};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;

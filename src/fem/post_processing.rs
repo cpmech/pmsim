@@ -1,5 +1,5 @@
-use super::{write_pvd, write_vtu, FemBase, FemResults, FemState};
-use crate::base::Dof;
+use super::{write_pvd, write_vtu, FemResults, FemState};
+use crate::base::{Dof, FemBase};
 use crate::util::{SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
 use crate::StrError;
 use gemlab::integ::Gauss;
@@ -1208,8 +1208,8 @@ mod tests {
         generate_horizontal_displacement_field, generate_scalar_field_ax_plus_by, generate_shear_displacement_field,
         generate_vertical_displacement_field, Conductivity,
     };
-    use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, StressStrain};
-    use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemBase, FemResults, FemState};
+    use crate::base::{Config, Dof, Elem, Essential, FemBase, ParamDiffusion, ParamSolid, StressStrain};
+    use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemResults, FemState};
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};

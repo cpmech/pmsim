@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Dof, Elem, Essential, Natural, Nbc, ParamSolid, StressStrain};
-use pmsim::fem::{BcDistributedArray, BcPrescribed, Elements, FemBase, FemState, LinearSystem};
+use pmsim::base::{Config, Dof, Elem, Essential, FemBase, Natural, Nbc, ParamSolid, StressStrain};
+use pmsim::fem::{BcDistributedArray, BcPrescribed, Elements, FemState, LinearSystem};
 use pmsim::StrError;
 use russell_lab::Vector;
 use russell_sparse::prelude::*;

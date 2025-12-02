@@ -1,6 +1,6 @@
-use super::{FemBase, FemState};
+use super::FemState;
 use crate::base::{assemble_matrix, assemble_vector};
-use crate::base::{Config, Natural, Nbc};
+use crate::base::{Config, FemBase, Natural, Nbc};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
 use gemlab::mesh::Mesh;
@@ -383,9 +383,9 @@ impl<'a> BcDistributedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::{BcDistributed, BcDistributedArray};
-    use crate::base::{Config, Elem, Essential, Natural, Nbc, SampleMeshes};
+    use crate::base::{Config, Elem, Essential, FemBase, Natural, Nbc, SampleMeshes};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
-    use crate::fem::{FemBase, FemState};
+    use crate::fem::FemState;
     use gemlab::mesh::{At, Edge, Face, Features, GeoKind, Samples};
     use gemlab::util::any_x;
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};

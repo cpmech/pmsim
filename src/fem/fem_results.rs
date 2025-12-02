@@ -1,5 +1,5 @@
-use crate::base::{Config, Dof};
-use crate::fem::{FemBase, FemState};
+use crate::base::{Config, Dof, FemBase};
+use crate::fem::FemState;
 use crate::material::LocalState;
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh, PointId};

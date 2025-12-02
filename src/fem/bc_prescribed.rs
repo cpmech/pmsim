@@ -1,5 +1,5 @@
-use super::{FemBase, FemState};
-use crate::base::Essential;
+use super::FemState;
+use crate::base::{Essential, FemBase};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{CooMatrix, Sym};
@@ -183,9 +183,8 @@ impl<'a> BcPrescribed<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcPrescribed;
-    use crate::base::{Dof, Elem, Essential, ParamBeam, ParamDiffusion};
+    use crate::base::{Dof, Elem, Essential, FemBase, ParamBeam, ParamDiffusion};
     use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
-    use crate::fem::FemBase;
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
 
     #[test]

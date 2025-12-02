@@ -1,5 +1,5 @@
-use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemBase, FemState};
-use crate::base::{assemble_matrix, assemble_vector, Config, Elem};
+use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
+use crate::base::{assemble_matrix, assemble_vector, Config, Elem, FemBase};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{deriv1_central5, Matrix, Vector};
@@ -211,8 +211,8 @@ impl<'a> Elements<'a> {
 mod tests {
     use super::{Elements, GenericElement};
     use crate::base::{Conductivity, Config, Elem, Essential, ParamBeam, ParamPorousLiqGas, StressStrain};
-    use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
-    use crate::fem::{FemBase, FemState};
+    use crate::base::{FemBase, ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
+    use crate::fem::FemState;
     use gemlab::integ;
     use gemlab::mesh::{Mesh, Samples};
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};

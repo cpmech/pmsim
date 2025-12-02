@@ -1,5 +1,5 @@
-use super::{ElementTrait, FemBase, FemState};
-use crate::base::{compute_local_to_global, ParamRod};
+use super::{ElementTrait, FemState};
+use crate::base::{compute_local_to_global, FemBase, ParamRod};
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
@@ -136,8 +136,8 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, Elem, Essential, ParamRod};
-    use crate::fem::{ElementTrait, FemBase, FemState};
+    use crate::base::{assemble_matrix, Config, Elem, Essential, FemBase, ParamRod};
+    use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
     use russell_lab::math::SQRT_2;
     use russell_lab::{mat_approx_eq, Matrix, Vector};

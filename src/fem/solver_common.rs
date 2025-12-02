@@ -1,6 +1,5 @@
-use super::{BcConcentratedArray, BcDistributedArray, BcPrescribed, FemState};
-use super::{Elements, FemBase, LinearSystem};
-use crate::base::{Config, Essential, Natural};
+use super::{BcConcentratedArray, BcDistributedArray, BcPrescribed, Elements, FemState, LinearSystem};
+use crate::base::{Config, Essential, FemBase, Natural};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch};
@@ -181,8 +180,7 @@ impl<'a> SolverCommon<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverCommon;
-    use crate::base::{Config, Elem, Essential, Natural, ParamSolid};
-    use crate::fem::FemBase;
+    use crate::base::{Config, Elem, Essential, FemBase, Natural, ParamSolid};
     use gemlab::mesh::Samples;
 
     #[test]

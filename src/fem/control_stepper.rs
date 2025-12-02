@@ -197,8 +197,8 @@ impl<'a> ControlStepper<'a> {
 #[cfg(test)]
 mod tests {
     use super::ControlStepper;
-    use crate::base::{Config, Elem, Essential, ParamSolid};
-    use crate::fem::{FemBase, FemState};
+    use crate::base::{Config, Elem, Essential, FemBase, ParamSolid};
+    use crate::fem::FemState;
     use gemlab::mesh::Samples;
 
     #[test]
