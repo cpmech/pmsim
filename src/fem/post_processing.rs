@@ -1208,7 +1208,7 @@ mod tests {
         generate_horizontal_displacement_field, generate_scalar_field_ax_plus_by, generate_shear_displacement_field,
         generate_vertical_displacement_field, Conductivity,
     };
-    use crate::base::{Config, Dof, Elem, Essential, Schema, ParamDiffusion, ParamSolid, StressStrain};
+    use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, Schema, StressStrain};
     use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemResults, FemState};
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
@@ -1219,8 +1219,15 @@ mod tests {
     use std::collections::HashMap;
     use std::fmt::Write;
     use std::fs;
+    use std::sync::Once;
+
+    // Auxiliary variable to ensure one-time initialization (e.g., creating directories and data files)
+    static INIT: Once = Once::new();
+
+    const ARTIFICIAL_DATA_FILES_DIR: &str = "/tmp/pmsim/artificial";
 
     const SAVE_FIGURE: bool = false;
+
     const KX: f64 = 2.0;
     const KY: f64 = 4.0;
     const KZ: f64 = 8.0;
@@ -1258,13 +1265,7 @@ mod tests {
 
     /// Generates displacement, stress, and strain state given displacements
     #[allow(unused)]
-    fn generate_state_solid(
-        param: &ParamSolid,
-        mesh: &Mesh,
-        base: &Schema,
-        config: &Config,
-        duu: &Vector,
-    ) -> FemState {
+    fn generate_state_solid(param: &ParamSolid, mesh: &Mesh, base: &Schema, config: &Config, duu: &Vector) -> FemState {
         // update displacement
         let essential = Essential::new();
         let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
@@ -1345,7 +1346,7 @@ mod tests {
         let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config
-            .set_out_files("/tmp/pmsim", name, 0.0)
+            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name, 0.0)
             .update_model_settings(1)
             .save_flux = true;
 
@@ -1397,7 +1398,7 @@ mod tests {
         };
         let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_out_files("/tmp/pmsim", "artificial-diffusion-3d", 0.0);
+        config.set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d", 0.0);
         config.update_model_settings(1).save_flux = true;
         config.update_model_settings(2).save_flux = true;
 
@@ -1464,7 +1465,7 @@ mod tests {
         let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
         let mut config = Config::new(&mesh);
         config
-            .set_out_files("/tmp/pmsim", name, 0.0)
+            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name, 0.0)
             .update_model_settings(1)
             .save_strain = true;
 
@@ -1539,7 +1540,7 @@ mod tests {
 
         let (point_id, cell_id) = (10, 1);
         config
-            .set_out_files("/tmp/pmsim", "artificial-elastic-3d", 0.0)
+            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d", 0.0)
             .set_out_dof(point_id, Dof::Ux)
             .set_out_dof(point_id, Dof::Uy)
             .set_out_dof(point_id, Dof::Uz)
@@ -1567,15 +1568,24 @@ mod tests {
         results.write_self(&config).unwrap();
     }
 
+    fn generate_data_files() {
+        INIT.call_once(|| {
+            generate_artificial_temperature_field_2d(false, false);
+            generate_artificial_temperature_field_2d(true, false);
+            generate_artificial_temperature_field_2d(false, true);
+            generate_artificial_temperature_field_3d();
+            generate_artificial_displacement_field_2d(false);
+            generate_artificial_displacement_field_2d(true);
+            generate_artificial_displacement_field_3d();
+        });
+    }
+
     #[test]
     fn new_works_diffusion_2d() {
-        // generate files (uncomment the next three lines)
-        // generate_artificial_temperature_field_2d(false, false);
-        // generate_artificial_temperature_field_2d(true, false);
-        // generate_artificial_temperature_field_2d(false, true);
+        generate_data_files();
 
         // read essential
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert_eq!(post.results.indices, &[0]);
         assert_eq!(post.results.times, &[0.0]);
         assert_eq!(post.mesh.ndim, 2);
@@ -1621,11 +1631,10 @@ mod tests {
 
     #[test]
     fn new_works_diffusion_3d() {
-        // generate files (uncomment the next lines)
-        // generate_artificial_temperature_field_3d();
+        generate_data_files();
 
         // read essential
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert_eq!(post.results.indices, &[0]);
         assert_eq!(post.results.times, &[0.0]);
         assert_eq!(post.mesh.ndim, 3);
@@ -1670,12 +1679,10 @@ mod tests {
 
     #[test]
     fn new_works_solid_2d() {
-        // generate files (uncomment the next two lines)
-        // generate_artificial_displacement_field_2d(false);
-        // generate_artificial_displacement_field_2d(true);
+        generate_data_files();
 
         // read essential
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         assert_eq!(post.results.indices, &[0, 1, 2]);
         assert_eq!(post.results.times, &[0.0, 1.0, 2.0]);
         assert_eq!(post.mesh.ndim, 2);
@@ -1752,11 +1759,10 @@ mod tests {
 
     #[test]
     fn new_works_solid_3d() {
-        // generate files (uncomment the next line)
-        // generate_artificial_displacement_field_3d();
+        generate_data_files();
 
         // read essential
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         assert_eq!(post.results.indices, &[0, 1, 2]);
         assert_eq!(post.results.times, &[0.0, 1.0, 2.0]);
         assert_eq!(post.mesh.ndim, 3);
@@ -1886,7 +1892,9 @@ mod tests {
 
     #[test]
     fn gauss_coords_patch_works_2d() {
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        generate_data_files();
+
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let (xx, yy, _, indices, accepted) = post
             .gauss_coords_patch(&mut memo, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
@@ -1913,7 +1921,9 @@ mod tests {
 
     #[test]
     fn gauss_coords_patch_works_3d() {
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        generate_data_files();
+
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         let (xx, yy, zz, indices, accepted) = post
             .gauss_coords_patch(&mut memo, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
@@ -1944,7 +1954,9 @@ mod tests {
 
     #[test]
     fn gauss_fluxes_captures_errors() {
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-2d-qua4").unwrap();
+        generate_data_files();
+
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d-qua4").unwrap();
         let state = post.read_state(0).unwrap();
         assert_eq!(
             post.gauss_fluxes(&state, 1, Dof::Phi).err(),
@@ -1958,10 +1970,12 @@ mod tests {
 
     #[test]
     fn gauss_fluxes_works_2d() {
+        generate_data_files();
+
         let ndim = 2;
         let ngauss = 3;
         let ncomp = ndim;
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
@@ -1978,10 +1992,12 @@ mod tests {
 
     #[test]
     fn gauss_fluxes_works_3d() {
+        generate_data_files();
+
         let ndim = 3;
         let ngauss = 8;
         let ncomp = ndim;
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
@@ -1998,8 +2014,10 @@ mod tests {
 
     #[test]
     fn gauss_fluxes_patch_works_2d() {
+        generate_data_files();
+
         let ndim = 2;
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
@@ -2029,8 +2047,10 @@ mod tests {
 
     #[test]
     fn gauss_fluxes_patch_works_3d() {
+        generate_data_files();
+
         let ndim = 3;
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert!(post.mesh.ndim == ndim);
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
@@ -2083,10 +2103,12 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_gauss_strains_work_2d() {
+        generate_data_files();
+
         let ndim = 2;
         let ngauss = 3;
         let ncomp = ndim * 2;
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         assert!(post.mesh.ndim == ndim);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stresses(&state, 0).unwrap();
@@ -2110,10 +2132,12 @@ mod tests {
 
     #[test]
     fn gauss_stresses_and_gauss_strains_work_3d() {
+        generate_data_files();
+
         let ndim = 3;
         let ngauss = 8;
         let ncomp = ndim * 2;
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         assert!(post.mesh.ndim == ndim);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stresses(&state, 0).unwrap();
@@ -2141,7 +2165,9 @@ mod tests {
 
     #[test]
     fn gauss_stresses_patch_and_gauss_strains_patch_work_2d() {
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
+        generate_data_files();
+
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -2239,7 +2265,9 @@ mod tests {
 
     #[test]
     fn gauss_stresses_patch_and_gauss_strains_patch_work_3d() {
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
+        generate_data_files();
+
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -2352,10 +2380,12 @@ mod tests {
 
     #[test]
     fn nodal_fluxes_works_2d() {
+        generate_data_files();
+
         let ndim = 2;
         let nnode = 3;
         let ncomp = ndim;
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         for cell_id in [0, 1, 2] {
@@ -2370,10 +2400,12 @@ mod tests {
 
     #[test]
     fn nodal_fluxes_works_3d() {
+        generate_data_files();
+
         let ndim = 3;
         let nnode = 8;
         let ncomp = ndim;
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         for cell_id in [0, 1] {
@@ -2389,8 +2421,10 @@ mod tests {
 
     #[test]
     fn nodal_fluxes_patch_works_2d() {
+        generate_data_files();
+
         let ndim = 2;
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         let ww = post
@@ -2418,8 +2452,10 @@ mod tests {
 
     #[test]
     fn nodal_fluxes_patch_works_3d() {
+        generate_data_files();
+
         let ndim = 3;
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-3d").unwrap();
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         let state = post.read_state(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         let ww = post
@@ -2453,7 +2489,9 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_nodal_strains_work_2d() {
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
+        generate_data_files();
+
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.nodal_stresses(&mut memo, &state, 0).unwrap();
             let eps = post.nodal_strains(&mut memo, &state, 0).unwrap();
@@ -2475,7 +2513,9 @@ mod tests {
 
     #[test]
     fn nodal_stresses_and_nodal_strains_work_3d() {
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
+        generate_data_files();
+
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.nodal_stresses(&mut memo, &state, 0).unwrap();
             let eps = post.nodal_strains(&mut memo, &state, 0).unwrap();
@@ -2501,7 +2541,9 @@ mod tests {
 
     #[test]
     fn nodal_stresses_patch_and_nodal_strains_patch_work_2d() {
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-2d").unwrap();
+        generate_data_files();
+
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -2597,7 +2639,9 @@ mod tests {
 
     #[test]
     fn nodal_stresses_patch_and_nodal_strains_patch_work_3d() {
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-elastic-3d").unwrap();
+        generate_data_files();
+
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -2736,6 +2780,8 @@ mod tests {
 
     #[test]
     fn values_along_edges_works_case_1() {
+        generate_data_files();
+
         // 2.0  14------16------13------20------18
         //       |               |               |
         //       |               |               |
@@ -2751,7 +2797,7 @@ mod tests {
         // 0.0   0-------4-------1------10-------8
         //
         //      0.0     0.5     1.0     1.5     2.0
-        let (post, _) = PostProc::new("data/results/artificial", "artificial-elastic-2d-qua8").unwrap();
+        let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d-qua8").unwrap();
         let features = Features::new(&post.mesh, false);
         let top = features.search_edges(At::Y(2.0), any_x).unwrap();
 
@@ -2900,8 +2946,10 @@ mod tests {
 
     #[test]
     fn post_proc_write_vtu_works_1() {
+        generate_data_files();
+
         // load results
-        let (post, mut memo) = PostProc::new("data/results/artificial", "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let state = post.read_state(0).unwrap();
 
         // let vv = post
