@@ -64,12 +64,12 @@ pub(crate) fn calculate_strain(
 #[cfg(test)]
 mod tests {
     use super::calculate_strain;
-    use crate::base::{compute_local_to_global, AllDofs, Attributes, Config, Elem, ElementDofsMap, ParamSolid};
     use crate::base::{
         elastic_solution_horizontal_displacement_field, elastic_solution_shear_displacement_field,
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
+    use crate::base::{Config, ParamSolid, Schema};
     use gemlab::integ::Gauss;
     use gemlab::mesh::Samples;
     use russell_lab::vec_approx_eq;
@@ -108,10 +108,9 @@ mod tests {
 
             // local-to-global map
             let p1 = ParamSolid::sample_linear_elastic();
-            let amap = Attributes::from([(1, Elem::Solid(p1))]);
-            let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-            let eqs = AllDofs::new(&mesh, &emap).unwrap();
-            let l2g = compute_local_to_global(&emap, &eqs, cell).unwrap();
+            let mut schema = Schema::new();
+            schema.add_solid(1, p1).build(&mesh).unwrap();
+            let l2g = schema.get_local_to_global(cell.id).unwrap();
 
             // configuration
             let config = Config::new(&mesh);

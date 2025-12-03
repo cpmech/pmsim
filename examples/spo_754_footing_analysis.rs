@@ -27,7 +27,7 @@ pub fn main() -> Result<(), StrError> {
     let mut x_coords = Vec::new();
     let mut selected_syy = Vec::<Vec<f64>>::new();
     let selected_indices = &[1, 2, 4, 6, post.n_state() - 1];
-    let eq_corner = post.base().dofs.eq(corner_id, Dof::Uy)?;
+    let eq_corner = post.schema().get_eq(corner_id, Dof::Uy)?;
     for index in 0..post.n_state() {
         let state = post.read_state(index)?;
         let uy = state.u[eq_corner];

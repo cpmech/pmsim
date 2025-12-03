@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemState};
-use crate::base::{calculate_gradient, compute_local_to_global, Config, Schema, ParamDiffusion};
+use crate::base::{calculate_gradient, Config, ParamDiffusion, Schema};
 use crate::material::ModelConductivity;
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -20,7 +20,7 @@ pub struct ElementDiffusion<'a> {
     pub param: &'a ParamDiffusion,
 
     /// Local-to-global mapping
-    pub local_to_global: Vec<usize>,
+    pub local_to_global: &'a Vec<usize>,
 
     /// Temporary variables for numerical integration
     pub pad: Scratchpad,
@@ -47,13 +47,13 @@ impl<'a> ElementDiffusion<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &Schema,
+        schema: &'a Schema,
         config: &'a Config,
         param: &'a ParamDiffusion,
         cell_id: CellId,
     ) -> Result<Self, StrError> {
         // local-to-global mapping
-        let local_to_global = compute_local_to_global(&base.emap, &base.dofs, &mesh.cells[cell_id])?;
+        let local_to_global = schema.get_local_to_global(cell_id)?;
 
         // pad for numerical integration
         let ndim = mesh.ndim;
@@ -290,7 +290,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Conductivity, Config, Elem, Essential, Schema, ParamDiffusion};
+    use crate::base::{Conductivity, Config, Essential, ParamDiffusion, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
@@ -318,13 +318,14 @@ mod tests {
         } else {
             ParamDiffusion::sample()
         };
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.u[0] = tt_field(mesh.points[0].coords[0]);
         state.u[1] = tt_field(mesh.points[1].coords[0]);
@@ -373,10 +374,11 @@ mod tests {
         let mesh = Samples::one_tri3();
         let mut p1 = ParamDiffusion::sample();
         p1.ngauss = Some(123); // wrong
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            ElementDiffusion::new(&mesh, &base, &config, &p1, 0).err(),
+            ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).err(),
             Some("requested number of integration points is not available for Tri class")
         );
     }
@@ -394,14 +396,15 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.update_model_settings(1).save_flux = true;
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
         state.u[0] = tt_field(mesh.points[0].coords[0]);
         state.u[1] = tt_field(mesh.points[1].coords[0]);
@@ -441,9 +444,10 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1_new).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1_new, 0).unwrap();
 
         // check Fe vector
         let mut ffe = Vector::new(neq);
@@ -465,13 +469,14 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
         state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
         state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
@@ -506,9 +511,10 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1_new).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1_new, 0).unwrap();
 
         // check Fe vector
         let mut ffe = Vector::new(neq);

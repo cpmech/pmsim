@@ -85,7 +85,8 @@ fn test_spo_von_mises_single_element() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // stage-wise vertical displacement increment
     let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
@@ -109,29 +110,29 @@ fn test_spo_von_mises_single_element() -> Result<(), StrError> {
         .set_max_iterations(20);
 
     // solve and check with UMFPACK
-    solve_and_check(&mesh, &base, &essential, &natural, &config)?;
+    solve_and_check(&mesh, &schema, &essential, &natural, &config)?;
 
     // solve and check with MUMPS
     config.set_lin_sol_genie(Genie::Mumps);
-    solve_and_check(&mesh, &base, &essential, &natural, &config)?;
+    solve_and_check(&mesh, &schema, &essential, &natural, &config)?;
     Ok(())
 }
 
 fn solve_and_check(
     mesh: &Mesh,
-    base: &Schema,
+    schema: &Schema,
     essential: &Essential,
     natural: &Natural,
     config: &Config,
 ) -> Result<(), StrError> {
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // compare the results with Ref #1
@@ -139,7 +140,7 @@ fn solve_and_check(
     let tol_stress = 1e-10;
     let all_good = compare_results(
         &mesh,
-        &base,
+        &schema,
         &config,
         &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SPO,

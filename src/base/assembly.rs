@@ -1,21 +1,6 @@
-use super::{AllDofs, ElementDofsMap};
 use crate::StrError;
-use gemlab::mesh::Cell;
 use russell_lab::{Matrix, Vector};
 use russell_sparse::{CooMatrix, Sym};
-
-/// Computes local-to-global maps needed for the assembly process
-pub fn compute_local_to_global(emap: &ElementDofsMap, eqs: &AllDofs, cell: &Cell) -> Result<Vec<usize>, StrError> {
-    let info = emap.get(cell)?;
-    let mut local_to_global = vec![0; info.n_equation];
-    for m in 0..cell.points.len() {
-        for (dof, local) in &info.dofs[m] {
-            let global = eqs.eq(cell.points[m], *dof)?;
-            local_to_global[*local] = global;
-        }
-    }
-    Ok(local_to_global)
-}
 
 /// Assembles local vector into global vector
 ///
@@ -143,102 +128,8 @@ pub fn assemble_matrix(
 #[cfg(test)]
 mod tests {
     use super::{assemble_matrix, assemble_vector};
-    use crate::base::{compute_local_to_global, AllDofs, Attributes, Elem, ElementDofsMap};
-    use crate::base::{ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
-    use gemlab::{mesh::Samples, shapes::GeoKind};
     use russell_lab::{mat_approx_eq, Matrix, Vector};
     use russell_sparse::{CooMatrix, Sym};
-
-    #[test]
-    fn compute_local_to_global_handles_errors() {
-        let mut mesh = Samples::three_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let amap = Attributes::from([(1, Elem::Solid(p1))]);
-        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = AllDofs::new(&mesh, &emap).unwrap();
-        mesh.cells[0].kind = GeoKind::Qua4; // never do this!
-        assert_eq!(
-            compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
-            Some("cannot find (CellMarker, GeoKind) in ElementDofsMap")
-        );
-        mesh.cells[0].kind = GeoKind::Tri3;
-        mesh.cells[0].points[0] = 100; // never do this!
-        assert_eq!(
-            compute_local_to_global(&emap, &eqs, &mesh.cells[0]).err(),
-            Some("cannot find equation number because PointId is out-of-bounds")
-        );
-    }
-
-    #[test]
-    fn compute_local_to_global_works() {
-        //       {8} 4---.__
-        //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates marker
-        //        /     \  [1]   /   \     {#} indicates equation number
-        //       /  [0]  \ (1)  / [2] \
-        // {0}  /   (1)   \    /  (1)  \
-        // {1} 0---.__     \  /      ___2 {4}
-        //            `--.__\/__.---'     {5}
-        //                   1 {2}
-        //                     {3}
-        let mesh = Samples::three_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let amap = Attributes::from([(1, Elem::Solid(p1))]);
-        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = AllDofs::new(&mesh, &emap).unwrap();
-        let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
-        let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();
-        let l2g2 = compute_local_to_global(&emap, &eqs, &mesh.cells[2]).unwrap();
-        assert_eq!(l2g0, &[0, 1, 2, 3, 8, 9]);
-        assert_eq!(l2g1, &[2, 3, 6, 7, 8, 9]);
-        assert_eq!(l2g2, &[2, 3, 4, 5, 6, 7]);
-
-        // 3------------2------------5
-        // |`.      [1] |            |    [#] indicates id
-        // |  `.    (1) |            |    (#) indicates marker
-        // |    `.      |     [2]    |
-        // |      `.    |     (2)    |
-        // | [0]    `.  |            |
-        // | (1)      `.|            |
-        // 0------------1------------4
-        let mesh = Samples::two_tri3_one_qua4();
-        let p = ParamPorousLiq::sample_brooks_corey_constant();
-        let amap = Attributes::from([(1, Elem::PorousLiq(p)), (2, Elem::PorousLiq(p))]);
-        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = AllDofs::new(&mesh, &emap).unwrap();
-        let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
-        let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();
-        let l2g2 = compute_local_to_global(&emap, &eqs, &mesh.cells[2]).unwrap();
-        assert_eq!(l2g0, &[0, 1, 3]);
-        assert_eq!(l2g1, &[2, 3, 1]);
-        assert_eq!(l2g2, &[1, 4, 5, 2]);
-
-        // 8------7------6._
-        // |       [3](3)|  '-.5
-        // |  [0]        |     '-._
-        // 9  (1)       10  [1]    '4
-        // |             |  (2)  .-'
-        // |       [2](3)|   _.3'
-        // 0------1------2.-'
-        let mesh = Samples::qua8_tri6_lin2();
-        let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-        let p2 = ParamSolid::sample_linear_elastic();
-        let p3 = ParamBeam::sample();
-        let amap = Attributes::from([(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))]);
-        let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-        let eqs = AllDofs::new(&mesh, &emap).unwrap();
-        let l2g0 = compute_local_to_global(&emap, &eqs, &mesh.cells[0]).unwrap();
-        let l2g1 = compute_local_to_global(&emap, &eqs, &mesh.cells[1]).unwrap();
-        let l2g2 = compute_local_to_global(&emap, &eqs, &mesh.cells[2]).unwrap();
-        let l2g3 = compute_local_to_global(&emap, &eqs, &mesh.cells[3]).unwrap();
-        assert_eq!(
-            l2g0,
-            &[0, 1, 5, 6, 15, 16, 21, 22, 3, 4, 26, 27, 19, 20, 24, 25, 2, 8, 18, 23]
-        );
-        assert_eq!(l2g1, &[5, 6, 11, 12, 15, 16, 9, 10, 13, 14, 26, 27]);
-        assert_eq!(l2g2, &[5, 6, 7, 26, 27, 28]);
-        assert_eq!(l2g3, &[26, 27, 28, 15, 16, 17]);
-    }
 
     #[test]
     fn assemble_vector_works_1() {

@@ -1,6 +1,6 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
 use super::{FemResults, FemState, SolverCommon};
-use crate::base::{Config, Essential, Schema, Natural};
+use crate::base::{Config, Essential, Natural, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
@@ -36,12 +36,12 @@ impl<'a> SolverImplicit<'a> {
     /// Creates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &'a Schema,
+        schema: &'a Schema,
         config: &'a Config,
         essential: &'a Essential,
         natural: &'a Natural,
     ) -> Result<Self, StrError> {
-        let com = SolverCommon::new(mesh, base, config, essential, natural)?;
+        let com = SolverCommon::new(mesh, schema, config, essential, natural)?;
         let neq_total = com.ls.neq_total;
         let log = Logger::new(config, &com.ls);
         let res = ControlResidual::new(config, neq_total);
@@ -337,7 +337,7 @@ impl<'a> SolverImplicit<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverImplicit;
-    use crate::base::{Config, Dof, Elem, Essential, Schema, Natural, Nbc, ParamSolid, Pbc};
+    use crate::base::{Config, Dof, Essential, Natural, Nbc, ParamSolid, Pbc, Schema};
     use crate::fem::{FemResults, FemState};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 
@@ -346,7 +346,8 @@ mod tests {
         let mesh = Samples::one_hex8();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 
@@ -354,7 +355,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_transient().set_ddt_min(-1.0); // wrong
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
         let config = Config::new(&mesh);
@@ -363,8 +364,8 @@ mod tests {
         let mut essential = Essential::new();
         essential.points(&[123], Dof::Ux, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
-            Some("cannot find equation number because PointId is out-of-bounds")
+            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
+            Some("cannot get equation number because point_id is out of bounds")
         );
         let essential = Essential::new();
 
@@ -372,14 +373,14 @@ mod tests {
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
-            Some("cannot find equation number because PointId is out-of-bounds")
+            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
+            Some("cannot get equation number because point_id is out of bounds")
         );
         let natural = Natural::new();
 
         // error due to elements
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("requested number of integration points is not available for Hex class")
         );
         p1.ngauss = None;
@@ -393,7 +394,7 @@ mod tests {
         };
         natural.edge(&edge, Nbc::Qn, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -402,14 +403,15 @@ mod tests {
     fn solve_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config.set_transient().set_ddt(-1.0); // wrong
         let essential = Essential::new();
         let natural = Natural::new();
-        let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural).unwrap();
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
+        let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
         assert_eq!(
             solver.solve(&mut state, &mut results).err(),
             Some("Δt is smaller than the allowed minimum")

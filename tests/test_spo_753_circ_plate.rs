@@ -54,7 +54,8 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -75,13 +76,13 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         .set_max_iterations(20);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // verify the results
@@ -89,7 +90,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let tol_stress = 1e-6;
     let all_good = compare_results(
         &mesh,
-        &base,
+        &schema,
         &config,
         &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SPO,
@@ -108,13 +109,13 @@ fn analyze_results() -> Result<(), StrError> {
     // load summary and associated files
     let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
     let mesh = post.mesh();
-    let base = post.base();
+    let schema = post.schema();
 
     // boundaries
     let features = Features::new(mesh, false);
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
-    let eq_uy = base.dofs.eq(center, Dof::Uy)?;
+    let eq_uy = schema.get_eq(center, Dof::Uy)?;
 
     // analytical solution
     let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);

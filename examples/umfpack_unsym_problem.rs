@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Dof, Elem, Essential, Schema, Natural, Nbc, ParamSolid, StressStrain};
+use pmsim::base::{Config, Dof, Essential, Natural, Nbc, ParamSolid, Schema, StressStrain};
 use pmsim::fem::{BcDistributedArray, BcPrescribed, Elements, FemState, LinearSystem};
 use pmsim::StrError;
 use russell_lab::Vector;
@@ -44,14 +44,15 @@ fn generate_matrix(name: &str, nr: usize) -> Result<CooMatrix, StrError> {
         },
         ngauss: None,
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(param1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, param1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // prescribed values
-    let bc_prescribed = BcPrescribed::new(&base, &essential)?;
+    let bc_prescribed = BcPrescribed::new(&schema, &essential)?;
 
     // natural boundary conditions
     let mut natural = Natural::new();
@@ -67,16 +68,16 @@ fn generate_matrix(name: &str, nr: usize) -> Result<CooMatrix, StrError> {
         .umfpack_enforce_unsymmetric_strategy = true;
 
     // elements
-    let mut elements = Elements::new(&mesh, &base, &config)?;
+    let mut elements = Elements::new(&mesh, &schema, &config)?;
 
     // boundaries
-    let mut boundaries = BcDistributedArray::new(&mesh, &base, &config, &natural)?;
+    let mut boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural)?;
 
     // FEM state
-    let state = FemState::new(&mesh, &base, &essential, &config)?;
+    let state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&base, &config, &bc_prescribed, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&schema, &config, &bc_prescribed, &elements, &boundaries)?;
 
     // assemble jacobian matrix
     let ignore = &bc_prescribed.flags;

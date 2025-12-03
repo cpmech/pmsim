@@ -1,4 +1,4 @@
-use crate::base::{Schema, Natural};
+use crate::base::{Natural, Schema};
 use crate::StrError;
 use russell_lab::Vector;
 
@@ -26,10 +26,10 @@ pub struct BcConcentratedArray<'a> {
 
 impl<'a> BcConcentratedArray<'a> {
     /// Allocates a new instance
-    pub fn new(base: &Schema, natural: &'a Natural) -> Result<Self, StrError> {
+    pub fn new(schema: &Schema, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.at_points.len() + 1);
         for (point_id, pbc, value, f_index) in &natural.at_points {
-            let eq = base.dofs.eq(*point_id, pbc.dof())?;
+            let eq = schema.get_eq(*point_id, pbc.dof())?;
             let function = match f_index {
                 Some(index) => Some(&natural.functions[*index]),
                 None => None,
@@ -60,7 +60,7 @@ impl<'a> BcConcentratedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcConcentratedArray;
-    use crate::base::{Elem, Schema, Natural, ParamSolid, Pbc};
+    use crate::base::{Natural, ParamSolid, Pbc, Schema};
     use gemlab::mesh::Samples;
     use russell_lab::Vector;
 
@@ -68,13 +68,14 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
 
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, -10.0);
         assert_eq!(
-            BcConcentratedArray::new(&base, &natural).err(),
-            Some("cannot find equation number because PointId is out-of-bounds")
+            BcConcentratedArray::new(&schema, &natural).err(),
+            Some("cannot get equation number because point_id is out of bounds")
         );
     }
 
@@ -82,12 +83,13 @@ mod tests {
     fn add_to_ff_works() {
         let mesh = Samples::one_tet4();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut natural = Natural::new();
         natural.points(&[0], Pbc::Fx, -20.0);
         natural.points(&[1], Pbc::Fy, -20.0);
         natural.points(&[2], Pbc::Fz, -20.0);
-        let b_points = BcConcentratedArray::new(&base, &natural).unwrap();
+        let b_points = BcConcentratedArray::new(&schema, &natural).unwrap();
         let mut ff = Vector::new(4 * 3);
         b_points.add_to_ff(&mut ff, 0, 0.0);
         assert_eq!(

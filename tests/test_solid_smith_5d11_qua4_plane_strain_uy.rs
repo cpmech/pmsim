@@ -60,7 +60,8 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
         },
         ngauss: None,
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -80,13 +81,13 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     config.set_lagrange_mult_method(LAG);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check displacements
@@ -106,8 +107,8 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
         0.000000000000000e+00,  0.000000000000000e+00,
     ];
     if LAG {
-        let n = base.dofs.size();
-        array_approx_eq(&state.u.as_data()[0..n], uu_correct, 1e-13);
+        let neq = schema.get_neq()?;
+        array_approx_eq(&state.u.as_data()[0..neq], uu_correct, 1e-13);
     } else {
         vec_approx_eq(&state.u, uu_correct, 1e-13);
     }

@@ -56,8 +56,7 @@ pub(crate) fn calculate_gradient(
 #[cfg(test)]
 mod tests {
     use super::calculate_gradient;
-    use crate::base::{compute_local_to_global, AllDofs, Attributes, Elem, ElementDofsMap};
-    use crate::base::{generate_scalar_field_ax_plus_by, ParamDiffusion};
+    use crate::base::{generate_scalar_field_ax_plus_by, ParamDiffusion, Schema};
     use gemlab::integ::Gauss;
     use gemlab::mesh::Samples;
     use russell_lab::{approx_eq, vec_approx_eq, Vector};
@@ -81,10 +80,9 @@ mod tests {
 
             // local-to-global map
             let p1 = ParamDiffusion::sample();
-            let amap = Attributes::from([(1, Elem::Diffusion(p1))]);
-            let emap = ElementDofsMap::new(&mesh, &amap).unwrap();
-            let eqs = AllDofs::new(&mesh, &emap).unwrap();
-            let l2g = compute_local_to_global(&emap, &eqs, cell).unwrap();
+            let mut schema = Schema::new();
+            schema.add_diffusion(1, p1).build(&mesh).unwrap();
+            let l2g = schema.get_local_to_global(cell.id).unwrap();
 
             // pad for numerical integration
             let mut pad = mesh.get_pad(cell.id);

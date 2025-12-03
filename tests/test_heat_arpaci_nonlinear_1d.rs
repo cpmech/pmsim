@@ -80,7 +80,8 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
         source: Some(SOURCE),
         ngauss: None,
     };
-    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -94,19 +95,19 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     config.set_out_files("/tmp/pmsim", NAME, 1.0);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = base.dofs.eq(ref_id, Dof::Phi)?;
+    let ref_eq = schema.get_eq(ref_id, Dof::Phi)?;
     let ref_tt = state.u[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     approx_eq(ref_tt, analytical(ref_x), 1e-13);

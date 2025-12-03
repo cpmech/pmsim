@@ -78,7 +78,8 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // stage-wise vertical displacement increment
     let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
@@ -107,13 +108,13 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_save_strain(true);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check the results

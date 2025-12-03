@@ -59,7 +59,8 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -74,13 +75,13 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     config.set_axisymmetric().set_lagrange_mult_method(true);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
     // println!("{}", state.uu);
 
@@ -88,7 +89,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
-        let eq = base.dofs.eq(point.id, Dof::Phi).unwrap();
+        let eq = schema.get_eq(point.id, Dof::Phi)?;
         let tt = state.u[eq];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);

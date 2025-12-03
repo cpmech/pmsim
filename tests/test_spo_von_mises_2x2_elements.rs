@@ -93,7 +93,8 @@ fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // stage-wise vertical displacement increment
     let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
@@ -117,13 +118,13 @@ fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
         .set_max_iterations(20);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // compare the results with Ref #1
@@ -131,7 +132,7 @@ fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
     let tol_stress = 1e-9;
     let all_good = compare_results(
         &mesh,
-        &base,
+        &schema,
         &config,
         &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SPO,

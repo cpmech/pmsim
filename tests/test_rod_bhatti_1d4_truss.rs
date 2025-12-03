@@ -46,12 +46,39 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     let mesh = SampleMeshes::bhatti_example_1d4_truss();
 
     // parameters
-    #[rustfmt::skip]
-    let base = Schema::new(&mesh, [
-        (1, Elem::Rod(ParamRod { area: 4_000.0, young: 200_000.0, density: 1.0, gnl: None, ngauss: None })),
-        (2, Elem::Rod(ParamRod { area: 3_000.0, young: 200_000.0, density: 1.0, gnl: None, ngauss: None })),
-        (3, Elem::Rod(ParamRod { area: 2_000.0, young:  70_000.0, density: 1.0, gnl: None, ngauss: None })),
-    ])?;
+    let mut schema = Schema::new();
+    schema
+        .add_rod(
+            1,
+            ParamRod {
+                area: 4_000.0,
+                young: 200_000.0,
+                density: 1.0,
+                gnl: None,
+                ngauss: None,
+            },
+        )
+        .add_rod(
+            2,
+            ParamRod {
+                area: 3_000.0,
+                young: 200_000.0,
+                density: 1.0,
+                gnl: None,
+                ngauss: None,
+            },
+        )
+        .add_rod(
+            3,
+            ParamRod {
+                area: 2_000.0,
+                young: 70_000.0,
+                density: 1.0,
+                gnl: None,
+                ngauss: None,
+            },
+        )
+        .build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -65,13 +92,13 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check displacements

@@ -31,14 +31,14 @@ pub struct BcPrescribed<'a> {
 
 impl<'a> BcPrescribed<'a> {
     /// Allocates a new instance
-    pub fn new(base: &Schema, essential: &'a Essential) -> Result<Self, StrError> {
+    pub fn new(schema: &Schema, essential: &'a Essential) -> Result<Self, StrError> {
         let n_prescribed = essential.size();
         let mut constants = Vec::with_capacity(n_prescribed);
         let mut multipliers = Vec::with_capacity(n_prescribed);
         let mut equations = Vec::with_capacity(n_prescribed);
-        let mut flags = vec![false; base.dofs.size()];
+        let mut flags = vec![false; schema.get_neq()?];
         for (point_id, dof) in essential.keys() {
-            let eq = base.dofs.eq(*point_id, *dof)?;
+            let eq = schema.get_eq(*point_id, *dof)?;
             let (constant, multiplier) = essential.get(*point_id, *dof);
             constants.push(constant);
             multipliers.push(multiplier);
@@ -183,7 +183,7 @@ impl<'a> BcPrescribed<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcPrescribed;
-    use crate::base::{Dof, Elem, Essential, Schema, ParamBeam, ParamDiffusion};
+    use crate::base::{Dof, Essential, ParamBeam, ParamDiffusion, Schema};
     use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
 
@@ -191,20 +191,21 @@ mod tests {
     fn new_captures_errors() {
         let mesh = Samples::one_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
 
         let mut essential = Essential::new();
         essential.points(&[100], Dof::Ux, 0.0);
         assert_eq!(
-            BcPrescribed::new(&base, &essential).err(),
-            Some("cannot find equation number because PointId is out-of-bounds")
+            BcPrescribed::new(&schema, &essential).err(),
+            Some("cannot get equation number because point_id is out of bounds")
         );
 
         let mut essential = Essential::new();
         essential.points(&[0], Dof::Phi, 0.0);
         assert_eq!(
-            BcPrescribed::new(&base, &essential).err(),
-            Some("cannot find the number of a (PointId, DOF) pair")
+            BcPrescribed::new(&schema, &essential).err(),
+            Some("cannot get equation number because DOF is not assigned")
         );
     }
 
@@ -212,10 +213,11 @@ mod tests {
     fn bc_prescribed_array_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let mut essential = Essential::new();
         essential.points(&[0], Dof::Phi, 110.0);
-        let array = BcPrescribed::new(&base, &essential).unwrap();
+        let array = BcPrescribed::new(&schema, &essential).unwrap();
         assert_eq!(array.flags, &[true, false, false]);
         assert_eq!(array.equations, &[0]);
         assert_eq!(array.has_non_zero(), true);
@@ -238,7 +240,8 @@ mod tests {
             marked_faces: Vec::new(),
         };
         let p1 = ParamBeam::sample();
-        let base = Schema::new(&mesh, [(1, Elem::Beam(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_beam(1, p1).build(&mesh).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 1.0)
@@ -247,7 +250,7 @@ mod tests {
             .points(&[0], Dof::Rx, 4.0)
             .points(&[0], Dof::Ry, 5.0)
             .points(&[0], Dof::Rz, 6.0);
-        let array = BcPrescribed::new(&base, &essential).unwrap();
+        let array = BcPrescribed::new(&schema, &essential).unwrap();
         assert_eq!(
             array.flags,
             &[
@@ -283,11 +286,13 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let base = Schema::new(
-            &mesh,
-            [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
-        )
-        .unwrap();
+        let mut schema = Schema::new();
+        schema
+            .add_porous_sld_liq(1, p1)
+            .add_solid(2, p2)
+            .add_beam(3, p3)
+            .build(&mesh)
+            .unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 0.0)
@@ -319,7 +324,7 @@ mod tests {
             .points(&[10], Dof::Ux, 26.0)
             .points(&[10], Dof::Uy, 27.0)
             .points(&[10], Dof::Rz, 28.0);
-        let _array = BcPrescribed::new(&base, &essential).unwrap();
+        let _array = BcPrescribed::new(&schema, &essential).unwrap();
         #[rustfmt::skip]
         let _correct = &[            // point
              0.0,  1.0,  2.0,       //  0 (Ux, 0) (Uy, 1) (Pl,2)
@@ -340,7 +345,8 @@ mod tests {
     fn bc_prescribed_array_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 1.0)
@@ -355,7 +361,7 @@ mod tests {
             .points(&[2], Dof::Uy, 10.0)
             .points(&[2], Dof::Pl, 11.0)
             .points(&[2], Dof::Pg, 12.0);
-        let _array = BcPrescribed::new(&base, &essential).unwrap();
+        let _array = BcPrescribed::new(&schema, &essential).unwrap();
         #[rustfmt::skip]
         let _correct = &[
             1.0,  2.0,  3.0,  4.0, // 0 Ux,Uy,Pl,Pg
@@ -380,10 +386,11 @@ mod tests {
         //               {1} 1
         let mesh = Samples::three_tri3();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let base = Schema::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_porous_liq(1, p1).build(&mesh).unwrap();
         let mut essential = Essential::new();
         essential.points(&[0, 4], Dof::Pl, 0.0);
-        let values = BcPrescribed::new(&base, &essential).unwrap();
+        let values = BcPrescribed::new(&schema, &essential).unwrap();
         assert_eq!(values.flags, &[true, false, false, false, true]);
         let mut eqs = values.equations.clone();
         eqs.sort();
@@ -400,13 +407,14 @@ mod tests {
         //                   1 {2}
         //                     {3}
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut essential = Essential::new();
         essential
             .points(&[0], Dof::Ux, 0.0)
             .points(&[0], Dof::Uy, 0.0)
             .points(&[1, 2], Dof::Uy, 0.0);
-        let values = BcPrescribed::new(&base, &essential).unwrap();
+        let values = BcPrescribed::new(&schema, &essential).unwrap();
         assert_eq!(
             values.flags,
             //   0     1      2     3      4     5      6      7      8      9

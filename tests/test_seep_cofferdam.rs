@@ -115,7 +115,8 @@ fn test_seep_cofferdam() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -134,13 +135,13 @@ fn test_seep_cofferdam() -> Result<(), StrError> {
         .set_save_flux(true);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // post-processing

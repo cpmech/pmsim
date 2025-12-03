@@ -76,7 +76,8 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         },
         ngauss: Some(9),
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).add_solid(2, p2).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -101,13 +102,13 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         .set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check displacements
@@ -148,7 +149,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     let tol_stress = 8e-8;
     let all_good = compare_results(
         &mesh,
-        &base,
+        &schema,
         &config,
         &format!("/tmp/pmsim/{}.json", NAME),
         ReferenceDataType::SGM,

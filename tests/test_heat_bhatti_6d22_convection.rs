@@ -60,7 +60,8 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
         source: Some(source),
         ngauss: None,
     };
-    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -78,19 +79,19 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // elements
-    let mut elements = Elements::new(&mesh, &base, &config)?;
+    let mut elements = Elements::new(&mesh, &schema, &config)?;
 
     // boundaries
-    let mut boundaries = BcDistributedArray::new(&mesh, &base, &config, &natural)?;
+    let mut boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural)?;
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // prescribed values
-    let bc_prescribed = BcPrescribed::new(&&base, &essential)?;
+    let bc_prescribed = BcPrescribed::new(&schema, &essential)?;
 
     // linear system
-    let mut lin_sys = LinearSystem::new(&base, &config, &bc_prescribed, &elements, &boundaries)?;
+    let mut lin_sys = LinearSystem::new(&schema, &config, &bc_prescribed, &elements, &boundaries)?;
 
     // fix state.uu (must do this before calculating R)
     for eq in &bc_prescribed.equations {
@@ -251,7 +252,8 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         source: Some(source),
         ngauss: None,
     };
-    let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
     let mut config = Config::new(&mesh);
     config.set_lagrange_mult_method(true);
 
@@ -268,13 +270,13 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check U vector

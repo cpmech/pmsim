@@ -159,12 +159,3 @@ mod tests {
         Ok(())
     }
 }
-
-/*
-let p1 = ParamSolid {
-    density: 1.0,
-    stress_strain: StressStrain::LinearElastic { young: E, poisson: NU },
-    ngauss: Some(NGAUSS),
-};
-let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
-*/

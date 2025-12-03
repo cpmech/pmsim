@@ -80,24 +80,25 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(param1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, param1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // run the collapse test
-    run_test(false, &mesh, &base, &essential, &inner_circle)?;
+    run_test(false, &mesh, &schema, &essential, &inner_circle)?;
 
     // run the residual stress test
-    run_test(true, &mesh, &base, &essential, &inner_circle)?;
+    run_test(true, &mesh, &schema, &essential, &inner_circle)?;
     Ok(())
 }
 
 fn run_test(
     residual: bool,
     mesh: &Mesh,
-    base: &Schema,
+    schema: &Schema,
     essential: &Essential,
     inner_circle: &Edges,
 ) -> Result<(), StrError> {
@@ -124,13 +125,13 @@ fn run_test(
     config.set_out_files("/tmp/pmsim", name, 1.0);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // compare the results with Ref #1
@@ -138,7 +139,7 @@ fn run_test(
     let tol_stress = if residual { 2.41e-2 } else { 2.55e-2 };
     let all_good = compare_results(
         &mesh,
-        &base,
+        &schema,
         &config,
         &format!("/tmp/pmsim/{}.json", name),
         ReferenceDataType::SPO,
@@ -173,14 +174,14 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
     // load summary and associated files
     let (post, mut memo) = PostProc::new("/tmp/pmsim", name)?;
     let mesh = post.mesh();
-    let base = post.base();
+    let schema = post.schema();
 
     // boundaries
     let features = Features::new(mesh, false);
     let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let lower_cells = features.get_cells_via_2d_edges(&bottom);
-    let eq_ux = base.dofs.eq(outer_point, Dof::Ux)?;
+    let eq_ux = schema.get_eq(outer_point, Dof::Ux)?;
 
     // analytical solution
     let mut ana = PlastPlaneStrainPresSphere::new(A, B, YOUNG, POISSON, Y).unwrap();

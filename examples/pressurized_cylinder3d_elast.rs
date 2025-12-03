@@ -142,10 +142,11 @@ fn main() -> Result<(), StrError> {
             },
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Solid(param1))])?;
+        let mut schema = Schema::new();
+        schema.add_solid(1, param1).build(&mesh)?;
 
         // total number of DOF
-        let ndof = base.dofs.size();
+        let ndof = schema.get_neq()?;
         let n_str = format!("{:0>5}", ndof);
 
         // println!("4. NDOF = {}", ndof);
@@ -218,15 +219,15 @@ fn main() -> Result<(), StrError> {
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
         // FEM state
-        let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
         // FEM results
-        let mut results = FemResults::new(&mesh, &base, &config)?;
+        let mut results = FemResults::new(&mesh, &schema, &config)?;
 
         // println!("5. running simulation");
 
         // solution
-        let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+        let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
         match solver.solve(&mut state, &mut results) {
             Err(e) => {
@@ -242,12 +243,12 @@ fn main() -> Result<(), StrError> {
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = base.dofs.eq(ref_point_id, Dof::Ux).unwrap();
+        let eq = schema.get_eq(ref_point_id, Dof::Ux)?;
         let numerical_ur = state.u[eq];
         let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
-        let eq = base.dofs.eq(study_point, Dof::Uy).unwrap();
+        let eq = schema.get_eq(study_point, Dof::Uy)?;
         let numerical_ur = state.u[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 

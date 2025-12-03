@@ -37,7 +37,8 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
         stress_strain: StressStrain::LinearElastic { young: E, poisson: NU },
         ngauss: Some(NGAUSS),
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -55,13 +56,13 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     config.set_out_files("/tmp/pmsim", NAME, 1.0);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // analyze results
@@ -113,6 +114,16 @@ fn analyze_results() -> Result<(), StrError> {
         approx_eq(f64::abs(nodal.txy[i] - ana.stress(x, y).get(0, 1)) / QN, 0.0, 0.09);
     }
     println!("{}\n", thin_line);
+    // ──────────────────────────────────────────────────────────────────────
+    //    5.355 =?   -0.025  │   -23.442 =?  -16.926  │    -0.000 =?   -0.000
+    //    5.616 =?   -0.042  │   -24.391 =?  -20.152  │     0.085 =?   -0.000
+    //    6.304 =?   -0.080  │   -27.534 =?  -24.887  │     0.177 =?   -0.000
+    //    7.640 =?   -0.179  │   -33.648 =?  -32.498  │     0.408 =?   -0.000
+    //    6.897 =?   -0.537  │   -44.297 =?  -46.662  │     0.577 =?   -0.000
+    //   14.614 =?   -2.993  │   -76.212 =?  -81.117  │     0.915 =?   -0.000
+    //  -46.706 =?  -90.037  │  -147.282 =? -191.896  │    15.255 =?   -0.000
+    // -150.447 =? -200.000  │  -193.167 =? -200.000  │    17.513 =?   -0.000
+    // ──────────────────────────────────────────────────────────────────────
 
     // figure
     if SAVE_FIGURE {

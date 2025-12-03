@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemState};
-use crate::base::{compute_local_to_global, Schema, ParamRod};
+use crate::base::{ParamRod, Schema};
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
@@ -14,7 +14,7 @@ pub struct ElementRod<'a> {
     pub param: &'a ParamRod,
 
     /// Local-to-global mapping
-    pub local_to_global: Vec<usize>,
+    pub local_to_global: &'a Vec<usize>,
 
     /// Pre-computed stiffness matrix
     pub stiffness: Matrix,
@@ -28,7 +28,7 @@ impl<'a> ElementRod<'a> {
     #[rustfmt::skip]
     pub fn new(
         mesh: &Mesh,
-        base: &Schema,
+        schema: &'a Schema,
         param: &'a ParamRod,
         cell_id: CellId,
     ) -> Result<Self, StrError> {
@@ -70,7 +70,7 @@ impl<'a> ElementRod<'a> {
         };
         Ok(ElementRod {
             param,
-            local_to_global: compute_local_to_global(&base.emap, &base.dofs, cell)?,
+            local_to_global: schema.get_local_to_global(cell_id)?,
             stiffness,
             u:Vector::new(2*ndim),
         })
@@ -136,7 +136,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, Elem, Essential, Schema, ParamRod};
+    use crate::base::{assemble_matrix, Config, Essential, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
     use russell_lab::math::SQRT_2;
@@ -166,9 +166,10 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1); // skip build => thus the check for number of nodes is not made
         assert_eq!(
-            ElementRod::new(&mesh, &base, &p1, 0).err(),
+            ElementRod::new(&mesh, &schema, &p1, 0).err(),
             Some("number of nodes for Rod must be 2")
         );
     }
@@ -195,12 +196,13 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let neq = 4;
         let mut yye = Vector::new(neq);
         let mut kke = Matrix::new(neq, neq);
@@ -238,12 +240,13 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let neq = 6;
         let mut yye = Vector::new(neq);
         let mut kke = Matrix::new(neq, neq);
@@ -284,12 +287,13 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
-        let mut rod = ElementRod::new(&mesh, &base, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let neq = 6;
         let mut yye = Vector::new(neq);
         let mut kke = Matrix::new(neq, neq);
@@ -354,17 +358,23 @@ mod tests {
             density: 1.0,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2)), (3, Elem::Rod(p3))]).unwrap();
+        let mut schema = Schema::new();
+        schema
+            .add_rod(1, p1)
+            .add_rod(2, p2)
+            .add_rod(3, p3)
+            .build(&mesh)
+            .unwrap();
         let essential = Essential::new();
 
         let config = Config::new(&mesh);
-        let mut rod0 = ElementRod::new(&mesh, &base, &p1, 0).unwrap();
-        let mut rod1 = ElementRod::new(&mesh, &base, &p2, 1).unwrap();
-        let mut rod2 = ElementRod::new(&mesh, &base, &p3, 2).unwrap();
+        let mut rod0 = ElementRod::new(&mesh, &schema, &p1, 0).unwrap();
+        let mut rod1 = ElementRod::new(&mesh, &schema, &p2, 1).unwrap();
+        let mut rod2 = ElementRod::new(&mesh, &schema, &p3, 2).unwrap();
         let neq = 4;
         let mut jacobian = Matrix::new(neq, neq);
 
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let (neq_global, nnz) = (6, 3 * neq * neq);
 
         let mut kk = CooMatrix::new(neq_global, neq_global, nnz, Sym::No).unwrap();

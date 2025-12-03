@@ -64,7 +64,8 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
         },
         ngauss: Some(8),
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).add_solid(2, p2).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -83,13 +84,13 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     let config = Config::new(&mesh);
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check displacements

@@ -1,5 +1,5 @@
 use super::{ElementTrait, FemState};
-use crate::base::{compute_local_to_global, Schema, GnlStrain, ParamRod};
+use crate::base::{GnlStrain, ParamRod, Schema};
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_add, vec_outer, Matrix, Vector};
@@ -18,7 +18,7 @@ pub struct ElementRodGnl<'a> {
     pub param: &'a ParamRod,
 
     /// Local-to-global mapping
-    pub local_to_global: Vec<usize>,
+    pub local_to_global: &'a Vec<usize>,
 
     ndim: usize,
 
@@ -39,7 +39,7 @@ pub struct ElementRodGnl<'a> {
 
 impl<'a> ElementRodGnl<'a> {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &Schema, param: &'a ParamRod, cell_id: CellId) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &'a Schema, param: &'a ParamRod, cell_id: CellId) -> Result<Self, StrError> {
         let ndim = mesh.ndim;
         let cell = &mesh.cells[cell_id];
         let pp = &cell.points;
@@ -85,7 +85,7 @@ impl<'a> ElementRodGnl<'a> {
         };
         Ok(ElementRodGnl {
             param,
-            local_to_global: compute_local_to_global(&base.emap, &base.dofs, cell)?,
+            local_to_global: schema.get_local_to_global(cell_id)?,
             ndim,
             xxa,
             yya,
@@ -224,7 +224,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRodGnl;
-    use crate::base::{Config, Elem, Essential, Schema, GnlStrain, ParamRod};
+    use crate::base::{Config, Essential, GnlStrain, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, Draw, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};
@@ -278,10 +278,11 @@ mod tests {
             area: 1.0,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1).add_rod(2, p2).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut element = ElementRodGnl::new(&mesh, &base, &p1, 0).unwrap();
+        let mut element = ElementRodGnl::new(&mesh, &schema, &p1, 0).unwrap();
 
         // set initial coordinates
         assert_eq!(element.ndim, 2);
@@ -292,7 +293,7 @@ mod tests {
         approx_eq(element.ll0, 1.000003980442078, 1e-15);
 
         // set state
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         state.u[3] = -0.033333377560878;
         state.u[7] = -0.133333377560878;
 

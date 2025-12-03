@@ -62,7 +62,8 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
         },
         ngauss: Some(4), // reduced integration => better results
     };
-    let base = Schema::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut essential = Essential::new();
@@ -77,13 +78,13 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     config.set_axisymmetric();
 
     // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &base, &config)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
+    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // Felippa's Equation 14.2 on page 14-4
@@ -97,7 +98,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let selection = features.search_point_ids(At::Y(0.0), any_x)?;
     for p in &selection {
         let r = mesh.points[*p].coords[0];
-        let eq = base.dofs.eq(*p, Dof::Ux).unwrap();
+        let eq = schema.get_eq(*p, Dof::Ux)?;
         let ux = state.u[eq];
         let diff = f64::abs(ux - analytical_ur(r));
         println!("point = {}, r = {:?}, Ux = {:?}, diff = {:?}", p, r, ux, diff);

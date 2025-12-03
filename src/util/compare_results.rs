@@ -41,7 +41,7 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
 pub fn compare_results(
     mesh: &Mesh,
-    base: &Schema,
+    schema: &Schema,
     config: &Config,
     res_path: &str,
     ref_type: ReferenceDataType,
@@ -102,7 +102,7 @@ pub fn compare_results(
         }
         for p in 0..npoint {
             for i in 0..ndim {
-                let eq = base.dofs.eq(p, dofs[i]).unwrap();
+                let eq = schema.get_eq(p, dofs[i])?;
                 let a = fem_state.u[eq];
                 let b = dat.actual.displacement(step, p, i);
                 let (fail, diff) = query_failed(a, b, tol_displacement, verbose);

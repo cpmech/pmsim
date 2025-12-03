@@ -1,5 +1,5 @@
 use super::{BcConcentratedArray, BcDistributedArray, BcPrescribed, Elements, FemState, LinearSystem};
-use crate::base::{Config, Essential, Schema, Natural};
+use crate::base::{Config, Essential, Natural, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch};
@@ -180,7 +180,7 @@ impl<'a> SolverCommon<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverCommon;
-    use crate::base::{Config, Elem, Essential, Schema, Natural, ParamSolid};
+    use crate::base::{Config, Essential, Natural, ParamSolid, Schema};
     use gemlab::mesh::Samples;
 
     #[test]
@@ -188,7 +188,8 @@ mod tests {
         let mesh = Samples::one_hex8();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let natural = Natural::new();
 
@@ -196,7 +197,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_transient().set_ddt_min(-1.0);
         assert_eq!(
-            SolverCommon::new(&mesh, &base, &config, &essential, &natural).err(),
+            SolverCommon::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
     }

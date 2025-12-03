@@ -2,13 +2,9 @@ use super::{ParamBeam, ParamDiffusion, ParamRod};
 use super::{ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
 use serde::{Deserialize, Serialize};
 
-/// Specifies the number of DOF types
-pub const DOF_N_TYPES: usize = 10;
-
-/// Defines degrees-of-freedom (DOF) types
+/// Defines degrees-of-freedom (DOF) variants
 ///
-/// Note: The fixed numbers are only for sorting the DOFs which is useful for TESTING.
-/// This numbering scheme is not actually necessary.
+/// Important: The assigned numbers are essential to build the DOF numbering matrix.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum Dof {
     /// Primary scalar quantity for diffusion problems (e.g. temperature)
@@ -40,6 +36,59 @@ pub enum Dof {
 
     /// Free-surface-output (fso) enrichment
     Fso = 9,
+}
+
+impl Dof {
+    /// Returns the number of DOF variants
+    pub fn n_variant() -> usize {
+        10
+    }
+
+    /// Returns a vector with all DOF variants
+    pub fn all() -> Vec<Dof> {
+        vec![
+            Dof::Phi,
+            Dof::Ux,
+            Dof::Uy,
+            Dof::Uz,
+            Dof::Rx,
+            Dof::Ry,
+            Dof::Rz,
+            Dof::Pl,
+            Dof::Pg,
+            Dof::Fso,
+        ]
+    }
+
+    /// Returns the index of the DOF variant
+    pub fn index(&self) -> usize {
+        *self as usize
+    }
+
+    /// Returns the DOF variant from its index
+    pub fn from_index(index: usize) -> Option<Dof> {
+        match index {
+            0 => Some(Dof::Phi),
+            1 => Some(Dof::Ux),
+            2 => Some(Dof::Uy),
+            3 => Some(Dof::Uz),
+            4 => Some(Dof::Rx),
+            5 => Some(Dof::Ry),
+            6 => Some(Dof::Rz),
+            7 => Some(Dof::Pl),
+            8 => Some(Dof::Pg),
+            9 => Some(Dof::Fso),
+            _ => None,
+        }
+    }
+
+    /// Indicates whether the DOF is a displacement DOF or not
+    pub fn is_displacement(&self) -> bool {
+        match self {
+            Dof::Ux | Dof::Uy | Dof::Uz => true,
+            _ => false,
+        }
+    }
 }
 
 /// Defines natural boundary conditions (NBC)
@@ -278,6 +327,75 @@ mod tests {
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use std::{cmp::Ordering, collections::HashSet};
+
+    #[test]
+    fn dof_methods_work() {
+        // n_variant
+        assert_eq!(Dof::n_variant(), Dof::Fso as usize + 1);
+
+        // all
+        let all_dofs = Dof::all();
+        assert_eq!(all_dofs.len(), Dof::n_variant());
+        assert_eq!(
+            all_dofs,
+            vec![
+                Dof::Phi,
+                Dof::Ux,
+                Dof::Uy,
+                Dof::Uz,
+                Dof::Rx,
+                Dof::Ry,
+                Dof::Rz,
+                Dof::Pl,
+                Dof::Pg,
+                Dof::Fso,
+            ]
+        );
+
+        // index
+        assert_eq!(Dof::Phi.index(), 0);
+        assert_eq!(Dof::Ux.index(), 1);
+        assert_eq!(Dof::Uy.index(), 2);
+        assert_eq!(Dof::Uz.index(), 3);
+        assert_eq!(Dof::Rx.index(), 4);
+        assert_eq!(Dof::Ry.index(), 5);
+        assert_eq!(Dof::Rz.index(), 6);
+        assert_eq!(Dof::Pl.index(), 7);
+        assert_eq!(Dof::Pg.index(), 8);
+        assert_eq!(Dof::Fso.index(), 9);
+
+        // from_index
+        assert_eq!(Dof::from_index(0), Some(Dof::Phi));
+        assert_eq!(Dof::from_index(1), Some(Dof::Ux));
+        assert_eq!(Dof::from_index(2), Some(Dof::Uy));
+        assert_eq!(Dof::from_index(3), Some(Dof::Uz));
+        assert_eq!(Dof::from_index(4), Some(Dof::Rx));
+        assert_eq!(Dof::from_index(5), Some(Dof::Ry));
+        assert_eq!(Dof::from_index(6), Some(Dof::Rz));
+        assert_eq!(Dof::from_index(7), Some(Dof::Pl));
+        assert_eq!(Dof::from_index(8), Some(Dof::Pg));
+        assert_eq!(Dof::from_index(9), Some(Dof::Fso));
+        assert_eq!(Dof::from_index(10), None);
+        assert_eq!(Dof::from_index(100), None);
+
+        // index and from_index are consistent
+        for dof in Dof::all() {
+            let index = dof.index();
+            assert_eq!(Dof::from_index(index), Some(dof));
+        }
+
+        // is_displacement
+        assert_eq!(Dof::Phi.is_displacement(), false);
+        assert_eq!(Dof::Ux.is_displacement(), true);
+        assert_eq!(Dof::Uy.is_displacement(), true);
+        assert_eq!(Dof::Uz.is_displacement(), true);
+        assert_eq!(Dof::Rx.is_displacement(), false);
+        assert_eq!(Dof::Ry.is_displacement(), false);
+        assert_eq!(Dof::Rz.is_displacement(), false);
+        assert_eq!(Dof::Pl.is_displacement(), false);
+        assert_eq!(Dof::Pg.is_displacement(), false);
+        assert_eq!(Dof::Fso.is_displacement(), false);
+    }
 
     #[test]
     fn dof_ebc_nbc_pbc_derives_work() {

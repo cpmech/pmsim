@@ -25,8 +25,8 @@ pub struct PostProc {
     /// Holds the Mesh
     mesh: Mesh,
 
-    /// Holds the FemBase
-    base: Schema,
+    /// Holds the Schema
+    schema: Schema,
 }
 
 /// Holds the memoization data for post-processing
@@ -49,8 +49,7 @@ impl PostProc {
     /// * `post` -- The post-processing instance.
     /// * `memo` -- The memoization data for post-processing.
     ///
-    /// This function loads the summary JSON file, and reads the Mesh and
-    /// FemBase data from their respective files.
+    /// This function loads the summary JSON file, and reads the Mesh and Schema from their respective files.
     ///
     /// # Arguments
     ///
@@ -67,8 +66,8 @@ impl PostProc {
         // reads the mesh
         let mesh = Mesh::read(&format!("{}/{}-mesh.msh", dir, fn_stem))?;
 
-        // reads the FemBase
-        let base = Schema::read_json(&format!("{}/{}-base.json", dir, fn_stem))?;
+        // reads the Schema
+        let schema = Schema::read_json(&format!("{}/{}-schema.json", dir, fn_stem))?;
 
         // return new instance
         Ok((
@@ -77,7 +76,7 @@ impl PostProc {
                 fn_stem: fn_stem.to_string(),
                 results,
                 mesh,
-                base,
+                schema,
             },
             PostProcMemo {
                 all_gauss: HashMap::new(),
@@ -92,9 +91,9 @@ impl PostProc {
         &self.mesh
     }
 
-    /// Returns an access to the FemBase
-    pub fn base(&self) -> &Schema {
-        &self.base
+    /// Returns an access to the Schema
+    pub fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     /// Returns the equation number associated with the pair (point_id, dof)
@@ -103,7 +102,7 @@ impl PostProc {
     ///
     /// This function panics if the pair (point_id, dof) is not found.
     pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
-        self.base.dofs.eq(point_id, dof)
+        self.schema.get_eq(point_id, dof)
     }
 
     /// Returns the number of state files (to define the index in read_state)
@@ -152,7 +151,8 @@ impl PostProc {
     /// Returns an error if the Gauss points cannot be retrieved.
     pub fn gauss_coords(&self, memo: &mut PostProcMemo, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let ngauss_opt = self.base.amap.ngauss(cell.marker)?;
+        let param = self.schema.get_param(cell.marker)?;
+        let ngauss_opt = param.ngauss();
         let gauss = memo
             .all_gauss
             .entry(cell_id)
@@ -972,7 +972,8 @@ impl PostProc {
     /// Returns an error if the extrapolation matrix cannot be computed.
     fn get_extrap_matrix<'a>(&self, memo: &'a mut PostProcMemo, cell_id: CellId) -> Result<&'a Matrix, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let ngauss_opt = self.base.amap.ngauss(cell.marker)?;
+        let param = self.schema.get_param(cell.marker)?;
+        let ngauss_opt = param.ngauss();
         let gauss = memo
             .all_gauss
             .entry(cell_id)
@@ -1011,6 +1012,10 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the values cannot be extracted.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the points along the line do not have the specified DOF.
     pub fn values_along_x<F>(
         &self,
         features: &Features,
@@ -1031,10 +1036,11 @@ impl PostProc {
         id_x_pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         // extract dof values
-        let dd: Vec<_> = id_x_pairs
+        let maybe_dd: Result<Vec<_>, _> = id_x_pairs
             .iter()
-            .map(|(id, _)| state.u[self.base.dofs.eq(*id, dof).unwrap()])
+            .map(|(id, _)| self.schema.get_eq(*id, dof).map(|eq| state.u[eq]))
             .collect();
+        let dd = maybe_dd?;
 
         // unzip id_x_pairs
         let (ids, xx): (Vec<_>, Vec<_>) = id_x_pairs.iter().cloned().unzip();
@@ -1050,6 +1056,10 @@ impl PostProc {
     /// * `point_ids` -- The IDs of the points along the edges.
     /// * `coords` -- The coordinates of the points along the edges.
     /// * `dd` -- The DOF values along the edges.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the points along the line do not have the specified DOF.
     pub fn values_along_edges(
         &self,
         state: &FemState,
@@ -1080,10 +1090,11 @@ impl PostProc {
             .collect();
 
         // extract dof values
-        let dd: Vec<_> = point_ids
+        let maybe_dd: Result<Vec<_>, _> = point_ids
             .iter()
-            .map(|id| state.u[self.base.dofs.eq(*id, dof).unwrap()])
+            .map(|id| self.schema.get_eq(*id, dof).map(|eq| state.u[eq]))
             .collect();
+        let dd = maybe_dd?;
 
         // results
         Ok((point_ids, coords, dd))
@@ -1172,7 +1183,7 @@ impl PostProc {
         };
 
         // write VTU file
-        write_vtu(&self.mesh, &self.base, dir, fn_stem, state, index, ww)
+        write_vtu(&self.mesh, &self.schema, dir, fn_stem, state, index, ww)
     }
 
     /// Writes Paraview's PVD file
@@ -1208,8 +1219,9 @@ mod tests {
         generate_horizontal_displacement_field, generate_scalar_field_ax_plus_by, generate_shear_displacement_field,
         generate_vertical_displacement_field, Conductivity,
     };
-    use crate::base::{Config, Dof, Elem, Essential, ParamDiffusion, ParamSolid, Schema, StressStrain};
+    use crate::base::{Config, Dof, Essential, ParamDiffusion, ParamSolid, Schema, StressStrain};
     use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemResults, FemState};
+    use crate::StrError;
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
@@ -1242,20 +1254,20 @@ mod tests {
     fn generate_state_diffusion(
         param: &ParamDiffusion,
         mesh: &Mesh,
-        base: &Schema,
+        schema: &Schema,
         config: &Config,
         phi: &Vector,
     ) -> FemState {
         // update displacement
         let essential = Essential::new();
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         vec_copy(&mut state.u, &phi).unwrap();
 
         // update flux vectors
         let ncell = mesh.cells.len();
         let mut elements = Vec::with_capacity(ncell);
         for cell_id in 0..mesh.cells.len() {
-            let mut elem = ElementDiffusion::new(&mesh, &base, &config, &param, cell_id).unwrap();
+            let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &param, cell_id).unwrap();
             elem.initialize_internal_values(&mut state).unwrap();
             elem.update_secondary_values(&mut state).unwrap();
             elements.push(elem);
@@ -1265,10 +1277,16 @@ mod tests {
 
     /// Generates displacement, stress, and strain state given displacements
     #[allow(unused)]
-    fn generate_state_solid(param: &ParamSolid, mesh: &Mesh, base: &Schema, config: &Config, duu: &Vector) -> FemState {
+    fn generate_state_solid(
+        param: &ParamSolid,
+        mesh: &Mesh,
+        schema: &Schema,
+        config: &Config,
+        duu: &Vector,
+    ) -> FemState {
         // update displacement
         let essential = Essential::new();
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         vec_copy(&mut state.ddu, &duu).unwrap();
         vec_update(&mut state.u, 1.0, &duu).unwrap();
 
@@ -1276,7 +1294,7 @@ mod tests {
         let ncell = mesh.cells.len();
         let mut elements = Vec::with_capacity(ncell);
         for cell_id in 0..mesh.cells.len() {
-            let mut elem = ElementSolid::new(&mesh, &base, &config, &param, cell_id).unwrap();
+            let mut elem = ElementSolid::new(&mesh, &schema, &config, &param, cell_id).unwrap();
             elem.initialize_internal_values(&mut state).unwrap();
             elem.update_secondary_values(&mut state).unwrap();
             elements.push(elem);
@@ -1343,7 +1361,8 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config
             .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name, 0.0)
@@ -1353,12 +1372,12 @@ mod tests {
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
-        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
+        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
-        let state = generate_state_diffusion(&p1, &mesh, &base, &config, &phi);
+        let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
         results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &base, &state).unwrap();
+        results.save_selected(&config, &schema, &state).unwrap();
         results.write_self(&config).unwrap();
     }
 
@@ -1396,7 +1415,8 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1)), (2, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config.set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d", 0.0);
         config.update_model_settings(1).save_flux = true;
@@ -1405,12 +1425,12 @@ mod tests {
         let (point_id, cell_id) = (10, 1);
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
-        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
+        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
-        let state = generate_state_diffusion(&p1, &mesh, &base, &config, &phi);
+        let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
         results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &base, &state).unwrap();
+        results.save_selected(&config, &schema, &state).unwrap();
         results.write_self(&config).unwrap();
     }
 
@@ -1462,7 +1482,8 @@ mod tests {
             },
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config
             .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name, 0.0)
@@ -1475,25 +1496,25 @@ mod tests {
             .set_out_dof(point_id, Dof::Uy)
             .set_out_local_state(cell_id);
 
-        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
+        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
-        let state = generate_state_solid(&p1, &mesh, &base, &config, &duu_h);
+        let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
         results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &base, &state).unwrap();
+        results.save_selected(&config, &schema, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
-        let mut state = generate_state_solid(&p1, &mesh, &base, &config, &duu_v);
+        let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_v);
         state.time = 1.0;
         results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &base, &state).unwrap();
+        results.save_selected(&config, &schema, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
-        let mut state = generate_state_solid(&p1, &mesh, &base, &config, &duu_s);
+        let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_s);
         state.time = 2.0;
         results.write_state(&config, &state).unwrap();
 
-        results.save_selected(&config, &base, &state).unwrap();
+        results.save_selected(&config, &schema, &state).unwrap();
         results.write_self(&config).unwrap();
     }
 
@@ -1533,7 +1554,8 @@ mod tests {
             },
             ngauss: None,
         };
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid((p1)))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).add_solid(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config.update_model_settings(1).save_strain = true;
         config.update_model_settings(2).save_strain = true;
@@ -1546,25 +1568,25 @@ mod tests {
             .set_out_dof(point_id, Dof::Uz)
             .set_out_local_state(cell_id);
 
-        let mut results = FemResults::new(&mesh, &base, &config).unwrap();
+        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
-        let state = generate_state_solid(&p1, &mesh, &base, &config, &duu_h);
+        let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
         results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &base, &state).unwrap();
+        results.save_selected(&config, &schema, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
-        let mut state = generate_state_solid(&p1, &mesh, &base, &config, &duu_v);
+        let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_v);
         state.time = 1.0;
         results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &base, &state).unwrap();
+        results.save_selected(&config, &schema, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
-        let mut state = generate_state_solid(&p1, &mesh, &base, &config, &duu_s);
+        let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_s);
         state.time = 2.0;
         results.write_state(&config, &state).unwrap();
 
-        results.save_selected(&config, &base, &state).unwrap();
+        results.save_selected(&config, &schema, &state).unwrap();
         results.write_self(&config).unwrap();
     }
 
@@ -1581,7 +1603,7 @@ mod tests {
     }
 
     #[test]
-    fn new_works_diffusion_2d() {
+    fn new_works_diffusion_2d() -> Result<(), StrError> {
         generate_data_files();
 
         // read essential
@@ -1591,11 +1613,11 @@ mod tests {
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
-        assert_eq!(post.base.amap.get(1).unwrap().name(), "Diffusion");
-        assert_eq!(post.base.emap.get(&post.mesh.cells[0]).unwrap().n_equation, 3); // 3 nodes
-        assert_eq!(post.base.emap.get(&post.mesh.cells[1]).unwrap().n_equation, 3);
-        assert_eq!(post.base.emap.get(&post.mesh.cells[2]).unwrap().n_equation, 3);
-        assert_eq!(post.base.dofs.size(), 5); // 5 points
+        assert_eq!(post.schema.get_param(1)?.name(), "Diffusion");
+        assert_eq!(post.schema.get_local_to_global(0)?.len(), 3); // 3 nodes
+        assert_eq!(post.schema.get_local_to_global(1)?.len(), 3);
+        assert_eq!(post.schema.get_local_to_global(2)?.len(), 3);
+        assert_eq!(post.schema.get_neq()?, 5); // 5 points
 
         // read state
         let ndim = post.mesh.ndim;
@@ -1627,10 +1649,11 @@ mod tests {
         for i in 0..ndim {
             approx_eq(s[0][i], w_correct[i], 1e-14);
         }
+        Ok(())
     }
 
     #[test]
-    fn new_works_diffusion_3d() {
+    fn new_works_diffusion_3d() -> Result<(), StrError> {
         generate_data_files();
 
         // read essential
@@ -1640,10 +1663,10 @@ mod tests {
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
-        assert_eq!(post.base.amap.get(1).unwrap().name(), "Diffusion");
-        assert_eq!(post.base.emap.get(&post.mesh.cells[0]).unwrap().n_equation, 8); // 8 nodes
-        assert_eq!(post.base.emap.get(&post.mesh.cells[1]).unwrap().n_equation, 8);
-        assert_eq!(post.base.dofs.size(), 12); // 12 points
+        assert_eq!(post.schema.get_param(1)?.name(), "Diffusion");
+        assert_eq!(post.schema.get_local_to_global(0)?.len(), 8); // 8 nodes
+        assert_eq!(post.schema.get_local_to_global(1)?.len(), 8);
+        assert_eq!(post.schema.get_neq()?, 12); // 12 points
 
         // read state
         let ndim = post.mesh.ndim;
@@ -1675,10 +1698,11 @@ mod tests {
         for i in 0..ndim {
             approx_eq(s[0][i], w_correct[i], 1e-14);
         }
+        Ok(())
     }
 
     #[test]
-    fn new_works_solid_2d() {
+    fn new_works_solid_2d() -> Result<(), StrError> {
         generate_data_files();
 
         // read essential
@@ -1688,11 +1712,11 @@ mod tests {
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
-        assert_eq!(post.base.amap.get(1).unwrap().name(), "Solid");
-        assert_eq!(post.base.emap.get(&post.mesh.cells[0]).unwrap().n_equation, 6); // 3 * 2 (nnode * ndim)
-        assert_eq!(post.base.emap.get(&post.mesh.cells[1]).unwrap().n_equation, 6);
-        assert_eq!(post.base.emap.get(&post.mesh.cells[2]).unwrap().n_equation, 6);
-        assert_eq!(post.base.dofs.size(), 10);
+        assert_eq!(post.schema.get_param(1)?.name(), "Solid");
+        assert_eq!(post.schema.get_local_to_global(0)?.len(), 6); // 3 * 2 (nnode * ndim)
+        assert_eq!(post.schema.get_local_to_global(1)?.len(), 6);
+        assert_eq!(post.schema.get_local_to_global(2)?.len(), 6);
+        assert_eq!(post.schema.get_neq()?, 10);
 
         // read state
         let ndim = post.mesh.ndim;
@@ -1733,8 +1757,8 @@ mod tests {
         let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
         let duu_v = generate_vertical_displacement_field(&post.mesh, STRAIN);
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
-        let eqx = post.base.dofs.eq(point_id, Dof::Ux).unwrap();
-        let eqy = post.base.dofs.eq(point_id, Dof::Uy).unwrap();
+        let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
+        let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
         let sel_ux = post.results.get_dof(point_id, Dof::Ux).unwrap();
         let sel_uy = post.results.get_dof(point_id, Dof::Uy).unwrap();
         let correct = [&duu_h, &duu_v, &duu_s];
@@ -1755,10 +1779,11 @@ mod tests {
                 approx_eq(s[i].strain.as_ref().unwrap().vector()[j], eps[i].vector()[j], 1e-14);
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn new_works_solid_3d() {
+    fn new_works_solid_3d() -> Result<(), StrError> {
         generate_data_files();
 
         // read essential
@@ -1768,11 +1793,11 @@ mod tests {
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
-        assert_eq!(post.base.amap.get(1).unwrap().name(), "Solid");
-        assert_eq!(post.base.amap.get(2).unwrap().name(), "Solid");
-        assert_eq!(post.base.emap.get(&post.mesh.cells[0]).unwrap().n_equation, 24); // 8 * 3 (nnode * ndim)
-        assert_eq!(post.base.emap.get(&post.mesh.cells[1]).unwrap().n_equation, 24);
-        assert_eq!(post.base.dofs.size(), 36); // 12 * 3 (nnode_total * ndim)
+        assert_eq!(post.schema.get_param(1)?.name(), "Solid");
+        assert_eq!(post.schema.get_param(2)?.name(), "Solid");
+        assert_eq!(post.schema.get_local_to_global(0)?.len(), 24); // 8 * 3 (nnode * ndim)
+        assert_eq!(post.schema.get_local_to_global(1)?.len(), 24);
+        assert_eq!(post.schema.get_neq()?, 36); // 12 * 3 (nnode_total * ndim)
 
         // read state
         let ndim = post.mesh.ndim;
@@ -1808,9 +1833,9 @@ mod tests {
         let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
         let duu_v = generate_vertical_displacement_field(&post.mesh, STRAIN);
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
-        let eqx = post.base.dofs.eq(point_id, Dof::Ux).unwrap();
-        let eqy = post.base.dofs.eq(point_id, Dof::Uy).unwrap();
-        let eqz = post.base.dofs.eq(point_id, Dof::Uz).unwrap();
+        let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
+        let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
+        let eqz = post.schema.get_eq(point_id, Dof::Uz)?;
         let sel_ux = post.results.get_dof(point_id, Dof::Ux).unwrap();
         let sel_uy = post.results.get_dof(point_id, Dof::Uy).unwrap();
         let sel_uz = post.results.get_dof(point_id, Dof::Uz).unwrap();
@@ -1833,6 +1858,7 @@ mod tests {
                 approx_eq(s[i].strain.as_ref().unwrap().vector()[j], eps[i].vector()[j], 1e-14);
             }
         }
+        Ok(())
     }
 
     #[test]
@@ -1840,14 +1866,15 @@ mod tests {
         let mesh = Samples::one_qua4();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(1);
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: FemResults::new(&mesh, &base, &config).unwrap(),
+            results: FemResults::new(&mesh, &schema, &config).unwrap(),
             mesh,
-            base,
+            schema,
         };
         let mut memo = PostProcMemo {
             all_gauss: HashMap::new(),
@@ -1863,14 +1890,15 @@ mod tests {
         let mesh = Samples::one_hex8();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(8);
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: FemResults::new(&mesh, &base, &config).unwrap(),
+            results: FemResults::new(&mesh, &schema, &config).unwrap(),
             mesh,
-            base,
+            schema,
         };
         let mut memo = PostProcMemo {
             all_gauss: HashMap::new(),
@@ -2755,10 +2783,11 @@ mod tests {
         let mesh = Samples::one_tri6();
         let features = Features::new(&mesh, false);
         let p1 = ParamDiffusion::sample();
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         state.u[0] = 1.0;
         state.u[1] = 2.0;
         state.u[2] = 3.0;
@@ -2768,9 +2797,9 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: FemResults::new(&mesh, &base, &config).unwrap(),
+            results: FemResults::new(&mesh, &schema, &config).unwrap(),
             mesh: mesh.clone(),
-            base,
+            schema,
         };
         let (ids, xx, dd) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x).unwrap();
         assert_eq!(ids, &[0, 3, 1]);
@@ -2868,12 +2897,13 @@ mod tests {
 
         // allocate FEM data
         let p1 = ParamDiffusion::sample();
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         let essential = Essential::new();
 
         // generate FEM state with each node having T = 100 + ID
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let npoint = mesh.points.len();
         for p in 0..npoint {
             state.u[p] = 100.0 + (p as f64);
@@ -2883,9 +2913,9 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: FemResults::new(&mesh, &base, &config).unwrap(),
+            results: FemResults::new(&mesh, &schema, &config).unwrap(),
             mesh: mesh.clone(),
-            base,
+            schema,
         };
 
         // top edges

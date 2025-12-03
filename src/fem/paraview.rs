@@ -17,7 +17,7 @@ use std::path::Path;
 /// The files will be indexed with `index` corresponding to each time station.
 pub(crate) fn write_vtu(
     mesh: &Mesh,
-    base: &Schema,
+    schema: &Schema,
     dir: &str,
     fn_stem: &str,
     state: &FemState,
@@ -32,12 +32,7 @@ pub(crate) fn write_vtu(
     }
 
     // auxiliary information
-    let enabled_dofs = base.dofs.enabled();
-    let not_displacement_dof: Vec<_> = enabled_dofs
-        .iter()
-        .filter(|&&dof| !(dof == Dof::Ux || dof == Dof::Uy || dof == Dof::Uz))
-        .copied()
-        .collect();
+    let (displacement_dofs, non_displacement_dofs) = schema.get_enabled_dofs();
 
     // output buffer
     let mut buffer = String::new();
@@ -125,30 +120,36 @@ pub(crate) fn write_vtu(
 
     // data: points
     write!(&mut buffer, "<PointData Scalars=\"TheScalars\">\n").unwrap();
-    if enabled_dofs.contains(&Dof::Ux) {
+    if !displacement_dofs.is_empty() {
         write!(
             &mut buffer,
             "<DataArray type=\"Float64\" Name=\"displacement\" NumberOfComponents=\"3\" format=\"ascii\">\n"
         )
         .unwrap();
         for point in &mesh.points {
-            let ux = match base.dofs.eq(point.id, Dof::Ux).ok() {
-                Some(eq) => state.u[eq],
-                None => 0.0,
+            let ux = if schema.has_dof(point.id, Dof::Ux)? {
+                let eq = schema.get_eq(point.id, Dof::Ux)?;
+                state.u[eq]
+            } else {
+                0.0
             };
-            let uy = match base.dofs.eq(point.id, Dof::Uy).ok() {
-                Some(eq) => state.u[eq],
-                None => 0.0,
+            let uy = if schema.has_dof(point.id, Dof::Uy)? {
+                let eq = schema.get_eq(point.id, Dof::Uy)?;
+                state.u[eq]
+            } else {
+                0.0
             };
-            let uz = match base.dofs.eq(point.id, Dof::Uz).ok() {
-                Some(eq) => state.u[eq],
-                None => 0.0,
+            let uz = if schema.has_dof(point.id, Dof::Uz)? {
+                let eq = schema.get_eq(point.id, Dof::Uz)?;
+                state.u[eq]
+            } else {
+                0.0
             };
             write!(&mut buffer, "{:?} {:?} {:?} ", ux, uy, uz).unwrap();
         }
         write!(&mut buffer, "\n</DataArray>\n").unwrap();
     }
-    for dof in &not_displacement_dof {
+    for dof in &non_displacement_dofs {
         write!(
             &mut buffer,
             "<DataArray type=\"Float64\" Name=\"{:?}\" NumberOfComponents=\"1\" format=\"ascii\">\n",
@@ -156,9 +157,11 @@ pub(crate) fn write_vtu(
         )
         .unwrap();
         for point in &mesh.points {
-            let value = match base.dofs.eq(point.id, *dof).ok() {
-                Some(eq) => state.u[eq],
-                None => 0.0,
+            let value = if schema.has_dof(point.id, *dof)? {
+                let eq = schema.get_eq(point.id, *dof)?;
+                state.u[eq]
+            } else {
+                0.0
             };
             write!(&mut buffer, "{:?} ", value).unwrap();
         }
@@ -238,7 +241,7 @@ pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f6
 #[cfg(test)]
 mod tests {
     use super::{write_pvd, write_vtu};
-    use crate::base::{Config, Dof, Elem, Essential, Schema};
+    use crate::base::{Config, Dof, Essential, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousSldLiq, ParamSolid};
     use crate::fem::FemState;
     use gemlab::mesh::Samples;
@@ -249,10 +252,11 @@ mod tests {
         // load mesh and setup FEM structures
         let mesh = Samples::three_tri3();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
@@ -260,7 +264,7 @@ mod tests {
         let npoint = mesh.points.len();
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            let eq = base.dofs.eq(p, Dof::Ux).unwrap();
+            let eq = schema.get_eq(p, Dof::Ux).unwrap();
             state.u[eq] = strain * y;
         }
 
@@ -272,7 +276,7 @@ mod tests {
         // write VTU file
         let index = 0;
         let name = "test_write_vtu_works_1";
-        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index, None).unwrap();
+        let path = write_vtu(&mesh, &schema, "/tmp/pmsim", name, &state, index, None).unwrap();
 
         // check contents
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
@@ -315,17 +319,18 @@ mod tests {
         // load mesh and setup FEM structures
         let mesh = Samples::three_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 
         // Generates temperature field
         let npoint = mesh.points.len();
         for p in 0..npoint {
             let x = mesh.points[p].coords[0];
             let y = mesh.points[p].coords[1];
-            let eq = base.dofs.eq(p, Dof::Phi).unwrap();
+            let eq = schema.get_eq(p, Dof::Phi).unwrap();
             state.u[eq] = 2.0 * x + 5.0 * y;
         }
 
@@ -337,7 +342,7 @@ mod tests {
         // write VTU file
         let index = 0;
         let name = "test_write_vtu_works_2";
-        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index, None).unwrap();
+        let path = write_vtu(&mesh, &schema, "/tmp/pmsim", name, &state, index, None).unwrap();
 
         // check contents
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
@@ -377,34 +382,20 @@ mod tests {
 
     #[test]
     fn write_vtu_works_mixed() {
-        //                     {Ux→15}
-        //    {Ux→21}          {Uy→16}
-        //    {Uy→22}  {Ux→19} {Rz→17}
-        //    {Pl→23}  {Uy→20} {Pl→18} {Ux→13}
-        //         8------7------6._   {Uy→14}
-        //         |       [3](3)|  '-.5
-        //         |  [0]        |     '-._
-        // {Ux→24} 9  (1)      *10  [1]    '4 {Ux→11}
-        // {Uy→25} |             |  (2)  .-'  {Uy→12}
-        //         |       [2](3)|   _.3'
-        //         0------1------2.-'  {Ux→9}
-        //     {Ux→0}  {Ux→3}  {Ux→5}  {Uy→10}
-        //     {Uy→1}  {Uy→4}  {Uy→6}
-        //     {Pl→2}          {Rz→7}
-        //                     {Pl→8}
-        //  *10 => {Ux→26, Uy→27, Rz→28}
         let mesh = Samples::qua8_tri6_lin2();
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let base = Schema::new(
-            &mesh,
-            [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
-        )
-        .unwrap();
+        let mut schema = Schema::new();
+        schema
+            .add_porous_sld_liq(1, p1)
+            .add_solid(2, p2)
+            .add_beam(3, p3)
+            .build(&mesh)
+            .unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
@@ -412,22 +403,22 @@ mod tests {
         let npoint = mesh.points.len();
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            let eq = base.dofs.eq(p, Dof::Ux).unwrap();
+            let eq = schema.get_eq(p, Dof::Ux).unwrap();
             state.u[eq] = strain * y;
         }
 
         // Applies liquid pressure proportional to the y coordinate
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            if base.dofs.contains(p, Dof::Pl) {
-                let eq = base.dofs.eq(p, Dof::Pl).unwrap();
+            if schema.has_dof(p, Dof::Pl).unwrap() {
+                let eq = schema.get_eq(p, Dof::Pl).unwrap();
                 state.u[eq] = 100.0 * (1.0 + y);
             }
         }
 
         let index = 0;
         let name = "test_write_vtu_works_mixed";
-        let path = write_vtu(&mesh, &base, "/tmp/pmsim", name, &state, index, None).unwrap();
+        let path = write_vtu(&mesh, &schema, "/tmp/pmsim", name, &state, index, None).unwrap();
 
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(

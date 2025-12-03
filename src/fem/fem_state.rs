@@ -108,7 +108,7 @@ pub struct FemState {
 
 impl FemState {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &Schema, essential: &Essential, config: &Config) -> Result<FemState, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, essential: &Essential, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
         let ncell = mesh.cells.len();
         if ncell == 0 {
@@ -127,10 +127,10 @@ impl FemState {
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
         for cell in &mesh.cells {
-            let elem = base.amap.get(cell.marker).unwrap(); // already checked by Data
-            let ngauss_opt = base.amap.ngauss(cell.marker).unwrap();
+            let param = schema.get_param(cell.marker)?;
+            let ngauss_opt = param.ngauss();
             let ngauss = Gauss::new_or_sized(cell.kind, ngauss_opt)?.npoint();
-            match elem {
+            match param {
                 Elem::Diffusion(..) => {
                     has_diffusion = true;
                     if config.model_settings(cell.marker).save_flux {
@@ -178,7 +178,7 @@ impl FemState {
         }
 
         // total number of equations
-        let mut neq_total = base.dofs.size();
+        let mut neq_total = schema.get_neq()?;
         if config.lagrange_mult_method {
             neq_total += essential.size();
         };
@@ -266,7 +266,7 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{new_empty_mesh_2d, Config, Elem, Essential, Schema};
+    use crate::base::{new_empty_mesh_2d, Config, Essential, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use gemlab::mesh::Samples;
@@ -275,11 +275,12 @@ mod tests {
     fn new_handles_errors() {
         let mesh = new_empty_mesh_2d();
         let p1 = ParamSolid::sample_linear_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &base, &essential, &config).err(),
+            FemState::new(&mesh, &schema, &essential, &config).err(),
             Some("there are no cells in the mesh")
         );
 
@@ -287,38 +288,44 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamRod::sample();
-        let base = Schema::new(
-            &mesh,
-            [(1, Elem::Diffusion(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
-        )
-        .unwrap();
+        let mut schema = Schema::new();
+        schema
+            .add_diffusion(1, p1)
+            .add_solid(2, p2)
+            .add_rod(3, p3)
+            .build(&mesh)
+            .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &base, &essential, &config).err(),
+            FemState::new(&mesh, &schema, &essential, &config).err(),
             Some("cannot combine Diffusion elements with other elements")
         );
 
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let base = Schema::new(
-            &mesh,
-            [(1, Elem::PorousLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
-        )
-        .unwrap();
+        let mut schema = Schema::new();
+        schema
+            .add_porous_liq(1, p1)
+            .add_solid(2, p2)
+            .add_rod(3, p3)
+            .build(&mesh)
+            .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &base, &essential, &config).err(),
+            FemState::new(&mesh, &schema, &essential, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
 
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let base = Schema::new(
-            &mesh,
-            [(1, Elem::PorousLiqGas(p1)), (2, Elem::Solid(p2)), (3, Elem::Rod(p3))],
-        )
-        .unwrap();
+        let mut schema = Schema::new();
+        schema
+            .add_porous_liq_gas(1, p1)
+            .add_solid(2, p2)
+            .add_rod(3, p3)
+            .build(&mesh)
+            .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &base, &essential, &config).err(),
+            FemState::new(&mesh, &schema, &essential, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
     }
@@ -329,33 +336,36 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let p2 = ParamSolid::sample_linear_elastic();
         let p3 = ParamBeam::sample();
-        let base = Schema::new(
-            &mesh,
-            [(1, Elem::PorousSldLiq(p1)), (2, Elem::Solid(p2)), (3, Elem::Beam(p3))],
-        )
-        .unwrap();
+        let mut schema = Schema::new();
+        schema
+            .add_porous_sld_liq(1, p1)
+            .add_solid(2, p2)
+            .add_beam(3, p3)
+            .build(&mesh)
+            .unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), base.dofs.size());
-        assert_eq!(state.u.dim(), base.dofs.size());
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
     fn new_works_diffusion() {
         let mesh = Samples::one_tri3();
         let p1 = ParamDiffusion::sample();
-        let base = Schema::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.transient = true;
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), base.dofs.size());
-        assert_eq!(state.u.dim(), base.dofs.size());
-        assert_eq!(state.v.dim(), base.dofs.size());
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.v.dim(), schema.get_neq().unwrap());
         assert_eq!(state.a.dim(), 0);
-        assert_eq!(state.u_star.dim(), base.dofs.size());
-        assert_eq!(state.v_star.dim(), base.dofs.size());
+        assert_eq!(state.u_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.v_star.dim(), schema.get_neq().unwrap());
         assert_eq!(state.a_star.dim(), 0);
     }
 
@@ -363,12 +373,13 @@ mod tests {
     fn new_works_rod_only() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), base.dofs.size());
-        assert_eq!(state.u.dim(), base.dofs.size());
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
         assert_eq!(state.v.dim(), 0);
         assert_eq!(state.a.dim(), 0);
         assert_eq!(state.u_star.dim(), 0);
@@ -380,36 +391,39 @@ mod tests {
     fn new_works_porous_liq() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let base = Schema::new(&mesh, [(1, Elem::PorousLiq(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_porous_liq(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), base.dofs.size());
-        assert_eq!(state.u.dim(), base.dofs.size());
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
     fn new_works_porous_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let base = Schema::new(&mesh, [(1, Elem::PorousLiqGas(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_porous_liq_gas(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), base.dofs.size());
-        assert_eq!(state.u.dim(), base.dofs.size());
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
     fn new_works_porous_sld_liq_gas() {
         let mesh = Samples::one_tri6();
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::PorousSldLiqGas(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), base.dofs.size());
-        assert_eq!(state.u.dim(), base.dofs.size());
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
@@ -417,28 +431,30 @@ mod tests {
         let mesh = Samples::mixed_shapes_2d();
         let p1 = ParamRod::sample();
         let p2 = ParamSolid::sample_linear_elastic();
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Solid(p2))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1).add_solid(2, p2).build(&mesh).unwrap();
         let essential = Essential::new();
         let mut config = Config::new(&mesh);
         config.dynamics = true;
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), base.dofs.size());
-        assert_eq!(state.u.dim(), base.dofs.size());
-        assert_eq!(state.v.dim(), base.dofs.size());
-        assert_eq!(state.a.dim(), base.dofs.size());
-        assert_eq!(state.u_star.dim(), base.dofs.size());
-        assert_eq!(state.v_star.dim(), base.dofs.size());
-        assert_eq!(state.a_star.dim(), base.dofs.size());
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.v.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.a.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.u_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.v_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.a_star.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
     fn derive_works() {
         let mesh = Samples::one_lin2();
         let p1 = ParamRod::sample();
-        let base = Schema::new(&mesh, [(1, Elem::Rod(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1).build(&mesh).unwrap();
         let essential = Essential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let clone = state.clone();
         let str_ori = format!("{:?}", clone).to_string();
         assert_eq!(format!("{:?}", clone), str_ori);

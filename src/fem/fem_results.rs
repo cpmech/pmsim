@@ -50,7 +50,7 @@ pub struct FemResults {
 
 impl FemResults {
     /// Allocates a new instance with deactivated generation of files
-    pub fn new(mesh: &Mesh, base: &Schema, config: &Config) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config) -> Result<Self, StrError> {
         if config.out_files {
             // create directory
             fs::create_dir_all(&config.out_dir).map_err(|_| "cannot create output directory")?;
@@ -59,7 +59,7 @@ impl FemResults {
             mesh.write(&format!("{}/{}-mesh.msh", config.out_dir, config.out_fn_stem))?;
 
             // write the FEM base
-            base.write_json(&format!("{}/{}-base.json", config.out_dir, config.out_fn_stem))?;
+            schema.write_json(&format!("{}/{}-schema.json", config.out_dir, config.out_fn_stem))?;
         }
         Ok(FemResults {
             counter: 0,
@@ -147,7 +147,7 @@ impl FemResults {
     }
 
     /// Saves the results at selected nodes and integration points
-    pub(crate) fn save_selected(&mut self, config: &Config, base: &Schema, state: &FemState) -> Result<(), StrError> {
+    pub(crate) fn save_selected(&mut self, config: &Config, schema: &Schema, state: &FemState) -> Result<(), StrError> {
         if config.out_has_selected {
             // step, time, and lambda
             self.sel_step.push(state.step);
@@ -156,7 +156,8 @@ impl FemResults {
 
             // DOFs
             for (point_id, dof) in config.out_dof.iter() {
-                if let Some(eq) = base.dofs.eq(*point_id, *dof).ok() {
+                if schema.has_dof(*point_id, *dof)? {
+                    let eq = schema.get_eq(*point_id, *dof)?;
                     let key = format!("{:?},{:?}", point_id, dof);
                     self.sel_dof.entry(key).or_insert(Vec::new()).push(state.u[eq]);
                 }
