@@ -32,7 +32,7 @@ pub(crate) fn write_vtu(
     }
 
     // auxiliary information
-    let (displacement_dofs, non_displacement_dofs) = schema.get_enabled_dofs();
+    let (displacement_dofs, non_displacement_dofs) = schema.get_enabled_dofs()?;
 
     // output buffer
     let mut buffer = String::new();
@@ -149,7 +149,7 @@ pub(crate) fn write_vtu(
         }
         write!(&mut buffer, "\n</DataArray>\n").unwrap();
     }
-    for dof in &non_displacement_dofs {
+    for dof in non_displacement_dofs {
         write!(
             &mut buffer,
             "<DataArray type=\"Float64\" Name=\"{:?}\" NumberOfComponents=\"1\" format=\"ascii\">\n",

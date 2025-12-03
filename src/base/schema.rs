@@ -25,6 +25,12 @@ pub struct Schema {
     /// Local to global mapping: rows = cells, columns of varied sizes = local DOF numbers (zero-based)
     local_to_global: Vec<Vec<usize>>,
 
+    /// Collects the DOF keys that are enabled and are related to displacement
+    enabled_displacement_dofs: Vec<Dof>,
+
+    /// Collects the DOF keys that are enabled and are not related to displacement
+    enabled_non_displacement_dofs: Vec<Dof>,
+
     /// Indicates whether the schema is built and ready to be used
     ready: bool,
 }
@@ -40,6 +46,8 @@ impl Schema {
             ndof: 0,
             dof_numbers: NumMatrix::new(0, 0),
             local_to_global: Vec::new(),
+            enabled_displacement_dofs: Vec::new(),
+            enabled_non_displacement_dofs: Vec::new(),
             ready: false,
         }
     }
@@ -205,11 +213,28 @@ impl Schema {
         for i in 0..npoint {
             for j in 0..n_dof_variant {
                 if dof_flags.get(i, j) != 0 {
+                    // assign DOF number (one-based)
                     self.ndof += 1;
                     self.dof_numbers.set(i, j, self.ndof);
+                    // collect enabled DOFs
+                    if let Some(dof) = Dof::from_index(j) {
+                        if dof.is_displacement() {
+                            if !self.enabled_displacement_dofs.contains(&dof) {
+                                self.enabled_displacement_dofs.push(dof);
+                            }
+                        } else {
+                            if !self.enabled_non_displacement_dofs.contains(&dof) {
+                                self.enabled_non_displacement_dofs.push(dof);
+                            }
+                        }
+                    }
                 }
             }
         }
+
+        // sort enabled DOFs for consistency in tests
+        self.enabled_displacement_dofs.sort();
+        self.enabled_non_displacement_dofs.sort();
 
         // loop over cells and build the local_to_global mapping
         let ncell = mesh.cells.len();
@@ -327,30 +352,11 @@ impl Schema {
     /// Returns the enabled DOFs in the schema
     ///
     /// Returns `(displacement_dofs, non_displacement_dofs)`
-    pub fn get_enabled_dofs(&self) -> (Vec<Dof>, Vec<Dof>) {
-        let mut displacement_dofs = Vec::new();
-        let mut non_displacement_dofs = Vec::new();
-        let (nrow, ncol) = self.dof_numbers.dims();
-        for i in 0..nrow {
-            for j in 0..ncol {
-                if self.dof_numbers.get(i, j) != 0 {
-                    if let Some(dof) = Dof::from_index(j) {
-                        if dof.is_displacement() {
-                            if !displacement_dofs.contains(&dof) {
-                                displacement_dofs.push(dof);
-                            }
-                        } else {
-                            if !non_displacement_dofs.contains(&dof) {
-                                non_displacement_dofs.push(dof);
-                            }
-                        }
-                    }
-                }
-            }
+    pub fn get_enabled_dofs(&self) -> Result<(&Vec<Dof>, &Vec<Dof>), StrError> {
+        if !self.ready {
+            return Err("Schema must be built before calling get_eq");
         }
-        displacement_dofs.sort();
-        non_displacement_dofs.sort();
-        (displacement_dofs, non_displacement_dofs)
+        Ok((&self.enabled_displacement_dofs, &self.enabled_non_displacement_dofs))
     }
 
     /// Reads a JSON file containing the scheme
