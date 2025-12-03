@@ -498,7 +498,7 @@ mod tests {
     use crate::base::{
         Dof, ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid,
     };
-    use gemlab::mesh::Samples;
+    use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
 
     #[test]
     fn schema_build_works_1() {
@@ -661,7 +661,60 @@ mod tests {
 
     #[test]
     fn schema_build_works_5() {
-        //         ONE-BASED                     ZERO-BASED
+        //        ONE-BASED                     ZERO-BASED
+        //
+        //         {13,14,15}                   {12,13,14}
+        //             5                            2
+        //            / \                          / \
+        //      {9}  /   \  {11}             {8}  /   \  {10}
+        //     {10} 3     4 {12}             {9} 5     4 {11}
+        //         /       \                    /       \
+        //        /         \                  /         \
+        //       0-----1-----2                0-----3-----1
+        //      {1}   {4}   {6}              {0}   {3}   {5}
+        //      {2}   {5}   {7}              {1}   {4}   {6}
+        //      {3}         {8}              {2}         {7}
+        #[rustfmt::skip]
+        let mesh = Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id: 0, marker: 0, coords: vec![0.0,  0.0  ] },
+                Point { id: 1, marker: 0, coords: vec![0.5,  0.0  ] },
+                Point { id: 2, marker: 0, coords: vec![1.0,  0.0  ] },
+                Point { id: 3, marker: 0, coords: vec![0.25, 0.425] },
+                Point { id: 4, marker: 0, coords: vec![0.75, 0.425] },
+                Point { id: 5, marker: 0, coords: vec![0.5,  0.85 ] },
+            ],
+            cells: vec![
+                Cell { id: 0, marker: 1, kind: GeoKind::Tri6, points: vec![0, 2, 5, 1, 4, 3] },
+            ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
+        };
+        let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
+        let mut schema = Schema::new();
+        schema.add_porous_sld_liq(1, p1).build(&mesh).unwrap();
+        println!("│Phi Ux Uy Uz Rx Ry Rz Pl Pg Fso│");
+        println!("{}", schema.dof_numbers);
+        // note that DOF numbers are one-based in this matrix
+        assert_eq!(schema.dof_numbers.extract_row(0), &[0, 1, 2, 0, 0, 0, 0, 3, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(1), &[0, 4, 5, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(2), &[0, 6, 7, 0, 0, 0, 0, 8, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(3), &[0, 9, 10, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(4), &[0, 11, 12, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(5), &[0, 13, 14, 0, 0, 0, 0, 15, 0, 0]);
+        // check local to global mapping (remember to subtract 1 since local_to_global is zero-based)
+        assert_eq!(schema.local_to_global.len(), mesh.cells.len());
+        let l2g = &schema.local_to_global[0];
+        assert_eq!(
+            l2g,
+            &[/*Ux,Uy*/ 0, 1, 5, 6, 12, 13, 3, 4, 10, 11, 8, 9, /*Pl*/ 2, 7, 14]
+        );
+    }
+
+    #[test]
+    fn schema_build_works_6() {
+        //        ONE-BASED                     ZERO-BASED
         //
         //        {9,10,11,12}                  {8,9,10,11}
         //             2                             2
