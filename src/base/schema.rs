@@ -295,7 +295,7 @@ impl Schema {
         if !self.ready {
             return Err("Schema must be built before calling has_dof");
         }
-        let j = dof as usize;
+        let j = dof.index();
         let geq_one_based = self.dof_numbers.get(point_id, j);
         Ok(geq_one_based != 0)
     }
@@ -316,7 +316,7 @@ impl Schema {
         if point_id >= self.dof_numbers.nrow() {
             return Err("cannot get equation number because point_id is out of bounds");
         }
-        let j = dof as usize;
+        let j = dof.index();
         let geq_one_based = self.dof_numbers.get(point_id, j);
         if geq_one_based == 0 {
             return Err("cannot get equation number because DOF is not assigned");
@@ -409,7 +409,7 @@ fn enable_dofs(
     for m in 0..nnode {
         let p = cell.points[m];
         for d in 0..ndof_per_node_homogeneous {
-            let j = dofs_per_node_homogeneous[d] as usize;
+            let j = dofs_per_node_homogeneous[d].index();
             if dof_flags.get(p, j) == 0 {
                 dof_flags.set(p, j, 1);
             }
@@ -423,7 +423,7 @@ fn enable_dofs(
         for m in 0..nnode_lower_order {
             let p = cell.points[m];
             for d in 0..ndof_per_node_lower_order {
-                let j = dofs_per_node_extra[d] as usize;
+                let j = dofs_per_node_extra[d].index();
                 if dof_flags.get(p, j) == 0 {
                     dof_flags.set(p, j, 1);
                 }
@@ -459,7 +459,7 @@ fn build_l2g_array(
     for m in 0..nnode {
         let p = cell.points[m];
         for d in 0..ndof_per_node_homogeneous {
-            let j = dofs_per_node_homogeneous[d] as usize;
+            let j = dofs_per_node_homogeneous[d].index();
             let local_eq = m * ndof_per_node_homogeneous + d;
             l2g[local_eq] = dof_numbers.get(p, j) - 1; // convert to zero-based
         }
@@ -471,7 +471,7 @@ fn build_l2g_array(
         for m in 0..nnode_lower_order {
             let p = cell.points[m];
             for d in 0..ndof_per_node_lower_order {
-                let j = dofs_extra[d] as usize;
+                let j = dofs_extra[d].index();
                 let local_eq = start + m * ndof_per_node_lower_order + d;
                 l2g[local_eq] = dof_numbers.get(p, j) - 1; // convert to zero-based
             }
