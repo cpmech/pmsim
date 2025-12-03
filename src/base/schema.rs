@@ -472,15 +472,17 @@ fn build_l2g_array(
     }
 
     // loop over points and extra dofs
+    // (in this case, place all extra DOFs of the same type together, so that slices can be taken easily)
     if let Some(dofs_extra) = dofs_per_node_lower_order {
-        let start = nnode * ndof_per_node_homogeneous;
-        for m in 0..nnode_lower_order {
-            let p = cell.points[m];
-            for d in 0..ndof_per_node_lower_order {
+        let mut start = nnode * ndof_per_node_homogeneous;
+        for d in 0..ndof_per_node_lower_order {
+            for m in 0..nnode_lower_order {
+                let p = cell.points[m];
                 let j = dofs_extra[d].index();
-                let local_eq = start + m * ndof_per_node_lower_order + d;
+                let local_eq = start + m;
                 l2g[local_eq] = dof_numbers.get(p, j) - 1; // convert to zero-based
             }
+            start += nnode_lower_order; // next extra DOF type
         }
     }
 
@@ -493,7 +495,9 @@ fn build_l2g_array(
 #[cfg(test)]
 mod tests {
     use super::Schema;
-    use crate::base::{Dof, ParamBeam, ParamPorousLiq, ParamPorousSldLiq, ParamSolid};
+    use crate::base::{
+        Dof, ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid,
+    };
     use gemlab::mesh::Samples;
 
     #[test]
@@ -561,6 +565,39 @@ mod tests {
 
     #[test]
     fn schema_build_works_3() {
+        // {4}          {3}          {6}
+        //  3------------2------------5
+        //  |`.          |            |
+        //  |  `.   1:1  |            |
+        //  |    `.      |    2:2     |
+        //  |      `.    |            |
+        //  |  0:1   `.  |            |
+        //  |          `.|            |
+        //  0------------1------------4
+        // {1}          {2}          {5}
+        let mesh = Samples::two_tri3_one_qua4();
+        let p = ParamDiffusion::sample();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p).add_diffusion(2, p).build(&mesh).unwrap();
+        println!("│Phi Ux Uy Uz Rx Ry Rz Pl Pg Fso│");
+        println!("{}", schema.dof_numbers);
+        assert_eq!(schema.ndof, 6);
+        // note that DOF numbers are one-based in this matrix
+        assert_eq!(schema.dof_numbers.extract_row(0), &[1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(1), &[2, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(2), &[3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(3), &[4, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(4), &[5, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(5), &[6, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        // check local to global mapping (remember to subtract 1 since local_to_global is zero-based)
+        assert_eq!(schema.local_to_global.len(), mesh.cells.len());
+        assert_eq!(schema.local_to_global[0], &[0, 1, 3]);
+        assert_eq!(schema.local_to_global[1], &[2, 3, 1]);
+        assert_eq!(schema.local_to_global[2], &[1, 4, 5, 2]);
+    }
+
+    #[test]
+    fn schema_build_works_4() {
         // One-based DOF numbering scheme for the following mesh:
         //
         //                     {Ux→16}
@@ -620,6 +657,61 @@ mod tests {
         );
         assert_eq!(schema.local_to_global[2], &[5, 6, 7, 26, 27, 28]);
         assert_eq!(schema.local_to_global[3], &[26, 27, 28, 15, 16, 17]);
+    }
+
+    #[test]
+    fn schema_build_works_5() {
+        //         ONE-BASED                     ZERO-BASED
+        //
+        //        {9,10,11,12}                  {8,9,10,11}
+        //             2                             2
+        //            / \                           / \
+        //           /   \                         /   \
+        //  {17,18} 5     4 {15,16}       {16,17} 5     4 {14,15}
+        //         /       \                     /       \
+        //        /         \                   /         \
+        //       0-----3-----1                 0-----3-----1
+        //      {1}   {13}  {5}               {0}   {12}  {4}
+        //      {2}   {14}  {6}               {1}   {13}  {5}
+        //      {3}         {7}               {2}         {6}
+        //      {4}         {8}               {3}         {7}
+        let mesh = Samples::one_tri6();
+        let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
+        let mut schema = Schema::new();
+        schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
+        println!("│Phi Ux Uy Uz Rx Ry Rz Pl Pg Fso│");
+        println!("{}", schema.dof_numbers);
+        // note that DOF numbers are one-based in this matrix
+        assert_eq!(schema.dof_numbers.extract_row(0), &[0, 1, 2, 0, 0, 0, 0, 3, 4, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(1), &[0, 5, 6, 0, 0, 0, 0, 7, 8, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(2), &[0, 9, 10, 0, 0, 0, 0, 11, 12, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(3), &[0, 13, 14, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(4), &[0, 15, 16, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(5), &[0, 17, 18, 0, 0, 0, 0, 0, 0, 0]);
+        // check local to global mapping (remember to subtract 1 since local_to_global is zero-based)
+        assert_eq!(schema.local_to_global.len(), mesh.cells.len());
+        let l2g = &schema.local_to_global[0];
+        assert_eq!(
+            l2g,
+            &[/*Ux,Uy*/ 0, 1, 4, 5, 8, 9, 12, 13, 14, 15, 16, 17, /*Pl*/ 2, 6, 10, /*Pg*/ 3, 7, 11]
+        );
+        // slice of displacement DOFs
+        let ndim = mesh.ndim;
+        let nnode = mesh.cells[0].points.len();
+        let disp_dofs = &l2g[..nnode * ndim];
+        println!("disp_dofs: {:?}", disp_dofs);
+        assert_eq!(disp_dofs, &[0, 1, 4, 5, 8, 9, 12, 13, 14, 15, 16, 17]);
+        // slice of pore liquid pressure DOFs
+        let start = nnode * ndim;
+        let nnode_lower_order = mesh.cells[0].kind.lower_order().unwrap().nnode();
+        let pl_dofs = &l2g[start..start + nnode_lower_order];
+        println!("pl_dofs: {:?}", pl_dofs);
+        assert_eq!(pl_dofs, &[2, 6, 10]);
+        // slice of pore gas pressure DOFs
+        let start = start + nnode_lower_order;
+        let pg_dofs = &l2g[start..];
+        println!("pg_dofs: {:?}", pg_dofs);
+        assert_eq!(pg_dofs, &[3, 7, 11]);
     }
 
     #[test]
