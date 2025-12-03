@@ -498,6 +498,69 @@ mod tests {
 
     #[test]
     fn schema_build_works_1() {
+        //       {9} 4---.__
+        //      {10}/ \     `--.___3 {7}
+        //         /   \          / \{8}
+        //        /     \  1:1   /   \
+        //       /  0:1  \      /     \
+        // {1}  /         \    /  2:1  \
+        // {2} 0---.__     \  /      ___2 {5}
+        //            `--.__\/__.---'     {6}
+        //                   1 {3}
+        //                     {4}
+        let mesh = Samples::three_tri3();
+        let p1 = ParamSolid::sample_linear_elastic();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
+        println!("│Phi Ux Uy Uz Rx Ry Rz Pl Pg Fso│");
+        println!("{}", schema.dof_numbers);
+        // note that DOF numbers are one-based in this matrix
+        assert_eq!(schema.dof_numbers.extract_row(0), &[0, 1, 2, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(1), &[0, 3, 4, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(2), &[0, 5, 6, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(3), &[0, 7, 8, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(4), &[0, 9, 10, 0, 0, 0, 0, 0, 0, 0]);
+        // check local to global mapping (remember to subtract 1 since local_to_global is zero-based)
+        assert_eq!(schema.local_to_global[0], &[0, 1, 2, 3, 8, 9]);
+        assert_eq!(schema.local_to_global[1], &[2, 3, 6, 7, 8, 9]);
+        assert_eq!(schema.local_to_global[2], &[2, 3, 4, 5, 6, 7]);
+    }
+
+    #[test]
+    fn schema_build_works_2() {
+        // {4}          {3}          {6}
+        //  3------------2------------5
+        //  |`.          |            |
+        //  |  `.   1:1  |            |
+        //  |    `.      |    2:2     |
+        //  |      `.    |            |
+        //  |  0:1   `.  |            |
+        //  |          `.|            |
+        //  0------------1------------4
+        // {1}          {2}          {5}
+        let mesh = Samples::two_tri3_one_qua4();
+        let p = ParamPorousLiq::sample_brooks_corey_constant();
+        let mut schema = Schema::new();
+        schema.add_porous_liq(1, p).add_porous_liq(2, p).build(&mesh).unwrap();
+        println!("│Phi Ux Uy Uz Rx Ry Rz Pl Pg Fso│");
+        println!("{}", schema.dof_numbers);
+        assert_eq!(schema.ndof, 6);
+        // note that DOF numbers are one-based in this matrix
+        assert_eq!(schema.dof_numbers.extract_row(0), &[0, 0, 0, 0, 0, 0, 0, 1, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(1), &[0, 0, 0, 0, 0, 0, 0, 2, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(2), &[0, 0, 0, 0, 0, 0, 0, 3, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(3), &[0, 0, 0, 0, 0, 0, 0, 4, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(4), &[0, 0, 0, 0, 0, 0, 0, 5, 0, 0]);
+        assert_eq!(schema.dof_numbers.extract_row(5), &[0, 0, 0, 0, 0, 0, 0, 6, 0, 0]);
+        // check local to global mapping (remember to subtract 1 since local_to_global is zero-based)
+        assert_eq!(schema.local_to_global.len(), mesh.cells.len());
+        assert_eq!(schema.local_to_global[0], &[0, 1, 3]);
+        assert_eq!(schema.local_to_global[1], &[2, 3, 1]);
+        assert_eq!(schema.local_to_global[2], &[1, 4, 5, 2]);
+    }
+
+    #[test]
+    fn schema_build_works_3() {
         // One-based DOF numbering scheme for the following mesh:
         //
         //                     {Ux→16}
@@ -557,60 +620,6 @@ mod tests {
         );
         assert_eq!(schema.local_to_global[2], &[5, 6, 7, 26, 27, 28]);
         assert_eq!(schema.local_to_global[3], &[26, 27, 28, 15, 16, 17]);
-    }
-
-    #[test]
-    fn schema_build_works_2() {
-        //       {8} 4---.__
-        //       {9}/ \     `--.___3 {6}
-        //         /   \          / \{7}
-        //        /     \  1:1   /   \
-        //       /  0:1  \      /     \
-        // {0}  /         \    /  2:1  \
-        // {1} 0---.__     \  /      ___2 {4}
-        //            `--.__\/__.---'     {5}
-        //                   1 {2}
-        //                     {3}
-        let mesh = Samples::three_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let mut schema = Schema::new();
-        schema.add_solid(1, p1).build(&mesh).unwrap();
-        println!("│Phi Ux Uy Uz Rx Ry Rz Pl Pg Fso│");
-        println!("{}", schema.dof_numbers);
-        assert_eq!(schema.local_to_global[0], &[0, 1, 2, 3, 8, 9]);
-        assert_eq!(schema.local_to_global[1], &[2, 3, 6, 7, 8, 9]);
-        assert_eq!(schema.local_to_global[2], &[2, 3, 4, 5, 6, 7]);
-    }
-
-    #[test]
-    fn schema_build_works_3() {
-        // 3------------2------------5
-        // |`.          |            |
-        // |  `.   1:1  |            |
-        // |    `.      |    2:2     |
-        // |      `.    |            |
-        // |  0:1   `.  |            |
-        // |          `.|            |
-        // 0------------1------------4
-        let mesh = Samples::two_tri3_one_qua4();
-        let p = ParamPorousLiq::sample_brooks_corey_constant();
-        let mut schema = Schema::new();
-        schema.add_porous_liq(1, p).add_porous_liq(2, p).build(&mesh).unwrap();
-        println!("│Phi Ux Uy Uz Rx Ry Rz Pl Pg Fso│");
-        println!("{}", schema.dof_numbers);
-        assert_eq!(schema.ndof, 6);
-        // note that DOF numbers are one-based in this matrix
-        assert_eq!(schema.dof_numbers.extract_row(0), &[0, 0, 0, 0, 0, 0, 0, 1, 0, 0]);
-        assert_eq!(schema.dof_numbers.extract_row(1), &[0, 0, 0, 0, 0, 0, 0, 2, 0, 0]);
-        assert_eq!(schema.dof_numbers.extract_row(2), &[0, 0, 0, 0, 0, 0, 0, 3, 0, 0]);
-        assert_eq!(schema.dof_numbers.extract_row(3), &[0, 0, 0, 0, 0, 0, 0, 4, 0, 0]);
-        assert_eq!(schema.dof_numbers.extract_row(4), &[0, 0, 0, 0, 0, 0, 0, 5, 0, 0]);
-        assert_eq!(schema.dof_numbers.extract_row(5), &[0, 0, 0, 0, 0, 0, 0, 6, 0, 0]);
-        // check local to global mapping (remember to subtract 1 since local_to_global is zero-based)
-        assert_eq!(schema.local_to_global.len(), mesh.cells.len());
-        assert_eq!(schema.local_to_global[0], &[0, 1, 3]);
-        assert_eq!(schema.local_to_global[1], &[2, 3, 1]);
-        assert_eq!(schema.local_to_global[2], &[1, 4, 5, 2]);
     }
 
     #[test]
