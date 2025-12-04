@@ -657,6 +657,22 @@ mod tests {
         );
         assert_eq!(schema.local_to_global[2], &[5, 6, 7, 26, 27, 28]);
         assert_eq!(schema.local_to_global[3], &[26, 27, 28, 15, 16, 17]);
+        println!(
+            "ε1 = {:?}",
+            schema.local_to_global[0].iter().map(|i| i + 1).collect::<Vec<usize>>()
+        );
+        println!(
+            "ε1 = {:?}",
+            schema.local_to_global[1].iter().map(|i| i + 1).collect::<Vec<usize>>()
+        );
+        println!(
+            "ε2 = {:?}",
+            schema.local_to_global[2].iter().map(|i| i + 1).collect::<Vec<usize>>()
+        );
+        println!(
+            "ε3 = {:?}",
+            schema.local_to_global[3].iter().map(|i| i + 1).collect::<Vec<usize>>()
+        );
     }
 
     #[test]
