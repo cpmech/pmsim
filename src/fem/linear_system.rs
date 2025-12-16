@@ -257,11 +257,11 @@ impl<'a> LinearSystem<'a> {
         let csc = CscMatrix::from_coo(&self.kk)?;
         if self.config.save_matrix_market_file {
             let name = format!("/tmp/pmsim/K-matrix.mtx");
-            csc.write_matrix_market(&name, false).unwrap();
+            csc.write_matrix_market(&name, false, 1e-14).unwrap();
         }
         if self.config.save_vismatrix_file {
             let name = format!("/tmp/pmsim/K-matrix.smat");
-            csc.write_matrix_market(&name, true).unwrap();
+            csc.write_matrix_market(&name, true, 1e-14).unwrap();
         }
         return Err("K matrix written; stopping now");
     }

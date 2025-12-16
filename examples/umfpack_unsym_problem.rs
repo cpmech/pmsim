@@ -168,8 +168,8 @@ fn main() -> Result<(), StrError> {
 
         // write smat and mtx files
         let csc = CscMatrix::from_coo(&mat)?;
-        csc.write_matrix_market(&format!("{}/{}.mtx", OUT_DIR, name), false)?;
-        csc.write_matrix_market(&format!("{}/{}.smat", OUT_DIR, name), true)?;
+        csc.write_matrix_market(&format!("{}/{}.mtx", OUT_DIR, name), false, 1e-14)?;
+        csc.write_matrix_market(&format!("{}/{}.smat", OUT_DIR, name), true, 1e-14)?;
     }
     Ok(())
 }
