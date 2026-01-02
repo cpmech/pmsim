@@ -2,7 +2,7 @@ use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
 use pmsim::StrError;
-use russell_lab::vec_approx_eq;
+use russell_lab::{vec_approx_eq, Vector};
 
 // Bhatti's Example 1.6 on page 32
 //
@@ -38,6 +38,18 @@ use russell_lab::vec_approx_eq;
 
 #[test]
 fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
+    println!("\n################################### OLD SOLVER ###################################\n");
+    run_test(false, false, false)?;
+    println!("\n##################################### NATURAL ####################################\n");
+    run_test(true, false, false)?; // Natural continuation
+    println!("\n################################ ARCLENGTH FULL ##################################\n");
+    run_test(true, true, false)?; // Pseudo-arclength continuation without bordering
+    println!("\n############################# ARCLENGTH BORDERING ################################\n");
+    run_test(true, true, true)?; // Pseudo-arclength continuation with bordering
+    Ok(())
+}
+
+fn run_test(new_solver: bool, continuation: bool, bordering: bool) -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d6_bracket();
     let features = Features::new(&mesh, false);
@@ -67,17 +79,30 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_plane_stress(0.25);
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = FemResults::new(&mesh, &schema, &config)?;
+    config.set_lagrange_mult_method(true).set_plane_stress(0.25);
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    let u = if new_solver {
+        let nlc = if continuation {
+            let mut nlc = NlConfig::new(NlMethod::Arclength);
+            nlc.set_verbose(true, true, false).set_bordering(bordering);
+            nlc
+        } else {
+            let mut nlc = NlConfig::new(NlMethod::Natural);
+            nlc.set_verbose(true, true, false)
+                .set_h_ini(1.0)
+                .set_use_numerical_jacobian(false);
+            nlc
+        };
+        let state = SolverNonlinear::solve(&mesh, &schema, &config, &essential, &natural, nlc)?;
+        Vector::from(&&state.u.as_data()[..12])
+    } else {
+        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
+        let mut results = FemResults::new(&mesh, &schema, &config)?;
+        let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
+        solver.solve(&mut state, &mut results)?;
+        Vector::from(&&state.u.as_data()[..12])
+    };
 
     // check displacements
     #[rustfmt::skip]
@@ -89,7 +114,6 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
         -1.313941349422282e-02, -5.549310752960183e-02,
          8.389015766816341e-05, -5.556637423271112e-02
     ];
-    println!("{}", state.u);
-    vec_approx_eq(&state.u, uu_correct, 1e-15);
+    vec_approx_eq(&u, uu_correct, 1e-15);
     Ok(())
 }

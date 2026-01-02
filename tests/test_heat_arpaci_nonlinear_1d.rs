@@ -66,6 +66,18 @@ fn analytical(x: f64) -> f64 {
 
 #[test]
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
+    println!("\n################################### OLD SOLVER ###################################\n");
+    run_test(false, false, false)?;
+    println!("\n##################################### NATURAL ####################################\n");
+    run_test(true, false, false)?; // Natural continuation
+    println!("\n################################ ARCLENGTH FULL ##################################\n");
+    run_test(true, true, false)?; // Pseudo-arclength continuation without bordering
+    println!("\n############################# ARCLENGTH BORDERING ################################\n");
+    run_test(true, true, true)?; // Pseudo-arclength continuation with bordering
+    Ok(())
+}
+
+fn run_test(new_solver: bool, continuation: bool, bordering: bool) -> Result<(), StrError> {
     // mesh
     let mesh = generate_or_read_mesh(L, GENERATE_MESH);
 
@@ -92,17 +104,31 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
+    config.set_lagrange_mult_method(true);
     config.set_out_files("/tmp/pmsim", NAME, 1.0);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = FemResults::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    let (state, tol) = if new_solver {
+        let (nlc, tol) = if continuation {
+            let mut nlc = NlConfig::new(NlMethod::Arclength);
+            nlc.set_verbose(true, true, false).set_bordering(bordering);
+            (nlc, 1e-7)
+        } else {
+            let mut nlc = NlConfig::new(NlMethod::Natural);
+            nlc.set_verbose(true, true, false)
+                .set_h_ini(1.0)
+                .set_use_numerical_jacobian(false);
+            (nlc, 1e-13)
+        };
+        let state = SolverNonlinear::solve(&mesh, &schema, &config, &essential, &natural, nlc)?;
+        (state, tol)
+    } else {
+        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
+        let mut results = FemResults::new(&mesh, &schema, &config)?;
+        let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
+        solver.solve(&mut state, &mut results)?;
+        (state, 1e-13)
+    };
 
     // check
     let ref_id = 0;
@@ -110,7 +136,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     let ref_eq = schema.get_eq(ref_id, Dof::Phi)?;
     let ref_tt = state.u[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
-    approx_eq(ref_tt, analytical(ref_x), 1e-13);
+    approx_eq(ref_tt, analytical(ref_x), tol);
 
     // plot the results
     if SAVE_FIGURE {

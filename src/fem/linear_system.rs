@@ -55,6 +55,9 @@ pub struct LinearSystem<'a> {
     /// ```
     pub nnz_sup: usize,
 
+    /// Indicates whether the global matrix is symmetric or not
+    pub symmetric: bool,
+
     /// Vector of internal forces (including dynamic terms) Y
     ///
     /// (neq_total)
@@ -186,6 +189,7 @@ impl<'a> LinearSystem<'a> {
             n_lagrange,
             neq_total,
             nnz_sup,
+            symmetric,
             yy: Vector::new(neq_total),
             ff: Vector::new(neq_total),
             ff_old: Vector::new(neq_total),

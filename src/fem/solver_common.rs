@@ -7,7 +7,7 @@ use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch};
 /// Implements common (shared) functionality for all FEM solvers
 pub(crate) struct SolverCommon<'a> {
     /// Holds the configuration
-    config: &'a Config<'a>,
+    pub(crate) config: &'a Config<'a>,
 
     /// Holds the material parameters, element attributes, and equation numbers
     pub(crate) base: &'a Schema,

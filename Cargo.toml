@@ -15,7 +15,15 @@ keywords = ["mechanics", "fem"]
 plotpy = "1.19"
 gemlab = { path = "../gemlab" }
 russell_lab = { path = "../russell/russell_lab", features = ["intel_mkl"] }
+russell_nonlin = { path = "../russell/russell_nonlin", features = [
+  "intel_mkl",
+  "local_suitesparse",
+] }
 russell_ode = { path = "../russell/russell_ode", features = ["intel_mkl"] }
+russell_pde = { path = "../russell/russell_pde", features = [
+  "intel_mkl",
+  "local_suitesparse",
+] }
 russell_sparse = { path = "../russell/russell_sparse", features = [
   "local_suitesparse",
   "with_mumps",

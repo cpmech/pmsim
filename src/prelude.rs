@@ -8,4 +8,5 @@ pub use crate::base::{
     ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, StressStrain,
 };
 pub use crate::base::{Config, Dof, Elem, Essential, Natural, Nbc, Pbc, Schema};
-pub use crate::fem::{FemResults, FemState, PostProc, SolverImplicit};
+pub use crate::fem::{FemResults, FemState, PostProc, SolverImplicit, SolverNonlinear};
+pub use russell_nonlin::{Config as NlConfig, Method as NlMethod};
