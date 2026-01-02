@@ -301,7 +301,7 @@ impl<'a> BcDistributed<'a> {
 
 impl<'a> BcDistributedArray<'a> {
     // Allocates new instance
-    pub fn new(mesh: &Mesh, base: &Schema, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.on_edges.len() + natural.on_faces.len() + 1);
         for (edge, nbc, value, f_index) in &natural.on_edges {
             let function = match f_index {
@@ -310,7 +310,7 @@ impl<'a> BcDistributedArray<'a> {
             };
             all.push(BcDistributed::new(
                 mesh,
-                base,
+                schema,
                 config,
                 edge.kind,
                 &edge.points,
@@ -326,7 +326,7 @@ impl<'a> BcDistributedArray<'a> {
             };
             all.push(BcDistributed::new(
                 mesh,
-                base,
+                schema,
                 config,
                 face.kind,
                 &face.points,
