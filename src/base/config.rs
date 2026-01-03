@@ -109,8 +109,8 @@ pub struct Config<'a> {
     /// Parameters for the linear (sparse) solver
     pub(crate) lin_sol_params: LinSolParams,
 
-    /// Uses an unsymmetric linear solver with full K matrix even if the formulation allows symmetry
-    pub(crate) lin_sol_unsymmetric: bool,
+    /// Ignores the symmetry of the global stiffness matrix K even if the formulation yields a symmetric K
+    pub(crate) ignore_symmetry: bool,
 
     /// Saves the global coefficient matrix K as a MatrixMarket file (for debugging)
     pub(crate) save_matrix_market_file: bool,
@@ -291,7 +291,7 @@ impl<'a> Config<'a> {
             nl_config,
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
-            lin_sol_unsymmetric: false,
+            ignore_symmetry: false,
             save_matrix_market_file: false,
             save_vismatrix_file: false,
             verbose_lin_sys_solve: false,
@@ -640,9 +640,9 @@ impl<'a> Config<'a> {
         &mut self.lin_sol_params
     }
 
-    /// Uses an unsymmetric linear solver with full K matrix even if the formulation allows symmetry
-    pub fn set_lin_sol_unsymmetric(&mut self, unsymmetric: bool) -> &mut Self {
-        self.lin_sol_unsymmetric = unsymmetric;
+    /// Ignores the symmetry of the global stiffness matrix K even if the formulation yields a symmetric K
+    pub fn set_ignore_symmetry(&mut self, flag: bool) -> &mut Self {
+        self.ignore_symmetry = flag;
         self
     }
 

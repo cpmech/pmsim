@@ -113,7 +113,7 @@ impl<'a> LinearSystem<'a> {
         boundaries: &BcDistributedArray,
     ) -> Result<Self, StrError> {
         // take advantage of symmetry if possible
-        let symmetric = if config.lin_sol_unsymmetric {
+        let symmetric = if config.ignore_symmetry {
             false
         } else {
             let mut all_symmetric = true;
@@ -389,7 +389,7 @@ mod tests {
 
         // ignoring symmetry (MUMPS)
         let mut config = Config::new(&mesh);
-        config.set_lin_sol_genie(Genie::Mumps).set_lin_sol_unsymmetric(true);
+        config.set_lin_sol_genie(Genie::Mumps).set_ignore_symmetry(true);
         let elements = Elements::new(&mesh, &schema, &config).unwrap();
         let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
         let lin_sys = LinearSystem::new(&schema, &config, &prescribed_values, &elements, &boundaries).unwrap();
@@ -492,7 +492,7 @@ mod tests {
         config
             .set_lagrange_mult_method(true)
             .set_lin_sol_genie(Genie::Mumps)
-            .set_lin_sol_unsymmetric(true);
+            .set_ignore_symmetry(true);
         let elements = Elements::new(&mesh, &schema, &config).unwrap();
         let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
         let lin_sys = LinearSystem::new(&schema, &config, &prescribed, &elements, &boundaries).unwrap();

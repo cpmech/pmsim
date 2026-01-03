@@ -88,6 +88,9 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
             .nl_config()
             .set_method(NlMethod::Arclength)
             .set_bordering(bordering);
+        if !bordering {
+            config.set_ignore_symmetry(true);
+        }
     };
 
     // solution
