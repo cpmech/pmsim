@@ -126,7 +126,7 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
     let mut tol = 1e-13;
     let state = if new_solver {
         tol = 1e-9;
-        SolverNonlinear::solve(&mesh, &schema, &config, &essential, &natural)?
+        SolverNew::solve(&mesh, &schema, &config, &essential, &natural)?
     } else {
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
         let mut results = FemResults::new(&mesh, &schema, &config)?;

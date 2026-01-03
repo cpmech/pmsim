@@ -102,9 +102,9 @@ fn update_secondary_state(do_backup: bool, u0: &Vector, u1: &Vector, args: &mut 
 }
 
 /// Implements the implicit finite element method solver
-pub struct SolverNonlinear {}
+pub struct SolverNew {}
 
-impl SolverNonlinear {
+impl SolverNew {
     /// Creates a new instance
     pub fn solve<'a>(
         mesh: &Mesh,
