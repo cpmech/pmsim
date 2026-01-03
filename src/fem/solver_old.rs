@@ -6,7 +6,7 @@ use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
 
 /// Implements the implicit finite element method solver
-pub struct SolverImplicit<'a> {
+pub struct SolverOld<'a> {
     /// Configuration parameters including solver settings and tolerances
     pub(crate) config: &'a Config<'a>,
 
@@ -32,7 +32,7 @@ pub struct SolverImplicit<'a> {
     failed: bool,
 }
 
-impl<'a> SolverImplicit<'a> {
+impl<'a> SolverOld<'a> {
     /// Creates a new instance
     pub fn new(
         mesh: &Mesh,
@@ -48,7 +48,7 @@ impl<'a> SolverImplicit<'a> {
         let stepper = ControlStepper::new(config)?;
         let loader = ControlLoader::new(config, neq_total);
         let stats = Stats::new();
-        Ok(SolverImplicit {
+        Ok(SolverOld {
             config,
             com,
             log,
@@ -336,7 +336,7 @@ impl<'a> SolverImplicit<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::SolverImplicit;
+    use super::SolverOld;
     use crate::base::{Config, Dof, Essential, Natural, Nbc, ParamSolid, Pbc, Schema};
     use crate::fem::{FemResults, FemState};
     use gemlab::mesh::{Edge, GeoKind, Samples};
@@ -355,7 +355,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_transient().set_ddt_min(-1.0); // wrong
         assert_eq!(
-            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
+            SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
         let config = Config::new(&mesh);
@@ -364,7 +364,7 @@ mod tests {
         let mut essential = Essential::new();
         essential.points(&[123], Dof::Ux, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
+            SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("cannot get equation number because point_id is out of bounds")
         );
         let essential = Essential::new();
@@ -373,14 +373,14 @@ mod tests {
         let mut natural = Natural::new();
         natural.points(&[100], Pbc::Fx, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
+            SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("cannot get equation number because point_id is out of bounds")
         );
         let natural = Natural::new();
 
         // error due to elements
         assert_eq!(
-            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
+            SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("requested number of integration points is not available for Hex class")
         );
         p1.ngauss = None;
@@ -394,7 +394,7 @@ mod tests {
         };
         natural.edge(&edge, Nbc::Qn, 0.0);
         assert_eq!(
-            SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).err(),
+            SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -409,7 +409,7 @@ mod tests {
         config.set_transient().set_ddt(-1.0); // wrong
         let essential = Essential::new();
         let natural = Natural::new();
-        let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural).unwrap();
+        let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
         assert_eq!(

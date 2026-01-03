@@ -93,7 +93,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
+    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check

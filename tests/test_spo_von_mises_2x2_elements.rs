@@ -124,7 +124,7 @@ fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
     let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
+    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // compare the results with Ref #1

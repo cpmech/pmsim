@@ -107,7 +107,7 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     let mut results = FemResults::new(&mesh, &schema, &config)?;
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
+    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
     solver.solve(&mut state, &mut results)?;
 
     // check

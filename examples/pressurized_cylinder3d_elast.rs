@@ -227,7 +227,7 @@ fn main() -> Result<(), StrError> {
         // println!("5. running simulation");
 
         // solution
-        let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
+        let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
         match solver.solve(&mut state, &mut results) {
             Err(e) => {
