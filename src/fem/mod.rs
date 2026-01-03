@@ -21,7 +21,7 @@ mod post_processing;
 mod secondary_values;
 mod solver_common;
 mod solver_implicit;
-mod solver_nonlinear;
+mod solver_new;
 mod stats;
 
 pub use bc_concentrated::*;
@@ -45,5 +45,5 @@ pub use post_processing::*;
 pub use secondary_values::*;
 use solver_common::*;
 pub use solver_implicit::*;
-pub use solver_nonlinear::*;
+pub use solver_new::*;
 use stats::*;
