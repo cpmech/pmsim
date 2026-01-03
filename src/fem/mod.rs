@@ -20,8 +20,8 @@ mod paraview;
 mod post_processing;
 mod secondary_values;
 mod solver_common;
-mod solver_implicit;
 mod solver_new;
+mod solver_old;
 mod stats;
 
 pub use bc_concentrated::*;
@@ -44,6 +44,6 @@ use paraview::*;
 pub use post_processing::*;
 pub use secondary_values::*;
 use solver_common::*;
-pub use solver_implicit::*;
 pub use solver_new::*;
+pub use solver_old::*;
 use stats::*;
