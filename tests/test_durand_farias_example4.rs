@@ -21,6 +21,12 @@ const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
 fn test_durand_farias_example4() -> Result<(), StrError> {
+    run_test(false)?;
+    run_test(true)?;
+    Ok(())
+}
+
+fn run_test(new_solver: bool) -> Result<(), StrError> {
     // mesh
     let mesh = generate_or_read_mesh(1, GENERATE_MESH);
 
@@ -55,15 +61,18 @@ fn test_durand_farias_example4() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config.set_out_files("/tmp/pmsim", NAME, 1.0);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = FemResults::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    if new_solver {
+        println!("\n################################### NEW SOLVER ###################################\n");
+        config
+            .set_lagrange_mult_method(true)
+            .nl_config()
+            .set_verbose(true, true, false);
+        SolverNew::solve(&mesh, &schema, &config, &essential, &natural)?;
+    } else {
+        println!("\n################################### OLD SOLVER ###################################\n");
+        SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    }
 
     // analyze results
     analyze_results()

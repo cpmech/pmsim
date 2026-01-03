@@ -60,6 +60,21 @@ impl<'a> SolverOld<'a> {
         })
     }
 
+    /// Solves the finite element method problem
+    pub fn solve(
+        mesh: &Mesh,
+        schema: &'a Schema,
+        config: &'a Config,
+        essential: &'a Essential,
+        natural: &'a Natural,
+    ) -> Result<FemState, StrError> {
+        let mut solver = SolverOld::new(mesh, schema, config, essential, natural)?;
+        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
+        let mut results = FemResults::new(&mesh, &schema, &config)?;
+        solver.solve_sys(&mut state, &mut results)?;
+        Ok(state)
+    }
+
     /// Returns true if the iterations failed to converge
     pub fn has_failed(&self) -> bool {
         self.failed

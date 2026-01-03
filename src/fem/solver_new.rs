@@ -105,7 +105,7 @@ fn update_secondary_state(do_backup: bool, u0: &Vector, u1: &Vector, args: &mut 
 pub struct SolverNew {}
 
 impl SolverNew {
-    /// Creates a new instance
+    /// Solves the finite element method problem
     pub fn solve<'a>(
         mesh: &Mesh,
         schema: &'a Schema,
