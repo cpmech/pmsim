@@ -101,128 +101,123 @@ fn update_secondary_state(do_backup: bool, u0: &Vector, u1: &Vector, args: &mut 
     Ok(false)
 }
 
-/// Implements the implicit finite element method solver
-pub struct SolverNew {}
+/// Solves the finite element method problem
+pub fn solve<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a Essential,
+    natural: &'a Natural,
+) -> Result<FemState, StrError> {
+    assert_eq!(config.lagrange_mult_method, true);
 
-impl SolverNew {
-    /// Solves the finite element method problem
-    pub fn solve<'a>(
-        mesh: &Mesh,
-        schema: &'a Schema,
-        config: &'a Config,
-        essential: &'a Essential,
-        natural: &'a Natural,
-    ) -> Result<FemState, StrError> {
-        assert_eq!(config.lagrange_mult_method, true);
+    // allocate arguments for the nonlinear solver
+    let mut args = Args {
+        state: FemState::new(&mesh, &schema, &essential, &config)?,
+        com: SolverCommon::new(mesh, schema, config, essential, natural)?,
+    };
 
-        // allocate arguments for the nonlinear solver
-        let mut args = Args {
-            state: FemState::new(&mesh, &schema, &essential, &config)?,
-            com: SolverCommon::new(mesh, schema, config, essential, natural)?,
-        };
+    let ndim = args.com.ls.neq_total;
+    let mut nl_system = NlSystem::new(ndim, calc_gg)?;
+    let nnz = Some(args.com.ls.nnz_sup);
+    let sym = config.lin_sol_genie.get_sym(args.com.ls.symmetric);
+    nl_system.set_calc_ggu(nnz, sym, calc_ggu)?;
+    nl_system.set_calc_ggl(calc_ggl);
 
-        let ndim = args.com.ls.neq_total;
-        let mut nl_system = NlSystem::new(ndim, calc_gg)?;
-        let nnz = Some(args.com.ls.nnz_sup);
-        let sym = config.lin_sol_genie.get_sym(args.com.ls.symmetric);
-        nl_system.set_calc_ggu(nnz, sym, calc_ggu)?;
-        nl_system.set_calc_ggl(calc_ggl);
+    nl_system
+        .set_backup_secondary_state(backup)
+        .set_restore_secondary_state(restore)
+        .set_prepare_to_iterate(prepare_to_iterate)
+        .set_update_secondary_state(update_secondary_state);
 
-        nl_system
-            .set_backup_secondary_state(backup)
-            .set_restore_secondary_state(restore)
-            .set_prepare_to_iterate(prepare_to_iterate)
-            .set_update_secondary_state(update_secondary_state);
+    let mut nl_solver = NlSolver::new(&config.nl_config, nl_system)?;
 
-        let mut nl_solver = NlSolver::new(&config.nl_config, nl_system)?;
+    let mut results = FemResults::new(&mesh, &schema, &config)?;
 
-        let mut results = FemResults::new(&mesh, &schema, &config)?;
+    let mut stepper = ControlStepper::new(config)?;
 
-        let mut stepper = ControlStepper::new(config)?;
+    // start stopwatch
+    args.com.stopwatch.reset();
 
-        // start stopwatch
-        args.com.stopwatch.reset();
+    // initialize internal variables
+    args.com.elements.initialize_internal_values(&mut args.state)?;
 
-        // initialize internal variables
-        args.com.elements.initialize_internal_values(&mut args.state)?;
+    // first output (must occur after initialize_internal_values)
+    results.write_state(&config, &args.state)?;
+    results.save_selected(&config, &args.com.base, &args.state)?;
 
-        // first output (must occur after initialize_internal_values)
-        results.write_state(&config, &args.state)?;
-        results.save_selected(&config, &args.com.base, &args.state)?;
+    println!("\n{:═^1$}", " INFORMATION ", NCHAR);
+    println!("\n{}", args.com.ls.get_info());
+    println!("{:═^1$}\n", " TIME STEPPING ", NCHAR);
 
-        println!("\n{:═^1$}", " INFORMATION ", NCHAR);
-        println!("\n{}", args.com.ls.get_info());
-        println!("{:═^1$}\n", " TIME STEPPING ", NCHAR);
+    let mut u = args.state.u.clone();
+    let mut l = args.state.lambda;
 
-        let mut u = args.state.u.clone();
-        let mut l = args.state.lambda;
+    // time loop
+    for step in 0..config.max_steps {
+        args.state.step = step;
 
-        // time loop
-        for step in 0..config.max_steps {
-            args.state.step = step;
-
-            // done if last (time) step
-            if stepper.last() {
-                break;
-            }
-
-            // next (time) step
-            stepper.next(&mut args.state)?;
-
-            // calculate previous transient/dynamics state variables
-            if !config.steady {
-                vec_add(
-                    &mut args.state.u_star,
-                    args.state.beta1,
-                    &args.state.u,
-                    args.state.beta2,
-                    &args.state.v,
-                )
-                .unwrap();
-            }
-
-            // assemble external forces vector F (also updates the load reversal flag)
-            args.state.reverse = args.com.calc_ff_and_ddff(args.state.step, args.state.time)?;
-
-            // solve nonlinear equations
-            let status = match nl_solver.solve(
-                &mut args,
-                &mut u,
-                &mut l,
-                IniDir::Pos,
-                Stop::MaxLambda(1.0),
-                AutoStep::Yes,
-                None,
-            ) {
-                Ok(s) => s,
-                Err(e) => {
-                    println!("\n❌ SIMULATION FAILED ❌\n");
-                    let _ = results.write_state(&config, &args.state);
-                    let _ = results.write_self(&config);
-                    break;
-                }
-            };
-            println!("NL solver status: {:?}", status);
-
-            // output results
-            if stepper.out(&args.state) {
-                results.write_state(&config, &args.state)?;
-            }
-
-            // stop if failed
-            if status.failure() {
-                break;
-            }
+        // done if last (time) step
+        if stepper.last() {
+            break;
         }
 
-        // write the results file
-        results.write_self(&config)?;
+        // next (time) step
+        stepper.next(&mut args.state)?;
 
-        // show computer time
-        args.com.stopwatch.stop();
-        println!("\nelapsed computer time = {}\n", args.com.stopwatch);
-        println!("{}\n", "═".repeat(NCHAR));
+        // calculate previous transient/dynamics state variables
+        if !config.steady {
+            vec_add(
+                &mut args.state.u_star,
+                args.state.beta1,
+                &args.state.u,
+                args.state.beta2,
+                &args.state.v,
+            )
+            .unwrap();
+        }
 
-        Ok(args.state)
+        // assemble external forces vector F (also updates the load reversal flag)
+        args.state.reverse = args.com.calc_ff_and_ddff(args.state.step, args.state.time)?;
+
+        // solve nonlinear equations
+        let status = match nl_solver.solve(
+            &mut args,
+            &mut u,
+            &mut l,
+            IniDir::Pos,
+            Stop::MaxLambda(1.0),
+            AutoStep::Yes,
+            None,
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                println!("\n❌ SIMULATION FAILED ❌\n");
+                let _ = results.write_state(&config, &args.state);
+                let _ = results.write_self(&config);
+                break;
+            }
+        };
+        println!("NL solver status: {:?}", status);
+
+        // output results
+        if stepper.out(&args.state) {
+            results.write_state(&config, &args.state)?;
+        }
+
+        // stop if failed
+        if status.failure() {
+            break;
+        }
     }
+
+    // write the results file
+    results.write_self(&config)?;
+
+    // show computer time
+    args.com.stopwatch.stop();
+    println!("\nelapsed computer time = {}\n", args.com.stopwatch);
+    println!("{}\n", "═".repeat(NCHAR));
+
+    Ok(args.state)
 }

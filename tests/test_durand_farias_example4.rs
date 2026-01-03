@@ -68,7 +68,7 @@ fn run_test(new_solver: bool) -> Result<(), StrError> {
             .set_lagrange_mult_method(true)
             .nl_config()
             .set_verbose(true, true, false);
-        SolverNew::solve(&mesh, &schema, &config, &essential, &natural)?;
+        solve(&mesh, &schema, &config, &essential, &natural)?;
     } else {
         println!("\n################################### OLD SOLVER ###################################\n");
         SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;

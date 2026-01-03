@@ -92,7 +92,7 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
 
     // solution
     let u = if new_solver {
-        let state = SolverNew::solve(&mesh, &schema, &config, &essential, &natural)?;
+        let state = solve(&mesh, &schema, &config, &essential, &natural)?;
         Vector::from(&&state.u.as_data()[..12])
     } else {
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
