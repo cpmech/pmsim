@@ -49,7 +49,7 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     Ok(())
 }
 
-fn run_test(new_solver: bool, continuation: bool, bordering: bool) -> Result<(), StrError> {
+fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d6_bracket();
     let features = Features::new(&mesh, false);
@@ -81,20 +81,18 @@ fn run_test(new_solver: bool, continuation: bool, bordering: bool) -> Result<(),
     let mut config = Config::new(&mesh);
     config.set_lagrange_mult_method(true).set_plane_stress(0.25);
 
+    // nonlinear solver configuration
+    config.nl_config().set_verbose(true, true, false);
+    if arclength {
+        config
+            .nl_config()
+            .set_method(NlMethod::Arclength)
+            .set_bordering(bordering);
+    };
+
     // solution
     let u = if new_solver {
-        let nlc = if continuation {
-            let mut nlc = NlConfig::new(NlMethod::Arclength);
-            nlc.set_verbose(true, true, false).set_bordering(bordering);
-            nlc
-        } else {
-            let mut nlc = NlConfig::new(NlMethod::Natural);
-            nlc.set_verbose(true, true, false)
-                .set_h_ini(1.0)
-                .set_use_numerical_jacobian(false);
-            nlc
-        };
-        let state = SolverNonlinear::solve(&mesh, &schema, &config, &essential, &natural, nlc)?;
+        let state = SolverNonlinear::solve(&mesh, &schema, &config, &essential, &natural)?;
         Vector::from(&&state.u.as_data()[..12])
     } else {
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;

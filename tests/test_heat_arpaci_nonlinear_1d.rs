@@ -77,7 +77,7 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     Ok(())
 }
 
-fn run_test(new_solver: bool, continuation: bool, bordering: bool) -> Result<(), StrError> {
+fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), StrError> {
     // mesh
     let mesh = generate_or_read_mesh(L, GENERATE_MESH);
 
@@ -104,30 +104,35 @@ fn run_test(new_solver: bool, continuation: bool, bordering: bool) -> Result<(),
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(true);
-    config.set_out_files("/tmp/pmsim", NAME, 1.0);
+    config
+        .set_lagrange_mult_method(true)
+        .set_out_files("/tmp/pmsim", NAME, 1.0);
+
+    // nonlinear solver configuration
+    config
+        .nl_config()
+        .set_verbose(true, true, true)
+        .set_record_iterations_residuals(true);
+    if arclength {
+        config
+            .nl_config()
+            .set_method(NlMethod::Arclength)
+            .set_h_ini(0.1)
+            .set_tg_control_atol_and_rtol(0.05)
+            .set_bordering(bordering);
+    };
 
     // solution
-    let (state, tol) = if new_solver {
-        let (nlc, tol) = if continuation {
-            let mut nlc = NlConfig::new(NlMethod::Arclength);
-            nlc.set_verbose(true, true, false).set_bordering(bordering);
-            (nlc, 1e-7)
-        } else {
-            let mut nlc = NlConfig::new(NlMethod::Natural);
-            nlc.set_verbose(true, true, false)
-                .set_h_ini(1.0)
-                .set_use_numerical_jacobian(false);
-            (nlc, 1e-13)
-        };
-        let state = SolverNonlinear::solve(&mesh, &schema, &config, &essential, &natural, nlc)?;
-        (state, tol)
+    let mut tol = 1e-13;
+    let state = if new_solver {
+        tol = 1e-9;
+        SolverNonlinear::solve(&mesh, &schema, &config, &essential, &natural)?
     } else {
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
         let mut results = FemResults::new(&mesh, &schema, &config)?;
         let mut solver = SolverImplicit::new(&mesh, &schema, &config, &essential, &natural)?;
         solver.solve(&mut state, &mut results)?;
-        (state, 1e-13)
+        state
     };
 
     // check
@@ -136,6 +141,8 @@ fn run_test(new_solver: bool, continuation: bool, bordering: bool) -> Result<(),
     let ref_eq = schema.get_eq(ref_id, Dof::Phi)?;
     let ref_tt = state.u[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
+    let err = f64::abs(ref_tt - analytical(ref_x));
+    println!("error = {:.5e}", err);
     approx_eq(ref_tt, analytical(ref_x), tol);
 
     // plot the results

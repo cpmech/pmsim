@@ -2,6 +2,7 @@ use super::{Dof, Idealization, Init, ParamFluids};
 use crate::material::Settings;
 use gemlab::mesh::{CellId, CellMarker, Mesh, PointId};
 use russell_lab::math::ONE_BY_3;
+use russell_nonlin::{Config as NlConfig, Method as NlMethod};
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -97,8 +98,11 @@ pub struct Config<'a> {
     /// Maps the cell marker to the material model settings.
     pub(crate) model_settings: HashMap<CellMarker, Settings>,
 
-    // Linear solver --------------------------------------------------------------------------
+    // Nonlinear problem solver ---------------------------------------------------------------
     //
+    /// Configuration parameters for the nonlinear solver
+    pub(crate) nl_config: NlConfig,
+
     /// Holds the linear solver type
     pub(crate) lin_sol_genie: Genie,
 
@@ -263,6 +267,8 @@ pub struct Config<'a> {
 impl<'a> Config<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh) -> Self {
+        let mut nl_config = NlConfig::new();
+        nl_config.set_h_ini(1.0).set_bordering(true);
         Config {
             // Essential constants
             ndim: mesh.ndim,
@@ -281,7 +287,8 @@ impl<'a> Config<'a> {
             param_fluids: None,
             model_allow_initial_drift: false,
             model_settings: HashMap::new(),
-            // Linear solver
+            // Nonlinear problem solver
+            nl_config,
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
             lin_sol_unsymmetric: false,
@@ -503,7 +510,10 @@ impl<'a> Config<'a> {
     // Problem definition ---------------------------------------------------------------------
 
     /// Indicates linear problem and avoids the Newton-Raphson iteration
+    ///
+    /// This function will set the nonlinear solver to Natural continuation with h_ini = 1.0.
     pub fn set_linear_problem(&mut self, enable: bool) -> &mut Self {
+        self.nl_config.set_method(NlMethod::Natural).set_h_ini(1.0);
         self.linear_problem = enable;
         self
     }
@@ -606,7 +616,18 @@ impl<'a> Config<'a> {
         self.model_settings.entry(cell_marker).or_insert(Settings::new())
     }
 
-    // Linear solver --------------------------------------------------------------------------
+    // Nonlinear problem solver ---------------------------------------------------------------
+
+    /// Returns an access to the nonlinear solver configuration
+    ///
+    /// # Notes
+    ///
+    /// 1. If setting Arclength, remember to set the `h_ini` parameter appropriately; e.g., a value less than 1.0 (default)
+    /// 2. This function will disable the `linear_problem` flag.
+    pub fn nl_config(&mut self) -> &mut NlConfig {
+        self.linear_problem = false;
+        &mut self.nl_config
+    }
 
     /// Sets the linear solver type (aka Genie)
     pub fn set_lin_sol_genie(&mut self, genie: Genie) -> &mut Self {

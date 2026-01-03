@@ -112,7 +112,6 @@ impl SolverNonlinear {
         config: &'a Config,
         essential: &'a Essential,
         natural: &'a Natural,
-        nl_config: NlConfig,
     ) -> Result<FemState, StrError> {
         assert_eq!(config.lagrange_mult_method, true);
 
@@ -135,7 +134,7 @@ impl SolverNonlinear {
             .set_prepare_to_iterate(prepare_to_iterate)
             .set_update_secondary_state(update_secondary_state);
 
-        let mut nl_solver = NlSolver::new(nl_config, nl_system)?;
+        let mut nl_solver = NlSolver::new(&config.nl_config, nl_system)?;
 
         let mut results = FemResults::new(&mesh, &schema, &config)?;
 
