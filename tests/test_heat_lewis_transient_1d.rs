@@ -94,7 +94,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // check
     let selected = vec![

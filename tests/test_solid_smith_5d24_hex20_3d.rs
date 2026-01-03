@@ -91,7 +91,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // check displacements
     #[rustfmt::skip]

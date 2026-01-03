@@ -82,7 +82,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
     // println!("{}", state.uu);
 
     // check

@@ -85,7 +85,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // Felippa's Equation 14.2 on page 14-4
     let analytical_ur = |r: f64| {

@@ -130,7 +130,7 @@ fn run_test(
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // compare the results with Ref #1
     let tol_displacement = if residual { 1e-13 } else { 1e-11 };

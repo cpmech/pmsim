@@ -66,7 +66,7 @@ impl<'a> SolverOld<'a> {
     }
 
     /// Solves the system of equations
-    pub fn solve(&mut self, state: &mut FemState, results: &mut FemResults) -> Result<(), StrError> {
+    pub fn solve_sys(&mut self, state: &mut FemState, results: &mut FemResults) -> Result<(), StrError> {
         // check if there are non-zero prescribed values
         if !self.config.lagrange_mult_method {
             if self.com.bc_prescribed.has_non_zero() {
@@ -413,7 +413,7 @@ mod tests {
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
         assert_eq!(
-            solver.solve(&mut state, &mut results).err(),
+            solver.solve_sys(&mut state, &mut results).err(),
             Some("Δt is smaller than the allowed minimum")
         );
     }

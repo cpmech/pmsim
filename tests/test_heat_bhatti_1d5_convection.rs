@@ -80,7 +80,7 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // check U vector
     let tt_bhatti = &[

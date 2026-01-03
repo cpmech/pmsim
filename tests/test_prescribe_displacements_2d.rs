@@ -84,7 +84,7 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
     let eps_x = -DY * POISSON / (POISSON - 1.0);
     println!("eps_x = {}", eps_x);
     println!("u =\n{}", state.u);

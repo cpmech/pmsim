@@ -229,7 +229,7 @@ fn main() -> Result<(), StrError> {
         // solution
         let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
-        match solver.solve(&mut state, &mut results) {
+        match solver.solve_sys(&mut state, &mut results) {
             Err(e) => {
                 println!("{:?} failed with: {}", genie, e);
                 continue;

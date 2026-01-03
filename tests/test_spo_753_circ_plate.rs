@@ -83,7 +83,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // verify the results
     let tol_displacement = 1e-9;

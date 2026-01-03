@@ -66,7 +66,7 @@ fn test_stepsize_adaptation_0() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // check if the solver indeed failed
     assert_eq!(solver.has_failed(), true);

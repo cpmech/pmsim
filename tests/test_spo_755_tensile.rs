@@ -97,7 +97,7 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // verify the results
     let tol_displacement = 1e-7;

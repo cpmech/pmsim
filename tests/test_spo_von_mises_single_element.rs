@@ -133,7 +133,7 @@ fn solve_and_check(
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut results)?;
+    solver.solve_sys(&mut state, &mut results)?;
 
     // compare the results with Ref #1
     let tol_displacement = 1e-13;
