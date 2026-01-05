@@ -47,25 +47,25 @@ impl<'a, 'b> Natural<'a, 'b> {
         }
     }
 
-    /// Sets natural boundary condition given point
+    /// Sets natural boundary condition for a point
     pub fn point(&mut self, point_id: PointId, pbc: Pbc, value: f64) -> &mut Self {
         self.at_points.push((point_id, pbc, value, None));
         self
     }
 
-    /// Sets natural boundary condition given edge
+    /// Sets natural boundary condition for an edge
     pub fn edge(&mut self, edge: &'b Edge, nbc: Nbc, value: f64) -> &mut Self {
         self.on_edges.push((edge, nbc, value, None));
         self
     }
 
-    /// Sets natural boundary condition given face
+    /// Sets natural boundary condition for a face
     pub fn face(&mut self, face: &'b Face, nbc: Nbc, value: f64) -> &mut Self {
         self.on_faces.push((face, nbc, value, None));
         self
     }
 
-    /// Sets natural boundary condition given point
+    /// Sets natural boundary condition for a point using a function
     ///
     /// The function is `(stage, t) -> load`
     pub fn point_fn(&mut self, point_id: PointId, pbc: Pbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
@@ -75,7 +75,7 @@ impl<'a, 'b> Natural<'a, 'b> {
         self
     }
 
-    /// Sets natural boundary condition given edge
+    /// Sets natural boundary condition for an edge using a function
     ///
     /// The function is `(stage, t) -> load`
     pub fn edge_fn(&mut self, edge: &'b Edge, nbc: Nbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
@@ -85,7 +85,7 @@ impl<'a, 'b> Natural<'a, 'b> {
         self
     }
 
-    /// Sets natural boundary condition given face
+    /// Sets natural boundary condition for a face using a function
     ///
     /// The function is `(stage, t) -> load`
     pub fn face_fn(&mut self, face: &'b Face, nbc: Nbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
@@ -95,7 +95,7 @@ impl<'a, 'b> Natural<'a, 'b> {
         self
     }
 
-    /// Sets natural boundary condition given points
+    /// Sets natural boundary condition for a set of points
     pub fn points(&mut self, points: &[PointId], pbc: Pbc, value: f64) -> &mut Self {
         for point_id in points {
             self.at_points.push((*point_id, pbc, value, None));
@@ -103,7 +103,7 @@ impl<'a, 'b> Natural<'a, 'b> {
         self
     }
 
-    /// Sets natural boundary condition given edges
+    /// Sets natural boundary condition for a set of edges
     pub fn edges(&mut self, edges: &'b Edges, nbc: Nbc, value: f64) -> &mut Self {
         for edge in &edges.all {
             self.on_edges.push((edge, nbc, value, None));
@@ -111,7 +111,7 @@ impl<'a, 'b> Natural<'a, 'b> {
         self
     }
 
-    /// Sets natural boundary condition given faces
+    /// Sets natural boundary condition for a set of faces
     pub fn faces(&mut self, faces: &'b Faces, nbc: Nbc, value: f64) -> &mut Self {
         for face in &faces.all {
             self.on_faces.push((face, nbc, value, None));
@@ -119,7 +119,7 @@ impl<'a, 'b> Natural<'a, 'b> {
         self
     }
 
-    /// Sets natural boundary condition given points
+    /// Sets natural boundary condition for a set of points using a function
     ///
     /// The function is `(stage, t) -> load`
     pub fn points_fn(&mut self, points: &[PointId], pbc: Pbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
@@ -131,7 +131,7 @@ impl<'a, 'b> Natural<'a, 'b> {
         self
     }
 
-    /// Sets natural boundary condition given edges
+    /// Sets natural boundary condition for a set of edges using a function
     ///
     /// The function is `(stage, t) -> load`
     pub fn edges_fn(&mut self, edges: &'b Edges, nbc: Nbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
@@ -143,7 +143,7 @@ impl<'a, 'b> Natural<'a, 'b> {
         self
     }
 
-    /// Sets natural boundary condition given faces
+    /// Sets natural boundary condition for a set of faces using a function
     ///
     /// The function is `(stage, t) -> load`
     pub fn faces_fn(&mut self, faces: &'b Faces, nbc: Nbc, f: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {

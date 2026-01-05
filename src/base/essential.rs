@@ -35,13 +35,13 @@ impl<'a> Essential<'a> {
         }
     }
 
-    /// Sets essential boundary condition given point
+    /// Sets essential boundary condition for a point
     pub fn point(&mut self, point_id: PointId, dof: Dof, value: f64) -> &mut Self {
         self.all.insert((point_id, dof), (value, None));
         self
     }
 
-    /// Sets essential boundary condition given edge
+    /// Sets essential boundary condition for an edge
     pub fn edge(&mut self, edge: &Edge, dof: Dof, value: f64) -> &mut Self {
         for point_id in &edge.points {
             self.all.insert((*point_id, dof), (value, None));
@@ -49,7 +49,7 @@ impl<'a> Essential<'a> {
         self
     }
 
-    /// Sets essential boundary condition given face
+    /// Sets essential boundary condition for a face
     pub fn face(&mut self, face: &Face, dof: Dof, value: f64) -> &mut Self {
         for point_id in &face.points {
             self.all.insert((*point_id, dof), (value, None));
@@ -57,7 +57,7 @@ impl<'a> Essential<'a> {
         self
     }
 
-    /// Sets essential boundary condition given points
+    /// Sets essential boundary condition for a set of points
     pub fn points(&mut self, points: &[PointId], dof: Dof, value: f64) -> &mut Self {
         for point_id in points {
             self.all.insert((*point_id, dof), (value, None));
@@ -65,7 +65,7 @@ impl<'a> Essential<'a> {
         self
     }
 
-    /// Sets essential boundary condition given edges
+    /// Sets essential boundary condition for a set of edges
     pub fn edges(&mut self, edges: &Edges, dof: Dof, value: f64) -> &mut Self {
         for edge in &edges.all {
             for point_id in &edge.points {
@@ -75,7 +75,7 @@ impl<'a> Essential<'a> {
         self
     }
 
-    /// Sets essential boundary condition given faces
+    /// Sets essential boundary condition for a set of faces
     pub fn faces(&mut self, faces: &Faces, dof: Dof, value: f64) -> &mut Self {
         for face in &faces.all {
             for point_id in &face.points {
@@ -85,7 +85,7 @@ impl<'a> Essential<'a> {
         self
     }
 
-    /// Sets BC given points with a constant value times multiplier(t) function
+    /// Sets BC for a set of points with a constant value times multiplier(t) function
     ///
     /// The function is `(stage, t) -> multiplier`
     ///
@@ -103,7 +103,7 @@ impl<'a> Essential<'a> {
         self
     }
 
-    /// Sets BC given edges with a constant value times multiplier(t) function
+    /// Sets BC for a set of edges with a constant value times multiplier(t) function
     ///
     /// The function is `(stage, t) -> multiplier`
     ///
@@ -123,7 +123,7 @@ impl<'a> Essential<'a> {
         self
     }
 
-    /// Sets BC given faces with a constant value times multiplier(t) function
+    /// Sets BC for a set of faces with a constant value times multiplier(t) function
     ///
     /// The function is `(stage, t) -> multiplier`
     ///
