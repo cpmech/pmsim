@@ -14,7 +14,7 @@ pub struct Natural<'a, 'b> {
 
     /// Holds all edge values
     ///
-    /// The data is `(point_id, pbc, value, f_index)` where `f_index`
+    /// The data is `(point_id, nbc, value, f_index)` where `f_index`
     /// is the index of the function in the `functions` array.
     ///
     /// * If `f_index` is None: `value_current = value`
@@ -23,7 +23,7 @@ pub struct Natural<'a, 'b> {
 
     /// Holds all face values
     ///
-    /// The data is `(point_id, pbc, value, f_index)` where `f_index`
+    /// The data is `(point_id, nbc, value, f_index)` where `f_index`
     /// is the index of the function in the `functions` array.
     ///
     /// * If `f_index` is None: `value_current = value`
