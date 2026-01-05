@@ -70,11 +70,11 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.points(&[0, 1], Dof::Ux, 0.0).points(&[0, 1], Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural.edges(&top, Nbc::Qn, -20.0);
 
     // configuration

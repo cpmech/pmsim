@@ -1,5 +1,5 @@
 use super::{BcConcentratedArray, BcDistributedArray, BcPrescribed, Elements, FemState, LinearSystem};
-use crate::base::{Config, Essential, Natural, Schema};
+use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch};
@@ -43,8 +43,8 @@ impl<'a> SolverCommon<'a> {
         mesh: &Mesh,
         base: &'a Schema,
         config: &'a Config,
-        essential: &'a Essential,
-        natural: &'a Natural,
+        essential: &'a BcEssential,
+        natural: &'a BcNatural,
     ) -> Result<Self, StrError> {
         // check
         if let Some(msg) = config.validate() {
@@ -180,7 +180,7 @@ impl<'a> SolverCommon<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverCommon;
-    use crate::base::{Config, Essential, Natural, ParamSolid, Schema};
+    use crate::base::{BcEssential, BcNatural, Config, ParamSolid, Schema};
     use gemlab::mesh::Samples;
 
     #[test]
@@ -190,8 +190,8 @@ mod tests {
         p1.ngauss = Some(123); // wrong
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
-        let natural = Natural::new();
+        let essential = BcEssential::new();
+        let natural = BcNatural::new();
 
         // error due to config.validate
         let mut config = Config::new(&mesh);

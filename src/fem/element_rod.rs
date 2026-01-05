@@ -136,7 +136,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, Essential, ParamRod, Schema};
+    use crate::base::{assemble_matrix, Config, BcEssential, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
     use russell_lab::math::SQRT_2;
@@ -198,7 +198,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
@@ -242,7 +242,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
@@ -289,7 +289,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
@@ -365,7 +365,7 @@ mod tests {
             .add_rod(3, p3)
             .build(&mesh)
             .unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
 
         let config = Config::new(&mesh);
         let mut rod0 = ElementRod::new(&mesh, &schema, &p1, 0).unwrap();

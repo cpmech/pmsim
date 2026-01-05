@@ -83,7 +83,7 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     schema.add_solid(1, param1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // run the collapse test
@@ -98,7 +98,7 @@ fn run_test(
     residual: bool,
     mesh: &Mesh,
     schema: &Schema,
-    essential: &Essential,
+    essential: &BcEssential,
     inner_circle: &Edges,
 ) -> Result<(), StrError> {
     // configuration
@@ -110,7 +110,7 @@ fn run_test(
         .set_save_strain(true);
 
     // natural boundary conditions and configuration
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     let name = if residual {
         natural.edges_fn(&inner_circle, Nbc::Qn, |stage, _| -PP_RESIDUAL[stage]);
         config.set_steady(PP_RESIDUAL.len());

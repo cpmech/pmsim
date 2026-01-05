@@ -290,7 +290,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Conductivity, Config, Essential, ParamDiffusion, Schema};
+    use crate::base::{Conductivity, Config, BcEssential, ParamDiffusion, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
@@ -320,7 +320,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
@@ -398,7 +398,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.update_model_settings(1).save_flux = true;
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
@@ -471,7 +471,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 

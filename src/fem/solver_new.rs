@@ -2,7 +2,7 @@
 
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
 use super::{FemResults, FemState, SolverCommon};
-use crate::base::{Config, Essential, Natural, Schema};
+use crate::base::{Config, BcEssential, BcNatural, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_add, vec_copy, vec_minus, Vector};
@@ -106,8 +106,8 @@ pub fn solve<'a>(
     mesh: &Mesh,
     schema: &'a Schema,
     config: &'a Config,
-    essential: &'a Essential,
-    natural: &'a Natural,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
 ) -> Result<FemState, StrError> {
     assert_eq!(config.lagrange_mult_method, true);
 

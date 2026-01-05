@@ -1,5 +1,5 @@
 use super::SecondaryValues;
-use crate::base::{Config, Elem, Essential, Schema};
+use crate::base::{Config, Elem, BcEssential, Schema};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::Mesh;
@@ -108,7 +108,7 @@ pub struct FemState {
 
 impl FemState {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, schema: &Schema, essential: &Essential, config: &Config) -> Result<FemState, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, essential: &BcEssential, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
         let ncell = mesh.cells.len();
         if ncell == 0 {
@@ -266,7 +266,7 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{new_empty_mesh_2d, Config, Essential, Schema};
+    use crate::base::{new_empty_mesh_2d, Config, BcEssential, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use gemlab::mesh::Samples;
@@ -277,7 +277,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         assert_eq!(
             FemState::new(&mesh, &schema, &essential, &config).err(),
@@ -343,7 +343,7 @@ mod tests {
             .add_beam(3, p3)
             .build(&mesh)
             .unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
@@ -356,7 +356,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.transient = true;
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
@@ -375,7 +375,7 @@ mod tests {
         let p1 = ParamRod::sample();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
@@ -393,7 +393,7 @@ mod tests {
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
@@ -406,7 +406,7 @@ mod tests {
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq_gas(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
@@ -419,7 +419,7 @@ mod tests {
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let mut schema = Schema::new();
         schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
@@ -433,7 +433,7 @@ mod tests {
         let p2 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).add_solid(2, p2).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.dynamics = true;
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
@@ -452,7 +452,7 @@ mod tests {
         let p1 = ParamRod::sample();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let clone = state.clone();

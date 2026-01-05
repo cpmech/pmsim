@@ -280,7 +280,7 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Essential, ParamSolid, Schema, StressStrain};
+    use crate::base::{Config, BcEssential, ParamSolid, Schema, StressStrain};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
@@ -304,7 +304,7 @@ mod tests {
         // base, essential, config, and state
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.set_alt_bb_matrix_method(alt_bb_matrix);
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
@@ -514,7 +514,7 @@ mod tests {
             let cell = &mesh.cells[id];
             let mut schema = Schema::new();
             schema.add_solid(1, p1).build(&mesh).unwrap();
-            let essential = Essential::new();
+            let essential = BcEssential::new();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -612,7 +612,7 @@ mod tests {
             let cell = &mesh.cells[id];
             let mut schema = Schema::new();
             schema.add_solid(1, p1).build(&mesh).unwrap();
-            let essential = Essential::new();
+            let essential = BcEssential::new();
 
             // configuration
             let mut config = Config::new(&mesh);
@@ -687,7 +687,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
 
         // configuration
         let mut config = Config::new(&mesh);

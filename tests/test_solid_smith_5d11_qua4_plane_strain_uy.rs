@@ -64,7 +64,7 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
@@ -73,7 +73,7 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
         .edges(&footing, Dof::Uy, -1e-5);
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let natural = BcNatural::new();
 
     // configuration
     const LAG: bool = true;

@@ -10,7 +10,7 @@ use std::collections::HashMap;
 /// ```text
 /// value = constant * multiplier(t)
 /// ```
-pub struct Essential<'a> {
+pub struct BcEssential<'a> {
     /// Holds all constant values and optional indices to multiplier functions
     ///
     /// The output of this map is `(value, f_index)` where `f_index`
@@ -26,10 +26,10 @@ pub struct Essential<'a> {
     multipliers: Vec<Box<dyn Fn(usize, f64) -> f64 + 'a>>,
 }
 
-impl<'a> Essential<'a> {
+impl<'a> BcEssential<'a> {
     /// Allocates a new instance
     pub fn new() -> Self {
-        Essential {
+        BcEssential {
             all: HashMap::new(),
             multipliers: Vec::new(),
         }
@@ -194,13 +194,13 @@ impl<'a> Essential<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::Essential;
+    use super::BcEssential;
     use crate::base::Dof;
     use gemlab::mesh::{Edge, Edges, Face, Faces, GeoKind};
 
     #[test]
     fn essential_works_1() {
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn essential_works_2() {
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],

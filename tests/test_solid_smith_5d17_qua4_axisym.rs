@@ -80,7 +80,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     schema.add_solid(1, p1).add_solid(2, p2).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
@@ -88,7 +88,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         .edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural
         .points(&[0], Pbc::Fy, -2.6667)
         .points(&[3], Pbc::Fy, -23.3333)

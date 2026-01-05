@@ -194,7 +194,7 @@ fn main() -> Result<(), StrError> {
         }
 
         // essential boundary conditions
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential
             .faces(&faces_x_min, Dof::Ux, 0.0)
             .faces(&faces_y_min, Dof::Uy, 0.0)
@@ -202,7 +202,7 @@ fn main() -> Result<(), StrError> {
             .faces(&faces_z_max, Dof::Uz, 0.0);
 
         // natural boundary conditions
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         natural
             .faces(&faces_inner, Nbc::Qn, -P1)
             .faces(&faces_outer, Nbc::Qn, -P2);

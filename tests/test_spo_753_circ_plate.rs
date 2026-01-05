@@ -58,11 +58,11 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&left, Dof::Ux, 0.0).point(right_corner, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural.edges_fn(&top, Nbc::Qn, |stage, _| -PP[stage]);
 
     // configuration

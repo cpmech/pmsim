@@ -92,14 +92,14 @@ fn test_spo_von_mises_single_element() -> Result<(), StrError> {
     let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
         .edges_fn(&top, Dof::Uy, 1.0, |s, _| delta_y * ((1 + s) as f64));
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let natural = BcNatural::new();
 
     // configuration
     let mut config = Config::new(&mesh);
@@ -121,8 +121,8 @@ fn test_spo_von_mises_single_element() -> Result<(), StrError> {
 fn solve_and_check(
     mesh: &Mesh,
     schema: &Schema,
-    essential: &Essential,
-    natural: &Natural,
+    essential: &BcEssential,
+    natural: &BcNatural,
     config: &Config,
 ) -> Result<(), StrError> {
     // FEM state

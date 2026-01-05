@@ -61,11 +61,11 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&left, Dof::Phi, 300.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural.edges(&right, Nbc::Cv(27.0), 20.0);
 
     // configuration

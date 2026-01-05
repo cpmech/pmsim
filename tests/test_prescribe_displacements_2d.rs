@@ -63,14 +63,14 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
         .edges(&top, Dof::Uy, -DY);
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let natural = BcNatural::new();
 
     // configuration
     let mut config = Config::new(&mesh);

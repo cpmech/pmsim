@@ -64,11 +64,11 @@ fn test_heat_bhatti_6d22_convection_direct() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&bottom, Dof::Phi, 110.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural
         .edges(&edges_flux, Nbc::Qt, -8000.0) // negative values means inward flux
         .edges(&edges_conv_a, Nbc::Cv(55.0), 20.0)
@@ -258,11 +258,11 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     config.set_lagrange_mult_method(true);
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&bottom, Dof::Phi, 110.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural
         .edges(&edges_flux, Nbc::Qt, -8000.0) // negative values means inward flux
         .edges(&edges_conv_a, Nbc::Cv(55.0), 20.0)

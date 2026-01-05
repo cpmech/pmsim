@@ -224,7 +224,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRodGnl;
-    use crate::base::{Config, Essential, GnlStrain, ParamRod, Schema};
+    use crate::base::{Config, BcEssential, GnlStrain, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, Draw, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};
@@ -280,7 +280,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).add_rod(2, p2).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut element = ElementRodGnl::new(&mesh, &schema, &p1, 0).unwrap();
 

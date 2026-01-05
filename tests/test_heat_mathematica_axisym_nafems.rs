@@ -89,11 +89,11 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&edges_temp, Dof::Phi, 273.15);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural.edges(&edges_flux, Nbc::Qt, -5e5); // inward flux
 
     // configuration

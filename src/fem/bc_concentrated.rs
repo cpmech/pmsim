@@ -1,4 +1,4 @@
-use crate::base::{Natural, Schema};
+use crate::base::{BcNatural, Schema};
 use crate::StrError;
 use russell_lab::Vector;
 
@@ -26,7 +26,7 @@ pub struct BcConcentratedArray<'a> {
 
 impl<'a> BcConcentratedArray<'a> {
     /// Allocates a new instance
-    pub fn new(schema: &Schema, natural: &'a Natural) -> Result<Self, StrError> {
+    pub fn new(schema: &Schema, natural: &'a BcNatural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.at_points.len() + 1);
         for (point_id, pbc, value, f_index) in &natural.at_points {
             let eq = schema.get_eq(*point_id, pbc.dof())?;
@@ -60,7 +60,7 @@ impl<'a> BcConcentratedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcConcentratedArray;
-    use crate::base::{Natural, ParamSolid, Pbc, Schema};
+    use crate::base::{BcNatural, ParamSolid, Pbc, Schema};
     use gemlab::mesh::Samples;
     use russell_lab::Vector;
 
@@ -71,7 +71,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
 
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         natural.points(&[100], Pbc::Fx, -10.0);
         assert_eq!(
             BcConcentratedArray::new(&schema, &natural).err(),
@@ -85,7 +85,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         natural.points(&[0], Pbc::Fx, -20.0);
         natural.points(&[1], Pbc::Fy, -20.0);
         natural.points(&[2], Pbc::Fz, -20.0);

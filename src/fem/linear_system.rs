@@ -276,7 +276,7 @@ impl<'a> LinearSystem<'a> {
 #[cfg(test)]
 mod tests {
     use super::LinearSystem;
-    use crate::base::{new_empty_mesh_2d, Config, Dof, Essential, Natural, Nbc, ParamDiffusion, Schema};
+    use crate::base::{new_empty_mesh_2d, BcEssential, BcNatural, Config, Dof, Nbc, ParamDiffusion, Schema};
     use crate::fem::{BcDistributedArray, BcPrescribed, Elements};
     use gemlab::mesh::{Edge, GeoKind, Samples};
     use russell_sparse::{Genie, Sym};
@@ -288,8 +288,8 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let essential = Essential::new();
-        let natural = Natural::new();
+        let essential = BcEssential::new();
+        let natural = BcNatural::new();
         let prescribed_values = BcPrescribed::new(&schema, &essential).unwrap();
         let elements = Elements::new(&mesh, &schema, &config).unwrap();
         let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
@@ -315,8 +315,8 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
 
-        let mut essential = Essential::new();
-        let mut natural = Natural::new();
+        let mut essential = BcEssential::new();
+        let mut natural = BcNatural::new();
         essential.points(&[0, 4], Dof::Phi, 123.0);
         let edge_conv = Edge {
             kind: GeoKind::Lin2,
@@ -427,8 +427,8 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
 
-        let mut essential = Essential::new();
-        let mut natural = Natural::new();
+        let mut essential = BcEssential::new();
+        let mut natural = BcNatural::new();
         essential.points(&[0, 4], Dof::Phi, 123.0);
         let edge_conv = Edge {
             kind: GeoKind::Lin2,

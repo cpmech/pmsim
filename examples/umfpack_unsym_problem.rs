@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use pmsim::base::{Config, Dof, Essential, Natural, Nbc, ParamSolid, Schema, StressStrain};
+use pmsim::base::{Config, Dof, BcEssential, BcNatural, Nbc, ParamSolid, Schema, StressStrain};
 use pmsim::fem::{BcDistributedArray, BcPrescribed, Elements, FemState, LinearSystem};
 use pmsim::StrError;
 use russell_lab::Vector;
@@ -48,14 +48,14 @@ fn generate_matrix(name: &str, nr: usize) -> Result<CooMatrix, StrError> {
     schema.add_solid(1, param1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // prescribed values
     let bc_prescribed = BcPrescribed::new(&schema, &essential)?;
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural
         .edges(&inner_circle, Nbc::Qn, -P1)
         .edges(&outer_circle, Nbc::Qn, -P2);

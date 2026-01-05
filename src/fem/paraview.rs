@@ -241,7 +241,7 @@ pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f6
 #[cfg(test)]
 mod tests {
     use super::{write_pvd, write_vtu};
-    use crate::base::{Config, Dof, Essential, Schema};
+    use crate::base::{Config, Dof, BcEssential, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousSldLiq, ParamSolid};
     use crate::fem::FemState;
     use gemlab::mesh::Samples;
@@ -254,7 +254,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 
@@ -321,7 +321,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 
@@ -393,7 +393,7 @@ mod tests {
             .add_beam(3, p3)
             .build(&mesh)
             .unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 

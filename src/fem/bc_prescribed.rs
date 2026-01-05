@@ -1,5 +1,5 @@
 use super::FemState;
-use crate::base::{Essential, Schema};
+use crate::base::{BcEssential, Schema};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_sparse::{CooMatrix, Sym};
@@ -31,7 +31,7 @@ pub struct BcPrescribed<'a> {
 
 impl<'a> BcPrescribed<'a> {
     /// Allocates a new instance
-    pub fn new(schema: &Schema, essential: &'a Essential) -> Result<Self, StrError> {
+    pub fn new(schema: &Schema, essential: &'a BcEssential) -> Result<Self, StrError> {
         let n_prescribed = essential.size();
         let mut constants = Vec::with_capacity(n_prescribed);
         let mut multipliers = Vec::with_capacity(n_prescribed);
@@ -183,7 +183,7 @@ impl<'a> BcPrescribed<'a> {
 #[cfg(test)]
 mod tests {
     use super::BcPrescribed;
-    use crate::base::{Dof, Essential, ParamBeam, ParamDiffusion, Schema};
+    use crate::base::{Dof, BcEssential, ParamBeam, ParamDiffusion, Schema};
     use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
 
@@ -194,14 +194,14 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
 
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential.points(&[100], Dof::Ux, 0.0);
         assert_eq!(
             BcPrescribed::new(&schema, &essential).err(),
             Some("cannot get equation number because point_id is out of bounds")
         );
 
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential.points(&[0], Dof::Phi, 0.0);
         assert_eq!(
             BcPrescribed::new(&schema, &essential).err(),
@@ -215,7 +215,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential.points(&[0], Dof::Phi, 110.0);
         let array = BcPrescribed::new(&schema, &essential).unwrap();
         assert_eq!(array.flags, &[true, false, false]);
@@ -242,7 +242,7 @@ mod tests {
         let p1 = ParamBeam::sample();
         let mut schema = Schema::new();
         schema.add_beam(1, p1).build(&mesh).unwrap();
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential
             .points(&[0], Dof::Ux, 1.0)
             .points(&[0], Dof::Uy, 2.0)
@@ -293,7 +293,7 @@ mod tests {
             .add_beam(3, p3)
             .build(&mesh)
             .unwrap();
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential
             .points(&[0], Dof::Ux, 0.0)
             .points(&[0], Dof::Uy, 1.0)
@@ -347,7 +347,7 @@ mod tests {
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let mut schema = Schema::new();
         schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential
             .points(&[0], Dof::Ux, 1.0)
             .points(&[0], Dof::Uy, 2.0)
@@ -388,7 +388,7 @@ mod tests {
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq(1, p1).build(&mesh).unwrap();
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential.points(&[0, 4], Dof::Pl, 0.0);
         let values = BcPrescribed::new(&schema, &essential).unwrap();
         assert_eq!(values.flags, &[true, false, false, false, true]);
@@ -409,7 +409,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential
             .points(&[0], Dof::Ux, 0.0)
             .points(&[0], Dof::Uy, 0.0)

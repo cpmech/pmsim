@@ -72,7 +72,7 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
@@ -80,7 +80,7 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
         .edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural
         .points(&[0, 20], Pbc::Fy, -0.0778)
         .points(&[5, 15], Pbc::Fy, -0.3556)

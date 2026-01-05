@@ -81,11 +81,11 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
         .build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.points(&[0, 3], Dof::Ux, 0.0).points(&[0, 3], Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural.points(&[1], Pbc::Fy, -150000.0);
 
     // configuration

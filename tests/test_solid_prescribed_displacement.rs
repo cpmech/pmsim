@@ -51,7 +51,7 @@ fn test_solid_prescribed_displacement_direct_approach() -> Result<(), StrError> 
     assert_eq!(neq, 8);
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .points(&[0], Dof::Ux, 0.0)
         .points(&[0, 1], Dof::Uy, 0.0)
@@ -190,7 +190,7 @@ fn test_solid_prescribed_displacement_residual_approach() -> Result<(), StrError
     let neq = schema.get_neq()?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .points(&[0], Dof::Ux, 0.0)
         .points(&[0, 1], Dof::Uy, 0.0)

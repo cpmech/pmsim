@@ -47,7 +47,7 @@ fn test_stepsize_adaptation_0() -> Result<(), StrError> {
     schema.add_solid(1, param1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // configuration
@@ -55,7 +55,7 @@ fn test_stepsize_adaptation_0() -> Result<(), StrError> {
     config.set_steady(PP.len()).set_substepping(false);
 
     // natural boundary conditions and configuration
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural.edges_fn(&inner_circle, Nbc::Qn, |stage, _| -PP[stage]);
 
     // FEM state

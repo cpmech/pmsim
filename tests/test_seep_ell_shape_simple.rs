@@ -42,12 +42,12 @@ fn test_seep_ell_shape() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&inlet, Dof::Phi, 25.0);
     essential.edges(&outlet, Dof::Phi, 0.0);
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let natural = BcNatural::new();
 
     // configuration
     let mut config = Config::new(&mesh);

@@ -72,10 +72,10 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let essential = Essential::new();
+    let essential = BcEssential::new();
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural.edges(&left, Nbc::Qt, -1.0); // inward flux
 
     // configuration

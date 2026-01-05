@@ -96,11 +96,11 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential.edges(&right, Dof::Phi, 0.0); // must be zero to match analytical solution
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let natural = BcNatural::new();
 
     // configuration
     let mut config = Config::new(&mesh);

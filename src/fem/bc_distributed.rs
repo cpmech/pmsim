@@ -1,6 +1,6 @@
 use super::FemState;
 use crate::base::{assemble_matrix, assemble_vector};
-use crate::base::{Config, Natural, Nbc, Schema};
+use crate::base::{Config, BcNatural, Nbc, Schema};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
 use gemlab::mesh::Mesh;
@@ -301,7 +301,7 @@ impl<'a> BcDistributed<'a> {
 
 impl<'a> BcDistributedArray<'a> {
     // Allocates new instance
-    pub fn new(mesh: &Mesh, schema: &Schema, config: &'a Config, natural: &'a Natural) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &'a Config, natural: &'a BcNatural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.on_edges.len() + natural.on_faces.len() + 1);
         for (edge, nbc, value, f_index) in &natural.on_edges {
             let function = match f_index {
@@ -383,7 +383,7 @@ impl<'a> BcDistributedArray<'a> {
 #[cfg(test)]
 mod tests {
     use super::{BcDistributed, BcDistributedArray};
-    use crate::base::{Config, Essential, Natural, Nbc, SampleMeshes, Schema};
+    use crate::base::{Config, BcEssential, BcNatural, Nbc, SampleMeshes, Schema};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::FemState;
     use gemlab::mesh::{At, Edge, Face, Features, GeoKind, Samples};
@@ -423,7 +423,7 @@ mod tests {
             Some("cannot get equation number because DOF is not assigned")
         );
 
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         natural.edge(&edge, Nbc::Qn, -10.0);
         assert_eq!(
             BcDistributedArray::new(&mesh, &schema, &config, &natural).err(),
@@ -563,7 +563,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 
@@ -620,7 +620,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 
@@ -688,14 +688,14 @@ mod tests {
         let param = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, param).add_solid(2, param).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 
         const Q: f64 = 25.0;
         let time = 0.0;
 
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         natural.edges(&top, Nbc::Qn, -Q);
 
         let mut bry = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();

@@ -210,7 +210,7 @@ impl<'a> Elements<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Elements, GenericElement};
-    use crate::base::{Conductivity, Config, Essential, ParamBeam, ParamPorousLiqGas, StressStrain};
+    use crate::base::{BcEssential, Conductivity, Config, ParamBeam, ParamPorousLiqGas, StressStrain};
     use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid, Schema};
     use crate::fem::FemState;
     use gemlab::integ;
@@ -277,7 +277,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
@@ -303,7 +303,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.set_transient();
         let mut ele = GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
@@ -333,7 +333,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
@@ -361,7 +361,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut ele = GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
@@ -469,7 +469,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
 

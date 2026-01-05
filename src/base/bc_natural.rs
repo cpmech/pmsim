@@ -2,7 +2,7 @@ use super::{Nbc, Pbc};
 use gemlab::mesh::{Edge, Edges, Face, Faces, PointId};
 
 /// Holds natural boundary conditions
-pub struct Natural<'a, 'b> {
+pub struct BcNatural<'a, 'b> {
     /// Holds all point values
     ///
     /// The data is `(point_id, pbc, value, f_index)` where `f_index`
@@ -36,10 +36,10 @@ pub struct Natural<'a, 'b> {
     pub(crate) functions: Vec<Box<dyn Fn(usize, f64) -> f64 + 'a>>,
 }
 
-impl<'a, 'b> Natural<'a, 'b> {
+impl<'a, 'b> BcNatural<'a, 'b> {
     /// Allocates a new instance
     pub fn new() -> Self {
-        Natural {
+        BcNatural {
             at_points: Vec::new(),
             on_edges: Vec::new(),
             on_faces: Vec::new(),
@@ -160,13 +160,13 @@ impl<'a, 'b> Natural<'a, 'b> {
 
 #[cfg(test)]
 mod tests {
-    use super::Natural;
+    use super::BcNatural;
     use crate::base::{Nbc, Pbc};
     use gemlab::mesh::{Edge, Edges, Face, Faces, Features, GeoKind, Samples};
 
     #[test]
     fn natural_works_1() {
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         let edge_a = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn natural_works_2() {
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         let edge_a = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -249,7 +249,7 @@ mod tests {
         // 1--------------2   1.0
         let mesh = Samples::one_hex8();
         let features = Features::new(&mesh, false);
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         let top_edges = Edges {
             all: vec![
                 features.edges.get(&(4, 5)).unwrap(),

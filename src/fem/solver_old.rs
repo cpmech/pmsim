@@ -1,6 +1,6 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
 use super::{FemResults, FemState, SolverCommon};
-use crate::base::{Config, Essential, Natural, Schema};
+use crate::base::{Config, BcEssential, BcNatural, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
@@ -38,8 +38,8 @@ impl<'a> SolverOld<'a> {
         mesh: &Mesh,
         schema: &'a Schema,
         config: &'a Config,
-        essential: &'a Essential,
-        natural: &'a Natural,
+        essential: &'a BcEssential,
+        natural: &'a BcNatural,
     ) -> Result<Self, StrError> {
         let com = SolverCommon::new(mesh, schema, config, essential, natural)?;
         let neq_total = com.ls.neq_total;
@@ -65,8 +65,8 @@ impl<'a> SolverOld<'a> {
         mesh: &Mesh,
         schema: &'a Schema,
         config: &'a Config,
-        essential: &'a Essential,
-        natural: &'a Natural,
+        essential: &'a BcEssential,
+        natural: &'a BcNatural,
     ) -> Result<FemState, StrError> {
         let mut solver = SolverOld::new(mesh, schema, config, essential, natural)?;
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
@@ -352,7 +352,7 @@ impl<'a> SolverOld<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverOld;
-    use crate::base::{Config, Dof, Essential, Natural, Nbc, ParamSolid, Pbc, Schema};
+    use crate::base::{Config, Dof, BcEssential, BcNatural, Nbc, ParamSolid, Pbc, Schema};
     use crate::fem::{FemResults, FemState};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 
@@ -363,8 +363,8 @@ mod tests {
         p1.ngauss = Some(123); // wrong
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
-        let natural = Natural::new();
+        let essential = BcEssential::new();
+        let natural = BcNatural::new();
 
         // error due to config.validate
         let mut config = Config::new(&mesh);
@@ -376,22 +376,22 @@ mod tests {
         let config = Config::new(&mesh);
 
         // error due to prescribed_values
-        let mut essential = Essential::new();
+        let mut essential = BcEssential::new();
         essential.points(&[123], Dof::Ux, 0.0);
         assert_eq!(
             SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("cannot get equation number because point_id is out of bounds")
         );
-        let essential = Essential::new();
+        let essential = BcEssential::new();
 
         // error due to concentrated_loads
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         natural.points(&[100], Pbc::Fx, 0.0);
         assert_eq!(
             SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("cannot get equation number because point_id is out of bounds")
         );
-        let natural = Natural::new();
+        let natural = BcNatural::new();
 
         // error due to elements
         assert_eq!(
@@ -401,7 +401,7 @@ mod tests {
         p1.ngauss = None;
 
         // error due to boundaries
-        let mut natural = Natural::new();
+        let mut natural = BcNatural::new();
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![4, 5],
@@ -422,8 +422,8 @@ mod tests {
         schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config.set_transient().set_ddt(-1.0); // wrong
-        let essential = Essential::new();
-        let natural = Natural::new();
+        let essential = BcEssential::new();
+        let natural = BcNatural::new();
         let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         let mut results = FemResults::new(&mesh, &schema, &config).unwrap();

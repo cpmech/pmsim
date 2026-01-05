@@ -68,7 +68,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
     schema.add_solid(1, p1).add_solid(2, p2).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .faces(&faces_x_min, Dof::Ux, 0.0)
         .faces(&faces_y_min, Dof::Uy, 0.0)
@@ -77,7 +77,7 @@ fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
         .faces(&bottom, Dof::Uz, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
+    let mut natural = BcNatural::new();
     natural.faces(&top, Nbc::Qn, -1.0);
 
     // configuration

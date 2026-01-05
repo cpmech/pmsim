@@ -1219,7 +1219,7 @@ mod tests {
         generate_horizontal_displacement_field, generate_scalar_field_ax_plus_by, generate_shear_displacement_field,
         generate_vertical_displacement_field, Conductivity,
     };
-    use crate::base::{Config, Dof, Essential, ParamDiffusion, ParamSolid, Schema, StressStrain};
+    use crate::base::{Config, Dof, BcEssential, ParamDiffusion, ParamSolid, Schema, StressStrain};
     use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemResults, FemState};
     use crate::StrError;
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
@@ -1259,7 +1259,7 @@ mod tests {
         phi: &Vector,
     ) -> FemState {
         // update displacement
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         vec_copy(&mut state.u, &phi).unwrap();
 
@@ -1285,7 +1285,7 @@ mod tests {
         duu: &Vector,
     ) -> FemState {
         // update displacement
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         vec_copy(&mut state.ddu, &duu).unwrap();
         vec_update(&mut state.u, 1.0, &duu).unwrap();
@@ -2785,7 +2785,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = Essential::new();
+        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
         state.u[0] = 1.0;
@@ -2900,7 +2900,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let essential = Essential::new();
+        let essential = BcEssential::new();
 
         // generate FEM state with each node having T = 100 + ID
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();

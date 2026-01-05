@@ -68,7 +68,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
+    let mut essential = BcEssential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
@@ -76,7 +76,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         .edges_fn(&footing, Dof::Uy, 1.0, |stage, _| UY[stage]);
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let natural = BcNatural::new();
 
     // configuration
     let mut config = Config::new(&mesh);
