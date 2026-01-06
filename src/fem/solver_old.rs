@@ -1,5 +1,5 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
-use super::{FemResults, FemState, SolverCommon};
+use super::{FemData, FemResults, FemState};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -11,7 +11,7 @@ pub struct SolverOld<'a> {
     pub(crate) config: &'a Config<'a>,
 
     /// Common functionality
-    pub(crate) com: SolverCommon<'a>,
+    pub(crate) com: FemData<'a>,
 
     /// Logger
     pub(crate) log: Logger<'a>,
@@ -41,7 +41,7 @@ impl<'a> SolverOld<'a> {
         essential: &'a BcEssential,
         natural: &'a BcNatural,
     ) -> Result<Self, StrError> {
-        let com = SolverCommon::new(mesh, schema, config, essential, natural)?;
+        let com = FemData::new(mesh, schema, config, essential, natural)?;
         let neq_total = com.ls.neq_total;
         let log = Logger::new(config, &com.ls);
         let res = ControlResidual::new(config, neq_total);

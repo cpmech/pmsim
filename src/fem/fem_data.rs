@@ -8,7 +8,7 @@ use russell_sparse::{CooMatrix, Sym};
 use std::collections::HashMap;
 
 /// Implements common (shared) functionality for all FEM solvers
-pub(crate) struct SolverCommon<'a> {
+pub(crate) struct FemData<'a> {
     essential: &'a BcEssential<'a>,
 
     /// Holds the pairs (PointId, Dof) for the prescribed equations (only)
@@ -47,7 +47,7 @@ pub(crate) struct SolverCommon<'a> {
     pub(crate) stopwatch: Stopwatch,
 }
 
-impl<'a> SolverCommon<'a> {
+impl<'a> FemData<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
@@ -104,7 +104,7 @@ impl<'a> SolverCommon<'a> {
             .collect();
 
         // return new instance
-        Ok(SolverCommon {
+        Ok(FemData {
             essential,
             presc_pairs: pairs,
             eq_handler: handler,
@@ -316,7 +316,7 @@ impl<'a> SolverCommon<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::SolverCommon;
+    use super::FemData;
     use crate::base::{BcEssential, BcNatural, Config, ParamSolid, Schema};
     use gemlab::mesh::Samples;
 
@@ -334,7 +334,7 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.set_transient().set_ddt_min(-1.0);
         assert_eq!(
-            SolverCommon::new(&mesh, &schema, &config, &essential, &natural).err(),
+            FemData::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("cannot allocate simulation because config.validate() failed")
         );
     }

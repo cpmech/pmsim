@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
-use super::{FemResults, FemState, SolverCommon};
+use super::{FemResults, FemState, FemData};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -14,7 +14,7 @@ const NCHAR: usize = 81;
 
 struct Args<'a> {
     state: FemState,
-    com: SolverCommon<'a>,
+    com: FemData<'a>,
 }
 
 /// Function to calculate G(u, λ)
@@ -114,7 +114,7 @@ pub fn solve<'a>(
     // allocate arguments for the nonlinear solver
     let mut args = Args {
         state: FemState::new(&mesh, &schema, &essential, &config)?,
-        com: SolverCommon::new(mesh, schema, config, essential, natural)?,
+        com: FemData::new(mesh, schema, config, essential, natural)?,
     };
 
     let ndim = args.com.ls.neq_total;
