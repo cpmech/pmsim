@@ -179,8 +179,9 @@ impl FemState {
 
         // total number of equations
         let mut neq_total = schema.get_neq()?;
+        let n_prescribed = essential.functions.len();
         if config.lagrange_mult_method {
-            neq_total += essential.size();
+            neq_total += n_prescribed;
         };
 
         // primary variables

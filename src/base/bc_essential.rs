@@ -8,7 +8,7 @@ pub struct BcEssential<'a> {
     /// Holds the functions to calculate the EBCs
     ///
     /// The function is `fn(t) -> value`
-    functions: HashMap<(PointId, Dof), Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>>,
+    pub(crate) functions: HashMap<(PointId, Dof), Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>>,
 }
 
 impl<'a> BcEssential<'a> {
@@ -104,29 +104,6 @@ impl<'a> BcEssential<'a> {
             }
         }
         self
-    }
-
-    /// Returns the number of functions stored (equals the number of prescribed EBCs)
-    pub(crate) fn size(&self) -> usize {
-        self.functions.len()
-    }
-
-    /// Returns the keys (point_id, dof) of all prescribed EBCs
-    pub(crate) fn keys(&self) -> impl Iterator<Item = &(PointId, Dof)> {
-        self.functions.keys()
-    }
-
-    /// Returns the EBC at a given point and DOF for time t
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the point and DOF pair is not found.
-    pub(crate) fn value(&self, point_id: PointId, dof: Dof, t: f64) -> f64 {
-        let f = self
-            .functions
-            .get(&(point_id, dof))
-            .expect("Essential BC not found for the given point and DOF");
-        f(t)
     }
 }
 

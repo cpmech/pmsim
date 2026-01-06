@@ -1,29 +1,28 @@
 use super::{BcConcentratedArray, BcDistributedArray, Elements, FemState, LinearSystem};
-use crate::base::{BcEssential, BcNatural, Config, Dof, Schema};
+use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
-use gemlab::mesh::{Mesh, PointId};
+use gemlab::mesh::Mesh;
 use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch, Vector};
 use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Implements common (shared) functionality for all FEM solvers
 pub(crate) struct FemData<'a> {
-    essential: &'a BcEssential<'a>,
-
-    /// Holds the pairs (PointId, Dof) for the prescribed equations (only)
-    ///
-    /// len = n_prescribed
-    presc_pairs: Vec<(PointId, Dof)>,
-
-    /// Manages equation numbers (prescribed versus unknown)
-    pub(crate) eq_handler: EquationHandler,
+    /// Holds element types, material parameters, and specifies the DOF numbering schema
+    pub(crate) schema: &'a Schema,
 
     /// Holds the configuration
     pub(crate) config: &'a Config<'a>,
 
-    /// Holds element types, material parameters, and specifies the DOF numbering schema
-    pub(crate) schema: &'a Schema,
+    /// Manages equation numbers (prescribed versus unknown)
+    pub(crate) eq_handler: EquationHandler,
+
+    /// Holds the functions to calculate the prescribed values
+    ///
+    /// len = n_prescribed; use eq_handler.ip() to access an entry in this array
+    pub(crate) p_functions: Vec<Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>>,
 
     // Holds a collection of concentrated loads
     pub(crate) bc_concentrated: BcConcentratedArray<'a>,
@@ -59,27 +58,29 @@ impl<'a> FemData<'a> {
         // check
         if let Some(msg) = config.validate() {
             println!("ERROR: {}", msg);
-            return Err("cannot allocate simulation because config.validate() failed");
+            return Err("cannot start simulation because config.validate() failed");
         }
 
-        // Collect the list of prescribed equations
-        let n_prescribed = essential.size();
-        let mut eq_to_pair = HashMap::new();
+        // Generate the list of prescribed equations and a map from equation to (PointId, Dof)
+        let n_prescribed = essential.functions.len();
         let mut p_list = Vec::with_capacity(n_prescribed);
-        for (point_id, dof) in essential.keys() {
+        let mut eq_to_dof = HashMap::with_capacity(n_prescribed);
+        for (point_id, dof) in essential.functions.keys() {
             let eq = schema.get_eq(*point_id, *dof)?;
             p_list.push(eq);
-            eq_to_pair.insert(eq, (*point_id, *dof));
+            eq_to_dof.insert(eq, (*point_id, *dof));
         }
 
         // Allocate the equations handler
-        let mut handler = EquationHandler::new(schema.get_neq()?);
-        handler.recompute(&p_list);
+        let mut eq_handler = EquationHandler::new(schema.get_neq()?);
+        eq_handler.recompute(&p_list);
 
-        // Allocate array of (point_id, dof) pairs corresponding to prescribed equation numbers
-        let mut pairs = Vec::with_capacity(n_prescribed);
-        for eq in handler.prescribed() {
-            pairs.push(eq_to_pair.get(eq).unwrap().to_owned());
+        // Allocate array of functions to calculate prescribed values
+        let mut p_functions = Vec::with_capacity(n_prescribed);
+        for eq in eq_handler.prescribed() {
+            let point_dof = eq_to_dof.get(eq).unwrap();
+            let f = essential.functions.get(point_dof).unwrap();
+            p_functions.push(f.clone());
         }
 
         // allocate auxiliary instances
@@ -89,10 +90,10 @@ impl<'a> FemData<'a> {
         let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &bc_distributed)?;
 
         // array to ignore prescribed equations when building the reduced system
-        let ndof = handler.neq(); // number of DOFs = n_equation without Lagrange multipliers
+        let ndof = eq_handler.neq(); // number of DOFs = n_equation without Lagrange multipliers
         let mut ignored_eqs = vec![false; ndof];
         if !config.lagrange_mult_method {
-            for eq in handler.prescribed() {
+            for eq in eq_handler.prescribed() {
                 ignored_eqs[*eq] = true;
             }
         };
@@ -105,11 +106,10 @@ impl<'a> FemData<'a> {
 
         // return new instance
         Ok(FemData {
-            essential,
-            presc_pairs: pairs,
-            eq_handler: handler,
-            config,
             schema,
+            config,
+            eq_handler,
+            p_functions,
             bc_concentrated,
             bc_distributed,
             elements,
@@ -206,16 +206,6 @@ impl<'a> FemData<'a> {
         Ok(())
     }
 
-    /// Returns the value of the prescribed DOF at given time
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the equation number is out of bounds.
-    pub fn prescribed_value(&self, eq: usize, time: f64) -> f64 {
-        let pair = self.presc_pairs[eq];
-        self.essential.value(pair.0, pair.1, time)
-    }
-
     /// Assembles the contribution due to the prescribed DOFs into the global R vector (LMM)
     ///
     /// **LMM** means Lagrange Multiplier Method
@@ -238,7 +228,7 @@ impl<'a> FemData<'a> {
             let i = self.eq_handler.prescribed()[ip];
             let j = neq + ip;
             let lag = state.u[j];
-            let val = self.prescribed_value(ip, state.time);
+            let val = self.p_functions[ip](state.time);
             rr[i] += lag; // Aᵀ λ  →  1 * λ
             rr[j] = state.u[i] - val; // A u - c  →  1 * u - c
         }
@@ -335,7 +325,7 @@ mod tests {
         config.set_transient().set_ddt_min(-1.0);
         assert_eq!(
             FemData::new(&mesh, &schema, &config, &essential, &natural).err(),
-            Some("cannot allocate simulation because config.validate() failed")
+            Some("cannot start simulation because config.validate() failed")
         );
     }
 }

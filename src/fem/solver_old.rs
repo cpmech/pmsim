@@ -282,7 +282,7 @@ impl<'a> SolverOld<'a> {
                 let i = self.com.eq_handler.prescribed()[ip];
                 let j = neq + ip;
                 let lag = state.u[j];
-                let val = self.com.prescribed_value(ip, state.time);
+                let val = self.com.p_functions[ip](state.time);
                 self.com.ls.rr[i] += lag; // Aᵀ λ  →  1 * λ
                 self.com.ls.rr[j] = state.u[i] - val; // A u - c  →  1 * u - c
             }
@@ -406,7 +406,7 @@ mod tests {
         config.set_transient().set_ddt_min(-1.0); // wrong
         assert_eq!(
             SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
-            Some("cannot allocate simulation because config.validate() failed")
+            Some("cannot start simulation because config.validate() failed")
         );
         let config = Config::new(&mesh);
 
