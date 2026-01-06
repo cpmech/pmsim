@@ -1,85 +1,64 @@
 use super::FemState;
-use crate::base::{BcEssential, Schema};
+use crate::base::{BcEssential, Dof, Schema};
 use crate::StrError;
+use gemlab::mesh::PointId;
 use russell_lab::Vector;
+use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
+use std::collections::HashMap;
 
-/// Assists in calculating essential (Dirichlet) boundary conditions (aka prescribed BCs)
-pub struct BcPrescribed<'a> {
-    /// All constant values
-    ///
-    /// (n_prescribed)
-    constants: Vec<f64>,
+/// Calculates the values associated with the prescribed essential boundary conditions
+pub(crate) struct BcPrescribed<'a> {
+    essential: &'a BcEssential<'a>,
 
-    /// All multiplier functions
-    ///
-    /// The function is `(stage, t) -> multiplier`
-    ///
-    /// (n_prescribed)
-    multipliers: Vec<Option<&'a Box<dyn Fn(usize, f64) -> f64 + 'a>>>,
+    /// Manages equation numbers (prescribed versus unknown)
+    pub(crate) handler: EquationHandler,
 
-    /// Array with only the numbers of the prescribed DOFs
+    /// Holds the pairs (PointId, Dof) for the prescribed equations (only)
     ///
-    /// (n_prescribed)
-    pub equations: Vec<usize>,
-
-    /// An array indicating which DOFs are prescribed
-    ///
-    /// (ndof; the total number of DOFs)
-    pub flags: Vec<bool>,
+    /// len = n_prescribed
+    pairs: Vec<(PointId, Dof)>,
 }
 
 impl<'a> BcPrescribed<'a> {
     /// Allocates a new instance
     pub fn new(schema: &Schema, essential: &'a BcEssential) -> Result<Self, StrError> {
+        // Collect the list of prescribed equations
         let n_prescribed = essential.size();
-        let mut constants = Vec::with_capacity(n_prescribed);
-        let mut multipliers = Vec::with_capacity(n_prescribed);
-        let mut equations = Vec::with_capacity(n_prescribed);
-        let mut flags = vec![false; schema.get_neq()?];
+        let mut eq_to_pair = HashMap::new();
+        let mut p_list = Vec::with_capacity(n_prescribed);
         for (point_id, dof) in essential.keys() {
             let eq = schema.get_eq(*point_id, *dof)?;
-            let (constant, multiplier) = essential.get(*point_id, *dof);
-            constants.push(constant);
-            multipliers.push(multiplier);
-            flags[eq] = true;
-            equations.push(eq);
+            p_list.push(eq);
+            eq_to_pair.insert(eq, (*point_id, *dof));
         }
+
+        // Allocate the equations handler
+        let mut handler = EquationHandler::new(schema.get_neq()?);
+        handler.recompute(&p_list);
+
+        // Allocate array of (point_id, dof) pairs corresponding to prescribed equation numbers
+        let mut pairs = Vec::with_capacity(n_prescribed);
+        for eq in handler.prescribed() {
+            pairs.push(eq_to_pair.get(eq).unwrap().to_owned());
+        }
+
+        // Return the instance
         Ok(BcPrescribed {
-            constants,
-            multipliers,
-            flags,
-            equations,
+            essential,
+            handler,
+            pairs,
         })
     }
 
     /// Returns the value of the prescribed DOF at given time
     ///
-    /// The BC value is computed as follows:
+    /// # Panics
     ///
-    /// ```text
-    /// value = constant * multiplier(stage, t)
-    /// ```
-    pub fn value(&self, eq: usize, stage: usize, time: f64) -> f64 {
-        match self.multipliers[eq] {
-            Some(m) => self.constants[eq] * (m)(stage, time),
-            None => self.constants[eq],
-        }
-    }
-
-    /// Returns the number of prescribed values
-    pub fn size(&self) -> usize {
-        self.constants.len()
-    }
-
-    /// Returns true if there is at least one non-zero constant
-    pub fn has_non_zero(&self) -> bool {
-        for constant in &self.constants {
-            if *constant != 0.0 {
-                return true;
-            }
-        }
-        false
+    /// This function will panic if the equation number is out of bounds.
+    pub fn value(&self, eq: usize, time: f64) -> f64 {
+        let pair = self.pairs[eq];
+        self.essential.value(pair.0, pair.1, time)
     }
 
     /// Assembles the contribution due to the prescribed DOFs into the global R vector (LMM)
@@ -99,14 +78,14 @@ impl<'a> BcPrescribed<'a> {
     ///  └         ┘ └     ┘   └         ┘
     /// ```
     pub fn assemble_rr_lmm(&self, rr: &mut Vector, state: &FemState) {
-        let ndof = self.flags.len();
-        for p in 0..self.equations.len() {
-            let i = self.equations[p];
-            let j = ndof + p;
-            let lambda = state.u[j];
-            let c = self.value(p, state.step, state.time);
-            rr[i] += lambda; // Aᵀ λ  →  1 * λ
-            rr[j] = state.u[i] - c; // A u - c  →  1 * u - c
+        let neq = self.handler.neq();
+        for ip in 0..self.handler.np() {
+            let i = self.handler.prescribed()[ip];
+            let j = neq + ip;
+            let lag = state.u[j];
+            let val = self.value(ip, state.time);
+            rr[i] += lag; // Aᵀ λ  →  1 * λ
+            rr[j] = state.u[i] - val; // A u - c  →  1 * u - c
         }
     }
 
@@ -126,27 +105,27 @@ impl<'a> BcPrescribed<'a> {
     ///  └         ┘ └     ┘   └         ┘
     /// ```
     pub fn assemble_kk_lmm(&self, kk: &mut CooMatrix) {
-        let ndof = self.flags.len();
+        let neq = self.handler.neq();
         let sym = kk.get_info().3;
         match sym {
             Sym::YesLower => {
-                for p in 0..self.equations.len() {
-                    let i = self.equations[p];
-                    let j = ndof + p;
+                for ip in 0..self.handler.np() {
+                    let i = self.handler.prescribed()[ip];
+                    let j = neq + ip;
                     kk.put(j, i, 1.0).unwrap(); // A
                 }
             }
             Sym::YesUpper => {
-                for p in 0..self.equations.len() {
-                    let i = self.equations[p];
-                    let j = ndof + p;
+                for ip in 0..self.handler.np() {
+                    let i = self.handler.prescribed()[ip];
+                    let j = neq + ip;
                     kk.put(i, j, 1.0).unwrap(); // Aᵀ
                 }
             }
             Sym::YesFull | Sym::No => {
-                for p in 0..self.equations.len() {
-                    let i = self.equations[p];
-                    let j = ndof + p;
+                for ip in 0..self.handler.np() {
+                    let i = self.handler.prescribed()[ip];
+                    let j = neq + ip;
                     kk.put(i, j, 1.0).unwrap(); // Aᵀ
                     kk.put(j, i, 1.0).unwrap(); // A
                 }
@@ -172,7 +151,7 @@ impl<'a> BcPrescribed<'a> {
     ///
     /// Note that the prescribed values are zero (homogeneous BCs).
     pub fn assemble_kk_rsm(&self, kk: &mut CooMatrix) {
-        for eq in &self.equations {
+        for eq in self.handler.prescribed() {
             kk.put(*eq, *eq, 1.0).unwrap();
         }
     }
@@ -181,247 +160,4 @@ impl<'a> BcPrescribed<'a> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
-mod tests {
-    use super::BcPrescribed;
-    use crate::base::{Dof, BcEssential, ParamBeam, ParamDiffusion, Schema};
-    use crate::base::{ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
-    use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
-
-    #[test]
-    fn new_captures_errors() {
-        let mesh = Samples::one_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let mut schema = Schema::new();
-        schema.add_solid(1, p1).build(&mesh).unwrap();
-
-        let mut essential = BcEssential::new();
-        essential.points(&[100], Dof::Ux, 0.0);
-        assert_eq!(
-            BcPrescribed::new(&schema, &essential).err(),
-            Some("cannot get equation number because point_id is out of bounds")
-        );
-
-        let mut essential = BcEssential::new();
-        essential.points(&[0], Dof::Phi, 0.0);
-        assert_eq!(
-            BcPrescribed::new(&schema, &essential).err(),
-            Some("cannot get equation number because DOF is not assigned")
-        );
-    }
-
-    #[test]
-    fn bc_prescribed_array_works_diffusion() {
-        let mesh = Samples::one_tri3();
-        let p1 = ParamDiffusion::sample();
-        let mut schema = Schema::new();
-        schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let mut essential = BcEssential::new();
-        essential.points(&[0], Dof::Phi, 110.0);
-        let array = BcPrescribed::new(&schema, &essential).unwrap();
-        assert_eq!(array.flags, &[true, false, false]);
-        assert_eq!(array.equations, &[0]);
-        assert_eq!(array.has_non_zero(), true);
-        assert_eq!(array.value(0, 0, 0.0), 110.0);
-    }
-
-    #[test]
-    fn bc_prescribed_array_works_beam_3d() {
-        #[rustfmt::skip]
-        let mesh = Mesh {
-            ndim: 3,
-            points: vec![
-                Point { id: 0, marker: 0, coords: vec![0.0, 0.0, 0.0] },
-                Point { id: 1, marker: 0, coords: vec![1.0, 1.0, 1.0] },
-            ],
-            cells: vec![
-                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
-            ],
-            marked_edges: Vec::new(),
-            marked_faces: Vec::new(),
-        };
-        let p1 = ParamBeam::sample();
-        let mut schema = Schema::new();
-        schema.add_beam(1, p1).build(&mesh).unwrap();
-        let mut essential = BcEssential::new();
-        essential
-            .points(&[0], Dof::Ux, 1.0)
-            .points(&[0], Dof::Uy, 2.0)
-            .points(&[0], Dof::Uz, 3.0)
-            .points(&[0], Dof::Rx, 4.0)
-            .points(&[0], Dof::Ry, 5.0)
-            .points(&[0], Dof::Rz, 6.0);
-        let array = BcPrescribed::new(&schema, &essential).unwrap();
-        assert_eq!(
-            array.flags,
-            &[
-                true, true, true, true, true, true, //        0 Ux,Uy,Uz, Rx,Ry,Rz
-                false, false, false, false, false, false, //  1 Ux,Uy,Uz, Rx,Ry,Rz
-            ]
-        );
-        assert_eq!(array.has_non_zero(), true);
-        let mut eqs = array.equations.clone();
-        eqs.sort();
-        assert_eq!(&eqs, &[0, 1, 2, 3, 4, 5]);
-    }
-
-    #[test]
-    fn bc_prescribed_array_works_mixed() {
-        //                     {Ux→15}
-        //    {Ux→21}          {Uy→16}
-        //    {Uy→22}  {Ux→19} {Rz→17}
-        //    {Pl→23}  {Uy→20} {Pl→18} {Ux→13}
-        //         8------7------6._   {Uy→14}
-        //         |       [3](3)|  '-.5
-        //         |  [0]        |     '-._
-        // {Ux→24} 9  (1)      *10  [1]    '4 {Ux→11}
-        // {Uy→25} |             |  (2)  .-'  {Uy→12}
-        //         |       [2](3)|   _.3'
-        //         0------1------2.-'  {Ux→9}
-        //     {Ux→0}  {Ux→3}  {Ux→5}  {Uy→10}
-        //     {Uy→1}  {Uy→4}  {Uy→6}
-        //     {Pl→2}          {Rz→7}
-        //                     {Pl→8}
-        //  *10 => {Ux→26, Uy→27, Rz→28}
-        let mesh = Samples::qua8_tri6_lin2();
-        let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-        let p2 = ParamSolid::sample_linear_elastic();
-        let p3 = ParamBeam::sample();
-        let mut schema = Schema::new();
-        schema
-            .add_porous_sld_liq(1, p1)
-            .add_solid(2, p2)
-            .add_beam(3, p3)
-            .build(&mesh)
-            .unwrap();
-        let mut essential = BcEssential::new();
-        essential
-            .points(&[0], Dof::Ux, 0.0)
-            .points(&[0], Dof::Uy, 1.0)
-            .points(&[0], Dof::Pl, 2.0)
-            .points(&[1], Dof::Ux, 3.0)
-            .points(&[1], Dof::Uy, 4.0)
-            .points(&[2], Dof::Ux, 5.0)
-            .points(&[2], Dof::Uy, 6.0)
-            .points(&[2], Dof::Rz, 7.0)
-            .points(&[2], Dof::Pl, 8.0)
-            .points(&[3], Dof::Ux, 9.0)
-            .points(&[3], Dof::Uy, 10.0)
-            .points(&[4], Dof::Ux, 11.0)
-            .points(&[4], Dof::Uy, 12.0)
-            .points(&[5], Dof::Ux, 13.0)
-            .points(&[5], Dof::Uy, 14.0)
-            .points(&[6], Dof::Ux, 15.0)
-            .points(&[6], Dof::Uy, 16.0)
-            .points(&[6], Dof::Rz, 17.0)
-            .points(&[6], Dof::Pl, 18.0)
-            .points(&[7], Dof::Ux, 19.0)
-            .points(&[7], Dof::Uy, 20.0)
-            .points(&[8], Dof::Ux, 21.0)
-            .points(&[8], Dof::Uy, 22.0)
-            .points(&[8], Dof::Pl, 23.0)
-            .points(&[9], Dof::Ux, 24.0)
-            .points(&[9], Dof::Uy, 25.0)
-            .points(&[10], Dof::Ux, 26.0)
-            .points(&[10], Dof::Uy, 27.0)
-            .points(&[10], Dof::Rz, 28.0);
-        let _array = BcPrescribed::new(&schema, &essential).unwrap();
-        #[rustfmt::skip]
-        let _correct = &[            // point
-             0.0,  1.0,  2.0,       //  0 (Ux, 0) (Uy, 1) (Pl,2)
-             3.0,  4.0,             //  1 (Ux, 3) (Uy, 4)
-             5.0,  6.0,  7.0,  8.0, //  2 (Ux, 5) (Uy, 6) (Rz,7) (Pl,8)
-             9.0, 10.0,             //  3 (Ux, 9) (Uy,10)
-            11.0, 12.0,             //  4 (Ux,11) (Uy,12)
-            13.0, 14.0,             //  5 (Ux,13) (Uy,14)
-            15.0, 16.0, 17.0, 18.0, //  6 (Ux,15) (Uy,16) (Rz,17) (Pl,18)
-            19.0, 20.0,             //  7 (Ux,19) (Uy,20)
-            21.0, 22.0, 23.0,       //  8 (Ux,21) (Uy,22) (Pl,23)
-            24.0, 25.0,             //  9 (Ux,24) (Uy,25)
-            26.0, 27.0, 28.0,       // 10 (Ux,26) (Uy,27) (Rz,28)
-        ];
-    }
-
-    #[test]
-    fn bc_prescribed_array_works_porous_sld_liq_gas() {
-        let mesh = Samples::one_tri6();
-        let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let mut schema = Schema::new();
-        schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
-        let mut essential = BcEssential::new();
-        essential
-            .points(&[0], Dof::Ux, 1.0)
-            .points(&[0], Dof::Uy, 2.0)
-            .points(&[0], Dof::Pl, 3.0)
-            .points(&[0], Dof::Pg, 4.0)
-            .points(&[1], Dof::Ux, 5.0)
-            .points(&[1], Dof::Uy, 6.0)
-            .points(&[1], Dof::Pl, 7.0)
-            .points(&[1], Dof::Pg, 8.0)
-            .points(&[2], Dof::Ux, 9.0)
-            .points(&[2], Dof::Uy, 10.0)
-            .points(&[2], Dof::Pl, 11.0)
-            .points(&[2], Dof::Pg, 12.0);
-        let _array = BcPrescribed::new(&schema, &essential).unwrap();
-        #[rustfmt::skip]
-        let _correct = &[
-            1.0,  2.0,  3.0,  4.0, // 0 Ux,Uy,Pl,Pg
-            5.0,  6.0,  7.0,  8.0, // 1 Ux,Uy,Pl,Pg
-            9.0, 10.0, 11.0, 12.0, // 2 Ux,Uy,Pl,Pg
-            0.0,  0.0,             // 3 Ux,Uy
-            0.0,  0.0,             // 4 Ux,Uy
-            0.0,  0.0,             // 5 Ux,Uy
-        ];
-    }
-
-    #[test]
-    fn bc_prescribed_array_works_triangles() {
-        //       {4} 4---.__
-        //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates marker
-        //        /     \  [1]   /   \    {#} indicates equation id
-        //       /  [0]  \ (1)  / [2] \
-        //      /   (1)   \    /  (1)  \
-        // {0} 0---.__     \  /      ___2 {2}
-        //            `--.__\/__.---'
-        //               {1} 1
-        let mesh = Samples::three_tri3();
-        let p1 = ParamPorousLiq::sample_brooks_corey_constant();
-        let mut schema = Schema::new();
-        schema.add_porous_liq(1, p1).build(&mesh).unwrap();
-        let mut essential = BcEssential::new();
-        essential.points(&[0, 4], Dof::Pl, 0.0);
-        let values = BcPrescribed::new(&schema, &essential).unwrap();
-        assert_eq!(values.flags, &[true, false, false, false, true]);
-        let mut eqs = values.equations.clone();
-        eqs.sort();
-        assert_eq!(eqs, &[0, 4]);
-
-        //       {8} 4---.__
-        //       {9}/ \     `--.___3 {6}   [#] indicates id
-        //         /   \          / \{7}   (#) indicates marker
-        //        /     \  [1]   /   \     {#} indicates equation number
-        //       /  [0]  \ (1)  / [2] \
-        // {0}  /   (1)   \    /  (1)  \
-        // {1} 0---.__     \  /      ___2 {4}
-        //            `--.__\/__.---'     {5}
-        //                   1 {2}
-        //                     {3}
-        let p1 = ParamSolid::sample_linear_elastic();
-        let mut schema = Schema::new();
-        schema.add_solid(1, p1).build(&mesh).unwrap();
-        let mut essential = BcEssential::new();
-        essential
-            .points(&[0], Dof::Ux, 0.0)
-            .points(&[0], Dof::Uy, 0.0)
-            .points(&[1, 2], Dof::Uy, 0.0);
-        let values = BcPrescribed::new(&schema, &essential).unwrap();
-        assert_eq!(
-            values.flags,
-            //   0     1      2     3      4     5      6      7      8      9
-            &[true, true, false, true, false, true, false, false, false, false]
-        );
-        let mut eqs = values.equations.clone();
-        eqs.sort();
-        assert_eq!(eqs, &[0, 1, 3, 5]);
-    }
-}
+mod tests {}

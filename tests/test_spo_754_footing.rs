@@ -14,21 +14,22 @@ const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
 // displacement control
-const UY: [f64; 14] = [
-    -0.01,  // stage =  0
-    -0.015, // stage =  1
-    -0.02,  // stage =  2
-    -0.025, // stage =  3
-    -0.035, // stage =  4
-    -0.045, // stage =  5
-    -0.055, // stage =  6
-    -0.065, // stage =  7
-    -0.075, // stage =  8
-    -0.08,  // stage =  9
-    -0.09,  // stage = 10
-    -0.11,  // stage = 11
-    -0.14,  // stage = 12
-    -0.2,   // stage = 13
+const UY: [f64; 15] = [
+    0.0,    // time =  0
+    -0.01,  // time =  1
+    -0.015, // time =  2
+    -0.02,  // time =  3
+    -0.025, // time =  4
+    -0.035, // time =  5
+    -0.045, // time =  6
+    -0.055, // time =  7
+    -0.065, // time =  8
+    -0.075, // time =  9
+    -0.08,  // time = 10
+    -0.09,  // time = 11
+    -0.11,  // time = 12
+    -0.14,  // time = 13
+    -0.2,   // time = 14
 ];
 
 #[test]
@@ -73,7 +74,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&footing, Dof::Uy, 1.0, |stage, _| UY[stage]);
+        .edges_fn(&footing, Dof::Uy, |t| UY[t as usize]);
 
     // natural boundary conditions
     let natural = BcNatural::new();
@@ -83,7 +84,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     config
         .set_out_files("/tmp/pmsim", NAME, 1.0)
         .set_lagrange_mult_method(true)
-        .set_steady(UY.len())
+        .set_steady(UY.len() - 1)
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_max_iterations(20);
 

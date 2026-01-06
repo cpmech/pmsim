@@ -6,7 +6,7 @@ use russell_sparse::{CooMatrix, CscMatrix, LinSolver};
 use std::fmt::Write;
 
 /// Holds variables to solve the global linear system
-pub struct LinearSystem<'a> {
+pub(crate) struct LinearSystem<'a> {
     /// Holds the configuration
     config: &'a Config<'a>,
 
@@ -137,7 +137,7 @@ impl<'a> LinearSystem<'a> {
         // constants
         let sym = config.lin_sol_genie.get_sym(symmetric);
         let ndof = schema.get_neq()?;
-        let n_prescribed = prescribed.equations.len();
+        let n_prescribed = prescribed.handler.np();
         let mut n_lagrange = 0;
 
         // total number of equations
@@ -438,7 +438,7 @@ mod tests {
         natural.edge(&edge_conv, Nbc::Cv(55.0), 123.0);
         let prescribed = BcPrescribed::new(&schema, &essential).unwrap();
 
-        let n_equation_global = mesh.points.len() * 1 + prescribed.size(); // 1 DOF per node
+        let n_equation_global = mesh.points.len() * 1 + prescribed.handler.np(); // 1 DOF per node
 
         let n_prescribed = 2;
         let n_element = 3;

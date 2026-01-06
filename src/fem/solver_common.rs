@@ -60,11 +60,12 @@ impl<'a> SolverCommon<'a> {
         let linear_system = LinearSystem::new(base, config, &bc_prescribed, &elements, &bc_distributed)?;
 
         // array to ignore prescribed equations when building the reduced system
-        let ndof = bc_prescribed.flags.len(); // number of DOFs = n_equation without Lagrange multipliers
-        let ignored_eqs = if config.lagrange_mult_method {
-            vec![false; ndof]
-        } else {
-            bc_prescribed.flags.clone()
+        let ndof = bc_prescribed.handler.neq(); // number of DOFs = n_equation without Lagrange multipliers
+        let mut ignored_eqs = vec![false; ndof];
+        if !config.lagrange_mult_method {
+            for eq in bc_prescribed.handler.prescribed() {
+                ignored_eqs[*eq] = true;
+            }
         };
 
         // collect the unknown equations

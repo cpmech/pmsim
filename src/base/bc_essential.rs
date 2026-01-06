@@ -1,50 +1,34 @@
 use super::Dof;
 use gemlab::mesh::{Edge, Edges, Face, Faces, PointId};
-use std::collections::hash_map::Keys;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Holds essential boundary conditions
-///
-/// The BC value is computed as follows:
-///
-/// ```text
-/// value = constant * multiplier(t)
-/// ```
 pub struct BcEssential<'a> {
-    /// Holds all constant values and optional indices to multiplier functions
+    /// Holds the functions to calculate the EBCs
     ///
-    /// The output of this map is `(value, f_index)` where `f_index`
-    /// is the index of the function in the `functions` array.
-    ///
-    /// * If `f_index` is None: `bc_value_current = value`
-    /// * If `f_index` is Some: `bc_value_current = f(t)`
-    all: HashMap<(PointId, Dof), (f64, Option<usize>)>,
-
-    /// Holds optional multiplier functions to calculate the final BC value
-    ///
-    /// The function is `(stage, t) -> multiplier`
-    multipliers: Vec<Box<dyn Fn(usize, f64) -> f64 + 'a>>,
+    /// The function is `fn(t) -> value`
+    functions: HashMap<(PointId, Dof), Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>>,
 }
 
 impl<'a> BcEssential<'a> {
     /// Allocates a new instance
     pub fn new() -> Self {
         BcEssential {
-            all: HashMap::new(),
-            multipliers: Vec::new(),
+            functions: HashMap::new(),
         }
     }
 
     /// Sets essential boundary condition for a point
     pub fn point(&mut self, point_id: PointId, dof: Dof, value: f64) -> &mut Self {
-        self.all.insert((point_id, dof), (value, None));
+        self.functions.insert((point_id, dof), Arc::new(move |_| value));
         self
     }
 
     /// Sets essential boundary condition for an edge
     pub fn edge(&mut self, edge: &Edge, dof: Dof, value: f64) -> &mut Self {
         for point_id in &edge.points {
-            self.all.insert((*point_id, dof), (value, None));
+            self.functions.insert((*point_id, dof), Arc::new(move |_| value));
         }
         self
     }
@@ -52,7 +36,7 @@ impl<'a> BcEssential<'a> {
     /// Sets essential boundary condition for a face
     pub fn face(&mut self, face: &Face, dof: Dof, value: f64) -> &mut Self {
         for point_id in &face.points {
-            self.all.insert((*point_id, dof), (value, None));
+            self.functions.insert((*point_id, dof), Arc::new(move |_| value));
         }
         self
     }
@@ -60,7 +44,7 @@ impl<'a> BcEssential<'a> {
     /// Sets essential boundary condition for a set of points
     pub fn points(&mut self, points: &[PointId], dof: Dof, value: f64) -> &mut Self {
         for point_id in points {
-            self.all.insert((*point_id, dof), (value, None));
+            self.functions.insert((*point_id, dof), Arc::new(move |_| value));
         }
         self
     }
@@ -69,7 +53,7 @@ impl<'a> BcEssential<'a> {
     pub fn edges(&mut self, edges: &Edges, dof: Dof, value: f64) -> &mut Self {
         for edge in &edges.all {
             for point_id in &edge.points {
-                self.all.insert((*point_id, dof), (value, None));
+                self.functions.insert((*point_id, dof), Arc::new(move |_| value));
             }
         }
         self
@@ -79,114 +63,70 @@ impl<'a> BcEssential<'a> {
     pub fn faces(&mut self, faces: &Faces, dof: Dof, value: f64) -> &mut Self {
         for face in &faces.all {
             for point_id in &face.points {
-                self.all.insert((*point_id, dof), (value, None));
+                self.functions.insert((*point_id, dof), Arc::new(move |_| value));
             }
         }
         self
     }
 
-    /// Sets BC for a set of points with a constant value times multiplier(t) function
+    /// Sets EBC for a set of points with with values calculated by a function
     ///
-    /// The function is `(stage, t) -> multiplier`
-    ///
-    /// The BC value is computed as follows:
-    ///
-    /// ```text
-    /// value = c * m(t)
-    /// ```
-    pub fn points_fn(&mut self, points: &[PointId], dof: Dof, c: f64, m: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
-        let f_index = self.multipliers.len();
+    /// The function is `f(t) -> value`
+    pub fn points_fn(&mut self, points: &[PointId], dof: Dof, f: impl Fn(f64) -> f64 + Send + Sync + 'a) -> &mut Self {
+        let ff = Arc::new(f);
         for point_id in points {
-            self.all.insert((*point_id, dof), (c, Some(f_index)));
+            self.functions.insert((*point_id, dof), ff.clone());
         }
-        self.multipliers.push(Box::new(m));
         self
     }
 
-    /// Sets BC for a set of edges with a constant value times multiplier(t) function
+    /// Sets EBC for a set of edges with with values calculated by a function
     ///
-    /// The function is `(stage, t) -> multiplier`
-    ///
-    /// The BC value is computed as follows:
-    ///
-    /// ```text
-    /// value = c * m(t)
-    /// ```
-    pub fn edges_fn(&mut self, edges: &Edges, dof: Dof, c: f64, m: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
-        let f_index = self.multipliers.len();
+    /// The function is `f(t) -> value`
+    pub fn edges_fn(&mut self, edges: &Edges, dof: Dof, f: impl Fn(f64) -> f64 + Send + Sync + 'a) -> &mut Self {
+        let ff = Arc::new(f);
         for edge in &edges.all {
             for point_id in &edge.points {
-                self.all.insert((*point_id, dof), (c, Some(f_index)));
+                self.functions.insert((*point_id, dof), ff.clone());
             }
         }
-        self.multipliers.push(Box::new(m));
         self
     }
 
-    /// Sets BC for a set of faces with a constant value times multiplier(t) function
+    /// Sets EBC for a set of faces with with values calculated by a function
     ///
-    /// The function is `(stage, t) -> multiplier`
-    ///
-    /// The BC value is computed as follows:
-    ///
-    /// ```text
-    /// value = c * m(t)
-    /// ```
-    pub fn faces_fn(&mut self, faces: &Faces, dof: Dof, c: f64, m: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
-        let f_index = self.multipliers.len();
+    /// The function is `f(t) -> value`
+    pub fn faces_fn(&mut self, faces: &Faces, dof: Dof, f: impl Fn(f64) -> f64 + Send + Sync + 'a) -> &mut Self {
+        let ff = Arc::new(f);
         for face in &faces.all {
             for point_id in &face.points {
-                self.all.insert((*point_id, dof), (c, Some(f_index)));
+                self.functions.insert((*point_id, dof), ff.clone());
             }
         }
-        self.multipliers.push(Box::new(m));
         self
     }
 
-    /// Returns the number of prescribed DOFs
-    pub fn size(&self) -> usize {
-        self.all.len()
+    /// Returns the number of functions stored (equals the number of prescribed EBCs)
+    pub(crate) fn size(&self) -> usize {
+        self.functions.len()
     }
 
-    /// Returns an iterator to the (point_id, DOF) pairs
-    pub fn keys(&self) -> Keys<'_, (usize, Dof), (f64, Option<usize>)> {
-        self.all.keys()
+    /// Returns the keys (point_id, dof) of all prescribed EBCs
+    pub(crate) fn keys(&self) -> impl Iterator<Item = &(PointId, Dof)> {
+        self.functions.keys()
     }
 
-    /// Returns (constant, multiplier) for the given point and DOF
-    ///
-    /// The function is `(stage, t) -> multiplier`
+    /// Returns the EBC at a given point and DOF for time t
     ///
     /// # Panics
     ///
     /// This function will panic if the point and DOF pair is not found.
-    pub fn get(&self, point_id: PointId, dof: Dof) -> (f64, Option<&Box<dyn Fn(usize, f64) -> f64 + 'a>>) {
-        let (constant, f_index) = self.all.get(&(point_id, dof)).unwrap();
-        match f_index {
-            Some(index) => (*constant, Some(&self.multipliers[*index])),
-            None => (*constant, None),
-        }
-    }
-
-    /// Returns the essential (Dirichlet/prescribed) value at time t
-    ///
-    /// The function is `(stage, t) -> multiplier`
-    ///
-    /// The value is computed as follows:
-    ///
-    /// ```text
-    /// value = constant * multiplier(t)
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the point and DOF pair is not found.
-    pub fn value(&self, point_id: PointId, dof: Dof, stage: usize, t: f64) -> f64 {
-        let (constant, f_index) = self.all.get(&(point_id, dof)).unwrap();
-        match f_index {
-            Some(index) => *constant * (self.multipliers[*index])(stage, t),
-            None => *constant,
-        }
+    pub(crate) fn value(&self, point_id: PointId, dof: Dof, t: f64) -> f64 {
+        let f = self
+            .functions
+            .get(&(point_id, dof))
+            .expect("Essential BC not found for the given point and DOF");
+        f(t)
     }
 }
 
@@ -235,8 +175,8 @@ mod tests {
         let edges = Edges { all: vec![&edge] };
         essential
             .points(&[0], Dof::Ux, 0.0)
-            .points_fn(&[0], Dof::Uy, 1.0, |_, t| (t + 1.0) * 2.0)
-            .edges_fn(&edges, Dof::Pl, 1.0, |_, t| (t + 1.0) * 20.0)
-            .faces_fn(&faces, Dof::Phi, 1.0, |_, t| (t + 1.0) * 200.0);
+            .points_fn(&[0], Dof::Uy, |t| (t + 1.0) * 2.0)
+            .edges_fn(&edges, Dof::Pl, |t| (t + 1.0) * 20.0)
+            .faces_fn(&faces, Dof::Phi, |t| (t + 1.0) * 200.0);
     }
 }

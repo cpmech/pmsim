@@ -64,7 +64,7 @@ pub fn main() -> Result<(), StrError> {
         .edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&footing, Dof::Uy, 1.0, |stage, _| UY[stage]);
+        .edges_fn(&footing, Dof::Uy, |t| UY[t as usize]);
 
     // natural boundary conditions
     let natural = BcNatural::new();

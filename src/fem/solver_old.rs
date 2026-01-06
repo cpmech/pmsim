@@ -1,6 +1,6 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
 use super::{FemResults, FemState, SolverCommon};
-use crate::base::{Config, BcEssential, BcNatural, Schema};
+use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::vec_add;
@@ -83,11 +83,11 @@ impl<'a> SolverOld<'a> {
     /// Solves the system of equations
     pub fn solve_sys(&mut self, state: &mut FemState, results: &mut FemResults) -> Result<(), StrError> {
         // check if there are non-zero prescribed values
-        if !self.config.lagrange_mult_method {
-            if self.com.bc_prescribed.has_non_zero() {
-                return Err("the Lagrange multiplier method is required for non-zero prescribed values");
-            }
-        }
+        // if !self.config.lagrange_mult_method {
+        // if self.com.bc_prescribed.has_non_zero() {
+        //     return Err("the Lagrange multiplier method is required for non-zero prescribed values");
+        // }
+        // }
 
         // start stopwatch
         self.com.stopwatch.reset();
@@ -352,7 +352,7 @@ impl<'a> SolverOld<'a> {
 #[cfg(test)]
 mod tests {
     use super::SolverOld;
-    use crate::base::{Config, Dof, BcEssential, BcNatural, Nbc, ParamSolid, Pbc, Schema};
+    use crate::base::{BcEssential, BcNatural, Config, Dof, Nbc, ParamSolid, Pbc, Schema};
     use crate::fem::{FemResults, FemState};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 

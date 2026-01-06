@@ -1,5 +1,5 @@
 use super::SecondaryValues;
-use crate::base::{Config, Elem, BcEssential, Schema};
+use crate::base::{BcEssential, Config, Elem, Schema};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::Mesh;
@@ -266,7 +266,7 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{new_empty_mesh_2d, Config, BcEssential, Schema};
+    use crate::base::{new_empty_mesh_2d, BcEssential, Config, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use gemlab::mesh::Samples;

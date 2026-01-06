@@ -26,7 +26,7 @@ mod stats;
 
 pub use bc_concentrated::*;
 pub use bc_distributed::*;
-pub use bc_prescribed::*;
+use bc_prescribed::*;
 use control_loader::*;
 use control_residual::*;
 use control_stepper::*;
@@ -38,7 +38,7 @@ pub use element_trait::*;
 pub use elements::*;
 pub use fem_results::*;
 pub use fem_state::*;
-pub use linear_system::*;
+use linear_system::*;
 use logger::*;
 use paraview::*;
 pub use post_processing::*;

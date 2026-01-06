@@ -96,7 +96,7 @@ fn test_spo_von_mises_single_element() -> Result<(), StrError> {
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, 1.0, |s, _| delta_y * ((1 + s) as f64));
+        .edges_fn(&top, Dof::Uy, |t| delta_y * t);
 
     // natural boundary conditions
     let natural = BcNatural::new();

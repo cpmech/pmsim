@@ -83,14 +83,14 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
 
     // stage-wise vertical displacement increment
     let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-    let calc_uy = |s, _| delta_y * ((1 + s) as f64);
+    let calc_uy = |t| delta_y * t;
 
     // essential boundary conditions
     let mut essential = BcEssential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, 1.0, calc_uy);
+        .edges_fn(&top, Dof::Uy, calc_uy);
 
     // natural boundary conditions
     let natural = BcNatural::new();
@@ -135,7 +135,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
             assert_eq!(ss[i].elastic, false);
         }
         let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
-        let ey_ref = calc_uy(results.sel_step[i], 0.0) / l0;
+        let ey_ref = calc_uy(time) / l0;
         approx_eq(ey, ey_ref, 1e-15);
         zz[i] = ss[i].int_vars[0];
     }
