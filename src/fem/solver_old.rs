@@ -97,7 +97,7 @@ impl<'a> SolverOld<'a> {
 
         // first output (must occur after initialize_internal_values)
         results.write_state(&self.config, state)?;
-        results.save_selected(&self.config, &self.com.base, state)?;
+        results.save_selected(&self.config, &self.com.schema, state)?;
 
         // print convergence information
         self.log.header();
@@ -207,7 +207,7 @@ impl<'a> SolverOld<'a> {
 
                 // handle acceptance/rejection
                 if accept {
-                    results.save_selected(&self.config, &self.com.base, state)?;
+                    results.save_selected(&self.config, &self.com.schema, state)?;
                     self.stats.add_step_accepted();
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
@@ -277,7 +277,15 @@ impl<'a> SolverOld<'a> {
 
         // add Lagrange multiplier contributions to R
         if self.config.lagrange_mult_method {
-            self.com.bc_prescribed.assemble_rr_lmm(&mut self.com.ls.rr, state);
+            let neq = self.com.eq_handler.neq();
+            for ip in 0..self.com.eq_handler.np() {
+                let i = self.com.eq_handler.prescribed()[ip];
+                let j = neq + ip;
+                let lag = state.u[j];
+                let val = self.com.prescribed_value(ip, state.time);
+                self.com.ls.rr[i] += lag; // Aᵀ λ  →  1 * λ
+                self.com.ls.rr[j] = state.u[i] - val; // A u - c  →  1 * u - c
+            }
         }
 
         // check convergence on residual
@@ -297,9 +305,36 @@ impl<'a> SolverOld<'a> {
 
             // modify K
             if self.config.lagrange_mult_method {
-                self.com.bc_prescribed.assemble_kk_lmm(&mut self.com.ls.kk);
+                let neq = self.com.eq_handler.neq();
+                let sym = self.com.ls.kk.get_info().3;
+                match sym {
+                    russell_sparse::Sym::YesLower => {
+                        for ip in 0..self.com.eq_handler.np() {
+                            let i = self.com.eq_handler.prescribed()[ip];
+                            let j = neq + ip;
+                            self.com.ls.kk.put(j, i, 1.0).unwrap(); // A
+                        }
+                    }
+                    russell_sparse::Sym::YesUpper => {
+                        for ip in 0..self.com.eq_handler.np() {
+                            let i = self.com.eq_handler.prescribed()[ip];
+                            let j = neq + ip;
+                            self.com.ls.kk.put(i, j, 1.0).unwrap(); // Aᵀ
+                        }
+                    }
+                    russell_sparse::Sym::YesFull | russell_sparse::Sym::No => {
+                        for ip in 0..self.com.eq_handler.np() {
+                            let i = self.com.eq_handler.prescribed()[ip];
+                            let j = neq + ip;
+                            self.com.ls.kk.put(i, j, 1.0).unwrap(); // Aᵀ
+                            self.com.ls.kk.put(j, i, 1.0).unwrap(); // A
+                        }
+                    }
+                }
             } else {
-                self.com.bc_prescribed.assemble_kk_rsm(&mut self.com.ls.kk);
+                for eq in self.com.eq_handler.prescribed() {
+                    self.com.ls.kk.put(*eq, *eq, 1.0).unwrap();
+                }
             }
 
             // factorize K matrix

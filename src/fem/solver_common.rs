@@ -1,25 +1,35 @@
-use super::{BcConcentratedArray, BcDistributedArray, BcPrescribed, Elements, FemState, LinearSystem};
-use crate::base::{BcEssential, BcNatural, Config, Schema};
+use super::{BcConcentratedArray, BcDistributedArray, Elements, FemState, LinearSystem};
+use crate::base::{BcEssential, BcNatural, Config, Dof, Schema};
 use crate::StrError;
-use gemlab::mesh::Mesh;
-use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch};
+use gemlab::mesh::{Mesh, PointId};
+use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch, Vector};
+use russell_pde::EquationHandler;
+use russell_sparse::{CooMatrix, Sym};
+use std::collections::HashMap;
 
 /// Implements common (shared) functionality for all FEM solvers
 pub(crate) struct SolverCommon<'a> {
+    essential: &'a BcEssential<'a>,
+
+    /// Holds the pairs (PointId, Dof) for the prescribed equations (only)
+    ///
+    /// len = n_prescribed
+    presc_pairs: Vec<(PointId, Dof)>,
+
+    /// Manages equation numbers (prescribed versus unknown)
+    pub(crate) eq_handler: EquationHandler,
+
     /// Holds the configuration
     pub(crate) config: &'a Config<'a>,
 
-    /// Holds the material parameters, element attributes, and equation numbers
-    pub(crate) base: &'a Schema,
+    /// Holds element types, material parameters, and specifies the DOF numbering schema
+    pub(crate) schema: &'a Schema,
 
     // Holds a collection of concentrated loads
     pub(crate) bc_concentrated: BcConcentratedArray<'a>,
 
     // Holds a collection of boundary integration data
     pub(crate) bc_distributed: BcDistributedArray<'a>,
-
-    /// Holds a collection of prescribed (primary) values
-    pub(crate) bc_prescribed: BcPrescribed<'a>,
 
     /// Holds a collection of elements
     pub(crate) elements: Elements<'a>,
@@ -41,7 +51,7 @@ impl<'a> SolverCommon<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &'a Schema,
+        schema: &'a Schema,
         config: &'a Config,
         essential: &'a BcEssential,
         natural: &'a BcNatural,
@@ -52,18 +62,37 @@ impl<'a> SolverCommon<'a> {
             return Err("cannot allocate simulation because config.validate() failed");
         }
 
+        // Collect the list of prescribed equations
+        let n_prescribed = essential.size();
+        let mut eq_to_pair = HashMap::new();
+        let mut p_list = Vec::with_capacity(n_prescribed);
+        for (point_id, dof) in essential.keys() {
+            let eq = schema.get_eq(*point_id, *dof)?;
+            p_list.push(eq);
+            eq_to_pair.insert(eq, (*point_id, *dof));
+        }
+
+        // Allocate the equations handler
+        let mut handler = EquationHandler::new(schema.get_neq()?);
+        handler.recompute(&p_list);
+
+        // Allocate array of (point_id, dof) pairs corresponding to prescribed equation numbers
+        let mut pairs = Vec::with_capacity(n_prescribed);
+        for eq in handler.prescribed() {
+            pairs.push(eq_to_pair.get(eq).unwrap().to_owned());
+        }
+
         // allocate auxiliary instances
-        let bc_concentrated = BcConcentratedArray::new(base, natural)?;
-        let bc_distributed = BcDistributedArray::new(mesh, base, config, natural)?;
-        let bc_prescribed = BcPrescribed::new(base, essential)?;
-        let elements = Elements::new(mesh, base, config)?;
-        let linear_system = LinearSystem::new(base, config, &bc_prescribed, &elements, &bc_distributed)?;
+        let bc_concentrated = BcConcentratedArray::new(schema, natural)?;
+        let bc_distributed = BcDistributedArray::new(mesh, schema, config, natural)?;
+        let elements = Elements::new(mesh, schema, config)?;
+        let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &bc_distributed)?;
 
         // array to ignore prescribed equations when building the reduced system
-        let ndof = bc_prescribed.handler.neq(); // number of DOFs = n_equation without Lagrange multipliers
+        let ndof = handler.neq(); // number of DOFs = n_equation without Lagrange multipliers
         let mut ignored_eqs = vec![false; ndof];
         if !config.lagrange_mult_method {
-            for eq in bc_prescribed.handler.prescribed() {
+            for eq in handler.prescribed() {
                 ignored_eqs[*eq] = true;
             }
         };
@@ -76,11 +105,13 @@ impl<'a> SolverCommon<'a> {
 
         // return new instance
         Ok(SolverCommon {
+            essential,
+            presc_pairs: pairs,
+            eq_handler: handler,
             config,
-            base,
+            schema,
             bc_concentrated,
             bc_distributed,
-            bc_prescribed,
             elements,
             ls: linear_system,
             ignored_eqs,
@@ -173,6 +204,111 @@ impl<'a> SolverCommon<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Returns the value of the prescribed DOF at given time
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the equation number is out of bounds.
+    pub fn prescribed_value(&self, eq: usize, time: f64) -> f64 {
+        let pair = self.presc_pairs[eq];
+        self.essential.value(pair.0, pair.1, time)
+    }
+
+    /// Assembles the contribution due to the prescribed DOFs into the global R vector (LMM)
+    ///
+    /// **LMM** means Lagrange Multiplier Method
+    ///
+    /// This function adds `Aᵀλ` to the global R vector at the non-prescribed equations and
+    /// **sets** the prescribed equations to `A u - c`. Here, `c` is the prescribed value.
+    ///
+    /// The global system is symbolized by:
+    ///
+    /// ```text
+    ///  ┌         ┐ ┌     ┐   ┌         ┐
+    ///  │  K   Aᵀ │ │ -δu │   │ R + Aᵀλ │
+    ///  │         │ │     │ = │         │
+    ///  │  A   0  │ │ -δλ │   │ A u - c │
+    ///  └         ┘ └     ┘   └         ┘
+    /// ```
+    pub fn assemble_rr_lmm(&self, rr: &mut Vector, state: &FemState) {
+        let neq = self.eq_handler.neq();
+        for ip in 0..self.eq_handler.np() {
+            let i = self.eq_handler.prescribed()[ip];
+            let j = neq + ip;
+            let lag = state.u[j];
+            let val = self.prescribed_value(ip, state.time);
+            rr[i] += lag; // Aᵀ λ  →  1 * λ
+            rr[j] = state.u[i] - val; // A u - c  →  1 * u - c
+        }
+    }
+
+    /// Assembles the constraint matrix into the global K matrix (LMM)
+    ///
+    /// **LMM** means Lagrange Multiplier Method
+    ///
+    /// This function adds the constraints matrix (Aᵀ and A) to K.
+    ///
+    /// The global system is symbolized by:
+    ///
+    /// ```text
+    ///  ┌         ┐ ┌     ┐   ┌         ┐
+    ///  │  K   Aᵀ │ │ -δu │   │ R + Aᵀλ │
+    ///  │         │ │     │ = │         │
+    ///  │  A   0  │ │ -δλ │   │ A u - c │
+    ///  └         ┘ └     ┘   └         ┘
+    /// ```
+    pub fn assemble_kk_lmm(&self, kk: &mut CooMatrix) {
+        let neq = self.eq_handler.neq();
+        let sym = kk.get_info().3;
+        match sym {
+            Sym::YesLower => {
+                for ip in 0..self.eq_handler.np() {
+                    let i = self.eq_handler.prescribed()[ip];
+                    let j = neq + ip;
+                    kk.put(j, i, 1.0).unwrap(); // A
+                }
+            }
+            Sym::YesUpper => {
+                for ip in 0..self.eq_handler.np() {
+                    let i = self.eq_handler.prescribed()[ip];
+                    let j = neq + ip;
+                    kk.put(i, j, 1.0).unwrap(); // Aᵀ
+                }
+            }
+            Sym::YesFull | Sym::No => {
+                for ip in 0..self.eq_handler.np() {
+                    let i = self.eq_handler.prescribed()[ip];
+                    let j = neq + ip;
+                    kk.put(i, j, 1.0).unwrap(); // Aᵀ
+                    kk.put(j, i, 1.0).unwrap(); // A
+                }
+            }
+        }
+    }
+
+    /// Updates the diagonal of the global K matrix (RSM)
+    ///
+    /// **RSM** means Reduced-System Method
+    ///
+    /// This function put ones on the diagonal entries corresponding to the prescribed DOFs.
+    ///
+    /// The global system is symbolized by:
+    ///
+    /// ```text
+    ///  ┌         ┐ ┌     ┐   ┌   ┐
+    ///  │  K   0  │ │ -δu │   │ R │
+    ///  │         │ │     │ = │   │
+    ///  │  0   1  │ │  0  │   │ 0 │
+    ///  └         ┘ └     ┘   └   ┘
+    /// ```
+    ///
+    /// Note that the prescribed values are zero (homogeneous BCs).
+    pub fn assemble_kk_rsm(&self, kk: &mut CooMatrix) {
+        for eq in self.eq_handler.prescribed() {
+            kk.put(*eq, *eq, 1.0).unwrap();
+        }
     }
 }
 

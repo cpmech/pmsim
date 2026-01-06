@@ -2,7 +2,6 @@
 
 mod bc_concentrated;
 mod bc_distributed;
-mod bc_prescribed;
 mod control_loader;
 mod control_residual;
 mod control_stepper;
@@ -26,7 +25,6 @@ mod stats;
 
 pub use bc_concentrated::*;
 pub use bc_distributed::*;
-use bc_prescribed::*;
 use control_loader::*;
 use control_residual::*;
 use control_stepper::*;

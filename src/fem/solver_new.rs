@@ -2,7 +2,7 @@
 
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
 use super::{FemResults, FemState, SolverCommon};
-use crate::base::{Config, BcEssential, BcNatural, Schema};
+use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{vec_add, vec_copy, vec_minus, Vector};
@@ -33,7 +33,7 @@ fn calc_gg(gg: &mut Vector, l: f64, u: &Vector, args: &mut Args) -> Result<(), S
 
     // add Lagrange multiplier contributions to R
     if args.com.config.lagrange_mult_method {
-        args.com.bc_prescribed.assemble_rr_lmm(gg, &mut args.state);
+        args.com.assemble_rr_lmm(gg, &mut args.state);
     }
 
     // println!("u = {}", u);
@@ -59,9 +59,9 @@ fn calc_ggu(ggu_or_aa: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> R
 
     // modify Gu
     if args.com.config.lagrange_mult_method {
-        args.com.bc_prescribed.assemble_kk_lmm(ggu_or_aa);
+        args.com.assemble_kk_lmm(ggu_or_aa);
     } else {
-        args.com.bc_prescribed.assemble_kk_rsm(ggu_or_aa);
+        args.com.assemble_kk_rsm(ggu_or_aa);
     }
     Ok(())
 }
@@ -144,7 +144,7 @@ pub fn solve<'a>(
 
     // first output (must occur after initialize_internal_values)
     results.write_state(&config, &args.state)?;
-    results.save_selected(&config, &args.com.base, &args.state)?;
+    results.save_selected(&config, &args.com.schema, &args.state)?;
 
     println!("\n{:═^1$}", " INFORMATION ", NCHAR);
     println!("\n{}", args.com.ls.get_info());

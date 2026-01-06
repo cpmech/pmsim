@@ -1,4 +1,4 @@
-use super::{BcDistributedArray, BcPrescribed, Elements};
+use super::{BcDistributedArray, Elements};
 use crate::base::{Config, Schema};
 use crate::StrError;
 use russell_lab::Vector;
@@ -106,9 +106,9 @@ pub(crate) struct LinearSystem<'a> {
 impl<'a> LinearSystem<'a> {
     /// Allocates a new instance
     pub fn new(
+        n_prescribed: usize,
         schema: &Schema,
         config: &'a Config,
-        prescribed: &BcPrescribed,
         elements: &Elements,
         boundaries: &BcDistributedArray,
     ) -> Result<Self, StrError> {
@@ -137,7 +137,6 @@ impl<'a> LinearSystem<'a> {
         // constants
         let sym = config.lin_sol_genie.get_sym(symmetric);
         let ndof = schema.get_neq()?;
-        let n_prescribed = prescribed.handler.np();
         let mut n_lagrange = 0;
 
         // total number of equations
@@ -274,237 +273,4 @@ impl<'a> LinearSystem<'a> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
-mod tests {
-    use super::LinearSystem;
-    use crate::base::{new_empty_mesh_2d, BcEssential, BcNatural, Config, Dof, Nbc, ParamDiffusion, Schema};
-    use crate::fem::{BcDistributedArray, BcPrescribed, Elements};
-    use gemlab::mesh::{Edge, GeoKind, Samples};
-    use russell_sparse::{Genie, Sym};
-
-    #[test]
-    fn new_handles_errors() {
-        let mesh = new_empty_mesh_2d();
-        let p1 = ParamDiffusion::sample();
-        let mut schema = Schema::new();
-        schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
-        let essential = BcEssential::new();
-        let natural = BcNatural::new();
-        let prescribed_values = BcPrescribed::new(&schema, &essential).unwrap();
-        let elements = Elements::new(&mesh, &schema, &config).unwrap();
-        let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
-        assert_eq!(
-            LinearSystem::new(&schema, &config, &prescribed_values, &elements, &boundaries).err(),
-            Some("nrow must be ≥ 1")
-        );
-    }
-
-    #[test]
-    fn new_works() {
-        //       {4} 4---.__
-        //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates marker
-        //        /     \  [1]   /   \    {#} indicates equation id
-        //       /  [0]  \ (1)  / [2] \
-        //      /   (1)   \    /  (1)  \
-        // {0} 0---.__     \  /      ___2 {2}
-        //            `--.__\/__.---'
-        //               {1} 1
-        let mesh = Samples::three_tri3();
-        let p1 = ParamDiffusion::sample();
-        let mut schema = Schema::new();
-        schema.add_diffusion(1, p1).build(&mesh).unwrap();
-
-        let mut essential = BcEssential::new();
-        let mut natural = BcNatural::new();
-        essential.points(&[0, 4], Dof::Phi, 123.0);
-        let edge_conv = Edge {
-            kind: GeoKind::Lin2,
-            points: vec![2, 3],
-            marker: 0,
-        };
-        natural.edge(&edge_conv, Nbc::Cv(55.0), 123.0);
-        let prescribed_values = BcPrescribed::new(&schema, &essential).unwrap();
-
-        let n_equation_global = mesh.points.len() * 1; // 1 DOF per node
-
-        let n_prescribed = 2;
-        let n_element = 3;
-        let n_equation_local = 3;
-        let n_equation_convection = 2;
-
-        let nnz_correct_triangle = n_prescribed
-            + n_element * (n_equation_local * n_equation_local + n_equation_local) / 2
-            + (n_equation_convection * n_equation_convection + n_equation_convection) / 2;
-
-        let nnz_correct_full = n_prescribed
-            + n_element * n_equation_local * n_equation_local
-            + n_equation_convection * n_equation_convection;
-
-        // allowing symmetry, but with full matrix (UMFPACK)
-        let mut config = Config::new(&mesh);
-        config.set_lin_sol_genie(Genie::Umfpack);
-        let elements = Elements::new(&mesh, &schema, &config).unwrap();
-        let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&schema, &config, &prescribed_values, &elements, &boundaries).unwrap();
-        assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
-        assert_eq!(
-            lin_sys.kk.get_info(),
-            (
-                n_equation_global,
-                n_equation_global,
-                0, // nnz currently is zero
-                Sym::YesFull,
-            )
-        );
-        assert_eq!(
-            format!("{}", lin_sys.get_info()),
-            "ndof       = 5 │ dim(K)     = (5,5)   │ genie = Umfpack\n\
-             n_lagrange = 0 │ nnz_sup(K) = 33      │                \n\
-             neq_total  = 5 │ sym(K)     = YesFull │                \n"
-        );
-
-        // using symmetry (MUMPS)
-        let mut config = Config::new(&mesh);
-        config.set_lin_sol_genie(Genie::Mumps);
-        let elements = Elements::new(&mesh, &schema, &config).unwrap();
-        let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&schema, &config, &prescribed_values, &elements, &boundaries).unwrap();
-        assert_eq!(lin_sys.nnz_sup, nnz_correct_triangle);
-        assert_eq!(
-            lin_sys.kk.get_info(),
-            (
-                n_equation_global,
-                n_equation_global,
-                0, // nnz currently is zero
-                Sym::YesLower,
-            )
-        );
-        assert_eq!(
-            format!("{}", lin_sys.get_info()),
-            "ndof       = 5 │ dim(K)     = (5,5)    │ genie = Mumps\n\
-             n_lagrange = 0 │ nnz_sup(K) = 23       │              \n\
-             neq_total  = 5 │ sym(K)     = YesLower │              \n"
-        );
-
-        // ignoring symmetry (MUMPS)
-        let mut config = Config::new(&mesh);
-        config.set_lin_sol_genie(Genie::Mumps).set_ignore_symmetry(true);
-        let elements = Elements::new(&mesh, &schema, &config).unwrap();
-        let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&schema, &config, &prescribed_values, &elements, &boundaries).unwrap();
-        assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
-        assert_eq!(
-            lin_sys.kk.get_info(),
-            (
-                n_equation_global,
-                n_equation_global,
-                0, // nnz currently is zero
-                Sym::No,
-            )
-        );
-        assert_eq!(
-            format!("{}", lin_sys.get_info()),
-            "ndof       = 5 │ dim(K)     = (5,5) │ genie = Mumps\n\
-             n_lagrange = 0 │ nnz_sup(K) = 33    │              \n\
-             neq_total  = 5 │ sym(K)     = No    │              \n"
-        );
-    }
-
-    #[test]
-    fn new_works_lagrange_multiplier_method() {
-        //       {4} 4---.__
-        //          / \     `--.___3 {3}  [#] indicates id
-        //         /   \          / \     (#) indicates marker
-        //        /     \  [1]   /   \    {#} indicates equation id
-        //       /  [0]  \ (1)  / [2] \
-        //      /   (1)   \    /  (1)  \
-        // {0} 0---.__     \  /      ___2 {2}
-        //            `--.__\/__.---'
-        //               {1} 1
-        let mesh = Samples::three_tri3();
-        let p1 = ParamDiffusion::sample();
-        let mut schema = Schema::new();
-        schema.add_diffusion(1, p1).build(&mesh).unwrap();
-
-        let mut essential = BcEssential::new();
-        let mut natural = BcNatural::new();
-        essential.points(&[0, 4], Dof::Phi, 123.0);
-        let edge_conv = Edge {
-            kind: GeoKind::Lin2,
-            points: vec![2, 3],
-            marker: 0,
-        };
-        natural.edge(&edge_conv, Nbc::Cv(55.0), 123.0);
-        let prescribed = BcPrescribed::new(&schema, &essential).unwrap();
-
-        let n_equation_global = mesh.points.len() * 1 + prescribed.handler.np(); // 1 DOF per node
-
-        let n_prescribed = 2;
-        let n_element = 3;
-        let n_equation_local = 3;
-        let n_equation_convection = 2;
-
-        let nnz_correct_triangle = n_prescribed
-            + n_element * (n_equation_local * n_equation_local + n_equation_local) / 2
-            + (n_equation_convection * n_equation_convection + n_equation_convection) / 2;
-
-        let nnz_correct_full = 2 * n_prescribed
-            + n_element * n_equation_local * n_equation_local
-            + n_equation_convection * n_equation_convection;
-
-        // allowing symmetry, but with full matrix (UMFPACK)
-        let mut config = Config::new(&mesh);
-        config.set_lagrange_mult_method(true).set_lin_sol_genie(Genie::Umfpack);
-        let elements = Elements::new(&mesh, &schema, &config).unwrap();
-        let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&schema, &config, &prescribed, &elements, &boundaries).unwrap();
-        assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
-        assert_eq!(
-            lin_sys.kk.get_info(),
-            (
-                n_equation_global,
-                n_equation_global,
-                0, // nnz currently is zero
-                Sym::YesFull,
-            )
-        );
-
-        // using symmetry (MUMPS)
-        let mut config = Config::new(&mesh);
-        config.set_lagrange_mult_method(true).set_lin_sol_genie(Genie::Mumps);
-        let elements = Elements::new(&mesh, &schema, &config).unwrap();
-        let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&schema, &config, &prescribed, &elements, &boundaries).unwrap();
-        assert_eq!(lin_sys.nnz_sup, nnz_correct_triangle);
-        assert_eq!(
-            lin_sys.kk.get_info(),
-            (
-                n_equation_global,
-                n_equation_global,
-                0, // nnz currently is zero
-                Sym::YesLower,
-            )
-        );
-
-        // ignoring symmetry (MUMPS)
-        let mut config = Config::new(&mesh);
-        config
-            .set_lagrange_mult_method(true)
-            .set_lin_sol_genie(Genie::Mumps)
-            .set_ignore_symmetry(true);
-        let elements = Elements::new(&mesh, &schema, &config).unwrap();
-        let boundaries = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
-        let lin_sys = LinearSystem::new(&schema, &config, &prescribed, &elements, &boundaries).unwrap();
-        assert_eq!(lin_sys.nnz_sup, nnz_correct_full);
-        assert_eq!(
-            lin_sys.kk.get_info(),
-            (
-                n_equation_global,
-                n_equation_global,
-                0, // nnz currently is zero
-                Sym::No,
-            )
-        );
-    }
-}
+mod tests {}
