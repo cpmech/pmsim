@@ -1,4 +1,4 @@
-use super::{BcDistributedArray, Elements};
+use super::{ElementsBoundary, ElementsInterior};
 use crate::base::{Config, Schema};
 use crate::StrError;
 use russell_lab::Vector;
@@ -109,29 +109,14 @@ impl<'a> LinearSystem<'a> {
         n_prescribed: usize,
         schema: &Schema,
         config: &'a Config,
-        elements: &Elements,
-        boundaries: &BcDistributedArray,
+        elements: &ElementsInterior,
+        boundaries: &ElementsBoundary,
     ) -> Result<Self, StrError> {
         // take advantage of symmetry if possible
         let symmetric = if config.ignore_symmetry {
             false
         } else {
-            let mut all_symmetric = true;
-            for e in &elements.all {
-                if !e.actual.symmetric_jacobian() {
-                    all_symmetric = false;
-                    break;
-                }
-            }
-            for b in &boundaries.all {
-                if b.with_jacobian() {
-                    if !b.symmetric_jacobian() {
-                        all_symmetric = false;
-                        break;
-                    }
-                }
-            }
-            all_symmetric
+            elements.all_symmetric_kk() && boundaries.all_symmetric_kk()
         };
 
         // constants
@@ -158,28 +143,10 @@ impl<'a> LinearSystem<'a> {
         };
 
         // elements always have a Jacobian matrix (all must be symmetric to use symmetry)
-        nnz_sup += elements.all.iter().fold(0, |acc, e| {
-            let n = e.actual.local_to_global().len();
-            if sym.triangular() {
-                acc + (n * n + n) / 2
-            } else {
-                acc + n * n
-            }
-        });
+        nnz_sup += elements.estimate_nnz(sym.triangular());
 
         // boundary data may have a Jacobian matrix (all must be symmetric to use symmetry)
-        nnz_sup += boundaries.all.iter().fold(0, |acc, e| {
-            let n = e.n_local_eq();
-            if e.with_jacobian() {
-                if sym.triangular() {
-                    acc + (n * n + n) / 2
-                } else {
-                    acc + n * n
-                }
-            } else {
-                acc
-            }
-        });
+        nnz_sup += boundaries.estimate_nnz(sym.triangular());
 
         // allocate new instance
         Ok(LinearSystem {

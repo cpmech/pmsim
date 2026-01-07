@@ -1,4 +1,4 @@
-use super::{ControlResidual, Elements, FemState};
+use super::{ControlResidual, ElementsInterior, FemState};
 use crate::base::Config;
 use crate::StrError;
 use russell_lab::{vec_copy, vec_rms_scaled_diff, Vector};
@@ -191,7 +191,7 @@ impl<'a> ControlLoader<'a> {
     }
 
     /// Creates a backup of the current state
-    pub fn backup(&mut self, state: &FemState, elements: &mut Elements) {
+    pub fn backup(&mut self, state: &FemState, elements: &mut ElementsInterior) {
         if !self.config.substepping {
             return;
         }
@@ -208,7 +208,7 @@ impl<'a> ControlLoader<'a> {
     }
 
     /// Restores the state from the backup
-    pub fn restore(&mut self, state: &mut FemState, elements: &mut Elements) {
+    pub fn restore(&mut self, state: &mut FemState, elements: &mut ElementsInterior) {
         if !self.config.substepping {
             return;
         }

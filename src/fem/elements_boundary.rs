@@ -9,10 +9,8 @@ use russell_lab::{Matrix, Vector};
 use russell_sparse::CooMatrix;
 use std::sync::Arc;
 
-/// Assists in the integration of distributed BCs over the boundary of an element
-///
-/// This data structure corresponds to a single Natural (Neumann) boundary condition
-pub struct BcDistributed<'a> {
+/// Defines a line or surface element for the calculation of natural boundary conditions
+struct ElemBry<'a> {
     /// Global configuration
     config: &'a Config<'a>,
 
@@ -47,16 +45,16 @@ pub struct BcDistributed<'a> {
     function: Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>,
 }
 
-/// Implements an array of BcDistributed
-pub struct BcDistributedArray<'a> {
+/// Holds a set of boundary elements (line or surface elements) for the calculation of natural boundary conditions
+pub(crate) struct ElementsBoundary<'a> {
     /// Global configuration
     config: &'a Config<'a>,
 
-    /// All values
-    pub all: Vec<BcDistributed<'a>>,
+    /// Holds all boundary elements
+    elements: Vec<ElemBry<'a>>,
 }
 
-impl<'a> BcDistributed<'a> {
+impl<'a> ElemBry<'a> {
     /// Allocates a new instance
     ///
     /// Note: `Qn` is not allowed for 3D edges
@@ -104,7 +102,7 @@ impl<'a> BcDistributed<'a> {
         }
 
         // new instance
-        Ok(BcDistributed {
+        Ok(ElemBry {
             config,
             pad,
             gauss,
@@ -290,12 +288,12 @@ impl<'a> BcDistributed<'a> {
     }
 }
 
-impl<'a> BcDistributedArray<'a> {
+impl<'a> ElementsBoundary<'a> {
     // Allocates new instance
     pub fn new(mesh: &Mesh, schema: &Schema, config: &'a Config, natural: &'a BcNatural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.on_edges.len() + natural.on_faces.len() + 1);
         for (edge, nbc, f) in &natural.on_edges {
-            all.push(BcDistributed::new(
+            all.push(ElemBry::new(
                 mesh,
                 schema,
                 config,
@@ -306,7 +304,7 @@ impl<'a> BcDistributedArray<'a> {
             )?);
         }
         for (face, nbc, f) in &natural.on_faces {
-            all.push(BcDistributed::new(
+            all.push(ElemBry::new(
                 mesh,
                 schema,
                 config,
@@ -316,7 +314,35 @@ impl<'a> BcDistributedArray<'a> {
                 f.clone(),
             )?);
         }
-        Ok(BcDistributedArray { config, all })
+        Ok(ElementsBoundary { config, elements: all })
+    }
+
+    /// Returns whether all elements have symmetric Jacobian matrices
+    pub fn all_symmetric_kk(&self) -> bool {
+        for e in &self.elements {
+            if e.with_jacobian() {
+                if !e.symmetric_jacobian() {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    /// Estimates the number of non-zero values in the global K matrix
+    pub fn estimate_nnz(&self, triangular: bool) -> usize {
+        let mut nnz = 0;
+        for e in &self.elements {
+            if e.with_jacobian() {
+                let n = e.n_local_eq();
+                if triangular {
+                    nnz += (n * n + n) / 2;
+                } else {
+                    nnz += n * n;
+                }
+            }
+        }
+        nnz
     }
 
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
@@ -324,7 +350,7 @@ impl<'a> BcDistributedArray<'a> {
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
     pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
-        for e in &mut self.all {
+        for e in &mut self.elements {
             e.calc_yye(state)?;
             assemble_vector(yy, &e.yye, &e.local_to_global, ignore);
         }
@@ -336,7 +362,7 @@ impl<'a> BcDistributedArray<'a> {
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
     pub fn assemble_ff(&mut self, ff: &mut Vector, time: f64, ignore: &[bool]) -> Result<(), StrError> {
-        for e in &mut self.all {
+        for e in &mut self.elements {
             e.calc_ffe(time)?;
             assemble_vector(ff, &e.ffe, &e.local_to_global, ignore);
         }
@@ -349,7 +375,7 @@ impl<'a> BcDistributedArray<'a> {
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
     pub fn assemble_kk(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
         let tol = self.config.symmetry_check_tolerance;
-        for e in &mut self.all {
+        for e in &mut self.elements {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_mut() {
                 assemble_matrix(kk, kke, &e.local_to_global, ignore, tol)?;
@@ -363,7 +389,7 @@ impl<'a> BcDistributedArray<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BcDistributed, BcDistributedArray};
+    use super::{ElemBry, ElementsBoundary};
     use crate::base::{BcEssential, BcNatural, Config, Nbc, SampleMeshes, Schema};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::FemState;
@@ -389,11 +415,11 @@ mod tests {
 
         let f = Arc::new(|_| -10.0);
         assert_eq!(
-            BcDistributed::new(&mesh, &schema, &config, edge.kind, &edge.points, Nbc::Qn, f.clone()).err(),
+            ElemBry::new(&mesh, &schema, &config, edge.kind, &edge.points, Nbc::Qn, f.clone()).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
         assert_eq!(
-            BcDistributed::new(&mesh, &schema, &config, edge.kind, &edge.points, Nbc::Qz, f.clone()).err(),
+            ElemBry::new(&mesh, &schema, &config, edge.kind, &edge.points, Nbc::Qz, f.clone()).err(),
             None
         ); // Qz is OK
         let face = Face {
@@ -402,14 +428,14 @@ mod tests {
             marker: 0,
         };
         assert_eq!(
-            BcDistributed::new(&mesh, &schema, &config, face.kind, &face.points, Nbc::Ql, f.clone()).err(), // << flux
+            ElemBry::new(&mesh, &schema, &config, face.kind, &face.points, Nbc::Ql, f.clone()).err(), // << flux
             Some("cannot get equation number because DOF is not assigned")
         );
 
         let mut natural = BcNatural::new();
         natural.edge(&edge, Nbc::Qn, -10.0);
         assert_eq!(
-            BcDistributedArray::new(&mesh, &schema, &config, &natural).err(),
+            ElementsBoundary::new(&mesh, &schema, &config, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -434,67 +460,61 @@ mod tests {
 
         // Qn
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qn, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qn, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, left.kind, &left.points, Nbc::Qn, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, left.kind, &left.points, Nbc::Qn, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[-Q / 6.0, 0.0, -Q / 6.0, 0.0, 2.0 * -Q / 3.0, 0.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry =
-            BcDistributed::new(&mesh, &schema, &config, right.kind, &right.points, Nbc::Qn, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, right.kind, &right.points, Nbc::Qn, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry =
-            BcDistributed::new(&mesh, &schema, &config, bottom.kind, &bottom.points, Nbc::Qn, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, bottom.kind, &bottom.points, Nbc::Qn, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[0.0, -Q / 6.0, 0.0, -Q / 6.0, 0.0, -2.0 * Q / 3.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         // Qx
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qx, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qx, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0, 0.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, left.kind, &left.points, Nbc::Qx, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, left.kind, &left.points, Nbc::Qx, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry =
-            BcDistributed::new(&mesh, &schema, &config, right.kind, &right.points, Nbc::Qx, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, right.kind, &right.points, Nbc::Qx, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry =
-            BcDistributed::new(&mesh, &schema, &config, bottom.kind, &bottom.points, Nbc::Qx, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, bottom.kind, &bottom.points, Nbc::Qx, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         // Qy
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qy, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qy, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[0.0, Q / 6.0, 0.0, Q / 6.0, 0.0, 2.0 * Q / 3.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, left.kind, &left.points, Nbc::Qy, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, left.kind, &left.points, Nbc::Qy, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry =
-            BcDistributed::new(&mesh, &schema, &config, right.kind, &right.points, Nbc::Qy, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, right.kind, &right.points, Nbc::Qy, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry =
-            BcDistributed::new(&mesh, &schema, &config, bottom.kind, &bottom.points, Nbc::Qy, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, bottom.kind, &bottom.points, Nbc::Qy, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
@@ -508,7 +528,7 @@ mod tests {
         schema.add_solid(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qz, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qz, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[0.0, 0.0, Q / 2.0, 0.0, 0.0, Q / 2.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
@@ -529,12 +549,12 @@ mod tests {
         let time = 0.0;
         let f = Arc::new(|_| Q);
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Ql, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Ql, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[-Q / 6.0, -Q / 6.0, -2.0 * Q / 3.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qg, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qg, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         vec_approx_eq(&bry.ffe, correct, 1e-14);
     }
@@ -561,14 +581,14 @@ mod tests {
 
         // flux: not present in Bhatti's example but we can check the flux BC here
         const L: f64 = 0.3;
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, edge.kind, &edge.points, Nbc::Qt, f.clone()).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, edge.kind, &edge.points, Nbc::Qt, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
         let correct = &[-Q * L / 2.0, -Q * L / 2.0];
         vec_approx_eq(&bry.ffe, correct, 1e-14);
 
         // convection BC (it has an internal and an external part)
         let f = Arc::new(|_| 20.0);
-        let mut bry = BcDistributed::new(&mesh, &schema, &config, edge.kind, &edge.points, Nbc::Cv(27.0), f).unwrap();
+        let mut bry = ElemBry::new(&mesh, &schema, &config, edge.kind, &edge.points, Nbc::Cv(27.0), f).unwrap();
         bry.calc_yye(&state).unwrap();
         bry.calc_ffe(time).unwrap();
         let mut yye_minus_ffe = Vector::new(bry.yye.dim());
@@ -609,7 +629,7 @@ mod tests {
         let f = Arc::new(|_| Q);
 
         const L: f64 = 0.03;
-        let mut bry = BcDistributed::new(
+        let mut bry = ElemBry::new(
             &mesh,
             &schema,
             &config,
@@ -625,7 +645,7 @@ mod tests {
 
         // convection BC (it has an internal and an external part)
         let f = Arc::new(|_| 20.0);
-        let mut bry = BcDistributed::new(
+        let mut bry = ElemBry::new(
             &mesh,
             &schema,
             &config,
@@ -678,7 +698,7 @@ mod tests {
         let mut natural = BcNatural::new();
         natural.edges(&top, Nbc::Qn, -Q);
 
-        let mut bry = BcDistributedArray::new(&mesh, &schema, &config, &natural).unwrap();
+        let mut bry = ElementsBoundary::new(&mesh, &schema, &config, &natural).unwrap();
 
         let neq = schema.get_neq().unwrap();
         let mut ff = Vector::new(neq);

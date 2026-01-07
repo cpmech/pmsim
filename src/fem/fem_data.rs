@@ -1,4 +1,4 @@
-use super::{BcDistributedArray, Elements, FemState, LinearSystem};
+use super::{ElementsBoundary, ElementsInterior, FemState, LinearSystem};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -28,10 +28,10 @@ pub(crate) struct FemData<'a> {
     pub(crate) conc_loads: Vec<(usize, Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>)>,
 
     // Holds a collection of boundary integration data
-    pub(crate) bc_distributed: BcDistributedArray<'a>,
+    pub(crate) bc_distributed: ElementsBoundary<'a>,
 
     /// Holds a collection of elements
-    pub(crate) elements: Elements<'a>,
+    pub(crate) elements: ElementsInterior<'a>,
 
     /// Holds variables to solve the global linear system
     pub(crate) ls: LinearSystem<'a>,
@@ -91,8 +91,8 @@ impl<'a> FemData<'a> {
         }
 
         // Allocate auxiliary instances
-        let bc_distributed = BcDistributedArray::new(mesh, schema, config, natural)?;
-        let elements = Elements::new(mesh, schema, config)?;
+        let bc_distributed = ElementsBoundary::new(mesh, schema, config, natural)?;
+        let elements = ElementsInterior::new(mesh, schema, config)?;
         let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &bc_distributed)?;
 
         // Array to ignore prescribed equations when building the reduced system

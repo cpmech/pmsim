@@ -5,42 +5,35 @@ use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{deriv1_central5, Matrix, Vector};
 use russell_sparse::CooMatrix;
 
-/// Defines a generic finite element, wrapping an "actual" implementation
-pub struct GenericElement<'a> {
+/// Defines a generic finite element to represent the interior of the domain
+///
+/// This structure wraps the actual implementation of the element through dynamic dispatching.
+struct ElemInt<'a> {
     /// Connects to the "actual" implementation of local equations
-    pub actual: Box<dyn ElementTrait + 'a>,
+    actual: Box<dyn ElementTrait + 'a>,
 
     /// Holds the local vector of internal forces (including dynamical forces) Ye
-    pub yye: Vector,
+    yye: Vector,
 
     /// Holds the local vector of external forces Fe
-    pub ffe: Vector,
+    ffe: Vector,
 
     /// Holds the Ke matrix (local Jacobian matrix; derivative of Ye w.r.t u)
-    pub kke: Matrix,
+    kke: Matrix,
 }
 
-/// Holds a collection of (generic) finite elements
-pub struct Elements<'a> {
+/// Holds a collection of elements representing the interior of the domain
+pub(crate) struct ElementsInterior<'a> {
     /// Holds configuration parameters
-    pub config: &'a Config<'a>,
+    config: &'a Config<'a>,
 
-    /// All elements
+    /// Holds all interior (generic) elements
     ///
     /// (ncell)
-    pub all: Vec<GenericElement<'a>>,
+    elements: Vec<ElemInt<'a>>,
 }
 
-/// Holds auxiliary arguments for the computation of numerical Jacobian matrices
-struct ArgsForNumericalJacobian<'a> {
-    /// Holds the local vector of internal forces (including dynamical forces) Ye
-    pub yye: &'a mut Vector,
-
-    /// Holds the current state
-    pub state: &'a mut FemState,
-}
-
-impl<'a> GenericElement<'a> {
+impl<'a> ElemInt<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, schema: &'a Schema, config: &'a Config, cell: &Cell) -> Result<Self, StrError> {
         let element = schema.get_param(cell.marker)?;
@@ -61,7 +54,7 @@ impl<'a> GenericElement<'a> {
             Elem::PorousSldLiqGas(..) => panic!("TODO: PorousSldLiqGas"),
         };
         let neq_local = schema.get_local_to_global(cell.id)?.len();
-        Ok(GenericElement {
+        Ok(ElemInt {
             actual,
             yye: Vector::new(neq_local),
             ffe: Vector::new(neq_local),
@@ -72,9 +65,14 @@ impl<'a> GenericElement<'a> {
     /// Calculates the local Jacobian matrix using finite differences
     ///
     /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
+    #[allow(dead_code)]
     pub fn numerical_jacobian(&mut self, state: &mut FemState) -> Result<(), StrError> {
         let neq = self.yye.dim();
-        let mut args = ArgsForNumericalJacobian {
+        struct Args<'a> {
+            yye: &'a mut Vector,
+            state: &'a mut FemState,
+        }
+        let mut args = Args {
             yye: &mut self.yye,
             state,
         };
@@ -101,28 +99,42 @@ impl<'a> GenericElement<'a> {
     }
 }
 
-impl<'a> Elements<'a> {
+impl<'a> ElementsInterior<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, base: &'a Schema, config: &'a Config) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = mesh
             .cells
             .iter()
-            .map(|cell| GenericElement::new(mesh, base, config, cell))
+            .map(|cell| ElemInt::new(mesh, base, config, cell))
             .collect();
         match res {
-            Ok(all) => Ok(Elements { config, all }),
+            Ok(all) => Ok(ElementsInterior { config, elements: all }),
             Err(e) => Err(e),
         }
     }
 
-    /// Returns whether all local Jacobian matrices are symmetric or not
-    pub fn all_symmetric_jacobians(&self) -> bool {
-        for e in &self.all {
+    /// Returns whether all elements have symmetric Jacobian matrices
+    pub fn all_symmetric_kk(&self) -> bool {
+        for e in &self.elements {
             if !e.actual.symmetric_jacobian() {
                 return false;
             }
         }
-        return true;
+        true
+    }
+
+    /// Estimates the number of non-zero values in the global K matrix
+    pub fn estimate_nnz(&self, triangular: bool) -> usize {
+        let mut nnz = 0;
+        for e in &self.elements {
+            let n = e.actual.local_to_global().len();
+            if triangular {
+                nnz += (n * n + n) / 2;
+            } else {
+                nnz += n * n;
+            }
+        }
+        nnz
     }
 
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
@@ -130,7 +142,7 @@ impl<'a> Elements<'a> {
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
     pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
-        for e in &mut self.all {
+        for e in &mut self.elements {
             e.actual.calc_yye(&mut e.yye, state)?;
             assemble_vector(yy, &e.yye, &e.actual.local_to_global(), ignore);
         }
@@ -142,7 +154,7 @@ impl<'a> Elements<'a> {
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
     pub fn assemble_ff(&mut self, ff: &mut Vector, time: f64, ignore: &[bool]) -> Result<(), StrError> {
-        for e in &mut self.all {
+        for e in &mut self.elements {
             e.actual.calc_ffe(&mut e.ffe, time)?;
             assemble_vector(ff, &e.ffe, &e.actual.local_to_global(), ignore);
         }
@@ -155,7 +167,7 @@ impl<'a> Elements<'a> {
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
     pub fn assemble_kk(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
         let tol = self.config.symmetry_check_tolerance;
-        for e in &mut self.all {
+        for e in &mut self.elements {
             e.actual.calc_kke(&mut e.kke, state)?;
             assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore, tol)?;
         }
@@ -164,7 +176,7 @@ impl<'a> Elements<'a> {
 
     /// Initializes all internal variables
     pub fn initialize_internal_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        self.all
+        self.elements
             .iter_mut()
             .map(|e| e.actual.initialize_internal_values(state))
             .collect()
@@ -174,7 +186,7 @@ impl<'a> Elements<'a> {
     ///
     /// Note that state.u, state.v, and state.a have been updated already
     pub fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        self.all
+        self.elements
             .iter_mut()
             .map(|e| e.actual.update_secondary_values(state))
             .collect()
@@ -182,7 +194,7 @@ impl<'a> Elements<'a> {
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
     pub fn backup_secondary_values(&mut self, state: &FemState, alternative: bool) {
-        self.all
+        self.elements
             .iter_mut()
             .map(|e| e.actual.backup_secondary_values(state, alternative))
             .collect()
@@ -190,7 +202,7 @@ impl<'a> Elements<'a> {
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
     pub fn restore_secondary_values(&self, state: &mut FemState, alternative: bool) {
-        self.all
+        self.elements
             .iter()
             .map(|e| e.actual.restore_secondary_values(state, alternative))
             .collect()
@@ -198,7 +210,7 @@ impl<'a> Elements<'a> {
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     pub fn reset_algorithmic_variables(&self, state: &mut FemState) {
-        self.all
+        self.elements
             .iter()
             .map(|e| e.actual.reset_algorithmic_variables(state))
             .collect()
@@ -209,7 +221,7 @@ impl<'a> Elements<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Elements, GenericElement};
+    use super::{ElemInt, ElementsInterior};
     use crate::base::{BcEssential, Conductivity, Config, ParamBeam, ParamPorousLiqGas, StressStrain};
     use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid, Schema};
     use crate::fem::FemState;
@@ -229,11 +241,11 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
         assert_eq!(
-            GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).err(),
+            ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).err(),
             Some("requested number of integration points is not available for Tri class")
         );
         assert_eq!(
-            Elements::new(&mesh, &schema, &config).err(),
+            ElementsInterior::new(&mesh, &schema, &config).err(),
             Some("requested number of integration points is not available for Tri class")
         );
 
@@ -242,11 +254,11 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         assert_eq!(
-            GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).err(),
+            ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).err(),
             Some("requested number of integration points is not available for Tri class")
         );
         assert_eq!(
-            Elements::new(&mesh, &schema, &config).err(),
+            ElementsInterior::new(&mesh, &schema, &config).err(),
             Some("requested number of integration points is not available for Tri class")
         );
     }
@@ -258,16 +270,16 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
-        let elements = Elements::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(elements.all.len(), mesh.cells.len());
+        let elements = ElementsInterior::new(&mesh, &schema, &config).unwrap();
+        assert_eq!(elements.elements.len(), mesh.cells.len());
     }
 
     #[test]
@@ -279,7 +291,7 @@ mod tests {
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let mut ele = GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
@@ -306,7 +318,7 @@ mod tests {
         let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.set_transient();
-        let mut ele = GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
@@ -335,7 +347,7 @@ mod tests {
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let mut ele = GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
@@ -363,7 +375,7 @@ mod tests {
         schema.add_solid(1, p1).build(&mesh).unwrap();
         let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let mut ele = GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // linear displacement field
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
@@ -399,7 +411,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_beam(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -410,7 +422,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_porous_liq(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -421,7 +433,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_porous_liq_gas(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -432,7 +444,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_porous_sld_liq(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -443,7 +455,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        GenericElement::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
+        ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
     #[test]
@@ -507,7 +519,7 @@ mod tests {
         }
 
         // elements
-        let mut elements = Elements::new(&mesh, &schema, &config).unwrap();
+        let mut elements = ElementsInterior::new(&mesh, &schema, &config).unwrap();
         let neq = schema.get_neq().unwrap();
         let nnz_sup = 3 * neq * neq;
         let mut yye = Vector::new(neq);
