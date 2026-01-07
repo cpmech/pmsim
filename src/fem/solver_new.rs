@@ -14,7 +14,7 @@ const NCHAR: usize = 81;
 
 struct Args<'a> {
     state: FemState,
-    com: FemData<'a>,
+    data: FemData<'a>,
 }
 
 /// Function to calculate G(u, λ)
@@ -24,16 +24,16 @@ fn calc_gg(gg: &mut Vector, l: f64, u: &Vector, args: &mut Args) -> Result<(), S
     args.state.lambda = l;
 
     // calculates Y (internal forces)
-    args.com.calc_yy(&mut args.state)?;
+    args.data.calc_yy(&mut args.state)?;
 
     // calculates R (residuals): R(t+Δt) = Y(t+Δt) - (F(t) + λ ΔF)
     for i in 0..u.dim() {
-        gg[i] = args.com.ls.yy[i] - (args.com.ls.ff_old[i] + l * args.com.ls.ddff[i]);
+        gg[i] = args.data.ls.yy[i] - (args.data.ls.ff_old[i] + l * args.data.ls.ddff[i]);
     }
 
     // add Lagrange multiplier contributions to R
-    if args.com.config.lagrange_mult_method {
-        args.com.assemble_rr_lmm(gg, &mut args.state);
+    if args.data.config.lagrange_mult_method {
+        args.data.assemble_rr_lmm(gg, &mut args.state);
     }
 
     // println!("u = {}", u);
@@ -50,18 +50,18 @@ fn calc_ggu(ggu_or_aa: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> R
 
     // calculates all Ke matrices (local Jacobian matrix; derivative of Ye w.r.t u) and adds them to Gu
     ggu_or_aa.reset();
-    args.com
+    args.data
         .elements
-        .assemble_kk(ggu_or_aa, &mut args.state, &args.com.ignored_eqs)?;
-    args.com
+        .assemble_kk(ggu_or_aa, &mut args.state, &args.data.ignored_eqs)?;
+    args.data
         .bc_distributed
-        .assemble_kk(ggu_or_aa, &mut args.state, &args.com.ignored_eqs)?;
+        .assemble_kk(ggu_or_aa, &mut args.state, &args.data.ignored_eqs)?;
 
     // modify Gu
-    if args.com.config.lagrange_mult_method {
-        args.com.assemble_kk_lmm(ggu_or_aa);
+    if args.data.config.lagrange_mult_method {
+        args.data.assemble_kk_lmm(ggu_or_aa);
     } else {
-        args.com.assemble_kk_rsm(ggu_or_aa);
+        args.data.assemble_kk_rsm(ggu_or_aa);
     }
     Ok(())
 }
@@ -69,35 +69,35 @@ fn calc_ggu(ggu_or_aa: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> R
 /// Function to calculate Gl = ∂G/∂λ
 fn calc_ggl(ggl: &mut Vector, _l: f64, _u: &Vector, args: &mut Args) -> Result<(), StrError> {
     for i in 0..ggl.dim() {
-        ggl[i] = -args.com.ls.ddff[i];
+        ggl[i] = -args.data.ls.ddff[i];
     }
     Ok(())
 }
 
 /// Creates a backup of the current state
 fn backup(args: &mut Args) {
-    args.com.elements.backup_secondary_values(&mut args.state, true);
+    args.data.elements.backup_secondary_values(&mut args.state, true);
 }
 
 /// Restores the state from the backup
 fn restore(args: &mut Args) {
-    args.com.elements.restore_secondary_values(&mut args.state, true);
+    args.data.elements.restore_secondary_values(&mut args.state, true);
 }
 
 fn prepare_to_iterate(args: &mut Args) {
-    if !args.com.config.linear_problem {
-        args.com.elements.reset_algorithmic_variables(&mut args.state);
+    if !args.data.config.linear_problem {
+        args.data.elements.reset_algorithmic_variables(&mut args.state);
     }
 }
 
 fn update_secondary_state(do_backup: bool, u0: &Vector, u1: &Vector, args: &mut Args) -> Result<bool, StrError> {
     if do_backup {
-        args.com.elements.backup_secondary_values(&mut args.state, false);
+        args.data.elements.backup_secondary_values(&mut args.state, false);
     } else {
-        args.com.elements.restore_secondary_values(&mut args.state, false);
+        args.data.elements.restore_secondary_values(&mut args.state, false);
     }
     vec_minus(&mut args.state.ddu, &u1, &u0).unwrap();
-    args.com.elements.update_secondary_values(&mut args.state)?;
+    args.data.elements.update_secondary_values(&mut args.state)?;
     Ok(false)
 }
 
@@ -168,13 +168,13 @@ pub fn solve<'a>(
     // allocate arguments for the nonlinear solver
     let mut args = Args {
         state: FemState::new(&mesh, &schema, &essential, &config)?,
-        com: FemData::new(mesh, schema, config, essential, natural)?,
+        data: FemData::new(mesh, schema, config, essential, natural)?,
     };
 
-    let ndim = args.com.ls.neq_total;
+    let ndim = args.data.ls.neq_total;
     let mut nl_system = NlSystem::new(ndim, calc_gg)?;
-    let nnz = Some(args.com.ls.nnz_sup);
-    let sym = config.lin_sol_genie.get_sym(args.com.ls.symmetric);
+    let nnz = Some(args.data.ls.nnz_sup);
+    let sym = config.lin_sol_genie.get_sym(args.data.ls.symmetric);
     nl_system.set_calc_ggu(nnz, sym, calc_ggu)?;
     nl_system.set_calc_ggl(calc_ggl);
 
@@ -191,17 +191,17 @@ pub fn solve<'a>(
     let mut stepper = ControlStepper::new(config)?;
 
     // start stopwatch
-    args.com.stopwatch.reset();
+    args.data.stopwatch.reset();
 
     // initialize internal variables
-    args.com.elements.initialize_internal_values(&mut args.state)?;
+    args.data.elements.initialize_internal_values(&mut args.state)?;
 
     // first output (must occur after initialize_internal_values)
     results.write_state(&config, &args.state)?;
-    results.save_selected(&config, &args.com.schema, &args.state)?;
+    results.save_selected(&config, &args.data.schema, &args.state)?;
 
     println!("\n{:═^1$}", " INFORMATION ", NCHAR);
-    println!("\n{}", args.com.ls.get_info());
+    println!("\n{}", args.data.ls.get_info());
     println!("{:═^1$}\n", " TIME STEPPING ", NCHAR);
 
     let mut u = args.state.u.clone();
@@ -230,7 +230,7 @@ pub fn solve<'a>(
         }
 
         // assemble external forces vector F (also updates the load reversal flag)
-        args.state.reverse = args.com.calc_ff_and_ddff(args.state.time)?;
+        args.state.reverse = args.data.calc_ff_and_ddff(args.state.time)?;
 
         // solve nonlinear equations
         let status = match nl_solver.solve(
@@ -268,8 +268,8 @@ pub fn solve<'a>(
     results.write_self(&config)?;
 
     // show computer time
-    args.com.stopwatch.stop();
-    println!("\nelapsed computer time = {}\n", args.com.stopwatch);
+    args.data.stopwatch.stop();
+    println!("\nelapsed computer time = {}\n", args.data.stopwatch);
     println!("{}\n", "═".repeat(NCHAR));
 
     Ok(args.state)
