@@ -87,15 +87,8 @@ fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
     // configuration
     let config = Config::new(&mesh);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // check displacements
     #[rustfmt::skip]

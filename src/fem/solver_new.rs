@@ -280,12 +280,15 @@ pub fn solve<'a>(
 // System Partitioning Strategy (SPS) functions ////////////////////////////////////////////////////////
 
 /// Solves a generic FEM problem using the System Partitioning Strategy (SPS)
-fn generic_solve_sps<'a>(
+fn solve_steady_sps<'a>(
     mesh: &Mesh,
     schema: &'a Schema,
     config: &'a Config,
     essential: &'a BcEssential,
     natural: &'a BcNatural,
+    auto_step: AutoStep,
+    stop: Option<Stop>,
+    loading_factors: Option<&[f64]>,
 ) -> Result<FemState, StrError> {
     // Allocate FEM data
     let data = FemData::new(mesh, schema, config, essential, natural)?;

@@ -117,15 +117,8 @@ fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
         .set_steady(NSTAGE)
         .set_max_iterations(20);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // compare the results with Ref #1
     let tol_displacement = 1e-12;
@@ -134,7 +127,8 @@ fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
         &mesh,
         &schema,
         &config,
-        &format!("/tmp/pmsim/{}.json", NAME),
+        "/tmp/pmsim/",
+        NAME,
         ReferenceDataType::SPO,
         &format!("data/spo/{}.json", NAME),
         tol_displacement,

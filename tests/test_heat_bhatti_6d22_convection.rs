@@ -76,15 +76,8 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         .edges(&edges_conv_b, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // check U vector
     let tt_bhatti = &[

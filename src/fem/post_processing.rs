@@ -1,5 +1,6 @@
-use super::{write_pvd, write_vtu, OutputFiles, FemState};
+use super::{write_pvd, write_vtu, FemState, OutputFiles};
 use crate::base::{Dof, Schema};
+use crate::material::LocalState;
 use crate::util::{SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
 use crate::StrError;
 use gemlab::integ::Gauss;
@@ -19,8 +20,8 @@ pub struct PostProc {
     /// Filename stem
     fn_stem: String,
 
-    /// Holds the FemResults instance
-    results: OutputFiles,
+    /// Holds the output files handler
+    files: OutputFiles,
 
     /// Holds the Mesh
     mesh: Mesh,
@@ -74,7 +75,7 @@ impl PostProc {
             PostProc {
                 dir: dir.to_string(),
                 fn_stem: fn_stem.to_string(),
-                results,
+                files: results,
                 mesh,
                 schema,
             },
@@ -105,12 +106,16 @@ impl PostProc {
         self.schema.get_eq(point_id, dof)
     }
 
-    /// Returns the number of state files (to define the index in read_state)
-    pub fn n_state(&self) -> usize {
-        self.results.indices.len()
+    /// Returns the number of state files
+    ///
+    /// Corresponds to the index in [PostProc::read_state()]
+    pub fn nstate(&self) -> usize {
+        self.files.n_files()
     }
 
     /// Reads a JSON file with the FEM state at a given index (time station)
+    ///
+    /// The number of state files is given by [PostProc::n_files()].
     ///
     /// This function loads the FEM state data from a JSON file corresponding to the specified
     /// time station index. The path to the state file is constructed using the `FileIo` instance.
@@ -132,6 +137,32 @@ impl PostProc {
     pub fn read_state(&self, index: usize) -> Result<FemState, StrError> {
         let path = format!("{}/{}-{}.json", self.dir, self.fn_stem, index);
         FemState::read_json(&path)
+    }
+
+    /// Returns the real simulation times corresponding to each output file
+    pub fn get_times(&self) -> &Vec<f64> {
+        self.files.get_times()
+    }
+
+    /// Returns the temporal output of DOF values at selected points
+    ///
+    /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
+    pub fn get_selected_dof(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.get_selected_dof(point_id, dof)
+    }
+
+    /// Returns the temporal output of flux vectors at the first integration point of selected cells
+    ///
+    /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
+    pub fn get_selected_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+        self.files.get_selected_local_fluxes(cell_id)
+    }
+
+    /// Returns the temporal output of stresses at the first integration point of selected cells
+    ///
+    /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
+    pub fn get_selected_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+        self.files.get_selected_local_state(cell_id)
     }
 
     /// Returns the real coordinates of all Gauss points of a cell
@@ -1190,7 +1221,7 @@ impl PostProc {
     ///
     /// Returns the path to the PVD file
     pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
-        write_pvd(dir, fn_stem, &self.results.indices, &self.results.times)
+        write_pvd(dir, fn_stem, &self.files.get_indices(), &self.files.get_times())
     }
 
     /// Loads all states and writes Paraview's VTU and PVD files
@@ -1198,7 +1229,7 @@ impl PostProc {
     /// Returns the path to the PVD file
     pub fn write_paraview(&self, memo: &mut PostProcMemo, dir: &str, fn_stem: &str) -> Result<String, StrError> {
         // write VTU files
-        for index in 0..self.n_state() {
+        for index in 0..self.nstate() {
             let state = self.read_state(index)?;
             self.write_vtu(memo, dir, fn_stem, &state, index)?;
         }
@@ -1220,7 +1251,7 @@ mod tests {
         generate_vertical_displacement_field, Conductivity,
     };
     use crate::base::{BcEssential, Config, Dof, ParamDiffusion, ParamSolid, Schema, StressStrain};
-    use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, OutputFiles, FemState};
+    use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemState, OutputFiles};
     use crate::StrError;
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
@@ -1608,8 +1639,6 @@ mod tests {
 
         // read essential
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
-        assert_eq!(post.results.indices, &[0]);
-        assert_eq!(post.results.times, &[0.0]);
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
@@ -1629,22 +1658,18 @@ mod tests {
             }
         }
 
-        // check selected step, time and loading factor
-        assert_eq!(&post.results.sel_time, &[0.0]);
-        assert_eq!(&post.results.sel_lambda, &[0.0]);
-
         // check selected temperatures
         let point_id = 3;
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
-        let sel_phi = post.results.get_dof(point_id, Dof::Phi).unwrap();
+        let sel_phi = post.files.get_selected_dof(point_id, Dof::Phi).unwrap();
         // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
         approx_eq(sel_phi[0], phi_correct, 1e-15);
 
         // check selected flux vectors
         let cell_id = 1;
-        let s = post.results.get_local_fluxes(cell_id).unwrap();
+        let s = post.files.get_selected_local_fluxes(cell_id).unwrap();
         for i in 0..ndim {
             approx_eq(s[0][i], w_correct[i], 1e-14);
         }
@@ -1657,8 +1682,6 @@ mod tests {
 
         // read essential
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
-        assert_eq!(post.results.indices, &[0]);
-        assert_eq!(post.results.times, &[0.0]);
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
@@ -1677,22 +1700,18 @@ mod tests {
             }
         }
 
-        // check selected step, time and loading factor
-        assert_eq!(&post.results.sel_time, &[0.0]);
-        assert_eq!(&post.results.sel_lambda, &[0.0]);
-
         // check selected temperatures
         let point_id = 10;
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
-        let sel_phi = post.results.get_dof(point_id, Dof::Phi).unwrap();
+        let sel_phi = post.files.get_selected_dof(point_id, Dof::Phi).unwrap();
         // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
         approx_eq(sel_phi[0], phi_correct, 1e-15);
 
         // check selected flux vectors
         let cell_id = 1;
-        let s = post.results.get_local_fluxes(cell_id).unwrap();
+        let s = post.files.get_selected_local_fluxes(cell_id).unwrap();
         for i in 0..ndim {
             approx_eq(s[0][i], w_correct[i], 1e-14);
         }
@@ -1705,8 +1724,6 @@ mod tests {
 
         // read essential
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
-        assert_eq!(post.results.indices, &[0, 1, 2]);
-        assert_eq!(post.results.times, &[0.0, 1.0, 2.0]);
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
@@ -1745,10 +1762,6 @@ mod tests {
             );
         }
 
-        // check selected step, time and loading factor
-        assert_eq!(&post.results.sel_time, &[0.0, 1.0, 2.0]);
-        assert_eq!(&post.results.sel_lambda, &[0.0, 0.0, 0.0]);
-
         // check selected displacements
         let point_id = 3;
         let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
@@ -1756,8 +1769,8 @@ mod tests {
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
         let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
         let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
-        let sel_ux = post.results.get_dof(point_id, Dof::Ux).unwrap();
-        let sel_uy = post.results.get_dof(point_id, Dof::Uy).unwrap();
+        let sel_ux = post.files.get_selected_dof(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.files.get_selected_dof(point_id, Dof::Uy).unwrap();
         let correct = [&duu_h, &duu_v, &duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
@@ -1766,7 +1779,7 @@ mod tests {
 
         // check selected stresses and strains
         let cell_id = 1;
-        let s = post.results.get_local_state(cell_id).unwrap();
+        let s = post.files.get_selected_local_state(cell_id).unwrap();
         let sig = [&stress_h, &stress_v, &stress_s];
         let eps = [&strain_h, &strain_v, &strain_s];
         let ncp = 4;
@@ -1785,8 +1798,6 @@ mod tests {
 
         // read essential
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
-        assert_eq!(post.results.indices, &[0, 1, 2]);
-        assert_eq!(post.results.times, &[0.0, 1.0, 2.0]);
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
@@ -1833,9 +1844,9 @@ mod tests {
         let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
         let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
         let eqz = post.schema.get_eq(point_id, Dof::Uz)?;
-        let sel_ux = post.results.get_dof(point_id, Dof::Ux).unwrap();
-        let sel_uy = post.results.get_dof(point_id, Dof::Uy).unwrap();
-        let sel_uz = post.results.get_dof(point_id, Dof::Uz).unwrap();
+        let sel_ux = post.files.get_selected_dof(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.files.get_selected_dof(point_id, Dof::Uy).unwrap();
+        let sel_uz = post.files.get_selected_dof(point_id, Dof::Uz).unwrap();
         let correct = [duu_h, duu_v, duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
@@ -1845,7 +1856,7 @@ mod tests {
 
         // check selected stresses and strains
         let cell_id = 1;
-        let s = post.results.get_local_state(cell_id).unwrap();
+        let s = post.files.get_selected_local_state(cell_id).unwrap();
         let sig = [&stress_h, &stress_v, &stress_s];
         let eps = [&strain_h, &strain_v, &strain_s];
         let ncp = 6;
@@ -1869,7 +1880,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: OutputFiles::new(&mesh, &schema, &config).unwrap(),
+            files: OutputFiles::new(&mesh, &schema, &config).unwrap(),
             mesh,
             schema,
         };
@@ -1893,7 +1904,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: OutputFiles::new(&mesh, &schema, &config).unwrap(),
+            files: OutputFiles::new(&mesh, &schema, &config).unwrap(),
             mesh,
             schema,
         };
@@ -2794,7 +2805,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: OutputFiles::new(&mesh, &schema, &config).unwrap(),
+            files: OutputFiles::new(&mesh, &schema, &config).unwrap(),
             mesh: mesh.clone(),
             schema,
         };
@@ -2910,7 +2921,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: OutputFiles::new(&mesh, &schema, &config).unwrap(),
+            files: OutputFiles::new(&mesh, &schema, &config).unwrap(),
             mesh: mesh.clone(),
             schema,
         };

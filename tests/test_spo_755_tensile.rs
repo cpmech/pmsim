@@ -90,15 +90,8 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_max_iterations(20);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // verify the results
     let tol_displacement = 1e-7;
@@ -107,7 +100,8 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
         &mesh,
         &schema,
         &config,
-        &format!("/tmp/pmsim/{}.json", NAME),
+        "/tmp/pmsim/",
+        NAME,
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,

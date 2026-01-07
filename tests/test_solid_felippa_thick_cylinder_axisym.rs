@@ -77,15 +77,8 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config.set_axisymmetric();
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // Felippa's Equation 14.2 on page 14-4
     let analytical_ur = |r: f64| {

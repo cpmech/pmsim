@@ -78,15 +78,8 @@ pub fn main() -> Result<(), StrError> {
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_max_iterations(20);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // stop stopwatch
     sw.stop();

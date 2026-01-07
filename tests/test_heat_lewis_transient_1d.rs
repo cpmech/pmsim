@@ -86,15 +86,8 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
         .set_ddt(0.1)
         .set_t_fin(T_FIN);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // check
     let selected = vec![
@@ -129,7 +122,7 @@ fn do_plot() -> Result<(), StrError> {
     // get temperature values along x
     let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
     let features = Features::new(post.mesh(), false);
-    let state = post.read_state(post.n_state() - 1)?;
+    let state = post.read_state(post.nstate() - 1)?;
     let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::Phi, 0.0, |x| x[0] <= 2.0)?;
 
     // plot

@@ -1,5 +1,5 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
-use super::{FemData, OutputFiles, FemState};
+use super::{FemData, FemState, OutputFiles};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -81,7 +81,7 @@ impl<'a> SolverOld<'a> {
     }
 
     /// Solves the system of equations
-    pub fn solve_sys(&mut self, state: &mut FemState, results: &mut OutputFiles) -> Result<(), StrError> {
+    fn solve_sys(&mut self, state: &mut FemState, results: &mut OutputFiles) -> Result<(), StrError> {
         // check if there are non-zero prescribed values
         // if !self.config.lagrange_mult_method {
         // if self.com.bc_prescribed.has_non_zero() {
@@ -386,7 +386,7 @@ impl<'a> SolverOld<'a> {
 mod tests {
     use super::SolverOld;
     use crate::base::{BcEssential, BcNatural, Config, Dof, Nbc, ParamSolid, Pbc, Schema};
-    use crate::fem::{OutputFiles, FemState};
+    use crate::fem::{FemState, OutputFiles};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 
     #[test]

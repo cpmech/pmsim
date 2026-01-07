@@ -124,15 +124,8 @@ fn run_test(
     };
     config.set_out_files("/tmp/pmsim", name, 1.0);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // compare the results with Ref #1
     let tol_displacement = if residual { 1.78e-2 } else { 4.33e-2 };
@@ -141,7 +134,8 @@ fn run_test(
         &mesh,
         &schema,
         &config,
-        &format!("/tmp/pmsim/{}.json", name),
+        "/tmp/pmsim/",
+        name,
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", name),
         tol_displacement,
@@ -179,14 +173,14 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
     let mut ana = PlastPlaneStrainPresSphere::new(A, B, YOUNG, POISSON, Y).unwrap();
 
     // loop over time stations
-    let mut inner_pp = vec![0.0; post.n_state()];
-    let mut outer_ur = vec![0.0; post.n_state()];
+    let mut inner_pp = vec![0.0; post.nstate()];
+    let mut outer_ur = vec![0.0; post.nstate()];
     let mut first_rr = true;
     let mut rr = Vec::new();
     let mut pp_arr = Vec::new();
     let mut sh_arr = Vec::new();
     let mut sr_arr = Vec::new();
-    for index in 1..post.n_state() {
+    for index in 1..post.nstate() {
         // load state
         let state = post.read_state(index)?;
         let idx = state.time as usize;

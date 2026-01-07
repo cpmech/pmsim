@@ -218,24 +218,17 @@ fn main() -> Result<(), StrError> {
             .access_lin_sol_params()
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
-        // FEM state
-        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-        // FEM results
-        let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
         // println!("5. running simulation");
 
         // solution
-        let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
-        match solver.solve_sys(&mut state, &mut results) {
+        let state = match SolverOld::solve(&mesh, &schema, &config, &essential, &natural) {
             Err(e) => {
                 println!("{:?} failed with: {}", genie, e);
                 continue;
             }
-            Ok(..) => (),
-        }
+            Ok(s) => s,
+        };
         cr.time[idx] = stopwatch.stop();
 
         // println!("5. computing error");

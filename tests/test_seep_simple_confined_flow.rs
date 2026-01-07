@@ -62,15 +62,8 @@ fn test_seep_simple_confined_flow() -> Result<(), StrError> {
         .update_model_settings(1)
         .set_save_flux(true);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // post-processing
     post_processing()
@@ -87,7 +80,7 @@ fn post_processing() -> Result<(), StrError> {
     let mid_section = features.search_edges(At::X(18.0), |_| true)?;
 
     // read last state
-    let last = post.n_state() - 1;
+    let last = post.nstate() - 1;
     let state = post.read_state(last)?;
 
     // extract fluxes along the mid section

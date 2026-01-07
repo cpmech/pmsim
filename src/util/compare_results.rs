@@ -1,6 +1,6 @@
 use super::{ReferenceData, ReferenceDataType};
 use crate::base::{Config, Dof, Schema};
-use crate::fem::{OutputFiles, FemState};
+use crate::fem::{FemState, PostProc};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
@@ -43,7 +43,8 @@ pub fn compare_results(
     mesh: &Mesh,
     schema: &Schema,
     config: &Config,
-    res_path: &str,
+    dir: &str,
+    fn_stem: &str,
     ref_type: ReferenceDataType,
     ref_path: &str,
     tol_displacement: f64,
@@ -78,11 +79,11 @@ pub fn compare_results(
 
     // compare results
     let mut all_good = true;
-    let results = OutputFiles::read_json(res_path)?;
-    if results.indices.len() != dat.actual.nstep() + 1 {
+    let (pp, _) = PostProc::new(dir, fn_stem)?;
+    if pp.nstate() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
-    for index in 1..results.indices.len() {
+    for index in 1..pp.nstate() {
         // set the number of steps in the reference data (where the initial state is absent)
         let step = index - 1;
 

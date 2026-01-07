@@ -72,15 +72,8 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config.set_lagrange_mult_method(true);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // check U vector
     let tt_bhatti = &[

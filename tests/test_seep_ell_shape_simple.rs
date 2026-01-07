@@ -57,15 +57,8 @@ fn test_seep_ell_shape() -> Result<(), StrError> {
         .update_model_settings(1)
         .set_save_flux(true);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // post-processing
     post_processing()
@@ -76,7 +69,7 @@ fn post_processing() -> Result<(), StrError> {
     let (post, mut memo) = PostProc::new(OUT_DIR, NAME)?;
 
     // read last state
-    let last = post.n_state() - 1;
+    let last = post.nstate() - 1;
     let state = post.read_state(last)?;
 
     // load mesh and find vertical section along the gap underneath the wall

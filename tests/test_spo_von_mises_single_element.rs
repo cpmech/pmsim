@@ -125,15 +125,8 @@ fn solve_and_check(
     natural: &BcNatural,
     config: &Config,
 ) -> Result<(), StrError> {
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // compare the results with Ref #1
     let tol_displacement = 1e-13;
@@ -142,7 +135,8 @@ fn solve_and_check(
         &mesh,
         &schema,
         &config,
-        &format!("/tmp/pmsim/{}.json", NAME),
+        "/tmp/pmsim/",
+        NAME,
         ReferenceDataType::SPO,
         &format!("data/spo/{}.json", NAME),
         tol_displacement,

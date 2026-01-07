@@ -128,11 +128,7 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
         tol = 1e-9;
         solve(&mesh, &schema, &config, &essential, &natural)?
     } else {
-        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-        let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-        let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-        solver.solve_sys(&mut state, &mut results)?;
-        state
+        SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?
     };
 
     // check
@@ -157,7 +153,7 @@ fn do_plot() -> Result<(), StrError> {
     // get temperature values along x
     let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
     let features = Features::new(post.mesh(), false);
-    let state = post.read_state(post.n_state() - 1)?;
+    let state = post.read_state(post.nstate() - 1)?;
     let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;
 
     // compute plot data

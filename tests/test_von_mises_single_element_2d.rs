@@ -107,23 +107,18 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .update_model_settings(1)
         .set_save_strain(true);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // check the results
+    let (pp, _) = PostProc::new("/tmp/pmsim", NAME)?;
+    let times = pp.get_times();
     let l0 = 1.0; // initial length of the element
-    let ss = results.get_local_state(0).unwrap();
-    let mut zz = vec![0.0; results.sel_time.len()];
-    for i in 0..results.sel_time.len() {
+    let ss = pp.get_selected_local_state(0).unwrap();
+    let mut zz = vec![0.0; times.len()];
+    for i in 0..times.len() {
         let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
-        let time = results.sel_time[i];
+        let time = times[i];
         if time == 0.0 {
             assert_eq!(ey, 0.0);
             continue;

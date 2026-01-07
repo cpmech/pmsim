@@ -13,21 +13,21 @@ use std::path::Path;
 
 /// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OutputFiles {
+pub(crate) struct OutputFiles {
     /// Number of files written
     counter: usize,
 
     /// Indices of the output files
-    pub indices: Vec<usize>,
+    indices: Vec<usize>,
 
     /// Real simulation times corresponding to each output file
-    pub times: Vec<f64>,
+    times: Vec<f64>,
 
     /// Time for selected points and cells
-    pub sel_time: Vec<f64>,
+    sel_time: Vec<f64>,
 
     /// Loading factors for selected points and cells
-    pub sel_lambda: Vec<f64>,
+    sel_lambda: Vec<f64>,
 
     /// DOF values at selected points along time
     ///
@@ -70,19 +70,34 @@ impl OutputFiles {
         })
     }
 
+    /// Returns the number of files written
+    pub fn n_files(&self) -> usize {
+        self.counter
+    }
+
+    /// Returns the indices of the output files
+    pub fn get_indices(&self) -> &Vec<usize> {
+        &self.indices
+    }
+
+    /// Returns the real simulation times corresponding to each output file
+    pub fn get_times(&self) -> &Vec<f64> {
+        &self.times
+    }
+
     /// Returns the temporal output of DOF values at selected points
-    pub fn get_dof(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+    pub fn get_selected_dof(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
         let key = format!("{:?},{:?}", point_id, dof);
         self.sel_dof.get(&key)
     }
 
     /// Returns the temporal output of flux vectors at the first integration point of selected cells
-    pub fn get_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+    pub fn get_selected_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
         self.sel_local_flux.get(&cell_id)
     }
 
     /// Returns the temporal output of stresses at the first integration point of selected cells
-    pub fn get_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+    pub fn get_selected_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
         self.sel_local_state.get(&cell_id)
     }
 

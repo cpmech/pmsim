@@ -83,16 +83,8 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
         .set_verbose_legend(true)
         .set_ignore_symmetry(true);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
-    println!("{}", state.u);
+    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // check displacements
     #[rustfmt::skip]

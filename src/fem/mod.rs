@@ -36,7 +36,7 @@ use fem_data::*;
 pub use fem_state::*;
 use linear_system::*;
 use logger::*;
-pub use output_files::*;
+use output_files::*;
 use paraview::*;
 pub use post_processing::*;
 pub use secondary_values::*;

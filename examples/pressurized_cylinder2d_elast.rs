@@ -205,16 +205,9 @@ fn main() -> Result<(), StrError> {
             .access_lin_sol_params()
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 
-        // FEM state
-        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-        // FEM results
-        let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
         // solution
-        let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
-        solver.solve_sys(&mut state, &mut results)?;
+        let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
         cr.time[idx] = stopwatch.stop();
 
         // compute error

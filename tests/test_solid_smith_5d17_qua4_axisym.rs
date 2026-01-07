@@ -101,15 +101,8 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         .set_alt_bb_matrix_method(true)
         .set_axisymmetric();
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-
-    // FEM results
-    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-
     // solution
-    let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
-    solver.solve_sys(&mut state, &mut results)?;
+    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -151,7 +144,8 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         &mesh,
         &schema,
         &config,
-        &format!("/tmp/pmsim/{}.json", NAME),
+        "/tmp/pmsim",
+        NAME,
         ReferenceDataType::SGM,
         "data/sgm/sgm_5d17_ref.json",
         tol_displacement,
