@@ -116,7 +116,7 @@ impl<'a> LinearSystem<'a> {
         let symmetric = if config.ignore_symmetry {
             false
         } else {
-            elements.all_symmetric_kk() && boundaries.all_symmetric_kk()
+            elements.all_sym_kk() && boundaries.all_sym_kk()
         };
 
         // constants

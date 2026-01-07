@@ -1,12 +1,13 @@
 use super::FemState;
-use crate::base::{assemble_matrix, assemble_vector};
+use crate::base::{add_nnz_sps, assemble_matrix, assemble_matrix_kk_bar, assemble_vector};
 use crate::base::{BcNatural, Config, Nbc, Schema};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
 use gemlab::mesh::Mesh;
 use gemlab::shapes::{GeoKind, Scratchpad};
 use russell_lab::{Matrix, Vector};
-use russell_sparse::CooMatrix;
+use russell_pde::EquationHandler;
+use russell_sparse::{CooMatrix, Sym};
 use std::sync::Arc;
 
 /// Defines a line or surface element for the calculation of natural boundary conditions
@@ -318,7 +319,7 @@ impl<'a> ElementsBoundary<'a> {
     }
 
     /// Returns whether all elements have symmetric Jacobian matrices
-    pub fn all_symmetric_kk(&self) -> bool {
+    pub fn all_sym_kk(&self) -> bool {
         for e in &self.elements {
             if e.with_jacobian() {
                 if !e.symmetric_jacobian() {
@@ -369,6 +370,21 @@ impl<'a> ElementsBoundary<'a> {
         Ok(())
     }
 
+    /// Increments the number of non-zeros on the global K-bar and K-check matrices for the System Partitioning Strategy (SPS)
+    pub fn add_nnz_sps(
+        &self,
+        nnz_kk_bar: &mut usize,
+        nnz_kk_check: &mut usize,
+        sym: Sym,
+        eq_handler: &EquationHandler,
+    ) {
+        for e in &self.elements {
+            if e.with_jacobian() {
+                add_nnz_sps(nnz_kk_bar, nnz_kk_check, sym, &e.local_to_global, eq_handler);
+            }
+        }
+    }
+
     /// Calculates all local Ke matrices and assembles them into K
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
@@ -377,8 +393,25 @@ impl<'a> ElementsBoundary<'a> {
         let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.elements {
             e.calc_kke(state)?;
-            if let Some(kke) = e.kke.as_mut() {
+            if let Some(kke) = e.kke.as_ref() {
                 assemble_matrix(kk, kke, &e.local_to_global, ignore, tol)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Assembles the local Ke matrix into the global K matrix for the System Partitioning Strategy (SPS)
+    pub fn assemble_kk_bar(
+        &mut self,
+        kk_bar: &mut CooMatrix,
+        state: &FemState,
+        eq_handler: &EquationHandler,
+    ) -> Result<(), StrError> {
+        let tol = self.config.symmetry_check_tolerance;
+        for e in &mut self.elements {
+            e.calc_kke(state)?;
+            if let Some(kke) = e.kke.as_ref() {
+                assemble_matrix_kk_bar(kk_bar, kke, &e.local_to_global, eq_handler, tol)?;
             }
         }
         Ok(())

@@ -27,8 +27,8 @@ pub(crate) struct FemData<'a> {
     /// Holds pairs of (eq, fn) to calculate concentrated loads
     pub(crate) conc_loads: Vec<(usize, Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>)>,
 
-    // Holds a collection of boundary integration data
-    pub(crate) bc_distributed: ElementsBoundary<'a>,
+    // Holds a collection of boundary elements
+    pub(crate) boundaries: ElementsBoundary<'a>,
 
     /// Holds a collection of elements
     pub(crate) elements: ElementsInterior<'a>,
@@ -44,6 +44,23 @@ pub(crate) struct FemData<'a> {
 
     /// Stopwatch to measure computer time
     pub(crate) stopwatch: Stopwatch,
+
+    /// Implements the K-check matrix for the System Partitioning Strategy (SPS)
+    ///
+    /// K-check (Ǩ) originates from the following system:
+    ///
+    /// ```text
+    /// ┌       ┐ ┌   ┐   ┌   ┐
+    /// │ K̄   Ǩ │ │ ̄a │   │ f̄ │
+    /// │       │ │   │ = │   │
+    /// │ Ḵ   ̰K │ │ ǎ │   │ f̌ │
+    /// └       ┘ └   ┘   └   ┘
+    ///     K       a       f
+    /// ```
+    ///
+    /// If using the Lagrange Multiplier Method (LMM), K-check will be empty
+    /// (1x1 matrix as required by `russell_sparse`)
+    pub(crate) kk_check: CooMatrix,
 }
 
 impl<'a> FemData<'a> {
@@ -110,6 +127,15 @@ impl<'a> FemData<'a> {
             .filter(|&eq| config.lagrange_mult_method || !ignored_eqs[eq])
             .collect();
 
+        // Allocate K-check matrix for SPS
+        let kk_check = if config.lagrange_mult_method || n_prescribed == 0 {
+            CooMatrix::new(1, 1, 1, Sym::No).unwrap() // empty
+        } else {
+            let n_unknown = eq_handler.nu();
+            let nnz = n_unknown * n_prescribed; // TODO
+            CooMatrix::new(n_unknown, n_prescribed, nnz, Sym::No).unwrap()
+        };
+
         // return new instance
         Ok(FemData {
             schema,
@@ -117,12 +143,13 @@ impl<'a> FemData<'a> {
             eq_handler,
             presc_values,
             conc_loads,
-            bc_distributed,
+            boundaries: bc_distributed,
             elements,
             ls: linear_system,
             ignored_eqs,
             unknown_eqs,
             stopwatch: Stopwatch::new(),
+            kk_check,
         })
     }
 
@@ -135,8 +162,7 @@ impl<'a> FemData<'a> {
         self.elements.assemble_yy(&mut self.ls.yy, state, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
-        self.bc_distributed
-            .assemble_yy(&mut self.ls.yy, state, &self.ignored_eqs)?;
+        self.boundaries.assemble_yy(&mut self.ls.yy, state, &self.ignored_eqs)?;
         Ok(())
     }
 
@@ -162,8 +188,7 @@ impl<'a> FemData<'a> {
         self.elements.assemble_ff(&mut self.ls.ff, time, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
-        self.bc_distributed
-            .assemble_ff(&mut self.ls.ff, time, &self.ignored_eqs)?;
+        self.boundaries.assemble_ff(&mut self.ls.ff, time, &self.ignored_eqs)?;
 
         // add concentrated loads
         for (eq, f) in &self.conc_loads {
@@ -188,8 +213,7 @@ impl<'a> FemData<'a> {
 
         // calculates all Ke matrices (local Jacobian matrix; derivative of Ye w.r.t u) and adds them to K
         self.elements.assemble_kk(&mut self.ls.kk, state, &self.ignored_eqs)?;
-        self.bc_distributed
-            .assemble_kk(&mut self.ls.kk, state, &self.ignored_eqs)?;
+        self.boundaries.assemble_kk(&mut self.ls.kk, state, &self.ignored_eqs)?;
         Ok(())
     }
 

@@ -1,9 +1,10 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
-use crate::base::{assemble_matrix, assemble_vector, Config, Elem, Schema};
+use crate::base::{add_nnz_sps, assemble_matrix, assemble_matrix_kk_bar, assemble_vector, Config, Elem, Schema};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{deriv1_central5, Matrix, Vector};
-use russell_sparse::CooMatrix;
+use russell_pde::EquationHandler;
+use russell_sparse::{CooMatrix, Sym};
 
 /// Defines a generic finite element to represent the interior of the domain
 ///
@@ -114,7 +115,7 @@ impl<'a> ElementsInterior<'a> {
     }
 
     /// Returns whether all elements have symmetric Jacobian matrices
-    pub fn all_symmetric_kk(&self) -> bool {
+    pub fn all_sym_kk(&self) -> bool {
         for e in &self.elements {
             if !e.actual.symmetric_jacobian() {
                 return false;
@@ -170,6 +171,34 @@ impl<'a> ElementsInterior<'a> {
         for e in &mut self.elements {
             e.actual.calc_kke(&mut e.kke, state)?;
             assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore, tol)?;
+        }
+        Ok(())
+    }
+
+    /// Increments the number of non-zeros on the global K-bar and K-check matrices for the System Partitioning Strategy (SPS)
+    pub fn add_nnz_sps(
+        &self,
+        nnz_kk_bar: &mut usize,
+        nnz_kk_check: &mut usize,
+        sym: Sym,
+        eq_handler: &EquationHandler,
+    ) {
+        for e in &self.elements {
+            add_nnz_sps(nnz_kk_bar, nnz_kk_check, sym, &e.actual.local_to_global(), eq_handler);
+        }
+    }
+
+    /// Assembles the local Ke matrix into the global K matrix for the System Partitioning Strategy (SPS)
+    pub fn assemble_kk_bar(
+        &mut self,
+        kk_bar: &mut CooMatrix,
+        state: &FemState,
+        eq_handler: &EquationHandler,
+    ) -> Result<(), StrError> {
+        let tol = self.config.symmetry_check_tolerance;
+        for e in &mut self.elements {
+            e.actual.calc_kke(&mut e.kke, state)?;
+            assemble_matrix_kk_bar(kk_bar, &e.kke, &e.actual.local_to_global(), eq_handler, tol)?;
         }
         Ok(())
     }

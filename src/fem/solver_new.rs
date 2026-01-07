@@ -54,7 +54,7 @@ fn calc_ggu(ggu_or_aa: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> R
         .elements
         .assemble_kk(ggu_or_aa, &mut args.state, &args.data.ignored_eqs)?;
     args.data
-        .bc_distributed
+        .boundaries
         .assemble_kk(ggu_or_aa, &mut args.state, &args.data.ignored_eqs)?;
 
     // modify Gu
@@ -119,6 +119,8 @@ pub fn solve_steady_nonlinear<'a>(
     natural: &'a BcNatural,
     loading_factors: &[f64],
 ) -> Result<FemState, StrError> {
+    // Allocate configurations for the nonlinear solver
+    let mut nl_config = NlConfig::new();
     Err("TODO: solve_steady_nonlinear")
 }
 
@@ -273,4 +275,107 @@ pub fn solve<'a>(
     println!("{}\n", "═".repeat(NCHAR));
 
     Ok(args.state)
+}
+
+// System Partitioning Strategy (SPS) functions ////////////////////////////////////////////////////////
+
+/// Solves a generic FEM problem using the System Partitioning Strategy (SPS)
+fn generic_solve_sps<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
+) -> Result<FemState, StrError> {
+    // Allocate FEM data
+    let data = FemData::new(mesh, schema, config, essential, natural)?;
+
+    // Determine if the global stiffness matrix is symmetric and the user allows it
+    let symmetric = !config.ignore_symmetry && data.elements.all_sym_kk() && data.boundaries.all_sym_kk();
+
+    // Determine symmetry type of the global stiffness matrix
+    let genie = config.lin_sol_genie;
+    let sym = genie.get_sym(symmetric);
+
+    // Calculate the number of non-zero entries in the global stiffness matrix
+    let mut nnz_kk_bar = 0;
+    let mut nnz_kk_check = 0;
+    data.elements
+        .add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &data.eq_handler);
+
+    // Determine the system dimension
+    let (neq, nu, np) = (data.eq_handler.neq(), data.eq_handler.nu(), data.eq_handler.np());
+    let ndim = nu;
+
+    // Allocate the nonlinear system structure
+    let mut nl_system = NlSystem::new(ndim, calc_gg_sps)?;
+    nl_system
+        .set_calc_ggu(Some(nnz_kk_bar), sym, calc_ggu_sps)?
+        .set_calc_ggl(calc_ggl_sps)
+        .set_backup_secondary_state(backup)
+        .set_restore_secondary_state(restore)
+        .set_prepare_to_iterate(prepare_to_iterate)
+        .set_update_secondary_state(update_secondary_state);
+
+    // Allocate the nonlinear solver
+    let mut nl_solver = NlSolver::new(&config.nl_config, nl_system)?;
+
+    Err("TODO: solve_sps")
+}
+
+/// Function to calculate G(u, λ) using the System Partitioning Strategy (SPS)
+fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, args: &mut Args) -> Result<(), StrError> {
+    // set (u, λ) in the state
+    // for eq in 0..args.data.eq_handler.neq() {
+    //     if args.data.eq_handler.is_unknown(eq) {
+    //         let iu = args.data.eq_handler.iu(eq);
+    //         args.state.u[eq] = u[iu];
+    //     } else {
+    //         let ip = args.data.eq_handler.ip(eq);
+    //         args.state.u[eq] = args.data.presc_values[ip](args.state.time);
+    //     }
+    // }
+    args.data.eq_handler.unknown().iter().for_each(|&eq| {
+        let iu = args.data.eq_handler.iu(eq);
+        args.state.u[eq] = u[iu];
+    });
+    args.state.lambda = l;
+
+    // calculates Y (internal forces)
+    args.data.calc_yy(&mut args.state)?;
+
+    // calculates R (residuals): R(t+Δt) = Y(t+Δt) - (F(t) + λ ΔF)
+    args.data.eq_handler.unknown().iter().for_each(|&eq| {
+        let iu = args.data.eq_handler.iu(eq);
+        gg[iu] = args.data.ls.yy[eq] - (args.data.ls.ff_old[eq] + l * args.data.ls.ddff[eq]);
+    });
+    Ok(())
+}
+
+/// Function to calculate Gu = ∂G/∂u (Jacobian matrix) using the System Partitioning Strategy (SPS)
+fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> Result<(), StrError> {
+    // Set (u, λ) in the state
+    args.data.eq_handler.unknown().iter().for_each(|&eq| {
+        let iu = args.data.eq_handler.iu(eq);
+        args.state.u[eq] = u[iu];
+    });
+    args.state.lambda = l;
+
+    // Assemble the local Ke matrices into the global Ggu matrix
+    args.data
+        .elements
+        .assemble_kk_bar(ggu, &mut args.state, &args.data.eq_handler)?;
+    args.data
+        .boundaries
+        .assemble_kk_bar(ggu, &mut args.state, &args.data.eq_handler)?;
+    Ok(())
+}
+
+/// Function to calculate Gl = ∂G/∂λ using the System Partitioning Strategy (SPS)
+fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, args: &mut Args) -> Result<(), StrError> {
+    args.data.eq_handler.unknown().iter().for_each(|&eq| {
+        let iu = args.data.eq_handler.iu(eq);
+        ggl[iu] = -args.data.ls.ddff[eq];
+    });
+    Ok(())
 }

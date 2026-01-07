@@ -1,6 +1,16 @@
 use crate::StrError;
 use russell_lab::{Matrix, Vector};
+use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
+
+// The Systems Partitioning Strategy (SPS) considers the following partitioning:
+//
+// ┌       ┐ ┌   ┐   ┌   ┐
+// │ K̄   Ǩ │ │ ̄a │   │ f̄ │
+// │       │ │   │ = │   │
+// │ Ḵ   ̰K │ │ ǎ │   │ f̌ │
+// └       ┘ └   ┘   └   ┘
+//     K       a       f
 
 /// Assembles local vector into global vector
 ///
@@ -116,6 +126,171 @@ pub fn assemble_matrix(
                             kk.put(g, gg, kke.get(l, ll)).unwrap();
                         }
                     }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Increments the number of non-zeros on the global K-bar and K-check matrices for the System Partitioning Strategy (SPS)
+pub fn add_nnz_sps(
+    nnz_kk_bar: &mut usize,
+    nnz_kk_check: &mut usize,
+    sym: Sym,
+    local_to_global: &[usize],
+    eq_handler: &EquationHandler,
+) {
+    let n_equation_local = local_to_global.len();
+    match sym {
+        Sym::YesLower => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                if eq_handler.is_unknown(g) {
+                    for ll in 0..n_equation_local {
+                        let gg = local_to_global[ll];
+                        if eq_handler.is_unknown(gg) {
+                            if g >= gg {
+                                *nnz_kk_bar += 1;
+                            }
+                        } else {
+                            *nnz_kk_check += 1;
+                        }
+                    }
+                }
+            }
+        }
+        Sym::YesUpper => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                if eq_handler.is_unknown(g) {
+                    for ll in 0..n_equation_local {
+                        let gg = local_to_global[ll];
+                        if eq_handler.is_unknown(gg) {
+                            if g <= gg {
+                                *nnz_kk_bar += 1;
+                            }
+                        } else {
+                            *nnz_kk_check += 1;
+                        }
+                    }
+                }
+            }
+        }
+        Sym::YesFull | Sym::No => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                if eq_handler.is_unknown(g) {
+                    for ll in 0..n_equation_local {
+                        let gg = local_to_global[ll];
+                        if eq_handler.is_unknown(gg) {
+                            *nnz_kk_bar += 1;
+                        } else {
+                            *nnz_kk_check += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Assembles a local matrix into the global matrix using the System Partitioning Strategy (SPS)
+pub fn assemble_matrix_kk_bar(
+    kk_bar: &mut CooMatrix,
+    kke: &Matrix,
+    local_to_global: &[usize],
+    eq_handler: &EquationHandler,
+    symmetry_check_tolerance: Option<f64>,
+) -> Result<(), StrError> {
+    let n_equation_local = kke.dims().0;
+    // check symmetry of local matrices
+    let sym = kk_bar.get_info().3;
+    let symmetric = sym != Sym::No;
+    if symmetric {
+        if let Some(tol) = symmetry_check_tolerance {
+            for l in 0..n_equation_local {
+                for ll in (l + 1)..n_equation_local {
+                    if f64::abs(kke.get(l, ll) - kke.get(ll, l)) > tol {
+                        return Err("local matrix is not symmetric");
+                    }
+                }
+            }
+        }
+    }
+    // assemble
+    match sym {
+        Sym::YesLower => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                if eq_handler.is_unknown(g) {
+                    let i = eq_handler.iu(g);
+                    for ll in 0..n_equation_local {
+                        let gg = local_to_global[ll];
+                        if eq_handler.is_unknown(gg) {
+                            if g >= gg {
+                                let j = eq_handler.iu(gg);
+                                kk_bar.put(i, j, kke.get(l, ll)).unwrap();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Sym::YesUpper => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                if eq_handler.is_unknown(g) {
+                    let i = eq_handler.iu(g);
+                    for ll in 0..n_equation_local {
+                        let gg = local_to_global[ll];
+                        if eq_handler.is_unknown(gg) {
+                            if g <= gg {
+                                let j = eq_handler.iu(gg);
+                                kk_bar.put(i, j, kke.get(l, ll)).unwrap();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Sym::YesFull | Sym::No => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                if eq_handler.is_unknown(g) {
+                    let i = eq_handler.iu(g);
+                    for ll in 0..n_equation_local {
+                        let gg = local_to_global[ll];
+                        if eq_handler.is_unknown(gg) {
+                            let j = eq_handler.iu(gg);
+                            kk_bar.put(i, j, kke.get(l, ll)).unwrap();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Assembles a local matrix into the global matrix using the System Partitioning Strategy (SPS)
+pub fn assemble_matrix_kk_check(
+    kk_check: &mut CooMatrix,
+    kke: &Matrix,
+    local_to_global: &[usize],
+    eq_handler: &EquationHandler,
+) -> Result<(), StrError> {
+    let n_equation_local = kke.dims().0;
+    // loop over columns first, so that only prescribed columns are considered
+    for ll in 0..n_equation_local {
+        let gg = local_to_global[ll];
+        if eq_handler.is_prescribed(gg) {
+            let j = eq_handler.ip(gg);
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                if eq_handler.is_unknown(g) {
+                    let i = eq_handler.iu(g);
+                    kk_check.put(i, j, kke.get(l, ll)).unwrap();
                 }
             }
         }
