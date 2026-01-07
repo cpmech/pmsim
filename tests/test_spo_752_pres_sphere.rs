@@ -47,10 +47,10 @@ const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 
 const P_MAX_RES: f64 = 0.28; // maximum pressure achieved by the residual simulation before unloading completely to zero
-const PP_COLLAPSE: [f64; 4] = [0.15, 0.3, 0.33, 0.33269]; // inner pressure
-const PP_RESIDUAL: [f64; 3] = [0.15, P_MAX_RES, 0.0];
-const SELECT_STAGE_COLLAPSE: [usize; 3] = [0, 1, 2];
-const SELECT_STAGE_RESIDUAL: [usize; 1] = [2];
+const PP_COLLAPSE: [f64; 5] = [0.0, 0.15, 0.3, 0.33, 0.33269]; // inner pressure
+const PP_RESIDUAL: [f64; 4] = [0.0, 0.15, P_MAX_RES, 0.0];
+const SELECTED_P_COLLAPSE: [f64; 3] = [0.15, 0.3, 0.33];
+const SELECTED_P_RESIDUAL: [f64; 1] = [0.0];
 
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
@@ -114,12 +114,12 @@ fn run_test(
     // natural boundary conditions and configuration
     let mut natural = BcNatural::new();
     let name = if residual {
-        natural.edges_fn(&inner_circle, Nbc::Qn, |stage, _| -PP_RESIDUAL[stage]);
-        config.set_steady(PP_RESIDUAL.len());
+        natural.edges_fn(&inner_circle, Nbc::Qn, |t| -PP_RESIDUAL[t as usize]);
+        config.set_steady(PP_RESIDUAL.len() - 1);
         NAME_RESIDUAL
     } else {
-        natural.edges_fn(&inner_circle, Nbc::Qn, |stage, _| -PP_COLLAPSE[stage]);
-        config.set_steady(PP_COLLAPSE.len());
+        natural.edges_fn(&inner_circle, Nbc::Qn, |t| -PP_COLLAPSE[t as usize]);
+        config.set_steady(PP_COLLAPSE.len() - 1);
         NAME_COLLAPSE
     };
     config.set_out_files("/tmp/pmsim", name, 1.0);
@@ -157,18 +157,10 @@ fn run_test(
 
 fn analyze_results(residual: bool) -> Result<(), StrError> {
     // select constants
-    let (name, pp_array, select_stage) = if residual {
-        (
-            NAME_RESIDUAL,
-            Vec::from(&PP_RESIDUAL),
-            Vec::from(&SELECT_STAGE_RESIDUAL),
-        )
+    let (name, pp_array, selected_pp) = if residual {
+        (NAME_RESIDUAL, Vec::from(&PP_RESIDUAL), Vec::from(&SELECTED_P_RESIDUAL))
     } else {
-        (
-            NAME_COLLAPSE,
-            Vec::from(&PP_COLLAPSE),
-            Vec::from(&SELECT_STAGE_COLLAPSE),
-        )
+        (NAME_COLLAPSE, Vec::from(&PP_COLLAPSE), Vec::from(&SELECTED_P_COLLAPSE))
     };
 
     // load summary and associated files
@@ -197,9 +189,10 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
     for index in 1..post.n_state() {
         // load state
         let state = post.read_state(index)?;
+        let idx = state.time as usize;
 
         // pressure
-        let pp = pp_array[state.step];
+        let pp = pp_array[idx];
         inner_pp[index] = pp;
 
         // radial displacement
@@ -213,7 +206,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
         })?;
 
         // convert to polar coordinates and compare with analytical solution
-        if select_stage.contains(&state.step) {
+        if selected_pp.contains(&pp) {
             pp_arr.push(pp);
             sh_arr.push(Vec::new());
             sr_arr.push(Vec::new());

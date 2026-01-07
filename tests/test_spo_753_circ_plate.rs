@@ -9,11 +9,11 @@ use russell_lab::{approx_eq, array_approx_eq};
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
-const SAVE_FIGURE: bool = false;
+const SAVE_FIGURE: bool = true;
 const VERBOSE_LEVEL: usize = 0;
 
-const PP: [f64; 12] = [
-    100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
+const PP: [f64; 13] = [
+    0.0, 100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
 ];
 const RADIUS: f64 = 10.0;
 const THICKNESS: f64 = 1.0;
@@ -63,14 +63,14 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut natural = BcNatural::new();
-    natural.edges_fn(&top, Nbc::Qn, |stage, _| -PP[stage]);
+    natural.edges_fn(&top, Nbc::Qn, |t| -PP[t as usize]);
 
     // configuration
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", NAME, 1.0)
         .set_axisymmetric()
-        .set_steady(PP.len())
+        .set_steady(PP.len() - 1)
         .set_lagrange_mult_method(true)
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_max_iterations(20);
@@ -131,9 +131,10 @@ fn analyze_results() -> Result<(), StrError> {
     for index in 0..nstep_max {
         // load state
         let state = post.read_state(index)?;
+        let idx = state.time as usize;
 
         // load
-        let pp = PP[state.step];
+        let pp = PP[idx];
         load[index] = pp;
 
         // deflection

@@ -188,7 +188,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
     }
 
     /// Calculates the elemental vector of external forces Fe
-    fn calc_ffe(&mut self, _ffe: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
+    fn calc_ffe(&mut self, _ffe: &mut Vector, _time: f64) -> Result<(), StrError> {
         Ok(())
     }
 
@@ -224,7 +224,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRodGnl;
-    use crate::base::{Config, BcEssential, GnlStrain, ParamRod, Schema};
+    use crate::base::{BcEssential, Config, GnlStrain, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, Draw, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};

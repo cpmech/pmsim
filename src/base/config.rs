@@ -82,7 +82,7 @@ pub struct Config<'a> {
     /// const GRAVITY: f64 = 10.0;
     /// config.set_gravity(GRAVITY);
     /// ```
-    pub(crate) gravity: Option<Box<dyn Fn(usize, f64) -> f64 + 'a>>,
+    pub(crate) gravity: Option<Box<dyn Fn(f64) -> f64 + 'a>>,
 
     /// Option to initialize all stress states
     pub(crate) initialization: Init,
@@ -588,7 +588,7 @@ impl<'a> Config<'a> {
     /// const GRAVITY: f64 = 10.0;
     /// config.set_gravity(GRAVITY);
     /// ```
-    pub fn set_gravity(&mut self, gravity_function: impl Fn(usize, f64) -> f64 + 'a) -> &mut Self {
+    pub fn set_gravity(&mut self, gravity_function: impl Fn(f64) -> f64 + 'a) -> &mut Self {
         self.gravity = Some(Box::new(gravity_function));
         self
     }

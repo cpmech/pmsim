@@ -1,4 +1,4 @@
-use super::{BcConcentratedArray, BcDistributedArray, Elements, FemState, LinearSystem};
+use super::{BcDistributedArray, Elements, FemState, LinearSystem};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -22,10 +22,10 @@ pub(crate) struct FemData<'a> {
     /// Holds the functions to calculate the prescribed values
     ///
     /// len = n_prescribed; use eq_handler.ip() to access an entry in this array
-    pub(crate) p_functions: Vec<Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>>,
+    pub(crate) presc_values: Vec<Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>>,
 
-    // Holds a collection of concentrated loads
-    pub(crate) bc_concentrated: BcConcentratedArray<'a>,
+    /// Holds pairs of (eq, fn) to calculate concentrated loads
+    pub(crate) conc_loads: Vec<(usize, Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>)>,
 
     // Holds a collection of boundary integration data
     pub(crate) bc_distributed: BcDistributedArray<'a>,
@@ -55,7 +55,7 @@ impl<'a> FemData<'a> {
         essential: &'a BcEssential,
         natural: &'a BcNatural,
     ) -> Result<Self, StrError> {
-        // check
+        // Check
         if let Some(msg) = config.validate() {
             println!("ERROR: {}", msg);
             return Err("cannot start simulation because config.validate() failed");
@@ -76,20 +76,26 @@ impl<'a> FemData<'a> {
         eq_handler.recompute(&p_list);
 
         // Allocate array of functions to calculate prescribed values
-        let mut p_functions = Vec::with_capacity(n_prescribed);
+        let mut presc_values = Vec::with_capacity(n_prescribed);
         for eq in eq_handler.prescribed() {
             let point_dof = eq_to_dof.get(eq).unwrap();
             let f = essential.functions.get(point_dof).unwrap();
-            p_functions.push(f.clone());
+            presc_values.push(f.clone());
         }
 
-        // allocate auxiliary instances
-        let bc_concentrated = BcConcentratedArray::new(schema, natural)?;
+        // Allocate array of concentrated loads
+        let mut conc_loads = Vec::with_capacity(natural.at_points.len());
+        for (point_id, pbc, f) in &natural.at_points {
+            let eq = schema.get_eq(*point_id, pbc.dof())?;
+            conc_loads.push((eq, f.clone()));
+        }
+
+        // Allocate auxiliary instances
         let bc_distributed = BcDistributedArray::new(mesh, schema, config, natural)?;
         let elements = Elements::new(mesh, schema, config)?;
         let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &bc_distributed)?;
 
-        // array to ignore prescribed equations when building the reduced system
+        // Array to ignore prescribed equations when building the reduced system
         let ndof = eq_handler.neq(); // number of DOFs = n_equation without Lagrange multipliers
         let mut ignored_eqs = vec![false; ndof];
         if !config.lagrange_mult_method {
@@ -98,7 +104,7 @@ impl<'a> FemData<'a> {
             }
         };
 
-        // collect the unknown equations
+        // Collect the unknown equations
         let neq_total = linear_system.neq_total;
         let unknown_eqs: Vec<_> = (0..neq_total)
             .filter(|&eq| config.lagrange_mult_method || !ignored_eqs[eq])
@@ -109,8 +115,8 @@ impl<'a> FemData<'a> {
             schema,
             config,
             eq_handler,
-            p_functions,
-            bc_concentrated,
+            presc_values,
+            conc_loads,
             bc_distributed,
             elements,
             ls: linear_system,
@@ -142,7 +148,7 @@ impl<'a> FemData<'a> {
     /// F_old := F(t)
     /// ΔF = F(t+Δt) - F(t)
     /// ```
-    pub fn calc_ff_and_ddff(&mut self, step: usize, time: f64) -> Result<bool, StrError> {
+    pub fn calc_ff_and_ddff(&mut self, time: f64) -> Result<bool, StrError> {
         // make a copy of F and ΔF
         vec_copy(&mut self.ls.ff_old, &self.ls.ff).unwrap();
         vec_copy(&mut self.ls.ddff_old, &self.ls.ddff).unwrap();
@@ -153,15 +159,16 @@ impl<'a> FemData<'a> {
         self.ls.ff.fill(0.0);
 
         // calculate all element local vectors
-        self.elements
-            .assemble_ff(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
+        self.elements.assemble_ff(&mut self.ls.ff, time, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
         self.bc_distributed
-            .assemble_ff(&mut self.ls.ff, step, time, &self.ignored_eqs)?;
+            .assemble_ff(&mut self.ls.ff, time, &self.ignored_eqs)?;
 
         // add concentrated loads
-        self.bc_concentrated.add_to_ff(&mut self.ls.ff, step, time);
+        for (eq, f) in &self.conc_loads {
+            self.ls.ff[*eq] += (f)(time);
+        }
 
         // ------------------------------------------------------------------------
 
@@ -228,7 +235,7 @@ impl<'a> FemData<'a> {
             let i = self.eq_handler.prescribed()[ip];
             let j = neq + ip;
             let lag = state.u[j];
-            let val = self.p_functions[ip](state.time);
+            let val = self.presc_values[ip](state.time);
             rr[i] += lag; // Aᵀ λ  →  1 * λ
             rr[j] = state.u[i] - val; // A u - c  →  1 * u - c
         }

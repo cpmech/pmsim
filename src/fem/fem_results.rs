@@ -23,9 +23,6 @@ pub struct FemResults {
     /// Real simulation times corresponding to each output file
     pub times: Vec<f64>,
 
-    /// Step number for selected points and cells
-    pub sel_step: Vec<usize>,
-
     /// Time for selected points and cells
     pub sel_time: Vec<f64>,
 
@@ -66,7 +63,6 @@ impl FemResults {
             indices: Vec::new(),
             times: Vec::new(),
             sel_time: Vec::new(),
-            sel_step: Vec::new(),
             sel_lambda: Vec::new(),
             sel_dof: HashMap::new(),
             sel_local_flux: HashMap::new(),
@@ -150,7 +146,6 @@ impl FemResults {
     pub(crate) fn save_selected(&mut self, config: &Config, schema: &Schema, state: &FemState) -> Result<(), StrError> {
         if config.out_has_selected {
             // step, time, and lambda
-            self.sel_step.push(state.step);
             self.sel_time.push(state.time);
             self.sel_lambda.push(state.lambda);
 

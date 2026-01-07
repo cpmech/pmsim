@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
-use super::{FemResults, FemState, FemData};
+use super::ControlStepper;
+use super::{FemData, FemResults, FemState};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -101,6 +101,60 @@ fn update_secondary_state(do_backup: bool, u0: &Vector, u1: &Vector, args: &mut 
     Ok(false)
 }
 
+pub fn solve_steady_linear<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
+) -> Result<FemState, StrError> {
+    Err("TODO: solve_steady_linear")
+}
+
+pub fn solve_steady_nonlinear<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
+    loading_factors: &[f64],
+) -> Result<FemState, StrError> {
+    Err("TODO: solve_steady_nonlinear")
+}
+
+pub fn solve_steady_arclength<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
+    ini_dir: IniDir,
+    stop: Stop,
+    auto_step: AutoStep,
+) -> Result<FemState, StrError> {
+    Err("TODO: solve_steady_arclength")
+}
+
+pub fn solve_transient_linear<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
+) -> Result<FemState, StrError> {
+    Err("TODO: solve_transient_linear")
+}
+
+pub fn solve_transient_nonlinear<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
+) -> Result<FemState, StrError> {
+    Err("TODO: solve_transient_nonlinear")
+}
+
 /// Solves the finite element method problem
 pub fn solve<'a>(
     mesh: &Mesh,
@@ -155,8 +209,6 @@ pub fn solve<'a>(
 
     // time loop
     for step in 0..config.max_steps {
-        args.state.step = step;
-
         // done if last (time) step
         if stepper.last() {
             break;
@@ -178,7 +230,7 @@ pub fn solve<'a>(
         }
 
         // assemble external forces vector F (also updates the load reversal flag)
-        args.state.reverse = args.com.calc_ff_and_ddff(args.state.step, args.state.time)?;
+        args.state.reverse = args.com.calc_ff_and_ddff(args.state.time)?;
 
         // solve nonlinear equations
         let status = match nl_solver.solve(
@@ -193,6 +245,7 @@ pub fn solve<'a>(
             Ok(s) => s,
             Err(e) => {
                 println!("\n❌ SIMULATION FAILED ❌\n");
+                println!("Reason: {}\n", e);
                 let _ = results.write_state(&config, &args.state);
                 let _ = results.write_self(&config);
                 break;

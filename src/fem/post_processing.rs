@@ -1219,7 +1219,7 @@ mod tests {
         generate_horizontal_displacement_field, generate_scalar_field_ax_plus_by, generate_shear_displacement_field,
         generate_vertical_displacement_field, Conductivity,
     };
-    use crate::base::{Config, Dof, BcEssential, ParamDiffusion, ParamSolid, Schema, StressStrain};
+    use crate::base::{BcEssential, Config, Dof, ParamDiffusion, ParamSolid, Schema, StressStrain};
     use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemResults, FemState};
     use crate::StrError;
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
@@ -1630,7 +1630,6 @@ mod tests {
         }
 
         // check selected step, time and loading factor
-        assert_eq!(&post.results.sel_step, &[0]);
         assert_eq!(&post.results.sel_time, &[0.0]);
         assert_eq!(&post.results.sel_lambda, &[0.0]);
 
@@ -1679,7 +1678,6 @@ mod tests {
         }
 
         // check selected step, time and loading factor
-        assert_eq!(&post.results.sel_step, &[0]);
         assert_eq!(&post.results.sel_time, &[0.0]);
         assert_eq!(&post.results.sel_lambda, &[0.0]);
 
@@ -1748,7 +1746,6 @@ mod tests {
         }
 
         // check selected step, time and loading factor
-        assert_eq!(&post.results.sel_step, &[0, 0, 0]);
         assert_eq!(&post.results.sel_time, &[0.0, 1.0, 2.0]);
         assert_eq!(&post.results.sel_lambda, &[0.0, 0.0, 0.0]);
 

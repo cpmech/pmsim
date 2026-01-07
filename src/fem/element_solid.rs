@@ -142,7 +142,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Calculates the elemental vector of external forces Fe
-    fn calc_ffe(&mut self, ffe: &mut Vector, step: usize, time: f64) -> Result<(), StrError> {
+    fn calc_ffe(&mut self, ffe: &mut Vector, time: f64) -> Result<(), StrError> {
         if let Some(gravity) = self.config.gravity.as_ref() {
             // constants
             let ndim = self.config.ndim;
@@ -161,7 +161,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             //       Ωₑ
             integ::vec_02_nv(ffe, &mut args, |b, _, _| {
                 b.fill(0.0);
-                b[ndim - 1] = rho * (-gravity(step, time)); // ρ·(-g)
+                b[ndim - 1] = rho * (-gravity(time)); // ρ·(-g)
                 Ok(())
             })?;
         }
@@ -280,7 +280,7 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, BcEssential, ParamSolid, Schema, StressStrain};
+    use crate::base::{BcEssential, Config, ParamSolid, Schema, StressStrain};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
@@ -694,7 +694,7 @@ mod tests {
         config.ideal.axisymmetric = true;
 
         // vertical acceleration (must be positive)
-        config.set_gravity(|_, _| 0.5); // 1/2 because rho = 2
+        config.set_gravity(|_| 0.5); // 1/2 because rho = 2
 
         // element
         let mut elem = ElementSolid::new(&mesh, &schema, &config, &p1, 0).unwrap();
@@ -707,7 +707,7 @@ mod tests {
         let mut yye_minus_ffe = Vector::new(neq);
         elem.initialize_internal_values(&mut state).unwrap();
         elem.calc_yye(&mut yye, &state).unwrap();
-        elem.calc_ffe(&mut ffe, state.step, state.time).unwrap();
+        elem.calc_ffe(&mut ffe, state.time).unwrap();
         vec_add(&mut yye_minus_ffe, 1.0, &yye, -1.0, &ffe).unwrap();
 
         // check residual vector

@@ -104,7 +104,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
     }
 
     /// Calculates the elemental vector of external forces Fe
-    fn calc_ffe(&mut self, _ffe: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
+    fn calc_ffe(&mut self, _ffe: &mut Vector, _time: f64) -> Result<(), StrError> {
         Ok(())
     }
 
@@ -136,7 +136,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, Config, BcEssential, ParamRod, Schema};
+    use crate::base::{assemble_matrix, BcEssential, Config, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
     use russell_lab::math::SQRT_2;

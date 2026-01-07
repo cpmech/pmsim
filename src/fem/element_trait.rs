@@ -17,7 +17,7 @@ pub trait ElementTrait {
     fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError>;
 
     /// Calculates the elemental vector of external forces Fe
-    fn calc_ffe(&mut self, ffe: &mut Vector, step: usize, time: f64) -> Result<(), StrError>;
+    fn calc_ffe(&mut self, ffe: &mut Vector, time: f64) -> Result<(), StrError>;
 
     /// Calculates the elemental Jacobian matrix Ke
     fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError>;

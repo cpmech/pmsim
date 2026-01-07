@@ -168,7 +168,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Calculates the elemental vector of external forces Fe
-    fn calc_ffe(&mut self, ffe: &mut Vector, _step: usize, _time: f64) -> Result<(), StrError> {
+    fn calc_ffe(&mut self, ffe: &mut Vector, _time: f64) -> Result<(), StrError> {
         if let Some(s) = self.param.source {
             // arguments for the integrator
             let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
@@ -290,7 +290,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Conductivity, Config, BcEssential, ParamDiffusion, Schema};
+    use crate::base::{BcEssential, Conductivity, Config, ParamDiffusion, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
@@ -451,7 +451,7 @@ mod tests {
 
         // check Fe vector
         let mut ffe = Vector::new(neq);
-        elem.calc_ffe(&mut ffe, state.step, state.time).unwrap();
+        elem.calc_ffe(&mut ffe, state.time).unwrap();
         let correct_ffe = ana.vec_01_ns(source, false);
         vec_approx_eq(&ffe, &correct_ffe, 1e-15);
     }
@@ -518,7 +518,7 @@ mod tests {
 
         // check Fe vector
         let mut ffe = Vector::new(neq);
-        elem.calc_ffe(&mut ffe, state.step, state.time).unwrap();
+        elem.calc_ffe(&mut ffe, state.time).unwrap();
         let correct_ffe = Vector::from(&ana.vec_01_ns(source));
         vec_approx_eq(&ffe, &correct_ffe, 1e-15);
     }

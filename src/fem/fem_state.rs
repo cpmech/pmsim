@@ -13,9 +13,6 @@ use std::path::Path;
 /// Holds the state of a simulation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemState {
-    /// Current (time) step
-    pub step: usize,
-
     /// Loading factor λ
     pub lambda: f64,
 
@@ -200,7 +197,6 @@ impl FemState {
 
         // allocate new instance
         Ok(FemState {
-            step: 0,
             lambda: 0.0,
             ddl: 0.0,
             reverse: false,

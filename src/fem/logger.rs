@@ -63,7 +63,7 @@ impl<'a> Logger<'a> {
     /// Prints (time) step information
     pub fn step(&self, increment: usize, state: &FemState) {
         if self.verbose {
-            let s = state.step + 1;
+            let s = 0;
             if increment == 0 {
                 let str_rev = if state.reverse { "🔙" } else { "" };
                 println!("{:>8} {:>8.3e} {:>8.3e}  {}", s, state.time, state.ddt, str_rev);

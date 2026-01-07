@@ -141,9 +141,9 @@ impl<'a> Elements<'a> {
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_ff(&mut self, ff: &mut Vector, step: usize, time: f64, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_ff(&mut self, ff: &mut Vector, time: f64, ignore: &[bool]) -> Result<(), StrError> {
         for e in &mut self.all {
-            e.actual.calc_ffe(&mut e.ffe, step, time)?;
+            e.actual.calc_ffe(&mut e.ffe, time)?;
             assemble_vector(ff, &e.ffe, &e.actual.local_to_global(), ignore);
         }
         Ok(())
@@ -516,7 +516,7 @@ mod tests {
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
         let ignore = vec![false; neq];
         elements.assemble_yy(&mut yye, &state, &ignore).unwrap();
-        elements.assemble_ff(&mut ffe, state.step, state.time, &ignore).unwrap();
+        elements.assemble_ff(&mut ffe, state.time, &ignore).unwrap();
         elements.assemble_kk(&mut kk, &state, &ignore).unwrap();
         vec_add(&mut rr, 1.0, &yye, -1.0, &ffe).unwrap();
         let kk_mat = kk.as_dense();

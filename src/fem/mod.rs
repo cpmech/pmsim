@@ -1,6 +1,5 @@
 //! Implements the finite element method
 
-mod bc_concentrated;
 mod bc_distributed;
 mod control_loader;
 mod control_residual;
@@ -19,11 +18,11 @@ mod logger;
 mod paraview;
 mod post_processing;
 mod secondary_values;
+mod solver;
 mod solver_new;
 mod solver_old;
 mod stats;
 
-pub use bc_concentrated::*;
 pub use bc_distributed::*;
 use control_loader::*;
 use control_residual::*;
@@ -42,6 +41,7 @@ use logger::*;
 use paraview::*;
 pub use post_processing::*;
 pub use secondary_values::*;
+pub use solver::*;
 pub use solver_new::*;
 pub use solver_old::*;
 use stats::*;

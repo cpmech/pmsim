@@ -130,9 +130,7 @@ impl<'a> SolverOld<'a> {
     /// Performs the solution process
     fn do_solve(&mut self, state: &mut FemState, results: &mut FemResults) -> Result<(), StrError> {
         // time/step loop
-        for step in 0..self.config.max_steps {
-            state.step = step;
-
+        for _ in 0..self.config.max_steps {
             // done if last (time) step
             if self.stepper.last() {
                 break;
@@ -147,7 +145,7 @@ impl<'a> SolverOld<'a> {
             }
 
             // assemble external forces vector F (also updates the load reversal flag)
-            state.reverse = self.com.calc_ff_and_ddff(state.step, state.time)?;
+            state.reverse = self.com.calc_ff_and_ddff(state.time)?;
 
             // initialize λ and Δλ
             self.loader.initialize(state);
@@ -282,7 +280,7 @@ impl<'a> SolverOld<'a> {
                 let i = self.com.eq_handler.prescribed()[ip];
                 let j = neq + ip;
                 let lag = state.u[j];
-                let val = self.com.p_functions[ip](state.time);
+                let val = self.com.presc_values[ip](state.time);
                 self.com.ls.rr[i] += lag; // Aᵀ λ  →  1 * λ
                 self.com.ls.rr[j] = state.u[i] - val; // A u - c  →  1 * u - c
             }

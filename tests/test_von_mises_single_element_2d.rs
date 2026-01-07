@@ -121,15 +121,14 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let l0 = 1.0; // initial length of the element
     let ss = results.get_local_state(0).unwrap();
     let mut zz = vec![0.0; results.sel_time.len()];
-    for i in 0..results.sel_step.len() {
+    for i in 0..results.sel_time.len() {
         let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
         let time = results.sel_time[i];
         if time == 0.0 {
             assert_eq!(ey, 0.0);
             continue;
         }
-        let step = results.sel_step[i];
-        if step == 0 {
+        if time == 1.0 {
             assert_eq!(ss[i].elastic, true);
         } else {
             assert_eq!(ss[i].elastic, false);
