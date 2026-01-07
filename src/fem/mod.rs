@@ -1,6 +1,5 @@
 //! Implements the finite element method
 
-mod bc_distributed;
 mod control_loader;
 mod control_residual;
 mod control_stepper;
@@ -10,6 +9,7 @@ mod element_rod_gnl;
 mod element_solid;
 mod element_trait;
 mod elements;
+mod elements_boundary;
 mod fem_data;
 mod fem_results;
 mod fem_state;
@@ -23,7 +23,6 @@ mod solver_new;
 mod solver_old;
 mod stats;
 
-pub use bc_distributed::*;
 use control_loader::*;
 use control_residual::*;
 use control_stepper::*;
@@ -33,6 +32,7 @@ pub use element_rod_gnl::*;
 pub use element_solid::*;
 pub use element_trait::*;
 pub use elements::*;
+pub use elements_boundary::*;
 use fem_data::*;
 pub use fem_results::*;
 pub use fem_state::*;
