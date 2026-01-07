@@ -10,7 +10,6 @@ mod constants;
 mod enums;
 mod idealization;
 mod parameters;
-mod parameters_new;
 mod sample_meshes;
 mod schema;
 mod testing;
@@ -25,7 +24,6 @@ pub use constants::*;
 pub use enums::*;
 pub use idealization::*;
 pub use parameters::*;
-pub use parameters_new::*;
 pub use sample_meshes::*;
 pub use schema::*;
 
