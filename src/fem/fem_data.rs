@@ -1,4 +1,4 @@
-use super::{ElementsBoundary, ElementsInterior, FemState, LinearSystem};
+use super::{ElementsBoundary, ElementsInterior, FemState, LinearSystem, OutputFiles};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -41,6 +41,9 @@ pub(crate) struct FemData<'a> {
 
     /// Unknown equation numbers
     pub(crate) unknown_eqs: Vec<usize>,
+
+    /// Handles output files
+    pub(crate) files: OutputFiles,
 
     /// Stopwatch to measure computer time
     pub(crate) stopwatch: Stopwatch,
@@ -127,6 +130,9 @@ impl<'a> FemData<'a> {
             .filter(|&eq| config.lagrange_mult_method || !ignored_eqs[eq])
             .collect();
 
+        // Allocate output files handler
+        let files = OutputFiles::new(mesh, schema, config)?;
+
         // Allocate K-check matrix for SPS
         let kk_check = if config.lagrange_mult_method || n_prescribed == 0 {
             CooMatrix::new(1, 1, 1, Sym::No).unwrap() // empty
@@ -148,6 +154,7 @@ impl<'a> FemData<'a> {
             ls: linear_system,
             ignored_eqs,
             unknown_eqs,
+            files,
             stopwatch: Stopwatch::new(),
             kk_check,
         })

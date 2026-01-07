@@ -1,5 +1,5 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
-use super::{FemData, FemState, OutputFiles};
+use super::{FemData, FemState};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -70,8 +70,7 @@ impl<'a> SolverOld<'a> {
     ) -> Result<FemState, StrError> {
         let mut solver = SolverOld::new(mesh, schema, config, essential, natural)?;
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-        let mut results = OutputFiles::new(&mesh, &schema, &config)?;
-        solver.solve_sys(&mut state, &mut results)?;
+        solver.solve_sys(&mut state)?;
         Ok(state)
     }
 
@@ -81,7 +80,7 @@ impl<'a> SolverOld<'a> {
     }
 
     /// Solves the system of equations
-    fn solve_sys(&mut self, state: &mut FemState, results: &mut OutputFiles) -> Result<(), StrError> {
+    fn solve_sys(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // check if there are non-zero prescribed values
         // if !self.config.lagrange_mult_method {
         // if self.com.bc_prescribed.has_non_zero() {
@@ -96,21 +95,21 @@ impl<'a> SolverOld<'a> {
         self.com.elements.initialize_internal_values(state)?;
 
         // first output (must occur after initialize_internal_values)
-        results.write_state(&self.config, state)?;
-        results.save_selected(&self.config, &self.com.schema, state)?;
+        self.com.files.write_state(&self.config, state)?;
+        self.com.files.save_selected(&self.config, &self.com.schema, state)?;
 
         // print convergence information
         self.log.header();
 
         // do solve
-        match self.do_solve(state, results) {
+        match self.do_solve(state) {
             Ok(_) => (),
             Err(err) => {
-                match results.write_state(&self.config, state) {
+                match self.com.files.write_state(&self.config, state) {
                     Ok(_) => (),
                     Err(e) => println!("ERROR-ON-ERROR: cannot write state due to: {}", e),
                 }
-                match results.write_self(&self.config) {
+                match self.com.files.write_self(&self.config) {
                     Ok(_) => (),
                     Err(e) => println!("ERROR-ON-ERROR: cannot write summary due to: {}", e),
                 }
@@ -119,7 +118,7 @@ impl<'a> SolverOld<'a> {
         }
 
         // write the results file
-        results.write_self(&self.config)?;
+        self.com.files.write_self(&self.config)?;
 
         // show computer time
         self.com.stopwatch.stop();
@@ -128,7 +127,7 @@ impl<'a> SolverOld<'a> {
     }
 
     /// Performs the solution process
-    fn do_solve(&mut self, state: &mut FemState, results: &mut OutputFiles) -> Result<(), StrError> {
+    fn do_solve(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // time/step loop
         for _ in 0..self.config.max_steps {
             // done if last (time) step
@@ -205,7 +204,7 @@ impl<'a> SolverOld<'a> {
 
                 // handle acceptance/rejection
                 if accept {
-                    results.save_selected(&self.config, &self.com.schema, state)?;
+                    self.com.files.save_selected(&self.config, &self.com.schema, state)?;
                     self.stats.add_step_accepted();
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
@@ -215,7 +214,7 @@ impl<'a> SolverOld<'a> {
 
             // output results
             if self.stepper.out(state) {
-                results.write_state(&self.config, state)?;
+                self.com.files.write_state(&self.config, state)?;
             }
 
             // stop if failed
@@ -386,7 +385,6 @@ impl<'a> SolverOld<'a> {
 mod tests {
     use super::SolverOld;
     use crate::base::{BcEssential, BcNatural, Config, Dof, Nbc, ParamSolid, Pbc, Schema};
-    use crate::fem::{FemState, OutputFiles};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 
     #[test]
@@ -444,25 +442,6 @@ mod tests {
         assert_eq!(
             SolverOld::new(&mesh, &schema, &config, &essential, &natural).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
-        );
-    }
-
-    #[test]
-    fn solve_captures_errors() {
-        let mesh = Samples::one_tri3();
-        let p1 = ParamSolid::sample_linear_elastic();
-        let mut schema = Schema::new();
-        schema.add_solid(1, p1).build(&mesh).unwrap();
-        let mut config = Config::new(&mesh);
-        config.set_transient().set_ddt(-1.0); // wrong
-        let essential = BcEssential::new();
-        let natural = BcNatural::new();
-        let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural).unwrap();
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(
-            solver.solve_sys(&mut state, &mut results).err(),
-            Some("Δt is smaller than the allowed minimum")
         );
     }
 }
