@@ -14,5 +14,5 @@ TESTS=(
 mkdir -p /tmp/pmsim
 for test in "${TESTS[@]}"; do
     cargo test --test "$test" -- --nocapture > "/tmp/pmsim/out-${test}.txt"
-    # mv "/tmp/pmsim/out-${test}.txt" "data/logs/${test}.txt"
+    # mv "/tmp/pmsim/out-${test}.txt" "data/logs/"
 done
