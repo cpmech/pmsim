@@ -82,7 +82,7 @@ pub fn main() -> Result<(), StrError> {
     let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
 
     // FEM results
-    let mut results = FemResults::new(&mesh, &schema, &config)?;
+    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
 
     // solution
     let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;

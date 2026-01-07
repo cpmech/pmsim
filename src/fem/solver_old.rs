@@ -1,5 +1,5 @@
 use super::{ControlLoader, ControlResidual, ControlStepper, Logger, Stats};
-use super::{FemData, FemResults, FemState};
+use super::{FemData, OutputFiles, FemState};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -70,7 +70,7 @@ impl<'a> SolverOld<'a> {
     ) -> Result<FemState, StrError> {
         let mut solver = SolverOld::new(mesh, schema, config, essential, natural)?;
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-        let mut results = FemResults::new(&mesh, &schema, &config)?;
+        let mut results = OutputFiles::new(&mesh, &schema, &config)?;
         solver.solve_sys(&mut state, &mut results)?;
         Ok(state)
     }
@@ -81,7 +81,7 @@ impl<'a> SolverOld<'a> {
     }
 
     /// Solves the system of equations
-    pub fn solve_sys(&mut self, state: &mut FemState, results: &mut FemResults) -> Result<(), StrError> {
+    pub fn solve_sys(&mut self, state: &mut FemState, results: &mut OutputFiles) -> Result<(), StrError> {
         // check if there are non-zero prescribed values
         // if !self.config.lagrange_mult_method {
         // if self.com.bc_prescribed.has_non_zero() {
@@ -128,7 +128,7 @@ impl<'a> SolverOld<'a> {
     }
 
     /// Performs the solution process
-    fn do_solve(&mut self, state: &mut FemState, results: &mut FemResults) -> Result<(), StrError> {
+    fn do_solve(&mut self, state: &mut FemState, results: &mut OutputFiles) -> Result<(), StrError> {
         // time/step loop
         for _ in 0..self.config.max_steps {
             // done if last (time) step
@@ -386,7 +386,7 @@ impl<'a> SolverOld<'a> {
 mod tests {
     use super::SolverOld;
     use crate::base::{BcEssential, BcNatural, Config, Dof, Nbc, ParamSolid, Pbc, Schema};
-    use crate::fem::{FemResults, FemState};
+    use crate::fem::{OutputFiles, FemState};
     use gemlab::mesh::{Edge, GeoKind, Samples};
 
     #[test]
@@ -459,7 +459,7 @@ mod tests {
         let natural = BcNatural::new();
         let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural).unwrap();
         let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
+        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
         assert_eq!(
             solver.solve_sys(&mut state, &mut results).err(),
             Some("Δt is smaller than the allowed minimum")

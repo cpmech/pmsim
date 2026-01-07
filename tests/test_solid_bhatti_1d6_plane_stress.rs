@@ -99,7 +99,7 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
         Vector::from(&&state.u.as_data()[..12])
     } else {
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-        let mut results = FemResults::new(&mesh, &schema, &config)?;
+        let mut results = OutputFiles::new(&mesh, &schema, &config)?;
         let mut solver = SolverOld::new(&mesh, &schema, &config, &essential, &natural)?;
         solver.solve_sys(&mut state, &mut results)?;
         Vector::from(&&state.u.as_data()[..12])

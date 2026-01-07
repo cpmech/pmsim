@@ -13,7 +13,7 @@ use std::path::Path;
 
 /// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FemResults {
+pub struct OutputFiles {
     /// Number of files written
     counter: usize,
 
@@ -45,7 +45,7 @@ pub struct FemResults {
     sel_local_state: HashMap<CellId, Vec<LocalState>>,
 }
 
-impl FemResults {
+impl OutputFiles {
     /// Allocates a new instance with deactivated generation of files
     pub fn new(mesh: &Mesh, schema: &Schema, config: &Config) -> Result<Self, StrError> {
         if config.out_files {
@@ -58,7 +58,7 @@ impl FemResults {
             // write the FEM base
             schema.write_json(&format!("{}/{}-schema.json", config.out_dir, config.out_fn_stem))?;
         }
-        Ok(FemResults {
+        Ok(OutputFiles {
             counter: 0,
             indices: Vec::new(),
             times: Vec::new(),

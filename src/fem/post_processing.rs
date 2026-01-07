@@ -1,4 +1,4 @@
-use super::{write_pvd, write_vtu, FemResults, FemState};
+use super::{write_pvd, write_vtu, OutputFiles, FemState};
 use crate::base::{Dof, Schema};
 use crate::util::{SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
 use crate::StrError;
@@ -20,7 +20,7 @@ pub struct PostProc {
     fn_stem: String,
 
     /// Holds the FemResults instance
-    results: FemResults,
+    results: OutputFiles,
 
     /// Holds the Mesh
     mesh: Mesh,
@@ -61,7 +61,7 @@ impl PostProc {
     /// Returns an error if any of the files cannot be read or parsed.
     pub fn new(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
         // load results
-        let results = FemResults::read_json(&format!("{}/{}.json", dir, fn_stem))?;
+        let results = OutputFiles::read_json(&format!("{}/{}.json", dir, fn_stem))?;
 
         // reads the mesh
         let mesh = Mesh::read(&format!("{}/{}-mesh.msh", dir, fn_stem))?;
@@ -1220,7 +1220,7 @@ mod tests {
         generate_vertical_displacement_field, Conductivity,
     };
     use crate::base::{BcEssential, Config, Dof, ParamDiffusion, ParamSolid, Schema, StressStrain};
-    use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemResults, FemState};
+    use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, OutputFiles, FemState};
     use crate::StrError;
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
@@ -1372,7 +1372,7 @@ mod tests {
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
-        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
+        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
@@ -1425,7 +1425,7 @@ mod tests {
         let (point_id, cell_id) = (10, 1);
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
-        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
+        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
@@ -1496,7 +1496,7 @@ mod tests {
             .set_out_dof(point_id, Dof::Uy)
             .set_out_local_state(cell_id);
 
-        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
+        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
@@ -1568,7 +1568,7 @@ mod tests {
             .set_out_dof(point_id, Dof::Uz)
             .set_out_local_state(cell_id);
 
-        let mut results = FemResults::new(&mesh, &schema, &config).unwrap();
+        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
@@ -1869,7 +1869,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: FemResults::new(&mesh, &schema, &config).unwrap(),
+            results: OutputFiles::new(&mesh, &schema, &config).unwrap(),
             mesh,
             schema,
         };
@@ -1893,7 +1893,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: FemResults::new(&mesh, &schema, &config).unwrap(),
+            results: OutputFiles::new(&mesh, &schema, &config).unwrap(),
             mesh,
             schema,
         };
@@ -2794,7 +2794,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: FemResults::new(&mesh, &schema, &config).unwrap(),
+            results: OutputFiles::new(&mesh, &schema, &config).unwrap(),
             mesh: mesh.clone(),
             schema,
         };
@@ -2910,7 +2910,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            results: FemResults::new(&mesh, &schema, &config).unwrap(),
+            results: OutputFiles::new(&mesh, &schema, &config).unwrap(),
             mesh: mesh.clone(),
             schema,
         };

@@ -1,6 +1,6 @@
 use super::{ReferenceData, ReferenceDataType};
 use crate::base::{Config, Dof, Schema};
-use crate::fem::{FemResults, FemState};
+use crate::fem::{OutputFiles, FemState};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
@@ -78,7 +78,7 @@ pub fn compare_results(
 
     // compare results
     let mut all_good = true;
-    let results = FemResults::read_json(res_path)?;
+    let results = OutputFiles::read_json(res_path)?;
     if results.indices.len() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }

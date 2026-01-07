@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use super::ControlStepper;
-use super::{FemData, FemResults, FemState};
+use super::{FemData, FemState, OutputFiles};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -188,7 +188,7 @@ pub fn solve<'a>(
 
     let mut nl_solver = NlSolver::new(&config.nl_config, nl_system)?;
 
-    let mut results = FemResults::new(&mesh, &schema, &config)?;
+    let mut results = OutputFiles::new(&mesh, &schema, &config)?;
 
     let mut stepper = ControlStepper::new(config)?;
 
