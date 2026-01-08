@@ -39,17 +39,15 @@ use russell_lab::{vec_approx_eq, Vector};
 #[test]
 fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
     println!("\n################################### OLD SOLVER ###################################\n");
-    run_test(false, false, false)?;
-    println!("\n##################################### NATURAL ####################################\n");
-    run_test(true, false, false)?; // Natural continuation
-    println!("\n################################ ARCLENGTH FULL ##################################\n");
-    run_test(true, true, false)?; // Pseudo-arclength continuation without bordering
-    println!("\n############################# ARCLENGTH BORDERING ################################\n");
-    run_test(true, true, true)?; // Pseudo-arclength continuation with bordering
+    run_test(true, false)?;
+    run_test(false, false)?;
+    println!("\n################################### NEW SOLVER ###################################\n");
+    run_test(true, true)?;
+    run_test(false, true)?;
     Ok(())
 }
 
-fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), StrError> {
+fn run_test(lmm: bool, new_solver: bool) -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d6_bracket();
     let features = Features::new(&mesh, false);
@@ -79,23 +77,11 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(true).set_plane_stress(0.25);
-
-    // nonlinear solver configuration
-    config.nl_config().set_verbose(true, true, false);
-    if arclength {
-        config
-            .nl_config()
-            .set_method(NlMethod::Arclength)
-            .set_bordering(bordering);
-        if !bordering {
-            config.set_ignore_symmetry(true);
-        }
-    };
+    config.set_lagrange_mult_method(lmm).set_plane_stress(0.25);
 
     // solution
     let u = if new_solver {
-        let state = solve(&mesh, &schema, &config, &essential, &natural)?;
+        let state = solve_steady_linear(&mesh, &schema, &config, &essential, &natural)?;
         Vector::from(&&state.u.as_data()[..12])
     } else {
         let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
@@ -113,5 +99,6 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
          8.389015766816341e-05, -5.556637423271112e-02
     ];
     vec_approx_eq(&u, uu_correct, 1e-15);
+    println!("OK");
     Ok(())
 }

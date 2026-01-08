@@ -28,6 +28,9 @@ pub struct Config<'a> {
     /// Geometry idealization
     pub(crate) ideal: Idealization,
 
+    /// Shows generic messages
+    pub(crate) verbose: bool,
+
     // Problem definition ---------------------------------------------------------------------
     //
     /// Indicates linear problem and avoids the Newton-Raphson iteration
@@ -273,6 +276,7 @@ impl<'a> Config<'a> {
             // Essential constants
             ndim: mesh.ndim,
             ideal: Idealization::new(mesh.ndim),
+            verbose: true,
             // Problem definition
             linear_problem: false,
             steady: true,
@@ -504,6 +508,12 @@ impl<'a> Config<'a> {
     pub fn set_plane_stress(&mut self, thickness: f64) -> &mut Self {
         self.ideal.plane_stress = true;
         self.ideal.thickness = thickness;
+        self
+    }
+
+    /// Sets the flag to show generic messages
+    pub fn set_verbose(&mut self, enable: bool) -> &mut Self {
+        self.verbose = enable;
         self
     }
 

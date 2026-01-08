@@ -21,12 +21,16 @@ const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
 fn test_durand_farias_example4() -> Result<(), StrError> {
-    run_test(false)?;
-    run_test(true)?;
+    println!("\n################################### OLD SOLVER ###################################\n");
+    run_test(true, false)?;
+    run_test(false, false)?;
+    println!("\n################################### NEW SOLVER ###################################\n");
+    run_test(true, true)?;
+    run_test(false, true)?;
     Ok(())
 }
 
-fn run_test(new_solver: bool) -> Result<(), StrError> {
+fn run_test(lmm: bool, new_solver: bool) -> Result<(), StrError> {
     // mesh
     let mesh = generate_or_read_mesh(1, GENERATE_MESH);
 
@@ -59,18 +63,14 @@ fn run_test(new_solver: bool) -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_out_files("/tmp/pmsim", NAME, 1.0);
+    config
+        .set_lagrange_mult_method(lmm)
+        .set_out_files("/tmp/pmsim", NAME, 1.0);
 
     // solution
     if new_solver {
-        println!("\n################################### NEW SOLVER ###################################\n");
-        config
-            .set_lagrange_mult_method(true)
-            .nl_config()
-            .set_verbose(true, true, false);
-        solve(&mesh, &schema, &config, &essential, &natural)?;
+        solve_steady_linear(&mesh, &schema, &config, &essential, &natural)?;
     } else {
-        println!("\n################################### OLD SOLVER ###################################\n");
         SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
     }
 

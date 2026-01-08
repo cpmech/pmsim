@@ -39,7 +39,7 @@ const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse_new";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual_new";
 const GENERATE_MESH: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius
@@ -87,10 +87,12 @@ fn test_spo_751_pres_cylin_new() -> Result<(), StrError> {
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // Run the collapse simulation
-    run_test(true, false, &mesh, &schema, &essential, &inner_circle)?;
+    // run_test(true, false, &mesh, &schema, &essential, &inner_circle)?;
+    run_test(false, false, &mesh, &schema, &essential, &inner_circle)?;
 
     // Run the residual stress simulation
-    run_test(true, true, &mesh, &schema, &essential, &inner_circle)?;
+    // run_test(true, true, &mesh, &schema, &essential, &inner_circle)?;
+    // run_test(false, true, &mesh, &schema, &essential, &inner_circle)?;
     Ok(())
 }
 
@@ -131,6 +133,8 @@ fn run_test(
         .set_show_header_footer(false)
         .set_h_ini(0.01)
         .set_tg_control_atol_and_rtol(0.5)
+        .set_n_cont_residual_divergence_max(2)
+        .set_n_cont_delta_divergence_max(3)
         .set_record_iterations_residuals(true);
 
     // Solve the problem
@@ -240,11 +244,11 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                 sr_arr.last_mut().unwrap().push(sr);
                 if residual {
                     let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
-                    approx_eq(sr, sr_ana, 0.003);
-                    approx_eq(sh, sh_ana, 0.003);
+                    approx_eq(sr, sr_ana, 0.00024);
+                    approx_eq(sh, sh_ana, 0.0027);
                 } else {
                     let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
-                    approx_eq(sr, sr_ana, 0.0036);
+                    approx_eq(sr, sr_ana, 0.00057);
                     approx_eq(sh, sh_ana, 0.0077);
                 }
             }

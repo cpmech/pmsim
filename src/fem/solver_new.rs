@@ -1,213 +1,67 @@
-#![allow(unused)]
-
-use super::ControlStepper;
-use super::{FemData, FemState, OutputFiles};
+use super::{FemData, FemState};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::{format_scientific, vec_add, vec_copy, vec_minus, Vector};
+use russell_lab::{format_scientific, vec_copy, vec_minus, Vector};
 use russell_nonlin::{AutoStep, IniDir, Stop};
 use russell_nonlin::{Config as NlConfig, Method as NlMethod, Solver as NlSolver, System as NlSystem};
-use russell_sparse::{CooMatrix, Sym};
+use russell_sparse::{CooMatrix, LinSolver, Sym};
+use std::fmt::Write;
 
-const NCHAR: usize = 81;
-
-struct Args<'a> {
-    state: FemState,
-    data: FemData<'a>,
-}
-
-/// Function to calculate G(u, λ)
-fn calc_gg(gg: &mut Vector, l: f64, u: &Vector, args: &mut Args) -> Result<(), StrError> {
-    // set (u, λ) in the state
-    vec_copy(&mut args.state.u, u).unwrap();
-    args.state.lambda = l;
-
-    // calculates Y (internal forces)
-    args.data.calc_yy_to_delete(&mut args.state)?;
-
-    // calculates R (residuals): R(t+Δt) = Y(t+Δt) - (F(t) + λ ΔF)
-    for i in 0..u.dim() {
-        gg[i] = args.data.ls.yy[i] - (args.data.ls.ff_old[i] + l * args.data.ls.ddff[i]);
-    }
-
-    // add Lagrange multiplier contributions to R
-    if args.data.config.lagrange_mult_method {
-        args.data.assemble_rr_lmm(gg, &mut args.state);
-    }
-
-    // println!("u = {}", u);
-    // println!("λ = {}", l);
-    // println!("{}", gg);
-    Ok(())
-}
-
-/// Function to calculate Gu = ∂G/∂u (Jacobian matrix)
-fn calc_ggu(ggu_or_aa: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> Result<(), StrError> {
-    // set (u, λ) in the state
-    vec_copy(&mut args.state.u, u).unwrap();
-    args.state.lambda = l;
-
-    // calculates all Ke matrices (local Jacobian matrix; derivative of Ye w.r.t u) and adds them to Gu
-    ggu_or_aa.reset();
-    args.data
-        .elements
-        .assemble_kk_to_delete(ggu_or_aa, &mut args.state, &args.data.ignored_eqs)?;
-    args.data
-        .boundaries
-        .assemble_kk_to_delete(ggu_or_aa, &mut args.state, &args.data.ignored_eqs)?;
-
-    // modify Gu
-    if args.data.config.lagrange_mult_method {
-        args.data.assemble_kk_lmm(ggu_or_aa);
-    } else {
-        args.data.assemble_kk_rsm(ggu_or_aa);
-    }
-    Ok(())
-}
-
-/// Function to calculate Gl = ∂G/∂λ
-fn calc_ggl(ggl: &mut Vector, _l: f64, _u: &Vector, args: &mut Args) -> Result<(), StrError> {
-    for i in 0..ggl.dim() {
-        ggl[i] = -args.data.ls.ddff[i];
-    }
-    Ok(())
-}
-
-fn update_secondary_state(
-    do_backup: bool,
-    u0: &Vector,
-    u1: &Vector,
-    l0: f64,
-    l1: f64,
-    args: &mut Args,
-) -> Result<bool, StrError> {
-    if do_backup {
-        args.data.elements.backup_secondary_values(&mut args.state, false);
-    } else {
-        args.data.elements.restore_secondary_values(&mut args.state, false);
-    }
-    vec_minus(&mut args.state.ddu, &u1, &u0).unwrap();
-    args.data.elements.update_secondary_values(&mut args.state)?;
-    Ok(false)
-}
-
-/// Solves the finite element method problem
-pub fn solve<'a>(
+/// Solves a steady linear problem
+pub fn solve_steady_linear<'a>(
     mesh: &Mesh,
     schema: &'a Schema,
     config: &'a Config,
     essential: &'a BcEssential,
     natural: &'a BcNatural,
 ) -> Result<FemState, StrError> {
-    assert_eq!(config.lagrange_mult_method, true);
+    // Allocate arguments
+    let continuation = "None";
+    let mut args = allocate_args(mesh, schema, config, essential, natural, continuation)?;
 
-    // allocate arguments for the nonlinear solver
-    let mut args = Args {
-        state: FemState::new(&mesh, &schema, &essential, &config)?,
-        data: FemData::new(mesh, schema, config, essential, natural)?,
-    };
-
-    let ndim = args.data.ls.neq_total;
-    let mut nl_system = NlSystem::new(ndim, calc_gg)?;
-    let nnz = Some(args.data.ls.nnz_sup);
-    let sym = config.lin_sol_genie.get_sym(args.data.ls.symmetric);
-    nl_system.set_calc_ggu(nnz, sym, calc_ggu)?;
-    nl_system.set_calc_ggl(calc_ggl);
-
-    nl_system
-        .set_backup_secondary_state(backup)
-        .set_restore_secondary_state(restore)
-        .set_prepare_to_iterate(prepare_to_iterate)
-        .set_update_secondary_state(update_secondary_state);
-
-    let mut nl_solver = NlSolver::new(&config.nl_config, nl_system)?;
-
-    let mut stepper = ControlStepper::new(config)?;
-
-    // start stopwatch
-    args.data.stopwatch.reset();
-
-    // initialize internal variables
-    args.data.elements.initialize_internal_values(&mut args.state)?;
-
-    // first output (must occur after initialize_internal_values)
-    args.data.files.write_state(&config, &args.state)?;
-    args.data.files.save_selected(&config, &args.data.schema, &args.state)?;
-
-    println!("\n{:═^1$}", " INFORMATION ", NCHAR);
-    println!("\n{}", args.data.ls.get_info());
-    println!("{:═^1$}\n", " TIME STEPPING ", NCHAR);
-
-    let mut u = args.state.u.clone();
-    let mut l = args.state.lambda;
-
-    // time loop
-    for step in 0..config.max_steps {
-        // done if last (time) step
-        if stepper.last() {
-            break;
+    // Solve the linear problem
+    args.state.time = 1.0;
+    let genie = config.lin_sol_genie;
+    let u = Vector::new(args.ndim);
+    let mut mdu = Vector::new(args.ndim);
+    let mut gg = Vector::new(args.ndim);
+    if config.lagrange_mult_method {
+        let mut kk = CooMatrix::new(args.ndim, args.ndim, args.nnz_kk, args.sym).unwrap();
+        calc_gg_lmm(&mut gg, 1.0, &u, &mut args)?;
+        calc_ggu_lmm(&mut kk, 1.0, &u, &mut args)?;
+        LinSolver::compute(genie, &mut mdu, &kk, &gg, None)?;
+        for eq in 0..args.neq {
+            args.state.u[eq] -= mdu[eq];
         }
-
-        // next (time) step
-        stepper.next(&mut args.state)?;
-
-        // calculate previous transient/dynamics state variables
-        if !config.steady {
-            vec_add(
-                &mut args.state.u_star,
-                args.state.beta1,
-                &args.state.u,
-                args.state.beta2,
-                &args.state.v,
-            )
-            .unwrap();
-        }
-
-        // assemble external forces vector F (also updates the load reversal flag)
-        args.state.reverse = args.data.calc_ff_and_ddff_to_delete(args.state.time)?;
-
-        // solve nonlinear equations
-        let status = match nl_solver.solve(
-            &mut args,
-            &mut u,
-            &mut l,
-            IniDir::Pos,
-            Stop::MaxLambda(1.0),
-            AutoStep::Yes,
-            None,
-        ) {
-            Ok(s) => s,
-            Err(e) => {
-                println!("\n❌ SIMULATION FAILED ❌\n");
-                println!("Reason: {}\n", e);
-                let _ = args.data.files.write_state(&config, &args.state);
-                let _ = args.data.files.write_self(&config);
-                break;
+    } else {
+        let mut kk_bar = CooMatrix::new(args.ndim, args.ndim, args.nnz_kk_bar, args.sym).unwrap();
+        calc_gg_sps(&mut gg, 1.0, &u, &mut args)?;
+        calc_ggu_sps(&mut kk_bar, 1.0, &u, &mut args)?;
+        LinSolver::compute(genie, &mut mdu, &kk_bar, &gg, None)?;
+        for eq in 0..args.data.eq_handler.neq() {
+            if args.data.eq_handler.is_unknown(eq) {
+                let iu = args.data.eq_handler.iu(eq);
+                args.state.u[eq] -= mdu[iu];
             }
-        };
-        println!("NL solver status: {:?}", status);
-
-        // output results
-        if stepper.out(&args.state) {
-            args.data.files.write_state(&config, &args.state)?;
-        }
-
-        // stop if failed
-        if status.failure() {
-            break;
         }
     }
-
-    // write the results file
-    args.data.files.write_self(&config)?;
-
-    // show computer time
-    args.data.stopwatch.stop();
-    println!("\nelapsed computer time = {}\n", args.data.stopwatch);
-    println!("{}\n", "═".repeat(NCHAR));
-
     Ok(args.state)
+}
+
+/// Solves a steady problem
+pub fn solve_steady<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
+    nl_config: &'a NlConfig,
+    ini_dir: IniDir,
+    stop: Stop,
+    auto_step: AutoStep,
+) -> Result<FemState, StrError> {
+    Err("TODO")
 }
 
 /// Solves a steady problem with loading factors
@@ -230,95 +84,30 @@ pub fn solve_steady_with_load_factors<'a>(
         return Err("the first entry of load_factors must be zero");
     }
 
-    // Allocate arguments for the nonlinear solver
-    let mut args = Args {
-        state: FemState::new(&mesh, &schema, &essential, &config)?,
-        data: FemData::new(mesh, schema, config, essential, natural)?,
-    };
+    // Update nonlinear solver parameters
+    nl_config
+        .set_method(NlMethod::Natural) // this is required for load control
+        .set_genie(config.lin_sol_genie);
 
-    // Start stopwatch
-    args.data.stopwatch.reset();
-
-    // Determine if the global stiffness matrix is symmetric and it's enabled
-    let symmetric = !config.ignore_symmetry && args.data.elements.all_sym_kk() && args.data.boundaries.all_sym_kk();
-
-    // Determine symmetry type of the global stiffness matrix
-    let genie = config.lin_sol_genie;
-    let sym = genie.get_sym(symmetric);
-
-    // Determine the system dimension
-    let neq = args.data.eq_handler.neq();
-    let nu = args.data.eq_handler.nu();
-    let np = args.data.eq_handler.np();
-    let ndim = if config.lagrange_mult_method { neq + np } else { nu };
-
-    // Calculate the number of non-zero entries in the global stiffness matrix
-    let mut nnz_kk = 0;
-    let mut nnz_kk_bar = 0;
-    let mut nnz_kk_check = 0;
-    if config.lagrange_mult_method {
-        args.data.elements.add_nnz_lmm(&mut nnz_kk, sym);
-        args.data.boundaries.add_nnz_lmm(&mut nnz_kk, sym);
-        if sym.triangular() {
-            nnz_kk += np;
-        } else {
-            nnz_kk += 2 * np;
-        }
-    } else {
-        args.data
-            .elements
-            .add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &args.data.eq_handler);
-        args.data
-            .boundaries
-            .add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &args.data.eq_handler);
-    }
-
-    // Allocate the nonlinear system structure
-    let mut nl_system = if config.lagrange_mult_method {
-        let mut sys = NlSystem::new(ndim, calc_gg_lmm)?;
-        sys.set_calc_ggu(Some(nnz_kk), sym, calc_ggu_lmm)?
-            .set_calc_ggl(calc_ggl_lmm)
-            .set_backup_secondary_state(backup)
-            .set_restore_secondary_state(restore)
-            .set_prepare_to_iterate(prepare_to_iterate)
-            .set_update_secondary_state(update_secondary_state_lmm);
-        sys
-    } else {
-        let mut sys = NlSystem::new(ndim, calc_gg_sps)?;
-        sys.set_calc_ggu(Some(nnz_kk_bar), sym, calc_ggu_sps)?
-            .set_calc_ggl(calc_ggl_sps)
-            .set_backup_secondary_state(backup)
-            .set_restore_secondary_state(restore)
-            .set_prepare_to_iterate(prepare_to_iterate)
-            .set_update_secondary_state(update_secondary_state_sps);
-        sys
-    };
+    // Allocate arguments and system
+    let continuation = "Natural";
+    let mut args = allocate_args(mesh, schema, config, essential, natural, continuation)?;
+    let mut system = allocate_system(config, args.ndim, args.nnz_kk, args.nnz_kk_bar, args.sym)?;
 
     // Set function to calculate the initial stepsize
     if use_load_factor_as_h_ini {
-        nl_system.set_calc_h_ini(|args| {
+        system.set_calc_h_ini(|args| {
             let t = args.state.time as usize;
             f64::abs(load_factors[t] - load_factors[t - 1])
         });
     }
 
     // Allocate the nonlinear solver
-    nl_config
-        .set_method(NlMethod::Natural) // this is required for load control
-        .set_genie(genie);
-    let mut nl_solver = NlSolver::new(nl_config, nl_system)?;
+    let mut nl_solver = NlSolver::new(nl_config, system)?;
 
     // Allocate the unknowns
-    let mut u = Vector::new(ndim);
+    let mut u = Vector::new(args.ndim);
     let mut l = 0.0;
-
-    // Initialize internal variables
-    args.data.elements.initialize_internal_values(&mut args.state)?;
-
-    // First output (must occur after initialize_internal_values)
-    args.data.files.write_state(&config, &args.state)?;
-    args.data.files.save_selected(&config, &args.data.schema, &args.state)?;
-    println!("\n{:═^1$}", " INFORMATION ", NCHAR);
 
     // Print header
     nl_solver.log_header();
@@ -377,13 +166,165 @@ pub fn solve_steady_with_load_factors<'a>(
     // Show computer time
     args.data.stopwatch.stop();
     println!("\nelapsed computer time = {}\n", args.data.stopwatch);
-    println!("{}\n", "═".repeat(NCHAR));
+    // println!("{}\n", "═".repeat(NCHAR));
 
     // Return the final state
     Ok(args.state)
 }
 
 // Common functions ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Arguments structure for the FEM solver
+struct Args<'a> {
+    state: FemState,
+    data: FemData<'a>,
+    neq: usize,
+    np: usize,
+    ndim: usize,
+    sym: Sym,
+    nnz_kk: usize,
+    nnz_kk_bar: usize,
+    nnz_kk_check: usize,
+}
+
+/// Allocates the arguments for the FEM solver
+fn allocate_args<'a>(
+    mesh: &Mesh,
+    schema: &'a Schema,
+    config: &'a Config,
+    essential: &'a BcEssential,
+    natural: &'a BcNatural,
+    continuation: &str,
+) -> Result<Args<'a>, StrError> {
+    // Allocate the FEM state and data
+    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
+    let mut data = FemData::new(mesh, schema, config, essential, natural)?;
+
+    // Start stopwatch
+    data.stopwatch.reset();
+
+    // Initialize internal variables
+    data.elements.initialize_internal_values(&mut state)?;
+
+    // First output (must occur after initialize_internal_values)
+    data.files.write_state(&config, &state)?;
+    data.files.save_selected(&config, &data.schema, &state)?;
+
+    // Determine if the global stiffness matrix is symmetric and it's enabled
+    let symmetric = !config.ignore_symmetry && data.elements.all_sym_kk() && data.boundaries.all_sym_kk();
+
+    // Determine symmetry type of the global stiffness matrix
+    let genie = config.lin_sol_genie;
+    let sym = genie.get_sym(symmetric);
+
+    // Determine the system dimension
+    let neq = data.eq_handler.neq();
+    let nu = data.eq_handler.nu();
+    let np = data.eq_handler.np();
+    let ndim = if config.lagrange_mult_method { neq + np } else { nu };
+
+    // Calculate the number of non-zero entries in the global stiffness matrix
+    let mut nnz_kk = 0;
+    let mut nnz_kk_bar = 0;
+    let mut nnz_kk_check = 0;
+    if config.lagrange_mult_method {
+        data.elements.add_nnz_lmm(&mut nnz_kk, sym);
+        data.boundaries.add_nnz_lmm(&mut nnz_kk, sym);
+        if sym.triangular() {
+            nnz_kk += np;
+        } else {
+            nnz_kk += 2 * np;
+        }
+    } else {
+        data.elements
+            .add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &data.eq_handler);
+        data.boundaries
+            .add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &data.eq_handler);
+    }
+
+    // Print information about the system
+    if config.verbose {
+        let mut b = vec![vec![String::new(); 3]; 3];
+        write!(&mut b[0][0], "neq  = {:?}", neq).unwrap();
+        write!(&mut b[1][0], "np   = {:?}", np).unwrap();
+        write!(&mut b[2][0], "ndim = {:?}", ndim).unwrap();
+        write!(&mut b[0][1], "nnz(K)     = {:?}", nnz_kk).unwrap();
+        write!(&mut b[1][1], "nnz(K-bar) = {:?}", nnz_kk_bar).unwrap();
+        write!(&mut b[2][1], "sym(K)     = {:?}", sym).unwrap();
+        write!(&mut b[0][2], "genie        = {:?}", genie).unwrap();
+        write!(&mut b[1][2], "continuation = {}", continuation).unwrap();
+        write!(
+            &mut b[2][2],
+            "EBC handler  = {}",
+            if config.lagrange_mult_method { "LMM" } else { "SPS" }
+        )
+        .unwrap();
+        let mut w = vec![0; 3];
+        for i in 0..3 {
+            for j in 0..3 {
+                w[j] = usize::max(w[j], b[i][j].len());
+            }
+        }
+        let mut buf = String::new();
+        for i in 0..3 {
+            if i > 0 {
+                write!(&mut buf, "\n").unwrap();
+            }
+            for j in 0..3 {
+                if j > 0 {
+                    write!(&mut buf, " │ ").unwrap();
+                }
+                write!(&mut buf, "{:1$}", b[i][j], w[j]).unwrap();
+            }
+        }
+        write!(&mut buf, "\n").unwrap();
+        println!("\n{}", buf);
+    }
+
+    // Returns the arguments structure
+    Ok(Args {
+        state,
+        data,
+        neq,
+        np,
+        ndim,
+        sym,
+        nnz_kk,
+        nnz_kk_bar,
+        nnz_kk_check,
+    })
+}
+
+/// Allocates the nonlinear system
+fn allocate_system<'a>(
+    config: &'a Config,
+    ndim: usize,
+    nnz_kk: usize,
+    nnz_kk_bar: usize,
+    sym: Sym,
+) -> Result<NlSystem<'a, Args<'a>>, StrError> {
+    // Allocate the nonlinear system structure
+    let nl_system = if config.lagrange_mult_method {
+        let mut sys = NlSystem::new(ndim, calc_gg_lmm)?;
+        sys.set_calc_ggu(Some(nnz_kk), sym, calc_ggu_lmm)?
+            .set_calc_ggl(calc_ggl_lmm)
+            .set_backup_secondary_state(backup)
+            .set_restore_secondary_state(restore)
+            .set_prepare_to_iterate(prepare_to_iterate)
+            .set_update_secondary_state(update_secondary_state_lmm);
+        sys
+    } else {
+        let mut sys = NlSystem::new(ndim, calc_gg_sps)?;
+        sys.set_calc_ggu(Some(nnz_kk_bar), sym, calc_ggu_sps)?
+            .set_calc_ggl(calc_ggl_sps)
+            .set_backup_secondary_state(backup)
+            .set_restore_secondary_state(restore)
+            .set_prepare_to_iterate(prepare_to_iterate)
+            .set_update_secondary_state(update_secondary_state_sps);
+        sys
+    };
+    Ok(nl_system)
+}
 
 /// Creates a backup of the current state
 fn backup(args: &mut Args) {
@@ -496,8 +437,8 @@ fn update_secondary_state_lmm(
     do_backup: bool,
     u0: &Vector,
     u1: &Vector,
-    l0: f64,
-    l1: f64,
+    _l0: f64,
+    _l1: f64,
     args: &mut Args,
 ) -> Result<bool, StrError> {
     // Backup or restore secondary values
