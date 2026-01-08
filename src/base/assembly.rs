@@ -133,6 +133,59 @@ pub fn assemble_matrix(
     Ok(())
 }
 
+/// Checks the symmetry of a local matrix
+pub fn check_symmetry_of_local_matrix(kke: &Matrix, tol: f64) -> Result<(), StrError> {
+    let n_equation_local = kke.dims().0;
+    for l in 0..n_equation_local {
+        for ll in (l + 1)..n_equation_local {
+            if f64::abs(kke.get(l, ll) - kke.get(ll, l)) > tol {
+                return Err("local matrix is not symmetric");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Assembles a local matrix into the global matrix for the Lagrange Multipliers Method (LMM)
+pub fn assemble_matrix_kk(kk: &mut CooMatrix, kke: &Matrix, local_to_global: &[usize]) -> Result<(), StrError> {
+    let sym = kk.get_info().3;
+    let n_equation_local = local_to_global.len();
+    match sym {
+        Sym::YesLower => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                for ll in 0..n_equation_local {
+                    let gg = local_to_global[ll];
+                    if g >= gg {
+                        kk.put(g, gg, kke.get(l, ll)).unwrap();
+                    }
+                }
+            }
+        }
+        Sym::YesUpper => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                for ll in 0..n_equation_local {
+                    let gg = local_to_global[ll];
+                    if g <= gg {
+                        kk.put(g, gg, kke.get(l, ll)).unwrap();
+                    }
+                }
+            }
+        }
+        Sym::YesFull | Sym::No => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                for ll in 0..n_equation_local {
+                    let gg = local_to_global[ll];
+                    kk.put(g, gg, kke.get(l, ll)).unwrap();
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Increments the number of non-zeros on the global K-bar and K-check matrices for the System Partitioning Strategy (SPS)
 pub fn add_nnz_sps(
     nnz_kk_bar: &mut usize,
@@ -195,30 +248,15 @@ pub fn add_nnz_sps(
     }
 }
 
-/// Assembles a local matrix into the global matrix using the System Partitioning Strategy (SPS)
+/// Assembles a local matrix into the global matrix for the System Partitioning Strategy (SPS)
 pub fn assemble_matrix_kk_bar(
     kk_bar: &mut CooMatrix,
     kke: &Matrix,
     local_to_global: &[usize],
     eq_handler: &EquationHandler,
-    symmetry_check_tolerance: Option<f64>,
 ) -> Result<(), StrError> {
-    let n_equation_local = kke.dims().0;
-    // check symmetry of local matrices
     let sym = kk_bar.get_info().3;
-    let symmetric = sym != Sym::No;
-    if symmetric {
-        if let Some(tol) = symmetry_check_tolerance {
-            for l in 0..n_equation_local {
-                for ll in (l + 1)..n_equation_local {
-                    if f64::abs(kke.get(l, ll) - kke.get(ll, l)) > tol {
-                        return Err("local matrix is not symmetric");
-                    }
-                }
-            }
-        }
-    }
-    // assemble
+    let n_equation_local = local_to_global.len();
     match sym {
         Sym::YesLower => {
             for l in 0..n_equation_local {
@@ -273,14 +311,14 @@ pub fn assemble_matrix_kk_bar(
     Ok(())
 }
 
-/// Assembles a local matrix into the global matrix using the System Partitioning Strategy (SPS)
+/// Assembles a local matrix into the global matrix for the System Partitioning Strategy (SPS)
 pub fn assemble_matrix_kk_check(
     kk_check: &mut CooMatrix,
     kke: &Matrix,
     local_to_global: &[usize],
     eq_handler: &EquationHandler,
 ) -> Result<(), StrError> {
-    let n_equation_local = kke.dims().0;
+    let n_equation_local = local_to_global.len();
     // loop over columns first, so that only prescribed columns are considered
     for ll in 0..n_equation_local {
         let gg = local_to_global[ll];

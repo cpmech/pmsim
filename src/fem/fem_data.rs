@@ -64,6 +64,16 @@ pub(crate) struct FemData<'a> {
     /// If using the Lagrange Multiplier Method (LMM), K-check will be empty
     /// (1x1 matrix as required by `russell_sparse`)
     pub(crate) kk_check: CooMatrix,
+
+    /// Vector of internal forces
+    ///
+    /// dim = neq = nu + np
+    pub(crate) yy: Vector,
+
+    /// Vector of external forces
+    ///
+    /// dim = neq = nu + np
+    pub(crate) ff: Vector,
 }
 
 impl<'a> FemData<'a> {
@@ -116,8 +126,8 @@ impl<'a> FemData<'a> {
         let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &bc_distributed)?;
 
         // Array to ignore prescribed equations when building the reduced system
-        let ndof = eq_handler.neq(); // number of DOFs = n_equation without Lagrange multipliers
-        let mut ignored_eqs = vec![false; ndof];
+        let neq = eq_handler.neq(); // number of DOFs (without Lagrange multipliers)
+        let mut ignored_eqs = vec![false; neq];
         if !config.lagrange_mult_method {
             for eq in eq_handler.prescribed() {
                 ignored_eqs[*eq] = true;
@@ -157,11 +167,43 @@ impl<'a> FemData<'a> {
             files,
             stopwatch: Stopwatch::new(),
             kk_check,
+            yy: Vector::new(neq),
+            ff: Vector::new(neq),
         })
     }
 
     /// Calculates Y (internal forces)
     pub fn calc_yy(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        // clear vector
+        self.yy.fill(0.0);
+
+        // calculate all element local vectors
+        self.elements.assemble_yy(&mut self.yy, state, &self.ignored_eqs)?;
+
+        // calculate all boundary elements local vectors
+        self.boundaries.assemble_yy(&mut self.yy, state, &self.ignored_eqs)?;
+        Ok(())
+    }
+
+    pub fn calc_ff(&mut self, time: f64) -> Result<(), StrError> {
+        // clear vector
+        self.ff.fill(0.0);
+
+        // calculate all element local vectors
+        self.elements.assemble_ff(&mut self.ff, time, &self.ignored_eqs)?;
+
+        // calculate all boundary elements local vectors
+        self.boundaries.assemble_ff(&mut self.ff, time, &self.ignored_eqs)?;
+
+        // add concentrated loads
+        for (eq, f) in &self.conc_loads {
+            self.ff[*eq] += (f)(time);
+        }
+        Ok(())
+    }
+
+    /// Calculates Y (internal forces)
+    pub fn calc_yy_to_delete(&mut self, state: &mut FemState) -> Result<(), StrError> {
         // clear vector
         self.ls.yy.fill(0.0);
 
@@ -181,7 +223,7 @@ impl<'a> FemData<'a> {
     /// F_old := F(t)
     /// ΔF = F(t+Δt) - F(t)
     /// ```
-    pub fn calc_ff_and_ddff(&mut self, time: f64) -> Result<bool, StrError> {
+    pub fn calc_ff_and_ddff_to_delete(&mut self, time: f64) -> Result<bool, StrError> {
         // make a copy of F and ΔF
         vec_copy(&mut self.ls.ff_old, &self.ls.ff).unwrap();
         vec_copy(&mut self.ls.ddff_old, &self.ls.ddff).unwrap();
@@ -219,8 +261,10 @@ impl<'a> FemData<'a> {
         self.ls.kk.reset();
 
         // calculates all Ke matrices (local Jacobian matrix; derivative of Ye w.r.t u) and adds them to K
-        self.elements.assemble_kk(&mut self.ls.kk, state, &self.ignored_eqs)?;
-        self.boundaries.assemble_kk(&mut self.ls.kk, state, &self.ignored_eqs)?;
+        self.elements
+            .assemble_kk_to_delete(&mut self.ls.kk, state, &self.ignored_eqs)?;
+        self.boundaries
+            .assemble_kk_to_delete(&mut self.ls.kk, state, &self.ignored_eqs)?;
         Ok(())
     }
 

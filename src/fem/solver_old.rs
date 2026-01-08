@@ -144,7 +144,7 @@ impl<'a> SolverOld<'a> {
             }
 
             // assemble external forces vector F (also updates the load reversal flag)
-            state.reverse = self.com.calc_ff_and_ddff(state.time)?;
+            state.reverse = self.com.calc_ff_and_ddff_to_delete(state.time)?;
 
             // initialize λ and Δλ
             self.loader.initialize(state);
@@ -265,7 +265,7 @@ impl<'a> SolverOld<'a> {
     /// Performs a single iteration
     fn do_iteration(&mut self, iteration: usize, state: &mut FemState, logging: bool) -> Result<(), StrError> {
         // calculates P (internal forces)
-        self.com.calc_yy(state)?;
+        self.com.calc_yy_to_delete(state)?;
 
         // calculates R (residuals): R(t+Δt) = P(t+Δt) - (F(t) + λ ΔF)
         for i in 0..self.com.ls.neq_total {

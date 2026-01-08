@@ -1,5 +1,5 @@
 use super::FemState;
-use crate::base::{add_nnz_sps, assemble_matrix, assemble_matrix_kk_bar, assemble_vector};
+use crate::base::{add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_vector};
 use crate::base::{BcNatural, Config, Nbc, Schema};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -370,6 +370,31 @@ impl<'a> ElementsBoundary<'a> {
         Ok(())
     }
 
+    /// Increments the number of non-zeros on the global K-bar and K-check matrices for the Lagrange Multiplier Method (LMM)
+    pub fn add_nnz_lmm(&self, nnz_kk: &mut usize, sym: Sym) {
+        for e in &self.elements {
+            if e.with_jacobian() {
+                let n = e.n_local_eq();
+                if sym.triangular() {
+                    *nnz_kk += (n * n + n) / 2;
+                } else {
+                    *nnz_kk += n * n;
+                }
+            }
+        }
+    }
+
+    /// Assembles the local Ke matrix into the global K matrix for the Lagrange Multiplier Method (LMM)
+    pub fn assemble_kk_lmm(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
+        for e in &mut self.elements {
+            e.calc_kke(state)?;
+            if let Some(kke) = e.kke.as_ref() {
+                assemble_matrix_kk(kk, kke, &e.local_to_global)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Increments the number of non-zeros on the global K-bar and K-check matrices for the System Partitioning Strategy (SPS)
     pub fn add_nnz_sps(
         &self,
@@ -389,7 +414,12 @@ impl<'a> ElementsBoundary<'a> {
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_kk(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_kk_to_delete(
+        &mut self,
+        kk: &mut CooMatrix,
+        state: &FemState,
+        ignore: &[bool],
+    ) -> Result<(), StrError> {
         let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.elements {
             e.calc_kke(state)?;
@@ -407,11 +437,10 @@ impl<'a> ElementsBoundary<'a> {
         state: &FemState,
         eq_handler: &EquationHandler,
     ) -> Result<(), StrError> {
-        let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.elements {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_ref() {
-                assemble_matrix_kk_bar(kk_bar, kke, &e.local_to_global, eq_handler, tol)?;
+                assemble_matrix_kk_bar(kk_bar, kke, &e.local_to_global, eq_handler)?;
             }
         }
         Ok(())
@@ -754,7 +783,7 @@ mod tests {
 
         let nnz_sup = 2 * neq * neq;
         let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
-        bry.assemble_kk(&mut kk, &state, &ignore).unwrap();
+        bry.assemble_kk_to_delete(&mut kk, &state, &ignore).unwrap();
         let correct = Matrix::new(neq, neq); // null
         assert_eq!(kk.as_dense().as_data(), correct.as_data());
     }

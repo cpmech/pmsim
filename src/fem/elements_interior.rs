@@ -1,5 +1,6 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
-use crate::base::{add_nnz_sps, assemble_matrix, assemble_matrix_kk_bar, assemble_vector, Config, Elem, Schema};
+use crate::base::{add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_vector};
+use crate::base::{Config, Elem, Schema};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{deriv1_central5, Matrix, Vector};
@@ -166,11 +167,37 @@ impl<'a> ElementsInterior<'a> {
     ///
     /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
     /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_kk(&mut self, kk: &mut CooMatrix, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_kk_to_delete(
+        &mut self,
+        kk: &mut CooMatrix,
+        state: &FemState,
+        ignore: &[bool],
+    ) -> Result<(), StrError> {
         let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.elements {
             e.actual.calc_kke(&mut e.kke, state)?;
             assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore, tol)?;
+        }
+        Ok(())
+    }
+
+    /// Increments the number of non-zeros on the global K-bar and K-check matrices for the Lagrange Multiplier Method (LMM)
+    pub fn add_nnz_lmm(&self, nnz_kk: &mut usize, sym: Sym) {
+        for e in &self.elements {
+            let n = e.actual.local_to_global().len();
+            if sym.triangular() {
+                *nnz_kk += (n * n + n) / 2;
+            } else {
+                *nnz_kk += n * n;
+            }
+        }
+    }
+
+    /// Assembles the local Ke matrix into the global K matrix for the Lagrange Multiplier Method (LMM)
+    pub fn assemble_kk_lmm(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
+        for e in &mut self.elements {
+            e.actual.calc_kke(&mut e.kke, state)?;
+            assemble_matrix_kk(kk, &e.kke, &e.actual.local_to_global())?;
         }
         Ok(())
     }
@@ -195,10 +222,9 @@ impl<'a> ElementsInterior<'a> {
         state: &FemState,
         eq_handler: &EquationHandler,
     ) -> Result<(), StrError> {
-        let tol = self.config.symmetry_check_tolerance;
         for e in &mut self.elements {
             e.actual.calc_kke(&mut e.kke, state)?;
-            assemble_matrix_kk_bar(kk_bar, &e.kke, &e.actual.local_to_global(), eq_handler, tol)?;
+            assemble_matrix_kk_bar(kk_bar, &e.kke, &e.actual.local_to_global(), eq_handler)?;
         }
         Ok(())
     }
@@ -558,7 +584,7 @@ mod tests {
         let ignore = vec![false; neq];
         elements.assemble_yy(&mut yye, &state, &ignore).unwrap();
         elements.assemble_ff(&mut ffe, state.time, &ignore).unwrap();
-        elements.assemble_kk(&mut kk, &state, &ignore).unwrap();
+        elements.assemble_kk_to_delete(&mut kk, &state, &ignore).unwrap();
         vec_add(&mut rr, 1.0, &yye, -1.0, &ffe).unwrap();
         let kk_mat = kk.as_dense();
         vec_approx_eq(&rr, &rr_correct, 1e-14);
