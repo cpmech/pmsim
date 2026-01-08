@@ -3,6 +3,7 @@ use plotpy::Curve;
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
 use pmsim::fem::solve_steady_with_load_factors;
 use pmsim::prelude::*;
+use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data};
@@ -39,13 +40,14 @@ const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse_new";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual_new";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = true;
+const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 
 const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero
-const LOAD_FACTORS_COLLAPSE: [f64; 5] = [0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
-const LOAD_FACTORS_RESIDUAL: [f64; 4] = [0.1, 0.14, P_MAX_RES, 0.0];
+const LOAD_FACTORS_COLLAPSE: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
+const LOAD_FACTORS_RESIDUAL: [f64; 5] = [0.0, 0.1, 0.14, P_MAX_RES, 0.0];
 const SELECTED_P_COLLAPSE: [f64; 3] = [0.1, 0.18, 0.19]; // selected pressures for collapse plot
 const SELECTED_P_RESIDUAL: [f64; 1] = [0.0]; // selected pressures for residual plot
 
@@ -88,7 +90,7 @@ fn test_spo_751_pres_cylin_new() -> Result<(), StrError> {
     run_test(true, false, &mesh, &schema, &essential, &inner_circle)?;
 
     // Run the residual stress simulation
-    // run_test(true,true, &mesh, &schema, &essential, &inner_circle)?;
+    run_test(true, true, &mesh, &schema, &essential, &inner_circle)?;
     Ok(())
 }
 
@@ -127,7 +129,7 @@ fn run_test(
     nl_config
         .set_verbose(true, true, false)
         .set_show_header_footer(false)
-        .set_method(NlMethod::Natural)
+        .set_h_ini(0.01)
         .set_tg_control_atol_and_rtol(0.5)
         .set_record_iterations_residuals(true);
 
@@ -144,6 +146,23 @@ fn run_test(
         &loading_factors,
         use_load_factor_as_h_ini,
     )?;
+
+    // Compare the results with Ref #1
+    let tol_displacement = 1e-9;
+    let tol_stress = 1e-9;
+    let all_good = compare_results(
+        &mesh,
+        &schema,
+        &config,
+        "/tmp/pmsim/",
+        name,
+        ReferenceDataType::SPO,
+        &format!("data/spo/{}_ref.json", name.replace("_new", "")),
+        tol_displacement,
+        tol_stress,
+        VERBOSE_LEVEL,
+    )?;
+    assert!(all_good);
 
     // Analyze the results
     analyze_results(residual)?;
@@ -194,7 +213,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
         let state = post.read_state(index)?;
 
         // pressure
-        let pp = pp_array[index - 1];
+        let pp = pp_array[index];
         inner_pp[index] = pp;
 
         // radial displacement

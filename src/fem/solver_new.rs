@@ -222,6 +222,14 @@ pub fn solve_steady_with_load_factors<'a>(
     load_factors: &[f64],
     use_load_factor_as_h_ini: bool,
 ) -> Result<FemState, StrError> {
+    // Check input data
+    if load_factors.len() < 2 {
+        return Err("load_factors must have at least two entries");
+    }
+    if load_factors[0] != 0.0 {
+        return Err("the first entry of load_factors must be zero");
+    }
+
     // Allocate arguments for the nonlinear solver
     let mut args = Args {
         state: FemState::new(&mesh, &schema, &essential, &config)?,
@@ -289,13 +297,15 @@ pub fn solve_steady_with_load_factors<'a>(
     // Set function to calculate the initial stepsize
     if use_load_factor_as_h_ini {
         nl_system.set_calc_h_ini(|args| {
-            let t = args.state.time;
-            load_factors[t as usize]
+            let t = args.state.time as usize;
+            f64::abs(load_factors[t] - load_factors[t - 1])
         });
     }
 
     // Allocate the nonlinear solver
-    nl_config.set_genie(genie);
+    nl_config
+        .set_method(NlMethod::Natural) // this is required for load control
+        .set_genie(genie);
     let mut nl_solver = NlSolver::new(nl_config, nl_system)?;
 
     // Allocate the unknowns
@@ -314,29 +324,34 @@ pub fn solve_steady_with_load_factors<'a>(
     nl_solver.log_header();
 
     // Loop over loading factors
-    for lambda in load_factors {
+    let mut failed = false;
+    for index in 1..load_factors.len() {
+        // Update pseudo-time
+        args.state.time += 1.0;
+
+        // Set target load factor
+        let lambda = load_factors[index];
+
+        // Define the stop criterion
+        let (ini_dir, stop) = if lambda > l {
+            (IniDir::Pos, Stop::MaxLambda(lambda))
+        } else {
+            args.state.reverse = true;
+            (IniDir::Neg, Stop::MinLambda(lambda))
+        };
+
         // Solve nonlinear equations
-        let status = match nl_solver.solve(
-            &mut args,
-            &mut u,
-            &mut l,
-            IniDir::Pos,
-            Stop::MaxLambda(*lambda),
-            auto_step,
-            None,
-        ) {
+        let status = match nl_solver.solve(&mut args, &mut u, &mut l, ini_dir, stop, auto_step, None) {
             Ok(s) => s,
             Err(e) => {
                 println!("\n❌ SIMULATION FAILED ❌\n");
                 println!("Reason: {}\n", e);
                 let _ = args.data.files.write_state(&config, &args.state);
                 let _ = args.data.files.write_self(&config);
+                failed = true;
                 break;
             }
         };
-
-        // Update pseudo-time
-        args.state.time += 1.0;
 
         // Output results
         args.data.files.write_state(&config, &args.state)?;
@@ -345,13 +360,16 @@ pub fn solve_steady_with_load_factors<'a>(
         if status.failure() {
             println!("\n❌ SIMULATION FAILED ❌\n");
             println!("Status: {:?}\n", status);
+            failed = true;
             break;
         }
     }
 
     // Print footer
-    println!("{}", format_scientific(l, 10, 3));
-    nl_solver.log_footer();
+    if !failed {
+        println!("{}", format_scientific(l, 10, 3));
+        nl_solver.log_footer();
+    }
 
     // Write the file handler data
     args.data.files.write_self(&config)?;
@@ -378,9 +396,7 @@ fn restore(args: &mut Args) {
 }
 
 fn prepare_to_iterate(args: &mut Args) {
-    if !args.data.config.linear_problem {
-        args.data.elements.reset_algorithmic_variables(&mut args.state);
-    }
+    args.data.elements.reset_algorithmic_variables(&mut args.state);
 }
 
 // Lagrange Multipliers Method (LMM) functions /////////////////////////////////////////////////////////////////////////
@@ -487,6 +503,7 @@ fn update_secondary_state_lmm(
     // Backup or restore secondary values
     if do_backup {
         args.data.elements.backup_secondary_values(&mut args.state, false);
+        return Ok(false);
     } else {
         args.data.elements.restore_secondary_values(&mut args.state, false);
     }
@@ -579,6 +596,7 @@ fn update_secondary_state_sps(
     // Backup or restore secondary values
     if do_backup {
         args.data.elements.backup_secondary_values(&mut args.state, false);
+        return Ok(false);
     } else {
         args.data.elements.restore_secondary_values(&mut args.state, false);
     }
