@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::{ElementsBoundary, ElementsInterior, FemState, LinearSystem, OutputFiles};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
@@ -6,6 +8,7 @@ use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch, Vector};
 use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::Arc;
 
 /// Implements common (shared) functionality for all FEM solvers
@@ -74,6 +77,15 @@ pub(crate) struct FemData<'a> {
     ///
     /// dim = neq = nu + np
     pub(crate) ff: Vector,
+
+    pub(crate) state: FemState,
+    pub(crate) neq: usize,
+    pub(crate) np: usize,
+    pub(crate) ndim: usize,
+    pub(crate) sym: Sym,
+    pub(crate) nnz_kk: usize,
+    pub(crate) nnz_kk_bar: usize,
+    pub(crate) nnz_kk_check: usize,
 }
 
 impl<'a> FemData<'a> {
@@ -90,6 +102,9 @@ impl<'a> FemData<'a> {
             println!("ERROR: {}", msg);
             return Err("cannot start simulation because config.validate() failed");
         }
+
+        // Start stopwatch
+        let mut stopwatch = Stopwatch::new();
 
         // Generate the list of prescribed equations and a map from equation to (PointId, Dof)
         let n_prescribed = essential.functions.len();
@@ -121,9 +136,9 @@ impl<'a> FemData<'a> {
         }
 
         // Allocate auxiliary instances
-        let bc_distributed = ElementsBoundary::new(mesh, schema, config, natural)?;
-        let elements = ElementsInterior::new(mesh, schema, config)?;
-        let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &bc_distributed)?;
+        let boundaries = ElementsBoundary::new(mesh, schema, config, natural)?;
+        let mut elements = ElementsInterior::new(mesh, schema, config)?;
+        let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &boundaries)?;
 
         // Array to ignore prescribed equations when building the reduced system
         let neq = eq_handler.neq(); // number of DOFs (without Lagrange multipliers)
@@ -141,7 +156,7 @@ impl<'a> FemData<'a> {
             .collect();
 
         // Allocate output files handler
-        let files = OutputFiles::new(mesh, schema, config)?;
+        let mut files = OutputFiles::new(mesh, schema, config)?;
 
         // Allocate K-check matrix for SPS
         let kk_check = if config.lagrange_mult_method || n_prescribed == 0 {
@@ -152,6 +167,49 @@ impl<'a> FemData<'a> {
             CooMatrix::new(n_unknown, n_prescribed, nnz, Sym::No).unwrap()
         };
 
+        //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
+
+        // Initialize internal variables
+        elements.initialize_internal_values(&mut state)?;
+
+        // First output (must occur after initialize_internal_values)
+        files.write_state(&config, &state)?;
+        files.save_selected(&config, &schema, &state)?;
+
+        // Determine if the global stiffness matrix is symmetric and it's enabled
+        let symmetric = !config.ignore_symmetry && elements.all_sym_kk() && boundaries.all_sym_kk();
+
+        // Determine symmetry type of the global stiffness matrix
+        let genie = config.lin_sol_genie;
+        let sym = genie.get_sym(symmetric);
+
+        // Determine the system dimension
+        let neq = eq_handler.neq();
+        let nu = eq_handler.nu();
+        let np = eq_handler.np();
+        let ndim = if config.lagrange_mult_method { neq + np } else { nu };
+
+        // Calculate the number of non-zero entries in the global stiffness matrix
+        let mut nnz_kk = 0;
+        let mut nnz_kk_bar = 0;
+        let mut nnz_kk_check = 0;
+        if config.lagrange_mult_method {
+            elements.add_nnz_lmm(&mut nnz_kk, sym);
+            boundaries.add_nnz_lmm(&mut nnz_kk, sym);
+            if sym.triangular() {
+                nnz_kk += np;
+            } else {
+                nnz_kk += 2 * np;
+            }
+        } else {
+            elements.add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &eq_handler);
+            boundaries.add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &eq_handler);
+        }
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////
+
         // return new instance
         Ok(FemData {
             schema,
@@ -159,29 +217,81 @@ impl<'a> FemData<'a> {
             eq_handler,
             presc_values,
             conc_loads,
-            boundaries: bc_distributed,
+            boundaries,
             elements,
             ls: linear_system,
             ignored_eqs,
             unknown_eqs,
             files,
-            stopwatch: Stopwatch::new(),
+            stopwatch,
             kk_check,
             yy: Vector::new(neq),
             ff: Vector::new(neq),
+            //
+            state,
+            neq,
+            np,
+            ndim,
+            sym,
+            nnz_kk,
+            nnz_kk_bar,
+            nnz_kk_check,
         })
     }
 
+    /// Prints information about the system
+    pub fn print_system_info(&self, continuation: &str) {
+        if self.config.verbose {
+            let mut b = vec![vec![String::new(); 3]; 3];
+            write!(&mut b[0][0], "neq  = {:?}", self.neq).unwrap();
+            write!(&mut b[1][0], "np   = {:?}", self.np).unwrap();
+            write!(&mut b[2][0], "ndim = {:?}", self.ndim).unwrap();
+            write!(&mut b[0][1], "nnz(K)     = {:?}", self.nnz_kk).unwrap();
+            write!(&mut b[1][1], "nnz(K-bar) = {:?}", self.nnz_kk_bar).unwrap();
+            write!(&mut b[2][1], "sym(K)     = {:?}", self.sym).unwrap();
+            write!(&mut b[0][2], "genie        = {:?}", self.config.lin_sol_genie).unwrap();
+            write!(&mut b[1][2], "continuation = {}", continuation).unwrap();
+            write!(
+                &mut b[2][2],
+                "EBC handler  = {}",
+                if self.config.lagrange_mult_method { "LMM" } else { "SPS" }
+            )
+            .unwrap();
+            let mut w = vec![0; 3];
+            for i in 0..3 {
+                for j in 0..3 {
+                    w[j] = usize::max(w[j], b[i][j].len());
+                }
+            }
+            let mut buf = String::new();
+            for i in 0..3 {
+                if i > 0 {
+                    write!(&mut buf, "\n").unwrap();
+                }
+                for j in 0..3 {
+                    if j > 0 {
+                        write!(&mut buf, " │ ").unwrap();
+                    }
+                    write!(&mut buf, "{:1$}", b[i][j], w[j]).unwrap();
+                }
+            }
+            write!(&mut buf, "\n").unwrap();
+            println!("\n{}", buf);
+        }
+    }
+
     /// Calculates Y (internal forces)
-    pub fn calc_yy(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    pub fn calc_yy(&mut self) -> Result<(), StrError> {
         // clear vector
         self.yy.fill(0.0);
 
         // calculate all element local vectors
-        self.elements.assemble_yy(&mut self.yy, state, &self.ignored_eqs)?;
+        self.elements
+            .assemble_yy(&mut self.yy, &self.state, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
-        self.boundaries.assemble_yy(&mut self.yy, state, &self.ignored_eqs)?;
+        self.boundaries
+            .assemble_yy(&mut self.yy, &self.state, &self.ignored_eqs)?;
         Ok(())
     }
 

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::{FemData, FemState};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
@@ -18,35 +20,35 @@ pub fn solve_steady_linear<'a>(
 ) -> Result<FemState, StrError> {
     // Allocate arguments
     let continuation = "None";
-    let mut args = allocate_args(mesh, schema, config, essential, natural, continuation)?;
+    let mut data = FemData::new(mesh, schema, config, essential, natural)?;
 
     // Solve the linear problem
-    args.state.time = 1.0;
+    data.state.time = 1.0;
     let genie = config.lin_sol_genie;
-    let u = Vector::new(args.ndim);
-    let mut mdu = Vector::new(args.ndim);
-    let mut gg = Vector::new(args.ndim);
+    let u = Vector::new(data.ndim);
+    let mut mdu = Vector::new(data.ndim);
+    let mut gg = Vector::new(data.ndim);
     if config.lagrange_mult_method {
-        let mut kk = CooMatrix::new(args.ndim, args.ndim, args.nnz_kk, args.sym).unwrap();
-        calc_gg_lmm(&mut gg, 1.0, &u, &mut args)?;
-        calc_ggu_lmm(&mut kk, 1.0, &u, &mut args)?;
+        let mut kk = CooMatrix::new(data.ndim, data.ndim, data.nnz_kk, data.sym).unwrap();
+        calc_gg_lmm(&mut gg, 1.0, &u, &mut data)?;
+        calc_ggu_lmm(&mut kk, 1.0, &u, &mut data)?;
         LinSolver::compute(genie, &mut mdu, &kk, &gg, None)?;
-        for eq in 0..args.neq {
-            args.state.u[eq] -= mdu[eq];
+        for eq in 0..data.neq {
+            data.state.u[eq] -= mdu[eq];
         }
     } else {
-        let mut kk_bar = CooMatrix::new(args.ndim, args.ndim, args.nnz_kk_bar, args.sym).unwrap();
-        calc_gg_sps(&mut gg, 1.0, &u, &mut args)?;
-        calc_ggu_sps(&mut kk_bar, 1.0, &u, &mut args)?;
+        let mut kk_bar = CooMatrix::new(data.ndim, data.ndim, data.nnz_kk_bar, data.sym).unwrap();
+        calc_gg_sps(&mut gg, 1.0, &u, &mut data)?;
+        calc_ggu_sps(&mut kk_bar, 1.0, &u, &mut data)?;
         LinSolver::compute(genie, &mut mdu, &kk_bar, &gg, None)?;
-        for eq in 0..args.data.eq_handler.neq() {
-            if args.data.eq_handler.is_unknown(eq) {
-                let iu = args.data.eq_handler.iu(eq);
-                args.state.u[eq] -= mdu[iu];
+        for eq in 0..data.neq {
+            if data.eq_handler.is_unknown(eq) {
+                let iu = data.eq_handler.iu(eq);
+                data.state.u[eq] -= mdu[iu];
             }
         }
     }
-    Ok(args.state)
+    Ok(data.state)
 }
 
 /// Solves a steady problem
@@ -90,14 +92,16 @@ pub fn solve_steady_with_load_factors<'a>(
         .set_genie(config.lin_sol_genie);
 
     // Allocate arguments and system
-    let continuation = "Natural";
-    let mut args = allocate_args(mesh, schema, config, essential, natural, continuation)?;
-    let mut system = allocate_system(config, args.ndim, args.nnz_kk, args.nnz_kk_bar, args.sym)?;
+    let mut data = FemData::new(mesh, schema, config, essential, natural)?;
+    let mut system = allocate_system(config, data.ndim, data.nnz_kk, data.nnz_kk_bar, data.sym)?;
+
+    // Print information about the system
+    data.print_system_info("Natural");
 
     // Set function to calculate the initial stepsize
     if use_load_factor_as_h_ini {
-        system.set_calc_h_ini(|args| {
-            let t = args.state.time as usize;
+        system.set_calc_h_ini(|data| {
+            let t = data.state.time as usize;
             f64::abs(load_factors[t] - load_factors[t - 1])
         });
     }
@@ -106,7 +110,7 @@ pub fn solve_steady_with_load_factors<'a>(
     let mut nl_solver = NlSolver::new(nl_config, system)?;
 
     // Allocate the unknowns
-    let mut u = Vector::new(args.ndim);
+    let mut u = Vector::new(data.ndim);
     let mut l = 0.0;
 
     // Print header
@@ -116,7 +120,7 @@ pub fn solve_steady_with_load_factors<'a>(
     let mut failed = false;
     for index in 1..load_factors.len() {
         // Update pseudo-time
-        args.state.time += 1.0;
+        data.state.time += 1.0;
 
         // Set target load factor
         let lambda = load_factors[index];
@@ -125,25 +129,25 @@ pub fn solve_steady_with_load_factors<'a>(
         let (ini_dir, stop) = if lambda > l {
             (IniDir::Pos, Stop::MaxLambda(lambda))
         } else {
-            args.state.reverse = true;
+            data.state.reverse = true;
             (IniDir::Neg, Stop::MinLambda(lambda))
         };
 
         // Solve nonlinear equations
-        let status = match nl_solver.solve(&mut args, &mut u, &mut l, ini_dir, stop, auto_step, None) {
+        let status = match nl_solver.solve(&mut data, &mut u, &mut l, ini_dir, stop, auto_step, None) {
             Ok(s) => s,
             Err(e) => {
                 println!("\n❌ SIMULATION FAILED ❌\n");
                 println!("Reason: {}\n", e);
-                let _ = args.data.files.write_state(&config, &args.state);
-                let _ = args.data.files.write_self(&config);
+                let _ = data.files.write_state(&config, &data.state);
+                let _ = data.files.write_self(&config);
                 failed = true;
                 break;
             }
         };
 
         // Output results
-        args.data.files.write_state(&config, &args.state)?;
+        data.files.write_state(&config, &data.state)?;
 
         // Stop if failed
         if status.failure() {
@@ -161,139 +165,17 @@ pub fn solve_steady_with_load_factors<'a>(
     }
 
     // Write the file handler data
-    args.data.files.write_self(&config)?;
+    data.files.write_self(&config)?;
 
     // Show computer time
-    args.data.stopwatch.stop();
-    println!("\nelapsed computer time = {}\n", args.data.stopwatch);
-    // println!("{}\n", "═".repeat(NCHAR));
+    data.stopwatch.stop();
+    println!("\nelapsed computer time = {}\n", data.stopwatch);
 
     // Return the final state
-    Ok(args.state)
+    Ok(data.state)
 }
 
 // Common functions ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/// Arguments structure for the FEM solver
-struct Args<'a> {
-    state: FemState,
-    data: FemData<'a>,
-    neq: usize,
-    np: usize,
-    ndim: usize,
-    sym: Sym,
-    nnz_kk: usize,
-    nnz_kk_bar: usize,
-    nnz_kk_check: usize,
-}
-
-/// Allocates the arguments for the FEM solver
-fn allocate_args<'a>(
-    mesh: &Mesh,
-    schema: &'a Schema,
-    config: &'a Config,
-    essential: &'a BcEssential,
-    natural: &'a BcNatural,
-    continuation: &str,
-) -> Result<Args<'a>, StrError> {
-    // Allocate the FEM state and data
-    let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
-    let mut data = FemData::new(mesh, schema, config, essential, natural)?;
-
-    // Start stopwatch
-    data.stopwatch.reset();
-
-    // Initialize internal variables
-    data.elements.initialize_internal_values(&mut state)?;
-
-    // First output (must occur after initialize_internal_values)
-    data.files.write_state(&config, &state)?;
-    data.files.save_selected(&config, &data.schema, &state)?;
-
-    // Determine if the global stiffness matrix is symmetric and it's enabled
-    let symmetric = !config.ignore_symmetry && data.elements.all_sym_kk() && data.boundaries.all_sym_kk();
-
-    // Determine symmetry type of the global stiffness matrix
-    let genie = config.lin_sol_genie;
-    let sym = genie.get_sym(symmetric);
-
-    // Determine the system dimension
-    let neq = data.eq_handler.neq();
-    let nu = data.eq_handler.nu();
-    let np = data.eq_handler.np();
-    let ndim = if config.lagrange_mult_method { neq + np } else { nu };
-
-    // Calculate the number of non-zero entries in the global stiffness matrix
-    let mut nnz_kk = 0;
-    let mut nnz_kk_bar = 0;
-    let mut nnz_kk_check = 0;
-    if config.lagrange_mult_method {
-        data.elements.add_nnz_lmm(&mut nnz_kk, sym);
-        data.boundaries.add_nnz_lmm(&mut nnz_kk, sym);
-        if sym.triangular() {
-            nnz_kk += np;
-        } else {
-            nnz_kk += 2 * np;
-        }
-    } else {
-        data.elements
-            .add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &data.eq_handler);
-        data.boundaries
-            .add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &data.eq_handler);
-    }
-
-    // Print information about the system
-    if config.verbose {
-        let mut b = vec![vec![String::new(); 3]; 3];
-        write!(&mut b[0][0], "neq  = {:?}", neq).unwrap();
-        write!(&mut b[1][0], "np   = {:?}", np).unwrap();
-        write!(&mut b[2][0], "ndim = {:?}", ndim).unwrap();
-        write!(&mut b[0][1], "nnz(K)     = {:?}", nnz_kk).unwrap();
-        write!(&mut b[1][1], "nnz(K-bar) = {:?}", nnz_kk_bar).unwrap();
-        write!(&mut b[2][1], "sym(K)     = {:?}", sym).unwrap();
-        write!(&mut b[0][2], "genie        = {:?}", genie).unwrap();
-        write!(&mut b[1][2], "continuation = {}", continuation).unwrap();
-        write!(
-            &mut b[2][2],
-            "EBC handler  = {}",
-            if config.lagrange_mult_method { "LMM" } else { "SPS" }
-        )
-        .unwrap();
-        let mut w = vec![0; 3];
-        for i in 0..3 {
-            for j in 0..3 {
-                w[j] = usize::max(w[j], b[i][j].len());
-            }
-        }
-        let mut buf = String::new();
-        for i in 0..3 {
-            if i > 0 {
-                write!(&mut buf, "\n").unwrap();
-            }
-            for j in 0..3 {
-                if j > 0 {
-                    write!(&mut buf, " │ ").unwrap();
-                }
-                write!(&mut buf, "{:1$}", b[i][j], w[j]).unwrap();
-            }
-        }
-        write!(&mut buf, "\n").unwrap();
-        println!("\n{}", buf);
-    }
-
-    // Returns the arguments structure
-    Ok(Args {
-        state,
-        data,
-        neq,
-        np,
-        ndim,
-        sym,
-        nnz_kk,
-        nnz_kk_bar,
-        nnz_kk_check,
-    })
-}
 
 /// Allocates the nonlinear system
 fn allocate_system<'a>(
@@ -302,7 +184,7 @@ fn allocate_system<'a>(
     nnz_kk: usize,
     nnz_kk_bar: usize,
     sym: Sym,
-) -> Result<NlSystem<'a, Args<'a>>, StrError> {
+) -> Result<NlSystem<'a, FemData<'a>>, StrError> {
     // Allocate the nonlinear system structure
     let nl_system = if config.lagrange_mult_method {
         let mut sys = NlSystem::new(ndim, calc_gg_lmm)?;
@@ -327,38 +209,37 @@ fn allocate_system<'a>(
 }
 
 /// Creates a backup of the current state
-fn backup(args: &mut Args) {
-    args.data.elements.backup_secondary_values(&mut args.state, true);
+fn backup(data: &mut FemData) {
+    data.elements.backup_secondary_values(&mut data.state, true);
 }
 
 /// Restores the state from the backup
-fn restore(args: &mut Args) {
-    args.data.elements.restore_secondary_values(&mut args.state, true);
+fn restore(data: &mut FemData) {
+    data.elements.restore_secondary_values(&mut data.state, true);
 }
 
-fn prepare_to_iterate(args: &mut Args) {
-    args.data.elements.reset_algorithmic_variables(&mut args.state);
+fn prepare_to_iterate(data: &mut FemData) {
+    data.elements.reset_algorithmic_variables(&mut data.state);
 }
 
 // Lagrange Multipliers Method (LMM) functions /////////////////////////////////////////////////////////////////////////
 
 /// Function to calculate G(u, λ)
-fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, args: &mut Args) -> Result<(), StrError> {
+fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
-    let t = args.state.time;
-    args.state.lambda = l;
-    vec_copy(&mut args.state.u, u).unwrap();
+    let t = data.state.time;
+    data.state.lambda = l;
+    vec_copy(&mut data.state.u, u).unwrap();
 
     // Calculate the external forces vector F
-    args.data.calc_ff(t)?;
+    data.calc_ff(t)?;
 
     // Calculate the internal forces vector Y
-    args.data.calc_yy(&mut args.state)?;
+    data.calc_yy()?;
 
     // Calculate the residuals vector: R = Y - λ F
-    let neq = args.data.eq_handler.neq();
-    for i in 0..neq {
-        gg[i] = args.data.yy[i] - l * args.data.ff[i];
+    for i in 0..data.neq {
+        gg[i] = data.yy[i] - l * data.ff[i];
     }
 
     // Add Lagrange multiplier contributions to G
@@ -367,11 +248,11 @@ fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, args: &mut Args) -> Result<(
     // G = │           │
     //     │ C u - λ ǔ │
     //     └           ┘
-    for ip in 0..args.data.eq_handler.np() {
-        let i = args.data.eq_handler.prescribed()[ip];
-        let j = neq + ip;
-        let mu = args.state.u[j];
-        let val = args.data.presc_values[ip](t);
+    for ip in 0..data.np {
+        let i = data.eq_handler.prescribed()[ip];
+        let j = data.neq + ip;
+        let mu = data.state.u[j];
+        let val = data.presc_values[ip](t);
         gg[i] += mu; // Cᵀ μ   →   1 μ
         gg[j] = u[i] - l * val; // C u - λ ǔ   →   1 u - λ ǔ
     }
@@ -379,14 +260,14 @@ fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, args: &mut Args) -> Result<(
 }
 
 /// Function to calculate Gu = ∂G/∂u (Jacobian matrix)
-fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> Result<(), StrError> {
+fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
-    args.state.lambda = l;
-    vec_copy(&mut args.state.u, u).unwrap();
+    data.state.lambda = l;
+    vec_copy(&mut data.state.u, u).unwrap();
 
     // Assemble the local Ke matrices into the global K = Gu matrix
-    args.data.elements.assemble_kk_lmm(ggu, &mut args.state)?;
-    args.data.boundaries.assemble_kk_lmm(ggu, &mut args.state)?;
+    data.elements.assemble_kk_lmm(ggu, &mut data.state)?;
+    data.boundaries.assemble_kk_lmm(ggu, &mut data.state)?;
 
     // Add constraint matrix to Gu
     //      ┌         ┐
@@ -394,27 +275,26 @@ fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> Res
     // Gu = │         │
     //      │  C   0  │
     //      └         ┘
-    let neq = args.data.eq_handler.neq();
     let sym = ggu.get_info().3;
     match sym {
         Sym::YesLower => {
-            for ip in 0..args.data.eq_handler.np() {
-                let i = args.data.eq_handler.prescribed()[ip];
-                let j = neq + ip;
+            for ip in 0..data.np {
+                let i = data.eq_handler.prescribed()[ip];
+                let j = data.neq + ip;
                 ggu.put(j, i, 1.0).unwrap(); // C
             }
         }
         Sym::YesUpper => {
-            for ip in 0..args.data.eq_handler.np() {
-                let i = args.data.eq_handler.prescribed()[ip];
-                let j = neq + ip;
+            for ip in 0..data.np {
+                let i = data.eq_handler.prescribed()[ip];
+                let j = data.neq + ip;
                 ggu.put(i, j, 1.0).unwrap(); // Cᵀ
             }
         }
         Sym::YesFull | Sym::No => {
-            for ip in 0..args.data.eq_handler.np() {
-                let i = args.data.eq_handler.prescribed()[ip];
-                let j = neq + ip;
+            for ip in 0..data.np {
+                let i = data.eq_handler.prescribed()[ip];
+                let j = data.neq + ip;
                 ggu.put(i, j, 1.0).unwrap(); // Cᵀ
                 ggu.put(j, i, 1.0).unwrap(); // C
             }
@@ -424,10 +304,9 @@ fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> Res
 }
 
 /// Function to calculate Gl = ∂G/∂λ
-fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, args: &mut Args) -> Result<(), StrError> {
-    let neq = args.data.eq_handler.neq();
-    for i in 0..neq {
-        ggl[i] = -args.data.ff[i];
+fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+    for i in 0..data.neq {
+        ggl[i] = -data.ff[i];
     }
     Ok(())
 }
@@ -439,87 +318,84 @@ fn update_secondary_state_lmm(
     u1: &Vector,
     _l0: f64,
     _l1: f64,
-    args: &mut Args,
+    data: &mut FemData,
 ) -> Result<bool, StrError> {
     // Backup or restore secondary values
     if do_backup {
-        args.data.elements.backup_secondary_values(&mut args.state, false);
+        data.elements.backup_secondary_values(&mut data.state, false);
         return Ok(false);
     } else {
-        args.data.elements.restore_secondary_values(&mut args.state, false);
+        data.elements.restore_secondary_values(&mut data.state, false);
     }
 
     // Calculate Δu
-    vec_minus(&mut args.state.ddu, &u1, &u0).unwrap();
+    vec_minus(&mut data.state.ddu, &u1, &u0).unwrap();
 
     // Update secondary values
-    args.data.elements.update_secondary_values(&mut args.state)?;
+    data.elements.update_secondary_values(&mut data.state)?;
     Ok(false)
 }
 
 // System Partitioning Strategy (SPS) functions ////////////////////////////////////////////////////////////////////////
 
 /// Function to calculate G(u, λ) using the System Partitioning Strategy (SPS)
-fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, args: &mut Args) -> Result<(), StrError> {
+fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
-    let t = args.state.time;
-    args.state.lambda = l;
-    for eq in 0..args.data.eq_handler.neq() {
-        if args.data.eq_handler.is_unknown(eq) {
-            let iu = args.data.eq_handler.iu(eq);
-            args.state.u[eq] = u[iu];
+    let t = data.state.time;
+    data.state.lambda = l;
+    for eq in 0..data.neq {
+        if data.eq_handler.is_unknown(eq) {
+            let iu = data.eq_handler.iu(eq);
+            data.state.u[eq] = u[iu];
         } else {
-            let ip = args.data.eq_handler.ip(eq);
-            let val = args.data.presc_values[ip](t);
-            args.state.u[eq] = l * val;
+            let ip = data.eq_handler.ip(eq);
+            let val = data.presc_values[ip](t);
+            data.state.u[eq] = l * val;
         }
     }
 
     // Calculate the external forces vector F
-    args.data.calc_ff(t)?;
+    data.calc_ff(t)?;
 
     // Calculate the internal forces vector Y
-    args.data.calc_yy(&mut args.state)?;
+    data.calc_yy()?;
 
     // Calculate the residuals vector: R = Y - λ F
-    args.data.eq_handler.unknown().iter().for_each(|&eq| {
-        let iu = args.data.eq_handler.iu(eq);
-        gg[iu] = args.data.yy[eq] - l * args.data.ff[eq];
+    data.eq_handler.unknown().iter().for_each(|&eq| {
+        let iu = data.eq_handler.iu(eq);
+        gg[iu] = data.yy[eq] - l * data.ff[eq];
     });
     Ok(())
 }
 
 /// Function to calculate Gu = ∂G/∂u (Jacobian matrix) using the System Partitioning Strategy (SPS)
-fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, args: &mut Args) -> Result<(), StrError> {
+fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
-    let t = args.state.time;
-    args.state.lambda = l;
-    for eq in 0..args.data.eq_handler.neq() {
-        if args.data.eq_handler.is_unknown(eq) {
-            let iu = args.data.eq_handler.iu(eq);
-            args.state.u[eq] = u[iu];
+    let t = data.state.time;
+    data.state.lambda = l;
+    for eq in 0..data.neq {
+        if data.eq_handler.is_unknown(eq) {
+            let iu = data.eq_handler.iu(eq);
+            data.state.u[eq] = u[iu];
         } else {
-            let ip = args.data.eq_handler.ip(eq);
-            let val = args.data.presc_values[ip](t);
-            args.state.u[eq] = l * val;
+            let ip = data.eq_handler.ip(eq);
+            let val = data.presc_values[ip](t);
+            data.state.u[eq] = l * val;
         }
     }
 
     // Assemble the local Ke matrices into the global K = Gu matrix
-    args.data
-        .elements
-        .assemble_kk_bar(ggu, &mut args.state, &args.data.eq_handler)?;
-    args.data
-        .boundaries
-        .assemble_kk_bar(ggu, &mut args.state, &args.data.eq_handler)?;
+    data.elements.assemble_kk_bar(ggu, &mut data.state, &data.eq_handler)?;
+    data.boundaries
+        .assemble_kk_bar(ggu, &mut data.state, &data.eq_handler)?;
     Ok(())
 }
 
 /// Function to calculate Gl = ∂G/∂λ using the System Partitioning Strategy (SPS)
-fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, args: &mut Args) -> Result<(), StrError> {
-    args.data.eq_handler.unknown().iter().for_each(|&eq| {
-        let iu = args.data.eq_handler.iu(eq);
-        ggl[iu] = -args.data.ls.ddff[eq];
+fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+    data.eq_handler.unknown().iter().for_each(|&eq| {
+        let iu = data.eq_handler.iu(eq);
+        ggl[iu] = -data.ls.ddff[eq];
     });
     // TODO add K-check contribution
     Ok(())
@@ -532,30 +408,30 @@ fn update_secondary_state_sps(
     u1: &Vector,
     l0: f64,
     l1: f64,
-    args: &mut Args,
+    data: &mut FemData,
 ) -> Result<bool, StrError> {
     // Backup or restore secondary values
     if do_backup {
-        args.data.elements.backup_secondary_values(&mut args.state, false);
+        data.elements.backup_secondary_values(&mut data.state, false);
         return Ok(false);
     } else {
-        args.data.elements.restore_secondary_values(&mut args.state, false);
+        data.elements.restore_secondary_values(&mut data.state, false);
     }
 
     // Calculate Δu
-    let t = args.state.time;
-    for eq in 0..args.data.eq_handler.neq() {
-        if args.data.eq_handler.is_unknown(eq) {
-            let iu = args.data.eq_handler.iu(eq);
-            args.state.ddu[eq] = u1[iu] - u0[iu];
+    let t = data.state.time;
+    for eq in 0..data.neq {
+        if data.eq_handler.is_unknown(eq) {
+            let iu = data.eq_handler.iu(eq);
+            data.state.ddu[eq] = u1[iu] - u0[iu];
         } else {
-            let ip = args.data.eq_handler.ip(eq);
-            let val = args.data.presc_values[ip](t);
-            args.state.ddu[eq] = l1 * val - l0 * val;
+            let ip = data.eq_handler.ip(eq);
+            let val = data.presc_values[ip](t);
+            data.state.ddu[eq] = l1 * val - l0 * val;
         }
     }
 
     // Update secondary values
-    args.data.elements.update_secondary_values(&mut args.state)?;
+    data.elements.update_secondary_values(&mut data.state)?;
     Ok(false)
 }

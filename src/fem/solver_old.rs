@@ -94,10 +94,6 @@ impl<'a> SolverOld<'a> {
         // initialize internal variables
         self.com.elements.initialize_internal_values(state)?;
 
-        // first output (must occur after initialize_internal_values)
-        self.com.files.write_state(&self.config, state)?;
-        self.com.files.save_selected(&self.config, &self.com.schema, state)?;
-
         // print convergence information
         self.log.header();
 
