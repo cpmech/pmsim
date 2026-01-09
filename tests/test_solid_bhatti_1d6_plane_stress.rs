@@ -81,8 +81,9 @@ fn run_test(lmm: bool, new_solver: bool) -> Result<(), StrError> {
 
     // solution
     let u = if new_solver {
-        let state = solve_steady_linear(&mesh, &schema, &config, &essential, &natural)?;
-        Vector::from(&&state.u.as_data()[..12])
+        let (mut solver, mut data) = SolverLin::new(&mesh, &schema, &config, &essential, &natural)?;
+        solver.steady(&mut data)?;
+        Vector::from(&&data.get_state().u.as_data()[..12])
     } else {
         let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
         Vector::from(&&state.u.as_data()[..12])

@@ -69,7 +69,8 @@ fn run_test(lmm: bool, new_solver: bool) -> Result<(), StrError> {
 
     // solution
     if new_solver {
-        solve_steady_linear(&mesh, &schema, &config, &essential, &natural)?;
+        let (mut solver, mut data) = SolverLin::new(&mesh, &schema, &config, &essential, &natural)?;
+        solver.steady(&mut data)?;
     } else {
         SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
     }

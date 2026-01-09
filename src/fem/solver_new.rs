@@ -10,47 +10,6 @@ use russell_nonlin::{Config as NlConfig, Method as NlMethod, Solver as NlSolver,
 use russell_sparse::{CooMatrix, LinSolver, Sym};
 use std::fmt::Write;
 
-/// Solves a steady linear problem
-pub fn solve_steady_linear<'a>(
-    mesh: &Mesh,
-    schema: &'a Schema,
-    config: &'a Config,
-    essential: &'a BcEssential,
-    natural: &'a BcNatural,
-) -> Result<FemState, StrError> {
-    // Allocate arguments
-    let continuation = "None";
-    let mut data = FemData::new(mesh, schema, config, essential, natural)?;
-
-    // Solve the linear problem
-    data.state.time = 1.0;
-    let genie = config.lin_sol_genie;
-    let u = Vector::new(data.ndim);
-    let mut mdu = Vector::new(data.ndim);
-    let mut gg = Vector::new(data.ndim);
-    if config.lagrange_mult_method {
-        let mut kk = CooMatrix::new(data.ndim, data.ndim, data.nnz_kk, data.sym).unwrap();
-        calc_gg_lmm(&mut gg, 1.0, &u, &mut data)?;
-        calc_ggu_lmm(&mut kk, 1.0, &u, &mut data)?;
-        LinSolver::compute(genie, &mut mdu, &kk, &gg, None)?;
-        for eq in 0..data.neq {
-            data.state.u[eq] -= mdu[eq];
-        }
-    } else {
-        let mut kk_bar = CooMatrix::new(data.ndim, data.ndim, data.nnz_kk_bar, data.sym).unwrap();
-        calc_gg_sps(&mut gg, 1.0, &u, &mut data)?;
-        calc_ggu_sps(&mut kk_bar, 1.0, &u, &mut data)?;
-        LinSolver::compute(genie, &mut mdu, &kk_bar, &gg, None)?;
-        for eq in 0..data.neq {
-            if data.eq_handler.is_unknown(eq) {
-                let iu = data.eq_handler.iu(eq);
-                data.state.u[eq] -= mdu[iu];
-            }
-        }
-    }
-    Ok(data.state)
-}
-
 /// Solves a steady problem
 pub fn solve_steady<'a>(
     mesh: &Mesh,
@@ -178,7 +137,7 @@ pub fn solve_steady_with_load_factors<'a>(
 // Common functions ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Allocates the nonlinear system
-fn allocate_system<'a>(
+pub(crate) fn allocate_system<'a>(
     config: &'a Config,
     ndim: usize,
     nnz_kk: usize,
@@ -209,23 +168,23 @@ fn allocate_system<'a>(
 }
 
 /// Creates a backup of the current state
-fn backup(data: &mut FemData) {
+pub(crate) fn backup(data: &mut FemData) {
     data.elements.backup_secondary_values(&mut data.state, true);
 }
 
 /// Restores the state from the backup
-fn restore(data: &mut FemData) {
+pub(crate) fn restore(data: &mut FemData) {
     data.elements.restore_secondary_values(&mut data.state, true);
 }
 
-fn prepare_to_iterate(data: &mut FemData) {
+pub(crate) fn prepare_to_iterate(data: &mut FemData) {
     data.elements.reset_algorithmic_variables(&mut data.state);
 }
 
 // Lagrange Multipliers Method (LMM) functions /////////////////////////////////////////////////////////////////////////
 
 /// Function to calculate G(u, λ)
-fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
     let t = data.state.time;
     data.state.lambda = l;
@@ -260,7 +219,7 @@ fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Resul
 }
 
 /// Function to calculate Gu = ∂G/∂u (Jacobian matrix)
-fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
     data.state.lambda = l;
     vec_copy(&mut data.state.u, u).unwrap();
@@ -304,7 +263,7 @@ fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> 
 }
 
 /// Function to calculate Gl = ∂G/∂λ
-fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     for i in 0..data.neq {
         ggl[i] = -data.ff[i];
     }
@@ -312,7 +271,7 @@ fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> R
 }
 
 /// Function to update the secondary state using the Lagrange Multipliers Method (LMM)
-fn update_secondary_state_lmm(
+pub(crate) fn update_secondary_state_lmm(
     do_backup: bool,
     u0: &Vector,
     u1: &Vector,
@@ -339,7 +298,7 @@ fn update_secondary_state_lmm(
 // System Partitioning Strategy (SPS) functions ////////////////////////////////////////////////////////////////////////
 
 /// Function to calculate G(u, λ) using the System Partitioning Strategy (SPS)
-fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
     let t = data.state.time;
     data.state.lambda = l;
@@ -369,7 +328,7 @@ fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Resul
 }
 
 /// Function to calculate Gu = ∂G/∂u (Jacobian matrix) using the System Partitioning Strategy (SPS)
-fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
     let t = data.state.time;
     data.state.lambda = l;
@@ -392,7 +351,7 @@ fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> 
 }
 
 /// Function to calculate Gl = ∂G/∂λ using the System Partitioning Strategy (SPS)
-fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     data.eq_handler.unknown().iter().for_each(|&eq| {
         let iu = data.eq_handler.iu(eq);
         ggl[iu] = -data.ls.ddff[eq];
@@ -402,7 +361,7 @@ fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> R
 }
 
 /// Function to update the secondary state using the System Partitioning Strategy (SPS)
-fn update_secondary_state_sps(
+pub(crate) fn update_secondary_state_sps(
     do_backup: bool,
     u0: &Vector,
     u1: &Vector,

@@ -10,9 +10,10 @@ use russell_sparse::{CooMatrix, Sym};
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// Implements common (shared) functionality for all FEM solvers
-pub(crate) struct FemData<'a> {
+pub struct FemData<'a> {
     /// Holds element types, material parameters, and specifies the DOF numbering schema
     pub(crate) schema: &'a Schema,
 
@@ -51,23 +52,6 @@ pub(crate) struct FemData<'a> {
     /// Stopwatch to measure computer time
     pub(crate) stopwatch: Stopwatch,
 
-    /// Implements the K-check matrix for the System Partitioning Strategy (SPS)
-    ///
-    /// K-check (Ǩ) originates from the following system:
-    ///
-    /// ```text
-    /// ┌       ┐ ┌   ┐   ┌   ┐
-    /// │ K̄   Ǩ │ │ ̄a │   │ f̄ │
-    /// │       │ │   │ = │   │
-    /// │ Ḵ   ̰K │ │ ǎ │   │ f̌ │
-    /// └       ┘ └   ┘   └   ┘
-    ///     K       a       f
-    /// ```
-    ///
-    /// If using the Lagrange Multiplier Method (LMM), K-check will be empty
-    /// (1x1 matrix as required by `russell_sparse`)
-    pub(crate) kk_check: CooMatrix,
-
     /// Vector of internal forces
     ///
     /// dim = neq = nu + np
@@ -78,14 +62,17 @@ pub(crate) struct FemData<'a> {
     /// dim = neq = nu + np
     pub(crate) ff: Vector,
 
+    pub(crate) uuid: Uuid,
     pub(crate) state: FemState,
     pub(crate) neq: usize,
+    pub(crate) nu: usize,
     pub(crate) np: usize,
     pub(crate) ndim: usize,
     pub(crate) sym: Sym,
     pub(crate) nnz_kk: usize,
     pub(crate) nnz_kk_bar: usize,
     pub(crate) nnz_kk_check: usize,
+    pub(crate) kk_check: CooMatrix,
 }
 
 impl<'a> FemData<'a> {
@@ -158,15 +145,6 @@ impl<'a> FemData<'a> {
         // Allocate output files handler
         let mut files = OutputFiles::new(mesh, schema, config)?;
 
-        // Allocate K-check matrix for SPS
-        let kk_check = if config.lagrange_mult_method || n_prescribed == 0 {
-            CooMatrix::new(1, 1, 1, Sym::No).unwrap() // empty
-        } else {
-            let n_unknown = eq_handler.nu();
-            let nnz = n_unknown * n_prescribed; // TODO
-            CooMatrix::new(n_unknown, n_prescribed, nnz, Sym::No).unwrap()
-        };
-
         //////////////////////////////////////////////////////////////////////////////////////////////////////
 
         let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
@@ -208,6 +186,13 @@ impl<'a> FemData<'a> {
             boundaries.add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &eq_handler);
         }
 
+        // Allocate K-check matrix for SPS
+        let kk_check = if config.lagrange_mult_method || n_prescribed == 0 {
+            CooMatrix::new(1, 1, 1, Sym::No).unwrap() // empty
+        } else {
+            CooMatrix::new(nu, np, nnz_kk_check, Sym::No).unwrap()
+        };
+
         //////////////////////////////////////////////////////////////////////////////////////////////////////
 
         // return new instance
@@ -224,19 +209,25 @@ impl<'a> FemData<'a> {
             unknown_eqs,
             files,
             stopwatch,
-            kk_check,
             yy: Vector::new(neq),
             ff: Vector::new(neq),
             //
+            uuid: Uuid::new_v4(),
             state,
             neq,
+            nu,
             np,
             ndim,
             sym,
             nnz_kk,
             nnz_kk_bar,
             nnz_kk_check,
+            kk_check,
         })
+    }
+
+    pub fn get_state(&self) -> &FemState {
+        &self.state
     }
 
     /// Prints information about the system
