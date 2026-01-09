@@ -58,16 +58,16 @@ pub fn solve_steady_with_load_factors<'a>(
     // Print information about the system
     data.print_system_info("Natural");
 
+    // Allocate the nonlinear solver
+    let mut nl_solver = NlSolver::new(nl_config, system)?;
+
     // Set function to calculate the initial stepsize
     if use_load_factor_as_h_ini {
-        system.set_calc_h_ini(|data| {
+        nl_solver.set_calc_h_ini(|data| {
             let t = data.state.time as usize;
             f64::abs(load_factors[t] - load_factors[t - 1])
         });
     }
-
-    // Allocate the nonlinear solver
-    let mut nl_solver = NlSolver::new(nl_config, system)?;
 
     // Allocate the unknowns
     let mut u = Vector::new(data.ndim);

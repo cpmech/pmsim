@@ -1,7 +1,6 @@
 use gemlab::prelude::*;
 use plotpy::Curve;
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
-use pmsim::fem::solve_steady_with_load_factors;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
@@ -39,7 +38,7 @@ const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse_new";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual_new";
 const GENERATE_MESH: bool = false;
-const SAVE_FIGURE: bool = false;
+const SAVE_FIGURE: bool = true;
 const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius
@@ -87,56 +86,31 @@ fn test_spo_751_pres_cylin_new() -> Result<(), StrError> {
     let mut essential = BcEssential::new();
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
-    // Run the collapse simulation
-    run_test(
-        false,
-        true,
-        false,
-        &mesh,
-        &schema,
-        &essential,
-        &inner_circle,
-        outer_point,
-    )?;
-    run_test(
-        true,
-        true,
-        false,
-        &mesh,
-        &schema,
-        &essential,
-        &inner_circle,
-        outer_point,
-    )?;
-
-    // Run the residual stress simulation
-    run_test(
-        false,
-        true,
-        true,
-        &mesh,
-        &schema,
-        &essential,
-        &inner_circle,
-        outer_point,
-    )?;
-    run_test(
-        false,
-        false,
-        true,
-        &mesh,
-        &schema,
-        &essential,
-        &inner_circle,
-        outer_point,
-    )?;
+    // Run the test
+    for residual in [false, true] {
+        let options = if residual { vec![false] } else { vec![false, true] };
+        for alternative in options {
+            for lmm in [false, true] {
+                run_test(
+                    residual,
+                    alternative,
+                    lmm,
+                    &mesh,
+                    &schema,
+                    &essential,
+                    &inner_circle,
+                    outer_point,
+                )?;
+            }
+        }
+    }
     Ok(())
 }
 
 fn run_test(
+    residual: bool,
     alternative: bool,
     lmm: bool,
-    residual: bool,
     mesh: &Mesh,
     schema: &Schema,
     essential: &BcEssential,
@@ -158,22 +132,23 @@ fn run_test(
         .update_model_settings(1)
         .set_save_strain(true);
 
-    // Select loading factors
-    let loading_factors = if residual {
-        Vec::from(&LOAD_FACTORS_RESIDUAL)
-    } else {
-        Vec::from(&LOAD_FACTORS_COLLAPSE)
-    };
-
     // Set the options for the nonlinear solver
     let mut nl_config = NlConfig::new();
     nl_config
-        .set_verbose(true, true, false)
+        .set_method(if alternative {
+            NlMethod::Arclength
+        } else {
+            NlMethod::Natural
+        })
+        .set_verbose(true, true, true)
         .set_h_ini(0.1)
         .set_tg_control_atol_and_rtol(0.1)
         .set_n_cont_residual_divergence_max(2)
         .set_n_cont_delta_divergence_max(3)
         .set_record_iterations_residuals(true);
+
+    // Allocate the FEM solver and data
+    let (mut solver, mut data) = Solver::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
 
     // Solve the problem
     if alternative {
@@ -182,24 +157,16 @@ fn run_test(
             data.write_state()?;
             Ok(false)
         });
-        nl_config.set_method(NlMethod::Arclength).set_verbose(true, true, false);
-        let (mut solver, mut data) = Solver::new(&mesh, &schema, &config, &essential, &natural, &nl_config)?;
         let u_index = data.get_u_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(u_index, 0.6);
         solver.steady(&mut data, IniDir::Pos, stop, AutoStep::Yes, Some(out))?;
     } else {
-        let use_load_factor_as_h_ini = true;
-        solve_steady_with_load_factors(
-            &mesh,
-            &schema,
-            &config,
-            &essential,
-            &natural,
-            &mut nl_config,
-            AutoStep::Yes,
-            &loading_factors,
-            use_load_factor_as_h_ini,
-        )?;
+        let loading_factors = if residual {
+            Vec::from(&LOAD_FACTORS_RESIDUAL)
+        } else {
+            Vec::from(&LOAD_FACTORS_COLLAPSE)
+        };
+        solver.steady_with_load_factors(&mut data, &loading_factors, true, AutoStep::Yes)?;
     }
 
     // Compare the results with Ref #1
@@ -222,24 +189,16 @@ fn run_test(
     }
 
     // Analyze the results
-    analyze_results(alternative, residual)?;
+    analyze_results(residual, alternative, lmm)?;
     Ok(())
 }
 
-fn analyze_results(alternative: bool, residual: bool) -> Result<(), StrError> {
+fn analyze_results(residual: bool, alternative: bool, lmm: bool) -> Result<(), StrError> {
     // select constants
-    let (name, pp_array, selected_pp) = if residual {
-        (
-            NAME_RESIDUAL,
-            Vec::from(&LOAD_FACTORS_RESIDUAL),
-            Vec::from(&SELECTED_P_RESIDUAL),
-        )
+    let (name, selected_pp) = if residual {
+        (NAME_RESIDUAL, Vec::from(&SELECTED_P_RESIDUAL))
     } else {
-        (
-            NAME_COLLAPSE,
-            Vec::from(&LOAD_FACTORS_COLLAPSE),
-            Vec::from(&SELECTED_P_COLLAPSE),
-        )
+        (NAME_COLLAPSE, Vec::from(&SELECTED_P_COLLAPSE))
     };
 
     // load summary and associated files
@@ -271,7 +230,6 @@ fn analyze_results(alternative: bool, residual: bool) -> Result<(), StrError> {
         let state = post.read_state(index)?;
 
         // pressure
-        // let pp = pp_array[index];
         let pp = state.lambda;
         inner_pp[index] = pp;
 
@@ -376,9 +334,10 @@ fn analyze_results(alternative: bool, residual: bool) -> Result<(), StrError> {
                 plot.add(&curve);
             }
         });
-        let alt = if alternative { "_alt" } else { "" };
+        let key0 = if alternative { "_alt" } else { "" };
+        let key1 = if lmm { "_lmm" } else { "" };
         plot.set_figure_size_points(600.0, 450.0)
-            .save(&format!("/tmp/pmsim/{}{}.svg", name, alt))?;
+            .save(&format!("/tmp/pmsim/{}{}{}.svg", name, key0, key1))?;
     }
 
     Ok(())
