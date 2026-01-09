@@ -47,6 +47,7 @@ pub fn solve_steady_with_load_factors<'a>(
 
     // Update nonlinear solver parameters
     nl_config
+        .set_show_header_footer(false)
         .set_method(NlMethod::Natural) // this is required for load control
         .set_genie(config.lin_sol_genie);
 
@@ -186,12 +187,11 @@ pub(crate) fn prepare_to_iterate(data: &mut FemData) {
 /// Function to calculate G(u, λ)
 pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
-    let t = data.state.time;
     data.state.lambda = l;
     vec_copy(&mut data.state.u, u).unwrap();
 
     // Calculate the external forces vector F
-    data.calc_ff(t)?;
+    data.calc_ff()?;
 
     // Calculate the internal forces vector Y
     data.calc_yy()?;
@@ -211,7 +211,7 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
         let i = data.eq_handler.prescribed()[ip];
         let j = data.neq + ip;
         let mu = data.state.u[j];
-        let val = data.presc_values[ip](t);
+        let val = data.presc_values[ip](data.state.time);
         gg[i] += mu; // Cᵀ μ   →   1 μ
         gg[j] = u[i] - l * val; // C u - λ ǔ   →   1 u - λ ǔ
     }
@@ -300,7 +300,6 @@ pub(crate) fn update_secondary_state_lmm(
 /// Function to calculate G(u, λ) using the System Partitioning Strategy (SPS)
 pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
-    let t = data.state.time;
     data.state.lambda = l;
     for eq in 0..data.neq {
         if data.eq_handler.is_unknown(eq) {
@@ -308,13 +307,13 @@ pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
             data.state.u[eq] = u[iu];
         } else {
             let ip = data.eq_handler.ip(eq);
-            let val = data.presc_values[ip](t);
+            let val = data.presc_values[ip](data.state.time);
             data.state.u[eq] = l * val;
         }
     }
 
     // Calculate the external forces vector F
-    data.calc_ff(t)?;
+    data.calc_ff()?;
 
     // Calculate the internal forces vector Y
     data.calc_yy()?;
@@ -330,7 +329,6 @@ pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
 /// Function to calculate Gu = ∂G/∂u (Jacobian matrix) using the System Partitioning Strategy (SPS)
 pub(crate) fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set (u, λ) in the state
-    let t = data.state.time;
     data.state.lambda = l;
     for eq in 0..data.neq {
         if data.eq_handler.is_unknown(eq) {
@@ -338,7 +336,7 @@ pub(crate) fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut F
             data.state.u[eq] = u[iu];
         } else {
             let ip = data.eq_handler.ip(eq);
-            let val = data.presc_values[ip](t);
+            let val = data.presc_values[ip](data.state.time);
             data.state.u[eq] = l * val;
         }
     }
@@ -378,14 +376,13 @@ pub(crate) fn update_secondary_state_sps(
     }
 
     // Calculate Δu
-    let t = data.state.time;
     for eq in 0..data.neq {
         if data.eq_handler.is_unknown(eq) {
             let iu = data.eq_handler.iu(eq);
             data.state.ddu[eq] = u1[iu] - u0[iu];
         } else {
             let ip = data.eq_handler.ip(eq);
-            let val = data.presc_values[ip](t);
+            let val = data.presc_values[ip](data.state.time);
             data.state.ddu[eq] = l1 * val - l0 * val;
         }
     }

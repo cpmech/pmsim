@@ -1,10 +1,11 @@
 #![allow(unused)]
 
 use super::{ElementsBoundary, ElementsInterior, FemState, LinearSystem, OutputFiles};
-use crate::base::{BcEssential, BcNatural, Config, Schema};
+use crate::base::{BcEssential, BcNatural, Config, Dof, Schema};
 use crate::StrError;
-use gemlab::mesh::Mesh;
+use gemlab::mesh::{Mesh, PointId};
 use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch, Vector};
+use russell_nonlin::Stop;
 use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
 use std::collections::HashMap;
@@ -226,8 +227,21 @@ impl<'a> FemData<'a> {
         })
     }
 
+    pub fn get_u_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+        let eq = self.schema.get_eq(point_id, dof)?;
+        if self.config.lagrange_mult_method {
+            Ok(eq)
+        } else {
+            Ok(self.eq_handler.iu(eq))
+        }
+    }
+
     pub fn get_state(&self) -> &FemState {
         &self.state
+    }
+
+    pub fn write_state(&mut self) -> Result<(), StrError> {
+        self.files.write_state(self.config, &self.state)
     }
 
     /// Prints information about the system
@@ -286,19 +300,20 @@ impl<'a> FemData<'a> {
         Ok(())
     }
 
-    pub fn calc_ff(&mut self, time: f64) -> Result<(), StrError> {
+    pub fn calc_ff(&mut self) -> Result<(), StrError> {
         // clear vector
         self.ff.fill(0.0);
 
         // calculate all element local vectors
-        self.elements.assemble_ff(&mut self.ff, time, &self.ignored_eqs)?;
+        let t = self.state.time;
+        self.elements.assemble_ff(&mut self.ff, t, &self.ignored_eqs)?;
 
         // calculate all boundary elements local vectors
-        self.boundaries.assemble_ff(&mut self.ff, time, &self.ignored_eqs)?;
+        self.boundaries.assemble_ff(&mut self.ff, t, &self.ignored_eqs)?;
 
         // add concentrated loads
         for (eq, f) in &self.conc_loads {
-            self.ff[*eq] += (f)(time);
+            self.ff[*eq] += (f)(t);
         }
         Ok(())
     }

@@ -53,9 +53,9 @@ impl<'a> SolverLin<'a> {
         Ok((solver, data))
     }
 
-    pub fn steady(&mut self, data: &mut FemData) -> Result<(), StrError> {
+    pub fn steady(&mut self, data: &mut FemData<'a>) -> Result<(), StrError> {
         if data.uuid != self.data_uuid {
-            return Err("the same data structure created by the solver must be used");
+            return Err("The solver requires FemData with matching UUID");
         }
         data.state.time = 1.0;
         if data.config.lagrange_mult_method {
