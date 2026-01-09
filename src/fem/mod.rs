@@ -19,8 +19,8 @@ mod paraview;
 mod post_processing;
 mod secondary_values;
 mod solver;
+mod solver_common;
 mod solver_lin;
-mod solver_new;
 mod solver_old;
 mod stats;
 
@@ -43,7 +43,7 @@ use paraview::*;
 pub use post_processing::*;
 pub use secondary_values::*;
 pub use solver::*;
+use solver_common::*;
 pub use solver_lin::*;
-use solver_new::*;
 pub use solver_old::*;
 use stats::*;
