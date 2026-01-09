@@ -44,6 +44,6 @@ pub use post_processing::*;
 pub use secondary_values::*;
 pub use solver::*;
 pub use solver_lin::*;
-pub use solver_new::*;
+use solver_new::*;
 pub use solver_old::*;
 use stats::*;

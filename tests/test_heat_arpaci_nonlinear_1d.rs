@@ -68,12 +68,12 @@ fn analytical(x: f64) -> f64 {
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     println!("\n################################### OLD SOLVER ###################################\n");
     run_test(false, false, false)?;
-    // println!("\n##################################### NATURAL ####################################\n");
-    // run_test(true, false, false)?; // Natural continuation
-    // println!("\n################################ ARCLENGTH FULL ##################################\n");
-    // run_test(true, true, false)?; // Pseudo-arclength continuation without bordering
-    // println!("\n############################# ARCLENGTH BORDERING ################################\n");
-    // run_test(true, true, true)?; // Pseudo-arclength continuation with bordering
+    println!("\n##################################### NATURAL ####################################\n");
+    run_test(true, false, false)?; // Natural continuation
+    println!("\n################################ ARCLENGTH FULL ##################################\n");
+    run_test(true, true, false)?; // Pseudo-arclength continuation without bordering
+    println!("\n############################# ARCLENGTH BORDERING ################################\n");
+    run_test(true, true, true)?; // Pseudo-arclength continuation with bordering
     Ok(())
 }
 
@@ -105,7 +105,7 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_lagrange_mult_method(true)
+        .set_lagrange_mult_method(false)
         .set_out_files("/tmp/pmsim", NAME, 1.0);
 
     // nonlinear solver configuration
@@ -116,26 +116,16 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
         tol = 1e-9;
         let mut nl_config = NlConfig::new();
         nl_config
-            .set_verbose(true, true, true)
+            .set_verbose(true, true, false)
+            .set_h_ini(1.0)
+            .set_tg_control_atol_and_rtol(0.05)
             .set_record_iterations_residuals(true);
         if arclength {
-            nl_config
-                .set_method(NlMethod::Arclength)
-                .set_h_ini(0.1)
-                .set_tg_control_atol_and_rtol(0.05)
-                .set_bordering(bordering);
+            nl_config.set_method(NlMethod::Arclength).set_bordering(bordering);
         }
-        solve_steady(
-            &mesh,
-            &schema,
-            &config,
-            &essential,
-            &natural,
-            &nl_config,
-            IniDir::Pos,
-            Stop::MaxLambda(1.0),
-            AutoStep::Yes,
-        )?
+        let (mut solver, mut data) = Solver::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
+        solver.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), AutoStep::Yes, None)?;
+        data.get_state().clone()
     } else {
         SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?
     };

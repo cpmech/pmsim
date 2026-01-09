@@ -8,7 +8,6 @@ pub use crate::base::{
     Conductivity, GnlStrain, LiquidRetention, ParamBeam, ParamDiffusion, ParamFluids, ParamPorousLiq,
     ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, StressStrain,
 };
-pub use crate::fem::solve_steady;
 pub use crate::fem::{FemData, FemState, PostProc, Solver, SolverLin, SolverOld};
 pub use russell_nonlin::{AutoStep, IniDir, Stop};
 pub use russell_nonlin::{Config as NlConfig, Method as NlMethod, Output as NlOutput};
