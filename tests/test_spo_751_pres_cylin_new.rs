@@ -141,10 +141,13 @@ fn run_test(
             NlMethod::Natural
         })
         .set_verbose(true, true, true)
-        .set_h_ini(0.1)
-        .set_tg_control_atol_and_rtol(0.1)
-        .set_n_cont_residual_divergence_max(2)
-        .set_n_cont_delta_divergence_max(3)
+        .set_nr_control_enabled(true)
+        .set_tg_control_enabled(false)
+        .set_h_ini(0.05)
+        .set_tg_control_atol_and_rtol(0.05)
+        // .set_tg_control_rho_for_zero_rerr(2.0)
+        // .set_n_cont_residual_divergence_max(2)
+        // .set_n_cont_delta_divergence_max(3)
         .set_record_iterations_residuals(true);
 
     // Allocate the FEM solver and data
@@ -296,7 +299,7 @@ fn analyze_results(residual: bool, alternative: bool, lmm: bool) -> Result<(), S
                 if !residual {
                     let data = read_data("data/spo/spo-751-fig-716.tsv", &["x", "Curve1"]).unwrap();
                     curve_ref.draw(&data["x"], &data["Curve1"]);
-                    plot.add(&curve_ref);
+                    // plot.add(&curve_ref);
                 }
                 // load-displacement curve
                 curve.set_line_style("--").draw(&outer_ur, &inner_pp);

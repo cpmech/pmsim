@@ -104,7 +104,7 @@ impl<'a> Solver<'a> {
 
         // Print information about the system and the header
         if data.config.verbose {
-            data.print_system_info("Natural");
+            data.print_system_info(self.nl_method.name());
             self.nl_solver.log_header();
         }
 
@@ -193,7 +193,7 @@ impl<'a> Solver<'a> {
 
         // Print information about the system and the header
         if data.config.verbose {
-            data.print_system_info("Natural");
+            data.print_system_info(self.nl_method.name());
             self.nl_solver.log_header();
         }
 

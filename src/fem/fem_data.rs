@@ -74,6 +74,7 @@ pub struct FemData<'a> {
     pub(crate) nnz_kk_bar: usize,
     pub(crate) nnz_kk_check: usize,
     pub(crate) kk_check: CooMatrix,
+    pub(crate) u_check: Vector,
 }
 
 impl<'a> FemData<'a> {
@@ -224,6 +225,7 @@ impl<'a> FemData<'a> {
             nnz_kk_bar,
             nnz_kk_check,
             kk_check,
+            u_check: Vector::new(np),
         })
     }
 

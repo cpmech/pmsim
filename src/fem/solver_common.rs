@@ -42,7 +42,7 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     //     ┌           ┐
     //     │ R + Cᵀ μ  │
     // G = │           │
-    //     │ C u - λ ǔ │
+    //     │ C U - λ Ǔ │
     //     └           ┘
     for ip in 0..data.np {
         let i = data.eq_handler.prescribed()[ip];
@@ -50,7 +50,7 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
         let mu = data.state.u[j];
         let val = data.presc_values[ip](data.state.time);
         gg[i] += mu; // Cᵀ μ   →   1 μ
-        gg[j] = u[i] - l * val; // C u - λ ǔ   →   1 u - λ ǔ
+        gg[j] = u[i] - l * val; // C U - λ Ǔ   →   1 U - λ Ǔ
     }
     Ok(())
 }
@@ -101,8 +101,16 @@ pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut F
 
 /// Function to calculate Gl = ∂G/∂λ
 pub(crate) fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+    // Set Gl = -F for all equations not corresponding to the Lagrange multipliers
     for i in 0..data.neq {
         ggl[i] = -data.ff[i];
+    }
+
+    // Set Gl = -Ǔ for all equations corresponding to the Lagrange multipliers
+    for ip in 0..data.np {
+        let j = data.neq + ip;
+        let val = data.presc_values[ip](data.state.time);
+        ggl[j] = -val;
     }
     Ok(())
 }
@@ -119,7 +127,6 @@ pub(crate) fn update_secondary_state_lmm(
     // Backup or restore secondary values
     if do_backup {
         data.elements.backup_secondary_values(&mut data.state, false);
-        return Ok(false);
     } else {
         data.elements.restore_secondary_values(&mut data.state, false);
     }
@@ -187,11 +194,21 @@ pub(crate) fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut F
 
 /// Function to calculate Gl = ∂G/∂λ using the System Partitioning Strategy (SPS)
 pub(crate) fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+    // Calculate Ǔ
+    data.eq_handler.prescribed().iter().for_each(|&eq| {
+        let ip = data.eq_handler.ip(eq);
+        let val = data.presc_values[ip](data.state.time);
+        data.u_check[ip] = val;
+    });
+
+    // Set Gl = Ǩ * Ǔ
+    data.kk_check.mat_vec_mul(ggl, 1.0, &data.u_check).unwrap();
+
+    // Add -F to Gl so that Gl = Ǩ * Ǔ - F
     data.eq_handler.unknown().iter().for_each(|&eq| {
         let iu = data.eq_handler.iu(eq);
-        ggl[iu] = -data.ls.ddff[eq];
+        ggl[iu] -= data.ff[eq];
     });
-    // TODO add K-check contribution
     Ok(())
 }
 
@@ -207,7 +224,6 @@ pub(crate) fn update_secondary_state_sps(
     // Backup or restore secondary values
     if do_backup {
         data.elements.backup_secondary_values(&mut data.state, false);
-        return Ok(false);
     } else {
         data.elements.restore_secondary_values(&mut data.state, false);
     }
