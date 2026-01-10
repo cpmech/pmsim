@@ -12,21 +12,22 @@ const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
 // displacement control
-const UY: [f64; 14] = [
-    -0.01,  // stage =  0
-    -0.015, // stage =  1
-    -0.02,  // stage =  2
-    -0.025, // stage =  3
-    -0.035, // stage =  4
-    -0.045, // stage =  5
-    -0.055, // stage =  6
-    -0.065, // stage =  7
-    -0.075, // stage =  8
-    -0.08,  // stage =  9
-    -0.09,  // stage = 10
-    -0.11,  // stage = 11
-    -0.14,  // stage = 12
-    -0.2,   // stage = 13
+const UY: [f64; 15] = [
+    0.0,    //
+    -0.01,  //
+    -0.015, //
+    -0.02,  //
+    -0.025, //
+    -0.035, //
+    -0.045, //
+    -0.055, //
+    -0.065, //
+    -0.075, //
+    -0.08,  //
+    -0.09,  //
+    -0.11,  //
+    -0.14,  //
+    -0.2,   //
 ];
 
 pub fn main() -> Result<(), StrError> {
@@ -74,7 +75,7 @@ pub fn main() -> Result<(), StrError> {
     config
         .set_out_files("/tmp/pmsim", NAME, 1.0)
         .set_lagrange_mult_method(true)
-        .set_steady(UY.len())
+        .set_steady(UY.len() - 1)
         .set_symmetry_check_tolerance(Some(1e-5))
         .set_max_iterations(20);
 
