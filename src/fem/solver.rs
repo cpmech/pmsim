@@ -23,12 +23,12 @@ impl<'a> Solver<'a> {
         mesh: &Mesh,
         schema: &'a Schema,
         config: &'a Config,
-        essential: &'a BcEssential,
-        natural: &'a BcNatural,
+        ebc: &'a BcEssential,
+        nbc: &'a BcNatural,
         nl_config: &'a mut NlConfig,
     ) -> Result<(Self, FemData<'a>), StrError> {
         // Allocate the data structure
-        let data = FemData::new(&mesh, &schema, &config, &essential, &natural)?;
+        let data = FemData::new(&mesh, &schema, &config, &ebc, &nbc)?;
 
         // Allocate the nonlinear system structure
         let nl_system = if config.lagrange_mult_method {
@@ -108,6 +108,9 @@ impl<'a> Solver<'a> {
             self.nl_solver.log_header();
         }
 
+        // First output
+        data.files.execute(&data.schema, &data.config, &data.state)?;
+
         // Solve nonlinear equations
         data.state.time = 1.0;
         let status = match self
@@ -118,15 +121,13 @@ impl<'a> Solver<'a> {
             Err(e) => {
                 println!("\n❌ SIMULATION FAILED ❌\n");
                 println!("Reason: {}\n", e);
-                let _ = data.files.write_state(&data.config, &data.state);
-                let _ = data.files.write_self(&data.config);
+                let _ = data.files.execute(&data.schema, &data.config, &data.state);
                 return Err(e);
             }
         };
 
-        // Output the results
-        data.files.write_state(&data.config, &data.state)?;
-        data.files.write_self(&data.config)?;
+        // Finalize the output
+        data.files.stop(&data.config)?;
 
         // Print footer
         if data.config.verbose {
@@ -139,12 +140,11 @@ impl<'a> Solver<'a> {
         Ok(())
     }
 
-    /// Solves a steady-state/static problem with load factors
-    pub fn steady_with_load_factors(
+    /// Solves a steady-state/static problem with lambdas (loading factors)
+    pub fn steady_with_lambdas(
         &mut self,
         data: &mut FemData<'a>,
-        load_factors: &[f64],
-        use_load_factor_as_h_ini: bool,
+        lambdas: &[f64],
         auto_step: AutoStep,
     ) -> Result<(), StrError> {
         // Check input data
@@ -155,23 +155,21 @@ impl<'a> Solver<'a> {
             return Err("initial lambda must be equal to zero");
         }
         if self.nl_method != NlMethod::Natural {
-            return Err("steady_with_load_factors can only be used with NlMethod::Natural");
+            return Err("steady_with_lambdas can only be used with NlMethod::Natural");
         }
-        if load_factors.len() < 2 {
+        if lambdas.len() < 2 {
             return Err("load_factors must have at least two entries");
         }
-        if load_factors[0] != 0.0 {
+        if lambdas[0] != 0.0 {
             return Err("the first entry of load_factors must be zero");
         }
 
         // Set function to calculate the initial stepsize
-        if use_load_factor_as_h_ini {
-            let lf = Vec::from(load_factors);
-            self.nl_solver.set_calc_h_ini(move |data| {
-                let t = data.state.time as usize;
-                f64::abs(lf[t] - lf[t - 1])
-            });
-        }
+        let lf = Vec::from(lambdas);
+        self.nl_solver.set_calc_h_ini(move |data| {
+            let t = data.state.time as usize;
+            f64::abs(lf[t] - lf[t - 1])
+        });
 
         // Allocate the unknowns
         let mut u = Vector::new(data.ndim);
@@ -197,14 +195,17 @@ impl<'a> Solver<'a> {
             self.nl_solver.log_header();
         }
 
+        // First output
+        data.files.execute(&data.schema, &data.config, &data.state)?;
+
         // Solver nonlinear equations for each load factor
         data.state.time = 0.0;
-        for index in 1..load_factors.len() {
+        for index in 1..lambdas.len() {
             // Update pseudo-time
             data.state.time += 1.0;
 
             // Set target load factor
-            let lambda = load_factors[index];
+            let lambda = lambdas[index];
 
             // Define the stop criterion
             let (ini_dir, stop) = if lambda > l {
@@ -223,14 +224,13 @@ impl<'a> Solver<'a> {
                 Err(e) => {
                     println!("\n❌ SIMULATION FAILED ❌\n");
                     println!("Reason: {}\n", e);
-                    let _ = data.files.write_state(&data.config, &data.state);
-                    let _ = data.files.write_self(&data.config);
+                    let _ = data.files.execute(&data.schema, &data.config, &data.state);
                     break;
                 }
             };
 
-            // Output results
-            data.files.write_state(&data.config, &data.state)?;
+            // Output the results
+            data.files.execute(&data.schema, &data.config, &data.state)?;
 
             // Stop if failed
             if status.failure() {
@@ -239,8 +239,8 @@ impl<'a> Solver<'a> {
             }
         }
 
-        // Output the results
-        data.files.write_self(&data.config)?;
+        // Finalize the output
+        data.files.stop(&data.config)?;
 
         // Print footer
         if data.config.verbose {

@@ -83,8 +83,8 @@ impl<'a> FemData<'a> {
         mesh: &Mesh,
         schema: &'a Schema,
         config: &'a Config,
-        essential: &'a BcEssential,
-        natural: &'a BcNatural,
+        ebc: &'a BcEssential,
+        nbc: &'a BcNatural,
     ) -> Result<Self, StrError> {
         // Check
         if let Some(msg) = config.validate() {
@@ -96,10 +96,10 @@ impl<'a> FemData<'a> {
         let mut stopwatch = Stopwatch::new();
 
         // Generate the list of prescribed equations and a map from equation to (PointId, Dof)
-        let n_prescribed = essential.functions.len();
+        let n_prescribed = ebc.functions.len();
         let mut p_list = Vec::with_capacity(n_prescribed);
         let mut eq_to_dof = HashMap::with_capacity(n_prescribed);
-        for (point_id, dof) in essential.functions.keys() {
+        for (point_id, dof) in ebc.functions.keys() {
             let eq = schema.get_eq(*point_id, *dof)?;
             p_list.push(eq);
             eq_to_dof.insert(eq, (*point_id, *dof));
@@ -113,19 +113,19 @@ impl<'a> FemData<'a> {
         let mut presc_values = Vec::with_capacity(n_prescribed);
         for eq in eq_handler.prescribed() {
             let point_dof = eq_to_dof.get(eq).unwrap();
-            let f = essential.functions.get(point_dof).unwrap();
+            let f = ebc.functions.get(point_dof).unwrap();
             presc_values.push(f.clone());
         }
 
         // Allocate array of concentrated loads
-        let mut conc_loads = Vec::with_capacity(natural.at_points.len());
-        for (point_id, pbc, f) in &natural.at_points {
+        let mut conc_loads = Vec::with_capacity(nbc.at_points.len());
+        for (point_id, pbc, f) in &nbc.at_points {
             let eq = schema.get_eq(*point_id, pbc.dof())?;
             conc_loads.push((eq, f.clone()));
         }
 
         // Allocate auxiliary instances
-        let boundaries = ElementsBoundary::new(mesh, schema, config, natural)?;
+        let boundaries = ElementsBoundary::new(mesh, schema, config, nbc)?;
         let mut elements = ElementsInterior::new(mesh, schema, config)?;
         let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &boundaries)?;
 
@@ -149,14 +149,10 @@ impl<'a> FemData<'a> {
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        let mut state = FemState::new(&mesh, &schema, &essential, &config)?;
+        let mut state = FemState::new(&mesh, &schema, &ebc, &config)?;
 
         // Initialize internal variables
         elements.initialize_internal_values(&mut state)?;
-
-        // First output (must occur after initialize_internal_values)
-        files.write_state(&config, &state)?;
-        files.save_selected(&config, &schema, &state)?;
 
         // Determine if the global stiffness matrix is symmetric and it's enabled
         let symmetric = !config.ignore_symmetry && elements.all_sym_kk() && boundaries.all_sym_kk();
@@ -243,7 +239,7 @@ impl<'a> FemData<'a> {
     }
 
     pub fn write_state(&mut self) -> Result<(), StrError> {
-        self.files.write_state(self.config, &self.state)
+        self.files.execute(&self.schema, &self.config, &self.state)
     }
 
     /// Prints information about the system

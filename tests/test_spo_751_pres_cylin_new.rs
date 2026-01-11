@@ -164,12 +164,12 @@ fn run_test(
         let stop = Stop::MaxCompU(u_index, 0.6);
         solver.steady(&mut data, IniDir::Pos, stop, AutoStep::Yes, Some(out))?;
     } else {
-        let loading_factors = if residual {
+        let lambdas = if residual {
             Vec::from(&LOAD_FACTORS_RESIDUAL)
         } else {
             Vec::from(&LOAD_FACTORS_COLLAPSE)
         };
-        solver.steady_with_load_factors(&mut data, &loading_factors, true, AutoStep::Yes)?;
+        solver.steady_with_lambdas(&mut data, &lambdas, AutoStep::Yes)?;
     }
 
     // Compare the results with Ref #1

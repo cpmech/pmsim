@@ -132,8 +132,8 @@ impl OutputFiles {
         Ok(())
     }
 
-    /// Writes the current FEM state to a file
-    pub(crate) fn write_state(&mut self, config: &Config, state: &FemState) -> Result<(), StrError> {
+    /// Executes the output
+    pub(crate) fn execute(&mut self, schema: &Schema, config: &Config, state: &FemState) -> Result<(), StrError> {
         if config.out_files {
             // save the state
             state.write_json(&format!(
@@ -146,19 +146,6 @@ impl OutputFiles {
             self.times.push(state.time);
             self.counter += 1;
         }
-        Ok(())
-    }
-
-    /// Writes this struct to a file
-    pub(crate) fn write_self(&self, config: &Config) -> Result<(), StrError> {
-        if config.out_files {
-            self.write_json(&format!("{}/{}.json", config.out_dir, config.out_fn_stem))?;
-        }
-        Ok(())
-    }
-
-    /// Saves the results at selected nodes and integration points
-    pub(crate) fn save_selected(&mut self, config: &Config, schema: &Schema, state: &FemState) -> Result<(), StrError> {
         if config.out_has_selected {
             // step, time, and lambda
             self.sel_time.push(state.time);
@@ -188,6 +175,14 @@ impl OutputFiles {
                         .push(s.clone());
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// Stops the output
+    pub(crate) fn stop(&self, config: &Config) -> Result<(), StrError> {
+        if config.out_files {
+            self.write_json(&format!("{}/{}.json", config.out_dir, config.out_fn_stem))?;
         }
         Ok(())
     }

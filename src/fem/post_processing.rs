@@ -1403,13 +1403,12 @@ mod tests {
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
-        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
+        let mut files = OutputFiles::new(&mesh, &schema, &config).unwrap();
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
-        results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &schema, &state).unwrap();
-        results.write_self(&config).unwrap();
+        files.execute(&schema, &config, &state).unwrap();
+        files.stop(&config).unwrap();
     }
 
     /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 3D
@@ -1456,13 +1455,12 @@ mod tests {
         let (point_id, cell_id) = (10, 1);
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
-        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
+        let mut files = OutputFiles::new(&mesh, &schema, &config).unwrap();
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
-        results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &schema, &state).unwrap();
-        results.write_self(&config).unwrap();
+        files.execute(&schema, &config, &state).unwrap();
+        files.stop(&config).unwrap();
     }
 
     /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 2D (plane strain)
@@ -1527,26 +1525,23 @@ mod tests {
             .set_out_dof(point_id, Dof::Uy)
             .set_out_local_state(cell_id);
 
-        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
+        let mut files = OutputFiles::new(&mesh, &schema, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
-        results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &schema, &state).unwrap();
+        files.execute(&schema, &config, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_v);
         state.time = 1.0;
-        results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &schema, &state).unwrap();
+        files.execute(&schema, &config, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_s);
         state.time = 2.0;
-        results.write_state(&config, &state).unwrap();
+        files.execute(&schema, &config, &state).unwrap();
 
-        results.save_selected(&config, &schema, &state).unwrap();
-        results.write_self(&config).unwrap();
+        files.stop(&config).unwrap();
     }
 
     /// Generates artificial displacements, stress, and strains corresponding to a linear elastic model in 3D
@@ -1599,26 +1594,23 @@ mod tests {
             .set_out_dof(point_id, Dof::Uz)
             .set_out_local_state(cell_id);
 
-        let mut results = OutputFiles::new(&mesh, &schema, &config).unwrap();
+        let mut files = OutputFiles::new(&mesh, &schema, &config).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
-        results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &schema, &state).unwrap();
+        files.execute(&schema, &config, &state).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_v);
         state.time = 1.0;
-        results.write_state(&config, &state).unwrap();
-        results.save_selected(&config, &schema, &state).unwrap();
+        files.execute(&schema, &config, &state).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_s);
         state.time = 2.0;
-        results.write_state(&config, &state).unwrap();
+        files.execute(&schema, &config, &state).unwrap();
 
-        results.save_selected(&config, &schema, &state).unwrap();
-        results.write_self(&config).unwrap();
+        files.stop(&config).unwrap();
     }
 
     fn generate_data_files() {

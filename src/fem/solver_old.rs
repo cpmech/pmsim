@@ -94,27 +94,24 @@ impl<'a> SolverOld<'a> {
         // initialize internal variables
         self.com.elements.initialize_internal_values(state)?;
 
+        // write the initial results file
+        self.com.files.execute(&self.com.schema, &self.config, state)?;
+
         // print convergence information
         self.log.header();
 
         // do solve
         match self.do_solve(state) {
             Ok(_) => (),
-            Err(err) => {
-                match self.com.files.write_state(&self.config, state) {
-                    Ok(_) => (),
-                    Err(e) => println!("ERROR-ON-ERROR: cannot write state due to: {}", e),
-                }
-                match self.com.files.write_self(&self.config) {
-                    Ok(_) => (),
-                    Err(e) => println!("ERROR-ON-ERROR: cannot write summary due to: {}", e),
-                }
-                return Err(err);
+            Err(e) => {
+                println!("\n❌ SIMULATION FAILED ❌\n");
+                println!("Reason: {}\n", e);
+                let _ = self.com.files.execute(&self.com.schema, &self.config, state);
             }
         }
 
         // write the results file
-        self.com.files.write_self(&self.config)?;
+        self.com.files.stop(&self.config)?;
 
         // show computer time
         self.com.stopwatch.stop();
@@ -200,7 +197,6 @@ impl<'a> SolverOld<'a> {
 
                 // handle acceptance/rejection
                 if accept {
-                    self.com.files.save_selected(&self.config, &self.com.schema, state)?;
                     self.stats.add_step_accepted();
                 } else {
                     self.loader.restore(state, &mut self.com.elements);
@@ -210,7 +206,7 @@ impl<'a> SolverOld<'a> {
 
             // output results
             if self.stepper.out(state) {
-                self.com.files.write_state(&self.config, state)?;
+                self.com.files.execute(&self.com.schema, &self.config, state)?;
             }
 
             // stop if failed
