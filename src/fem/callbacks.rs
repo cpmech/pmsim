@@ -5,16 +5,17 @@ use russell_sparse::{CooMatrix, Sym};
 
 // Common functions ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// Creates a backup of the current state
-pub(crate) fn backup(data: &mut FemData) {
+/// Copies secondary state variables at the beginning of a step
+pub(crate) fn backup_secondary_state(data: &mut FemData) {
     data.elements.backup_secondary_values(&mut data.state, true);
 }
 
-/// Restores the state from the backup
-pub(crate) fn restore(data: &mut FemData) {
+/// Restores secondary state variables at the end of a step, if the step failed
+pub(crate) fn restore_secondary_state(data: &mut FemData) {
     data.elements.restore_secondary_values(&mut data.state, true);
 }
 
+/// Prepares to iterate (e.g., reset algorithmic variables in the FEM)
 pub(crate) fn prepare_to_iterate(data: &mut FemData) {
     data.elements.reset_algorithmic_variables(&mut data.state);
 }

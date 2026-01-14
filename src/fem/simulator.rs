@@ -1,7 +1,7 @@
 use super::FemData;
 use super::{
-    backup, calc_gg_lmm, calc_gg_sps, calc_ggl_lmm, calc_ggl_sps, calc_ggu_lmm, calc_ggu_sps, prepare_to_iterate,
-    restore, update_secondary_state_lmm, update_secondary_state_sps,
+    backup_secondary_state, calc_gg_lmm, calc_gg_sps, calc_ggl_lmm, calc_ggl_sps, calc_ggu_lmm, calc_ggu_sps,
+    prepare_to_iterate, restore_secondary_state, update_secondary_state_lmm, update_secondary_state_sps,
 };
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
@@ -35,8 +35,8 @@ impl<'a> Simulator<'a> {
             let mut sys = NlSystem::new(data.ndim, calc_gg_lmm)?;
             sys.set_calc_ggu(Some(data.nnz_kk), data.sym, calc_ggu_lmm)?
                 .set_calc_ggl(calc_ggl_lmm)
-                .set_backup_secondary_state(backup)
-                .set_restore_secondary_state(restore)
+                .set_backup_secondary_state(backup_secondary_state)
+                .set_restore_secondary_state(restore_secondary_state)
                 .set_prepare_to_iterate(prepare_to_iterate)
                 .set_update_secondary_state(update_secondary_state_lmm);
             sys
@@ -44,8 +44,8 @@ impl<'a> Simulator<'a> {
             let mut sys = NlSystem::new(data.ndim, calc_gg_sps)?;
             sys.set_calc_ggu(Some(data.nnz_kk_bar), data.sym, calc_ggu_sps)?
                 .set_calc_ggl(calc_ggl_sps)
-                .set_backup_secondary_state(backup)
-                .set_restore_secondary_state(restore)
+                .set_backup_secondary_state(backup_secondary_state)
+                .set_restore_secondary_state(restore_secondary_state)
                 .set_prepare_to_iterate(prepare_to_iterate)
                 .set_update_secondary_state(update_secondary_state_sps);
             sys
