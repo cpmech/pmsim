@@ -101,6 +101,9 @@ pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut F
 
 /// Function to calculate Gl = ∂G/∂λ
 pub(crate) fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+    // Calculate the external forces vector F
+    data.calc_ff()?;
+
     // Set Gl = -F for all equations not corresponding to the Lagrange multipliers
     for i in 0..data.neq {
         ggl[i] = -data.ff[i];
@@ -200,6 +203,9 @@ pub(crate) fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut Fe
         let val = data.presc_values[ip](data.state.time);
         data.u_check[ip] = val;
     });
+
+    // Calculate the external forces vector F
+    data.calc_ff()?;
 
     // Set Gl = Ǩ * Ǔ
     data.kk_check.mat_vec_mul(ggl, 1.0, &data.u_check).unwrap();

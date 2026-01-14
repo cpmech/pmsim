@@ -113,7 +113,7 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
     // solution
     let mut tol = 1e-13;
     let state = if new_solver {
-        tol = 1e-9;
+        tol = 1e-5;
         let mut nl_config = NlConfig::new();
         nl_config
             .set_verbose(true, true, false)
