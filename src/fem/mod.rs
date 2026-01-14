@@ -1,5 +1,6 @@
 //! Implements the finite element method
 
+mod callbacks;
 mod control_loader;
 mod control_residual;
 mod control_stepper;
@@ -20,10 +21,10 @@ mod post_processing;
 mod secondary_values;
 mod simulator;
 mod simulator_lin;
-mod solver_common;
 mod solver_old;
 mod stats;
 
+use callbacks::*;
 use control_loader::*;
 use control_residual::*;
 use control_stepper::*;
@@ -44,6 +45,5 @@ pub use post_processing::*;
 pub use secondary_values::*;
 pub use simulator::*;
 pub use simulator_lin::*;
-use solver_common::*;
 pub use solver_old::*;
 use stats::*;
