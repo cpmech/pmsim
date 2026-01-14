@@ -84,23 +84,10 @@ impl<'a> Solver<'a> {
             return Err("initial lambda must be equal to zero");
         }
 
-        // Allocate the unknowns
+        // Allocate and initialize the unknowns
         let mut u = Vector::new(data.ndim);
-        let mut l = data.state.lambda;
-
-        // Initialize the unknowns from the FemState
-        if data.config.lagrange_mult_method {
-            for eq in 0..data.neq {
-                u[eq] = data.state.u[eq];
-            }
-        } else {
-            for eq in 0..data.neq {
-                if data.eq_handler.is_unknown(eq) {
-                    let iu = data.eq_handler.iu(eq);
-                    u[iu] = data.state.u[eq];
-                }
-            }
-        }
+        let mut l = 0.0;
+        data.initialize_u(&mut u);
 
         // Print information about the system and the header
         if data.config.verbose {
@@ -179,23 +166,10 @@ impl<'a> Solver<'a> {
             f64::abs(lf[t] - lf[t - 1])
         });
 
-        // Allocate the unknowns
+        // Allocate and initialize the unknowns
         let mut u = Vector::new(data.ndim);
-        let mut l = data.state.lambda;
-
-        // Initialize the unknowns from the FemState
-        if data.config.lagrange_mult_method {
-            for eq in 0..data.neq {
-                u[eq] = data.state.u[eq];
-            }
-        } else {
-            for eq in 0..data.neq {
-                if data.eq_handler.is_unknown(eq) {
-                    let iu = data.eq_handler.iu(eq);
-                    u[iu] = data.state.u[eq];
-                }
-            }
-        }
+        let mut l = 0.0;
+        data.initialize_u(&mut u);
 
         // Print information about the system and the header
         if data.config.verbose {

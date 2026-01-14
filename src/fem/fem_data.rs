@@ -283,6 +283,20 @@ impl<'a> FemData<'a> {
         }
     }
 
+    /// Initializes the nonlinear solver unknowns vector `u` from the state
+    pub(crate) fn initialize_u(&self, u: &mut Vector) {
+        if self.config.lagrange_mult_method {
+            for eq in 0..self.neq {
+                u[eq] = self.state.u[eq];
+            }
+        } else {
+            self.eq_handler.unknown().iter().for_each(|&eq| {
+                let iu = self.eq_handler.iu(eq);
+                u[iu] = self.state.u[eq];
+            });
+        }
+    }
+
     /// Calculates the prescribed values vector U-check (Ǔ)
     pub(crate) fn calc_u_check(&mut self) {
         self.eq_handler.prescribed().iter().for_each(|&eq| {
