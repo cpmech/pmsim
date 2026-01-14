@@ -238,10 +238,6 @@ impl<'a> FemData<'a> {
         &self.state
     }
 
-    pub fn write_state(&mut self) -> Result<(), StrError> {
-        self.files.execute(&self.schema, &self.config, &self.state)
-    }
-
     /// Prints information about the system
     pub fn print_system_info(&self, continuation: &str) {
         if self.config.verbose {

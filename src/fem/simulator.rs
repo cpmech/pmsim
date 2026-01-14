@@ -1,7 +1,7 @@
 use super::FemData;
 use super::{
     backup_secondary_state, calc_gg_lmm, calc_gg_sps, calc_ggl_lmm, calc_ggl_sps, calc_ggu_lmm, calc_ggu_sps,
-    prepare_to_iterate, restore_secondary_state, update_secondary_state_lmm, update_secondary_state_sps,
+    output_step, prepare_to_iterate, restore_secondary_state, update_secondary_state_lmm, update_secondary_state_sps,
 };
 use crate::base::{BcEssential, BcNatural, Config, Schema};
 use crate::StrError;
@@ -15,6 +15,7 @@ pub struct Simulator<'a> {
     data_uuid: Uuid,
     nl_method: NlMethod,
     nl_solver: NlSolver<'a, FemData<'a>>,
+    nl_output: NlOutput<'a, FemData<'a>>,
 }
 
 impl<'a> Simulator<'a> {
@@ -58,11 +59,16 @@ impl<'a> Simulator<'a> {
         let nl_method = nl_config.get_method();
         let nl_solver = NlSolver::new(nl_config, nl_system)?;
 
-        // Allocate the FEM solver
+        // Define a function to perform output at each successful step
+        let mut nl_output = NlOutput::new();
+        nl_output.set_callback(output_step);
+
+        // Allocate the simulator
         let solver = Simulator {
             data_uuid: data.uuid,
             nl_method,
             nl_solver,
+            nl_output,
         };
         Ok((solver, data))
     }
@@ -74,7 +80,6 @@ impl<'a> Simulator<'a> {
         ini_dir: IniDir,
         stop: Stop,
         auto_step: AutoStep,
-        nl_output: Option<&mut NlOutput<'a, FemData<'a>>>,
     ) -> Result<(), StrError> {
         // Check input data
         if data.uuid != self.data_uuid {
@@ -84,10 +89,14 @@ impl<'a> Simulator<'a> {
             return Err("initial lambda must be equal to zero");
         }
 
-        // Allocate and initialize the unknowns
+        // Allocate and initialize the unknowns (λ, u)
         let mut u = Vector::new(data.ndim);
         let mut l = 0.0;
         data.initialize_u(&mut u);
+
+        // Perform the first output
+        data.files.start();
+        data.files.execute(&data.schema, &data.config, &data.state)?;
 
         // Print information about the system and the header
         if data.config.verbose {
@@ -95,36 +104,30 @@ impl<'a> Simulator<'a> {
             self.nl_solver.log_header();
         }
 
-        // First output
-        data.files.execute(&data.schema, &data.config, &data.state)?;
-
-        // Update pseudo-time
+        // Update the pseudo-time and calculate Ǔ and F
         data.state.time += 1.0;
-
-        // Calculate prescribed values Ǔ at updated time
         data.calc_u_check();
-
-        // Calculate external forces F at updated time
         data.calc_ff()?;
 
-        // Solve nonlinear equations
+        // Solve the system of nonlinear equations (continuation)
+        let out = Some(&mut self.nl_output);
         let status = match self
             .nl_solver
-            .solve(data, &mut u, &mut l, ini_dir, stop, auto_step, nl_output)
+            .solve(data, &mut u, &mut l, ini_dir, stop, auto_step, out)
         {
             Ok(s) => s,
             Err(e) => {
                 println!("\n❌ SIMULATION FAILED ❌\n");
                 println!("Reason: {}\n", e);
-                let _ = data.files.execute(&data.schema, &data.config, &data.state);
+                data.files.stop(&data.config)?;
                 return Err(e);
             }
         };
 
-        // Finalize the output
+        // Stop the output files
         data.files.stop(&data.config)?;
 
-        // Print footer
+        // Print the footer
         if data.config.verbose {
             self.nl_solver.log_footer();
             let icon = if status.success() { "✅" } else { "❌" };
@@ -166,10 +169,14 @@ impl<'a> Simulator<'a> {
             f64::abs(lf[t] - lf[t - 1])
         });
 
-        // Allocate and initialize the unknowns
+        // Allocate and initialize the unknowns (λ, u)
         let mut u = Vector::new(data.ndim);
         let mut l = 0.0;
         data.initialize_u(&mut u);
+
+        // Perform the first output
+        data.files.start();
+        data.files.execute(&data.schema, &data.config, &data.state)?;
 
         // Print information about the system and the header
         if data.config.verbose {
@@ -177,18 +184,11 @@ impl<'a> Simulator<'a> {
             self.nl_solver.log_header();
         }
 
-        // First output
-        data.files.execute(&data.schema, &data.config, &data.state)?;
-
-        // Solver nonlinear equations for each load factor
+        // Loop over load factors
         for index in 1..lambdas.len() {
-            // Update pseudo-time
+            // Update the pseudo-time and calculate Ǔ and F
             data.state.time += 1.0;
-
-            // Calculate prescribed values Ǔ at updated time
             data.calc_u_check();
-
-            // Calculate external forces F at updated time
             data.calc_ff()?;
 
             // Set target load factor
@@ -202,34 +202,32 @@ impl<'a> Simulator<'a> {
                 (IniDir::Neg, Stop::MinLambda(lambda))
             };
 
-            // Solve nonlinear equations
+            // Solve the system of nonlinear equations (continuation)
+            let out = Some(&mut self.nl_output);
             let status = match self
                 .nl_solver
-                .solve(data, &mut u, &mut l, ini_dir, stop, auto_step, None)
+                .solve(data, &mut u, &mut l, ini_dir, stop, auto_step, out)
             {
                 Ok(s) => s,
                 Err(e) => {
                     println!("\n❌ SIMULATION FAILED ❌\n");
                     println!("Reason: {}\n", e);
-                    let _ = data.files.execute(&data.schema, &data.config, &data.state);
-                    break;
+                    data.files.stop(&data.config)?;
+                    return Err(e);
                 }
             };
 
-            // Output the results
-            data.files.execute(&data.schema, &data.config, &data.state)?;
-
-            // Stop if failed
+            // Break the loop if the step failed
             if status.failure() {
                 println!("\nStatus: {:?} ❌", status);
                 break;
             }
         }
 
-        // Finalize the output
+        // Write the summary file
         data.files.stop(&data.config)?;
 
-        // Print footer
+        // Print the footer
         if data.config.verbose {
             self.nl_solver.log_footer();
             data.stopwatch.stop();

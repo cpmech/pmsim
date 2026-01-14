@@ -70,6 +70,18 @@ impl OutputFiles {
         })
     }
 
+    /// Starts the output
+    pub fn start(&mut self) {
+        self.counter = 0;
+        self.indices.clear();
+        self.times.clear();
+        self.sel_time.clear();
+        self.sel_lambda.clear();
+        self.sel_dof.clear();
+        self.sel_local_flux.clear();
+        self.sel_local_state.clear();
+    }
+
     /// Returns the number of files written
     pub fn n_files(&self) -> usize {
         self.counter

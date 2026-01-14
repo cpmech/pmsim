@@ -1,6 +1,7 @@
 use super::FemData;
 use crate::StrError;
 use russell_lab::Vector;
+use russell_nonlin::Stats as NlStats;
 use russell_sparse::{CooMatrix, Sym};
 
 // Common functions ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +19,15 @@ pub(crate) fn restore_secondary_state(data: &mut FemData) {
 /// Prepares to iterate (e.g., reset algorithmic variables in the FEM)
 pub(crate) fn prepare_to_iterate(data: &mut FemData) {
     data.elements.reset_algorithmic_variables(&mut data.state);
+}
+
+/// Outputs the current step, given (λ, u)
+pub(crate) fn output_step(stats: &NlStats, u: &Vector, l: f64, _h: f64, data: &mut FemData) -> Result<bool, StrError> {
+    if stats.n_accepted > 0 {
+        data.set_state(l, u);
+        data.files.execute(&data.schema, &data.config, &data.state)?;
+    }
+    Ok(false)
 }
 
 // Lagrange Multipliers Method (LMM) functions /////////////////////////////////////////////////////////////////////////
