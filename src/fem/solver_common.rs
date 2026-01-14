@@ -185,10 +185,10 @@ pub(crate) fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut Fe
     data.kk_check.mat_vec_mul(ggl, 1.0, &data.u_check).unwrap();
 
     // Add -F to Gl so that Gl = Ǩ Ǔ - F
-    data.eq_handler.unknown().iter().for_each(|&eq| {
-        let iu = data.eq_handler.iu(eq);
+    for iu in 0..data.nu {
+        let eq = data.eq_handler.unknown()[iu];
         ggl[iu] -= data.ff[eq];
-    });
+    }
     Ok(())
 }
 

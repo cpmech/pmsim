@@ -290,19 +290,19 @@ impl<'a> FemData<'a> {
                 u[eq] = self.state.u[eq];
             }
         } else {
-            self.eq_handler.unknown().iter().for_each(|&eq| {
-                let iu = self.eq_handler.iu(eq);
+            for iu in 0..self.nu {
+                let eq = self.eq_handler.unknown()[iu];
                 u[iu] = self.state.u[eq];
-            });
+            }
         }
     }
 
     /// Calculates the prescribed values vector U-check (Ǔ)
     pub(crate) fn calc_u_check(&mut self) {
-        self.eq_handler.prescribed().iter().for_each(|&eq| {
-            let ip = self.eq_handler.ip(eq);
+        for ip in 0..self.np {
+            let eq = self.eq_handler.prescribed()[ip];
             self.u_check[ip] = self.presc_values[ip](self.state.time);
-        });
+        }
     }
 
     /// Sets the state given the nonlinear solver variables (λ, u)
@@ -315,14 +315,14 @@ impl<'a> FemData<'a> {
                 self.state.u[eq] = u[eq];
             }
         } else {
-            self.eq_handler.unknown().iter().for_each(|&eq| {
-                let iu = self.eq_handler.iu(eq);
+            for iu in 0..self.nu {
+                let eq = self.eq_handler.unknown()[iu];
                 self.state.u[eq] = u[iu];
-            });
-            self.eq_handler.prescribed().iter().for_each(|&eq| {
-                let ip = self.eq_handler.ip(eq);
+            }
+            for ip in 0..self.np {
+                let eq = self.eq_handler.prescribed()[ip];
                 self.state.u[eq] = l * self.u_check[ip];
-            });
+            }
         }
     }
 
