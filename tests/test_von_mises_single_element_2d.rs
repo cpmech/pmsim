@@ -117,20 +117,15 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let ss = pp.get_selected_local_state(0).unwrap();
     let mut zz = vec![0.0; times.len()];
     for i in 0..times.len() {
-        let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
         let time = times[i];
-        if time == 0.0 {
-            assert_eq!(ey, 0.0);
-            continue;
-        }
-        if time == 1.0 {
+        let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
+        let ey_ref = calc_uy(time) / l0;
+        approx_eq(ey, ey_ref, 1e-15);
+        if time < 2.0 {
             assert_eq!(ss[i].elastic, true);
         } else {
             assert_eq!(ss[i].elastic, false);
         }
-        let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
-        let ey_ref = calc_uy(time) / l0;
-        approx_eq(ey, ey_ref, 1e-15);
         zz[i] = ss[i].int_vars[0];
     }
 
