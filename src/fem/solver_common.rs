@@ -22,6 +22,8 @@ pub(crate) fn prepare_to_iterate(data: &mut FemData) {
 // Lagrange Multipliers Method (LMM) functions /////////////////////////////////////////////////////////////////////////
 
 /// Function to calculate G(u, λ)
+///
+/// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
 pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
@@ -138,6 +140,8 @@ pub(crate) fn update_secondary_state_lmm(
 // System Partitioning Strategy (SPS) functions ////////////////////////////////////////////////////////////////////////
 
 /// Function to calculate G(u, λ) using the System Partitioning Strategy (SPS)
+///
+/// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
 pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
@@ -145,7 +149,7 @@ pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     // Calculate the internal forces vector Y
     data.calc_yy()?;
 
-    // Calculate the residuals vector: R = Y - λ F
+    // Calculate the residuals vector: R = Y - λ F = G
     data.eq_handler.unknown().iter().for_each(|&eq| {
         let iu = data.eq_handler.iu(eq);
         gg[iu] = data.yy[eq] - l * data.ff[eq];

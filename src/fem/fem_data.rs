@@ -307,7 +307,7 @@ impl<'a> FemData<'a> {
 
     /// Sets the state given the nonlinear solver variables (λ, u)
     ///
-    /// **Important:** U-check (Ǔ) must have been previously calculated via [FemData::calc_u_check()].
+    /// This function requires that Ǔ (prescribed values) has already been calculated.
     pub(crate) fn set_state(&mut self, l: f64, u: &Vector) {
         self.state.lambda = l;
         if self.config.lagrange_mult_method {
@@ -341,6 +341,7 @@ impl<'a> FemData<'a> {
         Ok(())
     }
 
+    /// Calculates F (external forces)
     pub(crate) fn calc_ff(&mut self) -> Result<(), StrError> {
         // clear vector
         self.ff.fill(0.0);
