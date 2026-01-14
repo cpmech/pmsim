@@ -27,9 +27,6 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     data.state.lambda = l;
     vec_copy(&mut data.state.u, u).unwrap();
 
-    // Calculate the external forces vector F
-    data.calc_ff()?;
-
     // Calculate the internal forces vector Y
     data.calc_yy()?;
 
@@ -48,9 +45,8 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
         let i = data.eq_handler.prescribed()[ip];
         let j = data.neq + ip;
         let mu = data.state.u[j];
-        let val = data.presc_values[ip](data.state.time);
         gg[i] += mu; // Cᵀ μ   →   1 μ
-        gg[j] = u[i] - l * val; // C U - λ Ǔ   →   1 U - λ Ǔ
+        gg[j] = u[i] - l * data.u_check[ip]; // C U - λ Ǔ   →   1 U - λ Ǔ
     }
     Ok(())
 }
@@ -101,9 +97,6 @@ pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut F
 
 /// Function to calculate Gl = ∂G/∂λ
 pub(crate) fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    // Calculate the external forces vector F
-    data.calc_ff()?;
-
     // Set Gl = -F for all equations not corresponding to the Lagrange multipliers
     for i in 0..data.neq {
         ggl[i] = -data.ff[i];
@@ -112,8 +105,7 @@ pub(crate) fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut Fe
     // Set Gl = -Ǔ for all equations corresponding to the Lagrange multipliers
     for ip in 0..data.np {
         let j = data.neq + ip;
-        let val = data.presc_values[ip](data.state.time);
-        ggl[j] = -val;
+        ggl[j] = -data.u_check[ip];
     }
     Ok(())
 }
@@ -159,9 +151,6 @@ pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
         }
     }
 
-    // Calculate the external forces vector F
-    data.calc_ff()?;
-
     // Calculate the internal forces vector Y
     data.calc_yy()?;
 
@@ -197,20 +186,10 @@ pub(crate) fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut F
 
 /// Function to calculate Gl = ∂G/∂λ using the System Partitioning Strategy (SPS)
 pub(crate) fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    // Calculate Ǔ
-    data.eq_handler.prescribed().iter().for_each(|&eq| {
-        let ip = data.eq_handler.ip(eq);
-        let val = data.presc_values[ip](data.state.time);
-        data.u_check[ip] = val;
-    });
-
-    // Calculate the external forces vector F
-    data.calc_ff()?;
-
-    // Set Gl = Ǩ * Ǔ
+    // Set Gl = Ǩ Ǔ
     data.kk_check.mat_vec_mul(ggl, 1.0, &data.u_check).unwrap();
 
-    // Add -F to Gl so that Gl = Ǩ * Ǔ - F
+    // Add -F to Gl so that Gl = Ǩ Ǔ - F
     data.eq_handler.unknown().iter().for_each(|&eq| {
         let iu = data.eq_handler.iu(eq);
         ggl[iu] -= data.ff[eq];

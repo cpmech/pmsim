@@ -283,8 +283,16 @@ impl<'a> FemData<'a> {
         }
     }
 
+    /// Calculates the prescribed values vector U-check (Ǔ)
+    pub(crate) fn calc_u_check(&mut self) {
+        self.eq_handler.prescribed().iter().for_each(|&eq| {
+            let ip = self.eq_handler.ip(eq);
+            self.u_check[ip] = self.presc_values[ip](self.state.time);
+        });
+    }
+
     /// Calculates Y (internal forces)
-    pub fn calc_yy(&mut self) -> Result<(), StrError> {
+    pub(crate) fn calc_yy(&mut self) -> Result<(), StrError> {
         // clear vector
         self.yy.fill(0.0);
 
@@ -298,7 +306,7 @@ impl<'a> FemData<'a> {
         Ok(())
     }
 
-    pub fn calc_ff(&mut self) -> Result<(), StrError> {
+    pub(crate) fn calc_ff(&mut self) -> Result<(), StrError> {
         // clear vector
         self.ff.fill(0.0);
 

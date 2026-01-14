@@ -111,8 +111,16 @@ impl<'a> Solver<'a> {
         // First output
         data.files.execute(&data.schema, &data.config, &data.state)?;
 
+        // Update pseudo-time
+        data.state.time += 1.0;
+
+        // Calculate prescribed values Ǔ at updated time
+        data.calc_u_check();
+
+        // Calculate external forces F at updated time
+        data.calc_ff()?;
+
         // Solve nonlinear equations
-        data.state.time = 1.0;
         let status = match self
             .nl_solver
             .solve(data, &mut u, &mut l, ini_dir, stop, auto_step, nl_output)
@@ -199,10 +207,15 @@ impl<'a> Solver<'a> {
         data.files.execute(&data.schema, &data.config, &data.state)?;
 
         // Solver nonlinear equations for each load factor
-        data.state.time = 0.0;
         for index in 1..lambdas.len() {
             // Update pseudo-time
             data.state.time += 1.0;
+
+            // Calculate prescribed values Ǔ at updated time
+            data.calc_u_check();
+
+            // Calculate external forces F at updated time
+            data.calc_ff()?;
 
             // Set target load factor
             let lambda = lambdas[index];
