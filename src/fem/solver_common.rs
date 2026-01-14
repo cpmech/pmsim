@@ -21,7 +21,7 @@ pub(crate) fn prepare_to_iterate(data: &mut FemData) {
 
 // Lagrange Multipliers Method (LMM) functions /////////////////////////////////////////////////////////////////////////
 
-/// Function to calculate G(u, λ)
+/// Calculates G(u, λ) for the Lagrange Multipliers Method (LMM)
 ///
 /// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
 pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
@@ -37,11 +37,11 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     }
 
     // Add Lagrange multiplier contributions to G
-    //     ┌           ┐
-    //     │ R + Cᵀ μ  │
-    // G = │           │
-    //     │ C U - λ Ǔ │
-    //     └           ┘
+    //     ┌           ┐   ┌                ┐
+    //     │ R + Cᵀ μ  │   │ Y - λ F + Cᵀ μ │
+    // G = │           │ = │                │
+    //     │ C U - λ Ǔ │   │   C U - λ Ǔ    │
+    //     └           ┘   └                ┘
     for ip in 0..data.np {
         let i = data.eq_handler.prescribed()[ip];
         let j = data.neq + ip;
@@ -52,21 +52,23 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     Ok(())
 }
 
-/// Function to calculate Gu = ∂G/∂u (Jacobian matrix)
+/// Calculates Gu = ∂G/∂u (Jacobian matrix) for the Lagrange Multipliers Method (LMM)
+///
+/// This function requires that Ǔ (prescribed values) has already been calculated.
 pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
 
-    // Assemble the local Ke matrices into the global K = Gu matrix
+    // Assemble the local Ke matrices into the global K matrix
     data.elements.assemble_kk_lmm(ggu, &mut data.state)?;
     data.boundaries.assemble_kk_lmm(ggu, &mut data.state)?;
 
-    // Add constraint matrix to Gu
-    //      ┌         ┐
-    //      │  K   Cᵀ │
-    // Gu = │         │
-    //      │  C   0  │
-    //      └         ┘
+    // Assemble constraint matrix into Gu
+    //           ┌         ┐
+    //      ∂G   │  K   Cᵀ │
+    // Gu = ── = │         │
+    //      ∂u   │  C   0  │
+    //           └         ┘
     let sym = ggu.get_info().3;
     match sym {
         Sym::YesLower => {
@@ -95,14 +97,18 @@ pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut F
     Ok(())
 }
 
-/// Function to calculate Gl = ∂G/∂λ
+/// Calculates Gλ = ∂G/∂λ for the Lagrange Multipliers Method (LMM)
+///
+/// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
 pub(crate) fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    // Set Gl = -F for all equations not corresponding to the Lagrange multipliers
+    //           ┌    ┐
+    //      ∂G   │ -F │
+    // Gλ = ── = │    │
+    //      ∂λ   │ -Ǔ │
+    //           └    ┘
     for i in 0..data.neq {
         ggl[i] = -data.ff[i];
     }
-
-    // Set Gl = -Ǔ for all equations corresponding to the Lagrange multipliers
     for ip in 0..data.np {
         let j = data.neq + ip;
         ggl[j] = -data.u_check[ip];
@@ -110,7 +116,7 @@ pub(crate) fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut Fe
     Ok(())
 }
 
-/// Function to update the secondary state using the Lagrange Multipliers Method (LMM)
+/// Updates the secondary state for the Lagrange Multipliers Method (LMM)
 pub(crate) fn update_secondary_state_lmm(
     do_backup: bool,
     u0: &Vector,
@@ -139,7 +145,7 @@ pub(crate) fn update_secondary_state_lmm(
 
 // System Partitioning Strategy (SPS) functions ////////////////////////////////////////////////////////////////////////
 
-/// Function to calculate G(u, λ) using the System Partitioning Strategy (SPS)
+/// Calculates G(u, λ) for the System Partitioning Strategy (SPS)
 ///
 /// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
 pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
@@ -149,27 +155,31 @@ pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     // Calculate the internal forces vector Y
     data.calc_yy()?;
 
-    // Calculate the residuals vector: R = Y - λ F = G
-    data.eq_handler.unknown().iter().for_each(|&eq| {
-        let iu = data.eq_handler.iu(eq);
+    // Calculate the residuals vector: R = Y - λ F = G (only unknown values)
+    for iu in 0..data.nu {
+        let eq = data.eq_handler.unknown()[iu];
         gg[iu] = data.yy[eq] - l * data.ff[eq];
-    });
+    }
     Ok(())
 }
 
-/// Function to calculate Gu = ∂G/∂u (Jacobian matrix) using the System Partitioning Strategy (SPS)
+/// Calculates Gu = ∂G/∂u (Jacobian matrix) for the System Partitioning Strategy (SPS)
+///
+/// This function requires that Ǔ (prescribed values) has already been calculated.
 pub(crate) fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
 
-    // Assemble the local Ke matrices into the global K = Gu matrix
+    // Assemble the local Ke matrices into the global K matrix
     data.elements.assemble_kk_bar(ggu, &mut data.state, &data.eq_handler)?;
     data.boundaries
         .assemble_kk_bar(ggu, &mut data.state, &data.eq_handler)?;
     Ok(())
 }
 
-/// Function to calculate Gl = ∂G/∂λ using the System Partitioning Strategy (SPS)
+/// Calculates Gλ = ∂G/∂λ for the System Partitioning Strategy (SPS)
+///
+/// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
 pub(crate) fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
     // Set Gl = Ǩ Ǔ
     data.kk_check.mat_vec_mul(ggl, 1.0, &data.u_check).unwrap();
@@ -182,7 +192,7 @@ pub(crate) fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut Fe
     Ok(())
 }
 
-/// Function to update the secondary state using the System Partitioning Strategy (SPS)
+/// Updates the secondary state for the System Partitioning Strategy (SPS)
 pub(crate) fn update_secondary_state_sps(
     do_backup: bool,
     u0: &Vector,
@@ -199,16 +209,16 @@ pub(crate) fn update_secondary_state_sps(
     }
 
     // Set updated U and Calculate ΔU
-    data.eq_handler.unknown().iter().for_each(|&eq| {
-        let iu = data.eq_handler.iu(eq);
+    for iu in 0..data.nu {
+        let eq = data.eq_handler.unknown()[iu];
         data.state.u[eq] = u1[iu];
         data.state.ddu[eq] = u1[iu] - u0[iu];
-    });
-    data.eq_handler.prescribed().iter().for_each(|&eq| {
-        let ip = data.eq_handler.ip(eq);
+    }
+    for ip in 0..data.np {
+        let eq = data.eq_handler.prescribed()[ip];
         data.state.u[eq] = l1 * data.u_check[ip];
         data.state.ddu[eq] = (l1 - l0) * data.u_check[ip];
-    });
+    }
 
     // Update secondary values
     data.elements.update_secondary_values(&mut data.state)?;
