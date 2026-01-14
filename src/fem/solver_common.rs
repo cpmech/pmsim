@@ -1,6 +1,6 @@
 use super::FemData;
 use crate::StrError;
-use russell_lab::{vec_minus, Vector};
+use russell_lab::Vector;
 use russell_sparse::{CooMatrix, Sym};
 
 // Common functions ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -124,8 +124,11 @@ pub(crate) fn update_secondary_state_lmm(
         data.elements.restore_secondary_values(&mut data.state, false);
     }
 
-    // Calculate Δu
-    vec_minus(&mut data.state.ddu, &u1, &u0).unwrap();
+    // Set updated U and Calculate ΔU
+    for eq in 0..data.neq {
+        data.state.u[eq] = u1[eq];
+        data.state.ddu[eq] = u1[eq] - u0[eq];
+    }
 
     // Update secondary values
     data.elements.update_secondary_values(&mut data.state)?;
@@ -191,17 +194,17 @@ pub(crate) fn update_secondary_state_sps(
         data.elements.restore_secondary_values(&mut data.state, false);
     }
 
-    // Calculate Δu
-    for eq in 0..data.neq {
-        if data.eq_handler.is_unknown(eq) {
-            let iu = data.eq_handler.iu(eq);
-            data.state.ddu[eq] = u1[iu] - u0[iu];
-        } else {
-            let ip = data.eq_handler.ip(eq);
-            let val = data.presc_values[ip](data.state.time);
-            data.state.ddu[eq] = l1 * val - l0 * val;
-        }
-    }
+    // Set updated U and Calculate ΔU
+    data.eq_handler.unknown().iter().for_each(|&eq| {
+        let iu = data.eq_handler.iu(eq);
+        data.state.u[eq] = u1[iu];
+        data.state.ddu[eq] = u1[iu] - u0[iu];
+    });
+    data.eq_handler.prescribed().iter().for_each(|&eq| {
+        let ip = data.eq_handler.ip(eq);
+        data.state.u[eq] = l1 * data.u_check[ip];
+        data.state.ddu[eq] = (l1 - l0) * data.u_check[ip];
+    });
 
     // Update secondary values
     data.elements.update_secondary_values(&mut data.state)?;
