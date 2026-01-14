@@ -11,13 +11,13 @@ use russell_nonlin::{AutoStep, IniDir, Method as NlMethod, Output as NlOutput, S
 use russell_nonlin::{Config as NlConfig, Solver as NlSolver, System as NlSystem};
 use uuid::Uuid;
 
-pub struct SolverSteady<'a> {
+pub struct Simulator<'a> {
     data_uuid: Uuid,
     nl_method: NlMethod,
     nl_solver: NlSolver<'a, FemData<'a>>,
 }
 
-impl<'a> SolverSteady<'a> {
+impl<'a> Simulator<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
@@ -59,7 +59,7 @@ impl<'a> SolverSteady<'a> {
         let nl_solver = NlSolver::new(nl_config, nl_system)?;
 
         // Allocate the FEM solver
-        let solver = SolverSteady {
+        let solver = Simulator {
             data_uuid: data.uuid,
             nl_method,
             nl_solver,
@@ -68,7 +68,7 @@ impl<'a> SolverSteady<'a> {
     }
 
     /// Runs a steady-state simulation
-    pub fn run(
+    pub fn steady(
         &mut self,
         data: &mut FemData<'a>,
         ini_dir: IniDir,
@@ -136,7 +136,7 @@ impl<'a> SolverSteady<'a> {
     }
 
     /// Runs a steady-state simulation with loading factors
-    pub fn run_with_lf(
+    pub fn steady_with_lf(
         &mut self,
         data: &mut FemData<'a>,
         lambdas: &[f64],

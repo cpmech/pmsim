@@ -123,8 +123,8 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
         if arclength {
             nl_config.set_method(NlMethod::Arclength).set_bordering(bordering);
         }
-        let (mut solver, mut data) = SolverSteady::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
-        solver.run(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), AutoStep::Yes, None)?;
+        let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
+        sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), AutoStep::Yes, None)?;
         data.get_state().clone()
     } else {
         SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?

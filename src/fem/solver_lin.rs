@@ -7,7 +7,7 @@ use russell_lab::Vector;
 use russell_sparse::{CooMatrix, LinSolver, Sym};
 use uuid::Uuid;
 
-pub struct SolverLin<'a> {
+pub struct SimulatorLin<'a> {
     data_uuid: Uuid,
     kk: CooMatrix,
     kk_bar: CooMatrix,
@@ -17,7 +17,8 @@ pub struct SolverLin<'a> {
     gg: Vector,
 }
 
-impl<'a> SolverLin<'a> {
+impl<'a> SimulatorLin<'a> {
+    /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
@@ -41,7 +42,7 @@ impl<'a> SolverLin<'a> {
                 CooMatrix::new(data.ndim, data.ndim, data.nnz_kk_bar, data.sym).unwrap(),
             )
         };
-        let solver = SolverLin {
+        let solver = SimulatorLin {
             data_uuid: data.uuid,
             kk,
             kk_bar,
@@ -53,7 +54,7 @@ impl<'a> SolverLin<'a> {
         Ok((solver, data))
     }
 
-    // Solve steady-state problem
+    // Runs a steady-state simulation
     pub fn steady(&mut self, data: &mut FemData<'a>) -> Result<(), StrError> {
         // Check UUID
         if data.uuid != self.data_uuid {

@@ -151,7 +151,7 @@ fn run_test(
         .set_record_iterations_residuals(true);
 
     // Allocate the FEM solver and data
-    let (mut solver, mut data) = SolverSteady::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
+    let (mut solver, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
 
     // Solve the problem
     if alternative {
@@ -162,14 +162,14 @@ fn run_test(
         });
         let u_index = data.get_u_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(u_index, 0.6);
-        solver.run(&mut data, IniDir::Pos, stop, AutoStep::Yes, Some(out))?;
+        solver.steady(&mut data, IniDir::Pos, stop, AutoStep::Yes, Some(out))?;
     } else {
         let lambdas = if residual {
             Vec::from(&LOAD_FACTORS_RESIDUAL)
         } else {
             Vec::from(&LOAD_FACTORS_COLLAPSE)
         };
-        solver.run_with_lf(&mut data, &lambdas, AutoStep::Yes)?;
+        solver.steady_with_lf(&mut data, &lambdas, AutoStep::Yes)?;
     }
 
     // Compare the results with Ref #1
