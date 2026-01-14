@@ -1,6 +1,6 @@
 use super::FemData;
 use crate::StrError;
-use russell_lab::{vec_copy, vec_minus, Vector};
+use russell_lab::{vec_minus, Vector};
 use russell_sparse::{CooMatrix, Sym};
 
 // Common functions ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -23,9 +23,8 @@ pub(crate) fn prepare_to_iterate(data: &mut FemData) {
 
 /// Function to calculate G(u, λ)
 pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    // Set (u, λ) in the state
-    data.state.lambda = l;
-    vec_copy(&mut data.state.u, u).unwrap();
+    // Set the state
+    data.set_state(l, u);
 
     // Calculate the internal forces vector Y
     data.calc_yy()?;
@@ -44,18 +43,17 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     for ip in 0..data.np {
         let i = data.eq_handler.prescribed()[ip];
         let j = data.neq + ip;
-        let mu = data.state.u[j];
+        let mu = u[j];
         gg[i] += mu; // Cᵀ μ   →   1 μ
-        gg[j] = u[i] - l * data.u_check[ip]; // C U - λ Ǔ   →   1 U - λ Ǔ
+        gg[j] = data.state.u[i] - l * data.u_check[ip]; // C U - λ Ǔ   →   1 U - λ Ǔ
     }
     Ok(())
 }
 
 /// Function to calculate Gu = ∂G/∂u (Jacobian matrix)
 pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    // Set (u, λ) in the state
-    data.state.lambda = l;
-    vec_copy(&mut data.state.u, u).unwrap();
+    // Set the state
+    data.set_state(l, u);
 
     // Assemble the local Ke matrices into the global K = Gu matrix
     data.elements.assemble_kk_lmm(ggu, &mut data.state)?;
@@ -138,18 +136,8 @@ pub(crate) fn update_secondary_state_lmm(
 
 /// Function to calculate G(u, λ) using the System Partitioning Strategy (SPS)
 pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    // Set (u, λ) in the state
-    data.state.lambda = l;
-    for eq in 0..data.neq {
-        if data.eq_handler.is_unknown(eq) {
-            let iu = data.eq_handler.iu(eq);
-            data.state.u[eq] = u[iu];
-        } else {
-            let ip = data.eq_handler.ip(eq);
-            let val = data.presc_values[ip](data.state.time);
-            data.state.u[eq] = l * val;
-        }
-    }
+    // Set the state
+    data.set_state(l, u);
 
     // Calculate the internal forces vector Y
     data.calc_yy()?;
@@ -164,18 +152,8 @@ pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
 
 /// Function to calculate Gu = ∂G/∂u (Jacobian matrix) using the System Partitioning Strategy (SPS)
 pub(crate) fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    // Set (u, λ) in the state
-    data.state.lambda = l;
-    for eq in 0..data.neq {
-        if data.eq_handler.is_unknown(eq) {
-            let iu = data.eq_handler.iu(eq);
-            data.state.u[eq] = u[iu];
-        } else {
-            let ip = data.eq_handler.ip(eq);
-            let val = data.presc_values[ip](data.state.time);
-            data.state.u[eq] = l * val;
-        }
-    }
+    // Set the state
+    data.set_state(l, u);
 
     // Assemble the local Ke matrices into the global K = Gu matrix
     data.elements.assemble_kk_bar(ggu, &mut data.state, &data.eq_handler)?;

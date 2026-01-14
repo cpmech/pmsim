@@ -38,7 +38,7 @@ const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse_new";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual_new";
 const GENERATE_MESH: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius

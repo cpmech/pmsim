@@ -305,6 +305,27 @@ impl<'a> FemData<'a> {
         });
     }
 
+    /// Sets the state given the nonlinear solver variables (λ, u)
+    ///
+    /// **Important:** U-check (Ǔ) must have been previously calculated via [FemData::calc_u_check()].
+    pub(crate) fn set_state(&mut self, l: f64, u: &Vector) {
+        self.state.lambda = l;
+        if self.config.lagrange_mult_method {
+            for eq in 0..self.neq {
+                self.state.u[eq] = u[eq];
+            }
+        } else {
+            self.eq_handler.unknown().iter().for_each(|&eq| {
+                let iu = self.eq_handler.iu(eq);
+                self.state.u[eq] = u[iu];
+            });
+            self.eq_handler.prescribed().iter().for_each(|&eq| {
+                let ip = self.eq_handler.ip(eq);
+                self.state.u[eq] = l * self.u_check[ip];
+            });
+        }
+    }
+
     /// Calculates Y (internal forces)
     pub(crate) fn calc_yy(&mut self) -> Result<(), StrError> {
         // clear vector

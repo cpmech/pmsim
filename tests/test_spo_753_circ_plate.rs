@@ -9,7 +9,7 @@ use russell_lab::{approx_eq, array_approx_eq};
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
 const PP: [f64; 13] = [
