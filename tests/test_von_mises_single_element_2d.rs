@@ -45,11 +45,13 @@ use russell_lab::math::SQRT_2_BY_3;
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 
 const NAME: &str = "test_von_mises_single_element_2d";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 // constants
+const L0: f64 = 1.0; // initial length of the element
 const YOUNG: f64 = 1500.0;
 const POISSON: f64 = 0.25;
+const C1: f64 = YOUNG / ((1.0 + POISSON) * (1.0 - 2.0 * POISSON));
 const Z_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
@@ -58,6 +60,21 @@ const NSTAGE: usize = 5;
 
 #[test]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
+    run_test(false, true)?;
+    run_test(true, true)?;
+    run_test(true, false)?;
+    Ok(())
+}
+
+fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
+    let mut name = NAME.to_string();
+    if new_solver {
+        name += "_new";
+    }
+    if lmm {
+        name += "_lmm";
+    }
+
     // mesh
     let mesh = Samples::one_qua4();
 
@@ -81,9 +98,15 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let mut schema = Schema::new();
     schema.add_solid(1, p1).build(&mesh)?;
 
-    // stage-wise vertical displacement increment
-    let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-    let calc_uy = |t| delta_y * t;
+    // absolute vertical displacement increment
+    let dy = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+    let calc_uy = |t| {
+        if new_solver {
+            -dy
+        } else {
+            -dy * t
+        }
+    };
 
     // essential boundary conditions
     let mut essential = BcEssential::new();
@@ -98,9 +121,9 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_files("/tmp/pmsim", NAME, 1.0)
+        .set_out_files("/tmp/pmsim", &name, 1.0)
         .set_out_local_state(0)
-        .set_lagrange_mult_method(true)
+        .set_lagrange_mult_method(lmm)
         .set_steady(NSTAGE)
         .set_substepping(false)
         .set_max_iterations(20)
@@ -108,22 +131,51 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         .set_save_strain(true);
 
     // solution
-    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    if new_solver {
+        let mut nl_config = NlConfig::new();
+        nl_config.set_method(NlMethod::Natural).set_verbose(true, true, false);
+        let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
+        let lambdas = (0..NSTAGE + 1).map(|i| i as f64).collect::<Vec<f64>>();
+        sim.steady_with_lf(&mut data, &lambdas, AutoStep::Yes)?;
+    } else {
+        SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    }
 
     // check the results
-    let (pp, _) = PostProc::new("/tmp/pmsim", NAME)?;
-    let times = pp.get_times();
-    let l0 = 1.0; // initial length of the element
-    let ss = pp.get_selected_local_state(0).unwrap();
+    let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
+    let times = post.get_times();
+    let ss = post.get_selected_local_state(0).unwrap();
     let mut zz = vec![0.0; times.len()];
     for i in 0..times.len() {
         let time = times[i];
+        let ey_ref = -time * dy / L0;
+        let ex = ss[i].strain.as_ref().unwrap().get(0, 0);
         let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
-        let ey_ref = calc_uy(time) / l0;
-        approx_eq(ey, ey_ref, 1e-15);
-        if time < 2.0 {
-            assert_eq!(ss[i].elastic, true);
+        let ez = ss[i].strain.as_ref().unwrap().get(2, 2);
+        let exy = ss[i].strain.as_ref().unwrap().get(0, 1);
+        let sx = ss[i].stress.get(0, 0);
+        let sy = ss[i].stress.get(1, 1);
+        let sz = ss[i].stress.get(2, 2);
+        let sxy = ss[i].stress.get(0, 1);
+        approx_eq(ey, ey_ref, 1e-15); // imposed
+        approx_eq(ez, 0.0, 1e-15); // plane strain
+        approx_eq(exy, 0.0, 1e-15); // shear-free
+        if new_solver && lmm {
+            approx_eq(sx, 0.0, 1e-5); // x-free
         } else {
+            approx_eq(sx, 0.0, 1e-10); // x-free
+        }
+        approx_eq(sxy, 0.0, 1e-15); // shear-free
+        if time < 2.0 {
+            // elastic stage
+            assert_eq!(ss[i].elastic, true);
+            let ex_ref = ey_ref * NU / (NU - 1.0);
+            approx_eq(ex, ex_ref, 1e-15);
+            approx_eq(sx, C1 * (ex_ref * (1.0 - NU) + ey_ref * NU), 1e-15); // zero
+            approx_eq(sy, C1 * (ey_ref * (1.0 - NU) + ex_ref * NU), 1e-14);
+            approx_eq(sz, C1 * (ex_ref * NU + ey_ref * NU), 1e-15);
+        } else {
+            // elastoplastic stage
             assert_eq!(ss[i].elastic, false);
         }
         zz[i] = ss[i].int_vars[0];
@@ -146,7 +198,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         plotter.add_2x2(&data, false, |curve, _, _| {
             curve.set_marker_style(".");
         })?;
-        plotter.save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+        plotter.save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
 
     Ok(())
