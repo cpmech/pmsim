@@ -3,6 +3,7 @@ use gemlab::prelude::*;
 use plotpy::Canvas;
 use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
+use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::approx_eq;
 use russell_lab::math::SQRT_2_BY_3;
@@ -181,6 +182,27 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
         zz[i] = ss[i].int_vars[0];
     }
 
+    // compare the results with Ref #1
+    let mut tol_displacement = 1e-13;
+    let mut tol_stress = 1e-10;
+    if new_solver && lmm {
+        tol_displacement = 1e-8;
+        tol_stress = 1e-5;
+    }
+    let all_good = compare_results(
+        &mesh,
+        &schema,
+        &config,
+        "/tmp/pmsim/",
+        &name,
+        ReferenceDataType::SPO,
+        "data/spo/spo_von_mises_single_element.json",
+        tol_displacement,
+        tol_stress,
+        0,
+    )?;
+    assert!(all_good);
+
     // figure
     if SAVE_FIGURE {
         let data = PlotterData::from_states(ss);
@@ -200,6 +222,5 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
         })?;
         plotter.save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
-
     Ok(())
 }
