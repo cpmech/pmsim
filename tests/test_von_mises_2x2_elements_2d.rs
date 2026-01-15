@@ -12,7 +12,8 @@ use pmsim::StrError;
 //
 // TEST GOAL
 //
-// Verifies the plane-strain implementation of the von Mises model.
+// Verifies the plane-strain implementation of the von Mises model,
+// on a displacement controlled test.
 //
 // MESH
 //
@@ -60,7 +61,7 @@ use pmsim::StrError;
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const NAME: &str = "spo_von_mises_2x2_elements";
+const NAME: &str = "von_mises_2x2_elements_2d";
 
 // constants
 const YOUNG: f64 = 1500.0;
@@ -72,7 +73,7 @@ const NGAUSS: usize = 4;
 const NSTAGE: usize = 5;
 
 #[test]
-fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
+fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::block_2d_four_qua8();
 
@@ -130,7 +131,7 @@ fn test_spo_von_mises_2x2_elements() -> Result<(), StrError> {
         "/tmp/pmsim/",
         NAME,
         ReferenceDataType::SPO,
-        &format!("data/spo/{}.json", NAME),
+        "data/spo/spo_von_mises_2x2_elements.json",
         tol_displacement,
         tol_stress,
         0,

@@ -15,8 +15,8 @@ use russell_lab::math::SQRT_2_BY_3;
 //
 // TEST GOAL
 //
-// Verifies the plane-strain implementation of the von Mises model.
-// Also verifies the output of results.
+// Verifies the plane-strain implementation of the von Mises model,
+// on a displacement controlled test.
 //
 // MESH
 //
@@ -44,6 +44,13 @@ use russell_lab::math::SQRT_2_BY_3;
 // * Static non-linear plane-strain simulation
 // * Young: E = 1500, Poisson: ν = 0.25
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
+//
+// The results are compared with the code HYPLAS discussed in Ref #1.
+//
+// # Reference
+//
+// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
+//    Theory and applications, Wiley, 791p
 
 const NAME: &str = "test_von_mises_single_element_2d";
 const SAVE_FIGURE: bool = false;
