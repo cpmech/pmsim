@@ -133,8 +133,6 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
         .set_out_local_state(0)
         .set_lagrange_mult_method(lmm)
         .set_steady(NSTAGE)
-        .set_substepping(false)
-        .set_max_iterations(20)
         .update_model_settings(1)
         .set_save_strain(true);
 
