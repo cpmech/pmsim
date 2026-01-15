@@ -64,8 +64,10 @@ use pmsim::StrError;
 const NAME: &str = "von_mises_2x2_elements_2d";
 
 // constants
+const L0: f64 = 2.0; // initial length of the domain
 const YOUNG: f64 = 1500.0;
 const POISSON: f64 = 0.25;
+const C1: f64 = YOUNG / ((1.0 + POISSON) * (1.0 - 2.0 * POISSON));
 const Z_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
@@ -74,6 +76,21 @@ const NSTAGE: usize = 5;
 
 #[test]
 fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
+    run_test(false, true)?;
+    // run_test(true, true)?;
+    // run_test(true, false)?;
+    Ok(())
+}
+
+fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
+    let mut name = NAME.to_string();
+    if new_solver {
+        name += "_new";
+    }
+    if lmm {
+        name += "_lmm";
+    }
+
     // mesh
     let mesh = Samples::block_2d_four_qua8();
 
@@ -97,15 +114,22 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     let mut schema = Schema::new();
     schema.add_solid(1, p1).build(&mesh)?;
 
-    // stage-wise vertical displacement increment
-    let delta_y = -Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+    // absolute vertical displacement increment and applied displacement function
+    let dy = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+    let calc_uy = |t| {
+        if new_solver {
+            -dy
+        } else {
+            -dy * t
+        }
+    };
 
     // essential boundary conditions
     let mut essential = BcEssential::new();
     essential
         .edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, |t| delta_y * t);
+        .edges_fn(&top, Dof::Uy, calc_uy);
 
     // natural boundary conditions
     let natural = BcNatural::new();
@@ -114,7 +138,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", NAME, 1.0)
-        .set_lagrange_mult_method(true)
+        .set_lagrange_mult_method(lmm)
         .set_steady(NSTAGE)
         .set_max_iterations(20);
 

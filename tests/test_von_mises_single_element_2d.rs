@@ -106,7 +106,7 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
     let mut schema = Schema::new();
     schema.add_solid(1, p1).build(&mesh)?;
 
-    // absolute vertical displacement increment
+    // absolute vertical displacement increment and applied displacement function
     let dy = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
     let calc_uy = |t| {
         if new_solver {
