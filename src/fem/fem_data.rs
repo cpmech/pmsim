@@ -225,6 +225,11 @@ impl<'a> FemData<'a> {
         })
     }
 
+    // TODO: rename "ndim"
+    pub fn get_ndim(&self) -> usize {
+        self.ndim
+    }
+
     pub fn get_u_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         let eq = self.schema.get_eq(point_id, dof)?;
         if self.config.lagrange_mult_method {
