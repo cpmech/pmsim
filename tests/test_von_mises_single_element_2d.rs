@@ -173,7 +173,7 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
         }
         approx_eq(sxy, 0.0, 1e-15); // shear-free
         if time < 2.0 {
-            // elastic stage
+            // elastic stages
             assert_eq!(ss[i].elastic, true);
             let ex_ref = ey_ref * NU / (NU - 1.0);
             approx_eq(ex, ex_ref, 1e-15);
