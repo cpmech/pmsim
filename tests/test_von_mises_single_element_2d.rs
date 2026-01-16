@@ -56,7 +56,7 @@ const NAME: &str = "test_von_mises_single_element_2d";
 const SAVE_FIGURE: bool = false;
 
 // constants
-const L0: f64 = 1.0; // initial length of the element
+const L0: f64 = 1.0; // initial length of the domain
 const YOUNG: f64 = 1500.0;
 const POISSON: f64 = 0.25;
 const C1: f64 = YOUNG / ((1.0 + POISSON) * (1.0 - 2.0 * POISSON));
@@ -68,21 +68,6 @@ const NSTAGE: usize = 5;
 
 #[test]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
-    run_test(false, true)?;
-    run_test(true, true)?;
-    run_test(true, false)?;
-    Ok(())
-}
-
-fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
-    let mut name = NAME.to_string();
-    if new_solver {
-        name += "_new";
-    }
-    if lmm {
-        name += "_lmm";
-    }
-
     // mesh
     let mesh = Samples::one_qua4();
 
@@ -106,9 +91,46 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
     let mut schema = Schema::new();
     schema.add_solid(1, p1).build(&mesh)?;
 
+    // essential boundary conditions
+    let mut essential = BcEssential::new();
+    essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
+
+    // natural boundary conditions
+    let natural = BcNatural::new();
+
+    // configuration
+    let mut config = Config::new(&mesh);
+    config.set_steady(NSTAGE);
+
+    // run tests
+    run_test(false, true, &top, &mesh, &schema, &mut config, &mut essential, &natural)?;
+    run_test(true, true, &top, &mesh, &schema, &mut config, &mut essential, &natural)?;
+    run_test(true, false, &top, &mesh, &schema, &mut config, &mut essential, &natural)?;
+    Ok(())
+}
+
+fn run_test(
+    new_solver: bool,
+    lmm: bool,
+    top: &Edges,
+    mesh: &Mesh,
+    schema: &Schema,
+    config: &mut Config,
+    essential: &mut BcEssential,
+    natural: &BcNatural,
+) -> Result<(), StrError> {
+    // define filename stem
+    let mut name = NAME.to_string();
+    if new_solver {
+        name += "_new";
+    }
+    if lmm {
+        name += "_lmm";
+    }
+
     // absolute vertical displacement increment and applied displacement function
     let dy = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-    let calc_uy = |t| {
+    let calc_uy = move |t| {
         if new_solver {
             -dy
         } else {
@@ -116,23 +138,14 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
         }
     };
 
-    // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
-        .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, calc_uy);
+    // update essential boundary conditions
+    essential.edges_fn(&top, Dof::Uy, calc_uy);
 
-    // natural boundary conditions
-    let natural = BcNatural::new();
-
-    // configuration
-    let mut config = Config::new(&mesh);
+    // update configuration
     config
         .set_out_files("/tmp/pmsim", &name, 1.0)
-        .set_out_local_state(0)
         .set_lagrange_mult_method(lmm)
-        .set_steady(NSTAGE)
+        .set_out_local_state(0)
         .update_model_settings(1)
         .set_save_strain(true);
 
@@ -151,7 +164,6 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
     let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
     let times = post.get_times();
     let ss = post.get_selected_local_state(0).unwrap();
-    let mut zz = vec![0.0; times.len()];
     for i in 0..times.len() {
         let time = times[i];
         let ey_ref = -time * dy / L0;
@@ -184,7 +196,6 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
             // elastoplastic stage
             assert_eq!(ss[i].elastic, false);
         }
-        zz[i] = ss[i].int_vars[0];
     }
 
     // compare the results with Ref #1
@@ -210,7 +221,12 @@ fn run_test(new_solver: bool, lmm: bool) -> Result<(), StrError> {
 
     // figure
     if SAVE_FIGURE {
+        let ss = post.get_selected_local_state(0).unwrap();
         let data = PlotterData::from_states(ss);
+        let mut zz = vec![0.0; times.len()];
+        for i in 0..times.len() {
+            zz[i] = ss[i].int_vars[0];
+        }
         let mut plotter = Plotter::new();
         plotter.set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});
         plotter.set_extra(Axis::OctX, Axis::OctY, |plot| {

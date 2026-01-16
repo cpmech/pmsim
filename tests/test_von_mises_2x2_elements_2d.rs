@@ -113,7 +113,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_steady(NSTAGE).set_max_iterations(20);
+    config.set_steady(NSTAGE);
 
     // run tests
     run_test(false, true, &top, &mesh, &schema, &mut config, &mut essential, &natural)?;
