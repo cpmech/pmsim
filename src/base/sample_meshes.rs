@@ -999,6 +999,68 @@ impl SampleMeshes {
             marked_faces: Vec::new(),
         }
     }
+
+    /// Returns a unit square represented by four qua8 cells
+    ///
+    /// ```text
+    /// 1.0  14------16------13------20------18
+    ///       |               |               |
+    ///       |               |               |
+    /// 0.75 17      [2]     15      [3]     19
+    ///       |               |               |
+    ///       |               |               |
+    /// 0.5   3-------6-------2------12-------9
+    ///       |               |               |
+    ///       |               |               |
+    /// 0.25  7      [0]      5      [1]     11
+    ///       |               |               |
+    ///       |               |               |
+    /// 0.0   0-------4-------1------10-------8
+    ///
+    ///      0.0    0.25     0.5    0.75     1.0
+    ///
+    /// xmin = 0.0, xmax = 1.0
+    /// ymin = 0.0, ymax = 1.0
+    /// ```
+    ///
+    /// ![unit_square_four_qua8](https://raw.githubusercontent.com/cpmech/pmsim/main/data/figures/meshes/mesh_unit_square_four_qua8.svg)
+    #[rustfmt::skip]
+    pub fn unit_square_four_qua8() -> Mesh {
+        Mesh {
+            ndim: 2,
+            points: vec![
+                Point { id:  0, marker: 0, coords: vec![0.0,  0.0]  },
+                Point { id:  1, marker: 0, coords: vec![0.5,  0.0]  },
+                Point { id:  2, marker: 0, coords: vec![0.5,  0.5]  },
+                Point { id:  3, marker: 0, coords: vec![0.0,  0.5]  },
+                Point { id:  4, marker: 0, coords: vec![0.25, 0.0]  },
+                Point { id:  5, marker: 0, coords: vec![0.5,  0.25] },
+                Point { id:  6, marker: 0, coords: vec![0.25, 0.5]  },
+                Point { id:  7, marker: 0, coords: vec![0.0,  0.25] },
+                Point { id:  8, marker: 0, coords: vec![1.0,  0.0]  },
+                Point { id:  9, marker: 0, coords: vec![1.0,  0.5]  },
+                Point { id: 10, marker: 0, coords: vec![0.75, 0.0]  },
+                Point { id: 11, marker: 0, coords: vec![1.0,  0.25] },
+                Point { id: 12, marker: 0, coords: vec![0.75, 0.5]  },
+                Point { id: 13, marker: 0, coords: vec![0.5,  1.0]  },
+                Point { id: 14, marker: 0, coords: vec![0.0,  1.0]  },
+                Point { id: 15, marker: 0, coords: vec![0.5,  0.75] },
+                Point { id: 16, marker: 0, coords: vec![0.25, 1.0]  },
+                Point { id: 17, marker: 0, coords: vec![0.0,  0.75] },
+                Point { id: 18, marker: 0, coords: vec![1.0,  1.0]  },
+                Point { id: 19, marker: 0, coords: vec![1.0,  0.75] },
+                Point { id: 20, marker: 0, coords: vec![0.75, 1.0]  },
+            ],
+            cells: vec![
+                Cell { id: 0, marker: 1, kind: GeoKind::Qua8, points: vec![0, 1,  2,  3,  4,  5,  6,  7] },
+                Cell { id: 1, marker: 1, kind: GeoKind::Qua8, points: vec![1, 8,  9,  2, 10, 11, 12,  5] },
+                Cell { id: 2, marker: 1, kind: GeoKind::Qua8, points: vec![3, 2, 13, 14,  6, 15, 16, 17] },
+                Cell { id: 3, marker: 1, kind: GeoKind::Qua8, points: vec![2, 9, 18, 13, 12, 19, 20, 15] },
+            ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1170,6 +1232,14 @@ mod tests {
         assert_eq!(mesh.cells.len(), 4);
         if SAVE_FIGURE {
             draw(&mesh, false, true, "/tmp/pmsim/mesh_column_two_layers_qua9.svg");
+        }
+
+        let mesh = SampleMeshes::unit_square_four_qua8();
+        mesh.check_all().unwrap();
+        assert_eq!(mesh.points.len(), 21);
+        assert_eq!(mesh.cells.len(), 4);
+        if SAVE_FIGURE {
+            draw(&mesh, false, true, "/tmp/pmsim/mesh_unit_square_four_qua8.svg");
         }
     }
 }
