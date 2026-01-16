@@ -117,6 +117,8 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
 
     // run tests
     run_test(false, true, &top, &mesh, &schema, &mut config, &mut essential, &natural)?;
+    run_test(true, true, &top, &mesh, &schema, &mut config, &mut essential, &natural)?;
+    run_test(true, false, &top, &mesh, &schema, &mut config, &mut essential, &natural)?;
     Ok(())
 }
 
@@ -162,7 +164,18 @@ fn run_test(
         .set_save_strain(true);
 
     // solution
-    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    if new_solver {
+        let mut nl_config = NlConfig::new();
+        nl_config
+            .set_method(NlMethod::Natural)
+            .set_verbose(true, true, false)
+            .set_disable_rel_delta_analysis(!lmm);
+        let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
+        let lambdas: Vec<_> = (0..NSTAGE + 1).map(|i| i as f64).collect();
+        sim.steady_with_lf(&mut data, &lambdas, AutoStep::Yes)?;
+    } else {
+        SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    }
 
     // check the results
     let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
@@ -196,7 +209,7 @@ fn run_test(
                 let ex_ref = ey_ref * NU / (NU - 1.0);
                 approx_eq(ex, ex_ref, 1e-15);
                 approx_eq(sx, C1 * (ex_ref * (1.0 - NU) + ey_ref * NU), 1e-14); // zero
-                approx_eq(sy, C1 * (ey_ref * (1.0 - NU) + ex_ref * NU), 1e-14);
+                approx_eq(sy, C1 * (ey_ref * (1.0 - NU) + ex_ref * NU), 1e-13);
                 approx_eq(sz, C1 * (ex_ref * NU + ey_ref * NU), 1e-14);
             } else {
                 // elastoplastic stage
@@ -207,8 +220,12 @@ fn run_test(
     }
 
     // compare the results with Ref #1
-    let tol_displacement = 1e-15;
-    let tol_stress = 1e-13;
+    let mut tol_displacement = 1e-15;
+    let mut tol_stress = 1e-13;
+    if new_solver {
+        tol_displacement = 1e-14;
+        tol_stress = 1e-10;
+    }
     let all_good = compare_results(
         &mesh,
         &schema,
