@@ -260,6 +260,13 @@ impl<'a> FemData<'a> {
     pub fn print_system_info(&self, continuation: &str) {
         if self.config.verbose {
             let mut b = vec![vec![String::new(); 3]; 3];
+            let handler = if self.config.lagrange_mult_method {
+                "LMM"
+            } else if self.config.nonzero_presc_values {
+                "NPV"
+            } else {
+                "SPS"
+            };
             write!(&mut b[0][0], "neq  = {:?}", self.neq).unwrap();
             write!(&mut b[1][0], "np   = {:?}", self.np).unwrap();
             write!(&mut b[2][0], "ndim = {:?}", self.ndim).unwrap();
@@ -268,12 +275,7 @@ impl<'a> FemData<'a> {
             write!(&mut b[2][1], "sym(K)     = {:?}", self.sym).unwrap();
             write!(&mut b[0][2], "genie        = {:?}", self.config.lin_sol_genie).unwrap();
             write!(&mut b[1][2], "continuation = {}", continuation).unwrap();
-            write!(
-                &mut b[2][2],
-                "EBC handler  = {}",
-                if self.config.lagrange_mult_method { "LMM" } else { "SPS" }
-            )
-            .unwrap();
+            write!(&mut b[2][2], "EBC handler  = {}", handler).unwrap();
             let mut w = vec![0; 3];
             for i in 0..3 {
                 for j in 0..3 {
