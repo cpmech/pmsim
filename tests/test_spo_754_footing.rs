@@ -160,7 +160,7 @@ fn run_test(
                 .set_bordering(true)
                 .set_ddl_ini(0.01)
                 // .set_tg_control_atol_and_rtol(1.0);
-                .set_tg_control_atol_and_rtol(0.5)
+                .set_tg_control_atol_and_rtol(5.0) // 0.5
                 .set_tg_control_pid_vcc(true)
                 // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
                 // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
