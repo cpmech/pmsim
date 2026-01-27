@@ -152,7 +152,11 @@ impl<'a> FemData<'a> {
         elements.initialize_internal_values(&mut state)?;
 
         // Determine if the global stiffness matrix is symmetric and it's enabled
-        let symmetric = !config.ignore_symmetry && elements.all_sym_kk() && boundaries.all_sym_kk();
+        let symmetric = if config.ignore_symmetry || config.nonzero_presc_values {
+            false
+        } else {
+            elements.all_sym_kk() && boundaries.all_sym_kk()
+        };
 
         // Determine symmetry type of the global stiffness matrix
         let genie = config.lin_sol_genie;
