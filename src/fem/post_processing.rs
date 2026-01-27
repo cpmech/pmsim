@@ -62,7 +62,7 @@ impl PostProc {
     /// Returns an error if any of the files cannot be read or parsed.
     pub fn new(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
         // load results
-        let results = OutputFiles::read_json(&format!("{}/{}.json", dir, fn_stem))?;
+        let files = OutputFiles::read_json(&format!("{}/{}.json", dir, fn_stem))?;
 
         // reads the mesh
         let mesh = Mesh::read(&format!("{}/{}-mesh.msh", dir, fn_stem))?;
@@ -75,7 +75,7 @@ impl PostProc {
             PostProc {
                 dir: dir.to_string(),
                 fn_stem: fn_stem.to_string(),
-                files: results,
+                files,
                 mesh,
                 schema,
             },
@@ -111,6 +111,16 @@ impl PostProc {
     /// Corresponds to the index in [PostProc::read_state()]
     pub fn nstate(&self) -> usize {
         self.files.n_files()
+    }
+
+    /// Returns the total number of equations
+    pub fn neq_total(&self) -> usize {
+        self.files.neq_total()
+    }
+
+    /// Returns the number of prescribed equations
+    pub fn neq_presc(&self) -> usize {
+        self.files.neq_presc()
     }
 
     /// Reads a JSON file with the FEM state at a given index (time station)
@@ -1403,7 +1413,7 @@ mod tests {
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
-        let mut files = OutputFiles::new(&mesh, &schema, &config).unwrap();
+        let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
@@ -1455,7 +1465,7 @@ mod tests {
         let (point_id, cell_id) = (10, 1);
         config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
 
-        let mut files = OutputFiles::new(&mesh, &schema, &config).unwrap();
+        let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
@@ -1525,7 +1535,7 @@ mod tests {
             .set_out_dof(point_id, Dof::Uy)
             .set_out_local_state(cell_id);
 
-        let mut files = OutputFiles::new(&mesh, &schema, &config).unwrap();
+        let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
@@ -1594,7 +1604,7 @@ mod tests {
             .set_out_dof(point_id, Dof::Uz)
             .set_out_local_state(cell_id);
 
-        let mut files = OutputFiles::new(&mesh, &schema, &config).unwrap();
+        let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
@@ -1872,7 +1882,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            files: OutputFiles::new(&mesh, &schema, &config).unwrap(),
+            files: OutputFiles::new(&mesh, &schema, &config, 0).unwrap(),
             mesh,
             schema,
         };
@@ -1896,7 +1906,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            files: OutputFiles::new(&mesh, &schema, &config).unwrap(),
+            files: OutputFiles::new(&mesh, &schema, &config, 0).unwrap(),
             mesh,
             schema,
         };
@@ -2797,7 +2807,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            files: OutputFiles::new(&mesh, &schema, &config).unwrap(),
+            files: OutputFiles::new(&mesh, &schema, &config, 0).unwrap(),
             mesh: mesh.clone(),
             schema,
         };
@@ -2913,7 +2923,7 @@ mod tests {
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
-            files: OutputFiles::new(&mesh, &schema, &config).unwrap(),
+            files: OutputFiles::new(&mesh, &schema, &config, 0).unwrap(),
             mesh: mesh.clone(),
             schema,
         };

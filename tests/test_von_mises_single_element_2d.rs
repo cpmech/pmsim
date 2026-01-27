@@ -155,7 +155,7 @@ fn run_test(
         nl_config.set_method(NlMethod::Natural).set_verbose(true, true, false);
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
         let lambdas: Vec<_> = (0..NSTAGE + 1).map(|i| i as f64).collect();
-        sim.steady_with_lf(&mut data, &lambdas, AutoStep::Yes)?;
+        sim.steady_with_lf(&mut data, &lambdas, true, AutoStep::Yes)?;
     } else {
         SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
     }

@@ -144,9 +144,6 @@ impl<'a> FemData<'a> {
             .filter(|&eq| config.lagrange_mult_method || !ignored_eqs[eq])
             .collect();
 
-        // Allocate output files handler
-        let mut files = OutputFiles::new(mesh, schema, config)?;
-
         //////////////////////////////////////////////////////////////////////////////////////////////////////
 
         let mut state = FemState::new(&mesh, &schema, &ebc, &config)?;
@@ -165,7 +162,13 @@ impl<'a> FemData<'a> {
         let neq = eq_handler.neq();
         let nu = eq_handler.nu();
         let np = eq_handler.np();
-        let ndim = if config.lagrange_mult_method { neq + np } else { nu };
+        let ndim = if config.lagrange_mult_method {
+            neq + np
+        } else if config.nonzero_presc_values {
+            neq
+        } else {
+            nu
+        };
 
         // Calculate the number of non-zero entries in the global stiffness matrix
         let mut nnz_kk = 0;
@@ -179,19 +182,25 @@ impl<'a> FemData<'a> {
             } else {
                 nnz_kk += 2 * np;
             }
+        } else if config.nonzero_presc_values {
+            nnz_kk += elements.estimate_nnz(sym.triangular());
+            nnz_kk += boundaries.estimate_nnz(sym.triangular());
         } else {
             elements.add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &eq_handler);
             boundaries.add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &eq_handler);
         }
 
         // Allocate K-check matrix for SPS
-        let kk_check = if config.lagrange_mult_method || n_prescribed == 0 {
+        let kk_check = if config.lagrange_mult_method || config.nonzero_presc_values || n_prescribed == 0 {
             CooMatrix::new(1, 1, 1, Sym::No).unwrap() // empty
         } else {
             CooMatrix::new(nu, np, nnz_kk_check, Sym::No).unwrap()
         };
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // Allocate output files handler
+        let mut files = OutputFiles::new(mesh, schema, config, np)?;
 
         // return new instance
         Ok(FemData {
@@ -312,6 +321,10 @@ impl<'a> FemData<'a> {
     pub(crate) fn set_state(&mut self, l: f64, u: &Vector) {
         self.state.lambda = l;
         if self.config.lagrange_mult_method {
+            for i in 0..self.ndim {
+                self.state.u[i] = u[i];
+            }
+        } else if self.config.nonzero_presc_values {
             for eq in 0..self.neq {
                 self.state.u[eq] = u[eq];
             }

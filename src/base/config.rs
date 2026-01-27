@@ -2,7 +2,6 @@ use super::{Dof, Idealization, Init, ParamFluids};
 use crate::material::Settings;
 use gemlab::mesh::{CellId, CellMarker, Mesh, PointId};
 use russell_lab::math::ONE_BY_3;
-use russell_nonlin::{Config as NlConfig, Method as NlMethod};
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -55,8 +54,11 @@ pub struct Config<'a> {
     /// Note: dynamics sets transient to true.
     pub(crate) dynamics: bool,
 
-    /// Enables the method of Lagrange multipliers to handle prescribed essential values
+    /// Enables the method of Lagrange multipliers (LMM) to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
+
+    /// Enables the nonzero prescribed values (NPV) method to handle prescribed essential values
+    pub(crate) nonzero_presc_values: bool,
 
     /// Uses the alternative method to calculate the B matrix
     ///
@@ -103,9 +105,6 @@ pub struct Config<'a> {
 
     // Nonlinear problem solver ---------------------------------------------------------------
     //
-    /// Configuration parameters for the nonlinear solver
-    pub(crate) nl_config: NlConfig,
-
     /// Holds the linear solver type
     pub(crate) lin_sol_genie: Genie,
 
@@ -270,8 +269,6 @@ pub struct Config<'a> {
 impl<'a> Config<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh) -> Self {
-        let mut nl_config = NlConfig::new();
-        nl_config.set_h_ini(1.0).set_bordering(true);
         Config {
             // Essential constants
             ndim: mesh.ndim,
@@ -283,6 +280,7 @@ impl<'a> Config<'a> {
             transient: false,
             dynamics: false,
             lagrange_mult_method: false,
+            nonzero_presc_values: false,
             alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-7),
             // Initialization
@@ -292,7 +290,6 @@ impl<'a> Config<'a> {
             model_allow_initial_drift: false,
             model_settings: HashMap::new(),
             // Nonlinear problem solver
-            nl_config,
             lin_sol_genie: Genie::Umfpack,
             lin_sol_params: LinSolParams::new(),
             ignore_symmetry: false,
@@ -523,7 +520,6 @@ impl<'a> Config<'a> {
     ///
     /// This function will set the nonlinear solver to Natural continuation with h_ini = 1.0.
     pub fn set_linear_problem(&mut self, enable: bool) -> &mut Self {
-        self.nl_config.set_method(NlMethod::Natural).set_h_ini(1.0);
         self.linear_problem = enable;
         self
     }
@@ -561,9 +557,15 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Enables the method of Lagrange multipliers to handle prescribed essential values
+    /// Enables the method of Lagrange multipliers (LMM) to handle prescribed essential values
     pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
         self.lagrange_mult_method = enable;
+        self
+    }
+
+    /// Enables the nonzero prescribed values (NPV) method to handle prescribed essential values
+    pub fn set_nonzero_presc_values(&mut self, enable: bool) -> &mut Self {
+        self.nonzero_presc_values = enable;
         self
     }
 
@@ -627,17 +629,6 @@ impl<'a> Config<'a> {
     }
 
     // Nonlinear problem solver ---------------------------------------------------------------
-
-    /// Returns an access to the nonlinear solver configuration
-    ///
-    /// # Notes
-    ///
-    /// 1. If setting Arclength, remember to set the `h_ini` parameter appropriately; e.g., a value less than 1.0 (default)
-    /// 2. This function will disable the `linear_problem` flag.
-    pub fn nl_config(&mut self) -> &mut NlConfig {
-        self.linear_problem = false;
-        &mut self.nl_config
-    }
 
     /// Sets the linear solver type (aka Genie)
     pub fn set_lin_sol_genie(&mut self, genie: Genie) -> &mut Self {

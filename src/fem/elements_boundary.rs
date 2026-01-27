@@ -1,5 +1,7 @@
 use super::FemState;
-use crate::base::{add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_vector};
+use crate::base::{
+    add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_matrix_kk_npv, assemble_vector,
+};
 use crate::base::{BcNatural, Config, Nbc, Schema};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -441,6 +443,22 @@ impl<'a> ElementsBoundary<'a> {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_ref() {
                 assemble_matrix_kk_bar(kk_bar, kke, &e.local_to_global, eq_handler)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Assembles the local Ke matrix into the global K matrix for the Nonzero Prescribed Values (NPV) case
+    pub fn assemble_kk_npv(
+        &mut self,
+        kk: &mut CooMatrix,
+        state: &FemState,
+        eq_handler: &EquationHandler,
+    ) -> Result<(), StrError> {
+        for e in &mut self.elements {
+            e.calc_kke(state)?;
+            if let Some(kke) = e.kke.as_ref() {
+                assemble_matrix_kk_npv(kk, kke, &e.local_to_global, eq_handler)?;
             }
         }
         Ok(())

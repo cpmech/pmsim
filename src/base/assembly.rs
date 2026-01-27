@@ -336,6 +336,37 @@ pub fn assemble_matrix_kk_check(
     Ok(())
 }
 
+/// Assembles a local matrix into the global matrix for the Nonzero Prescribed Value (NPV) case
+pub fn assemble_matrix_kk_npv(
+    kk: &mut CooMatrix,
+    kke: &Matrix,
+    local_to_global: &[usize],
+    eq_handler: &EquationHandler,
+) -> Result<(), StrError> {
+    let sym = kk.get_info().3;
+    let n_equation_local = local_to_global.len();
+    match sym {
+        Sym::YesLower => {
+            panic!("TODO");
+        }
+        Sym::YesUpper => {
+            panic!("TODO");
+        }
+        Sym::YesFull | Sym::No => {
+            for l in 0..n_equation_local {
+                let g = local_to_global[l];
+                if eq_handler.is_unknown(g) {
+                    for ll in 0..n_equation_local {
+                        let gg = local_to_global[ll];
+                        kk.put(g, gg, kke.get(l, ll)).unwrap();
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]

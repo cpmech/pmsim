@@ -143,7 +143,7 @@ fn run_test(
         .set_verbose(true, true, true)
         .set_nr_control_enabled(true)
         .set_tg_control_enabled(true)
-        .set_h_ini(0.05)
+        .set_ddl_ini(0.05)
         .set_tg_control_atol_and_rtol(0.05)
         // .set_tg_control_rho_for_zero_rerr(2.0)
         // .set_n_cont_residual_divergence_max(2)
@@ -164,7 +164,7 @@ fn run_test(
         } else {
             Vec::from(&LOAD_FACTORS_COLLAPSE)
         };
-        solver.steady_with_lf(&mut data, &lambdas, AutoStep::Yes)?;
+        solver.steady_with_lf(&mut data, &lambdas, true, AutoStep::Yes)?;
     }
 
     // Compare the results with Ref #1

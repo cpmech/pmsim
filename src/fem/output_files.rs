@@ -23,6 +23,12 @@ pub(crate) struct OutputFiles {
     /// Real simulation times corresponding to each output file
     times: Vec<f64>,
 
+    /// Total number of equations
+    neq_total: usize,
+
+    /// Number of prescribed equations
+    neq_presc: usize,
+
     /// Time for selected points and cells
     sel_time: Vec<f64>,
 
@@ -47,7 +53,7 @@ pub(crate) struct OutputFiles {
 
 impl OutputFiles {
     /// Allocates a new instance with deactivated generation of files
-    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config, neq_presc: usize) -> Result<Self, StrError> {
         if config.out_files {
             // create directory
             fs::create_dir_all(&config.out_dir).map_err(|_| "cannot create output directory")?;
@@ -62,6 +68,8 @@ impl OutputFiles {
             counter: 0,
             indices: Vec::new(),
             times: Vec::new(),
+            neq_total: schema.get_neq()?,
+            neq_presc,
             sel_time: Vec::new(),
             sel_lambda: Vec::new(),
             sel_dof: HashMap::new(),
@@ -85,6 +93,16 @@ impl OutputFiles {
     /// Returns the number of files written
     pub fn n_files(&self) -> usize {
         self.counter
+    }
+
+    /// Returns the total number of equations
+    pub fn neq_total(&self) -> usize {
+        self.neq_total
+    }
+
+    /// Returns the number of prescribed equations
+    pub fn neq_presc(&self) -> usize {
+        self.neq_presc
     }
 
     /// Returns the indices of the output files

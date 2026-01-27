@@ -68,12 +68,16 @@ fn analytical(x: f64) -> f64 {
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
     println!("\n################################### OLD SOLVER ###################################\n");
     run_test(false, false, false)?;
+
     println!("\n##################################### NATURAL ####################################\n");
     run_test(true, false, false)?; // Natural continuation
+
     println!("\n################################ ARCLENGTH FULL ##################################\n");
     run_test(true, true, false)?; // Pseudo-arclength continuation without bordering
+
     println!("\n############################# ARCLENGTH BORDERING ################################\n");
     run_test(true, true, true)?; // Pseudo-arclength continuation with bordering
+
     Ok(())
 }
 
@@ -113,11 +117,10 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
     // solution
     let mut tol = 1e-13;
     let state = if new_solver {
-        tol = 1e-5;
+        tol = 1e-7;
         let mut nl_config = NlConfig::new();
         nl_config
             .set_verbose(true, true, false)
-            .set_h_ini(1.0)
             .set_tg_control_atol_and_rtol(0.05)
             .set_record_iterations_residuals(true);
         if arclength {

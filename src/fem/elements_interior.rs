@@ -1,5 +1,7 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
-use crate::base::{add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_vector};
+use crate::base::{
+    add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_matrix_kk_npv, assemble_vector,
+};
 use crate::base::{Config, Elem, Schema};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
@@ -225,6 +227,20 @@ impl<'a> ElementsInterior<'a> {
         for e in &mut self.elements {
             e.actual.calc_kke(&mut e.kke, state)?;
             assemble_matrix_kk_bar(kk_bar, &e.kke, &e.actual.local_to_global(), eq_handler)?;
+        }
+        Ok(())
+    }
+
+    /// Assembles the local Ke matrix into the global K matrix for the Nonzero Prescribed Values (NPV) case
+    pub fn assemble_kk_npv(
+        &mut self,
+        kk: &mut CooMatrix,
+        state: &FemState,
+        eq_handler: &EquationHandler,
+    ) -> Result<(), StrError> {
+        for e in &mut self.elements {
+            e.actual.calc_kke(&mut e.kke, state)?;
+            assemble_matrix_kk_npv(kk, &e.kke, &e.actual.local_to_global(), eq_handler)?;
         }
         Ok(())
     }
