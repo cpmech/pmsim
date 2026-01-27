@@ -1,6 +1,6 @@
 use super::{Axis, PlotterData};
 use crate::StrError;
-use plotpy::{Canvas, Curve, Legend, Plot, SuperTitleParams, Text};
+use plotpy::{Canvas, Curve, DarkMode, Legend, Plot, SuperTitleParams, Text};
 use russell_lab::math::PI;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
@@ -98,6 +98,9 @@ pub struct Plotter<'a> {
 
     /// Selected pair for the fourth subplot in the 3x2 tabular layout
     tab_selected_3x2: (Axis, Axis),
+
+    /// Enables dark mode for the plotter
+    dark_mode: bool,
 }
 
 impl<'a> Plotter<'a> {
@@ -135,6 +138,7 @@ impl<'a> Plotter<'a> {
             tab_leg_ncol: 3,
             tab_selected_2x2: (Axis::EpsV(true, false), Axis::SigM(false)),
             tab_selected_3x2: (Axis::EpsV(true, false), Axis::SigD(false)),
+            dark_mode: false,
         }
     }
 
@@ -163,6 +167,12 @@ impl<'a> Plotter<'a> {
     /// Sets the title of the plot
     pub fn set_title(&mut self, title: &str) -> &mut Self {
         self.super_title = title.to_string();
+        self
+    }
+
+    /// Enables dark mode for the plotter
+    pub fn set_dark_mode(&mut self) -> &mut Self {
+        self.dark_mode = true;
         self
     }
 
@@ -361,6 +371,13 @@ impl<'a> Plotter<'a> {
 
         // allocate the Plot
         let mut plot = Plot::new();
+
+        // set dark mode
+        if self.dark_mode {
+            let mut dm = DarkMode::new();
+            dm.set_mocha();
+            plot.add(&dm);
+        }
 
         // configure subplots using gridspec
         let nrow = size / self.ncol + size % self.ncol;
