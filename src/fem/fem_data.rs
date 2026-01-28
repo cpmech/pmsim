@@ -245,17 +245,17 @@ impl<'a> FemData<'a> {
         self.ndim
     }
 
-    /// Returns the index of a U component
-    pub fn get_uu_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+    pub fn get_neq(&self) -> usize {
+        self.neq
+    }
+
+    /// Returns the index of a u component in the system used by the nonlinear solver (this is not U)
+    pub fn get_u_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         let eq = self.schema.get_eq(point_id, dof)?;
         if self.config.lagrange_mult_method || self.config.nonzero_presc_values {
             Ok(eq)
         } else {
-            if self.eq_handler.is_unknown(eq) {
-                Ok(self.eq_handler.iu(eq))
-            } else {
-                Ok(self.eq_handler.ip(eq))
-            }
+            Ok(self.eq_handler.iu(eq))
         }
     }
 

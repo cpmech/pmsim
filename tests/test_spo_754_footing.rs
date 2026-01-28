@@ -115,7 +115,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         lmm: false,
         npv: false,
     };
-    // run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
 
     // done
     Ok(())
@@ -181,18 +181,20 @@ fn run_test(
         }
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
         let ndim = data.get_ndim();
+        let neq = data.get_neq();
+        let len = usize::min(neq, ndim);
         if options.arclength {
-            let iu = data.get_uu_index(corner_id, Dof::Uy)?;
             sim.steady(
                 &mut data,
                 IniDir::Pos,
-                // Stop::Steps(2),
+                // Stop::Steps(5),
+                Stop::MaxNormU(0.15, Norm::Max, 0, len),
                 // Stop::MinCompU(iu, -0.00005 * WIDTH),
                 // Stop::MinCompU(iu, -0.0002 * WIDTH),
                 // Stop::MinCompU(iu, -0.001 * WIDTH),
-                Stop::MinCompU(iu, -0.002 * WIDTH),
+                // Stop::MinCompU(iu, -0.002 * WIDTH),
                 AutoStep::Yes,
-                // AutoStep::No(100000.0),
+                // AutoStep::No(1e-4),
             )?;
         } else {
             // sim.steady_with_lf(&mut data, &LAMBDAS, true, AutoStep::No(0.01))?;
@@ -268,7 +270,7 @@ fn run_test(
             .set_subplot(2, 2, 1)
             .add(&curve_num)
             .add(&curve_ref)
-            .set_xmax(0.0021)
+            // .set_xmax(0.0021)
             // .set_ymax(2.0)
             .set_rotation_ticks_x(90.0)
             .grid_labels_legend("normalized settlement: $-u_y/B$", "normalized pressure: $-P/c$")

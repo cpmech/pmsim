@@ -1,6 +1,7 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
 use crate::base::{
-    add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_matrix_kk_npv, assemble_vector,
+    add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_matrix_kk_check,
+    assemble_matrix_kk_npv, assemble_vector,
 };
 use crate::base::{Config, Elem, Schema};
 use crate::StrError;
@@ -217,7 +218,7 @@ impl<'a> ElementsInterior<'a> {
         }
     }
 
-    /// Assembles the local Ke matrix into the global K matrix for the System Partitioning Strategy (SPS)
+    /// Assembles the local K̄ matrix into the global K̄ matrix for the System Partitioning Strategy (SPS)
     pub fn assemble_kk_bar(
         &mut self,
         kk_bar: &mut CooMatrix,
@@ -227,6 +228,20 @@ impl<'a> ElementsInterior<'a> {
         for e in &mut self.elements {
             e.actual.calc_kke(&mut e.kke, state)?;
             assemble_matrix_kk_bar(kk_bar, &e.kke, &e.actual.local_to_global(), eq_handler)?;
+        }
+        Ok(())
+    }
+
+    /// Assembles the local Ǩ matrix into the global Ǩ matrix for the System Partitioning Strategy (SPS)
+    pub fn assemble_kk_check(
+        &mut self,
+        kk_check: &mut CooMatrix,
+        state: &FemState,
+        eq_handler: &EquationHandler,
+    ) -> Result<(), StrError> {
+        for e in &mut self.elements {
+            e.actual.calc_kke(&mut e.kke, state)?;
+            assemble_matrix_kk_check(kk_check, &e.kke, &e.actual.local_to_global(), eq_handler)?;
         }
         Ok(())
     }

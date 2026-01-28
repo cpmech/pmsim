@@ -197,7 +197,7 @@ fn run_test(
         }
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
         if options.arclength {
-            let iu = data.get_uu_index(corner, Dof::Ux)?;
+            let iu = data.get_u_index(corner, Dof::Ux)?;
             sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.01921), AutoStep::Yes)?;
             // sim.steady(&mut data, IniDir::Pos, Stop::Steps(2), AutoStep::Yes)?;
         } else {
