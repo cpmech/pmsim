@@ -40,6 +40,11 @@ pub(crate) struct OutputFiles {
     /// Maps `equation` to an array with the values along time
     sel_uu_comp: HashMap<usize, Vec<f64>>,
 
+    /// Y (internal forces) components at selected points along time
+    ///
+    /// Maps `equation` to an array with the values along time
+    sel_yy_comp: HashMap<usize, Vec<f64>>,
+
     /// Flux vectors at selected integration points along time
     ///
     /// Note: Only the results at the first integration point are saved.
@@ -73,6 +78,7 @@ impl OutputFiles {
             sel_time: Vec::new(),
             sel_lambda: Vec::new(),
             sel_uu_comp: HashMap::new(),
+            sel_yy_comp: HashMap::new(),
             sel_local_flux: HashMap::new(),
             sel_local_state: HashMap::new(),
         })
@@ -123,6 +129,14 @@ impl OutputFiles {
         }
     }
 
+    /// Returns the temporal output of a selected Y (internal forces) component
+    pub fn get_selected_yy_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
+        match schema.get_eq(point_id, dof) {
+            Ok(eq) => self.sel_yy_comp.get(&eq),
+            Err(_) => None,
+        }
+    }
+
     /// Returns the temporal output of flux vectors at the first integration point of selected cells
     pub fn get_selected_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
         self.sel_local_flux.get(&cell_id)
@@ -165,7 +179,13 @@ impl OutputFiles {
     }
 
     /// Executes the output
-    pub(crate) fn execute(&mut self, schema: &Schema, config: &Config, state: &FemState) -> Result<(), StrError> {
+    pub(crate) fn execute(
+        &mut self,
+        schema: &Schema,
+        config: &Config,
+        state: &FemState,
+        yy: &Vector,
+    ) -> Result<(), StrError> {
         if config.out_files {
             // save the state
             state.write_json(&format!(
@@ -188,6 +208,14 @@ impl OutputFiles {
                 if schema.has_dof(*point_id, *dof)? {
                     let eq = schema.get_eq(*point_id, *dof)?;
                     self.sel_uu_comp.entry(eq).or_insert(Vec::new()).push(state.u[eq]);
+                }
+            }
+
+            // Y components
+            for (point_id, dof) in config.out_yy_comp.iter() {
+                if schema.has_dof(*point_id, *dof)? {
+                    let eq = schema.get_eq(*point_id, *dof)?;
+                    self.sel_yy_comp.entry(eq).or_insert(Vec::new()).push(yy[eq]);
                 }
             }
 

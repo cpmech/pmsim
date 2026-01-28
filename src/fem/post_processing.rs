@@ -154,11 +154,18 @@ impl PostProc {
         self.files.get_times()
     }
 
-    /// Returns the temporal output of DOF values at selected points
+    /// Returns the temporal output of U components at selected points
     ///
     /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
     pub fn get_selected_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
         self.files.get_selected_uu_comp(point_id, dof, &self.schema)
+    }
+
+    /// Returns the temporal output of Y (internal forces) components at selected points
+    ///
+    /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
+    pub fn get_selected_yy_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.get_selected_yy_comp(point_id, dof, &self.schema)
     }
 
     /// Returns the temporal output of flux vectors at the first integration point of selected cells
@@ -1417,7 +1424,8 @@ mod tests {
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
-        files.execute(&schema, &config, &state).unwrap();
+        let yy = Vector::new(schema.get_neq().unwrap());
+        files.execute(&schema, &config, &state, &yy).unwrap();
         files.stop(&config).unwrap();
     }
 
@@ -1469,7 +1477,8 @@ mod tests {
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
-        files.execute(&schema, &config, &state).unwrap();
+        let yy = Vector::new(schema.get_neq().unwrap());
+        files.execute(&schema, &config, &state, &yy).unwrap();
         files.stop(&config).unwrap();
     }
 
@@ -1536,20 +1545,21 @@ mod tests {
             .set_out_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
+        let yy = Vector::new(schema.get_neq().unwrap());
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
-        files.execute(&schema, &config, &state).unwrap();
+        files.execute(&schema, &config, &state, &yy).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_v);
         state.time = 1.0;
-        files.execute(&schema, &config, &state).unwrap();
+        files.execute(&schema, &config, &state, &yy).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_s);
         state.time = 2.0;
-        files.execute(&schema, &config, &state).unwrap();
+        files.execute(&schema, &config, &state, &yy).unwrap();
 
         files.stop(&config).unwrap();
     }
@@ -1605,20 +1615,21 @@ mod tests {
             .set_out_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
+        let yy = Vector::new(schema.get_neq().unwrap());
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
-        files.execute(&schema, &config, &state).unwrap();
+        files.execute(&schema, &config, &state, &yy).unwrap();
 
         let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
         let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_v);
         state.time = 1.0;
-        files.execute(&schema, &config, &state).unwrap();
+        files.execute(&schema, &config, &state, &yy).unwrap();
 
         let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
         let mut state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_s);
         state.time = 2.0;
-        files.execute(&schema, &config, &state).unwrap();
+        files.execute(&schema, &config, &state, &yy).unwrap();
 
         files.stop(&config).unwrap();
     }

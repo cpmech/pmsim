@@ -101,7 +101,7 @@ impl<'a> Simulator<'a> {
 
         // Perform the first output
         data.files.start();
-        data.files.execute(&data.schema, &data.config, &data.state)?;
+        data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;
 
         // Print information about the system and the header
         if data.config.verbose {
@@ -184,7 +184,7 @@ impl<'a> Simulator<'a> {
 
         // Perform the first output
         data.files.start();
-        data.files.execute(&data.schema, &data.config, &data.state)?;
+        data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;
 
         // Print information about the system and the header
         if data.config.verbose {

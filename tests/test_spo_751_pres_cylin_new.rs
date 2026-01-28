@@ -155,7 +155,7 @@ fn run_test(
 
     // Solve the problem
     if alternative {
-        let u_index = data.get_u_index(outer_point, Dof::Ux)?;
+        let u_index = data.get_uu_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(u_index, 0.6);
         solver.steady(&mut data, IniDir::Pos, stop, AutoStep::Yes)?;
     } else {

@@ -259,6 +259,9 @@ pub struct Config<'a> {
     /// Output U component values at selected points
     pub(crate) out_uu_comp: HashSet<(PointId, Dof)>,
 
+    /// Output Y (internal forces) component values at selected points
+    pub(crate) out_yy_comp: HashSet<(PointId, Dof)>,
+
     /// Output local state at selected integration points
     pub(crate) out_local_state: HashSet<CellId>,
 
@@ -341,6 +344,7 @@ impl<'a> Config<'a> {
             out_fn_stem: String::new(),
             out_ddt: 1.0,
             out_uu_comp: HashSet::new(),
+            out_yy_comp: HashSet::new(),
             out_local_state: HashSet::new(),
             out_has_selected: false,
         }
@@ -844,6 +848,13 @@ impl<'a> Config<'a> {
     /// Sets the output U component values at selected points
     pub fn set_out_uu_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
         self.out_uu_comp.insert((point_id, dof));
+        self.out_has_selected = true;
+        self
+    }
+
+    /// Sets the output Y (internal forces) component values at selected points
+    pub fn set_out_yy_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+        self.out_yy_comp.insert((point_id, dof));
         self.out_has_selected = true;
         self
     }

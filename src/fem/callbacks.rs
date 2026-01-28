@@ -1,6 +1,8 @@
+#![allow(unused)]
+
 use super::FemData;
 use crate::StrError;
-use russell_lab::Vector;
+use russell_lab::{vec_norm, Norm, Vector};
 use russell_nonlin::Stats as NlStats;
 use russell_sparse::{CooMatrix, Sym};
 
@@ -26,7 +28,10 @@ pub(crate) fn output_step(stats: &NlStats, u: &Vector, l: f64, h: f64, data: &mu
     if stats.n_accepted > 0 {
         data.set_state(l, u);
         data.state.ddl = h;
-        data.files.execute(&data.schema, &data.config, &data.state)?;
+        if data.config.out_yy_comp.len() > 0 {
+            data.calc_yy()?;
+        }
+        data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;
     }
     Ok(false)
 }
@@ -216,7 +221,9 @@ pub(crate) fn update_secondary_state_sps(
     // Backup or restore secondary values
     if do_backup {
         data.elements.backup_secondary_values(&mut data.state, false);
+        // println!("SPS(B): l0 = {}, l1 = {}", l0, l1);
     } else {
+        // println!("SPS(R): l0 = {}, l1 = {}", l0, l1);
         data.elements.restore_secondary_values(&mut data.state, false);
     }
 
@@ -234,6 +241,18 @@ pub(crate) fn update_secondary_state_sps(
 
     // Update secondary values
     data.elements.update_secondary_values(&mut data.state)?;
+
+    /*
+    data.calc_yy()?;
+    println!("SPS: U =\n{}", data.state.u);
+    println!("SPS: ΔU =\n{}", data.state.ddu);
+    println!("SPS: Y =\n{}", data.yy);
+    println!("SPS: max(U) = {:?}", vec_norm(&data.state.u, Norm::Max));
+    println!("SPS: max(ΔU) = {:?}", vec_norm(&data.state.ddu, Norm::Max));
+    println!("SPS(after update): max(Y) = {:?}", vec_norm(&data.yy, Norm::Max));
+    return Ok(true);
+    */
+
     Ok(false)
 }
 
@@ -315,7 +334,9 @@ pub(crate) fn update_secondary_state_npv(
     // Backup or restore secondary values
     if do_backup {
         data.elements.backup_secondary_values(&mut data.state, false);
+        // println!("NPV(B): l0 = {}, l1 = {}", _l0, _l1);
     } else {
+        // println!("NPV(R): l0 = {}, l1 = {}", _l0, _l1);
         data.elements.restore_secondary_values(&mut data.state, false);
     }
 
@@ -327,5 +348,17 @@ pub(crate) fn update_secondary_state_npv(
 
     // Update secondary values
     data.elements.update_secondary_values(&mut data.state)?;
+
+    /*
+    data.calc_yy()?;
+    println!("NPV: U =\n{}", data.state.u);
+    println!("NPV: ΔU =\n{}", data.state.ddu);
+    println!("NPV: Y =\n{}", data.yy);
+    println!("NPV: max(U) = {:?}", vec_norm(&data.state.u, Norm::Max));
+    println!("NPV: max(ΔU) = {:?}", vec_norm(&data.state.ddu, Norm::Max));
+    println!("NPV(after update): max(Y) = {:?}", vec_norm(&data.yy, Norm::Max));
+    return Ok(true);
+    */
+
     Ok(false)
 }

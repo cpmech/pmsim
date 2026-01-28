@@ -95,7 +95,9 @@ impl<'a> SolverOld<'a> {
         self.com.elements.initialize_internal_values(state)?;
 
         // write the initial results file
-        self.com.files.execute(&self.com.schema, &self.config, state)?;
+        self.com
+            .files
+            .execute(&self.com.schema, &self.config, state, &self.com.ls.yy)?;
 
         // print convergence information
         self.log.header();
@@ -106,7 +108,10 @@ impl<'a> SolverOld<'a> {
             Err(e) => {
                 println!("\n❌ SIMULATION FAILED ❌\n");
                 println!("Reason: {}\n", e);
-                let _ = self.com.files.execute(&self.com.schema, &self.config, state);
+                let _ = self
+                    .com
+                    .files
+                    .execute(&self.com.schema, &self.config, state, &self.com.ls.yy);
             }
         }
 
@@ -206,7 +211,12 @@ impl<'a> SolverOld<'a> {
 
             // output results
             if self.stepper.out(state) {
-                self.com.files.execute(&self.com.schema, &self.config, state)?;
+                if self.config.out_yy_comp.len() > 0 {
+                    self.com.calc_yy_to_delete(state)?;
+                }
+                self.com
+                    .files
+                    .execute(&self.com.schema, &self.config, state, &self.com.ls.yy)?;
             }
 
             // stop if failed

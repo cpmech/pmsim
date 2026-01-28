@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use gemlab::prelude::*;
-use plotpy::{Curve, Plot, SuperTitleParams};
+use plotpy::{Curve, DarkMode, Plot, SuperTitleParams};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
@@ -56,10 +56,10 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     }
 
     // features
-    let feat = Features::new(&mesh, false);
-    let left = feat.search_edges(At::X(0.0), any_x)?;
-    let right = feat.search_edges(At::X(500.0), any_x)?;
-    let bottom = feat.search_edges(At::Y(0.0), any_x)?;
+    let features = Features::new(&mesh, false);
+    let left = features.search_edges(At::X(0.0), any_x)?;
+    let right = features.search_edges(At::X(500.0), any_x)?;
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
 
     // parameters
     let p1 = ParamSolid {
@@ -97,7 +97,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         lmm: true,
         npv: false,
     };
-    run_test(options, &mesh, &feat, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
 
     // run: new_solver + arclength + npv
     let options = Options {
@@ -106,7 +106,16 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         lmm: false,
         npv: true,
     };
-    run_test(options, &mesh, &feat, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
+
+    // run: new_solver + arclength + sps
+    let options = Options {
+        new_solver: true,
+        arclength: true,
+        lmm: false,
+        npv: false,
+    };
+    // run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
 
     // done
     Ok(())
@@ -122,13 +131,12 @@ fn run_test(
     nbc: &BcNatural,
 ) -> Result<(), StrError> {
     // define filename stem
-    let mut name = NAME.to_string();
+    let mut name = NAME.to_string() + "_";
     name += &options.key();
 
     // find corner node and corresponding equation number
     let (min, max) = mesh.get_limits();
     let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
-    let eq_corner = schema.get_eq(corner_id, Dof::Uy)?;
 
     // update essential boundary condition
     let footing = features.search_edges(At::Y(500.0), |x| x[0] <= 50.0)?;
@@ -157,32 +165,32 @@ fn run_test(
             .set_disable_rel_delta_analysis(false);
         if options.arclength {
             nl_config
+                .set_method(NlMethod::Arclength)
                 .set_bordering(true)
                 .set_ddl_ini(0.01)
-                // .set_tg_control_atol_and_rtol(1.0);
-                .set_tg_control_atol_and_rtol(5.0) // 0.5
-                .set_tg_control_pid_vcc(true)
+                .set_tg_control_atol_and_rtol(0.5) // 0.5
                 // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
                 // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
                 // .set_tg_control_soderlind(SoderlindClass::H321) // not good
                 // .set_tg_control_soderlind(SoderlindClass::Ho312) // bad
                 // .set_tg_control_soderlind(SoderlindClass::Ho321) // terrible
                 // .set_tg_control_soderlind(SoderlindClass::Ho211) // terrible
-                .set_method(NlMethod::Arclength);
+                .set_tg_control_pid_vcc(true);
         } else {
             nl_config.set_ddl_ini(0.01);
         }
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
         let ndim = data.get_ndim();
         if options.arclength {
+            let iu = data.get_uu_index(corner_id, Dof::Uy)?;
             sim.steady(
                 &mut data,
                 IniDir::Pos,
                 // Stop::Steps(2),
-                // Stop::MinCompU(eq_corner, -0.00005 * WIDTH),
-                // Stop::MinCompU(eq_corner, -0.0002 * WIDTH),
-                // Stop::MinCompU(eq_corner, -0.001 * WIDTH),
-                Stop::MinCompU(eq_corner, -0.002 * WIDTH),
+                // Stop::MinCompU(iu, -0.00005 * WIDTH),
+                // Stop::MinCompU(iu, -0.0002 * WIDTH),
+                // Stop::MinCompU(iu, -0.001 * WIDTH),
+                Stop::MinCompU(iu, -0.002 * WIDTH),
                 AutoStep::Yes,
                 // AutoStep::No(100000.0),
             )?;
@@ -198,6 +206,7 @@ fn run_test(
     let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
     let nstate = post.nstate();
     let neq = post.neq_total();
+    let eq_corner = post.eq(corner_id, Dof::Uy)?;
     let footing_cells = features.get_cells_via_2d_edges(&footing);
     let mut normalized_settlement = Vec::with_capacity(nstate);
     let mut normalized_pressure = Vec::with_capacity(nstate);
@@ -240,23 +249,26 @@ fn run_test(
         let mut curve_ll = Curve::new(); // Lagrange multipliers versus lambda
         curve_ref
             .set_label("de Souza Neto et al.")
-            .set_line_style("--")
+            .set_line_style(":")
             .set_line_color("#1ea56a")
             .draw(&ref_xy["x"], &ref_xy["y"]);
         curve_num
             .set_label("pmsim")
-            .set_line_color("#440fa5")
-            .set_marker_style(".")
+            .set_line_color("#8e0220")
+            .set_marker_style("o")
             .draw(&normalized_settlement, &normalized_pressure);
         let indices = (0..stepsizes.len()).map(|i| i as f64).collect::<Vec<f64>>();
         curve_hh.set_marker_style(".").draw(&indices, &stepsizes);
         curve_uu.set_marker_style(".").draw(&uu_nrm, &lambdas);
         curve_ll.set_marker_style(".").draw(&ll_nrm, &lambdas);
-        plot.set_gaps(0.2, 0.3)
+        let mut dm = DarkMode::new();
+        dm.set_mocha();
+        plot.add(&dm)
+            .set_gaps(0.2, 0.3)
             .set_subplot(2, 2, 1)
             .add(&curve_num)
             .add(&curve_ref)
-            // .set_xmax(0.00025)
+            .set_xmax(0.0021)
             // .set_ymax(2.0)
             .set_rotation_ticks_x(90.0)
             .grid_labels_legend("normalized settlement: $-u_y/B$", "normalized pressure: $-P/c$")
@@ -326,7 +338,7 @@ impl Options {
         } else if self.npv {
             buf += "_npv";
         } else {
-            buf += "_std";
+            buf += "_sps";
         }
         buf
     }
