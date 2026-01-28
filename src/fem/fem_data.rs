@@ -75,6 +75,7 @@ pub struct FemData<'a> {
     pub(crate) nnz_kk_check: usize,
     pub(crate) kk_check: CooMatrix,
     pub(crate) u_check: Vector,
+    pub(crate) no_ignore: Vec<bool>, // TODO: remove this
 }
 
 impl<'a> FemData<'a> {
@@ -235,6 +236,7 @@ impl<'a> FemData<'a> {
             nnz_kk_check,
             kk_check,
             u_check: Vector::new(np),
+            no_ignore: vec![false; neq],
         })
     }
 
@@ -243,12 +245,17 @@ impl<'a> FemData<'a> {
         self.ndim
     }
 
-    pub fn get_u_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+    /// Returns the index of a U component
+    pub fn get_uu_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         let eq = self.schema.get_eq(point_id, dof)?;
-        if self.config.lagrange_mult_method {
+        if self.config.lagrange_mult_method || self.config.nonzero_presc_values {
             Ok(eq)
         } else {
-            Ok(self.eq_handler.iu(eq))
+            if self.eq_handler.is_unknown(eq) {
+                Ok(self.eq_handler.iu(eq))
+            } else {
+                Ok(self.eq_handler.ip(eq))
+            }
         }
     }
 
@@ -352,12 +359,11 @@ impl<'a> FemData<'a> {
         self.yy.fill(0.0);
 
         // calculate all element local vectors
-        self.elements
-            .assemble_yy(&mut self.yy, &self.state, &self.ignored_eqs)?;
+        self.elements.assemble_yy(&mut self.yy, &self.state, &self.no_ignore)?;
 
         // calculate all boundary elements local vectors
         self.boundaries
-            .assemble_yy(&mut self.yy, &self.state, &self.ignored_eqs)?;
+            .assemble_yy(&mut self.yy, &self.state, &self.no_ignore)?;
         Ok(())
     }
 
