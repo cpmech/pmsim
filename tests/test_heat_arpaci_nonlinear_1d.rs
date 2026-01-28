@@ -117,14 +117,19 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
     // solution
     let mut tol = 1e-13;
     let state = if new_solver {
-        tol = 1e-7;
         let mut nl_config = NlConfig::new();
         nl_config
             .set_verbose(true, true, false)
             .set_tg_control_atol_and_rtol(0.05)
             .set_record_iterations_residuals(true);
         if arclength {
-            nl_config.set_method(NlMethod::Arclength).set_bordering(bordering);
+            tol = 1e-10;
+            nl_config
+                .set_ddl_ini(1e-4)
+                .set_method(NlMethod::Arclength)
+                .set_bordering(bordering);
+        } else {
+            nl_config.set_ddl_ini(1.0);
         }
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
         sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), AutoStep::Yes)?;
