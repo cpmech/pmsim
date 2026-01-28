@@ -35,10 +35,10 @@ pub(crate) struct OutputFiles {
     /// Loading factors for selected points and cells
     sel_lambda: Vec<f64>,
 
-    /// DOF values at selected points along time
+    /// U components at selected points along time
     ///
-    /// Maps "PointId,Dof" to an array with the values along time
-    sel_dof: HashMap<String, Vec<f64>>,
+    /// Maps `equation` to an array with the values along time
+    sel_uu_comp: HashMap<usize, Vec<f64>>,
 
     /// Flux vectors at selected integration points along time
     ///
@@ -72,7 +72,7 @@ impl OutputFiles {
             neq_presc,
             sel_time: Vec::new(),
             sel_lambda: Vec::new(),
-            sel_dof: HashMap::new(),
+            sel_uu_comp: HashMap::new(),
             sel_local_flux: HashMap::new(),
             sel_local_state: HashMap::new(),
         })
@@ -85,7 +85,7 @@ impl OutputFiles {
         self.times.clear();
         self.sel_time.clear();
         self.sel_lambda.clear();
-        self.sel_dof.clear();
+        self.sel_uu_comp.clear();
         self.sel_local_flux.clear();
         self.sel_local_state.clear();
     }
@@ -115,10 +115,12 @@ impl OutputFiles {
         &self.times
     }
 
-    /// Returns the temporal output of DOF values at selected points
-    pub fn get_selected_dof(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
-        let key = format!("{:?},{:?}", point_id, dof);
-        self.sel_dof.get(&key)
+    /// Returns the temporal output of a selected U component
+    pub fn get_selected_uu_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
+        match schema.get_eq(point_id, dof) {
+            Ok(eq) => self.sel_uu_comp.get(&eq),
+            Err(_) => None,
+        }
     }
 
     /// Returns the temporal output of flux vectors at the first integration point of selected cells
@@ -181,12 +183,11 @@ impl OutputFiles {
             self.sel_time.push(state.time);
             self.sel_lambda.push(state.lambda);
 
-            // DOFs
-            for (point_id, dof) in config.out_dof.iter() {
+            // U components
+            for (point_id, dof) in config.out_uu_comp.iter() {
                 if schema.has_dof(*point_id, *dof)? {
                     let eq = schema.get_eq(*point_id, *dof)?;
-                    let key = format!("{:?},{:?}", point_id, dof);
-                    self.sel_dof.entry(key).or_insert(Vec::new()).push(state.u[eq]);
+                    self.sel_uu_comp.entry(eq).or_insert(Vec::new()).push(state.u[eq]);
                 }
             }
 

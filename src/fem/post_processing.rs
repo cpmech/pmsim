@@ -157,8 +157,8 @@ impl PostProc {
     /// Returns the temporal output of DOF values at selected points
     ///
     /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
-    pub fn get_selected_dof(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
-        self.files.get_selected_dof(point_id, dof)
+    pub fn get_selected_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.get_selected_uu_comp(point_id, dof, &self.schema)
     }
 
     /// Returns the temporal output of flux vectors at the first integration point of selected cells
@@ -1411,7 +1411,7 @@ mod tests {
             .save_flux = true;
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
-        config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
+        config.set_out_uu_comp(point_id, Dof::Phi).set_out_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
@@ -1463,7 +1463,7 @@ mod tests {
         config.update_model_settings(2).save_flux = true;
 
         let (point_id, cell_id) = (10, 1);
-        config.set_out_dof(point_id, Dof::Phi).set_out_local_state(cell_id);
+        config.set_out_uu_comp(point_id, Dof::Phi).set_out_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
@@ -1531,8 +1531,8 @@ mod tests {
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config
-            .set_out_dof(point_id, Dof::Ux)
-            .set_out_dof(point_id, Dof::Uy)
+            .set_out_uu_comp(point_id, Dof::Ux)
+            .set_out_uu_comp(point_id, Dof::Uy)
             .set_out_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
@@ -1599,9 +1599,9 @@ mod tests {
         let (point_id, cell_id) = (10, 1);
         config
             .set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d", 0.0)
-            .set_out_dof(point_id, Dof::Ux)
-            .set_out_dof(point_id, Dof::Uy)
-            .set_out_dof(point_id, Dof::Uz)
+            .set_out_uu_comp(point_id, Dof::Ux)
+            .set_out_uu_comp(point_id, Dof::Uy)
+            .set_out_uu_comp(point_id, Dof::Uz)
             .set_out_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
@@ -1665,7 +1665,7 @@ mod tests {
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
-        let sel_phi = post.files.get_selected_dof(point_id, Dof::Phi).unwrap();
+        let sel_phi = post.get_selected_uu_comp(point_id, Dof::Phi).unwrap();
         // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
         approx_eq(sel_phi[0], phi_correct, 1e-15);
 
@@ -1707,7 +1707,7 @@ mod tests {
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
-        let sel_phi = post.files.get_selected_dof(point_id, Dof::Phi).unwrap();
+        let sel_phi = post.get_selected_uu_comp(point_id, Dof::Phi).unwrap();
         // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
         approx_eq(sel_phi[0], phi_correct, 1e-15);
 
@@ -1771,8 +1771,8 @@ mod tests {
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
         let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
         let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
-        let sel_ux = post.files.get_selected_dof(point_id, Dof::Ux).unwrap();
-        let sel_uy = post.files.get_selected_dof(point_id, Dof::Uy).unwrap();
+        let sel_ux = post.get_selected_uu_comp(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.get_selected_uu_comp(point_id, Dof::Uy).unwrap();
         let correct = [&duu_h, &duu_v, &duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
@@ -1846,9 +1846,9 @@ mod tests {
         let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
         let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
         let eqz = post.schema.get_eq(point_id, Dof::Uz)?;
-        let sel_ux = post.files.get_selected_dof(point_id, Dof::Ux).unwrap();
-        let sel_uy = post.files.get_selected_dof(point_id, Dof::Uy).unwrap();
-        let sel_uz = post.files.get_selected_dof(point_id, Dof::Uz).unwrap();
+        let sel_ux = post.get_selected_uu_comp(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.get_selected_uu_comp(point_id, Dof::Uy).unwrap();
+        let sel_uz = post.get_selected_uu_comp(point_id, Dof::Uz).unwrap();
         let correct = [duu_h, duu_v, duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);

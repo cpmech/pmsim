@@ -256,8 +256,8 @@ pub struct Config<'a> {
     /// Time increment Δt for the output of results
     pub(crate) out_ddt: f64,
 
-    /// Output DOF values at selected points
-    pub(crate) out_dof: HashSet<(PointId, Dof)>,
+    /// Output U component values at selected points
+    pub(crate) out_uu_comp: HashSet<(PointId, Dof)>,
 
     /// Output local state at selected integration points
     pub(crate) out_local_state: HashSet<CellId>,
@@ -340,7 +340,7 @@ impl<'a> Config<'a> {
             out_dir: String::new(),
             out_fn_stem: String::new(),
             out_ddt: 1.0,
-            out_dof: HashSet::new(),
+            out_uu_comp: HashSet::new(),
             out_local_state: HashSet::new(),
             out_has_selected: false,
         }
@@ -841,9 +841,9 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the output DOF values at selected points
-    pub fn set_out_dof(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
-        self.out_dof.insert((point_id, dof));
+    /// Sets the output U component values at selected points
+    pub fn set_out_uu_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+        self.out_uu_comp.insert((point_id, dof));
         self.out_has_selected = true;
         self
     }
