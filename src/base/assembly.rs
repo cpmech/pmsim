@@ -3,15 +3,6 @@ use russell_lab::{Matrix, Vector};
 use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
 
-// The Systems Partitioning Strategy (SPS) considers the following partitioning:
-//
-// ┌       ┐ ┌   ┐   ┌   ┐
-// │ K̄   Ǩ │ │ ̄a │   │ f̄ │
-// │       │ │   │ = │   │
-// │ Ḵ   ̰K │ │ ǎ │   │ f̌ │
-// └       ┘ └   ┘   └   ┘
-//     K       a       f
-
 /// Assembles local vector into global vector
 ///
 /// # Output
@@ -146,8 +137,8 @@ pub fn check_symmetry_of_local_matrix(kke: &Matrix, tol: f64) -> Result<(), StrE
     Ok(())
 }
 
-/// Assembles a local matrix into the global matrix for the Lagrange Multipliers Method (LMM)
-pub fn assemble_matrix_kk(kk: &mut CooMatrix, kke: &Matrix, local_to_global: &[usize]) -> Result<(), StrError> {
+/// Assembles the local K matrix into its global counterpart for the Lagrange Multipliers Method (LMM)
+pub fn assemble_matrix_lmm(kk: &mut CooMatrix, kke: &Matrix, local_to_global: &[usize]) -> Result<(), StrError> {
     let sym = kk.get_info().3;
     let n_equation_local = local_to_global.len();
     match sym {
@@ -187,6 +178,17 @@ pub fn assemble_matrix_kk(kk: &mut CooMatrix, kke: &Matrix, local_to_global: &[u
 }
 
 /// Increments the number of non-zeros on the global K-bar and K-check matrices for the System Partitioning Strategy (SPS)
+///
+/// The Systems Partitioning Strategy (SPS) considers the following partitioning:
+///
+/// ```text
+/// ┌       ┐ ┌   ┐   ┌   ┐
+/// │ K̄   Ǩ │ │ ̄a │   │ f̄ │
+/// │       │ │   │ = │   │
+/// │ Ḵ   ̰K │ │ ǎ │   │ f̌ │
+/// └       ┘ └   ┘   └   ┘
+///     K       a       f
+/// ```
 pub fn add_nnz_sps(
     nnz_kk_bar: &mut usize,
     nnz_kk_check: &mut usize,
@@ -248,9 +250,21 @@ pub fn add_nnz_sps(
     }
 }
 
-/// Assembles a local matrix into the global matrix for the System Partitioning Strategy (SPS)
-pub fn assemble_matrix_kk_bar(
+/// Assembles the local K̄ and Ǩ matrices into their global counterparts for the System Partitioning Strategy (SPS)
+///
+/// The Systems Partitioning Strategy (SPS) considers the following partitioning:
+///
+/// ```text
+/// ┌       ┐ ┌   ┐   ┌   ┐
+/// │ K̄   Ǩ │ │ ̄a │   │ f̄ │
+/// │       │ │   │ = │   │
+/// │ Ḵ   ̰K │ │ ǎ │   │ f̌ │
+/// └       ┘ └   ┘   └   ┘
+///     K       a       f
+/// ```
+pub fn assemble_matrix_sps(
     kk_bar: &mut CooMatrix,
+    kk_check: &mut CooMatrix,
     kke: &Matrix,
     local_to_global: &[usize],
     eq_handler: &EquationHandler,
@@ -270,6 +284,9 @@ pub fn assemble_matrix_kk_bar(
                                 let j = eq_handler.iu(gg);
                                 kk_bar.put(i, j, kke.get(l, ll)).unwrap();
                             }
+                        } else {
+                            let j = eq_handler.ip(gg);
+                            kk_check.put(i, j, kke.get(l, ll)).unwrap();
                         }
                     }
                 }
@@ -287,6 +304,9 @@ pub fn assemble_matrix_kk_bar(
                                 let j = eq_handler.iu(gg);
                                 kk_bar.put(i, j, kke.get(l, ll)).unwrap();
                             }
+                        } else {
+                            let j = eq_handler.ip(gg);
+                            kk_check.put(i, j, kke.get(l, ll)).unwrap();
                         }
                     }
                 }
@@ -302,6 +322,9 @@ pub fn assemble_matrix_kk_bar(
                         if eq_handler.is_unknown(gg) {
                             let j = eq_handler.iu(gg);
                             kk_bar.put(i, j, kke.get(l, ll)).unwrap();
+                        } else {
+                            let j = eq_handler.ip(gg);
+                            kk_check.put(i, j, kke.get(l, ll)).unwrap();
                         }
                     }
                 }
@@ -311,56 +334,24 @@ pub fn assemble_matrix_kk_bar(
     Ok(())
 }
 
-/// Assembles a local matrix into the global matrix for the System Partitioning Strategy (SPS)
-pub fn assemble_matrix_kk_check(
-    kk_check: &mut CooMatrix,
-    kke: &Matrix,
-    local_to_global: &[usize],
-    eq_handler: &EquationHandler,
-) -> Result<(), StrError> {
-    let n_equation_local = local_to_global.len();
-    // loop over columns first, so that only prescribed columns are considered
-    for ll in 0..n_equation_local {
-        let gg = local_to_global[ll];
-        if eq_handler.is_prescribed(gg) {
-            let j = eq_handler.ip(gg);
-            for l in 0..n_equation_local {
-                let g = local_to_global[l];
-                if eq_handler.is_unknown(g) {
-                    let i = eq_handler.iu(g);
-                    kk_check.put(i, j, kke.get(l, ll)).unwrap();
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Assembles a local matrix into the global matrix for the Nonzero Prescribed Value (NPV) case
-pub fn assemble_matrix_kk_npv(
+/// Assembles the local K matrix into its global counterpart for the Nonzero Prescribed Value method (NPV)
+pub fn assemble_matrix_npv(
     kk: &mut CooMatrix,
     kke: &Matrix,
     local_to_global: &[usize],
     eq_handler: &EquationHandler,
 ) -> Result<(), StrError> {
     let sym = kk.get_info().3;
+    if sym != Sym::No {
+        return Err("the nonzero prescribed value method only works with Sym::No");
+    }
     let n_equation_local = local_to_global.len();
-    match sym {
-        Sym::YesLower => {
-            panic!("TODO");
-        }
-        Sym::YesUpper => {
-            panic!("TODO");
-        }
-        Sym::YesFull | Sym::No => {
-            for l in 0..n_equation_local {
-                let g = local_to_global[l];
-                if eq_handler.is_unknown(g) {
-                    for ll in 0..n_equation_local {
-                        let gg = local_to_global[ll];
-                        kk.put(g, gg, kke.get(l, ll)).unwrap();
-                    }
-                }
+    for l in 0..n_equation_local {
+        let g = local_to_global[l];
+        if eq_handler.is_unknown(g) {
+            for ll in 0..n_equation_local {
+                let gg = local_to_global[ll];
+                kk.put(g, gg, kke.get(l, ll)).unwrap();
             }
         }
     }

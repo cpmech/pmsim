@@ -1,10 +1,10 @@
 use super::FemData;
 use super::{
-    backup_secondary_state, calc_gg_lmm, calc_gg_npv, calc_gg_sps, calc_ggl_lmm, calc_ggl_npv, calc_ggl_sps,
-    calc_ggu_lmm, calc_ggu_npv, calc_ggu_sps, output_step, prepare_to_iterate, restore_secondary_state,
-    update_secondary_state_lmm, update_secondary_state_npv, update_secondary_state_sps,
+    backup_secondary_state, calc_gg_lmm, calc_gg_npv, calc_gg_sps, output_step, prepare_to_iterate,
+    restore_secondary_state, update_secondary_state_lmm, update_secondary_state_npv, update_secondary_state_sps,
 };
 use crate::base::{BcEssential, BcNatural, Config, Schema};
+use crate::fem::callbacks::{calc_jac_lmm, calc_jac_npv, calc_jac_sps};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::Vector;
@@ -34,22 +34,19 @@ impl<'a> Simulator<'a> {
 
         // Allocate the nonlinear system structure
         let mut nl_system = if config.lagrange_mult_method {
-            let mut sys = NlSystem::new(data.ndim, calc_gg_lmm)?;
-            sys.set_calc_ggu(Some(data.nnz_kk), data.sym, calc_ggu_lmm)?
-                .set_calc_ggl(calc_ggl_lmm)
-                .set_update_secondary_state(update_secondary_state_lmm);
+            let nnz = Some(data.nnz_kk);
+            let mut sys = NlSystem::new(data.ndim, nnz, data.sym, calc_gg_lmm, calc_jac_lmm)?;
+            sys.set_update_secondary_state(update_secondary_state_lmm);
             sys
         } else if config.nonzero_presc_values {
-            let mut sys = NlSystem::new(data.ndim, calc_gg_npv)?;
-            sys.set_calc_ggu(Some(data.nnz_kk), data.sym, calc_ggu_npv)?
-                .set_calc_ggl(calc_ggl_npv)
-                .set_update_secondary_state(update_secondary_state_npv);
+            let nnz = Some(data.nnz_kk);
+            let mut sys = NlSystem::new(data.ndim, nnz, data.sym, calc_gg_npv, calc_jac_npv)?;
+            sys.set_update_secondary_state(update_secondary_state_npv);
             sys
         } else {
-            let mut sys = NlSystem::new(data.ndim, calc_gg_sps)?;
-            sys.set_calc_ggu(Some(data.nnz_kk_bar), data.sym, calc_ggu_sps)?
-                .set_calc_ggl(calc_ggl_sps)
-                .set_update_secondary_state(update_secondary_state_sps);
+            let nnz = Some(data.nnz_kk_bar);
+            let mut sys = NlSystem::new(data.ndim, nnz, data.sym, calc_gg_sps, calc_jac_sps)?;
+            sys.set_update_secondary_state(update_secondary_state_sps);
             sys
         };
         nl_system

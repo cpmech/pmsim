@@ -1,8 +1,6 @@
-#![allow(unused)]
-
 use super::FemData;
 use crate::StrError;
-use russell_lab::{vec_norm, Norm, Vector};
+use russell_lab::Vector;
 use russell_nonlin::Stats as NlStats;
 use russell_sparse::{CooMatrix, Sym};
 
@@ -69,18 +67,24 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     Ok(())
 }
 
-/// Calculates Gu = ∂G/∂u (Jacobian matrix) for the Lagrange Multipliers Method (LMM)
+/// Calculates Gu = ∂G/∂u and Gλ = ∂G/∂λ for the Lagrange Multipliers Method (LMM)
 ///
 /// This function requires that Ǔ (prescribed values) has already been calculated.
-pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_jac_lmm(
+    ggu: &mut CooMatrix,
+    ggl: &mut Vector,
+    l: f64,
+    u: &Vector,
+    data: &mut FemData,
+) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
 
-    // Assemble the local Ke matrices into the global K matrix
+    // Calculate Gu
     data.elements.assemble_kk_lmm(ggu, &mut data.state)?;
     data.boundaries.assemble_kk_lmm(ggu, &mut data.state)?;
 
-    // Assemble constraint matrix into Gu
+    // Add constraint matrix to Gu
     //           ┌         ┐
     //      ∂G   │  K   Cᵀ │
     // Gu = ── = │         │
@@ -111,24 +115,21 @@ pub(crate) fn calc_ggu_lmm(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut F
             }
         }
     }
-    Ok(())
-}
 
-/// Calculates Gλ = ∂G/∂λ for the Lagrange Multipliers Method (LMM)
-///
-/// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
-pub(crate) fn calc_ggl_lmm(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    //           ┌    ┐
-    //      ∂G   │ -F │
-    // Gλ = ── = │    │
-    //      ∂λ   │ -Ǔ │
-    //           └    ┘
-    for i in 0..data.neq {
-        ggl[i] = -data.ff[i];
-    }
-    for ip in 0..data.np {
-        let j = data.neq + ip;
-        ggl[j] = -data.u_check[ip];
+    // Calculate Gλ
+    if ggl.dim() > 0 {
+        //           ┌    ┐
+        //      ∂G   │ -F │
+        // Gλ = ── = │    │
+        //      ∂λ   │ -Ǔ │
+        //           └    ┘
+        for i in 0..data.neq {
+            ggl[i] = -data.ff[i];
+        }
+        for ip in 0..data.np {
+            let j = data.neq + ip;
+            ggl[j] = -data.u_check[ip];
+        }
     }
     Ok(())
 }
@@ -180,38 +181,36 @@ pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     Ok(())
 }
 
-/// Calculates Gu = ∂G/∂u (Jacobian matrix) for the System Partitioning Strategy (SPS)
+/// Calculates Gu = ∂G/∂u and Gλ = ∂G/∂λ for the System Partitioning Strategy (SPS)
 ///
 /// This function requires that Ǔ (prescribed values) has already been calculated.
-pub(crate) fn calc_ggu_sps(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_jac_sps(
+    ggu: &mut CooMatrix,
+    ggl: &mut Vector,
+    l: f64,
+    u: &Vector,
+    data: &mut FemData,
+) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
 
-    // Assemble the local Ke matrices into the global K matrix
-    data.elements.assemble_kk_bar(ggu, &mut data.state, &data.eq_handler)?;
-    data.boundaries
-        .assemble_kk_bar(ggu, &mut data.state, &data.eq_handler)?;
-    Ok(())
-}
-
-/// Calculates Gλ = ∂G/∂λ for the System Partitioning Strategy (SPS)
-///
-/// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
-pub(crate) fn calc_ggl_sps(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    // calculate Ǩ
+    // Calculate Gu
     data.kk_check.reset();
     data.elements
-        .assemble_kk_check(&mut data.kk_check, &mut data.state, &data.eq_handler)?;
+        .assemble_kk_sps(ggu, &mut data.kk_check, &mut data.state, &data.eq_handler)?;
     data.boundaries
-        .assemble_kk_check(&mut data.kk_check, &mut data.state, &data.eq_handler)?;
+        .assemble_kk_sps(ggu, &mut data.kk_check, &mut data.state, &data.eq_handler)?;
 
-    // Set Gl = Ǩ Ǔ
-    data.kk_check.mat_vec_mul(ggl, 1.0, &data.u_check).unwrap();
+    // Calculate Gλ
+    if ggl.dim() > 0 {
+        // Set Gl = Ǩ Ǔ
+        data.kk_check.mat_vec_mul(ggl, 1.0, &data.u_check).unwrap();
 
-    // Add -F to Gl so that Gl = Ǩ Ǔ - F
-    for iu in 0..data.nu {
-        let eq = data.eq_handler.unknown()[iu];
-        ggl[iu] -= data.ff[eq];
+        // Add -F to Gl so that Gl = Ǩ Ǔ - F
+        for iu in 0..data.nu {
+            let eq = data.eq_handler.unknown()[iu];
+            ggl[iu] -= data.ff[eq];
+        }
     }
     Ok(())
 }
@@ -275,42 +274,45 @@ pub(crate) fn calc_gg_npv(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     Ok(())
 }
 
-/// Calculates Gu = ∂G/∂u (Jacobian matrix) for the Nonzero Prescribed Values Method (NPV)
+/// Calculates Gu = ∂G/∂u and Gλ = ∂G/∂λ for the Nonzero Prescribed Values Method (NPV)
 ///
 /// This function requires that Ǔ (prescribed values) has already been calculated.
-pub(crate) fn calc_ggu_npv(ggu: &mut CooMatrix, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_jac_npv(
+    ggu: &mut CooMatrix,
+    ggl: &mut Vector,
+    l: f64,
+    u: &Vector,
+    data: &mut FemData,
+) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
 
-    // Assemble the local Ke matrices into the global K matrix
+    // Calculate Gu
     data.elements.assemble_kk_npv(ggu, &mut data.state, &data.eq_handler)?;
     data.boundaries
         .assemble_kk_npv(ggu, &mut data.state, &data.eq_handler)?;
 
-    // Add diagonal
+    // Add diagonal term to Gu
     for ip in 0..data.np {
         let eq = data.eq_handler.prescribed()[ip];
         ggu.put(eq, eq, 1.0).unwrap(); // ∂Š/∂Ǔ = 1
     }
-    Ok(())
-}
 
-/// Calculates Gλ = ∂G/∂λ for the Nonzero Prescribed Values Method (NPV)
-///
-/// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
-pub(crate) fn calc_ggl_npv(ggl: &mut Vector, _l: f64, _u: &Vector, data: &mut FemData) -> Result<(), StrError> {
-    //           ┌    ┐
-    //      ∂G   │ -F │
-    // Gλ = ── = │    │
-    //      ∂λ   │ -Ǔ │
-    //           └    ┘
-    for iu in 0..data.nu {
-        let eq = data.eq_handler.unknown()[iu];
-        ggl[eq] = -data.ff[eq];
-    }
-    for ip in 0..data.np {
-        let eq = data.eq_handler.prescribed()[ip];
-        ggl[eq] = -data.u_check[ip];
+    // Calculate Gλ
+    if ggl.dim() > 0 {
+        //           ┌    ┐
+        //      ∂G   │ -F │
+        // Gλ = ── = │    │
+        //      ∂λ   │ -Ǔ │
+        //           └    ┘
+        for iu in 0..data.nu {
+            let eq = data.eq_handler.unknown()[iu];
+            ggl[eq] = -data.ff[eq];
+        }
+        for ip in 0..data.np {
+            let eq = data.eq_handler.prescribed()[ip];
+            ggl[eq] = -data.u_check[ip];
+        }
     }
     Ok(())
 }

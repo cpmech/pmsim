@@ -1,7 +1,6 @@
 use super::FemState;
 use crate::base::{
-    add_nnz_sps, assemble_matrix, assemble_matrix_kk, assemble_matrix_kk_bar, assemble_matrix_kk_check,
-    assemble_matrix_kk_npv, assemble_vector,
+    add_nnz_sps, assemble_matrix, assemble_matrix_lmm, assemble_matrix_npv, assemble_matrix_sps, assemble_vector,
 };
 use crate::base::{BcNatural, Config, Nbc, Schema};
 use crate::StrError;
@@ -387,12 +386,12 @@ impl<'a> ElementsBoundary<'a> {
         }
     }
 
-    /// Assembles the local Ke matrix into the global K matrix for the Lagrange Multiplier Method (LMM)
+    /// Assembles the local K matrix into its global counterpart for the Lagrange Multipliers Method (LMM)
     pub fn assemble_kk_lmm(&mut self, kk: &mut CooMatrix, state: &FemState) -> Result<(), StrError> {
         for e in &mut self.elements {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_ref() {
-                assemble_matrix_kk(kk, kke, &e.local_to_global)?;
+                assemble_matrix_lmm(kk, kke, &e.local_to_global)?;
             }
         }
         Ok(())
@@ -433,25 +432,10 @@ impl<'a> ElementsBoundary<'a> {
         Ok(())
     }
 
-    /// Assembles the local K̄ matrix into the global K̄ matrix for the System Partitioning Strategy (SPS)
-    pub fn assemble_kk_bar(
+    /// Assembles the local K̄ and Ǩ matrices into their global counterparts for the System Partitioning Strategy (SPS)
+    pub fn assemble_kk_sps(
         &mut self,
         kk_bar: &mut CooMatrix,
-        state: &FemState,
-        eq_handler: &EquationHandler,
-    ) -> Result<(), StrError> {
-        for e in &mut self.elements {
-            e.calc_kke(state)?;
-            if let Some(kke) = e.kke.as_ref() {
-                assemble_matrix_kk_bar(kk_bar, kke, &e.local_to_global, eq_handler)?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Assembles the local Ǩ matrix into the global Ǩ matrix for the System Partitioning Strategy (SPS)
-    pub fn assemble_kk_check(
-        &mut self,
         kk_check: &mut CooMatrix,
         state: &FemState,
         eq_handler: &EquationHandler,
@@ -459,13 +443,13 @@ impl<'a> ElementsBoundary<'a> {
         for e in &mut self.elements {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_ref() {
-                assemble_matrix_kk_check(kk_check, kke, &e.local_to_global, eq_handler)?;
+                assemble_matrix_sps(kk_bar, kk_check, kke, &e.local_to_global, eq_handler)?;
             }
         }
         Ok(())
     }
 
-    /// Assembles the local Ke matrix into the global K matrix for the Nonzero Prescribed Values (NPV) case
+    /// Assembles the local K matrix into its global counterpart for the Nonzero Prescribed Value method (NPV)
     pub fn assemble_kk_npv(
         &mut self,
         kk: &mut CooMatrix,
@@ -475,7 +459,7 @@ impl<'a> ElementsBoundary<'a> {
         for e in &mut self.elements {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_ref() {
-                assemble_matrix_kk_npv(kk, kke, &e.local_to_global, eq_handler)?;
+                assemble_matrix_npv(kk, kke, &e.local_to_global, eq_handler)?;
             }
         }
         Ok(())

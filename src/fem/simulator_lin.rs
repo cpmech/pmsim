@@ -1,6 +1,7 @@
 use super::FemData;
-use super::{calc_gg_lmm, calc_gg_sps, calc_ggu_lmm, calc_ggu_sps};
+use super::{calc_gg_lmm, calc_gg_sps};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
+use crate::fem::callbacks::{calc_jac_lmm, calc_jac_sps};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::Vector;
@@ -71,13 +72,14 @@ impl<'a> SimulatorLin<'a> {
         data.calc_ff()?;
 
         // Lagrange multipliers method
+        let mut empty = Vector::new(0);
         if data.config.lagrange_mult_method {
             // Calculate the residual vector
             calc_gg_lmm(&mut self.gg, 1.0, &self.u, data)?;
 
             // Calculate the stiffness matrix
             self.kk.reset();
-            calc_ggu_lmm(&mut self.kk, 1.0, &self.u, data)?;
+            calc_jac_lmm(&mut self.kk, &mut empty, 1.0, &self.u, data)?;
 
             // Factorize the stiffness matrix
             self.ls
@@ -101,7 +103,10 @@ impl<'a> SimulatorLin<'a> {
 
             // Calculate the stiffness matrix
             self.kk_bar.reset();
-            calc_ggu_sps(&mut self.kk_bar, 1.0, &self.u, data)?;
+            data.kk_check.reset();
+            calc_jac_sps(&mut self.kk_bar, &mut empty, 1.0, &self.u, data)?;
+
+            // TODO: need to fix the right-hand side
 
             // Factorize the stiffness matrix
             self.ls
