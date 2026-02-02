@@ -23,17 +23,14 @@ pub(crate) struct OutputFiles {
     /// Real simulation times corresponding to each output file
     times: Vec<f64>,
 
+    /// Loading factors corresponding to each output file
+    lambdas: Vec<f64>,
+
     /// Total number of equations
     neq_total: usize,
 
     /// Number of prescribed equations
     neq_presc: usize,
-
-    /// Time for selected points and cells
-    sel_time: Vec<f64>,
-
-    /// Loading factors for selected points and cells
-    sel_lambda: Vec<f64>,
 
     /// U components at selected points along time
     ///
@@ -73,10 +70,9 @@ impl OutputFiles {
             counter: 0,
             indices: Vec::new(),
             times: Vec::new(),
+            lambdas: Vec::new(),
             neq_total: schema.get_neq()?,
             neq_presc,
-            sel_time: Vec::new(),
-            sel_lambda: Vec::new(),
             sel_uu_comp: HashMap::new(),
             sel_yy_comp: HashMap::new(),
             sel_local_flux: HashMap::new(),
@@ -89,8 +85,7 @@ impl OutputFiles {
         self.counter = 0;
         self.indices.clear();
         self.times.clear();
-        self.sel_time.clear();
-        self.sel_lambda.clear();
+        self.lambdas.clear();
         self.sel_uu_comp.clear();
         self.sel_local_flux.clear();
         self.sel_local_state.clear();
@@ -119,6 +114,11 @@ impl OutputFiles {
     /// Returns the real simulation times corresponding to each output file
     pub fn get_times(&self) -> &Vec<f64> {
         &self.times
+    }
+
+    /// Returns the loading factors corresponding to each output file
+    pub fn get_lambdas(&self) -> &Vec<f64> {
+        &self.lambdas
     }
 
     /// Returns the temporal output of a selected U component
@@ -196,13 +196,10 @@ impl OutputFiles {
             // update counters
             self.indices.push(self.counter);
             self.times.push(state.time);
+            self.lambdas.push(state.lambda);
             self.counter += 1;
         }
         if config.out_has_selected {
-            // step, time, and lambda
-            self.sel_time.push(state.time);
-            self.sel_lambda.push(state.lambda);
-
             // U components
             for (point_id, dof) in config.out_uu_comp.iter() {
                 if schema.has_dof(*point_id, *dof)? {

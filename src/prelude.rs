@@ -9,5 +9,5 @@ pub use crate::base::{
     ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, StressStrain,
 };
 pub use crate::fem::{FemData, FemState, PostProc, Simulator, SimulatorLin, SolverOld};
-pub use russell_nonlin::{AutoStep, IniDir, Stop};
 pub use russell_nonlin::{Config as NlConfig, Method as NlMethod, Output as NlOutput};
+pub use russell_nonlin::{DeltaLambda, IniDir, Stop};

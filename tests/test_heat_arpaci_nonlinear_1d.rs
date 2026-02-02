@@ -132,7 +132,7 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
             nl_config.set_ddl_ini(1.0);
         }
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
-        sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), AutoStep::Yes)?;
+        sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto())?;
         data.get_state().clone()
     } else {
         SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?

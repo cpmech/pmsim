@@ -154,6 +154,11 @@ impl PostProc {
         self.files.get_times()
     }
 
+    /// Returns the loading factors corresponding to each output file
+    pub fn get_lambdas(&self) -> &Vec<f64> {
+        self.files.get_lambdas()
+    }
+
     /// Returns the temporal output of U components at selected points
     ///
     /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].

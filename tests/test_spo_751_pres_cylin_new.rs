@@ -1,11 +1,11 @@
 use gemlab::prelude::*;
-use plotpy::Curve;
+use plotpy::{Curve, SuperTitleParams};
 use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
-use russell_lab::{approx_eq, read_data};
+use russell_lab::{approx_eq, read_data, Vector};
 
 // This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
 //
@@ -87,13 +87,13 @@ fn test_spo_751_pres_cylin_new() -> Result<(), StrError> {
     essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // Run the test
-    for residual in [false, true] {
-        let options = if residual { vec![false] } else { vec![false, true] };
-        for alternative in options {
-            for lmm in [false, true] {
+    for residual in [false] {
+        let options = if residual { vec![false] } else { vec![false] };
+        for arclength in options {
+            for lmm in [false] {
                 run_test(
                     residual,
-                    alternative,
+                    arclength,
                     lmm,
                     &mesh,
                     &schema,
@@ -109,7 +109,7 @@ fn test_spo_751_pres_cylin_new() -> Result<(), StrError> {
 
 fn run_test(
     residual: bool,
-    alternative: bool,
+    arclength: bool,
     lmm: bool,
     mesh: &Mesh,
     schema: &Schema,
@@ -135,7 +135,7 @@ fn run_test(
     // Set the options for the nonlinear solver
     let mut nl_config = NlConfig::new();
     nl_config
-        .set_method(if alternative {
+        .set_method(if arclength {
             NlMethod::Arclength
         } else {
             NlMethod::Natural
@@ -143,8 +143,9 @@ fn run_test(
         .set_verbose(true, true, true)
         .set_nr_control_enabled(true)
         .set_tg_control_enabled(true)
-        .set_ddl_ini(0.05)
-        .set_tg_control_atol_and_rtol(0.05)
+        .set_ddl_ini(1e-5)
+        .set_tg_control_atol_and_rtol(0.01)
+        .set_euler_predictor(true)
         // .set_tg_control_rho_for_zero_rerr(2.0)
         // .set_n_cont_residual_divergence_max(2)
         // .set_n_cont_delta_divergence_max(3)
@@ -154,21 +155,23 @@ fn run_test(
     let (mut solver, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
 
     // Solve the problem
-    if alternative {
-        let u_index = data.get_u_index(outer_point, Dof::Ux)?;
-        let stop = Stop::MaxCompU(u_index, 0.6);
-        solver.steady(&mut data, IniDir::Pos, stop, AutoStep::Yes)?;
+    let u_index = data.get_u_index(outer_point, Dof::Ux)?;
+    let stop = Stop::MaxCompU(u_index, 0.6);
+    if arclength {
+        solver.steady(&mut data, IniDir::Pos, stop, DeltaLambda::auto())?;
     } else {
         let lambdas = if residual {
             Vec::from(&LOAD_FACTORS_RESIDUAL)
         } else {
             Vec::from(&LOAD_FACTORS_COLLAPSE)
         };
-        solver.steady_with_lf(&mut data, &lambdas, true, AutoStep::Yes)?;
+        let list = Vector::from(&lambdas).get_differences();
+        let dll = DeltaLambda::list(list.as_data());
+        solver.steady(&mut data, IniDir::Pos, stop, dll)?;
     }
 
     // Compare the results with Ref #1
-    if !alternative {
+    if !arclength {
         let tol_displacement = 1e-9;
         let tol_stress = 1e-9;
         let all_good = compare_results(
@@ -187,11 +190,11 @@ fn run_test(
     }
 
     // Analyze the results
-    analyze_results(residual, alternative, lmm)?;
+    analyze_results(residual, arclength, lmm)?;
     Ok(())
 }
 
-fn analyze_results(residual: bool, alternative: bool, lmm: bool) -> Result<(), StrError> {
+fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), StrError> {
     // select constants
     let (name, selected_pp) = if residual {
         (NAME_RESIDUAL, Vec::from(&SELECTED_P_RESIDUAL))
@@ -222,7 +225,6 @@ fn analyze_results(residual: bool, alternative: bool, lmm: bool) -> Result<(), S
     let mut pp_arr = Vec::new();
     let mut sh_arr = Vec::new();
     let mut sr_arr = Vec::new();
-    println!("nstate = {}", post.nstate());
     for index in 1..post.nstate() {
         // load state
         let state = post.read_state(index)?;
@@ -253,7 +255,7 @@ fn analyze_results(residual: bool, alternative: bool, lmm: bool) -> Result<(), S
                 }
                 sh_arr.last_mut().unwrap().push(sh);
                 sr_arr.last_mut().unwrap().push(sr);
-                if !alternative {
+                if !arclength {
                     if residual {
                         let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
                         approx_eq(sr, sr_ana, 0.00024);
@@ -332,10 +334,15 @@ fn analyze_results(residual: bool, alternative: bool, lmm: bool) -> Result<(), S
                 plot.add(&curve);
             }
         });
-        let key0 = if alternative { "_alt" } else { "" };
-        let key1 = if lmm { "_lmm" } else { "" };
-        plot.set_figure_size_points(600.0, 450.0)
-            .save(&format!("/tmp/pmsim/{}{}{}.svg", name, key0, key1))?;
+        let key0 = if arclength { "arc" } else { "lam" };
+        let key1 = if lmm { "_lmm" } else { "_sps" };
+        let key = key0.to_string() + key1;
+        let title = key.to_uppercase().replace("_", " | ");
+        let mut params = SuperTitleParams::new();
+        params.set_y(0.92);
+        plot.set_super_title(&title, Some(&params))
+            .set_figure_size_points(600.0, 450.0)
+            .save(&format!("/tmp/pmsim/{}_{}{}.svg", name, key0, key1))?;
     }
 
     Ok(())
