@@ -58,11 +58,11 @@ mod tests {
 
         let lode_0 = f64::cos(3.0 * (PI / 2.0 - alpha_0));
         let lode_1 = f64::cos(3.0 * (PI / 2.0 - alpha_1));
-        approx_eq(stress_0.invariant_sigma_m(), sig_m_0, 1e-15);
-        approx_eq(stress_0.invariant_sigma_d(), sig_d_0, 1e-15);
+        approx_eq(stress_0.invariant_p(), sig_m_0, 1e-15);
+        approx_eq(stress_0.invariant_q(), sig_d_0, 1e-15);
         approx_eq(stress_0.invariant_lode().unwrap(), lode_0, 1e-15);
-        approx_eq(stress_1.invariant_sigma_m(), sig_m_1, 1e-15);
-        approx_eq(stress_1.invariant_sigma_d(), sig_d_1, 1e-15);
+        approx_eq(stress_1.invariant_p(), sig_m_1, 1e-15);
+        approx_eq(stress_1.invariant_q(), sig_d_1, 1e-15);
         approx_eq(stress_1.invariant_lode().unwrap(), lode_1, 1e-15);
 
         let elast = LinElasticity::new(young, poisson, mandel.two_dim(), false);

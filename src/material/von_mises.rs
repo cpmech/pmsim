@@ -3,7 +3,7 @@ use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::Vector;
-use russell_tensor::deriv1_invariant_sigma_d;
+use russell_tensor::deriv1_invariant_q;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
 
@@ -144,7 +144,7 @@ impl StressStrainTrait for VonMises {
 
         // coefficients
         let (kk, gg, hh) = (self.kk, self.gg, self.hh);
-        let sigma_d = sigma.invariant_sigma_d();
+        let sigma_d = sigma.invariant_q();
         let sigma_d_trial = sigma_d + lambda * 3.0 * gg;
         let norm_s = sigma_d * SQRT_2_BY_3;
         if norm_s < 1e-10 {
@@ -193,8 +193,8 @@ impl StressStrainTrait for VonMises {
 
         // coefficients
         let (gg, hh) = (self.gg, self.hh);
-        let sigma_m_trial = state.stress.invariant_sigma_m();
-        let sigma_d_trial = state.stress.invariant_sigma_d();
+        let sigma_m_trial = state.stress.invariant_p();
+        let sigma_d_trial = state.stress.invariant_q();
         let lambda = f_trial / (3.0 * gg + hh);
         let beta = 1.0 - lambda * 3.0 * gg / sigma_d_trial;
 
@@ -212,7 +212,7 @@ impl StressStrainTrait for VonMises {
         }
 
         // check for zero deviatoric stress
-        let sigma_d = state.stress.invariant_sigma_d();
+        let sigma_d = state.stress.invariant_q();
         if sigma_d < 1e-10 {
             println!("cell_id = {:?}, gauss_id = {:?}", cell_id, gauss_id);
             return Err("von Mises plastic update must not lead to zero sigma_d (sigma_d < 1e-10)");
@@ -237,7 +237,7 @@ impl PlasticityTrait for VonMises {
 
     /// Calculates the yield function f
     fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
-        let sigma_d = state.stress.invariant_sigma_d();
+        let sigma_d = state.stress.invariant_q();
         let z = state.int_vars[I_Z];
         Ok(sigma_d - z)
     }
@@ -256,7 +256,7 @@ impl PlasticityTrait for VonMises {
     /// Calculates the derivative of the yield function w.r.t stress
     fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &LocalState) -> Result<(), StrError> {
         // df/dσ = dσd/dσ
-        match deriv1_invariant_sigma_d(df_dsigma, &state.stress) {
+        match deriv1_invariant_q(df_dsigma, &state.stress) {
             Some(_) => Ok(()),
             None => Err("cannot compute df/dσ due to singularity"),
         }
@@ -353,8 +353,8 @@ mod tests {
             let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
             for lode in [-1.0, 0.0, 1.0] {
                 let state = update_to_yield_surface(&ideal, &mut model, lode);
-                let sigma_m = state.stress.invariant_sigma_m();
-                let sigma_d = state.stress.invariant_sigma_d();
+                let sigma_m = state.stress.invariant_p();
+                let sigma_d = state.stress.invariant_q();
                 approx_eq(sigma_m, 1.0, 1e-14);
                 approx_eq(sigma_d, Z_INI, 1e-14);
                 assert_eq!(state.elastic, true);
@@ -385,14 +385,14 @@ mod tests {
             let settings = Settings::new();
             let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
             let mut state = update_to_yield_surface(&ideal, &mut model, lode);
-            let sigma_m_1 = state.stress.invariant_sigma_m();
-            let sigma_d_1 = state.stress.invariant_sigma_d();
+            let sigma_m_1 = state.stress.invariant_p();
+            let sigma_d_1 = state.stress.invariant_q();
 
             // elastoplastic update
             let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode, ideal.two_dim).unwrap();
             model.update_stress(&mut state, &delta_strain, 0, 0).unwrap();
-            let sigma_m_2 = state.stress.invariant_sigma_m();
-            let sigma_d_2 = state.stress.invariant_sigma_d();
+            let sigma_m_2 = state.stress.invariant_p();
+            let sigma_d_2 = state.stress.invariant_q();
 
             // check
             let (kk, gg) = model.lin_elasticity.get_bulk_shear();
@@ -476,7 +476,7 @@ mod tests {
             [-2.081794007857600E-15, 2.914511611000640E-15, 3.923076923076923E+02],
         ];
         compare_spo_results(&dd, &dd_spo, 1e-12);
-        let sigma_d = state.stress.invariant_sigma_d();
+        let sigma_d = state.stress.invariant_q();
         assert_eq!(state.elastic, false);
         assert_eq!(state.int_vars[0], sigma_d);
         approx_eq(state.int_vars[1], 3.461538461538463E-03, 1e-15);

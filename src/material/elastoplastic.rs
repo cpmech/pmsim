@@ -735,7 +735,7 @@ mod tests {
             let mut data = PlotterData::new();
             for i in 0..states.len() {
                 let s = &states[i];
-                let f = s.stress.invariant_sigma_d() - s.int_vars[0];
+                let f = s.stress.invariant_q() - s.int_vars[0];
                 let t = (i as f64) / 2.0;
                 data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
             }
@@ -902,8 +902,8 @@ mod tests {
 
                 // Cases AB or AC: elastic update (to yield surface exactly)
                 let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha);
-                let sig_m_1 = state.stress.invariant_sigma_m();
-                let sig_d_1 = state.stress.invariant_sigma_d();
+                let sig_m_1 = state.stress.invariant_p();
+                let sig_d_1 = state.stress.invariant_q();
                 if ndim == 2 {
                     data_2d.get_mut(&lode_int).unwrap().push(state.clone());
                 }
@@ -921,8 +921,8 @@ mod tests {
 
                 // Case DH: elastoplastic update
                 let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
-                let sig_m_2 = state.stress.invariant_sigma_m();
-                let sig_d_2 = state.stress.invariant_sigma_d();
+                let sig_m_2 = state.stress.invariant_p();
+                let sig_d_2 = state.stress.invariant_q();
                 if ndim == 2 {
                     data_2d.get_mut(&lode_int).unwrap().push(state.clone());
                 }
@@ -997,8 +997,8 @@ mod tests {
 
         // update, crossing the yield surface
         let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
@@ -1065,8 +1065,8 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
@@ -1131,8 +1131,8 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
@@ -1201,8 +1201,8 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
@@ -1271,8 +1271,8 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
