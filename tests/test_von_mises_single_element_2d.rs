@@ -53,7 +53,7 @@ use russell_lab::math::SQRT_2_BY_3;
 //    Theory and applications, Wiley, 791p
 
 const NAME: &str = "test_von_mises_single_element_2d";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 // constants
 const L0: f64 = 1.0; // initial length of the domain
@@ -116,7 +116,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     };
     run_test(options, &mesh, &top, corner, &schema, &mut config, &mut ebc, &nbc)?;
 
-    // run: new_solver + natural + npv
+    // run: new_solver + natural + lmm
     let options = Options {
         new_solver: true,
         arclength: false,
@@ -143,6 +143,7 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     };
     run_test(options, &mesh, &top, corner, &schema, &mut config, &mut ebc, &nbc)?;
 
+    // done
     Ok(())
 }
 
@@ -185,24 +186,26 @@ fn run_test(
     // solution
     if options.new_solver {
         let mut nl_config = NlConfig::new();
-        nl_config.set_verbose(true, true, false);
+        nl_config
+            .set_verbose(true, true, true)
+            .set_record_iterations_residuals(true);
         if options.arclength {
             nl_config
                 .set_method(NlMethod::Arclength)
                 .set_bordering(true)
-                .set_ddl_ini(0.01)
+                .set_ddl_ini(0.05)
                 .set_tg_control_atol_and_rtol(5.0);
         } else {
             nl_config.set_method(NlMethod::Natural);
         }
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+        let iu = data.get_u_index(corner, Dof::Ux)?;
         if options.arclength {
-            let iu = data.get_u_index(corner, Dof::Ux)?;
-            sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.01921), AutoStep::Yes)?;
-            // sim.steady(&mut data, IniDir::Pos, Stop::Steps(2), AutoStep::Yes)?;
+            let ddl = DeltaLambda::auto();
+            sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.01921), ddl)?;
         } else {
-            let lambdas: Vec<_> = (0..NSTAGE + 1).map(|i| i as f64).collect();
-            sim.steady_with_lf(&mut data, &lambdas, true, AutoStep::Yes)?;
+            let ddl = DeltaLambda::list(&vec![1.0; NSTAGE]);
+            sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.1), ddl)?;
         }
     } else {
         let state = SolverOld::solve(&mesh, &schema, &config, &ebc, &nbc)?;
@@ -212,11 +215,12 @@ fn run_test(
     // check the results
     let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
     let times = post.get_times();
+    let lambdas = post.get_lambdas();
     let ss = post.get_selected_local_state(0).unwrap();
     if !options.arclength {
-        for i in 0..times.len() {
-            let time = times[i];
-            let ey_ref = -time * dy / L0;
+        for i in 0..lambdas.len() {
+            let station = if options.new_solver { lambdas[i] } else { times[i] };
+            let ey_ref = -station * dy / L0;
             let ex = ss[i].strain.as_ref().unwrap().get(0, 0);
             let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
             let ez = ss[i].strain.as_ref().unwrap().get(2, 2);
@@ -225,6 +229,7 @@ fn run_test(
             let sy = ss[i].stress.get(1, 1);
             let sz = ss[i].stress.get(2, 2);
             let sxy = ss[i].stress.get(0, 1);
+            // println!("lambda = {:.5}, ey_ref = {:.5}, ey = {:.5}", lambda, ey_ref, ey);
             approx_eq(ey, ey_ref, 1e-15); // imposed
             approx_eq(ez, 0.0, 1e-15); // plane strain
             approx_eq(exy, 0.0, 1e-15); // shear-free
@@ -234,7 +239,7 @@ fn run_test(
                 approx_eq(sx, 0.0, 1e-10); // x-free
             }
             approx_eq(sxy, 0.0, 1e-15); // shear-free
-            if time < 2.0 {
+            if station < 2.0 {
                 // elastic stages
                 assert_eq!(ss[i].elastic, true);
                 let ex_ref = ey_ref * NU / (NU - 1.0);
@@ -290,8 +295,8 @@ fn run_test(
         // stress-strain data
         let ss = post.get_selected_local_state(0).unwrap();
         let data = PlotterData::from_states(ss);
-        let mut zz = vec![0.0; times.len()];
-        for i in 0..times.len() {
+        let mut zz = vec![0.0; lambdas.len()];
+        for i in 0..lambdas.len() {
             zz[i] = ss[i].int_vars[0];
         }
         let mut plotter = Plotter::new();

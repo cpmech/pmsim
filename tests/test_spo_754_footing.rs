@@ -11,7 +11,7 @@ use russell_nonlin::SoderlindClass;
 
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
 const YOUNG: f64 = 1e7; // Young's modulus
@@ -23,7 +23,7 @@ const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
 // loading factors
-const LAMBDAS: [f64; 15] = [
+const LAMBDAS: [f64; 16] = [
     0.0,   //  0
     0.01,  //  1
     0.015, //  2
@@ -35,6 +35,7 @@ const LAMBDAS: [f64; 15] = [
     0.065, //  8
     0.075, //  9
     0.08,  // 10
+    0.085, // 10b (something happens that needs this extra increment)
     0.09,  // 11
     0.11,  // 12
     0.14,  // 13
@@ -89,6 +90,24 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     config
         .set_steady(LAMBDAS.len() - 1)
         .set_symmetry_check_tolerance(Some(1e-5));
+
+    // run: old_solver + lmm
+    let options = Options {
+        new_solver: false,
+        arclength: false,
+        lmm: true,
+        npv: false,
+    };
+    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
+
+    // run: new_solver + natural + lmm
+    let options = Options {
+        new_solver: true,
+        arclength: false,
+        lmm: true,
+        npv: false,
+    };
+    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
 
     // run: new_solver + arclength + lmm
     let options = Options {
@@ -157,18 +176,18 @@ fn run_test(
     if options.new_solver {
         let mut nl_config = NlConfig::new();
         nl_config
-            .set_verbose(true, false, true)
+            .set_verbose(true, true, true)
             // .set_n_cont_failure_max(10)
             // .set_n_cont_residual_divergence_max(7)
-            // .set_tol_delta(1e-10, 1e-10)
+            // .set_tol_delta(1e-9, 1e-7)
             .set_record_iterations_residuals(true)
             .set_disable_rel_delta_analysis(false);
-        if options.arclength {
+        let dll = if options.arclength {
             nl_config
                 .set_method(NlMethod::Arclength)
                 .set_bordering(true)
                 .set_ddl_ini(0.01)
-                .set_tg_control_atol_and_rtol(0.5) // 0.5
+                .set_tg_control_atol_and_rtol(100.0) // 0.5
                 // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
                 // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
                 // .set_tg_control_soderlind(SoderlindClass::H321) // not good
@@ -176,30 +195,27 @@ fn run_test(
                 // .set_tg_control_soderlind(SoderlindClass::Ho321) // terrible
                 // .set_tg_control_soderlind(SoderlindClass::Ho211) // terrible
                 .set_tg_control_pid_vcc(true);
+            DeltaLambda::auto()
         } else {
-            nl_config.set_ddl_ini(0.01);
-        }
+            nl_config.set_method(NlMethod::Natural);
+            let list = Vector::from(&LAMBDAS).get_differences();
+            DeltaLambda::list(list.as_data())
+        };
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
         let ndim = data.get_ndim();
         let neq = data.get_neq();
         let len = usize::min(neq, ndim);
-        if options.arclength {
-            sim.steady(
-                &mut data,
-                IniDir::Pos,
-                // Stop::Steps(5),
-                Stop::MaxNormU(0.15, Norm::Max, 0, len),
-                // Stop::MinCompU(iu, -0.00005 * WIDTH),
-                // Stop::MinCompU(iu, -0.0002 * WIDTH),
-                // Stop::MinCompU(iu, -0.001 * WIDTH),
-                // Stop::MinCompU(iu, -0.002 * WIDTH),
-                AutoStep::Yes,
-                // AutoStep::No(1e-4),
-            )?;
-        } else {
-            // sim.steady_with_lf(&mut data, &LAMBDAS, true, AutoStep::No(0.01))?;
-            sim.steady_with_lf(&mut data, &LAMBDAS, true, AutoStep::Yes)?;
-        }
+        sim.steady(
+            &mut data,
+            IniDir::Pos,
+            // Stop::Steps(5),
+            Stop::MaxNormU(0.15, Norm::Max, 0, len),
+            // Stop::MinCompU(iu, -0.00005 * WIDTH),
+            // Stop::MinCompU(iu, -0.0002 * WIDTH),
+            // Stop::MinCompU(iu, -0.001 * WIDTH),
+            // Stop::MinCompU(iu, -0.002 * WIDTH),
+            dll,
+        )?;
     } else {
         SolverOld::solve(&mesh, &schema, &config, &ebc, &nbc)?;
     }
@@ -253,6 +269,8 @@ fn run_test(
             .set_label("de Souza Neto et al.")
             .set_line_style(":")
             .set_line_color("#1ea56a")
+            .set_marker_style("+")
+            .set_marker_size(12.0)
             .draw(&ref_xy["x"], &ref_xy["y"]);
         curve_num
             .set_label("pmsim")
@@ -265,6 +283,16 @@ fn run_test(
         curve_ll.set_marker_style(".").draw(&ll_nrm, &lambdas);
         let mut dm = DarkMode::new();
         dm.set_mocha();
+        plot.add(&dm)
+            .add(&curve_ref)
+            .add(&curve_num)
+            .set_rotation_ticks_x(90.0)
+            .grid_labels_legend("normalized settlement: $-u_y/B$", "normalized pressure: $-P/c$")
+            .set_figure_size_points(600.0, 600.0)
+            .set_title(&title)
+            .save(&format!("/tmp/pmsim/{}.svg", name))
+            .unwrap();
+        /*
         plot.add(&dm)
             .set_gaps(0.2, 0.3)
             .set_subplot(2, 2, 1)
@@ -289,30 +317,31 @@ fn run_test(
             .set_super_title(&title, Some(&params))
             .save(&format!("/tmp/pmsim/{}.svg", name))
             .unwrap();
+        */
     }
 
-    /*
     // compare the results with Ref #1
-    let mut tol_displacement = 1e-10;
-    let mut tol_stress = 4.25e-5;
-    if new_solver && lmm {
-        tol_displacement = 1e-8;
-        tol_stress = 8.21e-3;
+    if options.new_solver == false || options.arclength == false {
+        let mut tol_displacement = 1e-10;
+        let mut tol_stress = 4.25e-5;
+        if options.new_solver && options.lmm {
+            tol_displacement = 1.41e-9;
+            tol_stress = 5.32e-3;
+        }
+        let all_good = compare_results(
+            &mesh,
+            &schema,
+            &config,
+            "/tmp/pmsim/",
+            &name,
+            ReferenceDataType::SPO,
+            "data/spo/spo_754_footing_ref.json",
+            tol_displacement,
+            tol_stress,
+            VERBOSE_LEVEL,
+        )?;
+        assert!(all_good);
     }
-    let all_good = compare_results(
-        &mesh,
-        &schema,
-        &config,
-        "/tmp/pmsim/",
-        &name,
-        ReferenceDataType::SPO,
-        "data/spo/spo_754_footing_ref.json",
-        tol_displacement,
-        tol_stress,
-        VERBOSE_LEVEL,
-    )?;
-    assert!(all_good);
-    */
     Ok(())
 }
 
