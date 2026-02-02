@@ -68,12 +68,12 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.edges(&top, Nbc::Qn, -1.0);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
     let mut config = Config::new(&mesh);
@@ -84,7 +84,7 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
         .set_ignore_symmetry(true);
 
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let state = SolverOld::solve(&mesh, &schema, &config, &ebc, &nbc)?;
 
     // check displacements
     #[rustfmt::skip]
@@ -100,5 +100,13 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
         3.900000000000004e-07,  0.000000000000000e+00,
     ];
     vec_approx_eq(&state.u, uu_correct, 1e-15);
+
+    // using new solver
+    let mut nlc = NlConfig::new();
+    nlc.set_verbose(true, true, true).set_euler_predictor(true);
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+    let dll = DeltaLambda::constant(1.0);
+    sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
+    vec_approx_eq(&data.get_state().u, uu_correct, 1e-15);
     Ok(())
 }

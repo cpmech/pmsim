@@ -202,10 +202,17 @@ impl<'a> FemData<'a> {
             CooMatrix::new(nu, np, nnz_kk_check, Sym::No).unwrap()
         };
 
+        let yy = Vector::new(neq);
+        let ff = Vector::new(neq);
+
         //////////////////////////////////////////////////////////////////////////////////////////////////////
 
         // Allocate output files handler
         let mut files = OutputFiles::new(mesh, schema, config, np)?;
+
+        // Perform the first output
+        files.start();
+        files.execute(&schema, &config, &state, &yy)?;
 
         // return new instance
         Ok(FemData {
@@ -221,8 +228,8 @@ impl<'a> FemData<'a> {
             unknown_eqs,
             files,
             stopwatch,
-            yy: Vector::new(neq),
-            ff: Vector::new(neq),
+            yy,
+            ff,
             //
             uuid: Uuid::new_v4(),
             state,
@@ -261,6 +268,12 @@ impl<'a> FemData<'a> {
 
     pub fn get_state(&self) -> &FemState {
         &self.state
+    }
+
+    pub fn reset_algorithmic_variables(&mut self, load_reversal: bool) {
+        self.state.reverse = load_reversal;
+        self.elements.reset_algorithmic_variables(&mut self.state);
+        self.state.reverse = false;
     }
 
     /// Prints information about the system

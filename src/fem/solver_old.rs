@@ -95,9 +95,7 @@ impl<'a> SolverOld<'a> {
         self.com.elements.initialize_internal_values(state)?;
 
         // write the initial results file
-        self.com
-            .files
-            .execute(&self.com.schema, &self.config, state, &self.com.ls.yy)?;
+        // self.com .files .execute(&self.com.schema, &self.config, state, &self.com.ls.yy)?;
 
         // print convergence information
         self.log.header();

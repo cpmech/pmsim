@@ -35,8 +35,8 @@ use russell_lab::{approx_eq, read_data, Vector};
 //    Theory and applications, Wiley, 791p
 
 const NAME_MESH: &str = "spo_751_pres_cylin";
-const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse_new";
-const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual_new";
+const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse";
+const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
@@ -44,9 +44,8 @@ const VERBOSE_LEVEL: usize = 0;
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 
-const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero
 const LOAD_FACTORS_COLLAPSE: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
-const LOAD_FACTORS_RESIDUAL: [f64; 5] = [0.0, 0.1, 0.14, P_MAX_RES, 0.0];
+const LOAD_FACTORS_RESIDUAL: [f64; 4] = [0.0, 0.1, 0.14, 0.18]; // must unload after the last value
 const SELECTED_P_COLLAPSE: [f64; 3] = [0.1, 0.18, 0.19]; // selected pressures for collapse plot
 const SELECTED_P_RESIDUAL: [f64; 1] = [0.0]; // selected pressures for residual plot
 
@@ -57,20 +56,21 @@ const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
 fn test_spo_751_pres_cylin_new() -> Result<(), StrError> {
-    // Generate or read the mesh
+    // generate or read the mesh
     let kind = GeoKind::Qua4;
     let mesh = generate_or_read_mesh(kind, GENERATE_MESH);
 
-    // Detect features
+    // features
     let features = Features::new(&mesh, false);
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let left = features.search_edges(At::X(0.0), any_x)?;
     let inner_circle = features.search_edges(At::Circle(0.0, 0.0, A), any_x)?;
     let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
 
-    // Set the parameters
+    // parameters
     let param1 = ParamSolid {
         density: 1.0,
+        // stress_strain: StressStrain::LinearElastic { young: YOUNG, poisson: POISSON, },
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
@@ -82,96 +82,159 @@ fn test_spo_751_pres_cylin_new() -> Result<(), StrError> {
     let mut schema = Schema::new();
     schema.add_solid(1, param1).build(&mesh)?;
 
-    // Set the essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
+    // essential boundary conditions
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
-    // Run the test
-    for residual in [false] {
-        let options = if residual { vec![false] } else { vec![false] };
-        for arclength in options {
-            for lmm in [false] {
-                run_test(
-                    residual,
-                    arclength,
-                    lmm,
-                    &mesh,
-                    &schema,
-                    &essential,
-                    &inner_circle,
-                    outer_point,
-                )?;
-            }
-        }
-    }
+    // natural boundary conditions
+    let mut nbc = BcNatural::new();
+    nbc.edges(&inner_circle, Nbc::Qn, -1.0);
+
+    // run: collapse + natural + lmm
+    let options = Options {
+        residual: false,
+        arclength: false,
+        lmm: true,
+        npv: false,
+    };
+    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
+
+    // run: collapse + natural + npv
+    let options = Options {
+        residual: false,
+        arclength: false,
+        lmm: false,
+        npv: true,
+    };
+    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
+
+    // run: collapse + natural + sps
+    let options = Options {
+        residual: false,
+        arclength: false,
+        lmm: false,
+        npv: false,
+    };
+    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
+
+    // run: residual + natural + lmm
+    let options = Options {
+        residual: true,
+        arclength: false,
+        lmm: true,
+        npv: false,
+    };
+    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
+
+    // run: residual + natural + sps
+    let options = Options {
+        residual: true,
+        arclength: false,
+        lmm: false,
+        npv: false,
+    };
+    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
+
+    // run: collapse + arclength + sps
+    let options = Options {
+        residual: false,
+        arclength: true,
+        lmm: false,
+        npv: false,
+    };
+    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
+
+    // run: residual + arclength + sps
+    let options = Options {
+        residual: true,
+        arclength: true,
+        lmm: false,
+        npv: false,
+    };
+    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
     Ok(())
 }
 
 fn run_test(
-    residual: bool,
-    arclength: bool,
-    lmm: bool,
+    options: Options,
     mesh: &Mesh,
-    schema: &Schema,
-    essential: &BcEssential,
-    inner_circle: &Edges,
     outer_point: usize,
+    schema: &Schema,
+    ebc: &BcEssential,
+    nbc: &BcNatural,
 ) -> Result<(), StrError> {
-    // Set the natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.edges(&inner_circle, Nbc::Qn, -1.0);
-
     // Select test name
-    let name = if residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
+    let kind = if options.residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
+
+    // define filename stem
+    let mut name = kind.to_string() + "_";
+    name += &options.key();
 
     // Allocate configuration data
     let mut config = Config::new(&mesh);
     config
-        .set_lagrange_mult_method(lmm)
-        .set_out_files("/tmp/pmsim", name, 1.0)
+        .set_out_files("/tmp/pmsim", &name, 1.0)
+        .set_consider_load_reversal(false)
+        .set_lagrange_mult_method(options.lmm)
+        .set_nonzero_presc_values(options.npv)
         .update_model_settings(1)
         .set_save_strain(true);
 
     // Set the options for the nonlinear solver
     let mut nl_config = NlConfig::new();
+    if options.arclength {
+        nl_config.set_method(NlMethod::Arclength);
+    } else {
+        nl_config.set_method(NlMethod::Natural);
+    }
     nl_config
-        .set_method(if arclength {
-            NlMethod::Arclength
-        } else {
-            NlMethod::Natural
-        })
         .set_verbose(true, true, true)
         .set_nr_control_enabled(true)
         .set_tg_control_enabled(true)
-        .set_ddl_ini(1e-5)
-        .set_tg_control_atol_and_rtol(0.01)
+        .set_ddl_ini(0.05)
+        .set_tg_control_atol_and_rtol(0.05)
         .set_euler_predictor(true)
-        // .set_tg_control_rho_for_zero_rerr(2.0)
-        // .set_n_cont_residual_divergence_max(2)
-        // .set_n_cont_delta_divergence_max(3)
         .set_record_iterations_residuals(true);
 
     // Allocate the FEM solver and data
-    let (mut solver, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
+    let (mut solver, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
-    // Solve the problem
-    let u_index = data.get_u_index(outer_point, Dof::Ux)?;
-    let stop = Stop::MaxCompU(u_index, 0.6);
-    if arclength {
-        solver.steady(&mut data, IniDir::Pos, stop, DeltaLambda::auto())?;
-    } else {
-        let lambdas = if residual {
-            Vec::from(&LOAD_FACTORS_RESIDUAL)
+    // Run the simulation
+    if options.residual {
+        // Solve the residual problem (with load reversal)
+
+        // Loading
+        let u_index = data.get_u_index(outer_point, Dof::Ux)?;
+        let stop = Stop::MaxCompU(u_index, 0.15);
+        let dll = if options.arclength {
+            DeltaLambda::auto()
         } else {
-            Vec::from(&LOAD_FACTORS_COLLAPSE)
+            let list = Vector::from(&LOAD_FACTORS_RESIDUAL).get_differences();
+            DeltaLambda::list(list.as_data())
         };
-        let list = Vector::from(&lambdas).get_differences();
-        let dll = DeltaLambda::list(list.as_data());
+        solver.steady(&mut data, IniDir::Pos, stop, dll)?;
+
+        // Unloading
+        data.reset_algorithmic_variables(true);
+        let stop = Stop::MinLambda(0.0);
+        let p_max = LOAD_FACTORS_RESIDUAL.last().unwrap();
+        let dll = DeltaLambda::constant(p_max - 0.0);
+        solver.steady(&mut data, IniDir::Neg, stop, dll)?;
+    } else {
+        // Solve the collapse problem (single direction of loading)
+        let u_index = data.get_u_index(outer_point, Dof::Ux)?;
+        let stop = Stop::MaxCompU(u_index, 0.6);
+        let dll = if options.arclength {
+            DeltaLambda::auto()
+        } else {
+            let list = Vector::from(&LOAD_FACTORS_COLLAPSE).get_differences();
+            DeltaLambda::list(list.as_data())
+        };
         solver.steady(&mut data, IniDir::Pos, stop, dll)?;
     }
 
     // Compare the results with Ref #1
-    if !arclength {
+    if !options.arclength {
         let tol_displacement = 1e-9;
         let tol_stress = 1e-9;
         let all_good = compare_results(
@@ -179,9 +242,9 @@ fn run_test(
             &schema,
             &config,
             "/tmp/pmsim/",
-            name,
+            &name,
             ReferenceDataType::SPO,
-            &format!("data/spo/{}_ref.json", name.replace("_new", "")),
+            &format!("data/spo/{}_ref.json", kind),
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
@@ -189,21 +252,19 @@ fn run_test(
         assert!(all_good);
     }
 
-    // Analyze the results
-    analyze_results(residual, arclength, lmm)?;
-    Ok(())
-}
+    //
+    // data analysis -------------------------------------------------------------
+    //
 
-fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), StrError> {
     // select constants
-    let (name, selected_pp) = if residual {
-        (NAME_RESIDUAL, Vec::from(&SELECTED_P_RESIDUAL))
+    let selected_pp = if options.residual {
+        Vec::from(&SELECTED_P_RESIDUAL)
     } else {
-        (NAME_COLLAPSE, Vec::from(&SELECTED_P_COLLAPSE))
+        Vec::from(&SELECTED_P_COLLAPSE)
     };
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", name)?;
+    let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
     let mesh = post.mesh();
     let schema = post.schema();
 
@@ -216,6 +277,7 @@ fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), Str
 
     // analytical solution
     let mut ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
+    let p_max = *LOAD_FACTORS_RESIDUAL.last().unwrap();
 
     // loop over time stations
     let mut inner_pp = vec![0.0; post.nstate()];
@@ -255,9 +317,9 @@ fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), Str
                 }
                 sh_arr.last_mut().unwrap().push(sh);
                 sr_arr.last_mut().unwrap().push(sr);
-                if !arclength {
-                    if residual {
-                        let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
+                if !options.arclength {
+                    if options.residual {
+                        let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, p_max)?;
                         approx_eq(sr, sr_ana, 0.00024);
                         approx_eq(sh, sh_ana, 0.0027);
                     } else {
@@ -274,7 +336,7 @@ fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), Str
     // plot
     if SAVE_FIGURE {
         ana.set_legend_precision(3);
-        let mut plot = ana.plot_results(&pp_arr, residual, P_MAX_RES, |plot, index| {
+        let mut plot = ana.plot_results(&pp_arr, options.residual, p_max, |plot, index| {
             // reference curve
             let mut curve_ref = Curve::new();
             curve_ref
@@ -293,7 +355,7 @@ fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), Str
                 .set_marker_style(".");
             if index == 0 {
                 // reference data
-                if !residual {
+                if !options.residual {
                     let data = read_data("data/spo/spo-751-fig-716.tsv", &["x", "Curve1"]).unwrap();
                     curve_ref.draw(&data["x"], &data["Curve1"]);
                     // plot.add(&curve_ref);
@@ -304,7 +366,7 @@ fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), Str
                 curve.set_line_style("None");
             } else if index == 1 {
                 // reference data
-                if !residual {
+                if !options.residual {
                     let data = read_data("data/spo/spo-751-fig-717a.tsv", &["x", "p10", "p18"]).unwrap();
                     curve_ref.draw(&data["x"], &data["p10"]);
                     curve_ref.draw(&data["x"], &data["p18"]);
@@ -317,7 +379,7 @@ fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), Str
                 plot.add(&curve);
             } else if index == 2 {
                 // reference data
-                if !residual {
+                if !options.residual {
                     let data = read_data("data/spo/spo-751-fig-717b.tsv", &["x", "p10", "p18"]).unwrap();
                     curve_ref.draw(&data["x"], &data["p10"]);
                     curve_ref.draw(&data["x"], &data["p18"]);
@@ -334,15 +396,12 @@ fn analyze_results(residual: bool, arclength: bool, lmm: bool) -> Result<(), Str
                 plot.add(&curve);
             }
         });
-        let key0 = if arclength { "arc" } else { "lam" };
-        let key1 = if lmm { "_lmm" } else { "_sps" };
-        let key = key0.to_string() + key1;
-        let title = key.to_uppercase().replace("_", " | ");
+        let title = options.title();
         let mut params = SuperTitleParams::new();
         params.set_y(0.92);
         plot.set_super_title(&title, Some(&params))
             .set_figure_size_points(600.0, 450.0)
-            .save(&format!("/tmp/pmsim/{}_{}{}.svg", name, key0, key1))?;
+            .save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
 
     Ok(())
@@ -379,5 +438,39 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
     } else {
         // read mesh
         Mesh::read(&format!("data/spo/{}_{}.msh", NAME_MESH, k_str)).unwrap()
+    }
+}
+
+struct Options {
+    residual: bool,
+    arclength: bool,
+    lmm: bool,
+    npv: bool,
+}
+
+impl Options {
+    fn key(&self) -> String {
+        let mut buf = if self.residual {
+            "residual".to_string()
+        } else {
+            "collapse".to_string()
+        };
+        if self.arclength {
+            buf += "_arc";
+        } else {
+            buf += "_lam";
+        }
+        if self.lmm {
+            buf += "_lmm";
+        } else if self.npv {
+            buf += "_npv";
+        } else {
+            buf += "_sps";
+        }
+        buf
+    }
+
+    fn title(&self) -> String {
+        self.key().to_uppercase().replace("_", " | ")
     }
 }

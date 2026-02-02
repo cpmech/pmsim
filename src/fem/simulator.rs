@@ -21,6 +21,24 @@ pub struct Simulator<'a> {
 
 impl<'a> Simulator<'a> {
     /// Allocates a new instance
+    ///
+    /// Typical usage:
+    ///
+    /// ```text
+    /// let mut nlc = NlConfig::new();
+    /// let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+    /// ```
+    ///
+    /// A linear problem can be solved with the following code:
+    ///
+    /// ```text
+    /// let mut nlc = NlConfig::new();
+    /// nlc.set_verbose(true, true, true).set_euler_predictor(true);
+    /// let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+    /// let dll = DeltaLambda::constant(1.0);
+    /// sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
+    /// vec_approx_eq(&data.get_state().u, uu_correct, 1e-15);
+    /// ```
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
@@ -87,18 +105,11 @@ impl<'a> Simulator<'a> {
         if data.uuid != self.data_uuid {
             return Err("the solver requires FemData with matching UUID");
         }
-        if data.state.lambda != 0.0 {
-            return Err("initial lambda must be equal to zero");
-        }
 
-        // Allocate and initialize the unknowns (λ, u)
+        // Allocate and initialize the unknowns (u, λ)
         let mut u = Vector::new(data.ndim);
-        let mut l = 0.0;
+        let mut l = data.state.lambda;
         data.initialize_u(&mut u);
-
-        // Perform the first output
-        data.files.start();
-        data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;
 
         // Print information about the system and the header
         if data.config.verbose {
