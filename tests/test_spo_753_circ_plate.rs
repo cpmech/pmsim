@@ -54,6 +54,8 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
+
+    // schema
     let mut schema = Schema::new();
     schema.add_solid(1, p1).build(&mesh)?;
 

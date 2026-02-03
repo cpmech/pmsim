@@ -81,6 +81,8 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
+
+    // schema
     let mut schema = Schema::new();
     schema.add_solid(1, param1).build(&mesh)?;
 
@@ -121,11 +123,6 @@ fn run_test(
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
-    nl_config
-        .set_verbose(true, true, true)
-        .set_ddl_ini(0.05)
-        .set_tg_control_atol_and_rtol(0.05)
-        .set_record_iterations_residuals(true);
 
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;

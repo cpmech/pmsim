@@ -8,8 +8,8 @@ use russell_lab::{approx_eq, read_data, Vector};
 
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
-const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
+const SAVE_FIGURE: bool = false;
 
 const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.48; // Poisson's coefficient
@@ -33,7 +33,7 @@ const LAMBDAS: [f64; 16] = [
     0.065, //  8
     0.075, //  9
     0.08,  // 10
-    0.085, // 10b (something happens that needs this extra increment)
+    0.085, // 10b (need this extra step compared to SPO's code)
     0.09,  // 11
     0.11,  // 12
     0.14,  // 13
@@ -59,6 +59,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let left = features.search_edges(At::X(0.0), any_x)?;
     let right = features.search_edges(At::X(500.0), any_x)?;
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let footing = features.search_edges(At::Y(500.0), |x| x[0] <= 50.0)?;
 
     // parameters
     let p1 = ParamSolid {
@@ -71,6 +72,8 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
+
+    // schema
     let mut schema = Schema::new();
     schema.add_solid(1, p1).build(&mesh)?;
 
@@ -78,7 +81,8 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let mut ebc = BcEssential::new();
     ebc.edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
-        .edges(&bottom, Dof::Uy, 0.0);
+        .edges(&bottom, Dof::Uy, 0.0)
+        .edges(&footing, Dof::Uy, -1.0);
 
     // natural boundary conditions
     let nbc = BcNatural::new();
@@ -89,7 +93,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         lmm: true,
         npv: false,
     };
-    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
+    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
 
     // run: natural + sps
     let options = Options {
@@ -97,7 +101,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         lmm: false,
         npv: false,
     };
-    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
+    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
 
     // run: arclength + lmm
     let options = Options {
@@ -105,7 +109,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         lmm: true,
         npv: false,
     };
-    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
+    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
 
     // run: arclength + npv
     let options = Options {
@@ -113,7 +117,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         lmm: false,
         npv: true,
     };
-    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
+    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
 
     // run: arclength + sps
     let options = Options {
@@ -121,14 +125,15 @@ fn test_spo_754_footing() -> Result<(), StrError> {
         lmm: false,
         npv: false,
     };
-    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
+    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
     Ok(())
 }
 
-fn run_test(
+fn run(
     options: Options,
     mesh: &Mesh,
     features: &Features,
+    footing: &Edges,
     schema: &Schema,
     ebc: &mut BcEssential,
     nbc: &BcNatural,
@@ -137,29 +142,19 @@ fn run_test(
     let mut name = NAME.to_string() + "_";
     name += &options.key();
 
-    // find corner node and corresponding equation number
-    let (min, max) = mesh.get_limits();
-    let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
-
-    // update essential boundary condition
-    let footing = features.search_edges(At::Y(500.0), |x| x[0] <= 50.0)?;
-    ebc.edges(&footing, Dof::Uy, -1.0);
-
     // configuration
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", &name, 1.0)
-        .set_ignore_symmetry(true)
         .set_lagrange_mult_method(options.lmm)
         .set_nonzero_presc_values(options.npv);
 
-    // solution
+    // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
     nl_config
         .set_verbose(true, true, true)
-        .set_record_iterations_residuals(true)
-        .set_disable_rel_delta_analysis(false);
-    let dll = if options.arclength {
+        .set_record_iterations_residuals(true);
+    if options.arclength {
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
@@ -172,20 +167,39 @@ fn run_test(
             // .set_tg_control_soderlind(SoderlindClass::Ho321) // terrible
             // .set_tg_control_soderlind(SoderlindClass::Ho211) // terrible
             .set_tg_control_pid_vcc(true);
-        DeltaLambda::auto()
     } else {
         nl_config.set_method(NlMethod::Natural);
-        let list = Vector::from(&LAMBDAS).get_differences();
-        DeltaLambda::list(list.as_data())
-    };
-    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+    }
+
+    // find corner node and corresponding equation number
+    let (min, max) = mesh.get_limits();
+    let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
     let eq_corner = schema.get_eq(corner_id, Dof::Uy)?;
+
+    // simulator and data
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+
+    // stopping criteria
     let stop = if options.arclength {
         Stop::MinCompU(eq_corner, -0.002 * B)
     } else {
         Stop::Steps(LAMBDAS.len() - 1)
     };
+
+    // delta lambda
+    let dll = if options.arclength {
+        DeltaLambda::auto()
+    } else {
+        let list = Vector::from(&LAMBDAS).get_differences();
+        DeltaLambda::list(list.as_data())
+    };
+
+    // run simulation
     sim.steady(&mut data, IniDir::Pos, stop, dll)?;
+
+    //
+    // data analysis -------------------------------------------------------------
+    //
 
     // check the results
     let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
@@ -194,11 +208,10 @@ fn run_test(
     let mut normalized_settlement = Vec::with_capacity(nstate);
     let mut normalized_pressure = Vec::with_capacity(nstate);
     let mut lambdas = Vec::with_capacity(nstate);
-    let mut stepsizes = Vec::with_capacity(nstate);
+    let analytical_limit = 2.0 + PI;
     for index in 0..nstate {
         let state = post.read_state(index)?;
         lambdas.push(state.lambda);
-        stepsizes.push(state.ddl);
         let uy = state.uu[eq_corner];
         normalized_settlement.push(-uy / WIDTH);
         let res = post.nodal_stresses_patch(&mut memo, &state, &footing_cells, |_, y, _| y == max[1])?;
@@ -212,7 +225,7 @@ fn run_test(
             println!(
                 "final normalized pressure = {}, diff = {}",
                 neg_pp_by_c,
-                f64::abs(neg_pp_by_c - (2.0 + PI))
+                f64::abs(neg_pp_by_c - analytical_limit)
             );
             let tol = if options.arclength {
                 if options.lmm {
@@ -225,7 +238,7 @@ fn run_test(
             } else {
                 0.0075
             };
-            approx_eq(neg_pp_by_c, 2.0 + PI, tol);
+            approx_eq(neg_pp_by_c, analytical_limit, tol);
         }
     }
 
@@ -251,11 +264,11 @@ fn run_test(
         let mut txt = Text::new();
         txt.set_align_horizontal("left")
             .set_align_vertical("bottom")
-            .draw(0.0, 2.0 + PI, "$2 + \\pi$");
-        let mut leg = Legend::new();
-        leg.set_location("lower right").draw();
+            .draw(0.0, analytical_limit, "$2 + \\pi$");
         let mut dm = DarkMode::new();
+        let mut leg = Legend::new();
         dm.set_mocha();
+        leg.set_location("lower right").draw();
         plot.add(&dm)
             .set_horiz_line(2.0 + PI, "#51b4df", "--", 1.0)
             .add(&curve_ref)
@@ -269,6 +282,10 @@ fn run_test(
             .save(&format!("/tmp/pmsim/{}.svg", name))
             .unwrap();
     }
+
+    //
+    // verification --------------------------------------------------------------
+    //
 
     // compare the results with Ref #1
     if !options.arclength {
