@@ -5,7 +5,7 @@ use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::PI;
-use russell_lab::{approx_eq, read_data};
+use russell_lab::{approx_eq, read_data, Vector};
 
 // This test runs the Example 7.5.2 (aka 752) on page 247 of Ref #1 (aka SPO's book)
 //
@@ -47,10 +47,10 @@ const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 
 const P_MAX_RES: f64 = 0.28; // maximum pressure achieved by the residual simulation before unloading completely to zero
-const PP_COLLAPSE: [f64; 5] = [0.0, 0.15, 0.3, 0.33, 0.33269]; // inner pressure
-const PP_RESIDUAL: [f64; 4] = [0.0, 0.15, P_MAX_RES, 0.0];
-const SELECTED_P_COLLAPSE: [f64; 3] = [0.15, 0.3, 0.33];
-const SELECTED_P_RESIDUAL: [f64; 1] = [0.0];
+const LAMBDAS_COLLAPSE: [f64; 5] = [0.0, 0.15, 0.3, 0.33, 0.33269]; // load factors for the inner pressure
+const LAMBDAS_RESIDUAL: [f64; 3] = [0.0, 0.15, P_MAX_RES]; // must unload after the last value
+const SELECTED_P_COLLAPSE: [f64; 3] = [0.15, 0.3, 0.33]; // selected pressures for collapse plot
+const SELECTED_P_RESIDUAL: [f64; 1] = [0.0]; // selected pressures for residual plot
 
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
@@ -68,6 +68,7 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let left = features.search_edges(At::X(0.0), any_x)?;
     let inner_circle = features.search_edges(At::Circle(0.0, 0.0, A), any_x)?;
+    let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
 
     // parameters
     let param1 = ParamSolid {
@@ -84,48 +85,79 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
     schema.add_solid(1, param1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
+
+    // natural boundary conditions
+    let mut nbc = BcNatural::new();
+    nbc.edges(&inner_circle, Nbc::Qn, -1.0);
 
     // run the collapse test
-    run_test(false, &mesh, &schema, &essential, &inner_circle)?;
+    run_test(false, &mesh, outer_point, &schema, &ebc, &nbc)?;
 
     // run the residual stress test
-    run_test(true, &mesh, &schema, &essential, &inner_circle)?;
+    run_test(true, &mesh, outer_point, &schema, &ebc, &nbc)?;
     Ok(())
 }
 
 fn run_test(
     residual: bool,
     mesh: &Mesh,
+    outer_point: usize,
     schema: &Schema,
-    essential: &BcEssential,
-    inner_circle: &Edges,
+    ebc: &BcEssential,
+    nbc: &BcNatural,
 ) -> Result<(), StrError> {
+    // filename stem
+    let name = if residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
+
     // configuration
     let mut config = Config::new(&mesh);
     config
+        .set_out_files("/tmp/pmsim", name, 1.0)
         .set_axisymmetric()
-        .set_tol_mdu_rel(1e-7)
-        .set_tol_rr_abs(1e-7)
         .update_model_settings(1)
         .set_save_strain(true);
 
-    // natural boundary conditions and configuration
-    let mut natural = BcNatural::new();
-    let name = if residual {
-        natural.edges_fn(&inner_circle, Nbc::Qn, |t| -PP_RESIDUAL[t as usize]);
-        config.set_steady(PP_RESIDUAL.len() - 1);
-        NAME_RESIDUAL
-    } else {
-        natural.edges_fn(&inner_circle, Nbc::Qn, |t| -PP_COLLAPSE[t as usize]);
-        config.set_steady(PP_COLLAPSE.len() - 1);
-        NAME_COLLAPSE
-    };
-    config.set_out_files("/tmp/pmsim", name, 1.0);
+    // nonlinear solver configuration
+    let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(true, true, true)
+        .set_ddl_ini(0.05)
+        .set_tg_control_atol_and_rtol(0.05)
+        .set_record_iterations_residuals(true);
 
-    // solution
-    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    // simulator and data
+    let (mut solver, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+
+    // simulation
+    if residual {
+        // residual problem (with load reversal)
+
+        // loading
+        let u_index = data.get_u_index(outer_point, Dof::Ux)?;
+        let stop = Stop::MaxCompU(u_index, 0.15);
+        let list = Vector::from(&LAMBDAS_RESIDUAL).get_differences();
+        let dll = DeltaLambda::list(list.as_data());
+        solver.steady(&mut data, IniDir::Pos, stop, dll)?;
+
+        // unloading
+        data.reset_algorithmic_variables(true);
+        let stop = Stop::MinLambda(0.0);
+        let dll = DeltaLambda::constant(P_MAX_RES - 0.0);
+        solver.steady(&mut data, IniDir::Neg, stop, dll)?;
+    } else {
+        // collapse problem (single direction of loading)
+        let u_index = data.get_u_index(outer_point, Dof::Ux)?;
+        let stop = Stop::MaxCompU(u_index, 0.6);
+        let list = Vector::from(&LAMBDAS_COLLAPSE).get_differences();
+        let dll = DeltaLambda::list(list.as_data());
+        solver.steady(&mut data, IniDir::Pos, stop, dll)?;
+    }
+
+    //
+    // verification --------------------------------------------------------------
+    //
 
     // compare the results with Ref #1
     let tol_displacement = if residual { 1.78e-2 } else { 4.33e-2 };
@@ -144,17 +176,15 @@ fn run_test(
     )?;
     assert!(all_good);
 
-    // analyze results
-    analyze_results(residual)?;
-    Ok(())
-}
+    //
+    // data analysis -------------------------------------------------------------
+    //
 
-fn analyze_results(residual: bool) -> Result<(), StrError> {
     // select constants
-    let (name, pp_array, selected_pp) = if residual {
-        (NAME_RESIDUAL, Vec::from(&PP_RESIDUAL), Vec::from(&SELECTED_P_RESIDUAL))
+    let selected_pp = if residual {
+        Vec::from(&SELECTED_P_RESIDUAL)
     } else {
-        (NAME_COLLAPSE, Vec::from(&PP_COLLAPSE), Vec::from(&SELECTED_P_COLLAPSE))
+        Vec::from(&SELECTED_P_COLLAPSE)
     };
 
     // load summary and associated files
@@ -183,10 +213,9 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
     for index in 1..post.nstate() {
         // load state
         let state = post.read_state(index)?;
-        let idx = state.time as usize;
 
         // pressure
-        let pp = pp_array[idx];
+        let pp = state.lambda;
         inner_pp[index] = pp;
 
         // radial displacement

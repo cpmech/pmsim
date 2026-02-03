@@ -44,8 +44,9 @@ const VERBOSE_LEVEL: usize = 0;
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 
-const LOAD_FACTORS_COLLAPSE: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
-const LOAD_FACTORS_RESIDUAL: [f64; 4] = [0.0, 0.1, 0.14, 0.18]; // must unload after the last value
+const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero
+const LAMBDAS_COLLAPSE: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // load factors for the inner pressure
+const LAMBDAS_RESIDUAL: [f64; 4] = [0.0, 0.1, 0.14, P_MAX_RES]; // must unload after the last value
 const SELECTED_P_COLLAPSE: [f64; 3] = [0.1, 0.18, 0.19]; // selected pressures for collapse plot
 const SELECTED_P_RESIDUAL: [f64; 1] = [0.0]; // selected pressures for residual plot
 
@@ -179,7 +180,7 @@ fn run_test(
         .update_model_settings(1)
         .set_save_strain(true);
 
-    // options for the nonlinear solver
+    // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
     if options.arclength {
         nl_config.set_method(NlMethod::Arclength);
@@ -188,14 +189,11 @@ fn run_test(
     }
     nl_config
         .set_verbose(true, true, true)
-        .set_nr_control_enabled(true)
-        .set_tg_control_enabled(true)
         .set_ddl_ini(0.05)
         .set_tg_control_atol_and_rtol(0.05)
-        .set_euler_predictor(true)
         .set_record_iterations_residuals(true);
 
-    // FEM solver and data
+    // simulator and data
     let (mut solver, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
     // simulation
@@ -208,7 +206,7 @@ fn run_test(
         let dll = if options.arclength {
             DeltaLambda::auto()
         } else {
-            let list = Vector::from(&LOAD_FACTORS_RESIDUAL).get_differences();
+            let list = Vector::from(&LAMBDAS_RESIDUAL).get_differences();
             DeltaLambda::list(list.as_data())
         };
         solver.steady(&mut data, IniDir::Pos, stop, dll)?;
@@ -216,8 +214,7 @@ fn run_test(
         // unloading
         data.reset_algorithmic_variables(true);
         let stop = Stop::MinLambda(0.0);
-        let p_max = LOAD_FACTORS_RESIDUAL.last().unwrap();
-        let dll = DeltaLambda::constant(p_max - 0.0);
+        let dll = DeltaLambda::constant(P_MAX_RES - 0.0);
         solver.steady(&mut data, IniDir::Neg, stop, dll)?;
     } else {
         // collapse problem (single direction of loading)
@@ -226,11 +223,15 @@ fn run_test(
         let dll = if options.arclength {
             DeltaLambda::auto()
         } else {
-            let list = Vector::from(&LOAD_FACTORS_COLLAPSE).get_differences();
+            let list = Vector::from(&LAMBDAS_COLLAPSE).get_differences();
             DeltaLambda::list(list.as_data())
         };
         solver.steady(&mut data, IniDir::Pos, stop, dll)?;
     }
+
+    //
+    // verification --------------------------------------------------------------
+    //
 
     // compare the results with Ref #1
     if !options.arclength {
@@ -276,7 +277,6 @@ fn run_test(
 
     // analytical solution
     let mut ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
-    let p_max = *LOAD_FACTORS_RESIDUAL.last().unwrap();
 
     // loop over time stations
     let mut inner_pp = vec![0.0; post.nstate()];
@@ -318,7 +318,7 @@ fn run_test(
                 sr_arr.last_mut().unwrap().push(sr);
                 if !options.arclength {
                     if options.residual {
-                        let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, p_max)?;
+                        let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
                         approx_eq(sr, sr_ana, 0.00024);
                         approx_eq(sh, sh_ana, 0.0027);
                     } else {
@@ -335,7 +335,7 @@ fn run_test(
     // plot
     if SAVE_FIGURE {
         ana.set_legend_precision(3);
-        let mut plot = ana.plot_results(&pp_arr, options.residual, p_max, |plot, index| {
+        let mut plot = ana.plot_results(&pp_arr, options.residual, P_MAX_RES, |plot, index| {
             // reference curve
             let mut curve_ref = Curve::new();
             curve_ref
