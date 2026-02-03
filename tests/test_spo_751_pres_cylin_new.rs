@@ -163,14 +163,14 @@ fn run_test(
     ebc: &BcEssential,
     nbc: &BcNatural,
 ) -> Result<(), StrError> {
-    // Select test name
+    // test name
     let kind = if options.residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
 
-    // define filename stem
+    // filename stem
     let mut name = kind.to_string() + "_";
     name += &options.key();
 
-    // Allocate configuration data
+    // configuration
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", &name, 1.0)
@@ -179,7 +179,7 @@ fn run_test(
         .update_model_settings(1)
         .set_save_strain(true);
 
-    // Set the options for the nonlinear solver
+    // options for the nonlinear solver
     let mut nl_config = NlConfig::new();
     if options.arclength {
         nl_config.set_method(NlMethod::Arclength);
@@ -195,14 +195,14 @@ fn run_test(
         .set_euler_predictor(true)
         .set_record_iterations_residuals(true);
 
-    // Allocate the FEM solver and data
+    // FEM solver and data
     let (mut solver, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
-    // Run the simulation
+    // simulation
     if options.residual {
-        // Solve the residual problem (with load reversal)
+        // residual problem (with load reversal)
 
-        // Loading
+        // loading
         let u_index = data.get_u_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(u_index, 0.15);
         let dll = if options.arclength {
@@ -213,14 +213,14 @@ fn run_test(
         };
         solver.steady(&mut data, IniDir::Pos, stop, dll)?;
 
-        // Unloading
+        // unloading
         data.reset_algorithmic_variables(true);
         let stop = Stop::MinLambda(0.0);
         let p_max = LOAD_FACTORS_RESIDUAL.last().unwrap();
         let dll = DeltaLambda::constant(p_max - 0.0);
         solver.steady(&mut data, IniDir::Neg, stop, dll)?;
     } else {
-        // Solve the collapse problem (single direction of loading)
+        // collapse problem (single direction of loading)
         let u_index = data.get_u_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(u_index, 0.6);
         let dll = if options.arclength {
@@ -232,7 +232,7 @@ fn run_test(
         solver.steady(&mut data, IniDir::Pos, stop, dll)?;
     }
 
-    // Compare the results with Ref #1
+    // compare the results with Ref #1
     if !options.arclength {
         let tol_displacement = 1e-9;
         let tol_stress = 1e-9;
