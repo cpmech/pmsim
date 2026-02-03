@@ -100,50 +100,37 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // natural boundary conditions
     let nbc = BcNatural::new();
 
-    // configuration
-    let mut config = Config::new(&mesh);
-    config
-        .set_steady(NSTAGE)
-        .set_out_uu_comp(corner, Dof::Uy)
-        .set_out_yy_comp(corner, Dof::Uy);
-
-    // run: old_solver
+    // run: natural + lmm
     let options = Options {
-        new_solver: false,
         arclength: false,
         lmm: true,
         npv: false,
     };
-    run_test(options, &mesh, &top, corner, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
 
-    // run: new_solver + natural + lmm
+    // run: natural + sps
     let options = Options {
-        new_solver: true,
         arclength: false,
-        lmm: true,
+        lmm: false,
         npv: false,
     };
-    run_test(options, &mesh, &top, corner, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
 
-    // run: new_solver + arclength + npv
+    // run: arclength + npv
     let options = Options {
-        new_solver: true,
         arclength: true,
         lmm: false,
         npv: true,
     };
-    run_test(options, &mesh, &top, corner, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
 
-    // run: new_solver + arclength + sps
+    // run: arclength + sps
     let options = Options {
-        new_solver: true,
         arclength: true,
         lmm: false,
         npv: false,
     };
-    run_test(options, &mesh, &top, corner, &schema, &mut config, &mut ebc, &nbc)?;
-
-    // done
+    run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
     Ok(())
 }
 
@@ -153,7 +140,6 @@ fn run_test(
     top: &Edges,
     corner: usize,
     schema: &Schema,
-    config: &mut Config,
     ebc: &mut BcEssential,
     nbc: &BcNatural,
 ) -> Result<(), StrError> {
@@ -161,21 +147,16 @@ fn run_test(
     let mut name = NAME.to_string() + "_";
     name += &options.key();
 
-    // absolute vertical displacement increment and applied displacement function
+    // essential boundary conditions
     let dy = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-    let calc_uy = move |t| {
-        if options.new_solver {
-            -dy
-        } else {
-            -dy * t
-        }
-    };
-
-    // update essential boundary conditions
-    ebc.edges_fn(&top, Dof::Uy, calc_uy);
+    ebc.edges(&top, Dof::Uy, -dy);
 
     // update configuration
+    // configuration
+    let mut config = Config::new(&mesh);
     config
+        .set_out_uu_comp(corner, Dof::Uy)
+        .set_out_yy_comp(corner, Dof::Uy)
         .set_out_files("/tmp/pmsim", &name, 1.0)
         .set_lagrange_mult_method(options.lmm)
         .set_nonzero_presc_values(options.npv)
@@ -184,43 +165,36 @@ fn run_test(
         .set_save_strain(true);
 
     // solution
-    if options.new_solver {
-        let mut nl_config = NlConfig::new();
+    let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(true, true, true)
+        .set_record_iterations_residuals(true);
+    if options.arclength {
         nl_config
-            .set_verbose(true, true, true)
-            .set_record_iterations_residuals(true);
-        if options.arclength {
-            nl_config
-                .set_method(NlMethod::Arclength)
-                .set_bordering(true)
-                .set_ddl_ini(0.05)
-                .set_tg_control_atol_and_rtol(5.0);
-        } else {
-            nl_config.set_method(NlMethod::Natural);
-        }
-        let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
-        let iu = data.get_u_index(corner, Dof::Ux)?;
-        if options.arclength {
-            let ddl = DeltaLambda::auto();
-            sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.01921), ddl)?;
-        } else {
-            let ddl = DeltaLambda::list(&vec![1.0; NSTAGE]);
-            sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.1), ddl)?;
-        }
+            .set_method(NlMethod::Arclength)
+            .set_bordering(true)
+            .set_ddl_ini(0.05)
+            .set_tg_control_atol_and_rtol(5.0);
     } else {
-        let state = SolverOld::solve(&mesh, &schema, &config, &ebc, &nbc)?;
-        println!("U final =\n{:.5}", state.u);
+        nl_config.set_method(NlMethod::Natural);
+    }
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+    let iu = data.get_u_index(corner, Dof::Ux)?;
+    if options.arclength {
+        let ddl = DeltaLambda::auto();
+        sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.01921), ddl)?;
+    } else {
+        let ddl = DeltaLambda::list(&vec![1.0; NSTAGE]);
+        sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.1), ddl)?;
     }
 
     // check the results
     let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
-    let times = post.get_times();
     let lambdas = post.get_lambdas();
     let ss = post.get_selected_local_state(0).unwrap();
     if !options.arclength {
         for i in 0..lambdas.len() {
-            let station = if options.new_solver { lambdas[i] } else { times[i] };
-            let ey_ref = -station * dy / L0;
+            let ey_ref = -lambdas[i] * dy / L0;
             let ex = ss[i].strain.as_ref().unwrap().get(0, 0);
             let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
             let ez = ss[i].strain.as_ref().unwrap().get(2, 2);
@@ -233,13 +207,9 @@ fn run_test(
             approx_eq(ey, ey_ref, 1e-15); // imposed
             approx_eq(ez, 0.0, 1e-15); // plane strain
             approx_eq(exy, 0.0, 1e-15); // shear-free
-            if options.new_solver && options.lmm {
-                approx_eq(sx, 0.0, 1e-5); // x-free
-            } else {
-                approx_eq(sx, 0.0, 1e-10); // x-free
-            }
+            approx_eq(sx, 0.0, 1e-5); // x-free
             approx_eq(sxy, 0.0, 1e-15); // shear-free
-            if station < 2.0 {
+            if lambdas[i] < 2.0 {
                 // elastic stages
                 assert_eq!(ss[i].elastic, true);
                 let ex_ref = ey_ref * NU / (NU - 1.0);
@@ -254,12 +224,8 @@ fn run_test(
         }
 
         // compare the results with Ref #1
-        let mut tol_displacement = 1e-13;
-        let mut tol_stress = 1e-10;
-        if options.new_solver && options.lmm {
-            tol_displacement = 1e-8;
-            tol_stress = 1e-5;
-        }
+        let tol_displacement = 8.24e-10;
+        let tol_stress = 1.13e-6;
         let all_good = compare_results(
             &mesh,
             &schema,
@@ -322,7 +288,6 @@ fn run_test(
 }
 
 struct Options {
-    new_solver: bool,
     arclength: bool,
     lmm: bool,
     npv: bool,
@@ -330,16 +295,11 @@ struct Options {
 
 impl Options {
     fn key(&self) -> String {
-        let mut buf = if self.new_solver {
-            "new".to_string()
+        let mut buf = if self.arclength {
+            "arc".to_string()
         } else {
-            "old".to_string()
+            "lam".to_string()
         };
-        if self.arclength {
-            buf += "_arc";
-        } else {
-            buf += "_lam";
-        }
         if self.lmm {
             buf += "_lmm";
         } else if self.npv {

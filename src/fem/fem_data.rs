@@ -1,11 +1,8 @@
-#![allow(unused)]
-
-use super::{ElementsBoundary, ElementsInterior, FemState, LinearSystem, OutputFiles};
+use super::{ElementsBoundary, ElementsInterior, FemState, OutputFiles};
 use crate::base::{BcEssential, BcNatural, Config, Dof, Schema};
 use crate::StrError;
 use gemlab::mesh::{Mesh, PointId};
-use russell_lab::{vec_copy, vec_inner, vec_minus, Stopwatch, Vector};
-use russell_nonlin::Stop;
+use russell_lab::{Stopwatch, Vector};
 use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
 use std::collections::HashMap;
@@ -38,15 +35,6 @@ pub struct FemData<'a> {
     /// Holds a collection of elements
     pub(crate) elements: ElementsInterior<'a>,
 
-    /// Holds variables to solve the global linear system
-    pub(crate) ls: LinearSystem<'a>,
-
-    /// Array to ignore prescribed equations when building the reduced system
-    pub(crate) ignored_eqs: Vec<bool>,
-
-    /// Unknown equation numbers
-    pub(crate) unknown_eqs: Vec<usize>,
-
     /// Handles output files
     pub(crate) files: OutputFiles,
 
@@ -72,10 +60,10 @@ pub struct FemData<'a> {
     pub(crate) sym: Sym,
     pub(crate) nnz_kk: usize,
     pub(crate) nnz_kk_bar: usize,
-    pub(crate) nnz_kk_check: usize,
     pub(crate) kk_check: CooMatrix,
-    pub(crate) u_check: Vector,
-    pub(crate) no_ignore: Vec<bool>, // TODO: remove this
+
+    /// Pᵤ(t), lambda-free part of the prescribed values Ǔ = λ Pᵤ(t)
+    pub(crate) ppu: Vector,
 }
 
 impl<'a> FemData<'a> {
@@ -94,7 +82,7 @@ impl<'a> FemData<'a> {
         }
 
         // Start stopwatch
-        let mut stopwatch = Stopwatch::new();
+        let stopwatch = Stopwatch::new();
 
         // Generate the list of prescribed equations and a map from equation to (PointId, Dof)
         let n_prescribed = ebc.functions.len();
@@ -128,7 +116,6 @@ impl<'a> FemData<'a> {
         // Allocate auxiliary instances
         let boundaries = ElementsBoundary::new(mesh, schema, config, nbc)?;
         let mut elements = ElementsInterior::new(mesh, schema, config)?;
-        let linear_system = LinearSystem::new(n_prescribed, schema, config, &elements, &boundaries)?;
 
         // Array to ignore prescribed equations when building the reduced system
         let neq = eq_handler.neq(); // number of DOFs (without Lagrange multipliers)
@@ -139,15 +126,9 @@ impl<'a> FemData<'a> {
             }
         };
 
-        // Collect the unknown equations
-        let neq_total = linear_system.neq_total;
-        let unknown_eqs: Vec<_> = (0..neq_total)
-            .filter(|&eq| config.lagrange_mult_method || !ignored_eqs[eq])
-            .collect();
-
         //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        let mut state = FemState::new(&mesh, &schema, &ebc, &config)?;
+        let mut state = FemState::new(&mesh, &schema, &config)?;
 
         // Initialize internal variables
         elements.initialize_internal_values(&mut state)?;
@@ -211,8 +192,10 @@ impl<'a> FemData<'a> {
         let mut files = OutputFiles::new(mesh, schema, config, np)?;
 
         // Perform the first output
-        files.start();
-        files.execute(&schema, &config, &state, &yy)?;
+        if config.out_files {
+            files.start();
+            files.execute(&schema, &config, &state, &yy)?;
+        }
 
         // return new instance
         Ok(FemData {
@@ -223,9 +206,6 @@ impl<'a> FemData<'a> {
             conc_loads,
             boundaries,
             elements,
-            ls: linear_system,
-            ignored_eqs,
-            unknown_eqs,
             files,
             stopwatch,
             yy,
@@ -240,10 +220,8 @@ impl<'a> FemData<'a> {
             sym,
             nnz_kk,
             nnz_kk_bar,
-            nnz_kk_check,
             kk_check,
-            u_check: Vector::new(np),
-            no_ignore: vec![false; neq],
+            ppu: Vector::new(np),
         })
     }
 
@@ -323,164 +301,76 @@ impl<'a> FemData<'a> {
     pub(crate) fn initialize_u(&self, u: &mut Vector) {
         if self.config.lagrange_mult_method {
             for eq in 0..self.neq {
-                u[eq] = self.state.u[eq];
+                u[eq] = self.state.uu[eq];
             }
         } else {
             for iu in 0..self.nu {
                 let eq = self.eq_handler.unknown()[iu];
-                u[iu] = self.state.u[eq];
+                u[iu] = self.state.uu[eq];
             }
         }
     }
 
-    /// Calculates the prescribed values vector U-check (Ǔ)
-    pub(crate) fn calc_u_check(&mut self) {
+    /// Calculates Pᵤ(t), lambda-free part of the prescribed values Ǔ = λ Pᵤ(t)
+    pub(crate) fn calc_ppu(&mut self) {
         for ip in 0..self.np {
-            let eq = self.eq_handler.prescribed()[ip];
-            self.u_check[ip] = self.presc_values[ip](self.state.time);
+            self.ppu[ip] = self.presc_values[ip](self.state.time);
         }
     }
 
     /// Sets the state given the nonlinear solver variables (λ, u)
     ///
-    /// This function requires that Ǔ (prescribed values) has already been calculated.
+    /// This function requires that Cᵤ(t) (prescribed values) be calculated already.
     pub(crate) fn set_state(&mut self, l: f64, u: &Vector) {
         self.state.lambda = l;
         if self.config.lagrange_mult_method {
-            for i in 0..self.ndim {
-                self.state.u[i] = u[i];
+            for i in 0..self.neq {
+                self.state.uu[i] = u[i];
             }
         } else if self.config.nonzero_presc_values {
             for eq in 0..self.neq {
-                self.state.u[eq] = u[eq];
+                self.state.uu[eq] = u[eq];
             }
         } else {
             for iu in 0..self.nu {
                 let eq = self.eq_handler.unknown()[iu];
-                self.state.u[eq] = u[iu];
+                self.state.uu[eq] = u[iu];
             }
             for ip in 0..self.np {
                 let eq = self.eq_handler.prescribed()[ip];
-                self.state.u[eq] = l * self.u_check[ip];
+                self.state.uu[eq] = l * self.ppu[ip];
             }
         }
     }
 
-    /// Calculates Y (internal forces)
+    /// Calculates Y, internal forces
     pub(crate) fn calc_yy(&mut self) -> Result<(), StrError> {
         // clear vector
         self.yy.fill(0.0);
 
         // calculate all element local vectors
-        self.elements.assemble_yy(&mut self.yy, &self.state, &self.no_ignore)?;
+        self.elements.assemble_yy(&mut self.yy, &self.state)?;
 
         // calculate all boundary elements local vectors
-        self.boundaries
-            .assemble_yy(&mut self.yy, &self.state, &self.no_ignore)?;
+        self.boundaries.assemble_yy(&mut self.yy, &self.state)?;
         Ok(())
     }
 
-    /// Calculates F (external forces)
+    /// Calculates F(t), external forces
     pub(crate) fn calc_ff(&mut self) -> Result<(), StrError> {
         // clear vector
         self.ff.fill(0.0);
 
         // calculate all element local vectors
         let t = self.state.time;
-        self.elements.assemble_ff(&mut self.ff, t, &self.ignored_eqs)?;
+        self.elements.assemble_ff(&mut self.ff, t)?;
 
         // calculate all boundary elements local vectors
-        self.boundaries.assemble_ff(&mut self.ff, t, &self.ignored_eqs)?;
+        self.boundaries.assemble_ff(&mut self.ff, t)?;
 
         // add concentrated loads
         for (eq, f) in &self.conc_loads {
             self.ff[*eq] += (f)(t);
-        }
-        Ok(())
-    }
-
-    /// Calculates Y (internal forces)
-    pub fn calc_yy_to_delete(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        // clear vector
-        self.ls.yy.fill(0.0);
-
-        // calculate all element local vectors
-        self.elements.assemble_yy(&mut self.ls.yy, state, &self.ignored_eqs)?;
-
-        // calculate all boundary elements local vectors
-        self.boundaries.assemble_yy(&mut self.ls.yy, state, &self.ignored_eqs)?;
-        Ok(())
-    }
-
-    /// Calculates F and ΔF
-    ///
-    /// Returns the load reversal flag
-    ///
-    /// ```text
-    /// F_old := F(t)
-    /// ΔF = F(t+Δt) - F(t)
-    /// ```
-    pub fn calc_ff_and_ddff_to_delete(&mut self, time: f64) -> Result<bool, StrError> {
-        // make a copy of F and ΔF
-        vec_copy(&mut self.ls.ff_old, &self.ls.ff).unwrap();
-        vec_copy(&mut self.ls.ddff_old, &self.ls.ddff).unwrap();
-
-        // update F ---------------------------------------------------------------
-
-        // clear vector
-        self.ls.ff.fill(0.0);
-
-        // calculate all element local vectors
-        self.elements.assemble_ff(&mut self.ls.ff, time, &self.ignored_eqs)?;
-
-        // calculate all boundary elements local vectors
-        self.boundaries.assemble_ff(&mut self.ls.ff, time, &self.ignored_eqs)?;
-
-        // add concentrated loads
-        for (eq, f) in &self.conc_loads {
-            self.ls.ff[*eq] += (f)(time);
-        }
-
-        // ------------------------------------------------------------------------
-
-        // calculate ΔF = F - F_old
-        vec_minus(&mut self.ls.ddff, &self.ls.ff, &self.ls.ff_old).unwrap();
-
-        // check if load reversal occurred
-        let dot = vec_inner(&self.ls.ddff_old, &self.ls.ddff);
-        let reverse = dot < 0.0 && self.config.consider_load_reversal;
-        Ok(reverse)
-    }
-
-    /// Assembles the (augmented) global matrix K
-    pub fn assemble_kk(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        // reset pointer in K matrix == clear all values
-        self.ls.kk.reset();
-
-        // calculates all Ke matrices (local Jacobian matrix; derivative of Ye w.r.t u) and adds them to K
-        self.elements
-            .assemble_kk_to_delete(&mut self.ls.kk, state, &self.ignored_eqs)?;
-        self.boundaries
-            .assemble_kk_to_delete(&mut self.ls.kk, state, &self.ignored_eqs)?;
-        Ok(())
-    }
-
-    /// Updates the (augmented) vectors of primary variables U, V, A
-    pub fn update_primary_variables(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        let mdu = &mut self.ls.mdu;
-        if self.config.transient {
-            // update U, V, and ΔU vectors
-            for i in &self.unknown_eqs {
-                state.u[*i] -= mdu[*i];
-                state.v[*i] = state.beta1 * state.u[*i] - state.u_star[*i];
-                state.ddu[*i] -= mdu[*i];
-            }
-        } else {
-            // update U and ΔU vectors
-            for i in &self.unknown_eqs {
-                state.u[*i] -= mdu[*i];
-                state.ddu[*i] -= mdu[*i];
-            }
         }
         Ok(())
     }
@@ -506,10 +396,10 @@ impl<'a> FemData<'a> {
         for ip in 0..self.eq_handler.np() {
             let i = self.eq_handler.prescribed()[ip];
             let j = neq + ip;
-            let lag = state.u[j];
+            let lag = state.uu[j];
             let val = self.presc_values[ip](state.time);
             rr[i] += lag; // Aᵀ λ  →  1 * λ
-            rr[j] = state.u[i] - val; // A u - c  →  1 * u - c
+            rr[j] = state.uu[i] - val; // A u - c  →  1 * u - c
         }
     }
 
@@ -596,14 +486,14 @@ mod tests {
         p1.ngauss = Some(123); // wrong
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
-        let natural = BcNatural::new();
+        let ebc = BcEssential::new();
+        let nbc = BcNatural::new();
 
         // error due to config.validate
         let mut config = Config::new(&mesh);
-        config.set_transient().set_ddt_min(-1.0);
+        config.set_theta(0.0);
         assert_eq!(
-            FemData::new(&mesh, &schema, &config, &essential, &natural).err(),
+            FemData::new(&mesh, &schema, &config, &ebc, &nbc).err(),
             Some("cannot start simulation because config.validate() failed")
         );
     }

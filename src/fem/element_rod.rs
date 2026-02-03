@@ -97,7 +97,7 @@ impl<'a> ElementTrait for ElementRod<'a> {
     fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for local in 0..self.local_to_global.len() {
             let global = self.local_to_global[local];
-            self.u[local] = state.u[global];
+            self.u[local] = state.uu[global];
         }
         mat_vec_mul(yye, 1.0, &self.stiffness, &self.u).unwrap();
         Ok(())
@@ -136,12 +136,10 @@ impl<'a> ElementTrait for ElementRod<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRod;
-    use crate::base::{assemble_matrix, BcEssential, Config, ParamRod, Schema};
+    use crate::base::{Config, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
-    use russell_lab::math::SQRT_2;
     use russell_lab::{mat_approx_eq, Matrix, Vector};
-    use russell_sparse::{CooMatrix, Sym};
 
     #[test]
     fn new_captures_errors() {
@@ -198,11 +196,10 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
         let neq = 4;
         let mut yye = Vector::new(neq);
         let mut kke = Matrix::new(neq, neq);
@@ -242,11 +239,10 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
         let neq = 6;
         let mut yye = Vector::new(neq);
         let mut kke = Matrix::new(neq, neq);
@@ -289,11 +285,10 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
         let neq = 6;
         let mut yye = Vector::new(neq);
         let mut kke = Matrix::new(neq, neq);
@@ -308,99 +303,5 @@ mod tests {
             [-2.0, -4.0, -4.0, 2.0, 4.0, 4.0], // 5
         ];
         mat_approx_eq(&kke, correct, 1e-15);
-    }
-
-    #[test]
-    fn rod_works_2d_3() {
-        //             2
-        //           ,'|
-        //    (2)  ,'  |
-        //    [3],'    | (1)
-        //     ,'      | [2]
-        //   ,'        |
-        //  0----------1
-        //       (0)
-        //       [1]
-        #[rustfmt::skip]
-        let mesh = Mesh {
-            ndim: 2,
-            points: vec![
-                Point { id: 0, marker: 0, coords: vec![0.0, 0.0] },
-                Point { id: 1, marker: 0, coords: vec![10.0, 0.0] },
-                Point { id: 2, marker: 0, coords: vec![10.0, 10.0] },
-            ],
-            cells: vec![
-                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
-                Cell { id: 1, marker: 2, kind: GeoKind::Lin2, points: vec![1, 2] },
-                Cell { id: 2, marker: 3, kind: GeoKind::Lin2, points: vec![0, 2] },
-            ],
-            marked_edges: Vec::new(),
-            marked_faces: Vec::new(),
-        };
-        let p1 = ParamRod {
-            gnl: None,
-            area: 1.0,
-            young: 100.0,
-            density: 1.0,
-            ngauss: None,
-        };
-        let p2 = ParamRod {
-            gnl: None,
-            area: 1.0 / 2.0,
-            young: 100.0,
-            density: 1.0,
-            ngauss: None,
-        };
-        let p3 = ParamRod {
-            gnl: None,
-            area: 2.0 * SQRT_2,
-            young: 100.0,
-            density: 1.0,
-            ngauss: None,
-        };
-        let mut schema = Schema::new();
-        schema
-            .add_rod(1, p1)
-            .add_rod(2, p2)
-            .add_rod(3, p3)
-            .build(&mesh)
-            .unwrap();
-        let essential = BcEssential::new();
-
-        let config = Config::new(&mesh);
-        let mut rod0 = ElementRod::new(&mesh, &schema, &p1, 0).unwrap();
-        let mut rod1 = ElementRod::new(&mesh, &schema, &p2, 1).unwrap();
-        let mut rod2 = ElementRod::new(&mesh, &schema, &p3, 2).unwrap();
-        let neq = 4;
-        let mut jacobian = Matrix::new(neq, neq);
-
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        let (neq_global, nnz) = (6, 3 * neq * neq);
-
-        let mut kk = CooMatrix::new(neq_global, neq_global, nnz, Sym::No).unwrap();
-        let ignore = vec![false; neq_global];
-
-        let tol = Some(1e-14);
-        rod0.calc_kke(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod0.local_to_global, &ignore, tol).unwrap();
-
-        rod1.calc_kke(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod1.local_to_global, &ignore, tol).unwrap();
-
-        rod2.calc_kke(&mut jacobian, &state).unwrap();
-        assemble_matrix(&mut kk, &jacobian, &rod2.local_to_global, &ignore, tol).unwrap();
-
-        let kk_mat = kk.as_dense();
-        assert_eq!(
-            format!("{:.2}", kk_mat),
-            "┌                                           ┐\n\
-             │  20.00  10.00 -10.00   0.00 -10.00 -10.00 │\n\
-             │  10.00  10.00   0.00   0.00 -10.00 -10.00 │\n\
-             │ -10.00   0.00  10.00   0.00   0.00   0.00 │\n\
-             │   0.00   0.00   0.00   5.00   0.00  -5.00 │\n\
-             │ -10.00 -10.00   0.00   0.00  10.00  10.00 │\n\
-             │ -10.00 -10.00   0.00  -5.00  10.00  15.00 │\n\
-             └                                           ┘"
-        );
     }
 }

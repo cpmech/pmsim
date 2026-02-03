@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn natural_works_1() {
-        let mut natural = BcNatural::new();
+        let mut nbc = BcNatural::new();
         let edge_a = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -165,8 +165,7 @@ mod tests {
             points: vec![6, 7, 8],
             marker: 0,
         };
-        natural
-            .point(10, Pbc::Fy, -100.0)
+        nbc.point(10, Pbc::Fy, -100.0)
             .edge(&edge_a, Nbc::Qx, 1.0)
             .face(&face_a, Nbc::Qy, 2.0)
             .point_fn(20, Pbc::Fy, |t| t)
@@ -176,7 +175,7 @@ mod tests {
 
     #[test]
     fn natural_works_2() {
-        let mut natural = BcNatural::new();
+        let mut nbc = BcNatural::new();
         let edge_a = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -201,8 +200,7 @@ mod tests {
         let edges_b = Edges { all: vec![&edge_b] };
         let faces_a = Faces { all: vec![&face_a] };
         let faces_b = Faces { all: vec![&face_b] };
-        natural
-            .points(&[10], Pbc::Fy, -100.0)
+        nbc.points(&[10], Pbc::Fy, -100.0)
             .edges(&edges_a, Nbc::Qx, 1.0)
             .faces(&faces_a, Nbc::Qy, 2.0)
             .points_fn(&[20], Pbc::Fy, |t| t)
@@ -227,7 +225,7 @@ mod tests {
         // 1--------------2   1.0
         let mesh = Samples::one_hex8();
         let features = Features::new(&mesh, false);
-        let mut natural = BcNatural::new();
+        let mut nbc = BcNatural::new();
         let top_edges = Edges {
             all: vec![
                 features.edges.get(&(4, 5)).unwrap(),
@@ -237,7 +235,7 @@ mod tests {
         let top_faces = Faces {
             all: vec![features.faces.get(&(0, 1, 4, 5)).unwrap()],
         };
-        natural.edges(&top_edges, Nbc::Qn, -10.0);
-        natural.faces(&top_faces, Nbc::Qy, -20.0);
+        nbc.edges(&top_edges, Nbc::Qn, -10.0);
+        nbc.faces(&top_faces, Nbc::Qy, -20.0);
     }
 }

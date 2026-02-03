@@ -1,7 +1,5 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
-use crate::base::{
-    add_nnz_sps, assemble_matrix, assemble_matrix_lmm, assemble_matrix_npv, assemble_matrix_sps, assemble_vector,
-};
+use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_npv, assemble_matrix_sps};
 use crate::base::{Config, Elem, Schema};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
@@ -28,9 +26,6 @@ struct ElemInt<'a> {
 
 /// Holds a collection of elements representing the interior of the domain
 pub(crate) struct ElementsInterior<'a> {
-    /// Holds configuration parameters
-    config: &'a Config<'a>,
-
     /// Holds all interior (generic) elements
     ///
     /// (ncell)
@@ -82,18 +77,18 @@ impl<'a> ElemInt<'a> {
         };
         for i in 0..neq {
             for j in 0..neq {
-                let at_u = args.state.u[j];
+                let at_u = args.state.uu[j];
                 let res = deriv1_central5(at_u, &mut args, |u, a| {
-                    let original_u = a.state.u[j];
-                    let original_ddu = a.state.ddu[j];
-                    a.state.u[j] = u;
-                    a.state.ddu[j] = u - original_u;
+                    let original_u = a.state.uu[j];
+                    let original_ddu = a.state.dduu[j];
+                    a.state.uu[j] = u;
+                    a.state.dduu[j] = u - original_u;
                     self.actual.backup_secondary_values(a.state, false);
                     self.actual.update_secondary_values(&mut a.state).unwrap();
                     self.actual.calc_yye(&mut a.yye, &a.state).unwrap();
                     self.actual.restore_secondary_values(&mut a.state, false);
-                    a.state.u[j] = original_u;
-                    a.state.ddu[j] = original_ddu;
+                    a.state.uu[j] = original_u;
+                    a.state.dduu[j] = original_ddu;
                     Ok(a.yye[i])
                 });
                 self.kke.set(i, j, res.unwrap());
@@ -112,7 +107,7 @@ impl<'a> ElementsInterior<'a> {
             .map(|cell| ElemInt::new(mesh, base, config, cell))
             .collect();
         match res {
-            Ok(all) => Ok(ElementsInterior { config, elements: all }),
+            Ok(all) => Ok(ElementsInterior { elements: all }),
             Err(e) => Err(e),
         }
     }
@@ -142,43 +137,31 @@ impl<'a> ElementsInterior<'a> {
     }
 
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
-    ///
-    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
-    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for e in &mut self.elements {
+            // calculate local Ye
             e.actual.calc_yye(&mut e.yye, state)?;
-            assemble_vector(yy, &e.yye, &e.actual.local_to_global(), ignore);
+
+            // assemble local Ye into global Y
+            for l in 0..e.yye.dim() {
+                let g = e.actual.local_to_global()[l];
+                yy[g] += e.yye[l];
+            }
         }
         Ok(())
     }
 
     /// Calculates all local Fe vectors (external forces) and assembles them into the global F vector
-    ///
-    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
-    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_ff(&mut self, ff: &mut Vector, time: f64, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_ff(&mut self, ff: &mut Vector, time: f64) -> Result<(), StrError> {
         for e in &mut self.elements {
+            // calculate local Fe
             e.actual.calc_ffe(&mut e.ffe, time)?;
-            assemble_vector(ff, &e.ffe, &e.actual.local_to_global(), ignore);
-        }
-        Ok(())
-    }
 
-    /// Calculates all local Ke Jacobian matrices and assembles them into the global K matrix
-    ///
-    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
-    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_kk_to_delete(
-        &mut self,
-        kk: &mut CooMatrix,
-        state: &FemState,
-        ignore: &[bool],
-    ) -> Result<(), StrError> {
-        let tol = self.config.symmetry_check_tolerance;
-        for e in &mut self.elements {
-            e.actual.calc_kke(&mut e.kke, state)?;
-            assemble_matrix(kk, &e.kke, &e.actual.local_to_global(), ignore, tol)?;
+            // assemble local Fe into global F
+            for l in 0..e.ffe.dim() {
+                let g = e.actual.local_to_global()[l];
+                ff[g] += e.ffe[l];
+            }
         }
         Ok(())
     }
@@ -294,12 +277,13 @@ impl<'a> ElementsInterior<'a> {
 #[cfg(test)]
 mod tests {
     use super::{ElemInt, ElementsInterior};
-    use crate::base::{BcEssential, Conductivity, Config, ParamBeam, ParamPorousLiqGas, StressStrain};
+    use crate::base::{Conductivity, Config, ParamBeam, ParamPorousLiqGas, StressStrain};
     use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid, Schema};
     use crate::fem::FemState;
     use gemlab::integ;
     use gemlab::mesh::{Mesh, Samples};
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
+    use russell_pde::EquationHandler;
     use russell_sparse::{CooMatrix, Sym};
     use russell_tensor::{Mandel, Tensor2};
 
@@ -361,16 +345,15 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
-        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
         ele.actual.calc_kke(&mut ele.kke, &state).unwrap();
@@ -387,17 +370,16 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.set_transient();
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
-        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
         ele.actual.calc_kke(&mut ele.kke, &state).unwrap();
@@ -417,16 +399,15 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x, y| 100.0 + 7.0 * x + 3.0 * y;
-        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
-        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
-        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[1]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[1]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[1]);
 
         // check
         ele.actual.calc_kke(&mut ele.kke, &state).unwrap();
@@ -445,23 +426,22 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // linear displacement field
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        state.ddu[0] = 1.0 + mesh.points[0].coords[0];
-        state.ddu[1] = 2.0 + mesh.points[0].coords[1];
-        state.ddu[2] = 1.0 + mesh.points[1].coords[0];
-        state.ddu[3] = 2.0 + mesh.points[1].coords[1];
-        state.ddu[4] = 1.0 + mesh.points[2].coords[0];
-        state.ddu[5] = 2.0 + mesh.points[2].coords[1];
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+        state.dduu[0] = 1.0 + mesh.points[0].coords[0];
+        state.dduu[1] = 2.0 + mesh.points[0].coords[1];
+        state.dduu[2] = 1.0 + mesh.points[1].coords[0];
+        state.dduu[3] = 2.0 + mesh.points[1].coords[1];
+        state.dduu[4] = 1.0 + mesh.points[2].coords[0];
+        state.dduu[5] = 2.0 + mesh.points[2].coords[1];
         for i in 0..6 {
-            state.u[i] = state.ddu[i];
+            state.uu[i] = state.dduu[i];
         }
         ele.actual.update_secondary_values(&mut state).unwrap();
-        println!("uu =\n{}", state.u);
+        println!("uu =\n{}", state.uu);
 
         ele.actual.calc_kke(&mut ele.kke, &state).unwrap();
         let jj_ana = ele.kke.clone();
@@ -553,9 +533,8 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
 
         // calculate solution (c vectors = contributions to R) and set state
         let neq = mesh.points.len() * 2; // 2 DOF per node
@@ -597,13 +576,16 @@ mod tests {
         let mut yye = Vector::new(neq);
         let mut ffe = Vector::new(neq);
         let mut rr = Vector::new(neq);
-        let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
-        let ignore = vec![false; neq];
-        elements.assemble_yy(&mut yye, &state, &ignore).unwrap();
-        elements.assemble_ff(&mut ffe, state.time, &ignore).unwrap();
-        elements.assemble_kk_to_delete(&mut kk, &state, &ignore).unwrap();
+        let mut kk_bar = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
+        let mut kk_check = CooMatrix::new(1, 1, 1, Sym::No).unwrap();
+        let eq_handler = EquationHandler::new(schema.get_neq().unwrap());
+        elements.assemble_yy(&mut yye, &state).unwrap();
+        elements.assemble_ff(&mut ffe, state.time).unwrap();
+        elements
+            .assemble_kk_sps(&mut kk_bar, &mut kk_check, &state, &eq_handler)
+            .unwrap();
         vec_add(&mut rr, 1.0, &yye, -1.0, &ffe).unwrap();
-        let kk_mat = kk.as_dense();
+        let kk_mat = kk_bar.as_dense();
         vec_approx_eq(&rr, &rr_correct, 1e-14);
         mat_approx_eq(&kk_mat, &kk_correct, 1e-12);
     }

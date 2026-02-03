@@ -100,7 +100,7 @@ fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
     for p in &selected {
         let x = mesh.points[*p].coords[0];
         let eq = schema.get_eq(*p, Dof::Phi)?;
-        let tt = state.u[eq];
+        let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(state.time, x));
         println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", p, x, tt, diff);
         assert!(diff < 3e-2);

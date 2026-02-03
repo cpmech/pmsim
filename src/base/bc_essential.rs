@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn essential_works_1() {
-        let mut essential = BcEssential::new();
+        let mut ebc = BcEssential::new();
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -128,8 +128,7 @@ mod tests {
             points: vec![3, 4, 5],
             marker: 0,
         };
-        essential
-            .point(0, Dof::Ux, 0.0)
+        ebc.point(0, Dof::Ux, 0.0)
             .point(0, Dof::Uy, 0.0)
             .edge(&edge, Dof::Pl, 1.0)
             .face(&face, Dof::Phi, 2.0);
@@ -137,7 +136,7 @@ mod tests {
 
     #[test]
     fn essential_works_2() {
-        let mut essential = BcEssential::new();
+        let mut ebc = BcEssential::new();
         let edge = Edge {
             kind: GeoKind::Lin2,
             points: vec![1, 2],
@@ -150,8 +149,7 @@ mod tests {
         };
         let faces = Faces { all: vec![&face] };
         let edges = Edges { all: vec![&edge] };
-        essential
-            .points(&[0], Dof::Ux, 0.0)
+        ebc.points(&[0], Dof::Ux, 0.0)
             .points_fn(&[0], Dof::Uy, |t| (t + 1.0) * 2.0)
             .edges_fn(&edges, Dof::Pl, |t| (t + 1.0) * 20.0)
             .faces_fn(&faces, Dof::Phi, |t| (t + 1.0) * 200.0);

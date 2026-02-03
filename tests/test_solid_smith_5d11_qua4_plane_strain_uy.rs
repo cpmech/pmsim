@@ -2,7 +2,7 @@ use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
 use pmsim::StrError;
-use russell_lab::{array_approx_eq, vec_approx_eq};
+use russell_lab::vec_approx_eq;
 
 // Smith's Example 5.11 (Figure 5.11) on page 180
 //
@@ -64,24 +64,23 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
         .edges(&footing, Dof::Uy, -1e-5);
 
     // natural boundary conditions
-    let natural = BcNatural::new();
+    let nbc = BcNatural::new();
 
     // configuration
-    const LAG: bool = true;
-    let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(LAG);
+    let config = Config::new(&mesh);
 
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.get_state();
 
     // check displacements
     #[rustfmt::skip]
@@ -99,11 +98,6 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
         0.000000000000000e+00,  3.474895306354719e-07,
         0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    if LAG {
-        let neq = schema.get_neq()?;
-        array_approx_eq(&state.u.as_data()[0..neq], uu_correct, 1e-13);
-    } else {
-        vec_approx_eq(&state.u, uu_correct, 1e-13);
-    }
+    vec_approx_eq(&state.uu, uu_correct, 1e-13);
     Ok(())
 }

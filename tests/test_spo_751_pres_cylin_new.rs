@@ -55,7 +55,7 @@ const Y: f64 = 2.0 * 0.24 / SQRT_3; // uniaxial yield strength (2 σy_spo / sq3)
 const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
-fn test_spo_751_pres_cylin_new() -> Result<(), StrError> {
+fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     // generate or read the mesh
     let kind = GeoKind::Qua4;
     let mesh = generate_or_read_mesh(kind, GENERATE_MESH);
@@ -174,7 +174,6 @@ fn run_test(
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", &name, 1.0)
-        .set_consider_load_reversal(false)
         .set_lagrange_mult_method(options.lmm)
         .set_nonzero_presc_values(options.npv)
         .update_model_settings(1)
@@ -296,7 +295,7 @@ fn run_test(
         inner_pp[index] = pp;
 
         // radial displacement
-        let ub_num = state.u[eq_ux];
+        let ub_num = state.uu[eq_ux];
         outer_ur[index] = ub_num;
 
         // get stresses

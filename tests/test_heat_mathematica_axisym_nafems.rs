@@ -5,7 +5,7 @@ use pmsim::{prelude::*, StrError};
 // From Mathematica Heat Transfer Model Verification Tests
 // (HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0002)
 //
-// NAFEMS benchmark test
+// NAFEMS Axisymmetric benchmark test
 //
 // https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
 //
@@ -89,26 +89,28 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&edges_temp, Dof::Phi, 273.15);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&edges_temp, Dof::Phi, 273.15);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.edges(&edges_flux, Nbc::Qt, -5e5); // inward flux
+    let mut nbc = BcNatural::new();
+    nbc.edges(&edges_flux, Nbc::Qt, -5e5); // inward flux
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric().set_lagrange_mult_method(true);
+    config.set_axisymmetric();
 
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.get_state();
 
     // check
     let eq = schema.get_eq(ref_point, Dof::Phi)?;
-    let rel_err = f64::abs(state.u[eq] - ref_temperature) / ref_temperature;
+    let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",
-        state.u[eq],
+        state.uu[eq],
         ref_temperature,
         rel_err * 100.0
     );

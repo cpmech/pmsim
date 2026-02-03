@@ -204,7 +204,7 @@ impl OutputFiles {
             for (point_id, dof) in config.out_uu_comp.iter() {
                 if schema.has_dof(*point_id, *dof)? {
                     let eq = schema.get_eq(*point_id, *dof)?;
-                    self.sel_uu_comp.entry(eq).or_insert(Vec::new()).push(state.u[eq]);
+                    self.sel_uu_comp.entry(eq).or_insert(Vec::new()).push(state.uu[eq]);
                 }
             }
 

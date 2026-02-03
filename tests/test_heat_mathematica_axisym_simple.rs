@@ -63,26 +63,28 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&right, Dof::Phi, 10.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&right, Dof::Phi, 10.0);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.edges(&left, Nbc::Qt, -100.0); // inward flux
+    let mut nbc = BcNatural::new();
+    nbc.edges(&left, Nbc::Qt, -100.0); // inward flux
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric().set_lagrange_mult_method(true);
+    config.set_axisymmetric();
 
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.get_state();
 
     // check
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
         let eq = schema.get_eq(point.id, Dof::Phi)?;
-        let tt = state.u[eq];
+        let tt = state.uu[eq];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);
         assert!(diff < 1e-5);

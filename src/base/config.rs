@@ -32,16 +32,6 @@ pub struct Config<'a> {
 
     // Problem definition ---------------------------------------------------------------------
     //
-    /// Indicates linear problem and avoids the Newton-Raphson iteration
-    pub(crate) linear_problem: bool,
-
-    /// Indicates that the simulation is quasi-steady or quasi-static (or "incremental")
-    ///
-    /// In this case, time is pseudo-time and the increments are unitary (Δt=1)
-    ///
-    /// (default)
-    pub(crate) steady: bool,
-
     /// Indicates transient analysis
     ///
     /// In this case, the first time derivative of primary variables is included.
@@ -123,73 +113,6 @@ pub struct Config<'a> {
     /// Prints detailed information during the linear system solution
     pub(crate) verbose_lin_sys_solve: bool,
 
-    // Time stepping --------------------------------------------------------------------------
-    //
-    /// Indicates constant time step (Δt)
-    pub(crate) constant_ddt: bool,
-
-    /// Final time
-    pub(crate) t_fin: f64,
-
-    /// Initial or constant stepsize Δt
-    pub(crate) ddt: f64,
-
-    /// Minimum allowed time increment min(Δt)
-    pub(crate) ddt_min: f64,
-
-    /// Maximum number of (time) steps
-    pub(crate) max_steps: usize,
-
-    /// Prints information about timesteps
-    pub(crate) verbose_timesteps: bool,
-
-    /// Prints the legend if showing the information about timesteps
-    pub(crate) verbose_legend: bool,
-
-    // Load increment -------------------------------------------------------------------------
-    //
-    /// Initial or constant loading parameter Δλ
-    ///
-    pub(crate) ddl: f64,
-
-    /// Minimum allowed time increment min(Δλ)
-    pub(crate) ddl_min: f64,
-
-    /// Maximum number of load increments (λ)
-    pub(crate) max_nlambda: usize,
-
-    /// Considers the load reversal in the calculation of the model tangent modulus
-    pub(crate) consider_load_reversal: bool,
-
-    // Newton-Raphson method ------------------------------------------------------------------
-    //
-    /// Maximum number of iterations
-    pub(crate) max_iterations: usize,
-
-    /// Absolute tolerance for the global residual vector
-    ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
-    pub(crate) tol_rr_abs: f64,
-
-    /// Absolute tolerance for the corrective (augmented) displacement vector (mdu)
-    ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
-    pub(crate) tol_mdu_abs: f64,
-
-    /// Relative tolerance for the corrective (augmented) displacement vector (mdu)
-    ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
-    pub(crate) tol_mdu_rel: f64,
-
-    /// Maximum allowed norm of mdu
-    pub(crate) max_norm_mdu: f64,
-
-    /// Enables pseudo-Newton method with constant-tangent operator
-    pub(crate) constant_tangent: bool,
-
-    /// Prints information about iterations
-    pub(crate) verbose_iterations: bool,
-
     // Transient/dynamics parameters ----------------------------------------------------------
     //
     /// Coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
@@ -206,41 +129,6 @@ pub struct Config<'a> {
 
     /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
     pub(crate) hht_alpha: f64,
-
-    // Substepping parameters -----------------------------------------------------------------
-    //
-    /// Substepping flag
-    pub(crate) substepping: bool,
-
-    /// Substepping initial load increment Δλ
-    pub(crate) ss_ddl_ini: f64,
-
-    /// Substepping minimum multiplier
-    pub(crate) ss_mmin: f64,
-
-    /// Substepping maximum multiplier
-    pub(crate) ss_mmax: f64,
-
-    /// Substepping safety factor
-    pub(crate) ss_mfac: f64,
-
-    /// Substepping absolute tolerance
-    pub(crate) ss_atol: f64,
-
-    /// Substepping relative tolerance
-    pub(crate) ss_rtol: f64,
-
-    /// Substepping minimum relative error
-    pub(crate) ss_rerr_min: f64,
-
-    /// Substepping proportional parameter
-    pub(crate) ss_kp: f64,
-
-    /// Substepping integral parameter
-    pub(crate) ss_ki: f64,
-
-    /// Substepping derivative parameter
-    pub(crate) ss_kd: f64,
 
     // Output of results ----------------------------------------------------------------------
     //
@@ -278,8 +166,6 @@ impl<'a> Config<'a> {
             ideal: Idealization::new(mesh.ndim),
             verbose: true,
             // Problem definition
-            linear_problem: false,
-            steady: true,
             transient: false,
             dynamics: false,
             lagrange_mult_method: false,
@@ -299,45 +185,12 @@ impl<'a> Config<'a> {
             save_matrix_market_file: false,
             save_vismatrix_file: false,
             verbose_lin_sys_solve: false,
-            // Time stepping
-            constant_ddt: true,
-            t_fin: 1.0,
-            ddt: 1.0,
-            ddt_min: CONFIG_DT_MIN,
-            max_steps: 10_000,
-            verbose_timesteps: true,
-            verbose_legend: false,
-            // Load increment
-            ddl: 1.0,
-            ddl_min: CONFIG_DT_MIN,
-            max_nlambda: 10,
-            consider_load_reversal: true,
-            // Newton-Raphson method
-            max_iterations: 10,
-            tol_rr_abs: 1e-10,
-            tol_mdu_abs: 1e-10,
-            tol_mdu_rel: 1e-10,
-            max_norm_mdu: 1e8,
-            constant_tangent: false,
-            verbose_iterations: true,
             // Transient/dynamics parameters
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
             hht_method: false,
             hht_alpha: 0.0,
-            // Substepping parameters
-            substepping: false,
-            ss_ddl_ini: 0.1,
-            ss_mmin: 1e-3,
-            ss_mmax: 2.0,
-            ss_mfac: 0.9,
-            ss_atol: 1e-5,
-            ss_rtol: 1e-3,
-            ss_rerr_min: 1e-12,
-            ss_kp: 0.075,
-            ss_ki: 0.175,
-            ss_kd: 0.01,
             // Output of results
             out_files: false,
             out_dir: String::new(),
@@ -395,53 +248,6 @@ impl<'a> Config<'a> {
                 }
             }
             _ => (),
-        }
-
-        // Time stepping
-
-        if self.ddt_min < CONFIG_DT_MIN {
-            return Some(format!(
-                "ddt_min = {:?} is incorrect; it must be ≥ {:e}",
-                self.ddt_min, CONFIG_DT_MIN
-            ));
-        }
-
-        if self.max_steps == 0 {
-            return Some("max_steps = 0 is incorrect; it must be ≥ 1".to_string());
-        }
-
-        // Load increment
-
-        if self.ddl_min < CONFIG_DT_MIN {
-            return Some(format!(
-                "ddl_min = {:?} is incorrect; it must be ≥ {:e}",
-                self.ddl_min, CONFIG_DT_MIN
-            ));
-        }
-
-        if self.max_nlambda == 0 {
-            return Some("max_nlambda = 0 is incorrect; it must be ≥ 1".to_string());
-        }
-
-        // Newton-Raphson method
-
-        if self.tol_rr_abs < CONFIG_MIN_TOL {
-            return Some(format!(
-                "tol_rr_abs = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rr_abs, CONFIG_MIN_TOL
-            ));
-        }
-        if self.tol_mdu_abs < CONFIG_MIN_TOL {
-            return Some(format!(
-                "tol_mdu_abs = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_mdu_abs, CONFIG_MIN_TOL
-            ));
-        }
-        if self.tol_mdu_rel < CONFIG_MIN_TOL {
-            return Some(format!(
-                "tol_mdu_rel = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_mdu_rel, CONFIG_MIN_TOL
-            ));
         }
 
         // Transient/dynamics parameters
@@ -520,32 +326,10 @@ impl<'a> Config<'a> {
 
     // Problem definition ---------------------------------------------------------------------
 
-    /// Indicates linear problem and avoids the Newton-Raphson iteration
-    ///
-    /// This function will set the nonlinear solver to Natural continuation with h_ini = 1.0.
-    pub fn set_linear_problem(&mut self, enable: bool) -> &mut Self {
-        self.linear_problem = enable;
-        self
-    }
-
-    /// Sets a quasi-steady or quasi-static (or "incremental") simulation (with incremental loading)
-    ///
-    /// # Input
-    ///
-    /// * `nstep` -- the number of loading steps (≥ 1)
-    pub fn set_steady(&mut self, nstep: usize) -> &mut Self {
-        self.steady = true;
-        self.transient = false;
-        self.dynamics = false;
-        self.t_fin = (1 + nstep) as f64;
-        self
-    }
-
     /// Indicates transient analysis
     ///
     /// In this case, the first time derivative of primary variables is included.
     pub fn set_transient(&mut self) -> &mut Self {
-        self.steady = false;
         self.transient = true;
         self.dynamics = false;
         self
@@ -555,8 +339,7 @@ impl<'a> Config<'a> {
     ///
     /// In this case, the second time derivative of primary variables is included.
     pub fn set_dynamics(&mut self) -> &mut Self {
-        self.steady = false;
-        self.transient = true;
+        self.transient = false;
         self.dynamics = true;
         self
     }
@@ -669,133 +452,6 @@ impl<'a> Config<'a> {
         self
     }
 
-    // Time stepping --------------------------------------------------------------------------
-
-    /// Sets the final time
-    ///
-    /// # Panics
-    ///
-    /// This function only works if !steady.
-    pub fn set_t_fin(&mut self, t_fin: f64) -> &mut Self {
-        assert!(!self.steady, "set_t_fin only works if !steady");
-        self.t_fin = t_fin;
-        self
-    }
-
-    /// Sets the initial or constant stepsize Δt
-    ///
-    /// # Panics
-    ///
-    /// This function only works if !steady.
-    pub fn set_ddt(&mut self, ddt: f64) -> &mut Self {
-        assert!(!self.steady, "set_ddt only works if !steady");
-        self.ddt = ddt;
-        self
-    }
-
-    /// Sets the minimum allowed time increment min(Δt)
-    ///
-    /// # Panics
-    ///
-    /// This function only works if !steady.
-    pub fn set_ddt_min(&mut self, ddt_min: f64) -> &mut Self {
-        assert!(!self.steady, "set_ddt_min only works if !steady");
-        self.ddt_min = ddt_min;
-        self
-    }
-
-    /// Sets the maximum number of time steps
-    ///
-    /// # Panics
-    ///
-    /// This function only works if !steady.
-    pub fn set_max_timesteps(&mut self, max_time_steps: usize) -> &mut Self {
-        self.max_steps = max_time_steps;
-        self
-    }
-
-    /// Prints information about timesteps
-    pub fn set_verbose_timesteps(&mut self, enable: bool) -> &mut Self {
-        self.verbose_timesteps = enable;
-        self
-    }
-
-    /// Prints the legend if showing the information about timesteps
-    pub fn set_verbose_legend(&mut self, enable: bool) -> &mut Self {
-        self.verbose_legend = enable;
-        self
-    }
-
-    // Load increment -------------------------------------------------------------------------
-
-    /// Sets the initial or constant load increment Δλ
-    pub fn set_ddl(&mut self, ddl: f64) -> &mut Self {
-        self.ddl = ddl;
-        self
-    }
-
-    /// Sets the minimum allowed load increment min(Δλ)
-    pub fn set_ddl_min(&mut self, ddl_min: f64) -> &mut Self {
-        self.ddl_min = ddl_min;
-        self
-    }
-
-    /// Maximum number of load increments (lambda)
-    pub fn set_max_increments(&mut self, max_nlambda: usize) -> &mut Self {
-        self.max_nlambda = max_nlambda;
-        self
-    }
-
-    /// Considers the load reversal in the calculation of the model tangent modulus
-    pub fn set_consider_load_reversal(&mut self, enabled: bool) -> &mut Self {
-        self.consider_load_reversal = enabled;
-        self
-    }
-
-    // Newton-Raphson method ------------------------------------------------------------------
-
-    /// Sets the maximum number of iterations
-    pub fn set_max_iterations(&mut self, max_iterations: usize) -> &mut Self {
-        self.max_iterations = max_iterations;
-        self
-    }
-
-    /// Sets the absolute tolerance for the global residual vector
-    ///
-    /// The minimum allowed value is [CONFIG_MIN_TOL]
-    pub fn set_tol_rr_abs(&mut self, tol_absolute: f64) -> &mut Self {
-        self.tol_rr_abs = tol_absolute;
-        self
-    }
-
-    /// Sets the absolute tolerance for the corrective (augmented) displacement vector (mdu)
-    ///
-    /// The minimum allowed value is [CONFIG_MIN_TOL]
-    pub fn set_tol_mdu_abs(&mut self, tol_absolute: f64) -> &mut Self {
-        self.tol_mdu_abs = tol_absolute;
-        self
-    }
-
-    /// Sets the relative tolerance for the corrective (augmented) displacement vector (mdu)
-    ///
-    /// The minimum allowed value is [CONFIG_MIN_TOL]
-    pub fn set_tol_mdu_rel(&mut self, tol_relative: f64) -> &mut Self {
-        self.tol_mdu_rel = tol_relative;
-        self
-    }
-
-    /// Enables pseudo-Newton method with constant-tangent operator
-    pub fn set_constant_tangent(&mut self, enable: bool) -> &mut Self {
-        self.constant_tangent = enable;
-        self
-    }
-
-    /// Sets the verbose flag for iterations
-    pub fn set_verbose_iterations(&mut self, enable: bool) -> &mut Self {
-        self.verbose_iterations = enable;
-        self
-    }
-
     // Transient/dynamics parameters ----------------------------------------------------------
 
     /// Sets the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
@@ -825,12 +481,6 @@ impl<'a> Config<'a> {
     /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
     pub fn set_hht_alpha(&mut self, alpha: f64) -> &mut Self {
         self.hht_alpha = alpha;
-        self
-    }
-
-    /// Enables substepping
-    pub fn set_substepping(&mut self, enable: bool) -> &mut Self {
-        self.substepping = enable;
         self
     }
 
@@ -895,10 +545,8 @@ mod tests {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
 
         let config = Config::new(&mesh);
-        assert_eq!(config.linear_problem, false);
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
-        assert_eq!(config.constant_tangent, false);
         assert_eq!(config.lagrange_mult_method, false);
         assert_eq!(config.ideal.thickness, 1.0);
         assert_eq!(config.ideal.plane_stress, false);
@@ -1000,61 +648,6 @@ mod tests {
         );
         config.ideal.plane_stress = false;
 
-        // Time stepping
-
-        config.ddt_min = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("ddt_min = 0.0 is incorrect; it must be ≥ 1e-7".to_string())
-        );
-        config.ddt_min = 1e-3;
-
-        config.max_steps = 0;
-        assert_eq!(
-            config.validate(),
-            Some("max_steps = 0 is incorrect; it must be ≥ 1".to_string())
-        );
-        config.max_steps = 1;
-
-        // Load increment
-
-        config.ddl_min = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("ddl_min = 0.0 is incorrect; it must be ≥ 1e-7".to_string())
-        );
-        config.ddl_min = 1e-3;
-
-        config.max_nlambda = 0;
-        assert_eq!(
-            config.validate(),
-            Some("max_nlambda = 0 is incorrect; it must be ≥ 1".to_string())
-        );
-        config.max_nlambda = 1;
-
-        // Newton-Raphson method
-
-        config.tol_rr_abs = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("tol_rr_abs = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
-        );
-        config.tol_rr_abs = 1e-8;
-
-        config.tol_mdu_abs = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("tol_mdu_abs = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
-        );
-        config.tol_mdu_abs = 1e-8;
-
-        config.tol_mdu_rel = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("tol_mdu_rel = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
-        );
-        config.tol_mdu_rel = 1e-8;
-
         // Transient/dynamics parameters
 
         config.theta = 0.0;
@@ -1122,46 +715,18 @@ mod tests {
     }
 
     #[test]
-    fn set_quasi_static_works() {
+    fn set_transient_and_dynamics_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
-        config.set_steady(3);
-        assert_eq!(config.t_fin, 4.0);
-    }
-
-    #[test]
-    fn set_steady_transient_and_dynamics_work() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
-
-        config.set_steady(3).set_transient();
-        assert_eq!(config.steady, false);
-        assert_eq!(config.transient, true);
-        assert_eq!(config.dynamics, false);
-
-        config.set_steady(3).set_dynamics();
-        assert_eq!(config.steady, false);
-        assert_eq!(config.transient, true);
-        assert_eq!(config.dynamics, true);
-
-        config.set_transient().set_steady(3);
-        assert_eq!(config.steady, true);
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
 
-        config.set_transient().set_dynamics();
-        assert_eq!(config.steady, false);
+        config.set_transient();
         assert_eq!(config.transient, true);
-        assert_eq!(config.dynamics, true);
+        assert_eq!(config.dynamics, false);
 
-        config.set_dynamics().set_steady(3);
-        assert_eq!(config.steady, true);
+        config.set_dynamics();
         assert_eq!(config.transient, false);
-        assert_eq!(config.dynamics, false);
-
-        config.set_dynamics().set_transient();
-        assert_eq!(config.steady, false);
-        assert_eq!(config.transient, true);
-        assert_eq!(config.dynamics, false);
+        assert_eq!(config.dynamics, true);
     }
 }

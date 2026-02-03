@@ -66,22 +66,19 @@ fn analytical(x: f64) -> f64 {
 
 #[test]
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
-    println!("\n################################### OLD SOLVER ###################################\n");
-    run_test(false, false, false)?;
-
     println!("\n##################################### NATURAL ####################################\n");
-    run_test(true, false, false)?; // Natural continuation
+    run_test(false, false)?; // Natural continuation
 
     println!("\n################################ ARCLENGTH FULL ##################################\n");
-    run_test(true, true, false)?; // Pseudo-arclength continuation without bordering
+    run_test(true, false)?; // Pseudo-arclength continuation without bordering
 
     println!("\n############################# ARCLENGTH BORDERING ################################\n");
-    run_test(true, true, true)?; // Pseudo-arclength continuation with bordering
+    run_test(true, true)?; // Pseudo-arclength continuation with bordering
 
     Ok(())
 }
 
-fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), StrError> {
+fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
     // mesh
     let mesh = generate_or_read_mesh(L, GENERATE_MESH);
 
@@ -100,11 +97,11 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&right, Dof::Phi, 0.0); // must be zero to match analytical solution
+    let mut ebc = BcEssential::new();
+    ebc.edges(&right, Dof::Phi, 0.0); // must be zero to match analytical solution
 
     // natural boundary conditions
-    let natural = BcNatural::new();
+    let nbc = BcNatural::new();
 
     // configuration
     let mut config = Config::new(&mesh);
@@ -116,33 +113,29 @@ fn run_test(new_solver: bool, arclength: bool, bordering: bool) -> Result<(), St
 
     // solution
     let mut tol = 1e-13;
-    let state = if new_solver {
-        let mut nl_config = NlConfig::new();
+    let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(true, true, false)
+        .set_tg_control_atol_and_rtol(0.05)
+        .set_record_iterations_residuals(true);
+    if arclength {
+        tol = 1e-10;
         nl_config
-            .set_verbose(true, true, false)
-            .set_tg_control_atol_and_rtol(0.05)
-            .set_record_iterations_residuals(true);
-        if arclength {
-            tol = 1e-10;
-            nl_config
-                .set_ddl_ini(1e-4)
-                .set_method(NlMethod::Arclength)
-                .set_bordering(bordering);
-        } else {
-            nl_config.set_ddl_ini(1.0);
-        }
-        let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &essential, &natural, &mut nl_config)?;
-        sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto())?;
-        data.get_state().clone()
+            .set_ddl_ini(1e-4)
+            .set_method(NlMethod::Arclength)
+            .set_bordering(bordering);
     } else {
-        SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?
-    };
+        nl_config.set_ddl_ini(1.0);
+    }
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+    sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto())?;
+    let state = data.get_state();
 
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
     let ref_eq = schema.get_eq(ref_id, Dof::Phi)?;
-    let ref_tt = state.u[ref_eq];
+    let ref_tt = state.uu[ref_eq];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     let err = f64::abs(ref_tt - analytical(ref_x));
     println!("error = {:.5e}", err);

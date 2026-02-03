@@ -1091,7 +1091,7 @@ impl PostProc {
         // extract dof values
         let maybe_dd: Result<Vec<_>, _> = id_x_pairs
             .iter()
-            .map(|(id, _)| self.schema.get_eq(*id, dof).map(|eq| state.u[eq]))
+            .map(|(id, _)| self.schema.get_eq(*id, dof).map(|eq| state.uu[eq]))
             .collect();
         let dd = maybe_dd?;
 
@@ -1145,7 +1145,7 @@ impl PostProc {
         // extract dof values
         let maybe_dd: Result<Vec<_>, _> = point_ids
             .iter()
-            .map(|id| self.schema.get_eq(*id, dof).map(|eq| state.u[eq]))
+            .map(|id| self.schema.get_eq(*id, dof).map(|eq| state.uu[eq]))
             .collect();
         let dd = maybe_dd?;
 
@@ -1272,7 +1272,7 @@ mod tests {
         generate_horizontal_displacement_field, generate_scalar_field_ax_plus_by, generate_shear_displacement_field,
         generate_vertical_displacement_field, Conductivity,
     };
-    use crate::base::{BcEssential, Config, Dof, ParamDiffusion, ParamSolid, Schema, StressStrain};
+    use crate::base::{Config, Dof, ParamDiffusion, ParamSolid, Schema, StressStrain};
     use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemState, OutputFiles};
     use crate::StrError;
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
@@ -1312,9 +1312,8 @@ mod tests {
         phi: &Vector,
     ) -> FemState {
         // update displacement
-        let essential = BcEssential::new();
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        vec_copy(&mut state.u, &phi).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+        vec_copy(&mut state.uu, &phi).unwrap();
 
         // update flux vectors
         let ncell = mesh.cells.len();
@@ -1338,10 +1337,9 @@ mod tests {
         duu: &Vector,
     ) -> FemState {
         // update displacement
-        let essential = BcEssential::new();
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        vec_copy(&mut state.ddu, &duu).unwrap();
-        vec_update(&mut state.u, 1.0, &duu).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+        vec_copy(&mut state.dduu, &duu).unwrap();
+        vec_update(&mut state.uu, 1.0, &duu).unwrap();
 
         // update stress
         let ncell = mesh.cells.len();
@@ -1655,7 +1653,7 @@ mod tests {
     fn new_works_diffusion_2d() -> Result<(), StrError> {
         generate_data_files();
 
-        // read essential
+        // read results
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
@@ -1698,7 +1696,7 @@ mod tests {
     fn new_works_diffusion_3d() -> Result<(), StrError> {
         generate_data_files();
 
-        // read essential
+        // read results
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
@@ -1740,7 +1738,7 @@ mod tests {
     fn new_works_solid_2d() -> Result<(), StrError> {
         generate_data_files();
 
-        // read essential
+        // read results
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
@@ -1814,7 +1812,7 @@ mod tests {
     fn new_works_solid_3d() -> Result<(), StrError> {
         generate_data_files();
 
-        // read essential
+        // read results
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
@@ -2811,15 +2809,14 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        state.u[0] = 1.0;
-        state.u[1] = 2.0;
-        state.u[2] = 3.0;
-        state.u[3] = 4.0;
-        state.u[4] = 5.0;
-        state.u[5] = 6.0;
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+        state.uu[0] = 1.0;
+        state.uu[1] = 2.0;
+        state.uu[2] = 3.0;
+        state.uu[3] = 4.0;
+        state.uu[4] = 5.0;
+        state.uu[5] = 6.0;
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
@@ -2926,13 +2923,12 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let essential = BcEssential::new();
 
         // generate FEM state with each node having T = 100 + ID
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let npoint = mesh.points.len();
         for p in 0..npoint {
-            state.u[p] = 100.0 + (p as f64);
+            state.uu[p] = 100.0 + (p as f64);
         }
 
         // allocate post-processor

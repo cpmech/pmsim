@@ -66,19 +66,21 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&bottom, Dof::Uy, 0.0).edges(&top, Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&bottom, Dof::Uy, 0.0).edges(&top, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.edges(&left, Nbc::Qn, -PRESSURE);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&left, Nbc::Qn, -PRESSURE);
 
     // configuration
     let mut config = Config::new(&mesh);
     config.set_axisymmetric();
 
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.get_state();
 
     // Felippa's Equation 14.2 on page 14-4
     let analytical_ur = |r: f64| {
@@ -92,7 +94,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     for p in &selection {
         let r = mesh.points[*p].coords[0];
         let eq = schema.get_eq(*p, Dof::Ux)?;
-        let ux = state.u[eq];
+        let ux = state.uu[eq];
         let diff = f64::abs(ux - analytical_ur(r));
         println!("point = {}, r = {:?}, Ux = {:?}, diff = {:?}", p, r, ux, diff);
         assert!(diff < 1e-15);

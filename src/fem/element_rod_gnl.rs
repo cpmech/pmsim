@@ -105,10 +105,10 @@ impl<'a> ElementRodGnl<'a> {
     /// Returns the current length of the rod L
     fn update_bb(&mut self, state: &FemState) -> f64 {
         if self.ndim == 2 {
-            let uxa = state.u[self.local_to_global[0]];
-            let uya = state.u[self.local_to_global[1]];
-            let uxb = state.u[self.local_to_global[2]];
-            let uyb = state.u[self.local_to_global[3]];
+            let uxa = state.uu[self.local_to_global[0]];
+            let uya = state.uu[self.local_to_global[1]];
+            let uxb = state.uu[self.local_to_global[2]];
+            let uyb = state.uu[self.local_to_global[3]];
             let xa = self.xxa + uxa;
             let ya = self.yya + uya;
             let xb = self.xxb + uxb;
@@ -121,12 +121,12 @@ impl<'a> ElementRodGnl<'a> {
             self.bb[3] = dy;
             f64::sqrt(dx * dx + dy * dy)
         } else {
-            let uxa = state.u[self.local_to_global[0]];
-            let uya = state.u[self.local_to_global[1]];
-            let uza = state.u[self.local_to_global[2]];
-            let uxb = state.u[self.local_to_global[3]];
-            let uyb = state.u[self.local_to_global[4]];
-            let uzb = state.u[self.local_to_global[5]];
+            let uxa = state.uu[self.local_to_global[0]];
+            let uya = state.uu[self.local_to_global[1]];
+            let uza = state.uu[self.local_to_global[2]];
+            let uxb = state.uu[self.local_to_global[3]];
+            let uyb = state.uu[self.local_to_global[4]];
+            let uzb = state.uu[self.local_to_global[5]];
             let xa = self.xxa + uxa;
             let ya = self.yya + uya;
             let za = self.zza + uza;
@@ -224,7 +224,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRodGnl;
-    use crate::base::{BcEssential, Config, GnlStrain, ParamRod, Schema};
+    use crate::base::{Config, GnlStrain, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::mesh::{Cell, Draw, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};
@@ -280,7 +280,6 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).add_rod(2, p2).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut element = ElementRodGnl::new(&mesh, &schema, &p1, 0).unwrap();
 
@@ -293,9 +292,9 @@ mod tests {
         approx_eq(element.ll0, 1.000003980442078, 1e-15);
 
         // set state
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        state.u[3] = -0.033333377560878;
-        state.u[7] = -0.133333377560878;
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+        state.uu[3] = -0.033333377560878;
+        state.uu[7] = -0.133333377560878;
 
         // check B
         element.update_bb(&state);

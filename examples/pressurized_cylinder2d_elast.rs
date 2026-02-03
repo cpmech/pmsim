@@ -185,20 +185,17 @@ fn main() -> Result<(), StrError> {
         }
 
         // essential boundary conditions
-        let mut essential = BcEssential::new();
-        essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
+        let mut ebc = BcEssential::new();
+        ebc.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
         // natural boundary conditions
-        let mut natural = BcNatural::new();
-        natural
-            .edges(&inner_circle, Nbc::Qn, -P1)
+        let mut nbc = BcNatural::new();
+        nbc.edges(&inner_circle, Nbc::Qn, -P1)
             .edges(&outer_circle, Nbc::Qn, -P2);
 
         // configuration
         let mut config = Config::new(&mesh);
         config
-            .set_linear_problem(true)
-            .set_verbose_timesteps(false)
             .set_save_vismatrix_file(false)
             .set_save_matrix_market_file(false)
             .set_lin_sol_genie(genie)
@@ -207,19 +204,27 @@ fn main() -> Result<(), StrError> {
 
         // solution
         let mut stopwatch = Stopwatch::new();
-        let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+        let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+        match sim.steady(&mut data, false) {
+            Err(e) => {
+                println!("{:?} failed with: {}", genie, e);
+                continue;
+            }
+            Ok(()) => (),
+        }
+        let state = data.get_state();
         cr.time[idx] = stopwatch.stop();
 
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
         let eq = schema.get_eq(ref_point_id, Dof::Ux)?;
-        let numerical_ur = state.u[eq];
+        let numerical_ur = state.uu[eq];
         let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
         let eq = schema.get_eq(study_point, Dof::Uy)?;
-        let numerical_ur = state.u[eq];
+        let numerical_ur = state.uu[eq];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results

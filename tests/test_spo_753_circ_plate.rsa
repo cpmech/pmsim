@@ -58,25 +58,26 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&left, Dof::Ux, 0.0).point(right_corner, Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0).point(right_corner, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.edges_fn(&top, Nbc::Qn, |t| -PP[t as usize]);
+    let mut nbc = BcNatural::new();
+    nbc.edges_fn(&top, Nbc::Qn, |t| -PP[t as usize]);
 
     // configuration
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", NAME, 1.0)
         .set_axisymmetric()
-        .set_steady(PP.len() - 1)
         .set_lagrange_mult_method(true)
-        .set_symmetry_check_tolerance(Some(1e-5))
-        .set_max_iterations(20);
+        .set_symmetry_check_tolerance(Some(1e-5));
 
     // solution
-    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let mut nlc = NlConfig::new();
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+    let dll = DeltaLambda::constant(1.0);
+    sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
 
     // verify the results
     let tol_displacement = 1e-9;
@@ -132,7 +133,7 @@ fn analyze_results() -> Result<(), StrError> {
         load[index] = pp;
 
         // deflection
-        deflection[index] = -state.u[eq_uy];
+        deflection[index] = -state.uu[eq_uy];
 
         // deflection profiles
         if pp == 100.0 {

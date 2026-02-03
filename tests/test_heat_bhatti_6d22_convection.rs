@@ -2,7 +2,7 @@ use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
 use pmsim::StrError;
-use russell_lab::array_approx_eq;
+use russell_lab::vec_approx_eq;
 
 // Bhatti's Example 6.22 on page 449
 //
@@ -61,23 +61,33 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
     };
     let mut schema = Schema::new();
     schema.add_diffusion(1, p1).build(&mesh)?;
-    let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(true);
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&bottom, Dof::Phi, 110.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&bottom, Dof::Phi, 110.0);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural
-        .edges(&edges_flux, Nbc::Qt, -8000.0) // negative values means inward flux
+    let mut nbc = BcNatural::new();
+    nbc.edges(&edges_flux, Nbc::Qt, -8000.0) // negative values means inward flux
         .edges(&edges_conv_a, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_b, Nbc::Cv(55.0), 20.0)
         .edges(&edges_conv_c, Nbc::Cv(55.0), 20.0);
 
+    // run tests
+    run_test(true, &mesh, &schema, &ebc, &nbc)?;
+    run_test(false, &mesh, &schema, &ebc, &nbc)?;
+    Ok(())
+}
+
+fn run_test(lmm: bool, mesh: &Mesh, schema: &Schema, ebc: &BcEssential, nbc: &BcNatural) -> Result<(), StrError> {
+    // configuration
+    let mut config = Config::new(&mesh);
+    config.set_lagrange_mult_method(lmm);
+
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.get_state();
 
     // check U vector
     let tt_bhatti = &[
@@ -95,6 +105,6 @@ fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
         144.67542222443012,
         129.13200798820264,
     ];
-    array_approx_eq(&state.u.as_data()[..13], tt_bhatti, 1e-12);
+    vec_approx_eq(&state.uu, tt_bhatti, 1e-12);
     Ok(())
 }

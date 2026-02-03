@@ -62,7 +62,7 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
         let j = data.neq + ip;
         let mu = u[j];
         gg[i] += mu; // Cᵀ μ   →   1 μ
-        gg[j] = data.state.u[i] - l * data.u_check[ip]; // C U - λ Ǔ   →   1 U - λ Ǔ
+        gg[j] = data.state.uu[i] - l * data.ppu[ip]; // C U - λ Ǔ   →   1 U - λ Ǔ
     }
     Ok(())
 }
@@ -128,7 +128,7 @@ pub(crate) fn calc_jac_lmm(
         }
         for ip in 0..data.np {
             let j = data.neq + ip;
-            ggl[j] = -data.u_check[ip];
+            ggl[j] = -data.ppu[ip];
         }
     }
     Ok(())
@@ -152,8 +152,8 @@ pub(crate) fn update_secondary_state_lmm(
 
     // Set updated U and Calculate ΔU
     for eq in 0..data.neq {
-        data.state.u[eq] = u1[eq];
-        data.state.ddu[eq] = u1[eq] - u0[eq];
+        data.state.uu[eq] = u1[eq];
+        data.state.dduu[eq] = u1[eq] - u0[eq];
     }
 
     // Update secondary values
@@ -204,7 +204,7 @@ pub(crate) fn calc_jac_sps(
     // Calculate Gλ
     if ggl.dim() > 0 {
         // Set Gl = Ǩ Ǔ
-        data.kk_check.mat_vec_mul(ggl, 1.0, &data.u_check).unwrap();
+        data.kk_check.mat_vec_mul(ggl, 1.0, &data.ppu).unwrap();
 
         // Add -F to Gl so that Gl = Ǩ Ǔ - F
         for iu in 0..data.nu {
@@ -234,13 +234,13 @@ pub(crate) fn update_secondary_state_sps(
     // Set updated U and Calculate ΔU
     for iu in 0..data.nu {
         let eq = data.eq_handler.unknown()[iu];
-        data.state.u[eq] = u1[iu];
-        data.state.ddu[eq] = u1[iu] - u0[iu];
+        data.state.uu[eq] = u1[iu];
+        data.state.dduu[eq] = u1[iu] - u0[iu];
     }
     for ip in 0..data.np {
         let eq = data.eq_handler.prescribed()[ip];
-        data.state.u[eq] = l1 * data.u_check[ip];
-        data.state.ddu[eq] = (l1 - l0) * data.u_check[ip];
+        data.state.uu[eq] = l1 * data.ppu[ip];
+        data.state.dduu[eq] = (l1 - l0) * data.ppu[ip];
     }
 
     // Update secondary values
@@ -269,7 +269,7 @@ pub(crate) fn calc_gg_npv(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     // Calculate the prescribed part of residuals vector: Š = Ǔ - λ P
     for ip in 0..data.np {
         let eq = data.eq_handler.prescribed()[ip];
-        gg[eq] = data.state.u[eq] - l * data.u_check[ip];
+        gg[eq] = data.state.uu[eq] - l * data.ppu[ip];
     }
     Ok(())
 }
@@ -311,7 +311,7 @@ pub(crate) fn calc_jac_npv(
         }
         for ip in 0..data.np {
             let eq = data.eq_handler.prescribed()[ip];
-            ggl[eq] = -data.u_check[ip];
+            ggl[eq] = -data.ppu[ip];
         }
     }
     Ok(())
@@ -335,8 +335,8 @@ pub(crate) fn update_secondary_state_npv(
 
     // Set updated U and Calculate ΔU
     for eq in 0..data.neq {
-        data.state.u[eq] = u1[eq];
-        data.state.ddu[eq] = u1[eq] - u0[eq];
+        data.state.uu[eq] = u1[eq];
+        data.state.dduu[eq] = u1[eq] - u0[eq];
     }
 
     // Update secondary values

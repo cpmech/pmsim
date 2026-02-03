@@ -30,7 +30,7 @@ pub fn main() -> Result<(), StrError> {
     let eq_corner = post.schema().get_eq(corner_id, Dof::Uy)?;
     for index in 0..post.nstate() {
         let state = post.read_state(index)?;
-        let uy = state.u[eq_corner];
+        let uy = state.uu[eq_corner];
         normalized_settlement.push(-uy / width);
         let res = post.nodal_stresses_patch(&mut memo, &state, &footing_cells, |_, y, _| y == max[1])?;
         let mut area = 0.0;

@@ -128,13 +128,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
             for m in 0..nnode {
-                phi += nn[m] * state.u[l2g[m]];
+                phi += nn[m] * state.uu[l2g[m]];
             }
             // interpolate ∇ϕ at integration point
             for i in 0..ndim {
                 self.grad_phi[i] = 0.0;
                 for m in 0..nnode {
-                    self.grad_phi[i] += bb.get(m, i) * state.u[l2g[m]];
+                    self.grad_phi[i] += bb.get(m, i) * state.uu[l2g[m]];
                 }
             }
             // compute conductivity tensor at integration point
@@ -158,8 +158,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 // interpolate ϕ and ϕ★ to integration point
                 let (mut phi, mut phi_star) = (0.0, 0.0);
                 for m in 0..nnode {
-                    phi += nn[m] * state.u[l2g[m]];
-                    phi_star += nn[m] * state.u_star[l2g[m]];
+                    phi += nn[m] * state.uu[l2g[m]];
+                    phi_star += nn[m] * state.uu_star[l2g[m]];
                 }
                 Ok(self.param.rho * (state.beta1 * phi - phi_star))
             })?;
@@ -202,7 +202,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
             for m in 0..nnode {
-                phi += nn[m] * state.u[l2g[m]];
+                phi += nn[m] * state.uu[l2g[m]];
             }
             // compute conductivity tensor at integration point
             self.model.calc_k(k, phi)
@@ -222,13 +222,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 // interpolate ϕ at integration point
                 let mut phi = 0.0;
                 for m in 0..nnode {
-                    phi += nn[m] * state.u[l2g[m]];
+                    phi += nn[m] * state.uu[l2g[m]];
                 }
                 // interpolate ∇ϕ at integration point
                 for i in 0..ndim {
                     self.grad_phi[i] = 0.0;
                     for m in 0..nnode {
-                        self.grad_phi[i] += bb.get(m, i) * state.u[l2g[m]];
+                        self.grad_phi[i] += bb.get(m, i) * state.uu[l2g[m]];
                     }
                 }
                 // conductivity ← ∂k/∂ϕ
@@ -261,7 +261,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 // calculate the gradient at integration point (from global vector)
                 let phi = calculate_gradient(
                     &mut self.grad_phi,
-                    &state.u,
+                    &state.uu,
                     &self.local_to_global,
                     self.gauss.coords(p),
                     &mut self.pad,
@@ -290,7 +290,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{BcEssential, Conductivity, Config, ParamDiffusion, Schema};
+    use crate::base::{Conductivity, Config, ParamDiffusion, Schema};
     use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
@@ -320,16 +320,15 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
-        state.u[0] = tt_field(mesh.points[0].coords[0]);
-        state.u[1] = tt_field(mesh.points[1].coords[0]);
-        state.u[2] = tt_field(mesh.points[2].coords[0]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0]);
 
         // calc Jacobian
         let neq = 3;
@@ -398,17 +397,16 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.update_model_settings(1).save_flux = true;
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
-        state.u[0] = tt_field(mesh.points[0].coords[0]);
-        state.u[1] = tt_field(mesh.points[1].coords[0]);
-        state.u[2] = tt_field(mesh.points[2].coords[0]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0]);
 
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
@@ -471,17 +469,16 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
-        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
-        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
-        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[2]);
-        state.u[3] = tt_field(mesh.points[3].coords[0], mesh.points[3].coords[2]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[2]);
+        state.uu[3] = tt_field(mesh.points[3].coords[0], mesh.points[3].coords[2]);
 
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);

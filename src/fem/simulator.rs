@@ -12,6 +12,7 @@ use russell_nonlin::{Config as NlConfig, DeltaLambda, Solver as NlSolver, System
 use russell_nonlin::{IniDir, Method as NlMethod, Output as NlOutput, Stop};
 use uuid::Uuid;
 
+/// Performs general (linear or nonlinear) finite element simulations
 pub struct Simulator<'a> {
     data_uuid: Uuid,
     nl_method: NlMethod,
@@ -27,17 +28,6 @@ impl<'a> Simulator<'a> {
     /// ```text
     /// let mut nlc = NlConfig::new();
     /// let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
-    /// ```
-    ///
-    /// A linear problem can be solved with the following code:
-    ///
-    /// ```text
-    /// let mut nlc = NlConfig::new();
-    /// nlc.set_verbose(true, true, true).set_euler_predictor(true);
-    /// let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
-    /// let dll = DeltaLambda::constant(1.0);
-    /// sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
-    /// vec_approx_eq(&data.get_state().u, uu_correct, 1e-15);
     /// ```
     pub fn new(
         mesh: &Mesh,
@@ -94,6 +84,15 @@ impl<'a> Simulator<'a> {
     }
 
     /// Runs a steady-state simulation
+    ///
+    /// A linear problem can be solved with the following code:
+    ///
+    /// ```text
+    /// let mut nlc = NlConfig::new();
+    /// let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+    /// let dll = DeltaLambda::constant(1.0);
+    /// sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
+    /// ```
     pub fn steady(
         &mut self,
         data: &mut FemData<'a>,
@@ -119,7 +118,7 @@ impl<'a> Simulator<'a> {
 
         // Update the pseudo-time and calculate Ǔ and F
         data.state.time += 1.0;
-        data.calc_u_check();
+        data.calc_ppu();
         data.calc_ff()?;
 
         // Solve the system of nonlinear equations (continuation)

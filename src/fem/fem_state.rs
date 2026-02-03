@@ -1,5 +1,5 @@
 use super::SecondaryValues;
-use crate::base::{BcEssential, Config, Elem, Schema};
+use crate::base::{Config, Elem, Schema};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::Mesh;
@@ -13,24 +13,14 @@ use std::path::Path;
 /// Holds the state of a simulation
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FemState {
+    /// Time t
+    pub time: f64,
+
     /// Loading factor λ
     pub lambda: f64,
 
-    /// Delta loading factor Δλ
-    pub ddl: f64,
-
-    /// Indicates whether a load reversal occurred from stage(i) to stage(i+1)
-    ///
-    /// Note: this flag works with quasi-static simulations only
+    /// Indicates whether a load reversal occurred
     pub reverse: bool,
-
-    /// Time
-    pub time: f64,
-
-    /// Delta time Δt
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-    pub ddt: f64,
 
     /// Holds the α1(time) coefficient for the dynamics method
     pub alpha1: f64,
@@ -62,40 +52,46 @@ pub struct FemState {
     /// Holds the β2(time) coefficient for the dynamics method
     pub beta2: f64,
 
-    /// Cumulated (for one timestep) primary unknowns Δu
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-    pub ddu: Vector,
+    /// Time increment Δt
+    pub ddt: f64,
 
-    /// Primary unknowns u
-    ///
-    /// (n_equation)
-    pub u: Vector,
+    /// Lambda increment Δλ
+    pub ddl: f64,
 
-    /// First time derivative of primary unknowns du/dt
+    /// Primary variables increment ΔU
     ///
-    /// (n_equation)
-    pub v: Vector,
+    /// (neq)
+    pub dduu: Vector,
 
-    /// Second time derivative of primary unknowns d²u/dt²
+    /// Primary unknowns (using uu to indicate capital U)
     ///
-    /// (n_equation)
-    pub a: Vector,
+    /// (neq)
+    pub uu: Vector,
 
-    /// Auxiliary time-discretization variable (Theta method) u★
+    /// First time derivative of primary unknowns dU/dt
     ///
-    /// (n_equation)
-    pub u_star: Vector,
+    /// (neq)
+    pub vv: Vector,
 
-    /// Auxiliary time-discretization variable (Newmark method) v★
+    /// Second time derivative of primary unknowns d²U/dt²
     ///
-    /// (n_equation)
-    pub v_star: Vector,
+    /// (neq)
+    pub aa: Vector,
 
-    /// Auxiliary time-discretization variable (Newmark method) a★
+    /// Auxiliary time-discretization variable (Theta method) U★
     ///
-    /// (n_equation)
-    pub a_star: Vector,
+    /// (neq)
+    pub uu_star: Vector,
+
+    /// Auxiliary time-discretization variable (Newmark method) V★
+    ///
+    /// (neq)
+    pub vv_star: Vector,
+
+    /// Auxiliary time-discretization variable (Newmark method) A★
+    ///
+    /// (neq)
+    pub aa_star: Vector,
 
     /// Holds the secondary values (e.g. stress) at all integration (Gauss) points of all elements
     ///
@@ -105,7 +101,7 @@ pub struct FemState {
 
 impl FemState {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, schema: &Schema, essential: &BcEssential, config: &Config) -> Result<FemState, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config) -> Result<FemState, StrError> {
         // check number of cells
         let ncell = mesh.cells.len();
         if ncell == 0 {
@@ -174,51 +170,47 @@ impl FemState {
             return Err("cannot combine PorousLiq or PorousLiqGas with other elements");
         }
 
-        // total number of equations
-        let mut neq_total = schema.get_neq()?;
-        let n_prescribed = essential.functions.len();
-        if config.lagrange_mult_method {
-            neq_total += n_prescribed;
-        };
+        // number of equations = total number of DOFs
+        let neq = schema.get_neq()?;
 
         // primary variables
-        let ddu = Vector::new(neq_total);
-        let u = Vector::new(neq_total);
-        let (u_star, v, v_star) = if config.transient || config.dynamics {
-            (Vector::new(neq_total), Vector::new(neq_total), Vector::new(neq_total))
+        let dduu = Vector::new(neq);
+        let uu = Vector::new(neq);
+        let (uu_star, vv, vv_star) = if config.transient || config.dynamics {
+            (Vector::new(neq), Vector::new(neq), Vector::new(neq))
         } else {
             (Vector::new(0), Vector::new(0), Vector::new(0))
         };
-        let (a, a_star) = if config.dynamics {
-            (Vector::new(neq_total), Vector::new(neq_total))
+        let (aa, aa_star) = if config.dynamics {
+            (Vector::new(neq), Vector::new(neq))
         } else {
             (Vector::new(0), Vector::new(0))
         };
 
         // allocate new instance
         Ok(FemState {
-            lambda: 0.0,
-            ddl: 0.0,
-            reverse: false,
             time: 0.0,
-            ddt: 0.0,    // needs initialization
-            alpha1: 0.0, // needs initialization
-            alpha2: 0.0, // needs initialization
-            alpha3: 0.0, // needs initialization
-            alpha4: 0.0, // needs initialization
-            alpha5: 0.0, // needs initialization
-            alpha6: 0.0, // needs initialization
-            alpha7: 0.0, // needs initialization
-            alpha8: 0.0, // needs initialization
-            beta1: 0.0,  // needs initialization
-            beta2: 0.0,  // needs initialization
-            ddu,
-            u,
-            v,
-            a,
-            u_star,
-            v_star,
-            a_star,
+            lambda: 0.0,
+            reverse: false,
+            alpha1: 0.0,
+            alpha2: 0.0,
+            alpha3: 0.0,
+            alpha4: 0.0,
+            alpha5: 0.0,
+            alpha6: 0.0,
+            alpha7: 0.0,
+            alpha8: 0.0,
+            beta1: 0.0,
+            beta2: 0.0,
+            ddt: 0.0,
+            ddl: 0.0,
+            dduu,
+            uu,
+            vv,
+            aa,
+            uu_star,
+            vv_star,
+            aa_star,
             gauss,
         })
     }
@@ -263,7 +255,7 @@ impl FemState {
 #[cfg(test)]
 mod tests {
     use super::FemState;
-    use crate::base::{new_empty_mesh_2d, BcEssential, Config, Schema};
+    use crate::base::{new_empty_mesh_2d, Config, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use gemlab::mesh::Samples;
@@ -274,10 +266,9 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &schema, &essential, &config).err(),
+            FemState::new(&mesh, &schema, &config).err(),
             Some("there are no cells in the mesh")
         );
 
@@ -294,7 +285,7 @@ mod tests {
             .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &schema, &essential, &config).err(),
+            FemState::new(&mesh, &schema, &config).err(),
             Some("cannot combine Diffusion elements with other elements")
         );
 
@@ -308,7 +299,7 @@ mod tests {
             .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &schema, &essential, &config).err(),
+            FemState::new(&mesh, &schema, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
 
@@ -322,7 +313,7 @@ mod tests {
             .unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            FemState::new(&mesh, &schema, &essential, &config).err(),
+            FemState::new(&mesh, &schema, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
         );
     }
@@ -340,11 +331,10 @@ mod tests {
             .add_beam(3, p3)
             .build(&mesh)
             .unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
+        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
@@ -353,17 +343,16 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.transient = true;
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.v.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.a.dim(), 0);
-        assert_eq!(state.u_star.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.v_star.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.a_star.dim(), 0);
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
+        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.vv.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.aa.dim(), 0);
+        assert_eq!(state.uu_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.vv_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.aa_star.dim(), 0);
     }
 
     #[test]
@@ -372,16 +361,15 @@ mod tests {
         let p1 = ParamRod::sample();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.v.dim(), 0);
-        assert_eq!(state.a.dim(), 0);
-        assert_eq!(state.u_star.dim(), 0);
-        assert_eq!(state.v_star.dim(), 0);
-        assert_eq!(state.a_star.dim(), 0);
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
+        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.vv.dim(), 0);
+        assert_eq!(state.aa.dim(), 0);
+        assert_eq!(state.uu_star.dim(), 0);
+        assert_eq!(state.vv_star.dim(), 0);
+        assert_eq!(state.aa_star.dim(), 0);
     }
 
     #[test]
@@ -390,11 +378,10 @@ mod tests {
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
+        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
@@ -403,11 +390,10 @@ mod tests {
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq_gas(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
+        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
@@ -416,11 +402,10 @@ mod tests {
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let mut schema = Schema::new();
         schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
+        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
@@ -430,17 +415,16 @@ mod tests {
         let p2 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).add_solid(2, p2).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let mut config = Config::new(&mesh);
         config.dynamics = true;
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
-        assert_eq!(state.ddu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.u.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.v.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.a.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.u_star.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.v_star.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.a_star.dim(), schema.get_neq().unwrap());
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
+        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.vv.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.aa.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.vv_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.aa_star.dim(), schema.get_neq().unwrap());
     }
 
     #[test]
@@ -449,9 +433,8 @@ mod tests {
         let p1 = ParamRod::sample();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
         let clone = state.clone();
         let str_ori = format!("{:?}", clone).to_string();
         assert_eq!(format!("{:?}", clone), str_ori);

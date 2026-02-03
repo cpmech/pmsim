@@ -1,13 +1,10 @@
-#![allow(unused)]
-
 use gemlab::prelude::*;
-use plotpy::{Curve, DarkMode, Plot, SuperTitleParams};
+use plotpy::{Curve, DarkMode, Legend, Plot, Text};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
-use russell_lab::math::SQRT_3;
-use russell_lab::{read_data, vec_norm, Norm, Vector};
-use russell_nonlin::SoderlindClass;
+use russell_lab::math::{PI, SQRT_3};
+use russell_lab::{approx_eq, read_data, Vector};
 
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
@@ -18,6 +15,7 @@ const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.48; // Poisson's coefficient
 const Z_INI: f64 = 848.7; // Initial size of yield surface
 const WIDTH: f64 = 100.0; // 2*B
+const B: f64 = WIDTH / 2.0; // half-width of footing
 const COHESION: f64 = 848.7 * 100.0 / SQRT_3; // multiply by 100 because we used cm in the mesh
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
@@ -85,58 +83,45 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     // natural boundary conditions
     let nbc = BcNatural::new();
 
-    // configuration
-    let mut config = Config::new(&mesh);
-    config
-        .set_steady(LAMBDAS.len() - 1)
-        .set_symmetry_check_tolerance(Some(1e-5));
-
-    // run: old_solver + lmm
+    // run: natural + lmm
     let options = Options {
-        new_solver: false,
         arclength: false,
         lmm: true,
         npv: false,
     };
-    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
 
-    // run: new_solver + natural + lmm
+    // run: natural + sps
     let options = Options {
-        new_solver: true,
         arclength: false,
-        lmm: true,
+        lmm: false,
         npv: false,
     };
-    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
 
-    // run: new_solver + arclength + lmm
+    // run: arclength + lmm
     let options = Options {
-        new_solver: true,
         arclength: true,
         lmm: true,
         npv: false,
     };
-    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
 
-    // run: new_solver + arclength + npv
+    // run: arclength + npv
     let options = Options {
-        new_solver: true,
         arclength: true,
         lmm: false,
         npv: true,
     };
-    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
+    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
 
-    // run: new_solver + arclength + sps
+    // run: arclength + sps
     let options = Options {
-        new_solver: true,
         arclength: true,
         lmm: false,
         npv: false,
     };
-    run_test(options, &mesh, &features, &schema, &mut config, &mut ebc, &nbc)?;
-
-    // done
+    run_test(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
     Ok(())
 }
 
@@ -145,7 +130,6 @@ fn run_test(
     mesh: &Mesh,
     features: &Features,
     schema: &Schema,
-    config: &mut Config,
     ebc: &mut BcEssential,
     nbc: &BcNatural,
 ) -> Result<(), StrError> {
@@ -159,13 +143,10 @@ fn run_test(
 
     // update essential boundary condition
     let footing = features.search_edges(At::Y(500.0), |x| x[0] <= 50.0)?;
-    if options.new_solver {
-        ebc.edges(&footing, Dof::Uy, -1.0);
-    } else {
-        ebc.edges_fn(&footing, Dof::Uy, |t| -LAMBDAS[t as usize]);
-    }
+    ebc.edges(&footing, Dof::Uy, -1.0);
 
-    // update configuration
+    // configuration
+    let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", &name, 1.0)
         .set_ignore_symmetry(true)
@@ -173,86 +154,79 @@ fn run_test(
         .set_nonzero_presc_values(options.npv);
 
     // solution
-    if options.new_solver {
-        let mut nl_config = NlConfig::new();
+    let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(true, true, true)
+        .set_record_iterations_residuals(true)
+        .set_disable_rel_delta_analysis(false);
+    let dll = if options.arclength {
         nl_config
-            .set_verbose(true, true, true)
-            // .set_n_cont_failure_max(10)
-            // .set_n_cont_residual_divergence_max(7)
-            // .set_tol_delta(1e-9, 1e-7)
-            .set_record_iterations_residuals(true)
-            .set_disable_rel_delta_analysis(false);
-        let dll = if options.arclength {
-            nl_config
-                .set_method(NlMethod::Arclength)
-                .set_bordering(true)
-                .set_ddl_ini(0.01)
-                .set_tg_control_atol_and_rtol(100.0) // 0.5
-                // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
-                // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
-                // .set_tg_control_soderlind(SoderlindClass::H321) // not good
-                // .set_tg_control_soderlind(SoderlindClass::Ho312) // bad
-                // .set_tg_control_soderlind(SoderlindClass::Ho321) // terrible
-                // .set_tg_control_soderlind(SoderlindClass::Ho211) // terrible
-                .set_tg_control_pid_vcc(true);
-            DeltaLambda::auto()
-        } else {
-            nl_config.set_method(NlMethod::Natural);
-            let list = Vector::from(&LAMBDAS).get_differences();
-            DeltaLambda::list(list.as_data())
-        };
-        let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
-        let ndim = data.get_ndim();
-        let neq = data.get_neq();
-        let len = usize::min(neq, ndim);
-        sim.steady(
-            &mut data,
-            IniDir::Pos,
-            // Stop::Steps(5),
-            Stop::MaxNormU(0.15, Norm::Max, 0, len),
-            // Stop::MinCompU(iu, -0.00005 * WIDTH),
-            // Stop::MinCompU(iu, -0.0002 * WIDTH),
-            // Stop::MinCompU(iu, -0.001 * WIDTH),
-            // Stop::MinCompU(iu, -0.002 * WIDTH),
-            dll,
-        )?;
+            .set_method(NlMethod::Arclength)
+            .set_bordering(true)
+            .set_ddl_ini(0.01)
+            .set_tg_control_atol_and_rtol(0.5)
+            // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
+            // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
+            // .set_tg_control_soderlind(SoderlindClass::H321) // not good
+            // .set_tg_control_soderlind(SoderlindClass::Ho312) // bad
+            // .set_tg_control_soderlind(SoderlindClass::Ho321) // terrible
+            // .set_tg_control_soderlind(SoderlindClass::Ho211) // terrible
+            .set_tg_control_pid_vcc(true);
+        DeltaLambda::auto()
     } else {
-        SolverOld::solve(&mesh, &schema, &config, &ebc, &nbc)?;
-    }
+        nl_config.set_method(NlMethod::Natural);
+        let list = Vector::from(&LAMBDAS).get_differences();
+        DeltaLambda::list(list.as_data())
+    };
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+    let eq_corner = schema.get_eq(corner_id, Dof::Uy)?;
+    let stop = if options.arclength {
+        Stop::MinCompU(eq_corner, -0.002 * B)
+    } else {
+        Stop::Steps(LAMBDAS.len() - 1)
+    };
+    sim.steady(&mut data, IniDir::Pos, stop, dll)?;
 
     // check the results
     let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
     let nstate = post.nstate();
-    let neq = post.neq_total();
-    let eq_corner = post.eq(corner_id, Dof::Uy)?;
     let footing_cells = features.get_cells_via_2d_edges(&footing);
     let mut normalized_settlement = Vec::with_capacity(nstate);
     let mut normalized_pressure = Vec::with_capacity(nstate);
-    let mut uu_nrm = Vec::with_capacity(nstate); // just U values (Euc Norm)
-    let mut ll_nrm = Vec::with_capacity(nstate); // Lagrange multipliers (Euc Norm)
     let mut lambdas = Vec::with_capacity(nstate);
     let mut stepsizes = Vec::with_capacity(nstate);
     for index in 0..nstate {
         let state = post.read_state(index)?;
         lambdas.push(state.lambda);
         stepsizes.push(state.ddl);
-        let uy = state.u[eq_corner];
+        let uy = state.uu[eq_corner];
         normalized_settlement.push(-uy / WIDTH);
         let res = post.nodal_stresses_patch(&mut memo, &state, &footing_cells, |_, y, _| y == max[1])?;
         let mut area = 0.0;
         for i in 1..res.xx.len() {
             area += (res.xx[i] - res.xx[i - 1]) * (res.tyy[i] + res.tyy[i - 1]) / 2.0;
         }
-        normalized_pressure.push(-2.0 * area / COHESION);
-        let (norm_u, norm_lag) = if options.lmm {
-            let uu = Vector::from(&&state.u.as_data()[..neq]);
-            let ll = Vector::from(&&state.u.as_data()[neq..]);
-            (vec_norm(&uu, Norm::Euc), vec_norm(&ll, Norm::Euc))
-        } else {
-            (vec_norm(&state.u, Norm::Euc), 0.0)
-        };
-        uu_nrm.push(norm_u);
-        ll_nrm.push(norm_lag);
+        let neg_pp_by_c = -2.0 * area / COHESION;
+        normalized_pressure.push(neg_pp_by_c);
+        if index == nstate - 1 {
+            println!(
+                "final normalized pressure = {}, diff = {}",
+                neg_pp_by_c,
+                f64::abs(neg_pp_by_c - (2.0 + PI))
+            );
+            let tol = if options.arclength {
+                if options.lmm {
+                    0.0053
+                } else if options.npv {
+                    0.0013
+                } else {
+                    0.0024
+                }
+            } else {
+                0.0075
+            };
+            approx_eq(neg_pp_by_c, 2.0 + PI, tol);
+        }
     }
 
     // plot the results
@@ -262,11 +236,8 @@ fn run_test(
         let mut plot = Plot::new();
         let mut curve_num = Curve::new();
         let mut curve_ref = Curve::new();
-        let mut curve_hh = Curve::new(); // step size versus index
-        let mut curve_uu = Curve::new(); // just U values versus lambda
-        let mut curve_ll = Curve::new(); // Lagrange multipliers versus lambda
         curve_ref
-            .set_label("de Souza Neto et al.")
+            .set_label("de Souza Neto et al. (scanned)")
             .set_line_style(":")
             .set_line_color("#1ea56a")
             .set_marker_style("+")
@@ -277,57 +248,32 @@ fn run_test(
             .set_line_color("#8e0220")
             .set_marker_style("o")
             .draw(&normalized_settlement, &normalized_pressure);
-        let indices = (0..stepsizes.len()).map(|i| i as f64).collect::<Vec<f64>>();
-        curve_hh.set_marker_style(".").draw(&indices, &stepsizes);
-        curve_uu.set_marker_style(".").draw(&uu_nrm, &lambdas);
-        curve_ll.set_marker_style(".").draw(&ll_nrm, &lambdas);
+        let mut txt = Text::new();
+        txt.set_align_horizontal("left")
+            .set_align_vertical("bottom")
+            .draw(0.0, 2.0 + PI, "$2 + \\pi$");
+        let mut leg = Legend::new();
+        leg.set_location("lower right").draw();
         let mut dm = DarkMode::new();
         dm.set_mocha();
         plot.add(&dm)
+            .set_horiz_line(2.0 + PI, "#51b4df", "--", 1.0)
             .add(&curve_ref)
             .add(&curve_num)
+            .add(&leg)
+            .add(&txt)
             .set_rotation_ticks_x(90.0)
-            .grid_labels_legend("normalized settlement: $-u_y/B$", "normalized pressure: $-P/c$")
+            .grid_and_labels("$-u_y/B$ (normalized settlement)", "$-P/c$ (normalized pressure)")
             .set_figure_size_points(600.0, 600.0)
             .set_title(&title)
             .save(&format!("/tmp/pmsim/{}.svg", name))
             .unwrap();
-        /*
-        plot.add(&dm)
-            .set_gaps(0.2, 0.3)
-            .set_subplot(2, 2, 1)
-            .add(&curve_num)
-            .add(&curve_ref)
-            // .set_xmax(0.0021)
-            // .set_ymax(2.0)
-            .set_rotation_ticks_x(90.0)
-            .grid_labels_legend("normalized settlement: $-u_y/B$", "normalized pressure: $-P/c$")
-            .set_subplot(2, 2, 2)
-            .add(&curve_hh)
-            .set_labels("index", "h")
-            .set_subplot(2, 2, 3)
-            .add(&curve_uu)
-            .grid_and_labels("norm(U)", "$\\lambda$")
-            .set_subplot(2, 2, 4)
-            .add(&curve_ll)
-            .grid_and_labels("norm(L)", "$\\lambda$");
-        let mut params = SuperTitleParams::new();
-        params.set_y(0.91);
-        plot.set_figure_size_points(800.0, 800.0)
-            .set_super_title(&title, Some(&params))
-            .save(&format!("/tmp/pmsim/{}.svg", name))
-            .unwrap();
-        */
     }
 
     // compare the results with Ref #1
-    if options.new_solver == false || options.arclength == false {
-        let mut tol_displacement = 1e-10;
-        let mut tol_stress = 4.25e-5;
-        if options.new_solver && options.lmm {
-            tol_displacement = 1.41e-9;
-            tol_stress = 5.32e-3;
-        }
+    if !options.arclength {
+        let tol_displacement = 1.41e-9;
+        let tol_stress = 5.30e-3;
         let all_good = compare_results(
             &mesh,
             &schema,
@@ -346,7 +292,6 @@ fn run_test(
 }
 
 struct Options {
-    new_solver: bool,
     arclength: bool,
     lmm: bool,
     npv: bool,
@@ -354,16 +299,11 @@ struct Options {
 
 impl Options {
     fn key(&self) -> String {
-        let mut buf = if self.new_solver {
-            "new".to_string()
+        let mut buf = if self.arclength {
+            "arc".to_string()
         } else {
-            "old".to_string()
+            "lam".to_string()
         };
-        if self.arclength {
-            buf += "_arc";
-        } else {
-            buf += "_lam";
-        }
         if self.lmm {
             buf += "_lmm";
         } else if self.npv {

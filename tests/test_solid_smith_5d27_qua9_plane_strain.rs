@@ -73,22 +73,23 @@ fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.edges(&top, Nbc::Qn, -1.0);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
     let config = Config::new(&mesh);
 
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.get_state();
 
     // check displacements
     #[rustfmt::skip]
@@ -129,6 +130,6 @@ fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
          0.000000000000000e+00,  0.000000000000000e+00,
          0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.u, uu_correct, 3e-13);
+    vec_approx_eq(&state.uu, uu_correct, 3e-13);
     Ok(())
 }

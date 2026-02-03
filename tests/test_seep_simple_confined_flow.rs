@@ -31,7 +31,8 @@ fn test_seep_simple_confined_flow() -> Result<(), StrError> {
     }
 
     // features
-    let features = Features::new(&mesh, false);
+    let with_internal_edges = true; // for data analysis
+    let features = Features::new(&mesh, with_internal_edges);
     let inlet = features.search_marked_edges(12);
     let outlet = features.search_marked_edges(8);
 
@@ -47,12 +48,12 @@ fn test_seep_simple_confined_flow() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&inlet, Dof::Phi, 12.0);
-    essential.edges(&outlet, Dof::Phi, 8.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&inlet, Dof::Phi, 12.0);
+    ebc.edges(&outlet, Dof::Phi, 8.0);
 
     // natural boundary conditions
-    let natural = BcNatural::new();
+    let nbc = BcNatural::new();
 
     // configuration
     let mut config = Config::new(&mesh);
@@ -63,20 +64,17 @@ fn test_seep_simple_confined_flow() -> Result<(), StrError> {
         .set_save_flux(true);
 
     // solution
-    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
 
-    // post-processing
-    post_processing()
-}
+    //
+    // data analysis -------------------------------------------------------------
+    //
 
-fn post_processing() -> Result<(), StrError> {
     // post-processing tool
     let (post, mut memo) = PostProc::new(OUT_DIR, NAME)?;
 
     // load mesh and find vertical section along the gap underneath the wall
-    let mesh = post.mesh();
-    let with_internal_edges = true;
-    let features = Features::new(&mesh, with_internal_edges); // need internal edges
     let mid_section = features.search_edges(At::X(18.0), |_| true)?;
 
     // read last state
@@ -113,7 +111,7 @@ fn post_processing() -> Result<(), StrError> {
     println!("Analytical discharge: q = {}", q_analytical);
 
     // write Paraview files
-    let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;
-    println!("\nParaview File: {}\n", path_pvd);
+    // let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;
+    // println!("\nParaview File: {}\n", path_pvd);
     Ok(())
 }

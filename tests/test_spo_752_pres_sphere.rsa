@@ -1,23 +1,25 @@
 use gemlab::prelude::*;
 use plotpy::Curve;
-use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
-use pmsim::material::{Plotter, PlotterData};
+use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresSphere};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
-use russell_lab::math::{PI, SQRT_3};
+use russell_lab::math::PI;
 use russell_lab::{approx_eq, read_data};
 
-// This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
+// This test runs the Example 7.5.2 (aka 752) on page 247 of Ref #1 (aka SPO's book)
 //
 // This problem can be simulated by a 1/12 slice noting the symmetry of the problem.
 // In this case, multi-point constraints would be required. Nonetheless, here we
 // use a quarter-ring geometry instead of the 1/12 slice.
 //
+// This is an axisymmetric problem; hence the ring becomes an octant of a spherical shell.
+//
+// Axisymmetric
 // y ^
 //   |
 //   ***=---__
-//   |        '*._
+//   |        '*._        A slice of an octant of a spherical shell
 //   |            *._
 //   |               *.
 //   ***=-__           *.
@@ -35,32 +37,31 @@ use russell_lab::{approx_eq, read_data};
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const NAME_MESH: &str = "spo_751_pres_cylin";
-const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse";
-const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual";
-const GENERATE_MESH: bool = false;
+const NAME_MESH: &str = "spo_751_pres_cylin"; // same as 751
+const NAME_COLLAPSE: &str = "spo_752_pres_sphere_collapse";
+const NAME_RESIDUAL: &str = "spo_752_pres_sphere_residual";
 const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
 
-const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero
-const PP_COLLAPSE: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // inner pressure
-const PP_RESIDUAL: [f64; 5] = [0.0, 0.1, 0.14, P_MAX_RES, 0.0];
-const SELECTED_P_COLLAPSE: [f64; 3] = [0.1, 0.18, 0.19]; // selected pressures for collapse plot
-const SELECTED_P_RESIDUAL: [f64; 1] = [0.0]; // selected pressures for residual plot
+const P_MAX_RES: f64 = 0.28; // maximum pressure achieved by the residual simulation before unloading completely to zero
+const PP_COLLAPSE: [f64; 5] = [0.0, 0.15, 0.3, 0.33, 0.33269]; // inner pressure
+const PP_RESIDUAL: [f64; 4] = [0.0, 0.15, P_MAX_RES, 0.0];
+const SELECTED_P_COLLAPSE: [f64; 3] = [0.15, 0.3, 0.33];
+const SELECTED_P_RESIDUAL: [f64; 1] = [0.0];
 
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
-const Y: f64 = 2.0 * 0.24 / SQRT_3; // uniaxial yield strength (2 σy_spo / sq3)
+const Y: f64 = 0.24; // uniaxial yield strength (= σy_spo due to axisymmetry)
 const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
-fn test_spo_751_pres_cylin() -> Result<(), StrError> {
+fn test_spo_752_pres_sphere() -> Result<(), StrError> {
     // mesh
     let kind = GeoKind::Qua4;
-    let mesh = generate_or_read_mesh(kind, GENERATE_MESH);
+    let mesh = Mesh::read(&format!("data/spo/{}_{}.msh", NAME_MESH, kind.to_string())).unwrap();
 
     // features
     let features = Features::new(&mesh, false);
@@ -104,8 +105,9 @@ fn run_test(
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_tol_mdu_rel(1e-10)
-        .set_lagrange_mult_method(false)
+        .set_axisymmetric()
+        .set_tol_mdu_rel(1e-7)
+        .set_tol_rr_abs(1e-7)
         .update_model_settings(1)
         .set_save_strain(true);
 
@@ -126,8 +128,8 @@ fn run_test(
     SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
 
     // compare the results with Ref #1
-    let tol_displacement = if residual { 1e-13 } else { 1e-11 };
-    let tol_stress = 1e-14;
+    let tol_displacement = if residual { 1.78e-2 } else { 4.33e-2 };
+    let tol_stress = if residual { 2.41e-2 } else { 2.55e-2 };
     let all_good = compare_results(
         &mesh,
         &schema,
@@ -168,7 +170,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
     let eq_ux = schema.get_eq(outer_point, Dof::Ux)?;
 
     // analytical solution
-    let mut ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
+    let mut ana = PlastPlaneStrainPresSphere::new(A, B, YOUNG, POISSON, Y).unwrap();
 
     // loop over time stations
     let mut inner_pp = vec![0.0; post.nstate()];
@@ -188,7 +190,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
         inner_pp[index] = pp;
 
         // radial displacement
-        let ub_num = state.u[eq_ux];
+        let ub_num = state.uu[eq_ux];
         outer_ur[index] = ub_num;
 
         // get stresses
@@ -211,12 +213,12 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                 sr_arr.last_mut().unwrap().push(sr);
                 if residual {
                     let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
-                    approx_eq(sr, sr_ana, 0.003);
-                    approx_eq(sh, sh_ana, 0.003);
+                    approx_eq(sr, sr_ana, 0.00092);
+                    approx_eq(sh, sh_ana, 0.00085);
                 } else {
                     let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
-                    approx_eq(sr, sr_ana, 0.0036);
-                    approx_eq(sh, sh_ana, 0.0077);
+                    approx_eq(sr, sr_ana, 0.00096);
+                    approx_eq(sh, sh_ana, 0.00231);
                 }
             }
             first_rr = false;
@@ -246,7 +248,7 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
             if index == 0 {
                 // reference data
                 if !residual {
-                    let data = read_data("data/spo/spo-751-fig-716.tsv", &["x", "Curve1"]).unwrap();
+                    let data = read_data("data/spo/spo-752-fig-718.tsv", &["x", "Curve1"]).unwrap();
                     curve_ref.draw(&data["x"], &data["Curve1"]);
                     plot.add(&curve_ref);
                 }
@@ -257,9 +259,13 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
             } else if index == 1 {
                 // reference data
                 if !residual {
-                    let data = read_data("data/spo/spo-751-fig-717a.tsv", &["x", "p10", "p18"]).unwrap();
-                    curve_ref.draw(&data["x"], &data["p10"]);
-                    curve_ref.draw(&data["x"], &data["p18"]);
+                    let data = read_data("data/spo/spo-752-fig-719a.tsv", &["x", "p15", "p30"]).unwrap();
+                    curve_ref.draw(&data["x"], &data["p15"]);
+                    curve_ref.draw(&data["x"], &data["p30"]);
+                    plot.add(&curve_ref);
+                } else {
+                    let data = read_data("data/spo/spo-752-fig-720.tsv", &["x", "hoop", "radial"]).unwrap();
+                    curve_ref.draw(&data["x"], &data["hoop"]);
                     plot.add(&curve_ref);
                 }
                 // hoop stress-strain curve
@@ -270,9 +276,13 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
             } else if index == 2 {
                 // reference data
                 if !residual {
-                    let data = read_data("data/spo/spo-751-fig-717b.tsv", &["x", "p10", "p18"]).unwrap();
-                    curve_ref.draw(&data["x"], &data["p10"]);
-                    curve_ref.draw(&data["x"], &data["p18"]);
+                    let data = read_data("data/spo/spo-752-fig-719b.tsv", &["x", "p15", "p30"]).unwrap();
+                    curve_ref.draw(&data["x"], &data["p15"]);
+                    curve_ref.draw(&data["x"], &data["p30"]);
+                    plot.add(&curve_ref);
+                } else {
+                    let data = read_data("data/spo/spo-752-fig-720.tsv", &["x", "hoop", "radial"]).unwrap();
+                    curve_ref.draw(&data["x"], &data["radial"]);
                     plot.add(&curve_ref);
                 }
                 // radial stress-strain curve
@@ -284,82 +294,14 @@ fn analyze_results(residual: bool) -> Result<(), StrError> {
                 // legend
                 curve.draw(&[0], &[0]);
                 plot.add(&curve);
+                curve_ref.set_label("SPO");
+                curve_ref.draw(&[0], &[0]);
+                plot.add(&curve_ref);
             }
         });
         plot.set_figure_size_points(600.0, 450.0)
             .save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
 
-    Ok(())
-}
-
-/// Generate or read mesh
-fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
-    let k_str = kind.to_string();
-
-    if generate {
-        // generate mesh
-        let wr = &[16.0, 20.0, 28.0, 36.0];
-        let na = 3;
-        let mesh = Structured::quarter_ring_2d(A, B, wr, na, GeoKind::Qua8, true).unwrap();
-        mesh.check_all().unwrap();
-
-        // draw figure
-        let mut draw = Draw::new();
-        draw.show_point_ids(true)
-            .show_cell_ids(true)
-            .set_size(600.0, 600.0)
-            .all(&mesh, &format!("/tmp/pmsim/{}_{}.svg", NAME_MESH, k_str))
-            .unwrap();
-
-        // write mesh
-        mesh.write(&format!("/tmp/pmsim/{}_{}.msh", NAME_MESH, k_str)).unwrap();
-
-        // write VTU
-        mesh.write_vtu(&format!("/tmp/pmsim/{}_{}.vtu", NAME_MESH, k_str))
-            .unwrap();
-
-        // return mesh
-        mesh
-    } else {
-        // read mesh
-        Mesh::read(&format!("data/spo/{}_{}.msh", NAME_MESH, k_str)).unwrap()
-    }
-}
-
-// #[test]
-fn _test_spo_751_pres_cylin_debug() -> Result<(), StrError> {
-    // read summary and associated files
-    let name = "spo_751_pres_cylin_resid_stress";
-    let (post, _) = PostProc::new("/tmp/pmsim", name)?;
-
-    // loop over time stations
-    let cell_id = 0;
-    let gauss_id = 1;
-    let mut local_states = Vec::new();
-    for index in 0..post.nstate() {
-        let state = post.read_state(index)?;
-        println!(
-            "t = {:?}",
-            state.gauss[cell_id].stress(gauss_id).unwrap().vector().as_data()
-        );
-        local_states.push(state.gauss[cell_id].get_local_state(gauss_id)?.clone());
-    }
-
-    let data = PlotterData::from_states(&local_states);
-    let mut plotter = Plotter::new();
-    plotter
-        .add_2x2(&data, false, |curve, _, _| {
-            curve.set_marker_style("o");
-        })
-        .unwrap();
-    let _p = local_states.len() - 1;
-    // let radius_0 = local_states[0].int_vars[0] * SQRT_2_BY_3;
-    // let radius_1 = local_states[p].int_vars[0] * SQRT_2_BY_3;
-    // plotter.set_oct_circle(radius_0, |_| {});
-    // plotter.set_oct_circle(radius_1, |canvas| {
-    //     canvas.set_line_style("-");
-    // });
-    plotter.save("/tmp/pmsim/spo_751_pres_cylin_resid_stress_local_state.svg")?;
     Ok(())
 }

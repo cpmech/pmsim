@@ -76,15 +76,12 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     nbc.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
-    let mut config = Config::new(&mesh);
-    config
-        .set_linear_problem(true)
-        .set_substepping(true)
-        .set_verbose_legend(true)
-        .set_ignore_symmetry(true);
+    let config = Config::new(&mesh);
 
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &ebc, &nbc)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.get_state();
 
     // check displacements
     #[rustfmt::skip]
@@ -99,7 +96,7 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
         1.950000000000004e-07,  0.000000000000000e+00,
         3.900000000000004e-07,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.u, uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
 
     // using new solver
     let mut nlc = NlConfig::new();
@@ -107,6 +104,6 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
     let dll = DeltaLambda::constant(1.0);
     sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
-    vec_approx_eq(&data.get_state().u, uu_correct, 1e-15);
+    vec_approx_eq(&data.get_state().uu, uu_correct, 1e-15);
     Ok(())
 }

@@ -81,18 +81,20 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
         .build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.points(&[0, 3], Dof::Ux, 0.0).points(&[0, 3], Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.points(&[0, 3], Dof::Ux, 0.0).points(&[0, 3], Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.points(&[1], Pbc::Fy, -150000.0);
+    let mut nbc = BcNatural::new();
+    nbc.points(&[1], Pbc::Fy, -150000.0);
 
     // configuration
     let config = Config::new(&mesh);
 
     // solution
-    let state = SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.get_state();
 
     // check displacements
     #[rustfmt::skip]
@@ -102,6 +104,6 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
         2.647036149579491e-01, -2.647036149579491e-01, // 2: Ux,Uy
         0.000000000000000e+00,  0.000000000000000e+00, // 3: Ux,Uy
     ];
-    vec_approx_eq(&state.u, uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
     Ok(())
 }

@@ -1,7 +1,5 @@
 use super::FemState;
-use crate::base::{
-    add_nnz_sps, assemble_matrix, assemble_matrix_lmm, assemble_matrix_npv, assemble_matrix_sps, assemble_vector,
-};
+use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_npv, assemble_matrix_sps};
 use crate::base::{BcNatural, Config, Nbc, Schema};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -50,9 +48,6 @@ struct ElemBry<'a> {
 
 /// Holds a set of boundary elements (line or surface elements) for the calculation of natural boundary conditions
 pub(crate) struct ElementsBoundary<'a> {
-    /// Global configuration
-    config: &'a Config<'a>,
-
     /// Holds all boundary elements
     elements: Vec<ElemBry<'a>>,
 }
@@ -143,7 +138,7 @@ impl<'a> ElemBry<'a> {
                     // interpolate T from nodes to integration point
                     let mut tt = 0.0;
                     for m in 0..nnode {
-                        tt += nn[m] * state.u[self.local_to_global[m]];
+                        tt += nn[m] * state.uu[self.local_to_global[m]];
                     }
                     Ok(alpha * tt)
                 })?;
@@ -317,7 +312,7 @@ impl<'a> ElementsBoundary<'a> {
                 f.clone(),
             )?);
         }
-        Ok(ElementsBoundary { config, elements: all })
+        Ok(ElementsBoundary { elements: all })
     }
 
     /// Returns whether all elements have symmetric Jacobian matrices
@@ -349,25 +344,31 @@ impl<'a> ElementsBoundary<'a> {
     }
 
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
-    ///
-    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
-    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for e in &mut self.elements {
+            // calculate local Ye
             e.calc_yye(state)?;
-            assemble_vector(yy, &e.yye, &e.local_to_global, ignore);
+
+            // assemble local Ye into global Y
+            for l in 0..e.yye.dim() {
+                let g = e.local_to_global[l];
+                yy[g] += e.yye[l];
+            }
         }
         Ok(())
     }
 
     /// Calculates all local Fe vectors (external forces) and assembles them into the global F vector
-    ///
-    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
-    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_ff(&mut self, ff: &mut Vector, time: f64, ignore: &[bool]) -> Result<(), StrError> {
+    pub fn assemble_ff(&mut self, ff: &mut Vector, time: f64) -> Result<(), StrError> {
         for e in &mut self.elements {
+            // calculate local Fe
             e.calc_ffe(time)?;
-            assemble_vector(ff, &e.ffe, &e.local_to_global, ignore);
+
+            // assemble local Fe into global F
+            for l in 0..e.ffe.dim() {
+                let g = e.local_to_global[l];
+                ff[g] += e.ffe[l];
+            }
         }
         Ok(())
     }
@@ -412,26 +413,6 @@ impl<'a> ElementsBoundary<'a> {
         }
     }
 
-    /// Calculates all local Ke matrices and assembles them into K
-    ///
-    /// `ignore` (n_equation) holds the equation numbers to be ignored in the assembly process;
-    /// i.e., it allows for skipping the essential prescribed values and generating the reduced system.
-    pub fn assemble_kk_to_delete(
-        &mut self,
-        kk: &mut CooMatrix,
-        state: &FemState,
-        ignore: &[bool],
-    ) -> Result<(), StrError> {
-        let tol = self.config.symmetry_check_tolerance;
-        for e in &mut self.elements {
-            e.calc_kke(state)?;
-            if let Some(kke) = e.kke.as_ref() {
-                assemble_matrix(kk, kke, &e.local_to_global, ignore, tol)?;
-            }
-        }
-        Ok(())
-    }
-
     /// Assembles the local K̄ and Ǩ matrices into their global counterparts for the System Partitioning Strategy (SPS)
     pub fn assemble_kk_sps(
         &mut self,
@@ -471,12 +452,13 @@ impl<'a> ElementsBoundary<'a> {
 #[cfg(test)]
 mod tests {
     use super::{ElemBry, ElementsBoundary};
-    use crate::base::{BcEssential, BcNatural, Config, Nbc, SampleMeshes, Schema};
+    use crate::base::{BcNatural, Config, Nbc, SampleMeshes, Schema};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::FemState;
     use gemlab::mesh::{At, Edge, Face, Features, GeoKind, Samples};
     use gemlab::util::any_x;
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
+    use russell_pde::EquationHandler;
     use russell_sparse::{CooMatrix, Sym};
     use std::sync::Arc;
 
@@ -513,10 +495,10 @@ mod tests {
             Some("cannot get equation number because DOF is not assigned")
         );
 
-        let mut natural = BcNatural::new();
-        natural.edge(&edge, Nbc::Qn, -10.0);
+        let mut nbc = BcNatural::new();
+        nbc.edge(&edge, Nbc::Qn, -10.0);
         assert_eq!(
-            ElementsBoundary::new(&mesh, &schema, &config, &natural).err(),
+            ElementsBoundary::new(&mesh, &schema, &config, &nbc).err(),
             Some("Qn natural boundary condition is not available for 3D edge")
         );
     }
@@ -652,9 +634,8 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
 
         const Q: f64 = 10.0;
         let time = 0.0;
@@ -701,9 +682,8 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
 
         const Q: f64 = -5e6; // inwards heat flux
         let time = 0.0;
@@ -769,22 +749,20 @@ mod tests {
         let param = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, param).add_solid(2, param).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let state = FemState::new(&mesh, &schema, &config).unwrap();
 
         const Q: f64 = 25.0;
         let time = 0.0;
 
-        let mut natural = BcNatural::new();
-        natural.edges(&top, Nbc::Qn, -Q);
+        let mut nbc = BcNatural::new();
+        nbc.edges(&top, Nbc::Qn, -Q);
 
-        let mut bry = ElementsBoundary::new(&mesh, &schema, &config, &natural).unwrap();
+        let mut bry = ElementsBoundary::new(&mesh, &schema, &config, &nbc).unwrap();
 
         let neq = schema.get_neq().unwrap();
         let mut ff = Vector::new(neq);
-        let ignore = vec![false; neq];
-        bry.assemble_ff(&mut ff, time, &ignore).unwrap();
+        bry.assemble_ff(&mut ff, time).unwrap();
         // →     ⌠    →
         // Feₘ = │ Nₘ v dΓ
         //       ⌡
@@ -800,10 +778,14 @@ mod tests {
         ];
         vec_approx_eq(&ff, &correct, 1e-15);
 
+        let eq_handler = EquationHandler::new(schema.get_neq().unwrap());
+
         let nnz_sup = 2 * neq * neq;
-        let mut kk = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
-        bry.assemble_kk_to_delete(&mut kk, &state, &ignore).unwrap();
+        let mut kk_bar = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
+        let mut kk_check = CooMatrix::new(1, 1, 1, Sym::No).unwrap();
+        bry.assemble_kk_sps(&mut kk_bar, &mut kk_check, &state, &eq_handler)
+            .unwrap();
         let correct = Matrix::new(neq, neq); // null
-        assert_eq!(kk.as_dense().as_data(), correct.as_data());
+        assert_eq!(kk_bar.as_dense().as_data(), correct.as_data());
     }
 }

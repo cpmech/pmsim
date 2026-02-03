@@ -103,7 +103,8 @@ fn test_seep_cofferdam() -> Result<(), StrError> {
     };
 
     // features
-    let features = Features::new(&mesh, false);
+    let with_internal_edges = true; // for data analysis
+    let features = Features::new(&mesh, with_internal_edges);
     let inlet = features.search_marked_edges(20);
     let outlet = features.search_marked_edges(10);
 
@@ -119,12 +120,12 @@ fn test_seep_cofferdam() -> Result<(), StrError> {
     schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential.edges(&inlet, Dof::Phi, 13.0);
-    essential.edges(&outlet, Dof::Phi, 7.5);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&inlet, Dof::Phi, 13.0);
+    ebc.edges(&outlet, Dof::Phi, 7.5);
 
     // natural boundary conditions
-    let natural = BcNatural::new();
+    let nbc = BcNatural::new();
 
     // configuration
     let mut config = Config::new(&mesh);
@@ -135,13 +136,13 @@ fn test_seep_cofferdam() -> Result<(), StrError> {
         .set_save_flux(true);
 
     // solution
-    SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
 
-    // post-processing
-    post_processing()
-}
+    //
+    // data analysis -------------------------------------------------------------
+    //
 
-fn post_processing() -> Result<(), StrError> {
     // post-processing tool
     let (post, mut memo) = PostProc::new(OUT_DIR, NAME)?;
 
@@ -150,10 +151,7 @@ fn post_processing() -> Result<(), StrError> {
     let state = post.read_state(last)?;
 
     // load mesh and find vertical section along the gap underneath the wall
-    let mesh = post.mesh();
-    let with_internal_edges = true; // need internal edges
     let cells_by_points = true; // use all cells surrounding a point for better extrapolation
-    let features = Features::new(&mesh, with_internal_edges);
     let (_, top_cells, top_section) = features.search_features_2d(cells_by_points, At::Y(10.0), |x| x[0] <= -4.6)?;
     let (_, mid_cells, mid_section) = features.search_features_2d(cells_by_points, At::X(-4.6), |x| x[1] <= 5.0)?;
     let (_, rig_cells, rig_section) = features.search_features_2d(cells_by_points, At::X(4.6), |x| x[1] <= 5.0)?;
@@ -201,8 +199,8 @@ fn post_processing() -> Result<(), StrError> {
     approx_eq(q2 * 1e7, 9.0, 1.0); // should be around 9.0
 
     // write Paraview files
-    let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;
-    println!("Paraview File: {}", path_pvd);
+    // let path_pvd = post.write_paraview(&mut memo, OUT_DIR, NAME)?;
+    // println!("Paraview File: {}", path_pvd);
 
     // done
     Ok(())

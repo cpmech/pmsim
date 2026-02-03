@@ -129,19 +129,19 @@ pub(crate) fn write_vtu(
         for point in &mesh.points {
             let ux = if schema.has_dof(point.id, Dof::Ux)? {
                 let eq = schema.get_eq(point.id, Dof::Ux)?;
-                state.u[eq]
+                state.uu[eq]
             } else {
                 0.0
             };
             let uy = if schema.has_dof(point.id, Dof::Uy)? {
                 let eq = schema.get_eq(point.id, Dof::Uy)?;
-                state.u[eq]
+                state.uu[eq]
             } else {
                 0.0
             };
             let uz = if schema.has_dof(point.id, Dof::Uz)? {
                 let eq = schema.get_eq(point.id, Dof::Uz)?;
-                state.u[eq]
+                state.uu[eq]
             } else {
                 0.0
             };
@@ -159,7 +159,7 @@ pub(crate) fn write_vtu(
         for point in &mesh.points {
             let value = if schema.has_dof(point.id, *dof)? {
                 let eq = schema.get_eq(point.id, *dof)?;
-                state.u[eq]
+                state.uu[eq]
             } else {
                 0.0
             };
@@ -241,7 +241,7 @@ pub(crate) fn write_pvd(dir: &str, fn_stem: &str, indices: &[usize], times: &[f6
 #[cfg(test)]
 mod tests {
     use super::{write_pvd, write_vtu};
-    use crate::base::{Config, Dof, BcEssential, Schema};
+    use crate::base::{Config, Dof, Schema};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousSldLiq, ParamSolid};
     use crate::fem::FemState;
     use gemlab::mesh::Samples;
@@ -254,9 +254,8 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
@@ -265,7 +264,7 @@ mod tests {
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
             let eq = schema.get_eq(p, Dof::Ux).unwrap();
-            state.u[eq] = strain * y;
+            state.uu[eq] = strain * y;
         }
 
         // create directory
@@ -321,9 +320,8 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
 
         // Generates temperature field
         let npoint = mesh.points.len();
@@ -331,7 +329,7 @@ mod tests {
             let x = mesh.points[p].coords[0];
             let y = mesh.points[p].coords[1];
             let eq = schema.get_eq(p, Dof::Phi).unwrap();
-            state.u[eq] = 2.0 * x + 5.0 * y;
+            state.uu[eq] = 2.0 * x + 5.0 * y;
         }
 
         // create directory
@@ -393,9 +391,8 @@ mod tests {
             .add_beam(3, p3)
             .build(&mesh)
             .unwrap();
-        let essential = BcEssential::new();
         let config = Config::new(&mesh);
-        let mut state = FemState::new(&mesh, &schema, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
 
         // Generates a displacement field corresponding to a simple shear deformation
         // Here, strain is 𝛾; thus ε = 𝛾/2 = strain/2
@@ -404,7 +401,7 @@ mod tests {
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
             let eq = schema.get_eq(p, Dof::Ux).unwrap();
-            state.u[eq] = strain * y;
+            state.uu[eq] = strain * y;
         }
 
         // Applies liquid pressure proportional to the y coordinate
@@ -412,7 +409,7 @@ mod tests {
             let y = mesh.points[p].coords[1];
             if schema.has_dof(p, Dof::Pl).unwrap() {
                 let eq = schema.get_eq(p, Dof::Pl).unwrap();
-                state.u[eq] = 100.0 * (1.0 + y);
+                state.uu[eq] = 100.0 * (1.0 + y);
             }
         }
 

@@ -1,25 +1,31 @@
 use super::FemData;
-use super::{calc_gg_lmm, calc_gg_sps};
 use crate::base::{BcEssential, BcNatural, Config, Schema};
-use crate::fem::callbacks::{calc_jac_lmm, calc_jac_sps};
+use crate::fem::callbacks::calc_jac_sps;
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::Vector;
 use russell_sparse::{CooMatrix, LinSolver, Sym};
 use uuid::Uuid;
 
+/// Performs linear finite element simulations
 pub struct SimulatorLin<'a> {
     data_uuid: Uuid,
-    kk: CooMatrix,
+    mm: CooMatrix,
     kk_bar: CooMatrix,
     ls: LinSolver<'a>,
     u: Vector,
-    mdu: Vector,
-    gg: Vector,
+    ddu: Vector,
+    rhs: Vector,
 }
 
 impl<'a> SimulatorLin<'a> {
     /// Allocates a new instance
+    ///
+    /// Typical usage:
+    ///
+    /// ```text
+    /// let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    /// ```
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
@@ -30,9 +36,9 @@ impl<'a> SimulatorLin<'a> {
         let data = FemData::new(&mesh, &schema, &config, &essential, &natural)?;
         let ls = LinSolver::new(data.config.lin_sol_genie)?;
         let u = Vector::new(data.ndim);
-        let mdu = Vector::new(data.ndim);
-        let gg = Vector::new(data.ndim);
-        let (kk, kk_bar) = if data.config.lagrange_mult_method {
+        let ddu = Vector::new(data.ndim);
+        let rhs = Vector::new(data.ndim);
+        let (mm, kk_bar) = if data.config.lagrange_mult_method {
             (
                 CooMatrix::new(data.ndim, data.ndim, data.nnz_kk, data.sym).unwrap(),
                 CooMatrix::new(1, 1, 1, Sym::No).unwrap(),
@@ -45,92 +51,172 @@ impl<'a> SimulatorLin<'a> {
         };
         let solver = SimulatorLin {
             data_uuid: data.uuid,
-            kk,
+            mm,
             kk_bar,
             ls,
             u,
-            mdu,
-            gg,
+            ddu,
+            rhs,
         };
         Ok((solver, data))
     }
 
     // Runs a steady-state simulation
-    pub fn steady(&mut self, data: &mut FemData<'a>) -> Result<(), StrError> {
+    ///
+    /// Typical usage:
+    ///
+    /// ```text
+    /// let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    /// sim.steady(&mut data, true)?;
+    //  let state = data.get_state();
+    /// ```
+    pub fn steady(&mut self, data: &mut FemData<'a>, post_compute_second_values: bool) -> Result<(), StrError> {
         // Check UUID
         if data.uuid != self.data_uuid {
             return Err("The solver requires FemData with matching UUID");
         }
 
-        // Update pseudo-time
-        data.state.time += 1.0;
+        // Print information about the system and the header
+        if data.config.verbose {
+            data.print_system_info("N/A");
+        }
 
-        // Calculate prescribed values Ǔ at updated time
-        data.calc_u_check();
+        // Update loading factor
+        let l0 = data.state.lambda;
+        let l1 = l0 + 1.0;
+        data.state.lambda = l1;
 
-        // Calculate external forces F at updated time
+        // Calculate Pᵤ(t), lambda-free part of the prescribed values Ǔ = λ Pᵤ(t)
+        data.calc_ppu();
+
+        // Calculate F(t), external forces
         data.calc_ff()?;
+
+        // Calculate Y: internal forces
+        data.calc_yy()?;
 
         // Lagrange multipliers method
         let mut empty = Vector::new(0);
         if data.config.lagrange_mult_method {
-            // Calculate the residual vector
-            calc_gg_lmm(&mut self.gg, 1.0, &self.u, data)?;
+            // Assemble the right-hand side vector:
+            //       ┌       ┐
+            //       │ λ₁ F  │  (neq)
+            // RHS = │       │
+            //       │ λ₁ Pᵤ │  (np)
+            //       └       ┘
+            for i in 0..data.neq {
+                self.rhs[i] = l1 * data.ff[i];
+            }
+            for ip in 0..data.np {
+                let j = data.neq + ip;
+                self.rhs[j] = l1 * data.ppu[ip];
+            }
 
-            // Calculate the stiffness matrix
-            self.kk.reset();
-            calc_jac_lmm(&mut self.kk, &mut empty, 1.0, &self.u, data)?;
+            // Calculate the stiffness matrix K and assemble it into M
+            self.mm.reset();
+            data.elements.assemble_kk_lmm(&mut self.mm, &mut data.state)?;
+            data.boundaries.assemble_kk_lmm(&mut self.mm, &mut data.state)?;
 
-            // Factorize the stiffness matrix
+            // Add constraint matrix to M
+            //     ┌         ┐
+            //     │  K   Cᵀ │
+            // M = │         │
+            //     │  C   0  │
+            //     └         ┘
+            let sym = self.mm.get_info().3;
+            match sym {
+                Sym::YesLower => {
+                    for ip in 0..data.np {
+                        let i = data.eq_handler.prescribed()[ip];
+                        let j = data.neq + ip;
+                        self.mm.put(j, i, 1.0).unwrap(); // C
+                    }
+                }
+                Sym::YesUpper => {
+                    for ip in 0..data.np {
+                        let i = data.eq_handler.prescribed()[ip];
+                        let j = data.neq + ip;
+                        self.mm.put(i, j, 1.0).unwrap(); // Cᵀ
+                    }
+                }
+                Sym::YesFull | Sym::No => {
+                    for ip in 0..data.np {
+                        let i = data.eq_handler.prescribed()[ip];
+                        let j = data.neq + ip;
+                        self.mm.put(i, j, 1.0).unwrap(); // Cᵀ
+                        self.mm.put(j, i, 1.0).unwrap(); // C
+                    }
+                }
+            }
+
+            // Factorize M
             self.ls
                 .actual
-                .factorize(&mut self.kk, Some(data.config.lin_sol_params))?;
+                .factorize(&mut self.mm, Some(data.config.lin_sol_params))?;
 
-            // Solve the linear system for mdu := -Δu
+            // Solve the linear system: ΔU = M⁻¹ RHS
             self.ls
                 .actual
-                .solve(&mut self.mdu, &self.gg, data.config.verbose_lin_sys_solve)?;
+                .solve(&mut self.ddu, &self.rhs, data.config.verbose_lin_sys_solve)?;
 
-            // Update the solution: u := u - mdu = u + Δu
+            // Update U and ΔU in the state
             for eq in 0..data.neq {
-                data.state.u[eq] -= self.mdu[eq];
+                data.state.uu[eq] += self.ddu[eq];
+                data.state.dduu[eq] = self.ddu[eq];
             }
         }
         // System partitioning method
         else {
-            // Calculate the residual vector
-            calc_gg_sps(&mut self.gg, 1.0, &self.u, data)?;
+            // Initialize the right-hand side vector: RHS := λ₁ F̄
+            for iu in 0..data.nu {
+                let eq = data.eq_handler.unknown()[iu];
+                self.rhs[iu] = l1 * data.ff[eq];
+            }
 
             // Calculate the stiffness matrix
             self.kk_bar.reset();
             data.kk_check.reset();
-            calc_jac_sps(&mut self.kk_bar, &mut empty, 1.0, &self.u, data)?;
+            calc_jac_sps(&mut self.kk_bar, &mut empty, l1, &self.u, data)?;
 
-            // TODO: need to fix the right-hand side
+            // Fix the right-hand side: RHS := RHS - Ǩ Ǔ = RHS - λ Ǩ Cᵤ
+            data.kk_check.mat_vec_mul_update(&mut self.rhs, -l1, &data.ppu)?;
 
             // Factorize the stiffness matrix
             self.ls
                 .actual
                 .factorize(&mut self.kk_bar, Some(data.config.lin_sol_params))?;
 
-            // Solve the linear system for mdu := -Δu
+            // Solve the linear system for ΔU
             self.ls
                 .actual
-                .solve(&mut self.mdu, &self.gg, data.config.verbose_lin_sys_solve)?;
+                .solve(&mut self.ddu, &self.rhs, data.config.verbose_lin_sys_solve)?;
 
-            // Update the solution: u := u - mdu = u + Δu
+            // Update the solution: U₁ = U₀ + ΔU
             for eq in 0..data.neq {
                 if data.eq_handler.is_unknown(eq) {
                     let iu = data.eq_handler.iu(eq);
-                    data.state.u[eq] -= self.mdu[iu];
+                    data.state.uu[eq] += self.ddu[iu];
+                    data.state.dduu[eq] = self.ddu[iu];
                 }
             }
 
             // Update prescribed values Ǔ
             data.eq_handler.prescribed().iter().for_each(|&eq| {
                 let ip = data.eq_handler.ip(eq);
-                data.state.u[eq] = data.u_check[ip];
+                data.state.uu[eq] = l1 * data.ppu[ip];
+                data.state.dduu[eq] = (l1 - l0) * data.ppu[ip];
             });
+        }
+
+        // Compute secondary state variables such as stresses
+        if post_compute_second_values {
+            data.elements.update_secondary_values(&mut data.state)?;
+        }
+
+        // Last output
+        if data.config.out_files {
+            data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;
+            data.files.stop(&data.config)?;
         }
         Ok(())
     }

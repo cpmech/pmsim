@@ -4,6 +4,7 @@ use pmsim::analytical::ElastPlaneStrainFlexibleFoot;
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::approx_eq;
+use std::fmt::Write;
 
 const NAME: &str = "test_durand_farias_example4";
 const KIND: GeoKind = GeoKind::Qua4;
@@ -21,16 +22,12 @@ const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
 fn test_durand_farias_example4() -> Result<(), StrError> {
-    println!("\n################################### OLD SOLVER ###################################\n");
-    run_test(true, false)?;
-    run_test(false, false)?;
-    println!("\n################################### NEW SOLVER ###################################\n");
-    run_test(true, true)?;
-    run_test(false, true)?;
+    run_test(true)?;
+    run_test(false)?;
     Ok(())
 }
 
-fn run_test(lmm: bool, new_solver: bool) -> Result<(), StrError> {
+fn run_test(lmm: bool) -> Result<(), StrError> {
     // mesh
     let mesh = generate_or_read_mesh(1, GENERATE_MESH);
 
@@ -51,41 +48,35 @@ fn run_test(lmm: bool, new_solver: bool) -> Result<(), StrError> {
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = BcEssential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = BcNatural::new();
-    natural.edges(&footing, Nbc::Qn, -QN);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&footing, Nbc::Qn, -QN);
 
     // configuration
+    let key = if lmm { "_lmm" } else { "_sps" };
+    let name = &format!("{}{}", NAME, key);
     let mut config = Config::new(&mesh);
     config
         .set_lagrange_mult_method(lmm)
-        .set_out_files("/tmp/pmsim", NAME, 1.0);
+        .set_out_files("/tmp/pmsim", name, 1.0);
 
     // solution
-    if new_solver {
-        let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &essential, &natural)?;
-        sim.steady(&mut data)?;
-    } else {
-        SolverOld::solve(&mesh, &schema, &config, &essential, &natural)?;
-    }
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
 
-    // analyze results
-    analyze_results()
-}
+    //
+    // data analysis -------------------------------------------------------------
+    //
 
-fn analyze_results() -> Result<(), StrError> {
     // results
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", NAME)?;
-    let mesh = post.mesh();
+    let (post, mut memo) = PostProc::new("/tmp/pmsim", name)?;
 
     // features
-    let features = Features::new(mesh, false);
     let left = features.search_edges(At::X(0.0), any_x)?;
     let left_cells = features.get_cells_via_2d_edges(&left);
     let (min, max) = mesh.get_cell_bounding_box(mesh.cells[left_cells[0]].id);
@@ -106,11 +97,13 @@ fn analyze_results() -> Result<(), StrError> {
         poisson: NU,
     };
     let thin_line = format!("{:─^1$}", "", 6 * 8 + 4 * 3 + 5 * 2);
-    println!("\nVERIFICATION\n{}", thin_line);
+    let mut buf = String::new();
+    writeln!(&mut buf, "\n{}", thin_line).unwrap();
     for i in 0..nodal.xx.len() {
         let x = nodal.xx[i];
         let y = nodal.yy[i];
-        println!(
+        writeln!(
+            &mut buf,
             "{:8.3} =? {:8.3}  │  {:8.3} =? {:8.3}  │  {:8.3} =? {:8.3}",
             nodal.txx[i],
             ana.stress(x, y).get(0, 0),
@@ -118,22 +111,27 @@ fn analyze_results() -> Result<(), StrError> {
             ana.stress(x, y).get(1, 1),
             nodal.txy[i],
             ana.stress(x, y).get(0, 1)
-        );
+        )
+        .unwrap();
         approx_eq(f64::abs(nodal.txx[i] - ana.stress(x, y).get(0, 0)) / QN, 0.0, 0.25);
         approx_eq(f64::abs(nodal.tyy[i] - ana.stress(x, y).get(1, 1)) / QN, 0.0, 0.23);
         approx_eq(f64::abs(nodal.txy[i] - ana.stress(x, y).get(0, 1)) / QN, 0.0, 0.09);
     }
-    println!("{}\n", thin_line);
-    // ──────────────────────────────────────────────────────────────────────
-    //    5.355 =?   -0.025  │   -23.442 =?  -16.926  │    -0.000 =?   -0.000
-    //    5.616 =?   -0.042  │   -24.391 =?  -20.152  │     0.085 =?   -0.000
-    //    6.304 =?   -0.080  │   -27.534 =?  -24.887  │     0.177 =?   -0.000
-    //    7.640 =?   -0.179  │   -33.648 =?  -32.498  │     0.408 =?   -0.000
-    //    6.897 =?   -0.537  │   -44.297 =?  -46.662  │     0.577 =?   -0.000
-    //   14.614 =?   -2.993  │   -76.212 =?  -81.117  │     0.915 =?   -0.000
-    //  -46.706 =?  -90.037  │  -147.282 =? -191.896  │    15.255 =?   -0.000
-    // -150.447 =? -200.000  │  -193.167 =? -200.000  │    17.513 =?   -0.000
-    // ──────────────────────────────────────────────────────────────────────
+    writeln!(&mut buf, "{}", thin_line).unwrap();
+    println!("{}", buf);
+    let correct = r#"
+──────────────────────────────────────────────────────────────────────
+   5.355 =?   -0.025  │   -23.442 =?  -16.926  │    -0.000 =?   -0.000
+   5.616 =?   -0.042  │   -24.391 =?  -20.152  │     0.085 =?   -0.000
+   6.304 =?   -0.080  │   -27.534 =?  -24.887  │     0.177 =?   -0.000
+   7.640 =?   -0.179  │   -33.648 =?  -32.498  │     0.408 =?   -0.000
+   6.897 =?   -0.537  │   -44.297 =?  -46.662  │     0.577 =?   -0.000
+  14.614 =?   -2.993  │   -76.212 =?  -81.117  │     0.915 =?   -0.000
+ -46.706 =?  -90.037  │  -147.282 =? -191.896  │    15.255 =?   -0.000
+-150.447 =? -200.000  │  -193.167 =? -200.000  │    17.513 =?   -0.000
+──────────────────────────────────────────────────────────────────────
+"#;
+    assert_eq!(buf, correct);
 
     // figure
     if SAVE_FIGURE {
@@ -171,7 +169,7 @@ fn analyze_results() -> Result<(), StrError> {
             .add(&curve_nodal)
             .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
 
-        plot.save(&format!("/tmp/pmsim/{}_{}.svg", NAME, KIND.to_string()))?;
+        plot.save(&format!("/tmp/pmsim/{}_{}.svg", name, KIND.to_string()))?;
     }
     Ok(())
 }

@@ -1,9 +1,6 @@
 //! Implements the finite element method
 
 mod callbacks;
-mod control_loader;
-mod control_residual;
-mod control_stepper;
 mod element_diffusion;
 mod element_rod;
 mod element_rod_gnl;
@@ -13,21 +10,14 @@ mod elements_boundary;
 mod elements_interior;
 mod fem_data;
 mod fem_state;
-mod linear_system;
-mod logger;
 mod output_files;
 mod paraview;
 mod post_processing;
 mod secondary_values;
 mod simulator;
 mod simulator_lin;
-mod solver_old;
-mod stats;
 
 use callbacks::*;
-use control_loader::*;
-use control_residual::*;
-use control_stepper::*;
 pub use element_diffusion::*;
 pub use element_rod::*;
 pub use element_rod_gnl::*;
@@ -37,13 +27,9 @@ use elements_boundary::*;
 use elements_interior::*;
 pub use fem_data::*;
 pub use fem_state::*;
-use linear_system::*;
-use logger::*;
 use output_files::*;
 use paraview::*;
 pub use post_processing::*;
 pub use secondary_values::*;
 pub use simulator::*;
 pub use simulator_lin::*;
-pub use solver_old::*;
-use stats::*;
