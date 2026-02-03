@@ -5,14 +5,14 @@ use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::base::read_data;
-use russell_lab::{approx_eq, array_approx_eq};
+use russell_lab::{approx_eq, array_approx_eq, Vector};
 
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
 const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
-const PP: [f64; 13] = [
+const LAMBDAS: [f64; 13] = [
     0.0, 100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
 ];
 const RADIUS: f64 = 10.0;
@@ -63,25 +63,31 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
     // natural boundary conditions
     let mut nbc = BcNatural::new();
-    nbc.edges_fn(&top, Nbc::Qn, |t| -PP[t as usize]);
+    nbc.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config
-        .set_out_files("/tmp/pmsim", NAME, 1.0)
-        .set_axisymmetric()
-        .set_lagrange_mult_method(true)
-        .set_symmetry_check_tolerance(Some(1e-5));
+    config.set_out_files("/tmp/pmsim", NAME, 1.0).set_axisymmetric();
 
-    // solution
+    // nonlinear solver configuration
     let mut nlc = NlConfig::new();
-    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
-    let dll = DeltaLambda::constant(1.0);
-    sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
 
-    // verify the results
-    let tol_displacement = 1e-9;
-    let tol_stress = 1e-6;
+    // simulator and data
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+
+    // run simulation
+    let stop = Stop::Steps(LAMBDAS.len() - 1);
+    let list = Vector::from(&LAMBDAS).get_differences();
+    let dll = DeltaLambda::list(list.as_data());
+    sim.steady(&mut data, IniDir::Pos, stop, dll)?;
+
+    //
+    // verification --------------------------------------------------------------
+    //
+
+    // compare the results with Ref #1
+    let tol_displacement = 3.39e-7;
+    let tol_stress = 1.40e-3;
     let all_good = compare_results(
         &mesh,
         &schema,
@@ -96,11 +102,10 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     )?;
     assert!(all_good);
 
-    // analyze results
-    analyze_results()
-}
+    //
+    // data analysis -------------------------------------------------------------
+    //
 
-fn analyze_results() -> Result<(), StrError> {
     // load summary and associated files
     let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
     let mesh = post.mesh();
@@ -116,20 +121,19 @@ fn analyze_results() -> Result<(), StrError> {
     let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);
 
     // load results
-    let nstep_max = 11; // In SPO's book, they do not show the results for the last two load steps
-    let mut load = vec![0.0; nstep_max];
-    let mut deflection = vec![0.0; nstep_max];
+    let nlambda_max = 11; // 11 instead of 13 because SPO skips the results for the last two load steps
+    let mut load = vec![0.0; nlambda_max];
+    let mut deflection = vec![0.0; nlambda_max];
     let mut ll = Vec::new(); // normalized coordinate x/R
     let mut yy_p100 = Vec::new(); // normalized deflection w/h @ P = 100
     let mut yy_p200 = Vec::new(); // normalized deflection w/h @ P = 200
     let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
-    for index in 0..nstep_max {
+    for index in 0..nlambda_max {
         // load state
         let state = post.read_state(index)?;
-        let idx = state.time as usize;
 
         // load
-        let pp = PP[idx];
+        let pp = LAMBDAS[index];
         load[index] = pp;
 
         // deflection
@@ -224,7 +228,7 @@ fn analyze_results() -> Result<(), StrError> {
             .set_horiz_line(ana.get_pp_lim(), "green", ":", 1.0)
             .add(&curve_p_w)
             .add(&curve_p_w_ref)
-            .grid_labels_legend("Central deflection $w$", "Distributed load intensity $P$")
+            .grid_labels_legend("w (central deflection)", "P (distributed load intensity)")
             .set_subplot(1, 2, 2)
             .set_yrange(0.0, 0.6)
             .set_inv_y()
@@ -234,7 +238,7 @@ fn analyze_results() -> Result<(), StrError> {
             .add(&curve_w_l_p100)
             .add(&curve_w_l_p200)
             .add(&curve_w_l_p250)
-            .grid_labels_legend("Normalized coordinate $x/R$", "Normalized deflection $w/h$")
+            .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)")
             .set_figure_size_points(600.0, 250.0)
             .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
     }

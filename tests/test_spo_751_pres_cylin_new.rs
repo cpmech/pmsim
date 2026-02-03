@@ -194,7 +194,7 @@ fn run_test(
         .set_record_iterations_residuals(true);
 
     // simulator and data
-    let (mut solver, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
     // simulation
     if options.residual {
@@ -209,13 +209,13 @@ fn run_test(
             let list = Vector::from(&LAMBDAS_RESIDUAL).get_differences();
             DeltaLambda::list(list.as_data())
         };
-        solver.steady(&mut data, IniDir::Pos, stop, dll)?;
+        sim.steady(&mut data, IniDir::Pos, stop, dll)?;
 
         // unloading
         data.reset_algorithmic_variables(true);
         let stop = Stop::MinLambda(0.0);
         let dll = DeltaLambda::constant(P_MAX_RES - 0.0);
-        solver.steady(&mut data, IniDir::Neg, stop, dll)?;
+        sim.steady(&mut data, IniDir::Neg, stop, dll)?;
     } else {
         // collapse problem (single direction of loading)
         let u_index = data.get_u_index(outer_point, Dof::Ux)?;
@@ -226,7 +226,7 @@ fn run_test(
             let list = Vector::from(&LAMBDAS_COLLAPSE).get_differences();
             DeltaLambda::list(list.as_data())
         };
-        solver.steady(&mut data, IniDir::Pos, stop, dll)?;
+        sim.steady(&mut data, IniDir::Pos, stop, dll)?;
     }
 
     //
