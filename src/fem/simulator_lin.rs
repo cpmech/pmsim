@@ -41,7 +41,7 @@ impl<'a> SimulatorLin<'a> {
         let rhs = Vector::new(nsys);
         let (mm, kk_bar) = if data.config.lagrange_mult_method {
             (
-                CooMatrix::new(nsys, nsys, data.nnz_kk, data.sym).unwrap(),
+                CooMatrix::new(nsys, nsys, data.nnz_mm, data.sym).unwrap(),
                 CooMatrix::new(1, 1, 1, Sym::No).unwrap(),
             )
         } else {

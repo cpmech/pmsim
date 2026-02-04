@@ -42,7 +42,7 @@ impl<'a> Simulator<'a> {
 
         // Allocate the nonlinear system structure
         let mut nl_system = if config.lagrange_mult_method {
-            let nnz = Some(data.nnz_kk);
+            let nnz = Some(data.nnz_mm);
             let mut sys = NlSystem::new(data.nsys, nnz, data.sym, calc_gg_lmm, calc_jac_lmm)?;
             sys.set_update_secondary_state(update_secondary_state_lmm);
             sys

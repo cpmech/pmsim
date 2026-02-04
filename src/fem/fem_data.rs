@@ -11,7 +11,7 @@ use std::fmt::Write;
 use std::sync::Arc;
 use uuid::Uuid;
 
-/// Implements common (shared) functionality for all FEM solvers
+/// Holds the main data structures for the FEM simulation
 pub struct FemData<'a> {
     /// Holds a unique identifier for this instance such that it can be tracked externally
     pub(crate) uuid: Uuid,
@@ -22,15 +22,20 @@ pub struct FemData<'a> {
     /// Holds the configuration
     pub(crate) config: &'a Config<'a>,
 
+    /// Stopwatch to measure computer time
+    pub(crate) stopwatch: Stopwatch,
+
     /// Manages equation numbers (prescribed versus unknown)
     pub(crate) eq_handler: EquationHandler,
 
     /// Holds the functions to calculate the prescribed values
     ///
-    /// len = n_prescribed; use eq_handler.ip() to access an entry in this array
+    /// Use `eq_handler.ip()` to access an entry in this array
+    ///
+    /// (np)
     pub(crate) presc_values: Vec<Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>>,
 
-    /// Holds pairs of (eq, fn) to calculate concentrated loads
+    /// Holds pairs of (dof_num, fn) to calculate concentrated loads
     pub(crate) conc_loads: Vec<(usize, Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>)>,
 
     // Holds a collection of boundary elements
@@ -39,34 +44,50 @@ pub struct FemData<'a> {
     /// Holds a collection of elements
     pub(crate) elements: ElementsInterior<'a>,
 
-    /// Handles output files
-    pub(crate) files: OutputFiles,
+    /// Number of degrees of freedom
+    pub(crate) ndof: usize,
 
-    /// Stopwatch to measure computer time
-    pub(crate) stopwatch: Stopwatch,
+    /// Number of unknowns
+    pub(crate) nu: usize,
+
+    /// Number of prescribed DOFs
+    pub(crate) np: usize,
+
+    /// Number of equations in the nonlinear system (system dimension)
+    pub(crate) nsys: usize,
+
+    /// Symmetry type of the global stiffness matrix
+    pub(crate) sym: Sym,
+
+    /// Number of non-zero entries in the augmented LMM matrix M
+    pub(crate) nnz_mm: usize,
+
+    /// Number of non-zero entries in the SPS matrix K-bar
+    pub(crate) nnz_kk_bar: usize,
+
+    /// K-check matrix for the SPS method
+    pub(crate) kk_check: CooMatrix,
+
+    /// Holds the current state of the simulation
+    pub(crate) state: FemState,
 
     /// Vector of internal forces
     ///
-    /// dim = neq = nu + np
+    /// (ndof)
     pub(crate) yy: Vector,
 
     /// Vector of external forces
     ///
-    /// dim = neq = nu + np
+    /// (ndof)
     pub(crate) ff: Vector,
 
-    pub(crate) state: FemState,
-    pub(crate) ndof: usize,
-    pub(crate) nu: usize,
-    pub(crate) np: usize,
-    pub(crate) nsys: usize,
-    pub(crate) sym: Sym,
-    pub(crate) nnz_kk: usize,
-    pub(crate) nnz_kk_bar: usize,
-    pub(crate) kk_check: CooMatrix,
-
     /// Pᵤ(t), lambda-free part of the prescribed values Ǔ = λ Pᵤ(t)
+    ///
+    /// (np)
     pub(crate) ppu: Vector,
+
+    /// Handles output files
+    pub(crate) files: OutputFiles,
 }
 
 impl<'a> FemData<'a> {
@@ -87,14 +108,14 @@ impl<'a> FemData<'a> {
         // Start stopwatch
         let stopwatch = Stopwatch::new();
 
-        // Generate the list of prescribed equations and a map from equation to (PointId, Dof)
-        let n_prescribed = ebc.functions.len();
-        let mut p_list = Vec::with_capacity(n_prescribed);
-        let mut eq_to_dof = HashMap::with_capacity(n_prescribed);
+        // Generate the list of prescribed DOFs and a map from DOF number to (PointId, Dof)
+        let np = ebc.functions.len();
+        let mut p_list = Vec::with_capacity(np);
+        let mut i_to_dof = HashMap::with_capacity(np);
         for (point_id, dof) in ebc.functions.keys() {
-            let eq = schema.dof_number(*point_id, *dof)?;
-            p_list.push(eq);
-            eq_to_dof.insert(eq, (*point_id, *dof));
+            let i = schema.dof_number(*point_id, *dof)?;
+            p_list.push(i);
+            i_to_dof.insert(i, (*point_id, *dof));
         }
 
         // Allocate the equations handler
@@ -103,9 +124,9 @@ impl<'a> FemData<'a> {
         eq_handler.recompute(&p_list);
 
         // Allocate array of functions to calculate prescribed values
-        let mut presc_values = Vec::with_capacity(n_prescribed);
-        for eq in eq_handler.prescribed() {
-            let point_dof = eq_to_dof.get(eq).unwrap();
+        let mut presc_values = Vec::with_capacity(np);
+        for i in eq_handler.prescribed() {
+            let point_dof = i_to_dof.get(i).unwrap();
             let f = ebc.functions.get(point_dof).unwrap();
             presc_values.push(f.clone());
         }
@@ -113,31 +134,15 @@ impl<'a> FemData<'a> {
         // Allocate array of concentrated loads
         let mut conc_loads = Vec::with_capacity(nbc.at_points.len());
         for (point_id, pbc, f) in &nbc.at_points {
-            let eq = schema.dof_number(*point_id, pbc.dof())?;
-            conc_loads.push((eq, f.clone()));
+            let i = schema.dof_number(*point_id, pbc.dof())?;
+            conc_loads.push((i, f.clone()));
         }
 
-        // Allocate auxiliary instances
-        let boundaries = ElementsBoundary::new(mesh, schema, config, nbc)?;
+        // Allocate elements
+        let mut boundaries = ElementsBoundary::new(mesh, schema, config, nbc)?;
         let mut elements = ElementsInterior::new(mesh, schema, config)?;
 
-        // Array to ignore prescribed equations when building the reduced system
-        let neq = eq_handler.neq(); // number of DOFs (without Lagrange multipliers)
-        let mut ignored_eqs = vec![false; neq];
-        if !config.lagrange_mult_method {
-            for eq in eq_handler.prescribed() {
-                ignored_eqs[*eq] = true;
-            }
-        };
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        let mut state = FemState::new(&mesh, &schema, &config)?;
-
-        // Initialize internal variables
-        elements.initialize_internal_values(&mut state)?;
-
-        // Determine if the global stiffness matrix is symmetric and it's enabled
+        // Determine if the global stiffness matrix is symmetric
         let symmetric = if config.ignore_symmetry {
             false
         } else {
@@ -150,20 +155,19 @@ impl<'a> FemData<'a> {
 
         // Determine the system dimension
         let nu = eq_handler.nu();
-        let np = eq_handler.np();
         let nsys = if config.lagrange_mult_method { ndof + np } else { nu };
 
         // Calculate the number of non-zero entries in the global stiffness matrix
-        let mut nnz_kk = 0;
+        let mut nnz_mm = 0;
         let mut nnz_kk_bar = 0;
         let mut nnz_kk_check = 0;
         if config.lagrange_mult_method {
-            elements.add_nnz_lmm(&mut nnz_kk, sym);
-            boundaries.add_nnz_lmm(&mut nnz_kk, sym);
+            elements.add_nnz_lmm(&mut nnz_mm, sym);
+            boundaries.add_nnz_lmm(&mut nnz_mm, sym);
             if sym.triangular() {
-                nnz_kk += np;
+                nnz_mm += np;
             } else {
-                nnz_kk += 2 * np;
+                nnz_mm += 2 * np;
             }
         } else {
             elements.add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &eq_handler);
@@ -171,16 +175,28 @@ impl<'a> FemData<'a> {
         }
 
         // Allocate K-check matrix for SPS
-        let kk_check = if config.lagrange_mult_method || n_prescribed == 0 {
+        let kk_check = if config.lagrange_mult_method || np == 0 {
             CooMatrix::new(1, 1, 1, Sym::No).unwrap() // empty
         } else {
             CooMatrix::new(nu, np, nnz_kk_check, Sym::No).unwrap()
         };
 
-        let yy = Vector::new(ndof);
-        let ff = Vector::new(ndof);
+        // Allocate the state
+        let mut state = FemState::new(&mesh, &schema, &config)?;
 
-        //////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Initialize internal variables
+        elements.initialize_internal_values(&mut state)?;
+
+        // Allocate Y, F, and Pᵤ vectors
+        let mut yy = Vector::new(ndof);
+        let ff = Vector::new(ndof);
+        let ppu = Vector::new(np);
+
+        // Calculate the first Y (only needed for output files)
+        if config.out_history_yy_comp.len() > 0 {
+            elements.assemble_yy(&mut yy, &state)?;
+            boundaries.assemble_yy(&mut yy, &state)?;
+        }
 
         // Allocate output files handler
         let mut files = OutputFiles::new(mesh, schema, config, np)?;
@@ -193,26 +209,25 @@ impl<'a> FemData<'a> {
             uuid: Uuid::new_v4(),
             schema,
             config,
+            stopwatch,
             eq_handler,
             presc_values,
             conc_loads,
             boundaries,
             elements,
-            files,
-            stopwatch,
-            yy,
-            ff,
-            //
-            state,
             ndof,
             nu,
             np,
             nsys,
             sym,
-            nnz_kk,
+            nnz_mm,
             nnz_kk_bar,
             kk_check,
-            ppu: Vector::new(np),
+            state,
+            yy,
+            ff,
+            ppu,
+            files,
         })
     }
 
@@ -241,10 +256,12 @@ impl<'a> FemData<'a> {
         }
     }
 
+    /// Returns an access the current state
     pub fn get_state(&self) -> &FemState {
         &self.state
     }
 
+    /// Resets the algorithmic variables of all elements
     pub fn reset_algorithmic_variables(&mut self, load_reversal: bool) {
         self.state.reverse = load_reversal;
         self.elements.reset_algorithmic_variables(&mut self.state);
@@ -286,7 +303,7 @@ impl<'a> FemData<'a> {
             write!(&mut b[0][0], "neq  = {:?}", self.ndof).unwrap();
             write!(&mut b[1][0], "np   = {:?}", self.np).unwrap();
             write!(&mut b[2][0], "ndim = {:?}", self.nsys).unwrap();
-            write!(&mut b[0][1], "nnz(K)     = {:?}", self.nnz_kk).unwrap();
+            write!(&mut b[0][1], "nnz(K)     = {:?}", self.nnz_mm).unwrap();
             write!(&mut b[1][1], "nnz(K-bar) = {:?}", self.nnz_kk_bar).unwrap();
             write!(&mut b[2][1], "sym(K)     = {:?}", self.sym).unwrap();
             write!(&mut b[0][2], "genie        = {:?}", self.config.lin_sol_genie).unwrap();
