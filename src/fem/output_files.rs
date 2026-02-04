@@ -32,25 +32,25 @@ pub(crate) struct OutputFiles {
     /// Number of prescribed equations
     neq_presc: usize,
 
-    /// U components at selected points along time
+    /// History (time or lambda) of U components at selected points
     ///
     /// Maps `equation` to an array with the values along time
-    sel_uu_comp: HashMap<usize, Vec<f64>>,
+    history_uu_comp: HashMap<usize, Vec<f64>>,
 
-    /// Y (internal forces) components at selected points along time
+    /// History (time or lambda) of Y (internal forces) components at selected points
     ///
     /// Maps `equation` to an array with the values along time
-    sel_yy_comp: HashMap<usize, Vec<f64>>,
+    history_yy_comp: HashMap<usize, Vec<f64>>,
 
-    /// Flux vectors at selected integration points along time
+    /// History (time or lambda) of flux vectors at selected integration points
     ///
     /// Note: Only the results at the first integration point are saved.
-    sel_local_flux: HashMap<CellId, Vec<Vector>>,
+    history_local_flux: HashMap<CellId, Vec<Vector>>,
 
-    /// LocalState at selected integration points along time
+    /// History (time or lambda) of LocalState at selected integration points
     ///
     /// Note: Only the results at the first integration point are saved.
-    sel_local_state: HashMap<CellId, Vec<LocalState>>,
+    history_local_state: HashMap<CellId, Vec<LocalState>>,
 }
 
 impl OutputFiles {
@@ -73,10 +73,10 @@ impl OutputFiles {
             lambdas: Vec::new(),
             neq_total: schema.get_neq()?,
             neq_presc,
-            sel_uu_comp: HashMap::new(),
-            sel_yy_comp: HashMap::new(),
-            sel_local_flux: HashMap::new(),
-            sel_local_state: HashMap::new(),
+            history_uu_comp: HashMap::new(),
+            history_yy_comp: HashMap::new(),
+            history_local_flux: HashMap::new(),
+            history_local_state: HashMap::new(),
         })
     }
 
@@ -86,9 +86,9 @@ impl OutputFiles {
         self.indices.clear();
         self.times.clear();
         self.lambdas.clear();
-        self.sel_uu_comp.clear();
-        self.sel_local_flux.clear();
-        self.sel_local_state.clear();
+        self.history_uu_comp.clear();
+        self.history_local_flux.clear();
+        self.history_local_state.clear();
     }
 
     /// Returns the number of files written
@@ -121,30 +121,30 @@ impl OutputFiles {
         &self.lambdas
     }
 
-    /// Returns the temporal output of a selected U component
-    pub fn get_selected_uu_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
+    /// Returns the history (time or lambda) of U components at selected points
+    pub fn get_history_uu_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
         match schema.get_eq(point_id, dof) {
-            Ok(eq) => self.sel_uu_comp.get(&eq),
+            Ok(eq) => self.history_uu_comp.get(&eq),
             Err(_) => None,
         }
     }
 
-    /// Returns the temporal output of a selected Y (internal forces) component
-    pub fn get_selected_yy_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
+    /// Returns the history (time or lambda) of Y (internal forces) components at selected points
+    pub fn get_history_yy_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
         match schema.get_eq(point_id, dof) {
-            Ok(eq) => self.sel_yy_comp.get(&eq),
+            Ok(eq) => self.history_yy_comp.get(&eq),
             Err(_) => None,
         }
     }
 
-    /// Returns the temporal output of flux vectors at the first integration point of selected cells
-    pub fn get_selected_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
-        self.sel_local_flux.get(&cell_id)
+    /// Returns the history (time or lambda) of flux vectors at selected integration points
+    pub fn get_history_local_flux(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+        self.history_local_flux.get(&cell_id)
     }
 
-    /// Returns the temporal output of stresses at the first integration point of selected cells
-    pub fn get_selected_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
-        self.sel_local_state.get(&cell_id)
+    /// Returns the history (time or lambda) of LocalState at selected integration points
+    pub fn get_history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+        self.history_local_state.get(&cell_id)
     }
 
     /// Reads a JSON file containing this struct
@@ -199,33 +199,37 @@ impl OutputFiles {
             self.lambdas.push(state.lambda);
             self.counter += 1;
         }
-        if config.out_has_selected {
+        if config.out_history {
             // U components
-            for (point_id, dof) in config.out_uu_comp.iter() {
+            for (point_id, dof) in config.out_history_uu_comp.iter() {
                 if schema.has_dof(*point_id, *dof)? {
                     let eq = schema.get_eq(*point_id, *dof)?;
-                    self.sel_uu_comp.entry(eq).or_insert(Vec::new()).push(state.uu[eq]);
+                    self.history_uu_comp.entry(eq).or_insert(Vec::new()).push(state.uu[eq]);
                 }
             }
 
             // Y components
-            for (point_id, dof) in config.out_yy_comp.iter() {
+            for (point_id, dof) in config.out_history_yy_comp.iter() {
                 if schema.has_dof(*point_id, *dof)? {
                     let eq = schema.get_eq(*point_id, *dof)?;
-                    self.sel_yy_comp.entry(eq).or_insert(Vec::new()).push(yy[eq]);
+                    self.history_yy_comp.entry(eq).or_insert(Vec::new()).push(yy[eq]);
                 }
             }
 
-            // local states
-            for cell_id in config.out_local_state.iter() {
+            // local fluxes
+            for cell_id in config.out_history_local_flux.iter() {
                 if let Some(w) = state.gauss[*cell_id].get_flux_vector(0).ok() {
-                    self.sel_local_flux
+                    self.history_local_flux
                         .entry(*cell_id)
                         .or_insert(Vec::new())
                         .push(w.clone());
                 }
+            }
+
+            // local states
+            for cell_id in config.out_history_local_state.iter() {
                 if let Some(s) = state.gauss[*cell_id].get_local_state(0).ok() {
-                    self.sel_local_state
+                    self.history_local_state
                         .entry(*cell_id)
                         .or_insert(Vec::new())
                         .push(s.clone());

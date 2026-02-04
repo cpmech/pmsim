@@ -105,9 +105,7 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config
-        .set_lagrange_mult_method(false)
-        .set_out_files("/tmp/pmsim", NAME, 1.0);
+    config.set_lagrange_mult_method(false).set_out_files("/tmp/pmsim", NAME);
 
     // nonlinear solver configuration
 

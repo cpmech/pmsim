@@ -174,7 +174,7 @@ fn run_test(
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_files("/tmp/pmsim", &name, 1.0)
+        .set_out_files("/tmp/pmsim", &name)
         .set_lagrange_mult_method(options.lmm)
         .set_nonzero_presc_values(options.npv)
         .update_model_settings(1)

@@ -464,7 +464,7 @@ mod tests {
         let mut config = Config::new(&mesh);
 
         let name = "test_write_pvd_works";
-        config.set_out_files("/tmp/pmsim", name, 0.0);
+        config.set_out_files("/tmp/pmsim", name);
 
         let path = write_pvd("/tmp/pmsim", name, &[0], &[0.0]).unwrap();
 

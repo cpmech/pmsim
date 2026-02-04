@@ -4,7 +4,6 @@ use gemlab::mesh::{CellId, CellMarker, Mesh, PointId};
 use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::{HashMap, HashSet};
-use std::fmt;
 
 /// Defines the smallest allowed Δt
 pub const CONFIG_DT_MIN: f64 = 1e-7;
@@ -141,20 +140,20 @@ pub struct Config<'a> {
     /// Filename stem
     pub(crate) out_fn_stem: String,
 
-    /// Time increment Δt for the output of results
-    pub(crate) out_ddt: f64,
+    /// Outputs the history (time or lambda) of U components at selected points
+    pub(crate) out_history_uu_comp: HashSet<(PointId, Dof)>,
 
-    /// Output U component values at selected points
-    pub(crate) out_uu_comp: HashSet<(PointId, Dof)>,
+    /// Outputs the history (time or lambda) of Y (internal forces) components at selected points
+    pub(crate) out_history_yy_comp: HashSet<(PointId, Dof)>,
 
-    /// Output Y (internal forces) component values at selected points
-    pub(crate) out_yy_comp: HashSet<(PointId, Dof)>,
+    /// Outputs the history (time or lambda) of flux vectors at selected integration points
+    pub(crate) out_history_local_flux: HashSet<CellId>,
 
-    /// Output local state at selected integration points
-    pub(crate) out_local_state: HashSet<CellId>,
+    /// Outputs the history (time or lambda) of LocalState at selected integration points
+    pub(crate) out_history_local_state: HashSet<CellId>,
 
-    /// Indicates whether the output of selected points and cells are active
-    pub(crate) out_has_selected: bool,
+    /// Indicates that history output is enabled
+    pub(crate) out_history: bool,
 }
 
 impl<'a> Config<'a> {
@@ -195,11 +194,11 @@ impl<'a> Config<'a> {
             out_files: false,
             out_dir: String::new(),
             out_fn_stem: String::new(),
-            out_ddt: 1.0,
-            out_uu_comp: HashSet::new(),
-            out_yy_comp: HashSet::new(),
-            out_local_state: HashSet::new(),
-            out_has_selected: false,
+            out_history_uu_comp: HashSet::new(),
+            out_history_yy_comp: HashSet::new(),
+            out_history_local_flux: HashSet::new(),
+            out_history_local_state: HashSet::new(),
+            out_history: false,
         }
     }
 
@@ -487,49 +486,43 @@ impl<'a> Config<'a> {
     // Output of results ----------------------------------------------------------------------
 
     /// Enables the generation of output files
-    pub fn set_out_files(&mut self, dir: &str, fn_stem: &str, ddt_out: f64) -> &mut Self {
+    pub fn set_out_files(&mut self, dir: &str, fn_stem: &str) -> &mut Self {
         self.out_dir = dir.to_string();
         self.out_fn_stem = fn_stem.to_string();
-        self.out_ddt = ddt_out;
         self.out_files = true;
         self
     }
 
-    /// Sets the output U component values at selected points
-    pub fn set_out_uu_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
-        self.out_uu_comp.insert((point_id, dof));
-        self.out_has_selected = true;
+    /// Sets the output of history (time or lambda) of U components at selected points
+    pub fn set_out_history_uu_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+        self.out_history_uu_comp.insert((point_id, dof));
+        self.out_history = true;
         self
     }
 
-    /// Sets the output Y (internal forces) component values at selected points
-    pub fn set_out_yy_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
-        self.out_yy_comp.insert((point_id, dof));
-        self.out_has_selected = true;
+    /// Sets the output of history (time or lambda) of Y (internal forces) components at selected points
+    pub fn set_out_history_yy_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+        self.out_history_yy_comp.insert((point_id, dof));
+        self.out_history = true;
+        self
+    }
+
+    /// Sets the output of history (time or lambda) of flux vectors at selected integration points
+    ///
+    /// Note: only the first integration point is considered.
+    pub fn set_out_history_local_flux(&mut self, cell_id: CellId) -> &mut Self {
+        self.out_history_local_flux.insert(cell_id);
+        self.out_history = true;
         self
     }
 
     /// Sets the output local state at selected integration points
     ///
     /// Note: only the first integration point is considered.
-    pub fn set_out_local_state(&mut self, cell_id: CellId) -> &mut Self {
-        self.out_local_state.insert(cell_id);
-        self.out_has_selected = true;
+    pub fn set_out_history_local_state(&mut self, cell_id: CellId) -> &mut Self {
+        self.out_history_local_state.insert(cell_id);
+        self.out_history = true;
         self
-    }
-}
-
-impl<'a> fmt::Display for Config<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Configuration data\n").unwrap();
-        write!(f, "==================\n").unwrap();
-        write!(f, "thickness = {:?}\n", self.ideal.thickness).unwrap();
-        write!(f, "plane_stress = {:?}\n", self.ideal.plane_stress).unwrap();
-        write!(f, "initialization = {:?}\n", self.initialization).unwrap();
-        write!(f, "\nParameters for fluids\n").unwrap();
-        write!(f, "=====================\n").unwrap();
-        write!(f, "{:?}\n", self.param_fluids).unwrap();
-        Ok(())
     }
 }
 
@@ -569,19 +562,6 @@ mod tests {
         config.initialization = Init::Geostatic(-123.0);
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
-
-        assert_eq!(
-            format!("{}", config),
-            "Configuration data\n\
-             ==================\n\
-             thickness = 1.0\n\
-             plane_stress = true\n\
-             initialization = Geostatic(-123.0)\n\
-             \n\
-             Parameters for fluids\n\
-             =====================\n\
-             Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })\n"
-        );
     }
 
     #[test]

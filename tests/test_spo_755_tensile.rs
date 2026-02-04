@@ -130,13 +130,13 @@ fn run(
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_files("/tmp/pmsim", &name, 1.0)
+        .set_out_files("/tmp/pmsim", &name)
         .set_lagrange_mult_method(options.lmm);
 
     // output the vertical component of Y at bottom edge points
     let ids_bottom = features.get_points_via_2d_edges(&bottom);
     for point_id in &ids_bottom {
-        config.set_out_yy_comp(*point_id, Dof::Uy);
+        config.set_out_history_yy_comp(*point_id, Dof::Uy);
     }
 
     // nonlinear solver configuration
@@ -194,7 +194,7 @@ fn run(
     let nstate = post.nstate();
     let mut sum_yy = vec![0.0; nstate];
     for point_id in &ids_bottom {
-        let yy_over_time = post.get_selected_yy_comp(*point_id, Dof::Uy).unwrap();
+        let yy_over_time = post.get_history_yy_comp(*point_id, Dof::Uy).unwrap();
         for i in 0..nstate {
             sum_yy[i] += yy_over_time[i];
         }

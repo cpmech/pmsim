@@ -26,7 +26,7 @@ pub(crate) fn output_step(stats: &NlStats, u: &Vector, l: f64, h: f64, data: &mu
     if stats.n_accepted > 0 {
         data.set_state(l, u);
         data.state.ddl = h;
-        if data.config.out_yy_comp.len() > 0 {
+        if data.config.out_history_yy_comp.len() > 0 {
             data.calc_yy()?;
         }
         data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;

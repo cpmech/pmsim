@@ -61,9 +61,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     let key = if lmm { "_lmm" } else { "_sps" };
     let name = &format!("{}{}", NAME, key);
     let mut config = Config::new(&mesh);
-    config
-        .set_lagrange_mult_method(lmm)
-        .set_out_files("/tmp/pmsim", name, 1.0);
+    config.set_lagrange_mult_method(lmm).set_out_files("/tmp/pmsim", name);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

@@ -155,12 +155,12 @@ fn run_test(
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_uu_comp(corner, Dof::Uy)
-        .set_out_yy_comp(corner, Dof::Uy)
-        .set_out_files("/tmp/pmsim", &name, 1.0)
+        .set_out_history_uu_comp(corner, Dof::Uy)
+        .set_out_history_yy_comp(corner, Dof::Uy)
+        .set_out_files("/tmp/pmsim", &name)
         .set_lagrange_mult_method(options.lmm)
         .set_nonzero_presc_values(options.npv)
-        .set_out_local_state(0)
+        .set_out_history_local_state(0)
         .update_model_settings(1)
         .set_save_strain(true);
 
@@ -191,7 +191,7 @@ fn run_test(
     // check the results
     let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
     let lambdas = post.get_lambdas();
-    let ss = post.get_selected_local_state(0).unwrap();
+    let ss = post.get_history_local_state(0).unwrap();
     if !options.arclength {
         for i in 0..lambdas.len() {
             let ey_ref = -lambdas[i] * dy / L0;
@@ -244,8 +244,8 @@ fn run_test(
     // figure
     if SAVE_FIGURE {
         // displacement-force data
-        let uy = post.get_selected_uu_comp(corner, Dof::Uy).unwrap();
-        let fy = post.get_selected_yy_comp(corner, Dof::Uy).unwrap();
+        let uy = post.get_history_uu_comp(corner, Dof::Uy).unwrap();
+        let fy = post.get_history_yy_comp(corner, Dof::Uy).unwrap();
         let mut curve = Curve::new();
         let mut plot = Plot::new();
         let mut dm = DarkMode::new();
@@ -259,7 +259,7 @@ fn run_test(
             .save(&format!("/tmp/pmsim/{}_disp.svg", name))?;
 
         // stress-strain data
-        let ss = post.get_selected_local_state(0).unwrap();
+        let ss = post.get_history_local_state(0).unwrap();
         let data = PlotterData::from_states(ss);
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {

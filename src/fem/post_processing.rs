@@ -159,32 +159,32 @@ impl PostProc {
         self.files.get_lambdas()
     }
 
-    /// Returns the temporal output of U components at selected points
+    /// Returns the history (time or lambda) of U components at selected points
     ///
     /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
-    pub fn get_selected_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
-        self.files.get_selected_uu_comp(point_id, dof, &self.schema)
+    pub fn get_history_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.get_history_uu_comp(point_id, dof, &self.schema)
     }
 
-    /// Returns the temporal output of Y (internal forces) components at selected points
+    /// Returns the history (time or lambda) of Y (internal forces) components at selected points
     ///
     /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
-    pub fn get_selected_yy_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
-        self.files.get_selected_yy_comp(point_id, dof, &self.schema)
+    pub fn get_history_yy_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.get_history_yy_comp(point_id, dof, &self.schema)
     }
 
-    /// Returns the temporal output of flux vectors at the first integration point of selected cells
+    /// Returns the history (time or lambda) of flux vectors at selected integration points
     ///
     /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
-    pub fn get_selected_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
-        self.files.get_selected_local_fluxes(cell_id)
+    pub fn get_history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+        self.files.get_history_local_flux(cell_id)
     }
 
-    /// Returns the temporal output of stresses at the first integration point of selected cells
+    /// Returns the history (time or lambda) of LocalState at selected integration points
     ///
     /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
-    pub fn get_selected_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
-        self.files.get_selected_local_state(cell_id)
+    pub fn get_history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+        self.files.get_history_local_state(cell_id)
     }
 
     /// Returns the real coordinates of all Gauss points of a cell
@@ -1416,12 +1416,14 @@ mod tests {
         schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config
-            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name, 0.0)
+            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name)
             .update_model_settings(1)
             .save_flux = true;
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
-        config.set_out_uu_comp(point_id, Dof::Phi).set_out_local_state(cell_id);
+        config
+            .set_out_history_uu_comp(point_id, Dof::Phi)
+            .set_out_history_local_flux(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
@@ -1469,12 +1471,14 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d", 0.0);
+        config.set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d");
         config.update_model_settings(1).save_flux = true;
         config.update_model_settings(2).save_flux = true;
 
         let (point_id, cell_id) = (10, 1);
-        config.set_out_uu_comp(point_id, Dof::Phi).set_out_local_state(cell_id);
+        config
+            .set_out_history_uu_comp(point_id, Dof::Phi)
+            .set_out_history_local_flux(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
@@ -1537,15 +1541,15 @@ mod tests {
         schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config
-            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name, 0.0)
+            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name)
             .update_model_settings(1)
             .save_strain = true;
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config
-            .set_out_uu_comp(point_id, Dof::Ux)
-            .set_out_uu_comp(point_id, Dof::Uy)
-            .set_out_local_state(cell_id);
+            .set_out_history_uu_comp(point_id, Dof::Ux)
+            .set_out_history_uu_comp(point_id, Dof::Uy)
+            .set_out_history_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
         let yy = Vector::new(schema.get_neq().unwrap());
@@ -1611,11 +1615,11 @@ mod tests {
 
         let (point_id, cell_id) = (10, 1);
         config
-            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d", 0.0)
-            .set_out_uu_comp(point_id, Dof::Ux)
-            .set_out_uu_comp(point_id, Dof::Uy)
-            .set_out_uu_comp(point_id, Dof::Uz)
-            .set_out_local_state(cell_id);
+            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d")
+            .set_out_history_uu_comp(point_id, Dof::Ux)
+            .set_out_history_uu_comp(point_id, Dof::Uy)
+            .set_out_history_uu_comp(point_id, Dof::Uz)
+            .set_out_history_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
         let yy = Vector::new(schema.get_neq().unwrap());
@@ -1679,13 +1683,13 @@ mod tests {
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
-        let sel_phi = post.get_selected_uu_comp(point_id, Dof::Phi).unwrap();
+        let sel_phi = post.get_history_uu_comp(point_id, Dof::Phi).unwrap();
         // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
         approx_eq(sel_phi[0], phi_correct, 1e-15);
 
         // check selected flux vectors
         let cell_id = 1;
-        let s = post.files.get_selected_local_fluxes(cell_id).unwrap();
+        let s = post.files.get_history_local_flux(cell_id).unwrap();
         for i in 0..ndim {
             approx_eq(s[0][i], w_correct[i], 1e-14);
         }
@@ -1721,13 +1725,13 @@ mod tests {
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
-        let sel_phi = post.get_selected_uu_comp(point_id, Dof::Phi).unwrap();
+        let sel_phi = post.get_history_uu_comp(point_id, Dof::Phi).unwrap();
         // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
         approx_eq(sel_phi[0], phi_correct, 1e-15);
 
         // check selected flux vectors
         let cell_id = 1;
-        let s = post.files.get_selected_local_fluxes(cell_id).unwrap();
+        let s = post.files.get_history_local_flux(cell_id).unwrap();
         for i in 0..ndim {
             approx_eq(s[0][i], w_correct[i], 1e-14);
         }
@@ -1785,8 +1789,8 @@ mod tests {
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
         let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
         let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
-        let sel_ux = post.get_selected_uu_comp(point_id, Dof::Ux).unwrap();
-        let sel_uy = post.get_selected_uu_comp(point_id, Dof::Uy).unwrap();
+        let sel_ux = post.get_history_uu_comp(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.get_history_uu_comp(point_id, Dof::Uy).unwrap();
         let correct = [&duu_h, &duu_v, &duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
@@ -1795,7 +1799,7 @@ mod tests {
 
         // check selected stresses and strains
         let cell_id = 1;
-        let s = post.files.get_selected_local_state(cell_id).unwrap();
+        let s = post.files.get_history_local_state(cell_id).unwrap();
         let sig = [&stress_h, &stress_v, &stress_s];
         let eps = [&strain_h, &strain_v, &strain_s];
         let ncp = 4;
@@ -1860,9 +1864,9 @@ mod tests {
         let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
         let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
         let eqz = post.schema.get_eq(point_id, Dof::Uz)?;
-        let sel_ux = post.get_selected_uu_comp(point_id, Dof::Ux).unwrap();
-        let sel_uy = post.get_selected_uu_comp(point_id, Dof::Uy).unwrap();
-        let sel_uz = post.get_selected_uu_comp(point_id, Dof::Uz).unwrap();
+        let sel_ux = post.get_history_uu_comp(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.get_history_uu_comp(point_id, Dof::Uy).unwrap();
+        let sel_uz = post.get_history_uu_comp(point_id, Dof::Uz).unwrap();
         let correct = [duu_h, duu_v, duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
@@ -1872,7 +1876,7 @@ mod tests {
 
         // check selected stresses and strains
         let cell_id = 1;
-        let s = post.files.get_selected_local_state(cell_id).unwrap();
+        let s = post.files.get_history_local_state(cell_id).unwrap();
         let sig = [&stress_h, &stress_v, &stress_s];
         let eps = [&strain_h, &strain_v, &strain_s];
         let ncp = 6;
