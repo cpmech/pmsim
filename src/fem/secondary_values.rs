@@ -126,6 +126,11 @@ impl SecondaryValues {
         }
     }
 
+    /// Returns the flux vector at an integration point
+    ///
+    /// # Input
+    ///
+    /// * `p` -- index of the integration point
     pub fn get_flux_vector(&self, p: usize) -> Result<&Vector, StrError> {
         if self.ngauss == 0 {
             return Err("secondary values have not been allocated yet");
