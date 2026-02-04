@@ -13,6 +13,9 @@ use uuid::Uuid;
 
 /// Implements common (shared) functionality for all FEM solvers
 pub struct FemData<'a> {
+    /// Holds a unique identifier for this instance such that it can be tracked externally
+    pub(crate) uuid: Uuid,
+
     /// Holds element types, material parameters, and specifies the DOF numbering schema
     pub(crate) schema: &'a Schema,
 
@@ -52,7 +55,6 @@ pub struct FemData<'a> {
     /// dim = neq = nu + np
     pub(crate) ff: Vector,
 
-    pub(crate) uuid: Uuid,
     pub(crate) state: FemState,
     pub(crate) ndof: usize,
     pub(crate) nu: usize,
@@ -188,6 +190,7 @@ impl<'a> FemData<'a> {
 
         // return new instance
         Ok(FemData {
+            uuid: Uuid::new_v4(),
             schema,
             config,
             eq_handler,
@@ -200,7 +203,6 @@ impl<'a> FemData<'a> {
             yy,
             ff,
             //
-            uuid: Uuid::new_v4(),
             state,
             ndof,
             nu,
@@ -313,7 +315,7 @@ impl<'a> FemData<'a> {
         }
     }
 
-    /// Initializes the nonlinear solver unknowns vector `u` from the state
+    /// Initializes the nonlinear solver unknowns vector `u` from the state's `U`
     pub(crate) fn initialize_u(&self, u: &mut Vector) {
         if self.config.lagrange_mult_method {
             for eq in 0..self.ndof {
@@ -385,101 +387,6 @@ impl<'a> FemData<'a> {
             self.ff[*eq] += (f)(t);
         }
         Ok(())
-    }
-
-    /// Assembles the contribution due to the prescribed DOFs into the global R vector (LMM)
-    ///
-    /// **LMM** means Lagrange Multiplier Method
-    ///
-    /// This function adds `Aᵀλ` to the global R vector at the non-prescribed equations and
-    /// **sets** the prescribed equations to `A u - c`. Here, `c` is the prescribed value.
-    ///
-    /// The global system is symbolized by:
-    ///
-    /// ```text
-    ///  ┌         ┐ ┌     ┐   ┌         ┐
-    ///  │  K   Aᵀ │ │ -δu │   │ R + Aᵀλ │
-    ///  │         │ │     │ = │         │
-    ///  │  A   0  │ │ -δλ │   │ A u - c │
-    ///  └         ┘ └     ┘   └         ┘
-    /// ```
-    pub fn assemble_rr_lmm(&self, rr: &mut Vector, state: &FemState) {
-        let neq = self.eq_handler.neq();
-        for ip in 0..self.eq_handler.np() {
-            let i = self.eq_handler.prescribed()[ip];
-            let j = neq + ip;
-            let lag = state.uu[j];
-            let val = self.presc_values[ip](state.time);
-            rr[i] += lag; // Aᵀ λ  →  1 * λ
-            rr[j] = state.uu[i] - val; // A u - c  →  1 * u - c
-        }
-    }
-
-    /// Assembles the constraint matrix into the global K matrix (LMM)
-    ///
-    /// **LMM** means Lagrange Multiplier Method
-    ///
-    /// This function adds the constraints matrix (Aᵀ and A) to K.
-    ///
-    /// The global system is symbolized by:
-    ///
-    /// ```text
-    ///  ┌         ┐ ┌     ┐   ┌         ┐
-    ///  │  K   Aᵀ │ │ -δu │   │ R + Aᵀλ │
-    ///  │         │ │     │ = │         │
-    ///  │  A   0  │ │ -δλ │   │ A u - c │
-    ///  └         ┘ └     ┘   └         ┘
-    /// ```
-    pub fn assemble_kk_lmm(&self, kk: &mut CooMatrix) {
-        let neq = self.eq_handler.neq();
-        let sym = kk.get_info().3;
-        match sym {
-            Sym::YesLower => {
-                for ip in 0..self.eq_handler.np() {
-                    let i = self.eq_handler.prescribed()[ip];
-                    let j = neq + ip;
-                    kk.put(j, i, 1.0).unwrap(); // A
-                }
-            }
-            Sym::YesUpper => {
-                for ip in 0..self.eq_handler.np() {
-                    let i = self.eq_handler.prescribed()[ip];
-                    let j = neq + ip;
-                    kk.put(i, j, 1.0).unwrap(); // Aᵀ
-                }
-            }
-            Sym::YesFull | Sym::No => {
-                for ip in 0..self.eq_handler.np() {
-                    let i = self.eq_handler.prescribed()[ip];
-                    let j = neq + ip;
-                    kk.put(i, j, 1.0).unwrap(); // Aᵀ
-                    kk.put(j, i, 1.0).unwrap(); // A
-                }
-            }
-        }
-    }
-
-    /// Updates the diagonal of the global K matrix (RSM)
-    ///
-    /// **RSM** means Reduced-System Method
-    ///
-    /// This function put ones on the diagonal entries corresponding to the prescribed DOFs.
-    ///
-    /// The global system is symbolized by:
-    ///
-    /// ```text
-    ///  ┌         ┐ ┌     ┐   ┌   ┐
-    ///  │  K   0  │ │ -δu │   │ R │
-    ///  │         │ │     │ = │   │
-    ///  │  0   1  │ │  0  │   │ 0 │
-    ///  └         ┘ └     ┘   └   ┘
-    /// ```
-    ///
-    /// Note that the prescribed values are zero (homogeneous BCs).
-    pub fn assemble_kk_rsm(&self, kk: &mut CooMatrix) {
-        for eq in self.eq_handler.prescribed() {
-            kk.put(*eq, *eq, 1.0).unwrap();
-        }
     }
 }
 
