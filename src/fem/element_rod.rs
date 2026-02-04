@@ -9,18 +9,18 @@ use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
 /// # References
 ///
 /// * Felippa C., Chapter 20: Implementation of One-Dimensional Elements (IFEM.Ch20.pdf)
-pub struct ElementRod<'a> {
+pub(crate) struct ElementRod<'a> {
     /// Material parameters
-    pub param: &'a ParamRod,
+    param: &'a ParamRod,
 
     /// Local-to-global mapping
-    pub local_to_global: &'a Vec<usize>,
+    local_to_global: &'a Vec<usize>,
 
     /// Pre-computed stiffness matrix
-    pub stiffness: Matrix,
+    stiffness: Matrix,
 
     /// Local displacements
-    pub u: Vector,
+    u: Vector,
 }
 
 impl<'a> ElementRod<'a> {

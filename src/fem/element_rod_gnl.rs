@@ -13,12 +13,12 @@ use russell_lab::{mat_add, vec_outer, Matrix, Vector};
 ///    Engineering Structures, 234:111755
 /// 2. Bonet J, Wood RD (2008) Nonlinear Continuum Mechanics for Finite Element Analysis,
 ///    2nd Edition, Cambridge University Press
-pub struct ElementRodGnl<'a> {
+pub(crate) struct ElementRodGnl<'a> {
     /// Material parameters
-    pub param: &'a ParamRod,
+    param: &'a ParamRod,
 
     /// Local-to-global mapping
-    pub local_to_global: &'a Vec<usize>,
+    local_to_global: &'a Vec<usize>,
 
     ndim: usize,
 

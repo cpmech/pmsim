@@ -9,35 +9,35 @@ use russell_lab::{Matrix, Vector};
 use russell_tensor::{t2_dot_vec, Tensor2};
 
 /// Implements the local Diffusion Element equations
-pub struct ElementDiffusion<'a> {
+pub(crate) struct ElementDiffusion<'a> {
     /// Holds the ID of the associated cell in the Mesh
     cell_id: CellId,
 
     /// Global configuration
-    pub config: &'a Config<'a>,
+    config: &'a Config<'a>,
 
     /// Material parameters
-    pub param: &'a ParamDiffusion,
+    param: &'a ParamDiffusion,
 
     /// Local-to-global mapping
-    pub local_to_global: &'a Vec<usize>,
+    local_to_global: &'a Vec<usize>,
 
     /// Temporary variables for numerical integration
-    pub pad: Scratchpad,
+    pad: Scratchpad,
 
     /// Integration point coordinates and weights
-    pub gauss: Gauss,
+    gauss: Gauss,
 
     /// Conductivity model
-    pub model: ModelConductivity,
+    model: ModelConductivity,
 
     /// (temporary) Conductivity tensor at a single integration point
-    pub conductivity: Tensor2,
+    conductivity: Tensor2,
 
     /// (temporary) Gradient of temperature at a single integration point
     ///
     /// ∇ϕ @ ip
-    pub grad_phi: Vector,
+    grad_phi: Vector,
 
     /// Indicates that the calculation of flux vectors is performed (for post-processing)
     save_flux: bool,

@@ -9,27 +9,27 @@ use russell_lab::{Matrix, Vector};
 use russell_tensor::Tensor2;
 
 /// Implements the local Solid Element equations
-pub struct ElementSolid<'a> {
+pub(crate) struct ElementSolid<'a> {
     /// Holds the ID of the associated cell in the Mesh
     cell_id: CellId,
 
     /// Global configuration
-    pub config: &'a Config<'a>,
+    config: &'a Config<'a>,
 
     /// Material parameters
-    pub param: &'a ParamSolid,
+    param: &'a ParamSolid,
 
     /// Local-to-global mapping
-    pub local_to_global: &'a Vec<usize>,
+    local_to_global: &'a Vec<usize>,
 
     /// Temporary variables for numerical integration
-    pub pad: Scratchpad,
+    pad: Scratchpad,
 
     /// Integration point coordinates and weights
-    pub gauss: Gauss,
+    gauss: Gauss,
 
     /// Stress-strain model
-    pub model: ModelStressStrain,
+    model: ModelStressStrain,
 
     /// (temporary) Strain increment at integration point
     ///
