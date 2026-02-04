@@ -17,11 +17,10 @@ pub(crate) struct OutputFiles {
     /// Number of files written
     counter: usize,
 
-    /// Real simulation times corresponding to each output file
-    times: Vec<f64>,
-
-    /// Loading factors corresponding to each output file
-    lambdas: Vec<f64>,
+    /// Real simulation times (time) or loading increments (lambda)
+    ///
+    /// Time is used for transient/dynamic analyses, while lambda is used for steady/static analyses
+    stations: Vec<f64>,
 
     /// Total number of equations
     neq_total: usize,
@@ -31,12 +30,12 @@ pub(crate) struct OutputFiles {
 
     /// History (time or lambda) of U components at selected points
     ///
-    /// Maps `equation` to an array with the values along time
+    /// Maps `equation` to an array with the values along station
     history_uu_comp: HashMap<usize, Vec<f64>>,
 
     /// History (time or lambda) of Y (internal forces) components at selected points
     ///
-    /// Maps `equation` to an array with the values along time
+    /// Maps `equation` to an array with the values along station
     history_yy_comp: HashMap<usize, Vec<f64>>,
 
     /// History (time or lambda) of flux vectors at selected integration points
@@ -65,8 +64,7 @@ impl OutputFiles {
         }
         Ok(OutputFiles {
             counter: 0,
-            times: Vec::new(),
-            lambdas: Vec::new(),
+            stations: Vec::new(),
             neq_total: schema.get_neq()?,
             neq_presc,
             history_uu_comp: HashMap::new(),
@@ -76,22 +74,12 @@ impl OutputFiles {
         })
     }
 
-    /// Starts the output
-    pub fn start(&mut self) {
-        self.counter = 0;
-        self.times.clear();
-        self.lambdas.clear();
-        self.history_uu_comp.clear();
-        self.history_local_flux.clear();
-        self.history_local_state.clear();
-    }
-
     /// Returns the number of files written
-    pub fn n_files(&self) -> usize {
+    pub fn nfile(&self) -> usize {
         self.counter
     }
 
-    /// Returns the total number of equations
+    /// Returns the total number of equations (number of DOFs)
     pub fn neq_total(&self) -> usize {
         self.neq_total
     }
@@ -101,18 +89,15 @@ impl OutputFiles {
         self.neq_presc
     }
 
-    /// Returns the real simulation times corresponding to each output file
-    pub fn get_times(&self) -> &Vec<f64> {
-        &self.times
-    }
-
-    /// Returns the loading factors corresponding to each output file
-    pub fn get_lambdas(&self) -> &Vec<f64> {
-        &self.lambdas
+    /// Returns the real simulation times (time) or loading increments (lambda)
+    ///
+    /// Time is used for transient/dynamic analyses, while lambda is used for steady/static analyses
+    pub fn stations(&self) -> &Vec<f64> {
+        &self.stations
     }
 
     /// Returns the history (time or lambda) of U components at selected points
-    pub fn get_history_uu_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
+    pub fn history_uu_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
         match schema.get_eq(point_id, dof) {
             Ok(eq) => self.history_uu_comp.get(&eq),
             Err(_) => None,
@@ -120,7 +105,7 @@ impl OutputFiles {
     }
 
     /// Returns the history (time or lambda) of Y (internal forces) components at selected points
-    pub fn get_history_yy_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
+    pub fn history_yy_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
         match schema.get_eq(point_id, dof) {
             Ok(eq) => self.history_yy_comp.get(&eq),
             Err(_) => None,
@@ -128,12 +113,12 @@ impl OutputFiles {
     }
 
     /// Returns the history (time or lambda) of flux vectors at selected integration points
-    pub fn get_history_local_flux(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+    pub fn history_local_flux(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
         self.history_local_flux.get(&cell_id)
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    pub fn get_history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
         self.history_local_state.get(&cell_id)
     }
 
@@ -177,8 +162,11 @@ impl OutputFiles {
         yy: &Vector,
     ) -> Result<(), StrError> {
         if config.out_files || config.out_history {
-            self.times.push(state.time);
-            self.lambdas.push(state.lambda);
+            if config.transient || config.dynamics {
+                self.stations.push(state.time);
+            } else {
+                self.stations.push(state.lambda);
+            }
         }
         if config.out_files {
             // save the state

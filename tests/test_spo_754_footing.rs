@@ -203,14 +203,14 @@ fn run(
 
     // check the results
     let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
-    let nstate = post.nstate();
+    let nstate = post.nfile();
     let footing_cells = features.get_cells_via_2d_edges(&footing);
     let mut normalized_settlement = Vec::with_capacity(nstate);
     let mut normalized_pressure = Vec::with_capacity(nstate);
     let mut lambdas = Vec::with_capacity(nstate);
     let analytical_limit = 2.0 + PI;
     for index in 0..nstate {
-        let state = post.read_state(index)?;
+        let state = post.read_file(index)?;
         lambdas.push(state.lambda);
         let uy = state.uu[eq_corner];
         normalized_settlement.push(-uy / WIDTH);

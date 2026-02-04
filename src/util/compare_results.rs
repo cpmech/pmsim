@@ -80,10 +80,10 @@ pub fn compare_results(
     // compare results
     let mut all_good = true;
     let (pp, _) = PostProc::new(dir, fn_stem)?;
-    if pp.nstate() != dat.actual.nstep() + 1 {
+    if pp.nfile() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
-    for index in 1..pp.nstate() {
+    for index in 1..pp.nfile() {
         // set the number of steps in the reference data (where the initial state is absent)
         let step = index - 1;
 

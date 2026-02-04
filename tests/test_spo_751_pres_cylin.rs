@@ -279,16 +279,16 @@ fn run_test(
     let mut ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
 
     // loop over time stations
-    let mut inner_pp = vec![0.0; post.nstate()];
-    let mut outer_ur = vec![0.0; post.nstate()];
+    let mut inner_pp = vec![0.0; post.nfile()];
+    let mut outer_ur = vec![0.0; post.nfile()];
     let mut first_rr = true;
     let mut rr = Vec::new();
     let mut pp_arr = Vec::new();
     let mut sh_arr = Vec::new();
     let mut sr_arr = Vec::new();
-    for index in 1..post.nstate() {
+    for index in 1..post.nfile() {
         // load state
-        let state = post.read_state(index)?;
+        let state = post.read_file(index)?;
 
         // pressure
         let pp = state.lambda;

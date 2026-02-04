@@ -147,8 +147,8 @@ fn test_seep_cofferdam() -> Result<(), StrError> {
     let (post, mut memo) = PostProc::new(OUT_DIR, NAME)?;
 
     // read last state
-    let last = post.nstate() - 1;
-    let state = post.read_state(last)?;
+    let last = post.nfile() - 1;
+    let state = post.read_file(last)?;
 
     // load mesh and find vertical section along the gap underneath the wall
     let cells_by_points = true; // use all cells surrounding a point for better extrapolation

@@ -132,7 +132,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
     for index in 0..nlambda_max {
         // load state
-        let state = post.read_state(index)?;
+        let state = post.read_file(index)?;
 
         // load
         let pp = LAMBDAS[index];

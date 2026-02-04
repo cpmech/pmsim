@@ -190,8 +190,8 @@ fn run_test(
 
     // check the results
     let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
-    let lambdas = post.get_lambdas();
-    let ss = post.get_history_local_state(0).unwrap();
+    let lambdas = post.stations();
+    let ss = post.history_local_state(0).unwrap();
     if !options.arclength {
         for i in 0..lambdas.len() {
             let ey_ref = -lambdas[i] * dy / L0;
@@ -244,8 +244,8 @@ fn run_test(
     // figure
     if SAVE_FIGURE {
         // displacement-force data
-        let uy = post.get_history_uu_comp(corner, Dof::Uy).unwrap();
-        let fy = post.get_history_yy_comp(corner, Dof::Uy).unwrap();
+        let uy = post.history_uu_comp(corner, Dof::Uy).unwrap();
+        let fy = post.history_yy_comp(corner, Dof::Uy).unwrap();
         let mut curve = Curve::new();
         let mut plot = Plot::new();
         let mut dm = DarkMode::new();
@@ -259,7 +259,7 @@ fn run_test(
             .save(&format!("/tmp/pmsim/{}_disp.svg", name))?;
 
         // stress-strain data
-        let ss = post.get_history_local_state(0).unwrap();
+        let ss = post.history_local_state(0).unwrap();
         let data = PlotterData::from_states(ss);
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {

@@ -191,21 +191,21 @@ fn run(
     //
 
     // calculate the reaction using the internal forces
-    let lambdas = data.get_out_lambdas();
+    let lambdas = data.stations();
     if !options.arclength {
         assert_eq!(lambdas, &LAMBDAS);
     }
     let nstation = lambdas.len();
     let mut sum_yy = vec![0.0; nstation];
     for point_id in &ids_bottom {
-        let yy_over_time = data.get_history_yy_comp(*point_id, Dof::Uy).unwrap();
+        let yy_over_time = data.history_yy_comp(*point_id, Dof::Uy).unwrap();
         for i in 0..nstation {
             sum_yy[i] += yy_over_time[i];
         }
     }
 
     // get the history of vertical displacement at the corner point
-    let history_uy = data.get_history_uu_comp(corner_id, Dof::Uy).unwrap();
+    let history_uy = data.history_uu_comp(corner_id, Dof::Uy).unwrap();
 
     // loop over stations (lambdas)
     let analytical_limit = (2.0 + PI) / SQRT_3;

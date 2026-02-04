@@ -108,9 +108,9 @@ impl PostProc {
 
     /// Returns the number of state files
     ///
-    /// Corresponds to the index in [PostProc::read_state()]
-    pub fn nstate(&self) -> usize {
-        self.files.n_files()
+    /// Corresponds to the index in [PostProc::read_file()]
+    pub fn nfile(&self) -> usize {
+        self.files.nfile()
     }
 
     /// Returns the total number of equations
@@ -125,7 +125,7 @@ impl PostProc {
 
     /// Reads a JSON file with the FEM state at a given index (time station)
     ///
-    /// The number of state files is given by [PostProc::n_files()].
+    /// The number of state files is given by [PostProc::nfile()].
     ///
     /// This function loads the FEM state data from a JSON file corresponding to the specified
     /// time station index. The path to the state file is constructed using the `FileIo` instance.
@@ -134,7 +134,7 @@ impl PostProc {
     ///
     /// * `results` - The FemResults instance containing the paths to the state files.
     /// * `index` - The index of the time station for which the state data is to be read.
-    ///   The index should be in the range `[0, n_state_files)`. Use [PostProc::n_state()]
+    ///   The index should be in the range `[0, n_state_files)`. Use [PostProc::nfile()]
     ///   to get the number of state files.
     ///
     /// # Returns
@@ -144,39 +144,36 @@ impl PostProc {
     /// # Errors
     ///
     /// Returns an error if the state file cannot be read or parsed.
-    pub fn read_state(&self, index: usize) -> Result<FemState, StrError> {
+    pub fn read_file(&self, index: usize) -> Result<FemState, StrError> {
         let path = format!("{}/{}-{}.json", self.dir, self.fn_stem, index);
         FemState::read_json(&path)
     }
 
-    /// Returns the real simulation times corresponding to each output file
-    pub fn get_times(&self) -> &Vec<f64> {
-        self.files.get_times()
-    }
-
-    /// Returns the loading factors corresponding to each output file
-    pub fn get_lambdas(&self) -> &Vec<f64> {
-        self.files.get_lambdas()
+    /// Returns the real simulation times (time) or loading increments (lambda)
+    ///
+    /// Time is used for transient/dynamic analyses, while lambda is used for steady/static analyses
+    pub fn stations(&self) -> &Vec<f64> {
+        self.files.stations()
     }
 
     /// Returns the history (time or lambda) of U components at selected points
-    pub fn get_history_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
-        self.files.get_history_uu_comp(point_id, dof, &self.schema)
+    pub fn history_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.history_uu_comp(point_id, dof, &self.schema)
     }
 
     /// Returns the history (time or lambda) of Y (internal forces) components at selected points
-    pub fn get_history_yy_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
-        self.files.get_history_yy_comp(point_id, dof, &self.schema)
+    pub fn history_yy_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.history_yy_comp(point_id, dof, &self.schema)
     }
 
     /// Returns the history (time or lambda) of flux vectors at selected integration points
-    pub fn get_history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
-        self.files.get_history_local_flux(cell_id)
+    pub fn history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+        self.files.history_local_flux(cell_id)
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    pub fn get_history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
-        self.files.get_history_local_state(cell_id)
+    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+        self.files.history_local_state(cell_id)
     }
 
     /// Returns the real coordinates of all Gauss points of a cell
@@ -1235,8 +1232,8 @@ impl PostProc {
     ///
     /// Returns the path to the PVD file
     pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
-        let indices: Vec<_> = (0..self.files.n_files()).into_iter().collect();
-        write_pvd(dir, fn_stem, &indices, &self.files.get_times())
+        let indices: Vec<_> = (0..self.files.nfile()).into_iter().collect();
+        write_pvd(dir, fn_stem, &indices, &self.files.stations())
     }
 
     /// Loads all states and writes Paraview's VTU and PVD files
@@ -1244,8 +1241,8 @@ impl PostProc {
     /// Returns the path to the PVD file
     pub fn write_paraview(&self, memo: &mut PostProcMemo, dir: &str, fn_stem: &str) -> Result<String, StrError> {
         // write VTU files
-        for index in 0..self.nstate() {
-            let state = self.read_state(index)?;
+        for index in 0..self.nfile() {
+            let state = self.read_file(index)?;
             self.write_vtu(memo, dir, fn_stem, &state, index)?;
         }
 
@@ -1663,7 +1660,7 @@ mod tests {
 
         // read state
         let ndim = post.mesh.ndim;
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         for id in 0..post.mesh.cells.len() {
             for w in &state.gauss[id].diffusion {
@@ -1676,13 +1673,13 @@ mod tests {
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
-        let sel_phi = post.get_history_uu_comp(point_id, Dof::Phi).unwrap();
+        let sel_phi = post.history_uu_comp(point_id, Dof::Phi).unwrap();
         // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
         approx_eq(sel_phi[0], phi_correct, 1e-15);
 
         // check selected flux vectors
         let cell_id = 1;
-        let s = post.files.get_history_local_flux(cell_id).unwrap();
+        let s = post.files.history_local_flux(cell_id).unwrap();
         for i in 0..ndim {
             approx_eq(s[0][i], w_correct[i], 1e-14);
         }
@@ -1705,7 +1702,7 @@ mod tests {
 
         // read state
         let ndim = post.mesh.ndim;
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         for id in 0..post.mesh.cells.len() {
             for w in &state.gauss[id].diffusion {
@@ -1718,13 +1715,13 @@ mod tests {
         let x = post.mesh.points[point_id].coords[0];
         let y = post.mesh.points[point_id].coords[1];
         let phi_correct = A_COEF * x + B_COEF * y;
-        let sel_phi = post.get_history_uu_comp(point_id, Dof::Phi).unwrap();
+        let sel_phi = post.history_uu_comp(point_id, Dof::Phi).unwrap();
         // println!("x = {}, y = {}, phi = {}", x, y, phi_correct);
         approx_eq(sel_phi[0], phi_correct, 1e-15);
 
         // check selected flux vectors
         let cell_id = 1;
-        let s = post.files.get_history_local_flux(cell_id).unwrap();
+        let s = post.files.history_local_flux(cell_id).unwrap();
         for i in 0..ndim {
             approx_eq(s[0][i], w_correct[i], 1e-14);
         }
@@ -1748,9 +1745,9 @@ mod tests {
 
         // read state
         let ndim = post.mesh.ndim;
-        let state_h = post.read_state(0).unwrap();
-        let state_v = post.read_state(1).unwrap();
-        let state_s = post.read_state(2).unwrap();
+        let state_h = post.read_file(0).unwrap();
+        let state_v = post.read_file(1).unwrap();
+        let state_s = post.read_file(2).unwrap();
         let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
@@ -1782,8 +1779,8 @@ mod tests {
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
         let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
         let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
-        let sel_ux = post.get_history_uu_comp(point_id, Dof::Ux).unwrap();
-        let sel_uy = post.get_history_uu_comp(point_id, Dof::Uy).unwrap();
+        let sel_ux = post.history_uu_comp(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.history_uu_comp(point_id, Dof::Uy).unwrap();
         let correct = [&duu_h, &duu_v, &duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
@@ -1792,7 +1789,7 @@ mod tests {
 
         // check selected stresses and strains
         let cell_id = 1;
-        let s = post.files.get_history_local_state(cell_id).unwrap();
+        let s = post.files.history_local_state(cell_id).unwrap();
         let sig = [&stress_h, &stress_v, &stress_s];
         let eps = [&strain_h, &strain_v, &strain_s];
         let ncp = 4;
@@ -1822,9 +1819,9 @@ mod tests {
 
         // read state
         let ndim = post.mesh.ndim;
-        let state_h = post.read_state(0).unwrap();
-        let state_v = post.read_state(1).unwrap();
-        let state_s = post.read_state(2).unwrap();
+        let state_h = post.read_file(0).unwrap();
+        let state_v = post.read_file(1).unwrap();
+        let state_s = post.read_file(2).unwrap();
         let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
         let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
@@ -1857,9 +1854,9 @@ mod tests {
         let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
         let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
         let eqz = post.schema.get_eq(point_id, Dof::Uz)?;
-        let sel_ux = post.get_history_uu_comp(point_id, Dof::Ux).unwrap();
-        let sel_uy = post.get_history_uu_comp(point_id, Dof::Uy).unwrap();
-        let sel_uz = post.get_history_uu_comp(point_id, Dof::Uz).unwrap();
+        let sel_ux = post.history_uu_comp(point_id, Dof::Ux).unwrap();
+        let sel_uy = post.history_uu_comp(point_id, Dof::Uy).unwrap();
+        let sel_uz = post.history_uu_comp(point_id, Dof::Uz).unwrap();
         let correct = [duu_h, duu_v, duu_s];
         for i in 0..3 {
             approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
@@ -1869,7 +1866,7 @@ mod tests {
 
         // check selected stresses and strains
         let cell_id = 1;
-        let s = post.files.get_history_local_state(cell_id).unwrap();
+        let s = post.files.history_local_state(cell_id).unwrap();
         let sig = [&stress_h, &stress_v, &stress_s];
         let eps = [&strain_h, &strain_v, &strain_s];
         let ncp = 6;
@@ -2006,7 +2003,7 @@ mod tests {
         generate_data_files();
 
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d-qua4").unwrap();
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         assert_eq!(
             post.gauss_fluxes(&state, 1, Dof::Phi).err(),
             Some("no Gauss points found for this cell (output of flux vectors must be enabled first)")
@@ -2026,7 +2023,7 @@ mod tests {
         let ncomp = ndim;
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert!(post.mesh.ndim == ndim);
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         for cell_id in [0, 1, 2] {
             let w_matrix = post.gauss_fluxes(&state, cell_id, Dof::Phi).unwrap();
@@ -2048,7 +2045,7 @@ mod tests {
         let ncomp = ndim;
         let (post, _) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert!(post.mesh.ndim == ndim);
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         for cell_id in [0, 1] {
             let w_matrix = post.gauss_fluxes(&state, cell_id, Dof::Phi).unwrap();
@@ -2068,7 +2065,7 @@ mod tests {
         let ndim = 2;
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert!(post.mesh.ndim == ndim);
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         let ww = post
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
@@ -2101,7 +2098,7 @@ mod tests {
         let ndim = 3;
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert!(post.mesh.ndim == ndim);
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         let ww = post
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
@@ -2133,9 +2130,9 @@ mod tests {
     }
 
     fn load_states_and_solutions(post: &PostProc) -> [(FemState, Tensor2, Tensor2); 3] {
-        let state_h = post.read_state(0).unwrap();
-        let state_v = post.read_state(1).unwrap();
-        let state_s = post.read_state(2).unwrap();
+        let state_h = post.read_file(0).unwrap();
+        let state_v = post.read_file(1).unwrap();
+        let state_s = post.read_file(2).unwrap();
 
         let ndim = state_h.gauss[0].stress(0).unwrap().vector().dim() / 2;
 
@@ -2435,7 +2432,7 @@ mod tests {
         let nnode = 3;
         let ncomp = ndim;
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         for cell_id in [0, 1, 2] {
             let w_matrix = post.nodal_fluxes(&mut memo, &state, cell_id, Dof::Phi).unwrap();
@@ -2455,7 +2452,7 @@ mod tests {
         let nnode = 8;
         let ncomp = ndim;
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         for cell_id in [0, 1] {
             let w_matrix = post.nodal_fluxes(&mut memo, &state, cell_id, Dof::Phi).unwrap();
@@ -2474,7 +2471,7 @@ mod tests {
 
         let ndim = 2;
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         let ww = post
             .nodal_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
@@ -2505,7 +2502,7 @@ mod tests {
 
         let ndim = 3;
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
         let ww = post
             .nodal_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
@@ -2850,7 +2847,7 @@ mod tests {
         let features = Features::new(&post.mesh, false);
         let top = features.search_edges(At::Y(2.0), any_x).unwrap();
 
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
         let (ids, coords, dd) = post.values_along_edges(&state, &top, Dof::Ux).unwrap();
 
         assert_eq!(ids, &[14, 16, 13, 20, 18]);
@@ -2999,7 +2996,7 @@ mod tests {
 
         // load results
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
-        let state = post.read_state(0).unwrap();
+        let state = post.read_file(0).unwrap();
 
         // let vv = post
         //     .nodal_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |_, _, _| true)

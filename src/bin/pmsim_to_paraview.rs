@@ -22,8 +22,8 @@ fn main() -> Result<(), StrError> {
     let (post, mut memo) = PostProc::new(&options.out_dir, &options.fn_stem)?;
 
     // write VTU files
-    for index in 0..post.nstate() {
-        let state = post.read_state(index)?;
+    for index in 0..post.nfile() {
+        let state = post.read_file(index)?;
         post.write_vtu(&mut memo, &options.out_dir, &options.fn_stem, &state, index)?;
     }
 

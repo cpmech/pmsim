@@ -78,8 +78,8 @@ fn test_seep_simple_confined_flow() -> Result<(), StrError> {
     let mid_section = features.search_edges(At::X(18.0), |_| true)?;
 
     // read last state
-    let last = post.nstate() - 1;
-    let state = post.read_state(last)?;
+    let last = post.nfile() - 1;
+    let state = post.read_file(last)?;
 
     // extract fluxes along the mid section
     let mid_cell_ids = features.get_cells_via_2d_edges(&mid_section);

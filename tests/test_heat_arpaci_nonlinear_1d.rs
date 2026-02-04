@@ -151,7 +151,7 @@ fn do_plot() -> Result<(), StrError> {
     // get temperature values along x
     let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
     let features = Features::new(post.mesh(), false);
-    let state = post.read_state(post.nstate() - 1)?;
+    let state = post.read_file(post.nfile() - 1)?;
     let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;
 
     // compute plot data

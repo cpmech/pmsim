@@ -193,7 +193,6 @@ impl<'a> FemData<'a> {
         let mut files = OutputFiles::new(mesh, schema, config, np)?;
 
         // Perform the first output
-        files.start();
         files.execute(&schema, &config, &state, &yy)?;
 
         // return new instance
@@ -253,34 +252,31 @@ impl<'a> FemData<'a> {
         self.state.reverse = false;
     }
 
-    /// Returns the real simulation times corresponding to each output file
-    pub fn get_out_times(&self) -> &Vec<f64> {
-        self.files.get_times()
-    }
-
-    /// Returns the loading factors corresponding to each output file
-    pub fn get_out_lambdas(&self) -> &Vec<f64> {
-        self.files.get_lambdas()
+    /// Returns the real simulation times (time) or loading increments (lambda)
+    ///
+    /// Time is used for transient/dynamic analyses, while lambda is used for steady/static analyses
+    pub fn stations(&self) -> &Vec<f64> {
+        self.files.stations()
     }
 
     /// Returns the history (time or lambda) of U components at selected points
-    pub fn get_history_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
-        self.files.get_history_uu_comp(point_id, dof, &self.schema)
+    pub fn history_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.history_uu_comp(point_id, dof, &self.schema)
     }
 
     /// Returns the history (time or lambda) of Y (internal forces) components at selected points
-    pub fn get_history_yy_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
-        self.files.get_history_yy_comp(point_id, dof, &self.schema)
+    pub fn history_yy_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
+        self.files.history_yy_comp(point_id, dof, &self.schema)
     }
 
     /// Returns the history (time or lambda) of flux vectors at selected integration points
-    pub fn get_history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
-        self.files.get_history_local_flux(cell_id)
+    pub fn history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+        self.files.history_local_flux(cell_id)
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    pub fn get_history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
-        self.files.get_history_local_state(cell_id)
+    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+        self.files.history_local_state(cell_id)
     }
 
     /// Prints information about the system
