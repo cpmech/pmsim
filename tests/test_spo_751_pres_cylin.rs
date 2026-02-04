@@ -96,16 +96,6 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         residual: false,
         arclength: false,
         lmm: true,
-        npv: false,
-    };
-    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
-
-    // run: collapse + natural + npv
-    let options = Options {
-        residual: false,
-        arclength: false,
-        lmm: false,
-        npv: true,
     };
     run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
 
@@ -114,7 +104,6 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         residual: false,
         arclength: false,
         lmm: false,
-        npv: false,
     };
     run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
 
@@ -123,7 +112,6 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         residual: true,
         arclength: false,
         lmm: true,
-        npv: false,
     };
     run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
 
@@ -132,7 +120,6 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         residual: true,
         arclength: false,
         lmm: false,
-        npv: false,
     };
     run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
 
@@ -141,7 +128,6 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         residual: false,
         arclength: true,
         lmm: false,
-        npv: false,
     };
     run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
 
@@ -150,7 +136,6 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         residual: true,
         arclength: true,
         lmm: false,
-        npv: false,
     };
     run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
     Ok(())
@@ -176,7 +161,6 @@ fn run_test(
     config
         .set_out_files("/tmp/pmsim", &name)
         .set_lagrange_mult_method(options.lmm)
-        .set_nonzero_presc_values(options.npv)
         .update_model_settings(1)
         .set_save_strain(true);
 
@@ -444,7 +428,6 @@ struct Options {
     residual: bool,
     arclength: bool,
     lmm: bool,
-    npv: bool,
 }
 
 impl Options {
@@ -461,8 +444,6 @@ impl Options {
         }
         if self.lmm {
             buf += "_lmm";
-        } else if self.npv {
-            buf += "_npv";
         } else {
             buf += "_sps";
         }

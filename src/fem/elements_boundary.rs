@@ -1,5 +1,5 @@
 use super::FemState;
-use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_npv, assemble_matrix_sps};
+use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_sps};
 use crate::base::{BcNatural, Config, Nbc, Schema};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -327,22 +327,6 @@ impl<'a> ElementsBoundary<'a> {
         true
     }
 
-    /// Estimates the number of non-zero values in the global K matrix
-    pub fn estimate_nnz(&self, triangular: bool) -> usize {
-        let mut nnz = 0;
-        for e in &self.elements {
-            if e.with_jacobian() {
-                let n = e.n_local_eq();
-                if triangular {
-                    nnz += (n * n + n) / 2;
-                } else {
-                    nnz += n * n;
-                }
-            }
-        }
-        nnz
-    }
-
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
     pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for e in &mut self.elements {
@@ -425,22 +409,6 @@ impl<'a> ElementsBoundary<'a> {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_ref() {
                 assemble_matrix_sps(kk_bar, kk_check, kke, &e.local_to_global, eq_handler)?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Assembles the local K matrix into its global counterpart for the Nonzero Prescribed Value method (NPV)
-    pub fn assemble_kk_npv(
-        &mut self,
-        kk: &mut CooMatrix,
-        state: &FemState,
-        eq_handler: &EquationHandler,
-    ) -> Result<(), StrError> {
-        for e in &mut self.elements {
-            e.calc_kke(state)?;
-            if let Some(kke) = e.kke.as_ref() {
-                assemble_matrix_npv(kk, kke, &e.local_to_global, eq_handler)?;
             }
         }
         Ok(())

@@ -46,9 +46,6 @@ pub struct Config<'a> {
     /// Enables the method of Lagrange multipliers (LMM) to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
 
-    /// Enables the nonzero prescribed values (NPV) method to handle prescribed essential values
-    pub(crate) nonzero_presc_values: bool,
-
     /// Uses the alternative method to calculate the B matrix
     ///
     /// This alternative method is the "standard" method found in the literature.
@@ -168,7 +165,6 @@ impl<'a> Config<'a> {
             transient: false,
             dynamics: false,
             lagrange_mult_method: false,
-            nonzero_presc_values: false,
             alt_bb_matrix_method: false,
             symmetry_check_tolerance: Some(1e-7),
             // Initialization
@@ -346,12 +342,6 @@ impl<'a> Config<'a> {
     /// Enables the method of Lagrange multipliers (LMM) to handle prescribed essential values
     pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
         self.lagrange_mult_method = enable;
-        self
-    }
-
-    /// Enables the nonzero prescribed values (NPV) method to handle prescribed essential values
-    pub fn set_nonzero_presc_values(&mut self, enable: bool) -> &mut Self {
-        self.nonzero_presc_values = enable;
         self
     }
 

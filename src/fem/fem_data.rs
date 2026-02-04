@@ -136,7 +136,7 @@ impl<'a> FemData<'a> {
         elements.initialize_internal_values(&mut state)?;
 
         // Determine if the global stiffness matrix is symmetric and it's enabled
-        let symmetric = if config.ignore_symmetry || config.nonzero_presc_values {
+        let symmetric = if config.ignore_symmetry {
             false
         } else {
             elements.all_sym_kk() && boundaries.all_sym_kk()
@@ -149,13 +149,7 @@ impl<'a> FemData<'a> {
         // Determine the system dimension
         let nu = eq_handler.nu();
         let np = eq_handler.np();
-        let nsys = if config.lagrange_mult_method {
-            ndof + np
-        } else if config.nonzero_presc_values {
-            ndof
-        } else {
-            nu
-        };
+        let nsys = if config.lagrange_mult_method { ndof + np } else { nu };
 
         // Calculate the number of non-zero entries in the global stiffness matrix
         let mut nnz_kk = 0;
@@ -169,16 +163,13 @@ impl<'a> FemData<'a> {
             } else {
                 nnz_kk += 2 * np;
             }
-        } else if config.nonzero_presc_values {
-            nnz_kk += elements.estimate_nnz(sym.triangular());
-            nnz_kk += boundaries.estimate_nnz(sym.triangular());
         } else {
             elements.add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &eq_handler);
             boundaries.add_nnz_sps(&mut nnz_kk_bar, &mut nnz_kk_check, sym, &eq_handler);
         }
 
         // Allocate K-check matrix for SPS
-        let kk_check = if config.lagrange_mult_method || config.nonzero_presc_values || n_prescribed == 0 {
+        let kk_check = if config.lagrange_mult_method || n_prescribed == 0 {
             CooMatrix::new(1, 1, 1, Sym::No).unwrap() // empty
         } else {
             CooMatrix::new(nu, np, nnz_kk_check, Sym::No).unwrap()
@@ -241,7 +232,7 @@ impl<'a> FemData<'a> {
     /// Returns the index of a u component in the system used by the nonlinear solver (this is not U)
     pub fn get_u_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
         let eq = self.schema.dof_number(point_id, dof)?;
-        if self.config.lagrange_mult_method || self.config.nonzero_presc_values {
+        if self.config.lagrange_mult_method {
             Ok(eq)
         } else {
             Ok(self.eq_handler.iu(eq))
@@ -289,13 +280,7 @@ impl<'a> FemData<'a> {
     pub fn print_system_info(&self, continuation: &str) {
         if self.config.verbose {
             let mut b = vec![vec![String::new(); 3]; 3];
-            let handler = if self.config.lagrange_mult_method {
-                "LMM"
-            } else if self.config.nonzero_presc_values {
-                "NPV"
-            } else {
-                "SPS"
-            };
+            let handler = if self.config.lagrange_mult_method { "LMM" } else { "SPS" };
             write!(&mut b[0][0], "neq  = {:?}", self.ndof).unwrap();
             write!(&mut b[1][0], "np   = {:?}", self.np).unwrap();
             write!(&mut b[2][0], "ndim = {:?}", self.nsys).unwrap();
@@ -357,10 +342,6 @@ impl<'a> FemData<'a> {
         if self.config.lagrange_mult_method {
             for i in 0..self.ndof {
                 self.state.uu[i] = u[i];
-            }
-        } else if self.config.nonzero_presc_values {
-            for eq in 0..self.ndof {
-                self.state.uu[eq] = u[eq];
             }
         } else {
             for iu in 0..self.nu {

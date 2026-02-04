@@ -1,10 +1,10 @@
 use super::FemData;
 use super::{
-    backup_secondary_state, calc_gg_lmm, calc_gg_npv, calc_gg_sps, output_step, prepare_to_iterate,
-    restore_secondary_state, update_secondary_state_lmm, update_secondary_state_npv, update_secondary_state_sps,
+    backup_secondary_state, calc_gg_lmm, calc_gg_sps, output_step, prepare_to_iterate, restore_secondary_state,
+    update_secondary_state_lmm, update_secondary_state_sps,
 };
 use crate::base::{BcEssential, BcNatural, Config, Schema};
-use crate::fem::callbacks::{calc_jac_lmm, calc_jac_npv, calc_jac_sps};
+use crate::fem::callbacks::{calc_jac_lmm, calc_jac_sps};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::Vector;
@@ -45,11 +45,6 @@ impl<'a> Simulator<'a> {
             let nnz = Some(data.nnz_kk);
             let mut sys = NlSystem::new(data.nsys, nnz, data.sym, calc_gg_lmm, calc_jac_lmm)?;
             sys.set_update_secondary_state(update_secondary_state_lmm);
-            sys
-        } else if config.nonzero_presc_values {
-            let nnz = Some(data.nnz_kk);
-            let mut sys = NlSystem::new(data.nsys, nnz, data.sym, calc_gg_npv, calc_jac_npv)?;
-            sys.set_update_secondary_state(update_secondary_state_npv);
             sys
         } else {
             let nnz = Some(data.nnz_kk_bar);

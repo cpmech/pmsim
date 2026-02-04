@@ -1,5 +1,5 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
-use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_npv, assemble_matrix_sps};
+use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_sps};
 use crate::base::{Config, ElemType, Schema};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
@@ -122,20 +122,6 @@ impl<'a> ElementsInterior<'a> {
         true
     }
 
-    /// Estimates the number of non-zero values in the global K matrix
-    pub fn estimate_nnz(&self, triangular: bool) -> usize {
-        let mut nnz = 0;
-        for e in &self.elements {
-            let n = e.actual.local_to_global().len();
-            if triangular {
-                nnz += (n * n + n) / 2;
-            } else {
-                nnz += n * n;
-            }
-        }
-        nnz
-    }
-
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
     pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState) -> Result<(), StrError> {
         for e in &mut self.elements {
@@ -211,20 +197,6 @@ impl<'a> ElementsInterior<'a> {
         for e in &mut self.elements {
             e.actual.calc_kke(&mut e.kke, state)?;
             assemble_matrix_sps(kk_bar, kk_check, &e.kke, &e.actual.local_to_global(), eq_handler)?;
-        }
-        Ok(())
-    }
-
-    /// Assembles the local K matrix into its global counterpart for the Nonzero Prescribed Value method (NPV)
-    pub fn assemble_kk_npv(
-        &mut self,
-        kk: &mut CooMatrix,
-        state: &FemState,
-        eq_handler: &EquationHandler,
-    ) -> Result<(), StrError> {
-        for e in &mut self.elements {
-            e.actual.calc_kke(&mut e.kke, state)?;
-            assemble_matrix_npv(kk, &e.kke, &e.actual.local_to_global(), eq_handler)?;
         }
         Ok(())
     }

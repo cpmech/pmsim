@@ -213,30 +213,6 @@ pub fn assemble_matrix_sps(
     Ok(())
 }
 
-/// Assembles the local K matrix into its global counterpart for the Nonzero Prescribed Value method (NPV)
-pub fn assemble_matrix_npv(
-    kk: &mut CooMatrix,
-    kke: &Matrix,
-    local_to_global: &[usize],
-    eq_handler: &EquationHandler,
-) -> Result<(), StrError> {
-    let sym = kk.get_info().3;
-    if sym != Sym::No {
-        return Err("the nonzero prescribed value method only works with Sym::No");
-    }
-    let n_equation_local = local_to_global.len();
-    for l in 0..n_equation_local {
-        let g = local_to_global[l];
-        if eq_handler.is_unknown(g) {
-            for ll in 0..n_equation_local {
-                let gg = local_to_global[ll];
-                kk.put(g, gg, kke.get(l, ll)).unwrap();
-            }
-        }
-    }
-    Ok(())
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*

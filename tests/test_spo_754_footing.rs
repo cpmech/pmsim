@@ -91,7 +91,6 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let options = Options {
         arclength: false,
         lmm: true,
-        npv: false,
     };
     run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
 
@@ -99,7 +98,6 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let options = Options {
         arclength: false,
         lmm: false,
-        npv: false,
     };
     run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
 
@@ -107,15 +105,6 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let options = Options {
         arclength: true,
         lmm: true,
-        npv: false,
-    };
-    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
-
-    // run: arclength + npv
-    let options = Options {
-        arclength: true,
-        lmm: false,
-        npv: true,
     };
     run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
 
@@ -123,7 +112,6 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     let options = Options {
         arclength: true,
         lmm: false,
-        npv: false,
     };
     run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
     Ok(())
@@ -146,8 +134,7 @@ fn run(
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", &name)
-        .set_lagrange_mult_method(options.lmm)
-        .set_nonzero_presc_values(options.npv);
+        .set_lagrange_mult_method(options.lmm);
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
@@ -230,8 +217,6 @@ fn run(
             let tol = if options.arclength {
                 if options.lmm {
                     0.0053
-                } else if options.npv {
-                    0.0013
                 } else {
                     0.0024
                 }
@@ -311,7 +296,6 @@ fn run(
 struct Options {
     arclength: bool,
     lmm: bool,
-    npv: bool,
 }
 
 impl Options {
@@ -323,8 +307,6 @@ impl Options {
         };
         if self.lmm {
             buf += "_lmm";
-        } else if self.npv {
-            buf += "_npv";
         } else {
             buf += "_sps";
         }

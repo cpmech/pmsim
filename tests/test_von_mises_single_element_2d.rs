@@ -104,7 +104,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let options = Options {
         arclength: false,
         lmm: true,
-        npv: false,
     };
     run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
 
@@ -112,15 +111,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let options = Options {
         arclength: false,
         lmm: false,
-        npv: false,
-    };
-    run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
-
-    // run: arclength + npv
-    let options = Options {
-        arclength: true,
-        lmm: false,
-        npv: true,
     };
     run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
 
@@ -128,7 +118,6 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let options = Options {
         arclength: true,
         lmm: false,
-        npv: false,
     };
     run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
     Ok(())
@@ -159,7 +148,6 @@ fn run_test(
         .set_out_history_yy_comp(corner, Dof::Uy)
         .set_out_files("/tmp/pmsim", &name)
         .set_lagrange_mult_method(options.lmm)
-        .set_nonzero_presc_values(options.npv)
         .set_out_history_local_state(0)
         .update_model_settings(1)
         .set_save_strain(true);
@@ -290,7 +278,6 @@ fn run_test(
 struct Options {
     arclength: bool,
     lmm: bool,
-    npv: bool,
 }
 
 impl Options {
@@ -302,8 +289,6 @@ impl Options {
         };
         if self.lmm {
             buf += "_lmm";
-        } else if self.npv {
-            buf += "_npv";
         } else {
             buf += "_sps";
         }
