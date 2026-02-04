@@ -127,11 +127,20 @@ fn run(
     let mut name = NAME.to_string() + "_";
     name += &options.key();
 
+    // find corner node and corresponding equation number
+    let (min, max) = mesh.get_limits();
+    let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
+
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_files("/tmp/pmsim", &name)
+        .set_out_history_uu_comp(corner_id, Dof::Uy)
         .set_lagrange_mult_method(options.lmm);
+
+    // output files if natural parameter continuation (for verification)
+    if !options.arclength {
+        config.set_out_files("/tmp/pmsim", &name);
+    }
 
     // output the vertical component of Y at bottom edge points
     let ids_bottom = features.get_points_via_2d_edges(&bottom);
@@ -154,11 +163,6 @@ fn run(
         nl_config.set_method(NlMethod::Natural);
     }
 
-    // find corner node and corresponding equation number
-    let (min, max) = mesh.get_limits();
-    let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
-    let eq_corner = schema.get_eq(corner_id, Dof::Uy)?;
-
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
@@ -169,7 +173,6 @@ fn run(
         Stop::MaxNormU(0.25, Norm::Max, 0, end)
     } else {
         Stop::Steps(LAMBDAS.len() - 1)
-        // Stop::Steps(4)
     };
 
     // delta lambda
@@ -187,48 +190,35 @@ fn run(
     // data analysis -------------------------------------------------------------
     //
 
-    // load summary and associated files
-    let (post, mut _memo) = PostProc::new("/tmp/pmsim", &name)?;
-
     // calculate the reaction using the internal forces
-    let nstate = post.nstate();
-    let mut sum_yy = vec![0.0; nstate];
+    let lambdas = data.get_out_lambdas();
+    if !options.arclength {
+        assert_eq!(lambdas, &LAMBDAS);
+    }
+    let nstation = lambdas.len();
+    let mut sum_yy = vec![0.0; nstation];
     for point_id in &ids_bottom {
-        let yy_over_time = post.get_history_yy_comp(*point_id, Dof::Uy).unwrap();
-        for i in 0..nstate {
+        let yy_over_time = data.get_history_yy_comp(*point_id, Dof::Uy).unwrap();
+        for i in 0..nstation {
             sum_yy[i] += yy_over_time[i];
         }
     }
 
-    // loop over states
-    // let bottom_cells = features.get_cells_via_2d_edges(&bottom);
-    let mut normalized_deflection = Vec::with_capacity(nstate);
-    let mut normalized_stress = Vec::with_capacity(nstate);
+    // get the history of vertical displacement at the corner point
+    let history_uy = data.get_history_uu_comp(corner_id, Dof::Uy).unwrap();
+
+    // loop over stations (lambdas)
     let analytical_limit = (2.0 + PI) / SQRT_3;
-    for index in 0..nstate {
-        let state = post.read_state(index)?;
-        let uy = state.uu[eq_corner];
+    let mut normalized_deflection = Vec::with_capacity(nstation);
+    let mut normalized_stress = Vec::with_capacity(nstation);
+    for index in 0..nstation {
+        let uy = history_uy[index];
         normalized_deflection.push(2.0 * uy * YOUNG / (Z_INI * WIDTH));
-        /*
-        let res = post.nodal_stresses_patch(&mut memo, &state, &bottom_cells, |x, y, _| {
-            x < 0.50001 && f64::abs(y) < 0.0001
-        })?;
-        let mut reaction = 0.0; // integral of vertical stress over the narrow part of the bottom edge
-        for i in 1..res.xx.len() {
-            // trapezoidal rule
-            reaction += (res.xx[i] - res.xx[i - 1]) * (res.tyy[i] + res.tyy[i - 1]) / 2.0;
-        }
-        let err = f64::abs(reaction + sum_yy[index]); // + because reaction points downwards
-        println!(
-            "reaction = {:.6} vs {:.6} err = {:.8}", // the difference is substantial!
-            reaction, -sum_yy[index], err
-        );
-        */
         let reaction = 2.0 * sum_yy[index]; // multiply by 2 because only half specimen is modeled
         let tensile_stress = -reaction / B; // negative because the reaction points downwards
         let norm_net_stress = tensile_stress / Z_INI;
         normalized_stress.push(norm_net_stress);
-        if index == nstate - 1 {
+        if index == nstation - 1 {
             let diff = f64::abs(norm_net_stress - analytical_limit);
             println!(
                 "final normalized net stress = {}, diff = {} ({:.2}%)",

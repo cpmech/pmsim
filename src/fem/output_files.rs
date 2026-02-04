@@ -186,6 +186,10 @@ impl OutputFiles {
         state: &FemState,
         yy: &Vector,
     ) -> Result<(), StrError> {
+        if config.out_files || config.out_history {
+            self.times.push(state.time);
+            self.lambdas.push(state.lambda);
+        }
         if config.out_files {
             // save the state
             state.write_json(&format!(
@@ -195,8 +199,6 @@ impl OutputFiles {
 
             // update counters
             self.indices.push(self.counter);
-            self.times.push(state.time);
-            self.lambdas.push(state.lambda);
             self.counter += 1;
         }
         if config.out_history {

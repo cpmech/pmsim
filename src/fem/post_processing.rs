@@ -160,29 +160,21 @@ impl PostProc {
     }
 
     /// Returns the history (time or lambda) of U components at selected points
-    ///
-    /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
     pub fn get_history_uu_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
         self.files.get_history_uu_comp(point_id, dof, &self.schema)
     }
 
     /// Returns the history (time or lambda) of Y (internal forces) components at selected points
-    ///
-    /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
     pub fn get_history_yy_comp(&self, point_id: PointId, dof: Dof) -> Option<&Vec<f64>> {
         self.files.get_history_yy_comp(point_id, dof, &self.schema)
     }
 
     /// Returns the history (time or lambda) of flux vectors at selected integration points
-    ///
-    /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
     pub fn get_history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
         self.files.get_history_local_flux(cell_id)
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    ///
-    /// If available, the length of the returned vector is equal to the length of [PostProc::get_times()].
     pub fn get_history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
         self.files.get_history_local_state(cell_id)
     }

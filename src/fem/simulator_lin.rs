@@ -214,10 +214,8 @@ impl<'a> SimulatorLin<'a> {
         }
 
         // Last output
-        if data.config.out_files {
-            data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;
-            data.files.stop(&data.config)?;
-        }
+        data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;
+        data.files.stop(&data.config)?;
         Ok(())
     }
 }
