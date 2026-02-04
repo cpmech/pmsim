@@ -1,6 +1,6 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
 use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_npv, assemble_matrix_sps};
-use crate::base::{Config, Elem, Schema};
+use crate::base::{Config, ElemType, Schema};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
 use russell_lab::{deriv1_central5, Matrix, Vector};
@@ -35,22 +35,22 @@ pub(crate) struct ElementsInterior<'a> {
 impl<'a> ElemInt<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, schema: &'a Schema, config: &'a Config, cell: &Cell) -> Result<Self, StrError> {
-        let element = schema.param(cell.marker)?;
-        let actual: Box<dyn ElementTrait> = match element {
-            Elem::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, schema, config, p, cell.id)?),
-            Elem::Rod(p) => {
+        let elem_type = schema.elem_type(cell.marker)?;
+        let actual: Box<dyn ElementTrait> = match elem_type {
+            ElemType::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, schema, config, p, cell.id)?),
+            ElemType::Rod(p) => {
                 if p.gnl.is_some() {
                     Box::new(ElementRodGnl::new(mesh, schema, p, cell.id)?)
                 } else {
                     Box::new(ElementRod::new(mesh, schema, p, cell.id)?)
                 }
             }
-            Elem::Beam(..) => panic!("TODO: Beam"),
-            Elem::Solid(p) => Box::new(ElementSolid::new(mesh, schema, config, p, cell.id)?),
-            Elem::PorousLiq(..) => panic!("TODO: PorousLiq"),
-            Elem::PorousLiqGas(..) => panic!("TODO: PorousLiqGas"),
-            Elem::PorousSldLiq(..) => panic!("TODO: PorousSldLiq"),
-            Elem::PorousSldLiqGas(..) => panic!("TODO: PorousSldLiqGas"),
+            ElemType::Beam(..) => panic!("TODO: Beam"),
+            ElemType::Solid(p) => Box::new(ElementSolid::new(mesh, schema, config, p, cell.id)?),
+            ElemType::PorousLiq(..) => panic!("TODO: PorousLiq"),
+            ElemType::PorousLiqGas(..) => panic!("TODO: PorousLiqGas"),
+            ElemType::PorousSldLiq(..) => panic!("TODO: PorousSldLiq"),
+            ElemType::PorousSldLiqGas(..) => panic!("TODO: PorousSldLiqGas"),
         };
         let n = schema.local_to_global(cell.id)?.len();
         Ok(ElemInt {

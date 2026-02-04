@@ -1,5 +1,5 @@
 use super::SecondaryValues;
-use crate::base::{Config, Elem, Schema};
+use crate::base::{Config, ElemType, Schema};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::Mesh;
@@ -120,41 +120,41 @@ impl FemState {
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
         for cell in &mesh.cells {
-            let param = schema.param(cell.marker)?;
-            let ngauss_opt = param.ngauss();
+            let elem_type = schema.elem_type(cell.marker)?;
+            let ngauss_opt = elem_type.ngauss();
             let ngauss = Gauss::new_or_sized(cell.kind, ngauss_opt)?.npoint();
-            match param {
-                Elem::Diffusion(..) => {
+            match elem_type {
+                ElemType::Diffusion(..) => {
                     has_diffusion = true;
                     if config.model_settings(cell.marker).save_flux {
                         gauss[cell.id].allocate_diffusion(ngauss, mesh.ndim);
                     }
                 }
-                Elem::Rod(..) => {
+                ElemType::Rod(..) => {
                     has_rod_or_beam = true;
                 }
-                Elem::Beam(..) => {
+                ElemType::Beam(..) => {
                     has_rod_or_beam = true;
                 }
-                Elem::Solid(param) => {
+                ElemType::Solid(param) => {
                     has_solid = true;
                     let n_int_var = param.n_int_var();
                     gauss[cell.id].allocate_solid(mandel, ngauss, n_int_var);
                 }
-                Elem::PorousLiq(..) => {
+                ElemType::PorousLiq(..) => {
                     has_porous_fluid = true;
                     gauss[cell.id].allocate_porous_liq(ngauss);
                 }
-                Elem::PorousLiqGas(..) => {
+                ElemType::PorousLiqGas(..) => {
                     has_porous_fluid = true;
                     gauss[cell.id].allocate_porous_liq_gas(ngauss);
                 }
-                Elem::PorousSldLiq(param) => {
+                ElemType::PorousSldLiq(param) => {
                     has_porous_solid = true;
                     let n_int_var = param.n_int_var();
                     gauss[cell.id].allocate_porous_sld_liq(mandel, ngauss, n_int_var);
                 }
-                Elem::PorousSldLiqGas(param) => {
+                ElemType::PorousSldLiqGas(param) => {
                     has_porous_solid = true;
                     let n_int_var = param.n_int_var();
                     gauss[cell.id].allocate_porous_sld_liq_gas(mandel, ngauss, n_int_var);

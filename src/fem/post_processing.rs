@@ -193,8 +193,8 @@ impl PostProc {
     /// Returns an error if the Gauss points cannot be retrieved.
     pub fn gauss_coords(&self, memo: &mut PostProcMemo, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let param = self.schema.param(cell.marker)?;
-        let ngauss_opt = param.ngauss();
+        let elem_type = self.schema.elem_type(cell.marker)?;
+        let ngauss_opt = elem_type.ngauss();
         let gauss = memo
             .all_gauss
             .entry(cell_id)
@@ -1014,8 +1014,8 @@ impl PostProc {
     /// Returns an error if the extrapolation matrix cannot be computed.
     fn get_extrap_matrix<'a>(&self, memo: &'a mut PostProcMemo, cell_id: CellId) -> Result<&'a Matrix, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let param = self.schema.param(cell.marker)?;
-        let ngauss_opt = param.ngauss();
+        let elem_type = self.schema.elem_type(cell.marker)?;
+        let ngauss_opt = elem_type.ngauss();
         let gauss = memo
             .all_gauss
             .entry(cell_id)
@@ -1652,7 +1652,6 @@ mod tests {
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
-        assert_eq!(post.schema.param(1)?.name(), "Diffusion");
         assert_eq!(post.schema.local_to_global(0)?.len(), 3); // 3 nodes
         assert_eq!(post.schema.local_to_global(1)?.len(), 3);
         assert_eq!(post.schema.local_to_global(2)?.len(), 3);
@@ -1695,7 +1694,6 @@ mod tests {
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
-        assert_eq!(post.schema.param(1)?.name(), "Diffusion");
         assert_eq!(post.schema.local_to_global(0)?.len(), 8); // 8 nodes
         assert_eq!(post.schema.local_to_global(1)?.len(), 8);
         assert_eq!(post.schema.ndof()?, 12); // 12 points
@@ -1737,7 +1735,6 @@ mod tests {
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
-        assert_eq!(post.schema.param(1)?.name(), "Solid");
         assert_eq!(post.schema.local_to_global(0)?.len(), 6); // 3 * 2 (nnode * ndim)
         assert_eq!(post.schema.local_to_global(1)?.len(), 6);
         assert_eq!(post.schema.local_to_global(2)?.len(), 6);
@@ -1811,8 +1808,6 @@ mod tests {
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
-        assert_eq!(post.schema.param(1)?.name(), "Solid");
-        assert_eq!(post.schema.param(2)?.name(), "Solid");
         assert_eq!(post.schema.local_to_global(0)?.len(), 24); // 8 * 3 (nnode * ndim)
         assert_eq!(post.schema.local_to_global(1)?.len(), 24);
         assert_eq!(post.schema.ndof()?, 36); // 12 * 3 (nnode_total * ndim)

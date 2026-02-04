@@ -3,7 +3,7 @@
 //! You may write `use pmsim::prelude::*` in your code and obtain
 //! access to commonly used functionality.
 
-pub use crate::base::{BcEssential, BcNatural, Config, Dof, Elem, Nbc, Pbc, Schema};
+pub use crate::base::{BcEssential, BcNatural, Config, Dof, Nbc, Pbc, Schema};
 pub use crate::base::{
     Conductivity, GnlStrain, LiquidRetention, ParamBeam, ParamDiffusion, ParamFluids, ParamPorousLiq,
     ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRealDensity, ParamRod, ParamSolid, StressStrain,

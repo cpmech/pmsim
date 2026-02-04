@@ -1,4 +1,4 @@
-use super::{Dof, Elem, ParamBeam, ParamDiffusion, ParamRod};
+use super::{Dof, ElemType, ParamBeam, ParamDiffusion, ParamRod};
 use super::{ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
 use crate::StrError;
 use gemlab::mesh::{Cell, CellMarker, Mesh};
@@ -14,7 +14,7 @@ use std::path::Path;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Schema {
     /// Holds the element types and parameters
-    params: HashMap<CellMarker, Elem>,
+    e_types: HashMap<CellMarker, ElemType>,
 
     /// Total number of degrees of freedom
     ndof: usize,
@@ -42,7 +42,7 @@ impl Schema {
     /// call `build` to build the schema.
     pub fn new() -> Self {
         Schema {
-            params: HashMap::new(),
+            e_types: HashMap::new(),
             ndof: 0,
             dof_numbers: NumMatrix::new(0, 0),
             local_to_global: Vec::new(),
@@ -54,56 +54,56 @@ impl Schema {
 
     /// Adds a Diffusion element to the schema
     pub fn add_diffusion(&mut self, marker: CellMarker, param: ParamDiffusion) -> &mut Self {
-        self.params.insert(marker, Elem::Diffusion(param));
+        self.e_types.insert(marker, ElemType::Diffusion(param));
         self.ready = false;
         self
     }
 
     /// Adds a Rod element to the schema
     pub fn add_rod(&mut self, marker: CellMarker, param: ParamRod) -> &mut Self {
-        self.params.insert(marker, Elem::Rod(param));
+        self.e_types.insert(marker, ElemType::Rod(param));
         self.ready = false;
         self
     }
 
     /// Adds a Beam element to the schema
     pub fn add_beam(&mut self, marker: CellMarker, param: ParamBeam) -> &mut Self {
-        self.params.insert(marker, Elem::Beam(param));
+        self.e_types.insert(marker, ElemType::Beam(param));
         self.ready = false;
         self
     }
 
     /// Adds a Solid element to the schema
     pub fn add_solid(&mut self, marker: CellMarker, param: ParamSolid) -> &mut Self {
-        self.params.insert(marker, Elem::Solid(param));
+        self.e_types.insert(marker, ElemType::Solid(param));
         self.ready = false;
         self
     }
 
     /// Adds a PorousLiq element to the schema
     pub fn add_porous_liq(&mut self, marker: CellMarker, param: ParamPorousLiq) -> &mut Self {
-        self.params.insert(marker, Elem::PorousLiq(param));
+        self.e_types.insert(marker, ElemType::PorousLiq(param));
         self.ready = false;
         self
     }
 
     /// Adds a PorousLiqGas element to the schema
     pub fn add_porous_liq_gas(&mut self, marker: CellMarker, param: ParamPorousLiqGas) -> &mut Self {
-        self.params.insert(marker, Elem::PorousLiqGas(param));
+        self.e_types.insert(marker, ElemType::PorousLiqGas(param));
         self.ready = false;
         self
     }
 
     /// Adds a PorousSldLiq element to the schema
     pub fn add_porous_sld_liq(&mut self, marker: CellMarker, param: ParamPorousSldLiq) -> &mut Self {
-        self.params.insert(marker, Elem::PorousSldLiq(param));
+        self.e_types.insert(marker, ElemType::PorousSldLiq(param));
         self.ready = false;
         self
     }
 
     /// Adds a PorousSldLiqGas element to the schema
     pub fn add_porous_sld_liq_gas(&mut self, marker: CellMarker, param: ParamPorousSldLiqGas) -> &mut Self {
-        self.params.insert(marker, Elem::PorousSldLiqGas(param));
+        self.e_types.insert(marker, ElemType::PorousSldLiqGas(param));
         self.ready = false;
         self
     }
@@ -122,13 +122,13 @@ impl Schema {
         let mut dof_flags = NumMatrix::<u8>::new(npoint, n_dof_variant);
         for cell in &mesh.cells {
             // get element type
-            let elem = self
-                .params
+            let elem_type = self
+                .e_types
                 .get(&cell.marker)
                 .ok_or("A CellMarker has not been found in the Schema. Use `add` methods first")?;
 
             // check consistency regarding frame elements
-            if elem.is_frame() {
+            if elem_type.is_frame() {
                 if !cell.kind.is_lin() {
                     return Err("A frame element must be associated with a Lin GeoKind");
                 }
@@ -142,25 +142,25 @@ impl Schema {
             }
 
             // check whether the element satisfies the LBB condition
-            if elem.must_satisfy_lbb() {
+            if elem_type.must_satisfy_lbb() {
                 if cell.kind.lower_order().is_none() {
                     return Err("A cell does not have a lower-order counterpart to satisfy the LBB condition");
                 }
             }
 
             // update DOF numbering and local to global mapping
-            match elem {
-                Elem::Diffusion(..) => {
+            match elem_type {
+                ElemType::Diffusion(..) => {
                     enable_dofs(&mut dof_flags, cell, &[Dof::Phi], None);
                 }
-                Elem::Rod(..) => {
+                ElemType::Rod(..) => {
                     if ndim == 2 {
                         enable_dofs(&mut dof_flags, cell, &[Dof::Ux, Dof::Uy], None);
                     } else {
                         enable_dofs(&mut dof_flags, cell, &[Dof::Ux, Dof::Uy, Dof::Uz], None);
                     }
                 }
-                Elem::Beam(..) => {
+                ElemType::Beam(..) => {
                     if ndim == 2 {
                         enable_dofs(&mut dof_flags, cell, &[Dof::Ux, Dof::Uy, Dof::Rz], None);
                     } else {
@@ -172,27 +172,27 @@ impl Schema {
                         );
                     }
                 }
-                Elem::Solid(..) => {
+                ElemType::Solid(..) => {
                     if ndim == 2 {
                         enable_dofs(&mut dof_flags, cell, &[Dof::Ux, Dof::Uy], None);
                     } else {
                         enable_dofs(&mut dof_flags, cell, &[Dof::Ux, Dof::Uy, Dof::Uz], None);
                     }
                 }
-                Elem::PorousLiq(..) => {
+                ElemType::PorousLiq(..) => {
                     enable_dofs(&mut dof_flags, cell, &[Dof::Pl], None);
                 }
-                Elem::PorousLiqGas(..) => {
+                ElemType::PorousLiqGas(..) => {
                     enable_dofs(&mut dof_flags, cell, &[Dof::Pl, Dof::Pg], None);
                 }
-                Elem::PorousSldLiq(..) => {
+                ElemType::PorousSldLiq(..) => {
                     if ndim == 2 {
                         enable_dofs(&mut dof_flags, cell, &[Dof::Ux, Dof::Uy], Some(&[Dof::Pl]));
                     } else {
                         enable_dofs(&mut dof_flags, cell, &[Dof::Ux, Dof::Uy, Dof::Uz], Some(&[Dof::Pl]));
                     }
                 }
-                Elem::PorousSldLiqGas(_) => {
+                ElemType::PorousSldLiqGas(..) => {
                     if ndim == 2 {
                         enable_dofs(&mut dof_flags, cell, &[Dof::Ux, Dof::Uy], Some(&[Dof::Pl, Dof::Pg]));
                     } else {
@@ -240,17 +240,17 @@ impl Schema {
         let ncell = mesh.cells.len();
         self.local_to_global = Vec::with_capacity(ncell);
         for cell in &mesh.cells {
-            let elem = self.params.get(&cell.marker).unwrap(); // already checked above
-            let l2g = match elem {
-                Elem::Diffusion(..) => build_l2g_array(&self.dof_numbers, cell, &[Dof::Phi], None),
-                Elem::Rod(..) => {
+            let elem_type = self.e_types.get(&cell.marker).unwrap(); // already checked above
+            let l2g = match elem_type {
+                ElemType::Diffusion(..) => build_l2g_array(&self.dof_numbers, cell, &[Dof::Phi], None),
+                ElemType::Rod(..) => {
                     if ndim == 2 {
                         build_l2g_array(&self.dof_numbers, cell, &[Dof::Ux, Dof::Uy], None)
                     } else {
                         build_l2g_array(&self.dof_numbers, cell, &[Dof::Ux, Dof::Uy, Dof::Uz], None)
                     }
                 }
-                Elem::Beam(..) => {
+                ElemType::Beam(..) => {
                     if ndim == 2 {
                         build_l2g_array(&self.dof_numbers, cell, &[Dof::Ux, Dof::Uy, Dof::Rz], None)
                     } else {
@@ -262,23 +262,23 @@ impl Schema {
                         )
                     }
                 }
-                Elem::Solid(..) => {
+                ElemType::Solid(..) => {
                     if ndim == 2 {
                         build_l2g_array(&self.dof_numbers, cell, &[Dof::Ux, Dof::Uy], None)
                     } else {
                         build_l2g_array(&self.dof_numbers, cell, &[Dof::Ux, Dof::Uy, Dof::Uz], None)
                     }
                 }
-                Elem::PorousLiq(..) => build_l2g_array(&self.dof_numbers, cell, &[Dof::Pl], None),
-                Elem::PorousLiqGas(..) => build_l2g_array(&self.dof_numbers, cell, &[Dof::Pl, Dof::Pg], None),
-                Elem::PorousSldLiq(..) => {
+                ElemType::PorousLiq(..) => build_l2g_array(&self.dof_numbers, cell, &[Dof::Pl], None),
+                ElemType::PorousLiqGas(..) => build_l2g_array(&self.dof_numbers, cell, &[Dof::Pl, Dof::Pg], None),
+                ElemType::PorousSldLiq(..) => {
                     if ndim == 2 {
                         build_l2g_array(&self.dof_numbers, cell, &[Dof::Ux, Dof::Uy], Some(&[Dof::Pl]))
                     } else {
                         build_l2g_array(&self.dof_numbers, cell, &[Dof::Ux, Dof::Uy, Dof::Uz], Some(&[Dof::Pl]))
                     }
                 }
-                Elem::PorousSldLiqGas(_) => {
+                ElemType::PorousSldLiqGas(_) => {
                     if ndim == 2 {
                         build_l2g_array(&self.dof_numbers, cell, &[Dof::Ux, Dof::Uy], Some(&[Dof::Pl, Dof::Pg]))
                     } else {
@@ -299,18 +299,18 @@ impl Schema {
         Ok(())
     }
 
-    /// Returns an access to the element parameters for a given cell marker
-    pub fn param(&self, marker: CellMarker) -> Result<&Elem, StrError> {
+    /// Returns an access to the element type and parameters for a given cell marker
+    pub(crate) fn elem_type(&self, marker: CellMarker) -> Result<&ElemType, StrError> {
         if !self.ready {
-            return Err("Schema must be built before calling get_param");
+            return Err("Schema must be built before calling elem_type");
         }
-        self.params.get(&marker).ok_or("marker not found in params")
+        self.e_types.get(&marker).ok_or("marker not found in params")
     }
 
     /// Returns an access to the local to global mapping for a given cell
     pub fn local_to_global(&self, cell_id: usize) -> Result<&Vec<usize>, StrError> {
         if !self.ready {
-            return Err("Schema must be built before calling get_local_to_global");
+            return Err("Schema must be built before calling local_to_global");
         }
         Ok(&self.local_to_global[cell_id])
     }
@@ -328,7 +328,7 @@ impl Schema {
     /// Returns the total number of DOFs
     pub fn ndof(&self) -> Result<usize, StrError> {
         if !self.ready {
-            return Err("Schema must be built before calling get_ndof");
+            return Err("Schema must be built before calling ndof");
         }
         Ok(self.ndof)
     }

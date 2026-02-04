@@ -260,9 +260,9 @@ pub enum Init {
     Zero,
 }
 
-/// Defines the element type
+/// Defines the element type and holds the parameters
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-pub enum Elem {
+pub(crate) enum ElemType {
     Diffusion(ParamDiffusion),
     Rod(ParamRod),
     Beam(ParamBeam),
@@ -273,25 +273,11 @@ pub enum Elem {
     PorousSldLiqGas(ParamPorousSldLiqGas),
 }
 
-impl Elem {
-    /// Returns the name of the Element
-    pub fn name(&self) -> String {
-        match self {
-            Elem::Diffusion(..) => "Diffusion".to_string(),
-            Elem::Rod(..) => "Rod".to_string(),
-            Elem::Beam(..) => "Beam".to_string(),
-            Elem::Solid(..) => "Solid".to_string(),
-            Elem::PorousLiq(..) => "PorousLiq".to_string(),
-            Elem::PorousLiqGas(..) => "PorousLiqGas".to_string(),
-            Elem::PorousSldLiq(..) => "PorousSldLiq".to_string(),
-            Elem::PorousSldLiqGas(..) => "PorousSldLiqGas".to_string(),
-        }
-    }
-
+impl ElemType {
     /// Indicates whether the element is a frame element
     pub fn is_frame(&self) -> bool {
         match self {
-            Elem::Rod(..) | Elem::Beam(..) => true,
+            ElemType::Rod(..) | ElemType::Beam(..) => true,
             _ => false,
         }
     }
@@ -299,7 +285,7 @@ impl Elem {
     /// Indicates whether the element must satisfy the LBB condition
     pub fn must_satisfy_lbb(&self) -> bool {
         match self {
-            Elem::PorousSldLiq(..) | Elem::PorousSldLiqGas(..) => true,
+            ElemType::PorousSldLiq(..) | ElemType::PorousSldLiqGas(..) => true,
             _ => false,
         }
     }
@@ -307,14 +293,14 @@ impl Elem {
     /// Returns the number of integration (Gauss) points
     pub fn ngauss(&self) -> Option<usize> {
         match self {
-            Elem::Diffusion(param) => param.ngauss,
-            Elem::Rod(param) => param.ngauss,
-            Elem::Beam(param) => param.ngauss,
-            Elem::Solid(param) => param.ngauss,
-            Elem::PorousLiq(param) => param.ngauss,
-            Elem::PorousLiqGas(param) => param.ngauss,
-            Elem::PorousSldLiq(param) => param.ngauss,
-            Elem::PorousSldLiqGas(param) => param.ngauss,
+            ElemType::Diffusion(param) => param.ngauss,
+            ElemType::Rod(param) => param.ngauss,
+            ElemType::Beam(param) => param.ngauss,
+            ElemType::Solid(param) => param.ngauss,
+            ElemType::PorousLiq(param) => param.ngauss,
+            ElemType::PorousLiqGas(param) => param.ngauss,
+            ElemType::PorousSldLiq(param) => param.ngauss,
+            ElemType::PorousSldLiqGas(param) => param.ngauss,
         }
     }
 }
@@ -323,7 +309,7 @@ impl Elem {
 
 #[cfg(test)]
 mod tests {
-    use super::{Dof, Elem, Init, Nbc, Pbc};
+    use super::{Dof, ElemType, Init, Nbc, Pbc};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use std::{cmp::Ordering, collections::HashSet};
@@ -434,55 +420,39 @@ mod tests {
     #[test]
     fn element_derive_works() {
         let p = ParamDiffusion::sample();
-        let e = Elem::Diffusion(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "Diffusion");
+        let e = ElemType::Diffusion(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamRod::sample();
-        let e = Elem::Rod(p);
-        let e_clone = e.clone();
+        let e = ElemType::Rod(p);
         assert_eq!(
             format!("{:?}", e),
             "Rod(ParamRod { gnl: None, density: 1.0, young: 1000.0, area: 1.0, ngauss: None })"
         );
-        assert_eq!(format!("{}", e_clone.name()), "Rod");
         assert_eq!(e.ngauss(), None);
 
         let p = ParamBeam::sample();
-        let e = Elem::Beam(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "Beam");
+        let e = ElemType::Beam(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamSolid::sample_linear_elastic();
-        let e = Elem::Solid(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "Solid");
+        let e = ElemType::Solid(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousLiq::sample_brooks_corey_constant();
-        let e = Elem::PorousLiq(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "PorousLiq");
+        let e = ElemType::PorousLiq(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let e = Elem::PorousLiqGas(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "PorousLiqGas");
+        let e = ElemType::PorousLiqGas(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-        let e = Elem::PorousSldLiq(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "PorousSldLiq");
+        let e = ElemType::PorousSldLiq(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let e = Elem::PorousSldLiqGas(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "PorousSldLiqGas");
+        let e = ElemType::PorousSldLiqGas(p);
         assert_eq!(e.ngauss(), None);
     }
 
