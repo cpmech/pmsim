@@ -10,9 +10,6 @@ use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
 ///
 /// * Felippa C., Chapter 20: Implementation of One-Dimensional Elements (IFEM.Ch20.pdf)
 pub(crate) struct ElementRod<'a> {
-    /// Material parameters
-    param: &'a ParamRod,
-
     /// Local-to-global mapping
     local_to_global: &'a Vec<usize>,
 
@@ -69,7 +66,6 @@ impl<'a> ElementRod<'a> {
             ])
         };
         Ok(ElementRod {
-            param,
             local_to_global: schema.local_to_global(cell_id)?,
             stiffness,
             u:Vector::new(2*ndim),
