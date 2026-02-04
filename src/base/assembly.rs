@@ -4,6 +4,18 @@ use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
 
 /// Assembles the local K matrix into its global counterpart for the Lagrange Multipliers Method (LMM)
+///
+/// The augmented matrix for the Lagrange Multipliers Method (LMM) is given by:
+///
+/// ```text
+///     ┌         ┐
+///     │  K   Cᵀ │
+/// M = │         │
+///     │  C   0  │
+///     └         ┘
+/// ```
+///
+/// However, this function only assembles the K block of the global matrix.
 pub fn assemble_matrix_lmm(kk: &mut CooMatrix, kke: &Matrix, local_to_global: &[usize]) -> Result<(), StrError> {
     let sym = kk.get_info().3;
     let n_equation_local = local_to_global.len();
