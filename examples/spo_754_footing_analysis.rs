@@ -11,6 +11,7 @@ const NAME: &str = "spo_754_footing";
 
 pub fn main() -> Result<(), StrError> {
     let (post, mut memo) = PostProc::new("/tmp/pmsim", NAME)?;
+    post.write_paraview(&mut memo, "/tmp/pmsim", NAME)?;
 
     let (min, max) = post.mesh().get_limits();
     let features = Features::new(post.mesh(), false);
