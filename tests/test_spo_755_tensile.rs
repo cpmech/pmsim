@@ -10,7 +10,7 @@ const MESH_NAME: &str = "spo_755_tensile";
 const NAME: &str = "spo_755_tensile_perf_plast";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 const YOUNG: f64 = 206.9; // Young's modulus
 const POISSON: f64 = 0.29; // Poisson's coefficient
@@ -18,16 +18,9 @@ const Z_INI: f64 = 0.45; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 const WIDTH: f64 = 10.0; // width of the specimen
+const B: f64 = 1.0; // width of the ligament
 
 // loading factors
-/*
-const LAMBDAS: [f64; 4] = [
-    0.0,   // 0
-    0.005, // 1
-    0.01,  // 2
-    0.015, // 3
-];
-*/
 const LAMBDAS: [f64; 17] = [
     0.0,   //  0
     0.005, //  1
@@ -61,12 +54,12 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
 
     // draw mesh
     if DRAW_MESH_AND_EXIT {
-        println!("left = {:?}", features.get_points_via_2d_edges(&left));
-        println!("bottom = {:?}", features.get_points_via_2d_edges(&bottom));
-        println!("top = {:?}", features.get_points_via_2d_edges(&top));
         let ids_left = features.get_points_via_2d_edges(&left);
-        let ids_bottom = features.get_points_via_2d_edges(&bottom);
         let ids_top = features.get_points_via_2d_edges(&top);
+        let ids_bottom = features.get_points_via_2d_edges(&bottom);
+        println!("ids left = {:?}", ids_left);
+        println!("ids top = {:?}", ids_top);
+        println!("ids bottom = {:?}", ids_bottom);
         return draw_mesh(&mesh, &ids_left, &ids_bottom, &ids_top);
     }
 
@@ -101,12 +94,20 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
         lmm: true,
         npv: false,
     };
-    // run(options, &mesh, &features, &bottom, &schema, &mut ebc, &nbc)?;
+    run(options, &mesh, &features, &bottom, &schema, &mut ebc, &nbc)?;
 
     // run: arclength + lmm
     let options = Options {
         arclength: true,
         lmm: true,
+        npv: false,
+    };
+    run(options, &mesh, &features, &bottom, &schema, &mut ebc, &nbc)?;
+
+    // run: arclength + sps
+    let options = Options {
+        arclength: true,
+        lmm: false,
         npv: false,
     };
     run(options, &mesh, &features, &bottom, &schema, &mut ebc, &nbc)?;
@@ -130,7 +131,13 @@ fn run(
     let mut config = Config::new(&mesh);
     config
         .set_out_files("/tmp/pmsim", &name, 1.0)
-        .set_lagrange_mult_method(false);
+        .set_lagrange_mult_method(options.lmm);
+
+    // output the vertical component of Y at bottom edge points
+    let ids_bottom = features.get_points_via_2d_edges(&bottom);
+    for point_id in &ids_bottom {
+        config.set_out_yy_comp(*point_id, Dof::Uy);
+    }
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
@@ -142,7 +149,7 @@ fn run(
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
             .set_ddl_ini(0.005)
-            .set_tg_control_atol_and_rtol(0.01);
+            .set_tg_control_atol_and_rtol(2.0);
     } else {
         nl_config.set_method(NlMethod::Natural);
     }
@@ -157,14 +164,12 @@ fn run(
 
     // stopping criteria
     let stop = if options.arclength {
-        // Stop::MaxCompU(eq_corner, 16.0 * Z_INI * WIDTH / (2.0 * YOUNG))
-        // Stop::MaxCompU(eq_corner, 0.0001)
-        let end = usize::min(data.get_ndim(), data.get_neq()); // skip Lagrange multipliers
-
-        Stop::MaxNormU(0.01, Norm::Max, 0, end)
-        // Stop::MaxNormU(0.1, Norm::Max, 0, end)
+        // note: cannot use the corner point on the SPS because only unknown equations are available
+        let end = usize::min(data.get_ndim(), data.get_neq()); // skip Lagrange multipliers, if any
+        Stop::MaxNormU(0.25, Norm::Max, 0, end)
     } else {
         Stop::Steps(LAMBDAS.len() - 1)
+        // Stop::Steps(4)
     };
 
     // delta lambda
@@ -183,11 +188,20 @@ fn run(
     //
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
+    let (post, mut _memo) = PostProc::new("/tmp/pmsim", &name)?;
+
+    // calculate the reaction using the internal forces
+    let nstate = post.nstate();
+    let mut sum_yy = vec![0.0; nstate];
+    for point_id in &ids_bottom {
+        let yy_over_time = post.get_selected_yy_comp(*point_id, Dof::Uy).unwrap();
+        for i in 0..nstate {
+            sum_yy[i] += yy_over_time[i];
+        }
+    }
 
     // loop over states
-    let nstate = post.nstate();
-    let bottom_cells = features.get_cells_via_2d_edges(&bottom);
+    // let bottom_cells = features.get_cells_via_2d_edges(&bottom);
     let mut normalized_deflection = Vec::with_capacity(nstate);
     let mut normalized_stress = Vec::with_capacity(nstate);
     let analytical_limit = (2.0 + PI) / SQRT_3;
@@ -195,22 +209,43 @@ fn run(
         let state = post.read_state(index)?;
         let uy = state.uu[eq_corner];
         normalized_deflection.push(2.0 * uy * YOUNG / (Z_INI * WIDTH));
+        /*
         let res = post.nodal_stresses_patch(&mut memo, &state, &bottom_cells, |x, y, _| {
             x < 0.50001 && f64::abs(y) < 0.0001
         })?;
-        let mut area = 0.0;
+        let mut reaction = 0.0; // integral of vertical stress over the narrow part of the bottom edge
         for i in 1..res.xx.len() {
-            area += (res.xx[i] - res.xx[i - 1]) * (res.tyy[i] + res.tyy[i - 1]) / 2.0;
+            // trapezoidal rule
+            reaction += (res.xx[i] - res.xx[i - 1]) * (res.tyy[i] + res.tyy[i - 1]) / 2.0;
         }
-        let norm_net_stress = 2.0 * area / Z_INI; // multiply by 2 because only half specimen is modeled
+        let err = f64::abs(reaction + sum_yy[index]); // + because reaction points downwards
+        println!(
+            "reaction = {:.6} vs {:.6} err = {:.8}", // the difference is substantial!
+            reaction, -sum_yy[index], err
+        );
+        */
+        let reaction = 2.0 * sum_yy[index]; // multiply by 2 because only half specimen is modeled
+        let tensile_stress = -reaction / B; // negative because the reaction points downwards
+        let norm_net_stress = tensile_stress / Z_INI;
         normalized_stress.push(norm_net_stress);
         if index == nstate - 1 {
+            let diff = f64::abs(norm_net_stress - analytical_limit);
             println!(
-                "final normalized stress = {}, diff = {}",
+                "final normalized net stress = {}, diff = {} ({:.2}%)",
                 norm_net_stress,
-                f64::abs(norm_net_stress - analytical_limit)
+                diff,
+                100.0 * diff / analytical_limit
             );
-            approx_eq(norm_net_stress, analytical_limit, 100.0);
+            let tol = if options.arclength {
+                if options.lmm {
+                    0.0255
+                } else {
+                    0.027
+                }
+            } else {
+                0.02535
+            };
+            approx_eq(norm_net_stress, analytical_limit, tol);
         }
     }
 
@@ -256,7 +291,7 @@ fn run(
             )
             .set_figure_size_points(600.0, 600.0)
             .set_title(&title)
-            .save(&format!("/tmp/pmsim/{}.svg", NAME))
+            .save(&format!("/tmp/pmsim/{}.svg", &name))
             .unwrap();
     }
 
@@ -264,24 +299,24 @@ fn run(
     // verification --------------------------------------------------------------
     //
 
-    /*
     // verify the results
-    let tol_displacement = 3.38e-9;
-    let tol_stress = 1.13e-5;
-    let all_good = compare_results(
-        &mesh,
-        &schema,
-        &config,
-        "/tmp/pmsim/",
-        NAME,
-        ReferenceDataType::SPO,
-        &format!("data/spo/{}_ref.json", NAME),
-        tol_displacement,
-        tol_stress,
-        VERBOSE_LEVEL,
-    )?;
-    assert!(all_good);
-    */
+    if !options.arclength {
+        let tol_displacement = 3.38e-9;
+        let tol_stress = 1.13e-5;
+        let all_good = compare_results(
+            &mesh,
+            &schema,
+            &config,
+            "/tmp/pmsim/",
+            &name,
+            ReferenceDataType::SPO,
+            &format!("data/spo/{}_ref.json", NAME),
+            tol_displacement,
+            tol_stress,
+            VERBOSE_LEVEL,
+        )?;
+        assert!(all_good);
+    }
     Ok(())
 }
 
@@ -352,8 +387,8 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], bottom: &[PointId], top: &[PointId])
         .set_bbox_edgecolor("None")
         .set_bbox_style("round,pad=0.1,rounding_size=0.15");
     let mut spo_left = Vec::new();
-    let mut spo_bottom = Vec::new();
     let mut spo_top = Vec::new();
+    let mut spo_bottom = Vec::new();
     for (spo_id, fix) in spo_fixities.iter() {
         let id = spo_id - 1;
         let p = &mesh.points[id];
@@ -361,19 +396,19 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], bottom: &[PointId], top: &[PointId])
         if f64::abs(p.coords[0]) < 0.0001 {
             spo_left.push(id);
         }
-        if f64::abs(p.coords[1]) < 0.0001 {
-            spo_bottom.push(id);
-        }
         if f64::abs(p.coords[1]) > 14.9999 {
             spo_top.push(id);
         }
+        if f64::abs(p.coords[1]) < 0.0001 {
+            spo_bottom.push(id);
+        }
     }
     spo_left.sort();
-    spo_bottom.sort();
     spo_top.sort();
+    spo_bottom.sort();
     assert_eq!(&left, &spo_left);
-    assert_eq!(&bottom, &spo_bottom);
     assert_eq!(&top, &spo_top);
+    assert_eq!(&bottom, &spo_bottom);
     let mut draw = Draw::new();
     draw.set_range_2d(-0.5, 15.5, -0.5, 15.5)
         .set_size(1200.0, 1200.0)
