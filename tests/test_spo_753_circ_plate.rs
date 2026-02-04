@@ -117,7 +117,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let features = Features::new(mesh, false);
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
-    let eq_uy = schema.get_eq(center, Dof::Uy)?;
+    let iy = schema.dof_number(center, Dof::Uy)?;
 
     // analytical solution
     let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);
@@ -139,7 +139,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         load[index] = pp;
 
         // deflection
-        deflection[index] = -state.uu[eq_uy];
+        deflection[index] = -state.uu[iy];
 
         // deflection profiles
         if pp == 100.0 {

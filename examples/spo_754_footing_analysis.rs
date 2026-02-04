@@ -28,10 +28,10 @@ pub fn main() -> Result<(), StrError> {
     let mut x_coords = Vec::new();
     let mut selected_syy = Vec::<Vec<f64>>::new();
     let selected_indices = &[1, 2, 4, 6, post.nfile() - 1];
-    let eq_corner = post.schema().get_eq(corner_id, Dof::Uy)?;
+    let i_corner = post.schema().dof_number(corner_id, Dof::Uy)?;
     for index in 0..post.nfile() {
         let state = post.read_file(index)?;
-        let uy = state.uu[eq_corner];
+        let uy = state.uu[i_corner];
         normalized_settlement.push(-uy / width);
         let res = post.nodal_stresses_patch(&mut memo, &state, &footing_cells, |_, y, _| y == max[1])?;
         let mut area = 0.0;

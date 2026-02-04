@@ -123,7 +123,7 @@ pub enum Nbc {
 }
 
 impl Nbc {
-    /// Returns the boundary cell DOF keys and local equation numbers
+    /// Returns the boundary cell DOF keys and local DOF numbers
     ///
     /// **Notes:** The outer array has length = nnode.
     /// The inner arrays have lengths = ndof at the node.

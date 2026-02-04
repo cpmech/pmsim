@@ -128,20 +128,20 @@ pub(crate) fn write_vtu(
         .unwrap();
         for point in &mesh.points {
             let ux = if schema.has_dof(point.id, Dof::Ux)? {
-                let eq = schema.get_eq(point.id, Dof::Ux)?;
-                state.uu[eq]
+                let i = schema.dof_number(point.id, Dof::Ux)?;
+                state.uu[i]
             } else {
                 0.0
             };
             let uy = if schema.has_dof(point.id, Dof::Uy)? {
-                let eq = schema.get_eq(point.id, Dof::Uy)?;
-                state.uu[eq]
+                let i = schema.dof_number(point.id, Dof::Uy)?;
+                state.uu[i]
             } else {
                 0.0
             };
             let uz = if schema.has_dof(point.id, Dof::Uz)? {
-                let eq = schema.get_eq(point.id, Dof::Uz)?;
-                state.uu[eq]
+                let i = schema.dof_number(point.id, Dof::Uz)?;
+                state.uu[i]
             } else {
                 0.0
             };
@@ -158,8 +158,8 @@ pub(crate) fn write_vtu(
         .unwrap();
         for point in &mesh.points {
             let value = if schema.has_dof(point.id, *dof)? {
-                let eq = schema.get_eq(point.id, *dof)?;
-                state.uu[eq]
+                let i = schema.dof_number(point.id, *dof)?;
+                state.uu[i]
             } else {
                 0.0
             };
@@ -263,8 +263,8 @@ mod tests {
         let npoint = mesh.points.len();
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            let eq = schema.get_eq(p, Dof::Ux).unwrap();
-            state.uu[eq] = strain * y;
+            let i = schema.dof_number(p, Dof::Ux).unwrap();
+            state.uu[i] = strain * y;
         }
 
         // create directory
@@ -328,8 +328,8 @@ mod tests {
         for p in 0..npoint {
             let x = mesh.points[p].coords[0];
             let y = mesh.points[p].coords[1];
-            let eq = schema.get_eq(p, Dof::Phi).unwrap();
-            state.uu[eq] = 2.0 * x + 5.0 * y;
+            let i = schema.dof_number(p, Dof::Phi).unwrap();
+            state.uu[i] = 2.0 * x + 5.0 * y;
         }
 
         // create directory
@@ -400,16 +400,16 @@ mod tests {
         let npoint = mesh.points.len();
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
-            let eq = schema.get_eq(p, Dof::Ux).unwrap();
-            state.uu[eq] = strain * y;
+            let i = schema.dof_number(p, Dof::Ux).unwrap();
+            state.uu[i] = strain * y;
         }
 
         // Applies liquid pressure proportional to the y coordinate
         for p in 0..npoint {
             let y = mesh.points[p].coords[1];
             if schema.has_dof(p, Dof::Pl).unwrap() {
-                let eq = schema.get_eq(p, Dof::Pl).unwrap();
-                state.uu[eq] = 100.0 * (1.0 + y);
+                let i = schema.dof_number(p, Dof::Pl).unwrap();
+                state.uu[i] = 100.0 * (1.0 + y);
             }
         }
 

@@ -127,7 +127,7 @@ fn run(
     let mut name = NAME.to_string() + "_";
     name += &options.key();
 
-    // find corner node and corresponding equation number
+    // find corner node
     let (min, max) = mesh.get_limits();
     let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
 

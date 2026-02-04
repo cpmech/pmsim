@@ -132,8 +132,8 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = schema.get_eq(ref_id, Dof::Phi)?;
-    let ref_tt = state.uu[ref_eq];
+    let ref_d = schema.dof_number(ref_id, Dof::Phi)?;
+    let ref_tt = state.uu[ref_d];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
     let err = f64::abs(ref_tt - analytical(ref_x));
     println!("error = {:.5e}", err);

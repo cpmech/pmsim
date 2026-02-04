@@ -83,8 +83,8 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
-        let eq = schema.get_eq(point.id, Dof::Phi)?;
-        let tt = state.uu[eq];
+        let i = schema.dof_number(point.id, Dof::Phi)?;
+        let tt = state.uu[i];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);
         assert!(diff < 1e-5);

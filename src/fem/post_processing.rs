@@ -97,13 +97,13 @@ impl PostProc {
         &self.schema
     }
 
-    /// Returns the equation number associated with the pair (point_id, dof)
+    /// Returns the number associated with a (PointId, Dof) pair
     ///
     /// # Panics
     ///
     /// This function panics if the pair (point_id, dof) is not found.
-    pub fn eq(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
-        self.schema.get_eq(point_id, dof)
+    pub fn dof_number(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+        self.schema.dof_number(point_id, dof)
     }
 
     /// Returns the number of state files
@@ -1080,7 +1080,7 @@ impl PostProc {
         // extract dof values
         let maybe_dd: Result<Vec<_>, _> = id_x_pairs
             .iter()
-            .map(|(id, _)| self.schema.get_eq(*id, dof).map(|eq| state.uu[eq]))
+            .map(|(id, _)| self.schema.dof_number(*id, dof).map(|i| state.uu[i]))
             .collect();
         let dd = maybe_dd?;
 
@@ -1134,7 +1134,7 @@ impl PostProc {
         // extract dof values
         let maybe_dd: Result<Vec<_>, _> = point_ids
             .iter()
-            .map(|id| self.schema.get_eq(*id, dof).map(|eq| state.uu[eq]))
+            .map(|id| self.schema.dof_number(*id, dof).map(|eq| state.uu[eq]))
             .collect();
         let dd = maybe_dd?;
 
@@ -1777,14 +1777,14 @@ mod tests {
         let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
         let duu_v = generate_vertical_displacement_field(&post.mesh, STRAIN);
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
-        let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
-        let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
+        let ix = post.schema.dof_number(point_id, Dof::Ux)?;
+        let iy = post.schema.dof_number(point_id, Dof::Uy)?;
         let sel_ux = post.history_uu_comp(point_id, Dof::Ux).unwrap();
         let sel_uy = post.history_uu_comp(point_id, Dof::Uy).unwrap();
         let correct = [&duu_h, &duu_v, &duu_s];
         for i in 0..3 {
-            approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
-            approx_eq(sel_uy[i], correct[i][eqy], 1e-15);
+            approx_eq(sel_ux[i], correct[i][ix], 1e-15);
+            approx_eq(sel_uy[i], correct[i][iy], 1e-15);
         }
 
         // check selected stresses and strains
@@ -1851,17 +1851,17 @@ mod tests {
         let duu_h = generate_horizontal_displacement_field(&post.mesh, STRAIN);
         let duu_v = generate_vertical_displacement_field(&post.mesh, STRAIN);
         let duu_s = generate_shear_displacement_field(&post.mesh, STRAIN);
-        let eqx = post.schema.get_eq(point_id, Dof::Ux)?;
-        let eqy = post.schema.get_eq(point_id, Dof::Uy)?;
-        let eqz = post.schema.get_eq(point_id, Dof::Uz)?;
+        let ix = post.schema.dof_number(point_id, Dof::Ux)?;
+        let iy = post.schema.dof_number(point_id, Dof::Uy)?;
+        let iz = post.schema.dof_number(point_id, Dof::Uz)?;
         let sel_ux = post.history_uu_comp(point_id, Dof::Ux).unwrap();
         let sel_uy = post.history_uu_comp(point_id, Dof::Uy).unwrap();
         let sel_uz = post.history_uu_comp(point_id, Dof::Uz).unwrap();
         let correct = [duu_h, duu_v, duu_s];
         for i in 0..3 {
-            approx_eq(sel_ux[i], correct[i][eqx], 1e-15);
-            approx_eq(sel_uy[i], correct[i][eqy], 1e-15);
-            approx_eq(sel_uz[i], correct[i][eqz], 1e-15);
+            approx_eq(sel_ux[i], correct[i][ix], 1e-15);
+            approx_eq(sel_uy[i], correct[i][iy], 1e-15);
+            approx_eq(sel_uz[i], correct[i][iz], 1e-15);
         }
 
         // check selected stresses and strains

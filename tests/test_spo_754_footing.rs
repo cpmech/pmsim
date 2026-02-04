@@ -171,17 +171,17 @@ fn run(
         nl_config.set_method(NlMethod::Natural);
     }
 
-    // find corner node and corresponding equation number
+    // find corner node and corresponding DOF number
     let (min, max) = mesh.get_limits();
     let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
-    let eq_corner = schema.get_eq(corner_id, Dof::Uy)?;
+    let i_corner = schema.dof_number(corner_id, Dof::Uy)?;
 
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
     // stopping criteria
     let stop = if options.arclength {
-        Stop::MinCompU(eq_corner, -0.002 * B)
+        Stop::MinCompU(i_corner, -0.002 * B)
     } else {
         Stop::Steps(LAMBDAS.len() - 1)
     };
@@ -212,7 +212,7 @@ fn run(
     for index in 0..nstate {
         let state = post.read_file(index)?;
         lambdas.push(state.lambda);
-        let uy = state.uu[eq_corner];
+        let uy = state.uu[i_corner];
         normalized_settlement.push(-uy / WIDTH);
         let res = post.nodal_stresses_patch(&mut memo, &state, &footing_cells, |_, y, _| y == max[1])?;
         let mut area = 0.0;

@@ -98,16 +98,16 @@ impl OutputFiles {
 
     /// Returns the history (time or lambda) of U components at selected points
     pub fn history_uu_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
-        match schema.get_eq(point_id, dof) {
-            Ok(eq) => self.history_uu_comp.get(&eq),
+        match schema.dof_number(point_id, dof) {
+            Ok(i) => self.history_uu_comp.get(&i),
             Err(_) => None,
         }
     }
 
     /// Returns the history (time or lambda) of Y (internal forces) components at selected points
     pub fn history_yy_comp(&self, point_id: PointId, dof: Dof, schema: &Schema) -> Option<&Vec<f64>> {
-        match schema.get_eq(point_id, dof) {
-            Ok(eq) => self.history_yy_comp.get(&eq),
+        match schema.dof_number(point_id, dof) {
+            Ok(i) => self.history_yy_comp.get(&i),
             Err(_) => None,
         }
     }
@@ -180,16 +180,16 @@ impl OutputFiles {
             // U components
             for (point_id, dof) in config.out_history_uu_comp.iter() {
                 if schema.has_dof(*point_id, *dof)? {
-                    let eq = schema.get_eq(*point_id, *dof)?;
-                    self.history_uu_comp.entry(eq).or_insert(Vec::new()).push(state.uu[eq]);
+                    let i = schema.dof_number(*point_id, *dof)?;
+                    self.history_uu_comp.entry(i).or_insert(Vec::new()).push(state.uu[i]);
                 }
             }
 
             // Y components
             for (point_id, dof) in config.out_history_yy_comp.iter() {
                 if schema.has_dof(*point_id, *dof)? {
-                    let eq = schema.get_eq(*point_id, *dof)?;
-                    self.history_yy_comp.entry(eq).or_insert(Vec::new()).push(yy[eq]);
+                    let i = schema.dof_number(*point_id, *dof)?;
+                    self.history_yy_comp.entry(i).or_insert(Vec::new()).push(yy[i]);
                 }
             }
 

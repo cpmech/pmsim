@@ -218,13 +218,13 @@ fn main() -> Result<(), StrError> {
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = schema.get_eq(ref_point_id, Dof::Ux)?;
-        let numerical_ur = state.uu[eq];
+        let i = schema.dof_number(ref_point_id, Dof::Ux)?;
+        let numerical_ur = state.uu[i];
         let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
-        let eq = schema.get_eq(study_point, Dof::Uy)?;
-        let numerical_ur = state.uu[eq];
+        let j = schema.dof_number(study_point, Dof::Uy)?;
+        let numerical_ur = state.uu[j];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results

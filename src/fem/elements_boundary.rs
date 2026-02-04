@@ -93,9 +93,9 @@ impl<'a> ElemBry<'a> {
         // local_to_global
         let mut local_to_global = vec![0; neq];
         for m in 0..nnode {
-            for (dof, local) in &dofs[m] {
-                let global = schema.get_eq(points[m], *dof)?;
-                local_to_global[*local] = global;
+            for (dof, l) in &dofs[m] {
+                let g = schema.dof_number(points[m], *dof)?;
+                local_to_global[*l] = g;
             }
         }
 
@@ -492,7 +492,7 @@ mod tests {
         };
         assert_eq!(
             ElemBry::new(&mesh, &schema, &config, face.kind, &face.points, Nbc::Ql, f.clone()).err(), // << flux
-            Some("cannot get equation number because DOF is not assigned")
+            Some("cannot get DOF number because DOF is not assigned")
         );
 
         let mut nbc = BcNatural::new();

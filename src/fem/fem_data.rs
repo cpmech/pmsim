@@ -90,7 +90,7 @@ impl<'a> FemData<'a> {
         let mut p_list = Vec::with_capacity(n_prescribed);
         let mut eq_to_dof = HashMap::with_capacity(n_prescribed);
         for (point_id, dof) in ebc.functions.keys() {
-            let eq = schema.get_eq(*point_id, *dof)?;
+            let eq = schema.dof_number(*point_id, *dof)?;
             p_list.push(eq);
             eq_to_dof.insert(eq, (*point_id, *dof));
         }
@@ -111,7 +111,7 @@ impl<'a> FemData<'a> {
         // Allocate array of concentrated loads
         let mut conc_loads = Vec::with_capacity(nbc.at_points.len());
         for (point_id, pbc, f) in &nbc.at_points {
-            let eq = schema.get_eq(*point_id, pbc.dof())?;
+            let eq = schema.dof_number(*point_id, pbc.dof())?;
             conc_loads.push((eq, f.clone()));
         }
 
@@ -240,7 +240,7 @@ impl<'a> FemData<'a> {
 
     /// Returns the index of a u component in the system used by the nonlinear solver (this is not U)
     pub fn get_u_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
-        let eq = self.schema.get_eq(point_id, dof)?;
+        let eq = self.schema.dof_number(point_id, dof)?;
         if self.config.lagrange_mult_method || self.config.nonzero_presc_values {
             Ok(eq)
         } else {

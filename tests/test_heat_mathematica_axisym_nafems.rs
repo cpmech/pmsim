@@ -106,11 +106,11 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
     let state = data.get_state();
 
     // check
-    let eq = schema.get_eq(ref_point, Dof::Phi)?;
-    let rel_err = f64::abs(state.uu[eq] - ref_temperature) / ref_temperature;
+    let i = schema.dof_number(ref_point, Dof::Phi)?;
+    let rel_err = f64::abs(state.uu[i] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",
-        state.uu[eq],
+        state.uu[i],
         ref_temperature,
         rel_err * 100.0
     );

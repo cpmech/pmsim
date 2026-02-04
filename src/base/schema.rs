@@ -16,7 +16,7 @@ pub struct Schema {
     /// Holds the element types and parameters
     params: HashMap<CellMarker, Elem>,
 
-    /// Total number of DOFs (equals total number of equations)
+    /// Total number of degrees of freedom
     ndof: usize,
 
     /// DOF numbering matrix: rows = points, columns = DOF types (one-based; 0 means unassigned)
@@ -321,8 +321,8 @@ impl Schema {
             return Err("Schema must be built before calling has_dof");
         }
         let j = dof.index();
-        let geq_one_based = self.dof_numbers.get(point_id, j);
-        Ok(geq_one_based != 0)
+        let dof_num_one_based = self.dof_numbers.get(point_id, j);
+        Ok(dof_num_one_based != 0)
     }
 
     /// Returns the total number of DOFs
@@ -333,20 +333,20 @@ impl Schema {
         Ok(self.ndof)
     }
 
-    /// Returns the equation number for a given point and DOF
-    pub fn get_eq(&self, point_id: usize, dof: Dof) -> Result<usize, StrError> {
+    /// Returns the number associated with a (PointId, Dof) pair
+    pub fn dof_number(&self, point_id: usize, dof: Dof) -> Result<usize, StrError> {
         if !self.ready {
-            return Err("Schema must be built before calling get_eq");
+            return Err("Schema must be built before calling dof_number");
         }
         if point_id >= self.dof_numbers.nrow() {
-            return Err("cannot get equation number because point_id is out of bounds");
+            return Err("cannot get DOF number because point_id is out of bounds");
         }
         let j = dof.index();
-        let geq_one_based = self.dof_numbers.get(point_id, j);
-        if geq_one_based == 0 {
-            return Err("cannot get equation number because DOF is not assigned");
+        let dof_num_one_based = self.dof_numbers.get(point_id, j);
+        if dof_num_one_based == 0 {
+            return Err("cannot get DOF number because DOF is not assigned");
         }
-        Ok(geq_one_based - 1) // convert to zero-based
+        Ok(dof_num_one_based - 1) // convert to zero-based
     }
 
     /// Returns the enabled DOFs in the schema
@@ -458,16 +458,16 @@ fn build_l2g_array(
     let nnode_lower_order = cell.kind.lower_order().map_or(0, |lower_kind| lower_kind.nnode());
     let ndof_per_node_homogeneous = dofs_per_node_homogeneous.len();
     let ndof_per_node_lower_order = dofs_per_node_lower_order.map_or(0, |dofs_extra| dofs_extra.len());
-    let neq_local = nnode * ndof_per_node_homogeneous + nnode_lower_order * ndof_per_node_lower_order;
-    let mut l2g = vec![0; neq_local];
+    let ndof_local = nnode * ndof_per_node_homogeneous + nnode_lower_order * ndof_per_node_lower_order;
+    let mut l2g = vec![0; ndof_local];
 
     // loop over points and homogeneous dofs
     for m in 0..nnode {
         let p = cell.points[m];
         for d in 0..ndof_per_node_homogeneous {
             let j = dofs_per_node_homogeneous[d].index();
-            let local_eq = m * ndof_per_node_homogeneous + d;
-            l2g[local_eq] = dof_numbers.get(p, j) - 1; // convert to zero-based
+            let l = m * ndof_per_node_homogeneous + d;
+            l2g[l] = dof_numbers.get(p, j) - 1; // convert to zero-based
         }
     }
 
@@ -479,8 +479,8 @@ fn build_l2g_array(
             for m in 0..nnode_lower_order {
                 let p = cell.points[m];
                 let j = dofs_extra[d].index();
-                let local_eq = start + m;
-                l2g[local_eq] = dof_numbers.get(p, j) - 1; // convert to zero-based
+                let l = start + m;
+                l2g[l] = dof_numbers.get(p, j) - 1; // convert to zero-based
             }
             start += nnode_lower_order; // next extra DOF type
         }

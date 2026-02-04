@@ -516,7 +516,7 @@ mod tests {
         //       {8} 4---.__
         //       {9}/ \     `--.___3 {6}   [#] indicates id
         //         /   \          / \{7}   (#) indicates marker
-        //        /     \  [1]   /   \     {#} indicates equation number
+        //        /     \  [1]   /   \     {#} indicates DOF number
         //       /  [0]  \ (1)  / [2] \
         // {0}  /   (1)   \    /  (1)  \
         // {1} 0---.__     \  /      ___2 {4}
