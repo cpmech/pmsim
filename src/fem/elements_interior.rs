@@ -35,7 +35,7 @@ pub(crate) struct ElementsInterior<'a> {
 impl<'a> ElemInt<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, schema: &'a Schema, config: &'a Config, cell: &Cell) -> Result<Self, StrError> {
-        let element = schema.get_param(cell.marker)?;
+        let element = schema.param(cell.marker)?;
         let actual: Box<dyn ElementTrait> = match element {
             Elem::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, schema, config, p, cell.id)?),
             Elem::Rod(p) => {
@@ -52,12 +52,12 @@ impl<'a> ElemInt<'a> {
             Elem::PorousSldLiq(..) => panic!("TODO: PorousSldLiq"),
             Elem::PorousSldLiqGas(..) => panic!("TODO: PorousSldLiqGas"),
         };
-        let neq_local = schema.get_local_to_global(cell.id)?.len();
+        let n = schema.local_to_global(cell.id)?.len();
         Ok(ElemInt {
             actual,
-            yye: Vector::new(neq_local),
-            ffe: Vector::new(neq_local),
-            kke: Matrix::new(neq_local, neq_local),
+            yye: Vector::new(n),
+            ffe: Vector::new(n),
+            kke: Matrix::new(n, n),
         })
     }
 
@@ -66,7 +66,7 @@ impl<'a> ElemInt<'a> {
     /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
     #[allow(dead_code)]
     pub fn numerical_jacobian(&mut self, state: &mut FemState) -> Result<(), StrError> {
-        let neq = self.yye.dim();
+        let n = self.yye.dim();
         struct Args<'a> {
             yye: &'a mut Vector,
             state: &'a mut FemState,
@@ -75,8 +75,8 @@ impl<'a> ElemInt<'a> {
             yye: &mut self.yye,
             state,
         };
-        for i in 0..neq {
-            for j in 0..neq {
+        for i in 0..n {
+            for j in 0..n {
                 let at_u = args.state.uu[j];
                 let res = deriv1_central5(at_u, &mut args, |u, a| {
                     let original_u = a.state.uu[j];
@@ -571,14 +571,14 @@ mod tests {
 
         // elements
         let mut elements = ElementsInterior::new(&mesh, &schema, &config).unwrap();
-        let neq = schema.get_neq().unwrap();
-        let nnz_sup = 3 * neq * neq;
-        let mut yye = Vector::new(neq);
-        let mut ffe = Vector::new(neq);
-        let mut rr = Vector::new(neq);
-        let mut kk_bar = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
+        let ndof = schema.ndof().unwrap();
+        let nnz_sup = 3 * ndof * ndof;
+        let mut yye = Vector::new(ndof);
+        let mut ffe = Vector::new(ndof);
+        let mut rr = Vector::new(ndof);
+        let mut kk_bar = CooMatrix::new(ndof, ndof, nnz_sup, Sym::No).unwrap();
         let mut kk_check = CooMatrix::new(1, 1, 1, Sym::No).unwrap();
-        let eq_handler = EquationHandler::new(schema.get_neq().unwrap());
+        let eq_handler = EquationHandler::new(schema.ndof().unwrap());
         elements.assemble_yy(&mut yye, &state).unwrap();
         elements.assemble_ff(&mut ffe, state.time).unwrap();
         elements

@@ -300,7 +300,7 @@ impl Schema {
     }
 
     /// Returns an access to the element parameters for a given cell marker
-    pub fn get_param(&self, marker: CellMarker) -> Result<&Elem, StrError> {
+    pub fn param(&self, marker: CellMarker) -> Result<&Elem, StrError> {
         if !self.ready {
             return Err("Schema must be built before calling get_param");
         }
@@ -308,7 +308,7 @@ impl Schema {
     }
 
     /// Returns an access to the local to global mapping for a given cell
-    pub fn get_local_to_global(&self, cell_id: usize) -> Result<&Vec<usize>, StrError> {
+    pub fn local_to_global(&self, cell_id: usize) -> Result<&Vec<usize>, StrError> {
         if !self.ready {
             return Err("Schema must be built before calling get_local_to_global");
         }
@@ -325,10 +325,10 @@ impl Schema {
         Ok(geq_one_based != 0)
     }
 
-    /// Returns the total number of equations (equals the total number of DOFs)
-    pub fn get_neq(&self) -> Result<usize, StrError> {
+    /// Returns the total number of DOFs
+    pub fn ndof(&self) -> Result<usize, StrError> {
         if !self.ready {
-            return Err("Schema must be built before calling get_neq");
+            return Err("Schema must be built before calling get_ndof");
         }
         Ok(self.ndof)
     }
@@ -352,9 +352,9 @@ impl Schema {
     /// Returns the enabled DOFs in the schema
     ///
     /// Returns `(displacement_dofs, non_displacement_dofs)`
-    pub fn get_enabled_dofs(&self) -> Result<(&Vec<Dof>, &Vec<Dof>), StrError> {
+    pub fn enabled_dofs(&self) -> Result<(&Vec<Dof>, &Vec<Dof>), StrError> {
         if !self.ready {
-            return Err("Schema must be built before calling get_eq");
+            return Err("Schema must be built before calling enabled_dofs");
         }
         Ok((&self.enabled_displacement_dofs, &self.enabled_non_displacement_dofs))
     }

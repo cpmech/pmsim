@@ -47,6 +47,7 @@
     "npeq",
     "nstate",
     "nstep",
+    "nsys",
     "numpy",
     "Paraview",
     "Perić",

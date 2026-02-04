@@ -82,7 +82,7 @@ mod tests {
             let p1 = ParamDiffusion::sample();
             let mut schema = Schema::new();
             schema.add_diffusion(1, p1).build(&mesh).unwrap();
-            let l2g = schema.get_local_to_global(cell.id).unwrap();
+            let l2g = schema.local_to_global(cell.id).unwrap();
 
             // pad for numerical integration
             let mut pad = mesh.get_pad(cell.id);

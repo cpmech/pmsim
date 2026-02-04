@@ -110,7 +110,7 @@ mod tests {
             let p1 = ParamSolid::sample_linear_elastic();
             let mut schema = Schema::new();
             schema.add_solid(1, p1).build(&mesh).unwrap();
-            let l2g = schema.get_local_to_global(cell.id).unwrap();
+            let l2g = schema.local_to_global(cell.id).unwrap();
 
             // configuration
             let config = Config::new(&mesh);

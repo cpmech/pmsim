@@ -120,7 +120,7 @@ impl FemState {
         let mut has_porous_fluid = false;
         let mut has_porous_solid = false;
         for cell in &mesh.cells {
-            let param = schema.get_param(cell.marker)?;
+            let param = schema.param(cell.marker)?;
             let ngauss_opt = param.ngauss();
             let ngauss = Gauss::new_or_sized(cell.kind, ngauss_opt)?.npoint();
             match param {
@@ -171,7 +171,7 @@ impl FemState {
         }
 
         // number of equations = total number of DOFs
-        let neq = schema.get_neq()?;
+        let neq = schema.ndof()?;
 
         // primary variables
         let dduu = Vector::new(neq);
@@ -333,8 +333,8 @@ mod tests {
             .unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.uu.dim(), schema.ndof().unwrap());
     }
 
     #[test]
@@ -346,12 +346,12 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.transient = true;
         let state = FemState::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.vv.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.uu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.vv.dim(), schema.ndof().unwrap());
         assert_eq!(state.aa.dim(), 0);
-        assert_eq!(state.uu_star.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.vv_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.uu_star.dim(), schema.ndof().unwrap());
+        assert_eq!(state.vv_star.dim(), schema.ndof().unwrap());
         assert_eq!(state.aa_star.dim(), 0);
     }
 
@@ -363,8 +363,8 @@ mod tests {
         schema.add_rod(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.uu.dim(), schema.ndof().unwrap());
         assert_eq!(state.vv.dim(), 0);
         assert_eq!(state.aa.dim(), 0);
         assert_eq!(state.uu_star.dim(), 0);
@@ -380,8 +380,8 @@ mod tests {
         schema.add_porous_liq(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.uu.dim(), schema.ndof().unwrap());
     }
 
     #[test]
@@ -392,8 +392,8 @@ mod tests {
         schema.add_porous_liq_gas(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.uu.dim(), schema.ndof().unwrap());
     }
 
     #[test]
@@ -404,8 +404,8 @@ mod tests {
         schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.uu.dim(), schema.ndof().unwrap());
     }
 
     #[test]
@@ -418,13 +418,13 @@ mod tests {
         let mut config = Config::new(&mesh);
         config.dynamics = true;
         let state = FemState::new(&mesh, &schema, &config).unwrap();
-        assert_eq!(state.dduu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.uu.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.vv.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.aa.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.uu_star.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.vv_star.dim(), schema.get_neq().unwrap());
-        assert_eq!(state.aa_star.dim(), schema.get_neq().unwrap());
+        assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.uu.dim(), schema.ndof().unwrap());
+        assert_eq!(state.vv.dim(), schema.ndof().unwrap());
+        assert_eq!(state.aa.dim(), schema.ndof().unwrap());
+        assert_eq!(state.uu_star.dim(), schema.ndof().unwrap());
+        assert_eq!(state.vv_star.dim(), schema.ndof().unwrap());
+        assert_eq!(state.aa_star.dim(), schema.ndof().unwrap());
     }
 
     #[test]

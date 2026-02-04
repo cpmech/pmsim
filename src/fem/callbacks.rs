@@ -47,7 +47,7 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     data.calc_yy()?;
 
     // Calculate the residuals vector: R = Y - λ F
-    for i in 0..data.neq {
+    for i in 0..data.ndof {
         gg[i] = data.yy[i] - l * data.ff[i];
     }
 
@@ -59,7 +59,7 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
     //     └           ┘   └                ┘
     for ip in 0..data.np {
         let i = data.eq_handler.prescribed()[ip];
-        let j = data.neq + ip;
+        let j = data.ndof + ip;
         let mu = u[j];
         gg[i] += mu; // Cᵀ μ   →   1 μ
         gg[j] = data.state.uu[i] - l * data.ppu[ip]; // C U - λ Ǔ   →   1 U - λ Ǔ
@@ -95,21 +95,21 @@ pub(crate) fn calc_jac_lmm(
         Sym::YesLower => {
             for ip in 0..data.np {
                 let i = data.eq_handler.prescribed()[ip];
-                let j = data.neq + ip;
+                let j = data.ndof + ip;
                 ggu.put(j, i, 1.0).unwrap(); // C
             }
         }
         Sym::YesUpper => {
             for ip in 0..data.np {
                 let i = data.eq_handler.prescribed()[ip];
-                let j = data.neq + ip;
+                let j = data.ndof + ip;
                 ggu.put(i, j, 1.0).unwrap(); // Cᵀ
             }
         }
         Sym::YesFull | Sym::No => {
             for ip in 0..data.np {
                 let i = data.eq_handler.prescribed()[ip];
-                let j = data.neq + ip;
+                let j = data.ndof + ip;
                 ggu.put(i, j, 1.0).unwrap(); // Cᵀ
                 ggu.put(j, i, 1.0).unwrap(); // C
             }
@@ -123,11 +123,11 @@ pub(crate) fn calc_jac_lmm(
         // Gλ = ── = │    │
         //      ∂λ   │ -Ǔ │
         //           └    ┘
-        for i in 0..data.neq {
+        for i in 0..data.ndof {
             ggl[i] = -data.ff[i];
         }
         for ip in 0..data.np {
-            let j = data.neq + ip;
+            let j = data.ndof + ip;
             ggl[j] = -data.ppu[ip];
         }
     }
@@ -151,9 +151,9 @@ pub(crate) fn update_secondary_state_lmm(
     }
 
     // Set updated U and Calculate ΔU
-    for eq in 0..data.neq {
-        data.state.uu[eq] = u1[eq];
-        data.state.dduu[eq] = u1[eq] - u0[eq];
+    for i in 0..data.ndof {
+        data.state.uu[i] = u1[i];
+        data.state.dduu[i] = u1[i] - u0[i];
     }
 
     // Update secondary values
@@ -334,7 +334,7 @@ pub(crate) fn update_secondary_state_npv(
     }
 
     // Set updated U and Calculate ΔU
-    for eq in 0..data.neq {
+    for eq in 0..data.ndof {
         data.state.uu[eq] = u1[eq];
         data.state.dduu[eq] = u1[eq] - u0[eq];
     }

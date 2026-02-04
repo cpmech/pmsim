@@ -32,7 +32,7 @@ pub(crate) fn write_vtu(
     }
 
     // auxiliary information
-    let (displacement_dofs, non_displacement_dofs) = schema.get_enabled_dofs()?;
+    let (displacement_dofs, non_displacement_dofs) = schema.enabled_dofs()?;
 
     // output buffer
     let mut buffer = String::new();

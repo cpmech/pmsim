@@ -35,18 +35,19 @@ impl<'a> SimulatorLin<'a> {
     ) -> Result<(Self, FemData<'a>), StrError> {
         let data = FemData::new(&mesh, &schema, &config, &essential, &natural)?;
         let ls = LinSolver::new(data.config.lin_sol_genie)?;
-        let u = Vector::new(data.ndim);
-        let ddu = Vector::new(data.ndim);
-        let rhs = Vector::new(data.ndim);
+        let nsys = data.nsys; // system dimension
+        let u = Vector::new(nsys);
+        let ddu = Vector::new(nsys);
+        let rhs = Vector::new(nsys);
         let (mm, kk_bar) = if data.config.lagrange_mult_method {
             (
-                CooMatrix::new(data.ndim, data.ndim, data.nnz_kk, data.sym).unwrap(),
+                CooMatrix::new(nsys, nsys, data.nnz_kk, data.sym).unwrap(),
                 CooMatrix::new(1, 1, 1, Sym::No).unwrap(),
             )
         } else {
             (
                 CooMatrix::new(1, 1, 1, Sym::No).unwrap(),
-                CooMatrix::new(data.ndim, data.ndim, data.nnz_kk_bar, data.sym).unwrap(),
+                CooMatrix::new(nsys, nsys, data.nnz_kk_bar, data.sym).unwrap(),
             )
         };
         let solver = SimulatorLin {
@@ -104,11 +105,11 @@ impl<'a> SimulatorLin<'a> {
             // RHS = │       │
             //       │ λ₁ Pᵤ │  (np)
             //       └       ┘
-            for i in 0..data.neq {
+            for i in 0..data.ndof {
                 self.rhs[i] = l1 * data.ff[i];
             }
             for ip in 0..data.np {
-                let j = data.neq + ip;
+                let j = data.ndof + ip;
                 self.rhs[j] = l1 * data.ppu[ip];
             }
 
@@ -128,21 +129,21 @@ impl<'a> SimulatorLin<'a> {
                 Sym::YesLower => {
                     for ip in 0..data.np {
                         let i = data.eq_handler.prescribed()[ip];
-                        let j = data.neq + ip;
+                        let j = data.ndof + ip;
                         self.mm.put(j, i, 1.0).unwrap(); // C
                     }
                 }
                 Sym::YesUpper => {
                     for ip in 0..data.np {
                         let i = data.eq_handler.prescribed()[ip];
-                        let j = data.neq + ip;
+                        let j = data.ndof + ip;
                         self.mm.put(i, j, 1.0).unwrap(); // Cᵀ
                     }
                 }
                 Sym::YesFull | Sym::No => {
                     for ip in 0..data.np {
                         let i = data.eq_handler.prescribed()[ip];
-                        let j = data.neq + ip;
+                        let j = data.ndof + ip;
                         self.mm.put(i, j, 1.0).unwrap(); // Cᵀ
                         self.mm.put(j, i, 1.0).unwrap(); // C
                     }
@@ -160,7 +161,7 @@ impl<'a> SimulatorLin<'a> {
                 .solve(&mut self.ddu, &self.rhs, data.config.verbose_lin_sys_solve)?;
 
             // Update U and ΔU in the state
-            for eq in 0..data.neq {
+            for eq in 0..data.ndof {
                 data.state.uu[eq] += self.ddu[eq];
                 data.state.dduu[eq] = self.ddu[eq];
             }
@@ -192,7 +193,7 @@ impl<'a> SimulatorLin<'a> {
                 .solve(&mut self.ddu, &self.rhs, data.config.verbose_lin_sys_solve)?;
 
             // Update the solution: U₁ = U₀ + ΔU
-            for eq in 0..data.neq {
+            for eq in 0..data.ndof {
                 if data.eq_handler.is_unknown(eq) {
                     let iu = data.eq_handler.iu(eq);
                     data.state.uu[eq] += self.ddu[iu];

@@ -760,8 +760,8 @@ mod tests {
 
         let mut bry = ElementsBoundary::new(&mesh, &schema, &config, &nbc).unwrap();
 
-        let neq = schema.get_neq().unwrap();
-        let mut ff = Vector::new(neq);
+        let ndof = schema.ndof().unwrap();
+        let mut ff = Vector::new(ndof);
         bry.assemble_ff(&mut ff, time).unwrap();
         // →     ⌠    →
         // Feₘ = │ Nₘ v dΓ
@@ -778,14 +778,14 @@ mod tests {
         ];
         vec_approx_eq(&ff, &correct, 1e-15);
 
-        let eq_handler = EquationHandler::new(schema.get_neq().unwrap());
+        let eq_handler = EquationHandler::new(schema.ndof().unwrap());
 
-        let nnz_sup = 2 * neq * neq;
-        let mut kk_bar = CooMatrix::new(neq, neq, nnz_sup, Sym::No).unwrap();
+        let nnz_sup = 2 * ndof * ndof;
+        let mut kk_bar = CooMatrix::new(ndof, ndof, nnz_sup, Sym::No).unwrap();
         let mut kk_check = CooMatrix::new(1, 1, 1, Sym::No).unwrap();
         bry.assemble_kk_sps(&mut kk_bar, &mut kk_check, &state, &eq_handler)
             .unwrap();
-        let correct = Matrix::new(neq, neq); // null
+        let correct = Matrix::new(ndof, ndof); // null
         assert_eq!(kk_bar.as_dense().as_data(), correct.as_data());
     }
 }

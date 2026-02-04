@@ -146,7 +146,7 @@ fn main() -> Result<(), StrError> {
         schema.add_solid(1, param1).build(&mesh)?;
 
         // total number of DOF
-        let ndof = schema.get_neq()?;
+        let ndof = schema.ndof()?;
         let n_str = format!("{:0>5}", ndof);
 
         // println!("4. NDOF = {}", ndof);

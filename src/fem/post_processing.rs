@@ -113,14 +113,14 @@ impl PostProc {
         self.files.nfile()
     }
 
-    /// Returns the total number of equations
-    pub fn neq_total(&self) -> usize {
-        self.files.neq_total()
+    /// Returns the total number of degrees of freedom (DOF)
+    pub fn ndof(&self) -> usize {
+        self.files.ndof()
     }
 
-    /// Returns the number of prescribed equations
-    pub fn neq_presc(&self) -> usize {
-        self.files.neq_presc()
+    /// Returns the number of prescribed degrees of freedom (DOF)
+    pub fn np(&self) -> usize {
+        self.files.np()
     }
 
     /// Reads a JSON file with the FEM state at a given index (time station)
@@ -193,7 +193,7 @@ impl PostProc {
     /// Returns an error if the Gauss points cannot be retrieved.
     pub fn gauss_coords(&self, memo: &mut PostProcMemo, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let param = self.schema.get_param(cell.marker)?;
+        let param = self.schema.param(cell.marker)?;
         let ngauss_opt = param.ngauss();
         let gauss = memo
             .all_gauss
@@ -1014,7 +1014,7 @@ impl PostProc {
     /// Returns an error if the extrapolation matrix cannot be computed.
     fn get_extrap_matrix<'a>(&self, memo: &'a mut PostProcMemo, cell_id: CellId) -> Result<&'a Matrix, StrError> {
         let cell = &self.mesh.cells[cell_id];
-        let param = self.schema.get_param(cell.marker)?;
+        let param = self.schema.param(cell.marker)?;
         let ngauss_opt = param.ngauss();
         let gauss = memo
             .all_gauss
@@ -1419,7 +1419,7 @@ mod tests {
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
-        let yy = Vector::new(schema.get_neq().unwrap());
+        let yy = Vector::new(schema.ndof().unwrap());
         files.execute(&schema, &config, &state, &yy).unwrap();
         files.stop(&config).unwrap();
     }
@@ -1474,7 +1474,7 @@ mod tests {
 
         let phi = generate_scalar_field_ax_plus_by(&mesh, A_COEF, B_COEF);
         let state = generate_state_diffusion(&p1, &mesh, &schema, &config, &phi);
-        let yy = Vector::new(schema.get_neq().unwrap());
+        let yy = Vector::new(schema.ndof().unwrap());
         files.execute(&schema, &config, &state, &yy).unwrap();
         files.stop(&config).unwrap();
     }
@@ -1542,7 +1542,7 @@ mod tests {
             .set_out_history_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
-        let yy = Vector::new(schema.get_neq().unwrap());
+        let yy = Vector::new(schema.ndof().unwrap());
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
@@ -1612,7 +1612,7 @@ mod tests {
             .set_out_history_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
-        let yy = Vector::new(schema.get_neq().unwrap());
+        let yy = Vector::new(schema.ndof().unwrap());
 
         let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
         let state = generate_state_solid(&p1, &mesh, &schema, &config, &duu_h);
@@ -1652,11 +1652,11 @@ mod tests {
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
-        assert_eq!(post.schema.get_param(1)?.name(), "Diffusion");
-        assert_eq!(post.schema.get_local_to_global(0)?.len(), 3); // 3 nodes
-        assert_eq!(post.schema.get_local_to_global(1)?.len(), 3);
-        assert_eq!(post.schema.get_local_to_global(2)?.len(), 3);
-        assert_eq!(post.schema.get_neq()?, 5); // 5 points
+        assert_eq!(post.schema.param(1)?.name(), "Diffusion");
+        assert_eq!(post.schema.local_to_global(0)?.len(), 3); // 3 nodes
+        assert_eq!(post.schema.local_to_global(1)?.len(), 3);
+        assert_eq!(post.schema.local_to_global(2)?.len(), 3);
+        assert_eq!(post.schema.ndof()?, 5); // 5 points
 
         // read state
         let ndim = post.mesh.ndim;
@@ -1695,10 +1695,10 @@ mod tests {
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
-        assert_eq!(post.schema.get_param(1)?.name(), "Diffusion");
-        assert_eq!(post.schema.get_local_to_global(0)?.len(), 8); // 8 nodes
-        assert_eq!(post.schema.get_local_to_global(1)?.len(), 8);
-        assert_eq!(post.schema.get_neq()?, 12); // 12 points
+        assert_eq!(post.schema.param(1)?.name(), "Diffusion");
+        assert_eq!(post.schema.local_to_global(0)?.len(), 8); // 8 nodes
+        assert_eq!(post.schema.local_to_global(1)?.len(), 8);
+        assert_eq!(post.schema.ndof()?, 12); // 12 points
 
         // read state
         let ndim = post.mesh.ndim;
@@ -1737,11 +1737,11 @@ mod tests {
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
-        assert_eq!(post.schema.get_param(1)?.name(), "Solid");
-        assert_eq!(post.schema.get_local_to_global(0)?.len(), 6); // 3 * 2 (nnode * ndim)
-        assert_eq!(post.schema.get_local_to_global(1)?.len(), 6);
-        assert_eq!(post.schema.get_local_to_global(2)?.len(), 6);
-        assert_eq!(post.schema.get_neq()?, 10);
+        assert_eq!(post.schema.param(1)?.name(), "Solid");
+        assert_eq!(post.schema.local_to_global(0)?.len(), 6); // 3 * 2 (nnode * ndim)
+        assert_eq!(post.schema.local_to_global(1)?.len(), 6);
+        assert_eq!(post.schema.local_to_global(2)?.len(), 6);
+        assert_eq!(post.schema.ndof()?, 10);
 
         // read state
         let ndim = post.mesh.ndim;
@@ -1811,11 +1811,11 @@ mod tests {
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
-        assert_eq!(post.schema.get_param(1)?.name(), "Solid");
-        assert_eq!(post.schema.get_param(2)?.name(), "Solid");
-        assert_eq!(post.schema.get_local_to_global(0)?.len(), 24); // 8 * 3 (nnode * ndim)
-        assert_eq!(post.schema.get_local_to_global(1)?.len(), 24);
-        assert_eq!(post.schema.get_neq()?, 36); // 12 * 3 (nnode_total * ndim)
+        assert_eq!(post.schema.param(1)?.name(), "Solid");
+        assert_eq!(post.schema.param(2)?.name(), "Solid");
+        assert_eq!(post.schema.local_to_global(0)?.len(), 24); // 8 * 3 (nnode * ndim)
+        assert_eq!(post.schema.local_to_global(1)?.len(), 24);
+        assert_eq!(post.schema.ndof()?, 36); // 12 * 3 (nnode_total * ndim)
 
         // read state
         let ndim = post.mesh.ndim;

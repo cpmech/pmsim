@@ -43,17 +43,17 @@ impl<'a> Simulator<'a> {
         // Allocate the nonlinear system structure
         let mut nl_system = if config.lagrange_mult_method {
             let nnz = Some(data.nnz_kk);
-            let mut sys = NlSystem::new(data.ndim, nnz, data.sym, calc_gg_lmm, calc_jac_lmm)?;
+            let mut sys = NlSystem::new(data.nsys, nnz, data.sym, calc_gg_lmm, calc_jac_lmm)?;
             sys.set_update_secondary_state(update_secondary_state_lmm);
             sys
         } else if config.nonzero_presc_values {
             let nnz = Some(data.nnz_kk);
-            let mut sys = NlSystem::new(data.ndim, nnz, data.sym, calc_gg_npv, calc_jac_npv)?;
+            let mut sys = NlSystem::new(data.nsys, nnz, data.sym, calc_gg_npv, calc_jac_npv)?;
             sys.set_update_secondary_state(update_secondary_state_npv);
             sys
         } else {
             let nnz = Some(data.nnz_kk_bar);
-            let mut sys = NlSystem::new(data.ndim, nnz, data.sym, calc_gg_sps, calc_jac_sps)?;
+            let mut sys = NlSystem::new(data.nsys, nnz, data.sym, calc_gg_sps, calc_jac_sps)?;
             sys.set_update_secondary_state(update_secondary_state_sps);
             sys
         };
@@ -106,7 +106,7 @@ impl<'a> Simulator<'a> {
         }
 
         // Allocate and initialize the unknowns (u, λ)
-        let mut u = Vector::new(data.ndim);
+        let mut u = Vector::new(data.nsys);
         let mut l = data.state.lambda;
         data.initialize_u(&mut u);
 

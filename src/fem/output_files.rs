@@ -22,11 +22,11 @@ pub(crate) struct OutputFiles {
     /// Time is used for transient/dynamic analyses, while lambda is used for steady/static analyses
     stations: Vec<f64>,
 
-    /// Total number of equations
-    neq_total: usize,
+    /// Total number of DOFs
+    ndof: usize,
 
-    /// Number of prescribed equations
-    neq_presc: usize,
+    /// Number of prescribed DOFs
+    np: usize,
 
     /// History (time or lambda) of U components at selected points
     ///
@@ -51,7 +51,7 @@ pub(crate) struct OutputFiles {
 
 impl OutputFiles {
     /// Allocates a new instance with deactivated generation of files
-    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config, neq_presc: usize) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config, np: usize) -> Result<Self, StrError> {
         if config.out_files {
             // create directory
             fs::create_dir_all(&config.out_dir).map_err(|_| "cannot create output directory")?;
@@ -65,8 +65,8 @@ impl OutputFiles {
         Ok(OutputFiles {
             counter: 0,
             stations: Vec::new(),
-            neq_total: schema.get_neq()?,
-            neq_presc,
+            ndof: schema.ndof()?,
+            np,
             history_uu_comp: HashMap::new(),
             history_yy_comp: HashMap::new(),
             history_local_flux: HashMap::new(),
@@ -79,14 +79,14 @@ impl OutputFiles {
         self.counter
     }
 
-    /// Returns the total number of equations (number of DOFs)
-    pub fn neq_total(&self) -> usize {
-        self.neq_total
+    /// Returns the total number of degrees of freedom (DOF)
+    pub fn ndof(&self) -> usize {
+        self.ndof
     }
 
-    /// Returns the number of prescribed equations
-    pub fn neq_presc(&self) -> usize {
-        self.neq_presc
+    /// Returns the number of prescribed degrees of freedom (DOF)
+    pub fn np(&self) -> usize {
+        self.np
     }
 
     /// Returns the real simulation times (time) or loading increments (lambda)

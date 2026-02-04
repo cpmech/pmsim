@@ -70,7 +70,7 @@ impl<'a> ElementRod<'a> {
         };
         Ok(ElementRod {
             param,
-            local_to_global: schema.get_local_to_global(cell_id)?,
+            local_to_global: schema.local_to_global(cell_id)?,
             stiffness,
             u:Vector::new(2*ndim),
         })

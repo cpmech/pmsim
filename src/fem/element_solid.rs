@@ -56,7 +56,7 @@ impl<'a> ElementSolid<'a> {
         cell_id: CellId,
     ) -> Result<Self, StrError> {
         // local-to-global mapping
-        let local_to_global = schema.get_local_to_global(cell_id)?;
+        let local_to_global = schema.local_to_global(cell_id)?;
 
         // pad for numerical integration
         let pad = mesh.get_pad(cell_id);

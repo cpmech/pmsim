@@ -85,7 +85,7 @@ impl<'a> ElementRodGnl<'a> {
         };
         Ok(ElementRodGnl {
             param,
-            local_to_global: schema.get_local_to_global(cell_id)?,
+            local_to_global: schema.local_to_global(cell_id)?,
             ndim,
             xxa,
             yya,

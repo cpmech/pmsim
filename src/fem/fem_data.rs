@@ -54,10 +54,10 @@ pub struct FemData<'a> {
 
     pub(crate) uuid: Uuid,
     pub(crate) state: FemState,
-    pub(crate) neq: usize,
+    pub(crate) ndof: usize,
     pub(crate) nu: usize,
     pub(crate) np: usize,
-    pub(crate) ndim: usize,
+    pub(crate) nsys: usize,
     pub(crate) sym: Sym,
     pub(crate) nnz_kk: usize,
     pub(crate) nnz_kk_bar: usize,
@@ -96,7 +96,8 @@ impl<'a> FemData<'a> {
         }
 
         // Allocate the equations handler
-        let mut eq_handler = EquationHandler::new(schema.get_neq()?);
+        let ndof = schema.ndof()?;
+        let mut eq_handler = EquationHandler::new(ndof);
         eq_handler.recompute(&p_list);
 
         // Allocate array of functions to calculate prescribed values
@@ -146,13 +147,12 @@ impl<'a> FemData<'a> {
         let sym = genie.get_sym(symmetric);
 
         // Determine the system dimension
-        let neq = eq_handler.neq();
         let nu = eq_handler.nu();
         let np = eq_handler.np();
-        let ndim = if config.lagrange_mult_method {
-            neq + np
+        let nsys = if config.lagrange_mult_method {
+            ndof + np
         } else if config.nonzero_presc_values {
-            neq
+            ndof
         } else {
             nu
         };
@@ -184,8 +184,8 @@ impl<'a> FemData<'a> {
             CooMatrix::new(nu, np, nnz_kk_check, Sym::No).unwrap()
         };
 
-        let yy = Vector::new(neq);
-        let ff = Vector::new(neq);
+        let yy = Vector::new(ndof);
+        let ff = Vector::new(ndof);
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -211,10 +211,10 @@ impl<'a> FemData<'a> {
             //
             uuid: Uuid::new_v4(),
             state,
-            neq,
+            ndof,
             nu,
             np,
-            ndim,
+            nsys,
             sym,
             nnz_kk,
             nnz_kk_bar,
@@ -223,13 +223,19 @@ impl<'a> FemData<'a> {
         })
     }
 
-    // TODO: rename "ndim"
-    pub fn get_ndim(&self) -> usize {
-        self.ndim
+    /// Returns the number of equations effectively considered in the nonlinear system
+    ///
+    /// This number may be greater than the number of equations when using the Lagrange Multiplier Method,
+    /// or this number may be smaller than the number of equations when using the System Partitioning Strategy.
+    pub fn get_nsys(&self) -> usize {
+        self.nsys
     }
 
-    pub fn get_neq(&self) -> usize {
-        self.neq
+    /// Returns the total number of degrees of freedom
+    ///
+    /// This number corresponds to the total number of equations without Lagrange multipliers and without prescribed values.
+    pub fn get_ndof(&self) -> usize {
+        self.ndof
     }
 
     /// Returns the index of a u component in the system used by the nonlinear solver (this is not U)
@@ -290,9 +296,9 @@ impl<'a> FemData<'a> {
             } else {
                 "SPS"
             };
-            write!(&mut b[0][0], "neq  = {:?}", self.neq).unwrap();
+            write!(&mut b[0][0], "neq  = {:?}", self.ndof).unwrap();
             write!(&mut b[1][0], "np   = {:?}", self.np).unwrap();
-            write!(&mut b[2][0], "ndim = {:?}", self.ndim).unwrap();
+            write!(&mut b[2][0], "ndim = {:?}", self.nsys).unwrap();
             write!(&mut b[0][1], "nnz(K)     = {:?}", self.nnz_kk).unwrap();
             write!(&mut b[1][1], "nnz(K-bar) = {:?}", self.nnz_kk_bar).unwrap();
             write!(&mut b[2][1], "sym(K)     = {:?}", self.sym).unwrap();
@@ -325,7 +331,7 @@ impl<'a> FemData<'a> {
     /// Initializes the nonlinear solver unknowns vector `u` from the state
     pub(crate) fn initialize_u(&self, u: &mut Vector) {
         if self.config.lagrange_mult_method {
-            for eq in 0..self.neq {
+            for eq in 0..self.ndof {
                 u[eq] = self.state.uu[eq];
             }
         } else {
@@ -349,11 +355,11 @@ impl<'a> FemData<'a> {
     pub(crate) fn set_state(&mut self, l: f64, u: &Vector) {
         self.state.lambda = l;
         if self.config.lagrange_mult_method {
-            for i in 0..self.neq {
+            for i in 0..self.ndof {
                 self.state.uu[i] = u[i];
             }
         } else if self.config.nonzero_presc_values {
-            for eq in 0..self.neq {
+            for eq in 0..self.ndof {
                 self.state.uu[eq] = u[eq];
             }
         } else {
