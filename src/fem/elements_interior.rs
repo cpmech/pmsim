@@ -354,7 +354,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_transient();
+        config.transient();
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left

@@ -58,8 +58,8 @@ fn test_seep_simple_confined_flow() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_lagrange_mult_method(true)
-        .set_out_files(OUT_DIR, NAME)
+        .lagrange_mult_method(true)
+        .out_files(OUT_DIR, NAME)
         .update_model_settings(1)
         .set_save_flux(true);
 

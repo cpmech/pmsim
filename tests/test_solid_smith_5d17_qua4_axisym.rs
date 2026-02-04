@@ -95,9 +95,9 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_files("/tmp/pmsim", NAME)
-        .set_alt_bb_matrix_method(true)
-        .set_axisymmetric();
+        .out_files("/tmp/pmsim", NAME)
+        .alt_bb_matrix_method(true)
+        .axisymmetric();
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

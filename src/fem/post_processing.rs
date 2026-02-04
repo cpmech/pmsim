@@ -1406,14 +1406,14 @@ mod tests {
         schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config
-            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name)
+            .out_files(ARTIFICIAL_DATA_FILES_DIR, name)
             .update_model_settings(1)
             .save_flux = true;
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config
-            .set_out_history_uu_comp(point_id, Dof::Phi)
-            .set_out_history_local_flux(cell_id);
+            .out_history_uu_comp(point_id, Dof::Phi)
+            .out_history_local_flux(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
@@ -1461,14 +1461,14 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d");
+        config.out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d");
         config.update_model_settings(1).save_flux = true;
         config.update_model_settings(2).save_flux = true;
 
         let (point_id, cell_id) = (10, 1);
         config
-            .set_out_history_uu_comp(point_id, Dof::Phi)
-            .set_out_history_local_flux(cell_id);
+            .out_history_uu_comp(point_id, Dof::Phi)
+            .out_history_local_flux(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
 
@@ -1531,15 +1531,15 @@ mod tests {
         schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config
-            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, name)
+            .out_files(ARTIFICIAL_DATA_FILES_DIR, name)
             .update_model_settings(1)
             .save_strain = true;
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config
-            .set_out_history_uu_comp(point_id, Dof::Ux)
-            .set_out_history_uu_comp(point_id, Dof::Uy)
-            .set_out_history_local_state(cell_id);
+            .out_history_uu_comp(point_id, Dof::Ux)
+            .out_history_uu_comp(point_id, Dof::Uy)
+            .out_history_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
         let yy = Vector::new(schema.ndof().unwrap());
@@ -1605,11 +1605,11 @@ mod tests {
 
         let (point_id, cell_id) = (10, 1);
         config
-            .set_out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d")
-            .set_out_history_uu_comp(point_id, Dof::Ux)
-            .set_out_history_uu_comp(point_id, Dof::Uy)
-            .set_out_history_uu_comp(point_id, Dof::Uz)
-            .set_out_history_local_state(cell_id);
+            .out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d")
+            .out_history_uu_comp(point_id, Dof::Ux)
+            .out_history_uu_comp(point_id, Dof::Uy)
+            .out_history_uu_comp(point_id, Dof::Uz)
+            .out_history_local_state(cell_id);
 
         let mut files = OutputFiles::new(&mesh, &schema, &config, 0).unwrap();
         let yy = Vector::new(schema.ndof().unwrap());

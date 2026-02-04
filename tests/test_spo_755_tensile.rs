@@ -134,18 +134,18 @@ fn run(
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_history_uu_comp(corner_id, Dof::Uy)
-        .set_lagrange_mult_method(options.lmm);
+        .out_history_uu_comp(corner_id, Dof::Uy)
+        .lagrange_mult_method(options.lmm);
 
     // output files if natural parameter continuation (for verification)
     if !options.arclength {
-        config.set_out_files("/tmp/pmsim", &name);
+        config.out_files("/tmp/pmsim", &name);
     }
 
     // output the vertical component of Y at bottom edge points
     let ids_bottom = features.get_points_via_2d_edges(&bottom);
     for point_id in &ids_bottom {
-        config.set_out_history_yy_comp(*point_id, Dof::Uy);
+        config.out_history_yy_comp(*point_id, Dof::Uy);
     }
 
     // nonlinear solver configuration

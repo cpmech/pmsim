@@ -301,7 +301,7 @@ impl<'a> Config<'a> {
     // Essential constants --------------------------------------------------------------------
 
     /// Enables axisymmetric idealization in 2D (instead of plane-strain)
-    pub fn set_axisymmetric(&mut self) -> &mut Self {
+    pub fn axisymmetric(&mut self) -> &mut Self {
         self.ideal.axisymmetric = true;
         self
     }
@@ -309,14 +309,14 @@ impl<'a> Config<'a> {
     /// Enables plane-stress idealization in 2D (instead of plane-strain)
     ///
     /// This function also sets the thickness for the plane-stress analysis.
-    pub fn set_plane_stress(&mut self, thickness: f64) -> &mut Self {
+    pub fn plane_stress(&mut self, thickness: f64) -> &mut Self {
         self.ideal.plane_stress = true;
         self.ideal.thickness = thickness;
         self
     }
 
     /// Sets the flag to show generic messages
-    pub fn set_verbose(&mut self, enable: bool) -> &mut Self {
+    pub fn verbose(&mut self, enable: bool) -> &mut Self {
         self.verbose = enable;
         self
     }
@@ -326,7 +326,7 @@ impl<'a> Config<'a> {
     /// Indicates transient analysis
     ///
     /// In this case, the first time derivative of primary variables is included.
-    pub fn set_transient(&mut self) -> &mut Self {
+    pub fn transient(&mut self) -> &mut Self {
         self.transient = true;
         self.dynamics = false;
         self
@@ -335,26 +335,26 @@ impl<'a> Config<'a> {
     /// Indicates dynamics analysis
     ///
     /// In this case, the second time derivative of primary variables is included.
-    pub fn set_dynamics(&mut self) -> &mut Self {
+    pub fn dynamics(&mut self) -> &mut Self {
         self.transient = false;
         self.dynamics = true;
         self
     }
 
     /// Enables the method of Lagrange multipliers (LMM) to handle prescribed essential values
-    pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
+    pub fn lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
         self.lagrange_mult_method = enable;
         self
     }
 
     /// Uses the alternative method to calculate the B matrix
-    pub fn set_alt_bb_matrix_method(&mut self, enable: bool) -> &mut Self {
+    pub fn alt_bb_matrix_method(&mut self, enable: bool) -> &mut Self {
         self.alt_bb_matrix_method = enable;
         self
     }
 
     /// Enables the symmetry check of all local Ke matrices
-    pub fn set_enable_symmetry_check(&mut self, tol: f64) -> &mut Self {
+    pub fn enable_symmetry_check(&mut self, tol: f64) -> &mut Self {
         self.enable_symmetry_check = Some(tol);
         self
     }
@@ -378,25 +378,25 @@ impl<'a> Config<'a> {
     /// const GRAVITY: f64 = 10.0;
     /// config.set_gravity(GRAVITY);
     /// ```
-    pub fn set_gravity(&mut self, gravity_function: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    pub fn gravity(&mut self, gravity_function: impl Fn(f64) -> f64 + 'a) -> &mut Self {
         self.gravity = Some(Box::new(gravity_function));
         self
     }
 
     /// Sets options to initialize all stress states
-    pub fn set_initialization(&mut self, initialization: Init) -> &mut Self {
+    pub fn initialization(&mut self, initialization: Init) -> &mut Self {
         self.initialization = initialization;
         self
     }
 
     /// Sets the parameters for fluids
-    pub fn set_param_fluids(&mut self, params: ParamFluids) -> &mut Self {
+    pub fn param_fluids(&mut self, params: ParamFluids) -> &mut Self {
         self.param_fluids = Some(params);
         self
     }
 
     /// Allows an initial yield surface drift in (stress-strain) material models
-    pub fn set_model_allow_initial_drift(&mut self, model_allow_initial_drift: bool) -> &mut Self {
+    pub fn model_allow_initial_drift(&mut self, model_allow_initial_drift: bool) -> &mut Self {
         self.model_allow_initial_drift = model_allow_initial_drift;
         self
     }
@@ -409,7 +409,7 @@ impl<'a> Config<'a> {
     // Nonlinear problem solver ---------------------------------------------------------------
 
     /// Sets the linear solver type (aka Genie)
-    pub fn set_lin_sol_genie(&mut self, genie: Genie) -> &mut Self {
+    pub fn lin_sol_genie(&mut self, genie: Genie) -> &mut Self {
         self.lin_sol_genie = genie;
         self
     }
@@ -420,25 +420,25 @@ impl<'a> Config<'a> {
     }
 
     /// Ignores the symmetry of the global stiffness matrix K even if the formulation yields a symmetric K
-    pub fn set_ignore_symmetry(&mut self, flag: bool) -> &mut Self {
+    pub fn ignore_symmetry(&mut self, flag: bool) -> &mut Self {
         self.ignore_symmetry = flag;
         self
     }
 
     /// Saves the global coefficient matrix K as a MatrixMarket file (for debugging)
-    pub fn set_save_matrix_market_file(&mut self, enable: bool) -> &mut Self {
+    pub fn save_matrix_market_file(&mut self, enable: bool) -> &mut Self {
         self.save_matrix_market_file = enable;
         self
     }
 
     /// Saves the global coefficient matrix K as a Vismatrix file (for debugging)
-    pub fn set_save_vismatrix_file(&mut self, enable: bool) -> &mut Self {
+    pub fn save_vismatrix_file(&mut self, enable: bool) -> &mut Self {
         self.save_vismatrix_file = enable;
         self
     }
 
     /// Prints detailed information during the linear system solution
-    pub fn set_verbose_lin_sys_solve(&mut self, enable: bool) -> &mut Self {
+    pub fn verbose_lin_sys_solve(&mut self, enable: bool) -> &mut Self {
         self.verbose_lin_sys_solve = enable;
         self
     }
@@ -446,31 +446,31 @@ impl<'a> Config<'a> {
     // Transient/dynamics parameters ----------------------------------------------------------
 
     /// Sets the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
-    pub fn set_theta(&mut self, theta: f64) -> &mut Self {
+    pub fn theta(&mut self, theta: f64) -> &mut Self {
         self.theta = theta;
         self
     }
 
     /// Sets the coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
-    pub fn set_theta1(&mut self, theta1: f64) -> &mut Self {
+    pub fn theta1(&mut self, theta1: f64) -> &mut Self {
         self.theta1 = theta1;
         self
     }
 
     /// Sets the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
-    pub fn set_theta2(&mut self, theta2: f64) -> &mut Self {
+    pub fn theta2(&mut self, theta2: f64) -> &mut Self {
         self.theta2 = theta2;
         self
     }
 
     /// Activates the use of Hilber-Hughes-Taylor method (instead of Newmark's method)
-    pub fn set_hht_method(&mut self, enable: bool) -> &mut Self {
+    pub fn hht_method(&mut self, enable: bool) -> &mut Self {
         self.hht_method = enable;
         self
     }
 
     /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
-    pub fn set_hht_alpha(&mut self, alpha: f64) -> &mut Self {
+    pub fn hht_alpha(&mut self, alpha: f64) -> &mut Self {
         self.hht_alpha = alpha;
         self
     }
@@ -478,7 +478,7 @@ impl<'a> Config<'a> {
     // Output of results ----------------------------------------------------------------------
 
     /// Enables the generation of output files
-    pub fn set_out_files(&mut self, dir: &str, fn_stem: &str) -> &mut Self {
+    pub fn out_files(&mut self, dir: &str, fn_stem: &str) -> &mut Self {
         self.out_dir = dir.to_string();
         self.out_fn_stem = fn_stem.to_string();
         self.out_files = true;
@@ -486,14 +486,14 @@ impl<'a> Config<'a> {
     }
 
     /// Sets the output of history (time or lambda) of U components at selected points
-    pub fn set_out_history_uu_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+    pub fn out_history_uu_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
         self.out_history_uu_comp.insert((point_id, dof));
         self.out_history = true;
         self
     }
 
     /// Sets the output of history (time or lambda) of Y (internal forces) components at selected points
-    pub fn set_out_history_yy_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+    pub fn out_history_yy_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
         self.out_history_yy_comp.insert((point_id, dof));
         self.out_history = true;
         self
@@ -502,7 +502,7 @@ impl<'a> Config<'a> {
     /// Sets the output of history (time or lambda) of flux vectors at selected integration points
     ///
     /// Note: only the first integration point is considered.
-    pub fn set_out_history_local_flux(&mut self, cell_id: CellId) -> &mut Self {
+    pub fn out_history_local_flux(&mut self, cell_id: CellId) -> &mut Self {
         self.out_history_local_flux.insert(cell_id);
         self.out_history = true;
         self
@@ -511,7 +511,7 @@ impl<'a> Config<'a> {
     /// Sets the output local state at selected integration points
     ///
     /// Note: only the first integration point is considered.
-    pub fn set_out_history_local_state(&mut self, cell_id: CellId) -> &mut Self {
+    pub fn out_history_local_state(&mut self, cell_id: CellId) -> &mut Self {
         self.out_history_local_state.insert(cell_id);
         self.out_history = true;
         self
@@ -693,11 +693,11 @@ mod tests {
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
 
-        config.set_transient();
+        config.transient();
         assert_eq!(config.transient, true);
         assert_eq!(config.dynamics, false);
 
-        config.set_dynamics();
+        config.dynamics();
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, true);
     }

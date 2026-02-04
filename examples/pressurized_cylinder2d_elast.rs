@@ -196,9 +196,9 @@ fn main() -> Result<(), StrError> {
         // configuration
         let mut config = Config::new(&mesh);
         config
-            .set_save_vismatrix_file(false)
-            .set_save_matrix_market_file(false)
-            .set_lin_sol_genie(genie)
+            .save_vismatrix_file(false)
+            .save_matrix_market_file(false)
+            .lin_sol_genie(genie)
             .access_lin_sol_params()
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
 

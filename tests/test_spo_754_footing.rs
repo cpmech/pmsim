@@ -132,9 +132,7 @@ fn run(
 
     // configuration
     let mut config = Config::new(&mesh);
-    config
-        .set_out_files("/tmp/pmsim", &name)
-        .set_lagrange_mult_method(options.lmm);
+    config.out_files("/tmp/pmsim", &name).lagrange_mult_method(options.lmm);
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();

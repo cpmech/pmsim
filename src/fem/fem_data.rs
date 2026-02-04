@@ -434,7 +434,7 @@ mod tests {
 
         // error due to config.validate
         let mut config = Config::new(&mesh);
-        config.set_theta(0.0);
+        config.theta(0.0);
         assert_eq!(
             FemData::new(&mesh, &schema, &config, &ebc, &nbc).err(),
             Some("cannot start simulation because config.validate() failed")

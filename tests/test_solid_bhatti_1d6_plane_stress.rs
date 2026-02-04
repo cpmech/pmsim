@@ -73,7 +73,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(lmm).set_plane_stress(0.25);
+    config.lagrange_mult_method(lmm).plane_stress(0.25);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

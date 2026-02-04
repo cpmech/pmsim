@@ -80,7 +80,7 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
 fn run_test(lmm: bool, mesh: &Mesh, schema: &Schema, ebc: &BcEssential, nbc: &BcNatural) -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(lmm);
+    config.lagrange_mult_method(lmm);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

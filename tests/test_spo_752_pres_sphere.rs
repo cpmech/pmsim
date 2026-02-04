@@ -116,8 +116,8 @@ fn run_test(
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_files("/tmp/pmsim", name)
-        .set_axisymmetric()
+        .out_files("/tmp/pmsim", name)
+        .axisymmetric()
         .update_model_settings(1)
         .set_save_strain(true);
 

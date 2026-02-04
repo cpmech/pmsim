@@ -88,7 +88,7 @@ fn run_test(
 ) -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(lmm);
+    config.lagrange_mult_method(lmm);
 
     // solution
     let uu = if gen {

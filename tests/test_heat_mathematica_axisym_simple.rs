@@ -72,7 +72,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric();
+    config.axisymmetric();
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

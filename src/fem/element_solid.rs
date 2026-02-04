@@ -305,7 +305,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_alt_bb_matrix_method(alt_bb_matrix);
+        config.alt_bb_matrix_method(alt_bb_matrix);
         let mut state = FemState::new(&mesh, &schema, &config).unwrap();
 
         // set stress state
@@ -690,7 +690,7 @@ mod tests {
         config.ideal.axisymmetric = true;
 
         // vertical acceleration (must be positive)
-        config.set_gravity(|_| 0.5); // 1/2 because rho = 2
+        config.gravity(|_| 0.5); // 1/2 because rho = 2
 
         // element
         let mut elem = ElementSolid::new(&mesh, &schema, &config, &p1, 0).unwrap();

@@ -156,12 +156,12 @@ fn run_test(
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_history_uu_comp(corner, Dof::Uy)
-        .set_out_history_yy_comp(corner, Dof::Uy)
-        .set_out_files("/tmp/pmsim", &name)
-        .set_lagrange_mult_method(options.lmm)
-        .set_out_history_local_state(0)
-        .set_out_history_local_state(3)
+        .out_history_uu_comp(corner, Dof::Uy)
+        .out_history_yy_comp(corner, Dof::Uy)
+        .out_files("/tmp/pmsim", &name)
+        .lagrange_mult_method(options.lmm)
+        .out_history_local_state(0)
+        .out_history_local_state(3)
         .update_model_settings(1)
         .set_save_strain(true);
 

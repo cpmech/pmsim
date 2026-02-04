@@ -69,7 +69,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_out_files("/tmp/pmsim", NAME).set_axisymmetric();
+    config.out_files("/tmp/pmsim", NAME).axisymmetric();
 
     // nonlinear solver configuration
     let mut nlc = NlConfig::new();

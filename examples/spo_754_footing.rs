@@ -72,7 +72,7 @@ pub fn main() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_out_files("/tmp/pmsim", NAME);
+    config.out_files("/tmp/pmsim", NAME);
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
