@@ -10,7 +10,7 @@ fn main() -> Result<(), StrError> {
     let name = if args.len() > 1 {
         &args[1]
     } else {
-        "pressurized_cylinder3d_elast"
+        "pressurized_cylinder2d_elast"
     };
     let genie = if args.len() > 2 {
         Genie::from(&args[2])

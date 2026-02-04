@@ -207,6 +207,7 @@ fn main() -> Result<(), StrError> {
         // configuration
         let mut config = Config::new(&mesh);
         config
+            .verbose(false)
             .save_vismatrix_file(false)
             .save_matrix_market_file(WRITE_K)
             .lin_sol_genie(genie)
