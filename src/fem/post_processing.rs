@@ -1235,7 +1235,8 @@ impl PostProc {
     ///
     /// Returns the path to the PVD file
     pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
-        write_pvd(dir, fn_stem, &self.files.get_indices(), &self.files.get_times())
+        let indices: Vec<_> = (0..self.files.n_files()).into_iter().collect();
+        write_pvd(dir, fn_stem, &indices, &self.files.get_times())
     }
 
     /// Loads all states and writes Paraview's VTU and PVD files

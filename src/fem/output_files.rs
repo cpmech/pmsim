@@ -17,9 +17,6 @@ pub(crate) struct OutputFiles {
     /// Number of files written
     counter: usize,
 
-    /// Indices of the output files
-    indices: Vec<usize>,
-
     /// Real simulation times corresponding to each output file
     times: Vec<f64>,
 
@@ -68,7 +65,6 @@ impl OutputFiles {
         }
         Ok(OutputFiles {
             counter: 0,
-            indices: Vec::new(),
             times: Vec::new(),
             lambdas: Vec::new(),
             neq_total: schema.get_neq()?,
@@ -83,7 +79,6 @@ impl OutputFiles {
     /// Starts the output
     pub fn start(&mut self) {
         self.counter = 0;
-        self.indices.clear();
         self.times.clear();
         self.lambdas.clear();
         self.history_uu_comp.clear();
@@ -104,11 +99,6 @@ impl OutputFiles {
     /// Returns the number of prescribed equations
     pub fn neq_presc(&self) -> usize {
         self.neq_presc
-    }
-
-    /// Returns the indices of the output files
-    pub fn get_indices(&self) -> &Vec<usize> {
-        &self.indices
     }
 
     /// Returns the real simulation times corresponding to each output file
@@ -196,9 +186,6 @@ impl OutputFiles {
                 "{}/{}-{}.json",
                 config.out_dir, config.out_fn_stem, self.counter
             ))?;
-
-            // update counters
-            self.indices.push(self.counter);
             self.counter += 1;
         }
         if config.out_history {
