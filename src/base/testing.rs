@@ -1,6 +1,23 @@
+use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::Vector;
+use russell_lab::{Matrix, Vector};
 use russell_tensor::{Mandel, Tensor2};
+
+/// Checks the symmetry of a square matrix
+pub(crate) fn check_symmetry(mat: &Matrix, tol: f64) -> Result<(), StrError> {
+    let (nrow, ncol) = mat.dims();
+    assert_eq!(nrow, ncol, "matrix is not square");
+    for l in 0..nrow {
+        for ll in (l + 1)..nrow {
+            let diff = f64::abs(mat.get(l, ll) - mat.get(ll, l));
+            if diff > tol {
+                println!("asymmetry detected. diff > tol: {:.6e} > {:.6e}", diff, tol);
+                return Err("matrix is not symmetric");
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Returns a new empty 2D mesh
 #[allow(dead_code)]

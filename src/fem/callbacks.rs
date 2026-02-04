@@ -30,6 +30,10 @@ pub(crate) fn output_step(stats: &NlStats, u: &Vector, l: f64, h: f64, data: &mu
             data.calc_yy()?;
         }
         data.files.execute(&data.schema, &data.config, &data.state, &data.yy)?;
+        if let Some(tol) = data.config.enable_symmetry_check {
+            data.elements.check_symmetry_kke(&data.state, tol)?;
+            data.boundaries.check_symmetry_kke(&data.state, tol)?;
+        }
     }
     Ok(false)
 }

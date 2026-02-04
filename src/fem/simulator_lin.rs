@@ -96,6 +96,12 @@ impl<'a> SimulatorLin<'a> {
         // Calculate Y: internal forces
         data.calc_yy()?;
 
+        // Check the symmetry of the local stiffness matrices
+        if let Some(tol) = data.config.enable_symmetry_check {
+            data.elements.check_symmetry_kke(&data.state, tol)?;
+            data.boundaries.check_symmetry_kke(&data.state, tol)?;
+        }
+
         // Lagrange multipliers method
         let mut empty = Vector::new(0);
         if data.config.lagrange_mult_method {

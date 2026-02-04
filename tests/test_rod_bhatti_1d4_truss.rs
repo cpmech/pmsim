@@ -89,7 +89,8 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     nbc.points(&[1], Pbc::Fy, -150000.0);
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.set_enable_symmetry_check(1e-15);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

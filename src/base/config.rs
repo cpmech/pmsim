@@ -51,8 +51,10 @@ pub struct Config<'a> {
     /// This alternative method is the "standard" method found in the literature.
     pub(crate) alt_bb_matrix_method: bool,
 
-    /// Tolerance to check the symmetry of local Jacobian matrices
-    pub(crate) symmetry_check_tolerance: Option<f64>,
+    /// Enables the symmetry check of all local Ke matrices
+    ///
+    /// A value of `None` means that the check is disabled.
+    pub(crate) enable_symmetry_check: Option<f64>,
 
     // Initialization -------------------------------------------------------------------------
     //
@@ -166,7 +168,7 @@ impl<'a> Config<'a> {
             dynamics: false,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
-            symmetry_check_tolerance: Some(1e-7),
+            enable_symmetry_check: None,
             // Initialization
             gravity: None,
             initialization: Init::Zero,
@@ -351,9 +353,9 @@ impl<'a> Config<'a> {
         self
     }
 
-    /// Sets the tolerance to check the symmetry of local Jacobian matrices
-    pub fn set_symmetry_check_tolerance(&mut self, tol: Option<f64>) -> &mut Self {
-        self.symmetry_check_tolerance = tol;
+    /// Enables the symmetry check of all local Ke matrices
+    pub fn set_enable_symmetry_check(&mut self, tol: f64) -> &mut Self {
+        self.enable_symmetry_check = Some(tol);
         self
     }
 

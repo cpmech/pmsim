@@ -1,5 +1,5 @@
 use super::FemState;
-use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_sps};
+use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_sps, check_symmetry};
 use crate::base::{BcNatural, Config, Nbc, Schema};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -325,6 +325,21 @@ impl<'a> ElementsBoundary<'a> {
             }
         }
         true
+    }
+
+    /// Checks the symmetry of all local Ke matrices
+    pub fn check_symmetry_kke(&mut self, state: &FemState, tol: f64) -> Result<(), StrError> {
+        self.elements
+            .iter_mut()
+            .map(|e| {
+                e.calc_kke(state)?;
+                if let Some(kke) = e.kke.as_ref() {
+                    check_symmetry(kke, tol)
+                } else {
+                    Ok(())
+                }
+            })
+            .collect()
     }
 
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector

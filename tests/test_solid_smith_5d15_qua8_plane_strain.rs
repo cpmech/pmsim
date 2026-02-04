@@ -85,9 +85,7 @@ fn test_solid_smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config
-        .set_alt_bb_matrix_method(true)
-        .set_symmetry_check_tolerance(Some(1e-9));
+    config.set_alt_bb_matrix_method(true).set_enable_symmetry_check(1e-9);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

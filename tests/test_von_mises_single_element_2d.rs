@@ -148,6 +148,7 @@ fn run_test(
         .set_out_history_yy_comp(corner, Dof::Uy)
         .set_out_files("/tmp/pmsim", &name)
         .set_lagrange_mult_method(options.lmm)
+        .set_enable_symmetry_check(1e-13)
         .set_out_history_local_state(0)
         .update_model_settings(1)
         .set_save_strain(true);

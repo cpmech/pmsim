@@ -1,5 +1,5 @@
 use super::{ElementDiffusion, ElementRod, ElementRodGnl, ElementSolid, ElementTrait, FemState};
-use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_sps};
+use crate::base::{add_nnz_sps, assemble_matrix_lmm, assemble_matrix_sps, check_symmetry};
 use crate::base::{Config, ElemType, Schema};
 use crate::StrError;
 use gemlab::mesh::{Cell, Mesh};
@@ -120,6 +120,17 @@ impl<'a> ElementsInterior<'a> {
             }
         }
         true
+    }
+
+    /// Checks the symmetry of all local Ke matrices
+    pub fn check_symmetry_kke(&mut self, state: &FemState, tol: f64) -> Result<(), StrError> {
+        self.elements
+            .iter_mut()
+            .map(|e| {
+                e.actual.calc_kke(&mut e.kke, state)?;
+                check_symmetry(&e.kke, tol)
+            })
+            .collect()
     }
 
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector

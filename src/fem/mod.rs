@@ -18,11 +18,11 @@ mod simulator;
 mod simulator_lin;
 
 use callbacks::*;
-pub use element_diffusion::*;
-pub use element_rod::*;
-pub use element_rod_gnl::*;
-pub use element_solid::*;
-pub use element_trait::*;
+use element_diffusion::*;
+use element_rod::*;
+use element_rod_gnl::*;
+use element_solid::*;
+use element_trait::*;
 use elements_boundary::*;
 use elements_interior::*;
 pub use fem_data::*;
