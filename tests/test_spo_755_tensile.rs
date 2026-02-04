@@ -169,7 +169,7 @@ fn run(
     // stopping criteria
     let stop = if options.arclength {
         // note: cannot use the corner point on the SPS because only unknown equations are available
-        let end = usize::min(data.get_nsys(), data.get_ndof()); // skip Lagrange multipliers, if any
+        let end = usize::min(data.nsys(), data.ndof()); // skip Lagrange multipliers, if any
         Stop::MaxNormU(0.25, Norm::Max, 0, end)
     } else {
         Stop::Steps(LAMBDAS.len() - 1)

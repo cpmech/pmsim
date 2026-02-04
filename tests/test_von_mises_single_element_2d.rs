@@ -168,13 +168,13 @@ fn run_test(
         nl_config.set_method(NlMethod::Natural);
     }
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
-    let iu = data.get_u_index(corner, Dof::Ux)?;
+    let idx = data.sys_index(corner, Dof::Ux)?;
     if options.arclength {
         let ddl = DeltaLambda::auto();
-        sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.01921), ddl)?;
+        sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.01921), ddl)?;
     } else {
         let ddl = DeltaLambda::list(&vec![1.0; NSTAGE]);
-        sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(iu, 0.1), ddl)?;
+        sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.1), ddl)?;
     }
 
     // check the results

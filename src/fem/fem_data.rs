@@ -231,28 +231,35 @@ impl<'a> FemData<'a> {
         })
     }
 
-    /// Returns the number of equations effectively considered in the nonlinear system
-    ///
-    /// This number may be greater than the number of equations when using the Lagrange Multiplier Method,
-    /// or this number may be smaller than the number of equations when using the System Partitioning Strategy.
-    pub fn get_nsys(&self) -> usize {
-        self.nsys
-    }
-
-    /// Returns the total number of degrees of freedom
-    ///
-    /// This number corresponds to the total number of equations without Lagrange multipliers and without prescribed values.
-    pub fn get_ndof(&self) -> usize {
+    /// Returns the total number of degrees of freedom (DOF)
+    pub fn ndof(&self) -> usize {
         self.ndof
     }
 
-    /// Returns the index of a u component in the system used by the nonlinear solver (this is not U)
-    pub fn get_u_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
-        let eq = self.schema.dof_number(point_id, dof)?;
+    /// Returns the number of equations in the nonlinear system (system dimension)
+    ///
+    /// This number may be greater than the number of DOFs when using the Lagrange Multiplier Method,
+    /// or it may be smaller than the number of DOFs when using the System Partitioning Strategy.
+    pub fn nsys(&self) -> usize {
+        self.nsys
+    }
+
+    /// Returns the index of an equation in the nonlinear system given a (PointId, Dof) pair
+    ///
+    /// If using the Lagrange Multiplier Method, the returned index is the same as the DOF number.
+    /// If using the System Partitioning Strategy, the returned index corresponds to the index of an unknown.
+    ///
+    /// An error is returned if the (PointId, Dof) pair does not correspond to an unknown DOF.
+    pub fn sys_index(&self, point_id: PointId, dof: Dof) -> Result<usize, StrError> {
+        let i = self.schema.dof_number(point_id, dof)?;
         if self.config.lagrange_mult_method {
-            Ok(eq)
+            Ok(i)
         } else {
-            Ok(self.eq_handler.iu(eq))
+            if self.eq_handler.is_unknown(i) {
+                Ok(self.eq_handler.iu(i))
+            } else {
+                Err("the specified (PointId, Dof) pair does not correspond to an unknown DOF")
+            }
         }
     }
 

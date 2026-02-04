@@ -132,8 +132,8 @@ fn run_test(
         // residual problem (with load reversal)
 
         // loading
-        let u_index = data.get_u_index(outer_point, Dof::Ux)?;
-        let stop = Stop::MaxCompU(u_index, 0.15);
+        let idx = data.sys_index(outer_point, Dof::Ux)?;
+        let stop = Stop::MaxCompU(idx, 0.15);
         let list = Vector::from(&LAMBDAS_RESIDUAL).get_differences();
         let dll = DeltaLambda::list(list.as_data());
         sim.steady(&mut data, IniDir::Pos, stop, dll)?;
@@ -145,8 +145,8 @@ fn run_test(
         sim.steady(&mut data, IniDir::Neg, stop, dll)?;
     } else {
         // collapse problem (single direction of loading)
-        let u_index = data.get_u_index(outer_point, Dof::Ux)?;
-        let stop = Stop::MaxCompU(u_index, 0.6);
+        let idx = data.sys_index(outer_point, Dof::Ux)?;
+        let stop = Stop::MaxCompU(idx, 0.6);
         let list = Vector::from(&LAMBDAS_COLLAPSE).get_differences();
         let dll = DeltaLambda::list(list.as_data());
         sim.steady(&mut data, IniDir::Pos, stop, dll)?;
