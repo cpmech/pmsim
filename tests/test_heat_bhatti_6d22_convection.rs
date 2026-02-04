@@ -87,7 +87,7 @@ fn run_test(lmm: bool, mesh: &Mesh, schema: &Schema, ebc: &BcEssential, nbc: &Bc
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
     sim.steady(&mut data, true)?;
-    let state = data.get_state();
+    let state = data.state();
 
     // check U vector
     let tt_bhatti = &[

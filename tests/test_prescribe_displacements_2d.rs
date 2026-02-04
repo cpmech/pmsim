@@ -87,7 +87,7 @@ fn run_test(lmm: bool, mesh: &Mesh, schema: &Schema, ebc: &BcEssential, nbc: &Bc
     sim.steady(&mut data, true)?;
 
     // check U vector
-    let state = data.get_state();
+    let state = data.state();
     let eps_x = -DY * POISSON / (POISSON - 1.0);
     println!("LMM = {}", lmm);
     println!("eps_x = {}", eps_x);

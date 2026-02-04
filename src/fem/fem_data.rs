@@ -264,7 +264,7 @@ impl<'a> FemData<'a> {
     }
 
     /// Returns an access the current state
-    pub fn get_state(&self) -> &FemState {
+    pub fn state(&self) -> &FemState {
         &self.state
     }
 

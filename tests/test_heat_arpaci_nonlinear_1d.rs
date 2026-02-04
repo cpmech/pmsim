@@ -127,7 +127,7 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
     }
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
     sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto())?;
-    let state = data.get_state();
+    let state = data.state();
 
     // check
     let ref_id = 0;

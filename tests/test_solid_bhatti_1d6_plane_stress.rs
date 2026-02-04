@@ -78,7 +78,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
     sim.steady(&mut data, false)?;
-    let state = data.get_state();
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]

@@ -96,11 +96,11 @@ fn run_test(
         let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
         let dll = DeltaLambda::constant(1.0);
         sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
-        data.get_state().uu.clone()
+        data.state().uu.clone()
     } else {
         let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
         sim.steady(&mut data, true)?;
-        data.get_state().uu.clone()
+        data.state().uu.clone()
     };
 
     // check U vector

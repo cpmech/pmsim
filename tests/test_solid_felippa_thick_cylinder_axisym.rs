@@ -80,7 +80,7 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
     sim.steady(&mut data, true)?;
-    let state = data.get_state();
+    let state = data.state();
 
     // Felippa's Equation 14.2 on page 14-4
     let analytical_ur = |r: f64| {

@@ -90,7 +90,7 @@ fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
     sim.steady(&mut data, true)?;
-    let state = data.get_state();
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]

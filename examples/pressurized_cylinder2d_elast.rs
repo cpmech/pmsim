@@ -212,7 +212,7 @@ fn main() -> Result<(), StrError> {
             }
             Ok(()) => (),
         }
-        let state = data.get_state();
+        let state = data.state();
         cr.time[idx] = stopwatch.stop();
 
         // compute error

@@ -77,7 +77,7 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
     sim.steady(&mut data, true)?;
-    let state = data.get_state();
+    let state = data.state();
 
     // check
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));

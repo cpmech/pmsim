@@ -80,7 +80,7 @@ fn test_solid_smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
     sim.steady(&mut data, true)?;
-    let state = data.get_state();
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]
