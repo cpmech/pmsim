@@ -46,8 +46,6 @@ const VERBOSE_LEVEL: usize = 0; // in the verification step
 const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero
 const LAMBDAS_COLLAPSE: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // load factors for the inner pressure
 const LAMBDAS_RESIDUAL: [f64; 4] = [0.0, 0.1, 0.14, P_MAX_RES]; // must unload after the last value
-const SELECTED_P_COLLAPSE: [f64; 3] = [0.1, 0.18, 0.19]; // selected pressures for collapse plot
-const SELECTED_P_RESIDUAL: [f64; 1] = [0.0]; // selected pressures for residual plot
 
 const A: f64 = 100.0; // inner radius
 const B: f64 = 200.0; // outer radius
@@ -150,7 +148,7 @@ fn main() -> Result<(), StrError> {
     // simulation
     let line = "-".repeat(66);
     if options.residual {
-        println!("\n\n{}\nRunning residual problem (with load reversal)", line);
+        println!("\n{}\nRunning residual problem (with load reversal)", line);
 
         // loading
         println!("Loading...");
@@ -171,7 +169,7 @@ fn main() -> Result<(), StrError> {
         let dll = DeltaLambda::constant(P_MAX_RES - 0.0);
         sim.steady(&mut data, IniDir::Neg, stop, dll)?;
     } else {
-        println!("\n\n{}\nRunning collapse problem (single direction of loading)", line);
+        println!("\n{}\nRunning collapse problem (single direction of loading)", line);
         let idx = data.sys_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(idx, 0.6);
         let dll = if options.arclength {
@@ -209,13 +207,6 @@ fn main() -> Result<(), StrError> {
     //
     // data analysis -------------------------------------------------------------
     //
-
-    // select constants
-    let selected_pp = if options.residual {
-        Vec::from(&SELECTED_P_RESIDUAL)
-    } else {
-        Vec::from(&SELECTED_P_COLLAPSE)
-    };
 
     // load summary and associated files
     let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
@@ -259,37 +250,65 @@ fn main() -> Result<(), StrError> {
         })?;
 
         // convert to polar coordinates and compare with analytical solution
-        if selected_pp.contains(&pp) {
-            pp_arr.push(pp);
-            sh_arr.push(Vec::new());
-            sr_arr.push(Vec::new());
-            for i in 0..res.xx.len() {
-                let (r, sr, sh, _) = cartesian_to_polar(res.xx[i], res.yy[i], res.txx[i], res.tyy[i], res.txy[i]);
-                if first_rr {
-                    rr.push(r);
+        pp_arr.push(pp);
+        sh_arr.push(Vec::new());
+        sr_arr.push(Vec::new());
+        for i in 0..res.xx.len() {
+            let (r, sr, sh, _) = cartesian_to_polar(res.xx[i], res.yy[i], res.txx[i], res.tyy[i], res.txy[i]);
+            if first_rr {
+                rr.push(r);
+            }
+            sh_arr.last_mut().unwrap().push(sh);
+            sr_arr.last_mut().unwrap().push(sr);
+
+            // check
+            if options.residual {
+                let (sr_ana, sh_ana) = if pp == 0.0 {
+                    ana.calc_sr_sh_residual(r, P_MAX_RES)?
+                } else {
+                    ana.calc_sr_sh(r, pp)?
+                };
+                if options.arclength {
+                    approx_eq(sr, sr_ana, 0.00076);
+                    approx_eq(sh, sh_ana, 0.0037);
+                } else {
+                    approx_eq(sr, sr_ana, 0.00031);
+                    approx_eq(sh, sh_ana, 0.00271);
                 }
-                sh_arr.last_mut().unwrap().push(sh);
-                sr_arr.last_mut().unwrap().push(sr);
-                if !options.arclength {
-                    if options.residual {
-                        let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
-                        approx_eq(sr, sr_ana, 0.00024);
-                        approx_eq(sh, sh_ana, 0.0027);
-                    } else {
-                        let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
-                        approx_eq(sr, sr_ana, 0.00057);
-                        approx_eq(sh, sh_ana, 0.0077);
-                    }
+            } else {
+                let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
+                if options.arclength {
+                    approx_eq(sr, sr_ana, 0.00057);
+                    approx_eq(sh, sh_ana, 0.0062);
+                } else {
+                    approx_eq(sr, sr_ana, 0.00057);
+                    approx_eq(sh, sh_ana, 0.0077);
                 }
             }
-            first_rr = false;
         }
+        first_rr = false;
+    }
+
+    // remove some stations for better visualization
+    let del = 0.011;
+    let mut indices_to_remove = Vec::new();
+    for i in 0..pp_arr.len() {
+        if i > 0 && i < pp_arr.len() - 1 {
+            if (pp_arr[i] - pp_arr[i - 1]).abs() < del && (pp_arr[i + 1] - pp_arr[i]).abs() < del {
+                indices_to_remove.push(i);
+            }
+        }
+    }
+    for i in indices_to_remove.iter().rev() {
+        pp_arr.remove(*i);
+        sh_arr.remove(*i);
+        sr_arr.remove(*i);
     }
 
     // plot
     if SAVE_FIGURE {
         ana.set_legend_precision(3);
-        let mut plot = ana.plot_results(&pp_arr, options.residual, P_MAX_RES, |plot, index| {
+        let mut plot = ana.plot_results(&pp_arr, |plot, index| {
             // reference curve
             let mut curve_ref = Curve::new();
             curve_ref
@@ -299,27 +318,28 @@ fn main() -> Result<(), StrError> {
                 .set_marker_style("D")
                 .set_marker_void(true);
             // numerical curve
-            let mut curve = Curve::new();
-            curve
+            let mut curve_num = Curve::new();
+            curve_num
                 .set_label("numerical")
                 .set_line_style("None")
                 .set_line_color("black")
                 .set_marker_color("black")
+                .set_marker_size(8.0)
                 .set_marker_style(".");
             if index == 0 {
                 // reference data
-                if !options.residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-751-fig-716.tsv", &["x", "Curve1"]).unwrap();
                     curve_ref.draw(&data["x"], &data["Curve1"]);
-                    // plot.add(&curve_ref);
+                    plot.add(&curve_ref);
                 }
                 // load-displacement curve
-                curve.set_line_style("--").draw(&outer_ur, &inner_pp);
-                plot.add(&curve);
-                curve.set_line_style("None");
+                curve_num.set_line_style("--").draw(&outer_ur, &inner_pp);
+                plot.add(&curve_num);
+                curve_num.set_line_style("None");
             } else if index == 1 {
                 // reference data
-                if !options.residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-751-fig-717a.tsv", &["x", "p10", "p18"]).unwrap();
                     curve_ref.draw(&data["x"], &data["p10"]);
                     curve_ref.draw(&data["x"], &data["p18"]);
@@ -327,12 +347,12 @@ fn main() -> Result<(), StrError> {
                 }
                 // hoop stress-strain curve
                 for i in 0..sh_arr.len() {
-                    curve.draw(&rr, &sh_arr[i]);
+                    curve_num.draw(&rr, &sh_arr[i]);
                 }
-                plot.add(&curve);
+                plot.add(&curve_num);
             } else if index == 2 {
                 // reference data
-                if !options.residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-751-fig-717b.tsv", &["x", "p10", "p18"]).unwrap();
                     curve_ref.draw(&data["x"], &data["p10"]);
                     curve_ref.draw(&data["x"], &data["p18"]);
@@ -340,13 +360,13 @@ fn main() -> Result<(), StrError> {
                 }
                 // radial stress-strain curve
                 for i in 0..sr_arr.len() {
-                    curve.draw(&rr, &sr_arr[i]);
+                    curve_num.draw(&rr, &sr_arr[i]);
                 }
-                plot.add(&curve);
+                plot.add(&curve_num);
             } else if index == 3 {
                 // legend
-                curve.draw(&[0], &[0]);
-                plot.add(&curve);
+                curve_num.draw(&[0], &[0]);
+                plot.add(&curve_num);
             }
         });
         let title = options.title();
@@ -356,6 +376,10 @@ fn main() -> Result<(), StrError> {
             .set_figure_size_points(600.0, 450.0)
             .save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
+
+    // done
+    println!("OK: {}", name);
+    println!("{}\n", line);
     Ok(())
 }
 

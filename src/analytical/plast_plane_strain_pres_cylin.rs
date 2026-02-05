@@ -218,87 +218,107 @@ impl PlastPlaneStrainPresCylin {
     ///     * 0 for the P vs ub plot
     ///     * 1 for the σθ vs r plot
     ///     * 2 for the σr vs r plot
-    pub fn plot_results<F>(&self, pps: &[f64], residual: bool, pp_last: f64, callback: F) -> Plot
+    ///     * 3 for the legend
+    pub fn plot_results<F>(&self, pps: &[f64], callback: F) -> Plot
     where
         F: Fn(&mut Plot, usize),
     {
+        // allocate plot
+        let mut plot = Plot::new();
+
+        // set grid
+        plot.set_gridspec("grid", 2, 6, "hspace=0.25,wspace=2.5");
+
+        // 0: plot P vs ub
         let mut curve = Curve::new();
         let ppp = linspace(0.0, self.get_pp_lim() - 1e-10, 201);
         let uub: Vec<_> = ppp.iter().map(|pp| self.calc_ub(*pp).unwrap()).collect();
-        curve.set_label("analytical").draw(&uub, &ppp);
-
-        let mut plot = Plot::new();
-        plot.set_gridspec("grid", 2, 4, "hspace=0.25,wspace=1.0")
-            .set_subplot_grid("grid", "0", "0:3")
-            .add(&curve);
+        curve.set_line_color("#1e6c00").set_label("analytical").draw(&uub, &ppp);
+        plot.set_subplot_grid("grid", "0", "0:4").add(&curve);
         callback(&mut plot, 0);
-        let mut leg1 = Legend::new();
-        leg1.set_location("lower right").draw();
-        plot.add(&leg1)
+
+        // 0: legend
+        let mut leg0 = Legend::new();
+        leg0.set_location("lower right").draw();
+        plot.add(&leg0)
             .grid_and_labels("Radial displacement at outer face $u_b$", "Internal pressure $P$");
 
+        // generate stress curves
         let rr = linspace(self.a, self.b, 201);
         let mut ssr = vec![0.0; rr.len()];
         let mut ssh = vec![0.0; rr.len()];
-        let pp_array = if residual { vec![pp_last] } else { pps.to_vec() };
-        for pp in pp_array {
+        let mut residual = false;
+        let mut pp_last = 0.0;
+        for i in 0..pps.len() {
+            // detect if the pressure has been dropped => residual curve
+            let pp = pps[i];
+            if i > 0 {
+                residual = pp < pps[i - 1];
+            };
+
+            // detect previous pressure before the residual state
+            if residual {
+                pp_last = pps[i - 1];
+            }
+
+            // calculate the stresses
             for i in 0..rr.len() {
                 let (sr, sh) = if residual {
-                    self.calc_sr_sh_residual(rr[i], pp).unwrap()
+                    self.calc_sr_sh_residual(rr[i], pp_last).unwrap()
                 } else {
                     self.calc_sr_sh(rr[i], pp).unwrap()
                 };
                 ssr[i] = sr;
                 ssh[i] = sh;
             }
+
+            // draw the curves
             let mut curve_a = Curve::new();
             let mut curve_b = Curve::new();
             curve_a.draw(&rr, &ssh);
             curve_b.draw(&rr, &ssr);
+            plot.set_subplot_grid("grid", "1", "0:3").add(&curve_a);
+            plot.set_subplot_grid("grid", "1", "3:6").add(&curve_b);
+
             // fake curves to build legend
-            plot.set_subplot_grid("grid", "1", "0:2").add(&curve_a);
-            plot.set_subplot_grid("grid", "1", "2:4").add(&curve_b);
-            if residual {
-                let mut empty = Curve::new();
-                let str = format!(" $P_{{max}} = {}$", pp);
-                empty.set_label(&str).draw(&[0], &[0]);
-                empty.set_line_style("None");
-                empty.set_label(" $P = 0$").draw(&[0], &[0]);
-                plot.set_subplot_grid("grid", "0", "3")
-                    .add(&empty)
-                    .set_range(1.0, 2.0, 1.0, 2.0);
+            let mut empty = Curve::new();
+            let mut str = if self.legend_precision == 0 {
+                format!(" $P = {}$", pp).to_string()
             } else {
-                let mut empty = Curve::new();
-                let str = if self.legend_precision == 0 {
-                    format!(" $P = {}$", pp)
-                } else {
-                    format!(" $P = {:.1$}$", pp, self.legend_precision)
-                };
-                empty.set_label(&str).draw(&[0], &[0]);
-                plot.set_subplot_grid("grid", "0", "3")
-                    .add(&empty)
-                    .set_range(1.0, 2.0, 1.0, 2.0);
+                format!(" $P = {:.1$}$", pp, self.legend_precision).to_string()
+            };
+            if residual {
+                str += &format!(" (after ${}$)", pp_last);
+            }
+            empty.set_label(&str).draw(&[0], &[0]);
+            plot.set_subplot_grid("grid", "0", "4:6")
+                .add(&empty)
+                .set_range(1.0, 2.0, 1.0, 2.0);
+            if residual {
+                break; // only residual curve allowed
             }
         }
 
-        plot.set_subplot_grid("grid", "1", "0:2");
+        // configure the axes and call the external function
+        plot.set_subplot_grid("grid", "1", "0:3");
         callback(&mut plot, 1);
         plot.grid_and_labels("Radial coordinate $r$", "Hoop stress $\\sigma_\\theta$");
 
-        plot.set_subplot_grid("grid", "1", "2:4");
+        // configure the axes and call the external function
+        plot.set_subplot_grid("grid", "1", "3:6");
         callback(&mut plot, 2);
         plot.grid_and_labels("Radial coordinate $r$", "Radial stress $\\sigma_r$");
 
+        // legend
         let mut leg = Legend::new();
         leg.set_num_col(1)
             .set_handle_len(2.5)
             .set_outside(true)
-            .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
+            .set_x_coords(&[-0.38, -0.18, 1.37, 0.102])
             .draw();
-        plot.set_subplot_grid("grid", "0", "3");
+        plot.set_subplot_grid("grid", "0", "4:6");
         callback(&mut plot, 3);
         plot.add(&leg).set_hide_axes(true);
-
         plot
     }
 }
@@ -336,9 +356,14 @@ mod tests {
         approx_eq(sh_e, ela.sh(a), 1e-15);
 
         if SAVE_FIGURE {
-            let mut plot = ana.plot_results(&[0.1, 0.18], false, 0.0, |_, _| ());
+            let mut plot = ana.plot_results(&[0.1, 0.18], |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
                 .save("/tmp/pmsim/test_plast_plane_strain_pres_cylin.svg")
+                .unwrap();
+
+            let mut plot = ana.plot_results(&[0.1, 0.18, 0.0], |_, _| ());
+            plot.set_figure_size_points(600.0, 450.0)
+                .save("/tmp/pmsim/test_plast_plane_strain_pres_cylin_resid.svg")
                 .unwrap();
         }
     }

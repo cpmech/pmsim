@@ -7,7 +7,7 @@ use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Vector};
 
-// This test runs the Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
+// Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
 //
 // This problem can be simulated by a 1/12 slice noting the symmetry of the problem.
 // In this case, multi-point constraints would be required. Nonetheless, here we
@@ -39,17 +39,14 @@ const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
-const VERBOSE_LEVEL: usize = 0;
-
-const A: f64 = 100.0; // inner radius
-const B: f64 = 200.0; // outer radius
+const VERBOSE_LEVEL: usize = 0; // in the verification step
 
 const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero
 const LAMBDAS_COLLAPSE: [f64; 6] = [0.0, 0.1, 0.14, 0.18, 0.19, 0.192]; // load factors for the inner pressure
 const LAMBDAS_RESIDUAL: [f64; 4] = [0.0, 0.1, 0.14, P_MAX_RES]; // must unload after the last value
-const SELECTED_P_COLLAPSE: [f64; 3] = [0.1, 0.18, 0.19]; // selected pressures for collapse plot
-const SELECTED_P_RESIDUAL: [f64; 1] = [0.0]; // selected pressures for residual plot
 
+const A: f64 = 100.0; // inner radius
+const B: f64 = 200.0; // outer radius
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
 const Y: f64 = 2.0 * 0.24 / SQRT_3; // uniaxial yield strength (2 σy_spo / sq3)
@@ -58,8 +55,7 @@ const NGAUSS: usize = 4; // number of gauss points
 #[test]
 fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     // generate or read the mesh
-    let kind = GeoKind::Qua4;
-    let mesh = generate_or_read_mesh(kind, GENERATE_MESH);
+    let mesh = generate_or_read_mesh(GeoKind::Qua4, GENERATE_MESH);
 
     // features
     let features = Features::new(&mesh, false);
@@ -91,29 +87,13 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
     let mut nbc = BcNatural::new();
     nbc.edges(&inner_circle, Nbc::Qn, -1.0);
 
-    // run: collapse + natural + lmm
-    let options = Options {
-        residual: false,
-        arclength: false,
-        lmm: true,
-    };
-    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
-
     // run: collapse + natural + sps
     let options = Options {
         residual: false,
         arclength: false,
         lmm: false,
     };
-    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
-
-    // run: residual + natural + lmm
-    let options = Options {
-        residual: true,
-        arclength: false,
-        lmm: true,
-    };
-    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
+    run(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
 
     // run: residual + natural + sps
     let options = Options {
@@ -121,27 +101,11 @@ fn test_spo_751_pres_cylin() -> Result<(), StrError> {
         arclength: false,
         lmm: false,
     };
-    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
-
-    // run: collapse + arclength + sps
-    let options = Options {
-        residual: false,
-        arclength: true,
-        lmm: false,
-    };
-    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
-
-    // run: residual + arclength + sps
-    let options = Options {
-        residual: true,
-        arclength: true,
-        lmm: false,
-    };
-    run_test(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
+    run(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
     Ok(())
 }
 
-fn run_test(
+fn run(
     options: Options,
     mesh: &Mesh,
     outer_point: usize,
@@ -149,11 +113,11 @@ fn run_test(
     ebc: &BcEssential,
     nbc: &BcNatural,
 ) -> Result<(), StrError> {
-    // test name
-    let kind = if options.residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
+    // kind of problem
+    let problem = if options.residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
 
     // filename stem
-    let mut name = kind.to_string() + "_";
+    let mut name = problem.to_string() + "_";
     name += &options.key();
 
     // configuration
@@ -172,7 +136,8 @@ fn run_test(
         nl_config.set_method(NlMethod::Natural);
     }
     nl_config
-        .set_verbose(true, true, true)
+        .set_verbose(false, true, true)
+        .set_log_file(&format!("/tmp/pmsim/spo_751/{}.log", name))
         .set_ddl_ini(0.05)
         .set_tg_control_atol_and_rtol(0.05)
         .set_record_iterations_residuals(true);
@@ -181,10 +146,12 @@ fn run_test(
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
     // simulation
+    let line = "-".repeat(66);
     if options.residual {
-        // residual problem (with load reversal)
+        println!("\n{}\nRunning residual problem (with load reversal)", line);
 
         // loading
+        println!("Loading...");
         let idx = data.sys_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(idx, 0.15);
         let dll = if options.arclength {
@@ -196,12 +163,13 @@ fn run_test(
         sim.steady(&mut data, IniDir::Pos, stop, dll)?;
 
         // unloading
+        println!("Unloading...");
         data.reset_algorithmic_variables(true);
         let stop = Stop::MinLambda(0.0);
         let dll = DeltaLambda::constant(P_MAX_RES - 0.0);
         sim.steady(&mut data, IniDir::Neg, stop, dll)?;
     } else {
-        // collapse problem (single direction of loading)
+        println!("\n{}\nRunning collapse problem (single direction of loading)", line);
         let idx = data.sys_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(idx, 0.6);
         let dll = if options.arclength {
@@ -228,7 +196,7 @@ fn run_test(
             "/tmp/pmsim/",
             &name,
             ReferenceDataType::SPO,
-            &format!("data/spo/{}_ref.json", kind),
+            &format!("data/spo/{}_ref.json", problem),
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
@@ -239,13 +207,6 @@ fn run_test(
     //
     // data analysis -------------------------------------------------------------
     //
-
-    // select constants
-    let selected_pp = if options.residual {
-        Vec::from(&SELECTED_P_RESIDUAL)
-    } else {
-        Vec::from(&SELECTED_P_COLLAPSE)
-    };
 
     // load summary and associated files
     let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
@@ -289,37 +250,65 @@ fn run_test(
         })?;
 
         // convert to polar coordinates and compare with analytical solution
-        if selected_pp.contains(&pp) {
-            pp_arr.push(pp);
-            sh_arr.push(Vec::new());
-            sr_arr.push(Vec::new());
-            for i in 0..res.xx.len() {
-                let (r, sr, sh, _) = cartesian_to_polar(res.xx[i], res.yy[i], res.txx[i], res.tyy[i], res.txy[i]);
-                if first_rr {
-                    rr.push(r);
+        pp_arr.push(pp);
+        sh_arr.push(Vec::new());
+        sr_arr.push(Vec::new());
+        for i in 0..res.xx.len() {
+            let (r, sr, sh, _) = cartesian_to_polar(res.xx[i], res.yy[i], res.txx[i], res.tyy[i], res.txy[i]);
+            if first_rr {
+                rr.push(r);
+            }
+            sh_arr.last_mut().unwrap().push(sh);
+            sr_arr.last_mut().unwrap().push(sr);
+
+            // check
+            if options.residual {
+                let (sr_ana, sh_ana) = if pp == 0.0 {
+                    ana.calc_sr_sh_residual(r, P_MAX_RES)?
+                } else {
+                    ana.calc_sr_sh(r, pp)?
+                };
+                if options.arclength {
+                    approx_eq(sr, sr_ana, 0.00076);
+                    approx_eq(sh, sh_ana, 0.0037);
+                } else {
+                    approx_eq(sr, sr_ana, 0.00031);
+                    approx_eq(sh, sh_ana, 0.00271);
                 }
-                sh_arr.last_mut().unwrap().push(sh);
-                sr_arr.last_mut().unwrap().push(sr);
-                if !options.arclength {
-                    if options.residual {
-                        let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
-                        approx_eq(sr, sr_ana, 0.00024);
-                        approx_eq(sh, sh_ana, 0.0027);
-                    } else {
-                        let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
-                        approx_eq(sr, sr_ana, 0.00057);
-                        approx_eq(sh, sh_ana, 0.0077);
-                    }
+            } else {
+                let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
+                if options.arclength {
+                    approx_eq(sr, sr_ana, 0.00057);
+                    approx_eq(sh, sh_ana, 0.0062);
+                } else {
+                    approx_eq(sr, sr_ana, 0.00057);
+                    approx_eq(sh, sh_ana, 0.0077);
                 }
             }
-            first_rr = false;
         }
+        first_rr = false;
+    }
+
+    // remove some stations for better visualization
+    let del = 0.011;
+    let mut indices_to_remove = Vec::new();
+    for i in 0..pp_arr.len() {
+        if i > 0 && i < pp_arr.len() - 1 {
+            if (pp_arr[i] - pp_arr[i - 1]).abs() < del && (pp_arr[i + 1] - pp_arr[i]).abs() < del {
+                indices_to_remove.push(i);
+            }
+        }
+    }
+    for i in indices_to_remove.iter().rev() {
+        pp_arr.remove(*i);
+        sh_arr.remove(*i);
+        sr_arr.remove(*i);
     }
 
     // plot
     if SAVE_FIGURE {
         ana.set_legend_precision(3);
-        let mut plot = ana.plot_results(&pp_arr, options.residual, P_MAX_RES, |plot, index| {
+        let mut plot = ana.plot_results(&pp_arr, |plot, index| {
             // reference curve
             let mut curve_ref = Curve::new();
             curve_ref
@@ -329,27 +318,28 @@ fn run_test(
                 .set_marker_style("D")
                 .set_marker_void(true);
             // numerical curve
-            let mut curve = Curve::new();
-            curve
+            let mut curve_num = Curve::new();
+            curve_num
                 .set_label("numerical")
                 .set_line_style("None")
                 .set_line_color("black")
                 .set_marker_color("black")
+                .set_marker_size(8.0)
                 .set_marker_style(".");
             if index == 0 {
                 // reference data
-                if !options.residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-751-fig-716.tsv", &["x", "Curve1"]).unwrap();
                     curve_ref.draw(&data["x"], &data["Curve1"]);
-                    // plot.add(&curve_ref);
+                    plot.add(&curve_ref);
                 }
                 // load-displacement curve
-                curve.set_line_style("--").draw(&outer_ur, &inner_pp);
-                plot.add(&curve);
-                curve.set_line_style("None");
+                curve_num.set_line_style("--").draw(&outer_ur, &inner_pp);
+                plot.add(&curve_num);
+                curve_num.set_line_style("None");
             } else if index == 1 {
                 // reference data
-                if !options.residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-751-fig-717a.tsv", &["x", "p10", "p18"]).unwrap();
                     curve_ref.draw(&data["x"], &data["p10"]);
                     curve_ref.draw(&data["x"], &data["p18"]);
@@ -357,12 +347,12 @@ fn run_test(
                 }
                 // hoop stress-strain curve
                 for i in 0..sh_arr.len() {
-                    curve.draw(&rr, &sh_arr[i]);
+                    curve_num.draw(&rr, &sh_arr[i]);
                 }
-                plot.add(&curve);
+                plot.add(&curve_num);
             } else if index == 2 {
                 // reference data
-                if !options.residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-751-fig-717b.tsv", &["x", "p10", "p18"]).unwrap();
                     curve_ref.draw(&data["x"], &data["p10"]);
                     curve_ref.draw(&data["x"], &data["p18"]);
@@ -370,13 +360,13 @@ fn run_test(
                 }
                 // radial stress-strain curve
                 for i in 0..sr_arr.len() {
-                    curve.draw(&rr, &sr_arr[i]);
+                    curve_num.draw(&rr, &sr_arr[i]);
                 }
-                plot.add(&curve);
+                plot.add(&curve_num);
             } else if index == 3 {
                 // legend
-                curve.draw(&[0], &[0]);
-                plot.add(&curve);
+                curve_num.draw(&[0], &[0]);
+                plot.add(&curve_num);
             }
         });
         let title = options.title();
@@ -387,6 +377,9 @@ fn run_test(
             .save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
 
+    // done
+    println!("OK: {}", name);
+    println!("{}\n", line);
     Ok(())
 }
 
