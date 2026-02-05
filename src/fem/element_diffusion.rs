@@ -248,6 +248,17 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
             //         Ωₑ
             integ::mat_01_nsn(kke, &mut args, |_, _, _| Ok(state.beta1 * self.param.rho)).unwrap();
         }
+
+        // enforce symmetry
+        if self.config.enforce_symmetry && self.symmetric_jacobian() {
+            for i in 0..kke.nrow() {
+                for j in (i + 1)..kke.ncol() {
+                    let avg = 0.5 * (kke[(i, j)] + kke[(j, i)]);
+                    kke[(i, j)] = avg;
+                    kke[(j, i)] = avg;
+                }
+            }
+        }
         Ok(())
     }
 

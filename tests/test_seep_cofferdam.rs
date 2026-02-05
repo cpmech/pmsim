@@ -193,7 +193,7 @@ fn test_seep_cofferdam() -> Result<(), StrError> {
 
     // check
     let m = 1e6;
-    approx_eq(q1 * m, q2 * m, 1e-14);
+    approx_eq(q1 * m, q2 * m, 1e-13);
     approx_eq((q1 + q2) * m, 2.0 * q0 * m, 0.5);
     approx_eq(q1 * 1e7, 9.0, 1.0); // should be around 9.0
     approx_eq(q2 * 1e7, 9.0, 1.0); // should be around 9.0

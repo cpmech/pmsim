@@ -178,14 +178,25 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 self.model
                     .actual
                     .stiffness(dd, &state.gauss[self.cell_id].solid[p], self.cell_id, p)
-            })
+            })?;
         } else {
             integ::mat_10_bdb(kke, &mut args, |dd, p, _, _| {
                 self.model
                     .actual
                     .stiffness(dd, &state.gauss[self.cell_id].solid[p], self.cell_id, p)
-            })
+            })?;
         }
+        // enforce symmetry
+        if self.config.enforce_symmetry && self.symmetric_jacobian() {
+            for i in 0..kke.nrow() {
+                for j in (i + 1)..kke.ncol() {
+                    let avg = 0.5 * (kke[(i, j)] + kke[(j, i)]);
+                    kke[(i, j)] = avg;
+                    kke[(j, i)] = avg;
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Updates secondary values such as stresses and internal variables

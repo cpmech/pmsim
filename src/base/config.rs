@@ -51,6 +51,9 @@ pub struct Config<'a> {
     /// This alternative method is the "standard" method found in the literature.
     pub(crate) alt_bb_matrix_method: bool,
 
+    /// Enforces the symmetry of all local Ke matrices, if they are supposed to be symmetric according to the formulation
+    pub(crate) enforce_symmetry: bool,
+
     /// Enables the symmetry check of all local Ke matrices
     ///
     /// A value of `None` means that the check is disabled.
@@ -168,6 +171,7 @@ impl<'a> Config<'a> {
             dynamics: false,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
+            enforce_symmetry: true,
             enable_symmetry_check: None,
             // Initialization
             gravity: None,
@@ -353,7 +357,17 @@ impl<'a> Config<'a> {
         self
     }
 
+    /// Enforces the symmetry of all local Ke matrices, if they are supposed to be symmetric according to the formulation
+    ///
+    /// Default = true.
+    pub fn enforce_symmetry(&mut self, enable: bool) -> &mut Self {
+        self.enforce_symmetry = enable;
+        self
+    }
+
     /// Enables the symmetry check of all local Ke matrices
+    ///
+    /// Default = None (disabled).
     pub fn enable_symmetry_check(&mut self, tol: f64) -> &mut Self {
         self.enable_symmetry_check = Some(tol);
         self
