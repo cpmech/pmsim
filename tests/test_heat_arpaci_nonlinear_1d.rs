@@ -118,15 +118,10 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
         .set_record_iterations_residuals(true);
     if arclength {
         tol = 1e-10;
-        nl_config
-            .set_ddl_ini(1e-4)
-            .set_method(NlMethod::Arclength)
-            .set_bordering(bordering);
-    } else {
-        nl_config.set_ddl_ini(1.0);
-    }
+        nl_config.set_method(NlMethod::Arclength).set_bordering(bordering);
+    };
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
-    sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto())?;
+    sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto(1.0))?;
     let state = data.state();
 
     // check

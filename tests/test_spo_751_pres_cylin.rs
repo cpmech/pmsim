@@ -138,7 +138,6 @@ fn run(
     nl_config
         .set_verbose(false, true, true)
         .set_log_file(&format!("/tmp/pmsim/spo_751/{}.log", name))
-        .set_ddl_ini(0.05)
         .set_tg_control_atol_and_rtol(0.05)
         .set_record_iterations_residuals(true);
 
@@ -155,7 +154,7 @@ fn run(
         let idx = data.sys_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(idx, 0.15);
         let dll = if options.arclength {
-            DeltaLambda::auto()
+            DeltaLambda::auto(0.05)
         } else {
             let list = Vector::from(&LAMBDAS_RESIDUAL).get_differences();
             DeltaLambda::list(list.as_data())
@@ -173,7 +172,7 @@ fn run(
         let idx = data.sys_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(idx, 0.6);
         let dll = if options.arclength {
-            DeltaLambda::auto()
+            DeltaLambda::auto(0.05)
         } else {
             let list = Vector::from(&LAMBDAS_COLLAPSE).get_differences();
             DeltaLambda::list(list.as_data())

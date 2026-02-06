@@ -157,7 +157,6 @@ fn run(
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
-            .set_ddl_ini(0.005)
             .set_tg_control_atol_and_rtol(2.0);
     } else {
         nl_config.set_method(NlMethod::Natural);
@@ -177,7 +176,7 @@ fn run(
 
     // delta lambda
     let dll = if options.arclength {
-        DeltaLambda::auto()
+        DeltaLambda::auto(0.005)
     } else {
         let list = Vector::from(&LAMBDAS).get_differences();
         DeltaLambda::list(list.as_data())

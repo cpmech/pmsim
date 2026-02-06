@@ -143,7 +143,6 @@ fn run(
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
-            .set_ddl_ini(0.01)
             .set_tg_control_atol_and_rtol(0.5)
             // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
             // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
@@ -173,7 +172,7 @@ fn run(
 
     // delta lambda
     let dll = if options.arclength {
-        DeltaLambda::auto()
+        DeltaLambda::auto(0.01)
     } else {
         let list = Vector::from(&LAMBDAS).get_differences();
         DeltaLambda::list(list.as_data())

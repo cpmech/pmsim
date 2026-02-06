@@ -130,7 +130,7 @@ fn main() -> Result<(), StrError> {
         .out_files("/tmp/pmsim", &name)
         .enable_symmetry_check(0.0)
         .ignore_symmetry(false)
-        .alt_bb_matrix_method(true)
+        .alt_bb_matrix_method(false)
         .lin_sol_genie(Genie::from(&options.genie))
         .lagrange_mult_method(options.lmm)
         .update_model_settings(1)
@@ -146,7 +146,6 @@ fn main() -> Result<(), StrError> {
     nl_config
         .set_verbose(true, true, true)
         .set_log_file(&format!("/tmp/pmsim/spo_752/{}.log", name))
-        .set_ddl_ini(0.05)
         .set_tg_control_atol_and_rtol(0.05)
         .set_record_iterations_residuals(true);
 
@@ -163,7 +162,7 @@ fn main() -> Result<(), StrError> {
         let idx = data.sys_index(outer_point, Dof::Ux)?;
         let stop = Stop::MaxCompU(idx, 0.14);
         let dll = if options.arclength {
-            DeltaLambda::auto()
+            DeltaLambda::auto(0.05)
         } else {
             let list = Vector::from(&LAMBDAS_RESIDUAL).get_differences();
             DeltaLambda::list(list.as_data())
@@ -174,7 +173,7 @@ fn main() -> Result<(), StrError> {
         println!("Unloading...");
         data.reset_algorithmic_variables(true);
         let stop = Stop::MinLambda(0.0);
-        let dll = DeltaLambda::constant(P_MAX_RES - 0.0);
+        let dll = DeltaLambda::auto(P_MAX_RES - 0.0); // for the arclength, this is difficult to reach
         sim.steady(&mut data, IniDir::Neg, stop, dll)?;
     } else {
         println!("\n{}\nRunning collapse problem (single direction of loading)", line);
@@ -185,7 +184,7 @@ fn main() -> Result<(), StrError> {
             Stop::MaxCompU(idx, 0.25)
         };
         let dll = if options.arclength {
-            DeltaLambda::auto()
+            DeltaLambda::auto(0.05)
         } else {
             let list = Vector::from(&LAMBDAS_COLLAPSE).get_differences();
             DeltaLambda::list(list.as_data())
@@ -225,6 +224,11 @@ fn main() -> Result<(), StrError> {
     let mesh = post.mesh();
     let schema = post.schema();
 
+    // check deterministic behavior
+    if options.residual && options.arclength {
+        assert_eq!(post.nfile(), 19);
+    }
+
     // boundaries
     let features = Features::new(mesh, false);
     let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
@@ -243,15 +247,14 @@ fn main() -> Result<(), StrError> {
     let mut pp_arr = Vec::new();
     let mut sh_arr = Vec::new();
     let mut sr_arr = Vec::new();
-    assert_eq!(post.nfile(), 19);
     for index in 1..post.nfile() {
         // load state
         let state = post.read_file(index)?;
 
         // pressure
         let mut pp = state.lambda;
+        // println!("{:>3}: pp = {}", index, pp);
         assert_eq!(pp, post.stations()[index]);
-        println!("{:>2}: P = {}", index, pp);
         if f64::abs(pp) < 1e-15 {
             pp = 0.0; // avoid numerical noise when pressure is -0.0
         }
@@ -322,7 +325,6 @@ fn main() -> Result<(), StrError> {
         sh_arr.remove(*i);
         sr_arr.remove(*i);
     }
-    println!("pp_arr = {:?}", pp_arr);
 
     // plot
     if SAVE_FIGURE {

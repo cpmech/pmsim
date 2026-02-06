@@ -162,7 +162,6 @@ fn run_test(
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
-            .set_ddl_ini(0.05)
             .set_tg_control_atol_and_rtol(5.0);
     } else {
         nl_config.set_method(NlMethod::Natural);
@@ -170,7 +169,7 @@ fn run_test(
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
     let idx = data.sys_index(corner, Dof::Ux)?;
     if options.arclength {
-        let ddl = DeltaLambda::auto();
+        let ddl = DeltaLambda::auto(0.05);
         sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.01921), ddl)?;
     } else {
         let ddl = DeltaLambda::list(&vec![1.0; NSTAGE]);

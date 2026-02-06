@@ -340,16 +340,38 @@ impl<'a> FemData<'a> {
     }
 
     /// Initializes the nonlinear solver unknowns vector `u` from the state's `U`
-    pub(crate) fn initialize_u(&self, u: &mut Vector) {
+    pub(crate) fn initialize_sys_u(&self, u: &mut Vector) -> Result<(), StrError> {
         if self.config.lagrange_mult_method {
             for eq in 0..self.ndof {
                 u[eq] = self.state.uu[eq];
+            }
+            if let Some(mu) = self.state.lag_mult.as_ref() {
+                if mu.dim() != self.np {
+                    return Err("The recorded Lagrange multipliers vector must have dimension equal to the actual number of prescribed values");
+                }
+                for ip in 0..self.np {
+                    let j = self.ndof + ip;
+                    u[j] = mu[ip];
+                }
             }
         } else {
             for iu in 0..self.nu {
                 let eq = self.eq_handler.unknown()[iu];
                 u[iu] = self.state.uu[eq];
             }
+        }
+        Ok(())
+    }
+
+    // Records the Lagrange multipliers for future simulations
+    pub(crate) fn record_lagrange_multipliers(&mut self, u: &Vector) {
+        if self.config.lagrange_mult_method {
+            let mut mu = Vector::new(self.np);
+            for ip in 0..self.np {
+                let j = self.ndof + ip;
+                mu[ip] = u[j];
+            }
+            self.state.lag_mult = Some(mu);
         }
     }
 

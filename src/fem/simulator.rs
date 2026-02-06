@@ -103,7 +103,7 @@ impl<'a> Simulator<'a> {
         // Allocate and initialize the unknowns (u, λ)
         let mut u = Vector::new(data.nsys);
         let mut l = data.state.lambda;
-        data.initialize_u(&mut u);
+        data.initialize_sys_u(&mut u)?;
 
         // Print information about the system and the header
         if data.config.verbose {
@@ -127,6 +127,9 @@ impl<'a> Simulator<'a> {
                 return Err(e);
             }
         };
+
+        // Record the Lagrange multipliers for future simulations
+        data.record_lagrange_multipliers(&u);
 
         // Stop the output files
         data.files.stop(&data.config)?;

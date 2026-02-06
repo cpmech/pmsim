@@ -97,6 +97,9 @@ pub struct FemState {
     ///
     /// (ncell)
     pub gauss: Vec<SecondaryValues>,
+
+    /// Records the last set of Lagrange multipliers as required to restart a simulation
+    pub lag_mult: Option<Vector>,
 }
 
 impl FemState {
@@ -212,6 +215,7 @@ impl FemState {
             vv_star,
             aa_star,
             gauss,
+            lag_mult: None,
         })
     }
 
