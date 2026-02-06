@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use plotpy::Curve;
-use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresSphere};
+use pmsim::analytical::{cartesian_to_polar, PresSphereAxisymmetric};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
@@ -197,7 +197,7 @@ fn run_test(
     let ix = schema.dof_number(outer_point, Dof::Ux)?;
 
     // analytical solution
-    let mut ana = PlastPlaneStrainPresSphere::new(A, B, YOUNG, POISSON, Y).unwrap();
+    let mut ana = PresSphereAxisymmetric::new(A, B, YOUNG, POISSON, Y).unwrap();
 
     // loop over time stations
     let mut inner_pp = vec![0.0; post.nfile()];
@@ -254,7 +254,7 @@ fn run_test(
     // plot
     if SAVE_FIGURE {
         ana.set_legend_precision(3);
-        let mut plot = ana.plot_results(&pp_arr, residual, P_MAX_RES, |plot, index| {
+        let mut plot = ana.plot_results(&pp_arr, |plot, index| {
             // reference curve
             let mut curve_ref = Curve::new();
             curve_ref

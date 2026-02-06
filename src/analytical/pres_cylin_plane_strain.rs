@@ -25,7 +25,7 @@ use russell_lab::RootFinder;
 /// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational Methods for Plasticity,
 ///    Theory and Applications, Wiley, 791p
 /// 2. Hill R (1950) The Mathematical Theory of Plasticity, Oxford University Press.
-pub struct PlastPlaneStrainPresCylin {
+pub struct PresCylinPlaneStrain {
     a: f64,                  // inner radius
     b: f64,                  // outer radius
     young: f64,              // Young's modulus
@@ -36,7 +36,7 @@ pub struct PlastPlaneStrainPresCylin {
     legend_precision: usize, // number precision for the legend labels
 }
 
-impl PlastPlaneStrainPresCylin {
+impl PresCylinPlaneStrain {
     /// Allocates a new instance
     ///
     /// # Input
@@ -54,7 +54,7 @@ impl PlastPlaneStrainPresCylin {
         if b < a {
             return Err("b must be > a");
         }
-        Ok(PlastPlaneStrainPresCylin {
+        Ok(PresCylinPlaneStrain {
             a,
             b,
             young,
@@ -74,7 +74,7 @@ impl PlastPlaneStrainPresCylin {
     /// Calculates the radial displacement (ub = ur(b)) at the outer face
     pub fn calc_ub(&self, pp: f64) -> Result<f64, StrError> {
         if pp < 0.0 {
-            return Err("the magnitude of the pressure must be positive");
+            return Err("the pressure must be positive");
         }
         if pp >= self.pp_lim - 1e-11 {
             return Err("P must be < P_lim - 1e-11");
@@ -117,7 +117,7 @@ impl PlastPlaneStrainPresCylin {
     /// Calculates the radial and hoop stress components
     pub fn calc_sr_sh(&self, r: f64, pp: f64) -> Result<(f64, f64), StrError> {
         if pp < 0.0 {
-            return Err("the magnitude of the pressure must be positive");
+            return Err("the pressure must be positive");
         }
         if pp >= self.pp_lim - 1e-11 {
             return Err("P must be < P_lim - 1e-11");
@@ -253,13 +253,16 @@ impl PlastPlaneStrainPresCylin {
             // detect if the pressure has been dropped => residual curve
             let pp = pps[i];
             if i > 0 {
-                residual = pp < pps[i - 1];
-            };
-
-            // detect previous pressure before the residual state
-            if residual {
                 pp_last = pps[i - 1];
-            }
+                if pp < pp_last {
+                    if i == pps.len() - 1 {
+                        assert!(pp >= 0.0 && pp < 1e-13, "the last pressure must be zero");
+                        residual = true;
+                    } else {
+                        continue; // skip decreasing pressures if they are not the last one (only one residual curve allowed)
+                    }
+                }
+            };
 
             // calculate the stresses
             for i in 0..rr.len() {
@@ -288,7 +291,11 @@ impl PlastPlaneStrainPresCylin {
                 format!(" $P = {:.1$}$", pp, self.legend_precision).to_string()
             };
             if residual {
-                str += &format!(" (after ${}$)", pp_last);
+                if self.legend_precision == 0 {
+                    str = format!(" residual (after ${}$)", pp_last).to_string();
+                } else {
+                    str = format!(" residual (after ${:.1$}$)", pp_last, self.legend_precision).to_string();
+                }
             }
             empty.set_label(&str).draw(&[0], &[0]);
             plot.set_subplot_grid("grid", "0", "4:6")
@@ -327,7 +334,7 @@ impl PlastPlaneStrainPresCylin {
 
 #[cfg(test)]
 mod tests {
-    use super::PlastPlaneStrainPresCylin;
+    use super::PresCylinPlaneStrain;
     use crate::analytical::ElastPlaneStrainPresCylin;
     use russell_lab::{approx_eq, math::SQRT_3};
 
@@ -340,7 +347,7 @@ mod tests {
         let young = 210.0;
         let poisson = 0.3;
         let yy = 2.0 * 0.24 / SQRT_3;
-        let ana = PlastPlaneStrainPresCylin::new(a, b, young, poisson, yy).unwrap();
+        let ana = PresCylinPlaneStrain::new(a, b, young, poisson, yy).unwrap();
 
         println!("Y         = {:?}", yy);
         println!("P_lim     = {:?}", ana.get_pp_lim());
@@ -358,12 +365,12 @@ mod tests {
         if SAVE_FIGURE {
             let mut plot = ana.plot_results(&[0.1, 0.18], |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
-                .save("/tmp/pmsim/test_plast_plane_strain_pres_cylin.svg")
+                .save("/tmp/pmsim/pres_cylin_plane_strain.svg")
                 .unwrap();
 
             let mut plot = ana.plot_results(&[0.1, 0.18, 0.0], |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
-                .save("/tmp/pmsim/test_plast_plane_strain_pres_cylin_resid.svg")
+                .save("/tmp/pmsim/pres_cylin_plane_strain_resid.svg")
                 .unwrap();
         }
     }

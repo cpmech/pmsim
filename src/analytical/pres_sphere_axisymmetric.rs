@@ -3,7 +3,7 @@ use plotpy::{linspace, Curve, Legend, Plot};
 use russell_lab::math::{ONE_BY_3, TWO_BY_3};
 use russell_lab::RootFinder;
 
-/// Solution of the elastic plane-strain version of the pressurized spherical shell problem
+/// Solution of the elastic axisymmetric version of the pressurized spherical shell problem
 ///
 /// The solution is given by Ref #1, starting from page 248. See also Ref #2 Chapter 5.
 ///
@@ -33,7 +33,7 @@ use russell_lab::RootFinder;
 /// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational Methods for Plasticity,
 ///    Theory and Applications, Wiley, 791p
 /// 2. Hill R (1950) The Mathematical Theory of Plasticity, Oxford University Press.
-pub struct PlastPlaneStrainPresSphere {
+pub struct PresSphereAxisymmetric {
     a: f64,                  // inner radius
     b: f64,                  // outer radius
     young: f64,              // Young's modulus
@@ -44,7 +44,7 @@ pub struct PlastPlaneStrainPresSphere {
     legend_precision: usize, // number precision for the legend labels
 }
 
-impl PlastPlaneStrainPresSphere {
+impl PresSphereAxisymmetric {
     /// Allocates a new instance
     ///
     /// # Input
@@ -62,7 +62,7 @@ impl PlastPlaneStrainPresSphere {
         if b < a {
             return Err("b must be > a");
         }
-        Ok(PlastPlaneStrainPresSphere {
+        Ok(PresSphereAxisymmetric {
             a,
             b,
             young,
@@ -82,7 +82,7 @@ impl PlastPlaneStrainPresSphere {
     /// Calculates the radial displacement (ub = ur(b)) at the outer face
     pub fn calc_ub(&self, pp: f64) -> Result<f64, StrError> {
         if pp < 0.0 {
-            return Err("the magnitude of the pressure must be positive");
+            return Err("the pressure must be positive");
         }
         if pp >= self.pp_lim - 1e-11 {
             return Err("P must be < P_lim - 1e-11");
@@ -113,7 +113,7 @@ impl PlastPlaneStrainPresSphere {
     /// Calculates the radial and hoop stress components
     pub fn calc_sr_sh(&self, r: f64, pp: f64) -> Result<(f64, f64), StrError> {
         if pp < 0.0 {
-            return Err("the magnitude of the pressure must be positive");
+            return Err("the pressure must be positive");
         }
         if pp >= self.pp_lim - 1e-11 {
             return Err("P must be < P_lim - 1e-11");
@@ -180,87 +180,113 @@ impl PlastPlaneStrainPresSphere {
     ///     * 0 for the P vs ub plot
     ///     * 1 for the σθ vs r plot
     ///     * 2 for the σr vs r plot
-    pub fn plot_results<F>(&self, pps: &[f64], residual: bool, pp_last: f64, callback: F) -> Plot
+    ///     * 3 for the legend
+    pub fn plot_results<F>(&self, pps: &[f64], callback: F) -> Plot
     where
         F: Fn(&mut Plot, usize),
     {
+        // allocate plot
+        let mut plot = Plot::new();
+
+        // set grid
+        plot.set_gridspec("grid", 2, 6, "hspace=0.25,wspace=2.5");
+
+        // 0: plot P vs ub
         let mut curve = Curve::new();
         let ppp = linspace(0.0, self.get_pp_lim() - 1e-10, 201);
         let uub: Vec<_> = ppp.iter().map(|pp| self.calc_ub(*pp).unwrap()).collect();
-        curve.set_label("analytical").draw(&uub, &ppp);
-
-        let mut plot = Plot::new();
-        plot.set_gridspec("grid", 2, 4, "hspace=0.25,wspace=1.0")
-            .set_subplot_grid("grid", "0", "0:3")
-            .add(&curve);
+        curve.set_line_color("#1e6c00").set_label("analytical").draw(&uub, &ppp);
+        plot.set_subplot_grid("grid", "0", "0:4").add(&curve);
         callback(&mut plot, 0);
-        let mut leg1 = Legend::new();
-        leg1.set_location("lower right").draw();
-        plot.add(&leg1)
+
+        // 0: legend
+        let mut leg0 = Legend::new();
+        leg0.set_location("lower right").draw();
+        plot.add(&leg0)
             .grid_and_labels("Radial displacement at outer face $u_b$", "Internal pressure $P$");
 
+        // generate stress curves
         let rr = linspace(self.a, self.b, 201);
         let mut ssr = vec![0.0; rr.len()];
         let mut ssh = vec![0.0; rr.len()];
-        let pp_array = if residual { vec![pp_last] } else { pps.to_vec() };
-        for pp in pp_array {
+        let mut residual = false;
+        let mut pp_last = None;
+        for i in 0..pps.len() {
+            // detect if the pressure has been dropped => residual curve
+            let pp = pps[i];
+            if i > 0 {
+                if pp < pps[i - 1] {
+                    if pp_last.is_none() {
+                        pp_last = Some(pps[i - 1]);
+                    }
+                    if i == pps.len() - 1 {
+                        assert!(pp >= 0.0 && pp < 1e-13, "the last pressure must be zero");
+                        residual = true;
+                    } else {
+                        continue; // skip decreasing pressures if they are not the last one (only one residual curve allowed)
+                    }
+                }
+            };
+
+            // calculate the stresses
             for i in 0..rr.len() {
                 let (sr, sh) = if residual {
-                    self.calc_sr_sh_residual(rr[i], pp).unwrap()
+                    self.calc_sr_sh_residual(rr[i], pp_last.unwrap()).unwrap()
                 } else {
                     self.calc_sr_sh(rr[i], pp).unwrap()
                 };
                 ssr[i] = sr;
                 ssh[i] = sh;
             }
+
+            // draw the curves
             let mut curve_a = Curve::new();
             let mut curve_b = Curve::new();
             curve_a.draw(&rr, &ssh);
             curve_b.draw(&rr, &ssr);
+            plot.set_subplot_grid("grid", "1", "0:3").add(&curve_a);
+            plot.set_subplot_grid("grid", "1", "3:6").add(&curve_b);
+
             // fake curves to build legend
-            plot.set_subplot_grid("grid", "1", "0:2").add(&curve_a);
-            plot.set_subplot_grid("grid", "1", "2:4").add(&curve_b);
-            if residual {
-                let mut empty = Curve::new();
-                let str = format!(" $P_{{max}} = {}$", pp);
-                empty.set_label(&str).draw(&[0], &[0]);
-                empty.set_line_style("None");
-                empty.set_label(" $P = 0$").draw(&[0], &[0]);
-                plot.set_subplot_grid("grid", "0", "3")
-                    .add(&empty)
-                    .set_range(1.0, 2.0, 1.0, 2.0);
+            let mut empty = Curve::new();
+            let mut str = if self.legend_precision == 0 {
+                format!(" $P = {}$", pp).to_string()
             } else {
-                let mut empty = Curve::new();
-                let str = if self.legend_precision == 0 {
-                    format!(" $P = {}$", pp)
+                format!(" $P = {:.1$}$", pp, self.legend_precision).to_string()
+            };
+            if residual {
+                if self.legend_precision == 0 {
+                    str = format!(" residual (after ${}$)", pp_last.unwrap()).to_string();
                 } else {
-                    format!(" $P = {:.1$}$", pp, self.legend_precision)
-                };
-                empty.set_label(&str).draw(&[0], &[0]);
-                plot.set_subplot_grid("grid", "0", "3")
-                    .add(&empty)
-                    .set_range(1.0, 2.0, 1.0, 2.0);
+                    str = format!(" residual (after ${:.1$}$)", pp_last.unwrap(), self.legend_precision).to_string();
+                }
             }
+            empty.set_label(&str).draw(&[0], &[0]);
+            plot.set_subplot_grid("grid", "0", "4:6")
+                .add(&empty)
+                .set_range(1.0, 2.0, 1.0, 2.0);
         }
 
-        plot.set_subplot_grid("grid", "1", "0:2");
+        // configure the axes and call the external function
+        plot.set_subplot_grid("grid", "1", "0:3");
         callback(&mut plot, 1);
         plot.grid_and_labels("Radial coordinate $r$", "Hoop stress $\\sigma_\\theta$");
 
-        plot.set_subplot_grid("grid", "1", "2:4");
+        // configure the axes and call the external function
+        plot.set_subplot_grid("grid", "1", "3:6");
         callback(&mut plot, 2);
         plot.grid_and_labels("Radial coordinate $r$", "Radial stress $\\sigma_r$");
 
+        // legend
         let mut leg = Legend::new();
         leg.set_num_col(1)
             .set_handle_len(2.5)
             .set_outside(true)
-            .set_x_coords(&[-0.5, -0.15, 1.4, 0.102])
+            .set_x_coords(&[-0.38, -0.18, 1.37, 0.102])
             .draw();
-        plot.set_subplot_grid("grid", "0", "3");
+        plot.set_subplot_grid("grid", "0", "4:6");
         callback(&mut plot, 3);
         plot.add(&leg).set_hide_axes(true);
-
         plot
     }
 }
@@ -269,7 +295,7 @@ impl PlastPlaneStrainPresSphere {
 
 #[cfg(test)]
 mod tests {
-    use super::PlastPlaneStrainPresSphere;
+    use super::PresSphereAxisymmetric;
     use russell_lab::approx_eq;
 
     const SAVE_FIGURE: bool = false;
@@ -281,7 +307,7 @@ mod tests {
         let young = 210.0;
         let poisson = 0.3;
         let yy = 0.24;
-        let ana = PlastPlaneStrainPresSphere::new(a, b, young, poisson, yy).unwrap();
+        let ana = PresSphereAxisymmetric::new(a, b, young, poisson, yy).unwrap();
 
         println!("Y         = {:?}", yy);
         println!("P_lim     = {:?}", ana.get_pp_lim());
@@ -291,9 +317,14 @@ mod tests {
         approx_eq(ana.calc_c(ana.pp_lim - 1e-13).unwrap(), b, 1e-3);
 
         if SAVE_FIGURE {
-            let mut plot = ana.plot_results(&[0.15, 0.3], false, 0.0, |_, _| ());
+            let mut plot = ana.plot_results(&[0.15, 0.3], |_, _| ());
             plot.set_figure_size_points(600.0, 450.0)
-                .save("/tmp/pmsim/plast_plane_strain_pres_sphere.svg")
+                .save("/tmp/pmsim/pres_sphere_axisymmetric.svg")
+                .unwrap();
+
+            let mut plot = ana.plot_results(&[0.15, 0.3, 0.0], |_, _| ());
+            plot.set_figure_size_points(600.0, 450.0)
+                .save("/tmp/pmsim/pres_sphere_axisymmetric_resid.svg")
                 .unwrap();
         }
     }

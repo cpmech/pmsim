@@ -1,6 +1,6 @@
 use gemlab::prelude::*;
 use plotpy::{Curve, SuperTitleParams};
-use pmsim::analytical::{cartesian_to_polar, PlastPlaneStrainPresCylin};
+use pmsim::analytical::{cartesian_to_polar, PresCylinPlaneStrain};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
@@ -92,7 +92,6 @@ fn main() -> Result<(), StrError> {
     // parameters
     let param1 = ParamSolid {
         density: 1.0,
-        // stress_strain: StressStrain::LinearElastic { young: YOUNG, poisson: POISSON, },
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
@@ -101,6 +100,8 @@ fn main() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
+
+    // schema
     let mut schema = Schema::new();
     schema.add_solid(1, param1).build(&mesh)?;
 
@@ -221,7 +222,7 @@ fn main() -> Result<(), StrError> {
     let ix = schema.dof_number(outer_point, Dof::Ux)?;
 
     // analytical solution
-    let mut ana = PlastPlaneStrainPresCylin::new(A, B, YOUNG, POISSON, Y).unwrap();
+    let mut ana = PresCylinPlaneStrain::new(A, B, YOUNG, POISSON, Y).unwrap();
 
     // loop over time stations
     let mut inner_pp = vec![0.0; post.nfile()];
@@ -367,6 +368,11 @@ fn main() -> Result<(), StrError> {
                 // legend
                 curve_num.draw(&[0], &[0]);
                 plot.add(&curve_num);
+                if !options.arclength {
+                    curve_ref.set_label("SPO");
+                    curve_ref.draw(&[0], &[0]);
+                    plot.add(&curve_ref);
+                }
             }
         });
         let title = options.title();
