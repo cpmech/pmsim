@@ -6,6 +6,7 @@ use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Norm, Vector};
 
+const DIR: &str = "/tmp/pmsim/spo_755";
 const MESH_NAME: &str = "spo_755_tensile";
 const NAME: &str = "spo_755_tensile_perf_plast";
 const DRAW_MESH_AND_EXIT: bool = false;
@@ -88,25 +89,9 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
     // natural boundary conditions
     let nbc = BcNatural::new();
 
-    // run: natural + lmm
+    // run: natural + sps
     let options = Options {
         arclength: false,
-        lmm: true,
-        npv: false,
-    };
-    run(options, &mesh, &features, &bottom, &schema, &mut ebc, &nbc)?;
-
-    // run: arclength + lmm
-    let options = Options {
-        arclength: true,
-        lmm: true,
-        npv: false,
-    };
-    run(options, &mesh, &features, &bottom, &schema, &mut ebc, &nbc)?;
-
-    // run: arclength + sps
-    let options = Options {
-        arclength: true,
         lmm: false,
         npv: false,
     };
@@ -139,7 +124,7 @@ fn run(
 
     // output files if natural parameter continuation (for verification)
     if !options.arclength {
-        config.out_files("/tmp/pmsim", &name);
+        config.out_files(DIR, &name);
     }
 
     // output the vertical component of Y at bottom edge points
@@ -152,6 +137,7 @@ fn run(
     let mut nl_config = NlConfig::new();
     nl_config
         .set_verbose(true, true, true)
+        .set_log_file(&format!("{}/{}.txt", DIR, name))
         .set_record_iterations_residuals(true);
     if options.arclength {
         nl_config
@@ -280,7 +266,7 @@ fn run(
             )
             .set_figure_size_points(600.0, 600.0)
             .set_title(&title)
-            .save(&format!("/tmp/pmsim/{}.svg", &name))
+            .save(&format!("{}/{}.svg", DIR, &name))
             .unwrap();
     }
 
@@ -296,7 +282,7 @@ fn run(
             &mesh,
             &schema,
             &config,
-            "/tmp/pmsim/",
+            DIR,
             &name,
             ReferenceDataType::SPO,
             &format!("data/spo/{}_ref.json", NAME),
@@ -410,7 +396,7 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], bottom: &[PointId], top: &[PointId])
                 plot.add(&text);
             }
         })
-        .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
+        .all(&mesh, &format!("{}/{}_mesh.svg", DIR, NAME))
 }
 
 struct Options {

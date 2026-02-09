@@ -6,6 +6,7 @@ use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Vector};
 
+const DIR: &str = "/tmp/pmsim/spo_754";
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
@@ -51,7 +52,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
             .set_size(800.0, 800.0)
             .zoom_2d(15.0, 69.0, 448.0, 502.0, 0.5, 0.5, 0.5, 0.5)
             .set_range_2d(-10.0, 600.0, -10.0, 600.0)
-            .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME));
+            .all(&mesh, &format!("{}/{}_mesh.svg", DIR, NAME));
     }
 
     // features
@@ -87,13 +88,6 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     // natural boundary conditions
     let nbc = BcNatural::new();
 
-    // run: natural + lmm
-    let options = Options {
-        arclength: false,
-        lmm: true,
-    };
-    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
-
     // run: natural + sps
     let options = Options {
         arclength: false,
@@ -101,19 +95,6 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     };
     run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
 
-    // run: arclength + lmm
-    let options = Options {
-        arclength: true,
-        lmm: true,
-    };
-    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
-
-    // run: arclength + sps
-    let options = Options {
-        arclength: true,
-        lmm: false,
-    };
-    run(options, &mesh, &features, &footing, &schema, &mut ebc, &nbc)?;
     Ok(())
 }
 
@@ -126,30 +107,25 @@ fn run(
     ebc: &mut BcEssential,
     nbc: &BcNatural,
 ) -> Result<(), StrError> {
-    // define filename stem
+    // define the filename stem
     let mut name = NAME.to_string() + "_";
     name += &options.key();
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.out_files("/tmp/pmsim", &name).lagrange_mult_method(options.lmm);
+    config.out_files(DIR, &name).lagrange_mult_method(options.lmm);
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
     nl_config
         .set_verbose(true, true, true)
+        .set_log_file(&format!("{}/{}.txt", DIR, name))
         .set_record_iterations_residuals(true);
     if options.arclength {
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
             .set_tg_control_atol_and_rtol(0.5)
-            // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
-            // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
-            // .set_tg_control_soderlind(SoderlindClass::H321) // not good
-            // .set_tg_control_soderlind(SoderlindClass::Ho312) // bad
-            // .set_tg_control_soderlind(SoderlindClass::Ho321) // terrible
-            // .set_tg_control_soderlind(SoderlindClass::Ho211) // terrible
             .set_tg_control_pid_vcc(true);
     } else {
         nl_config.set_method(NlMethod::Natural);
@@ -186,7 +162,7 @@ fn run(
     //
 
     // check the results
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
+    let (post, mut memo) = PostProc::new(DIR, &name)?;
     let nstate = post.nfile();
     let footing_cells = features.get_cells_via_2d_edges(&footing);
     let mut normalized_settlement = Vec::with_capacity(nstate);
@@ -261,7 +237,7 @@ fn run(
             .grid_and_labels("$-u_y/B$ (normalized settlement)", "$-P/c$ (normalized pressure)")
             .set_figure_size_points(600.0, 600.0)
             .set_title(&title)
-            .save(&format!("/tmp/pmsim/{}.svg", name))
+            .save(&format!("{}/{}.svg", DIR, name))
             .unwrap();
     }
 
@@ -277,7 +253,7 @@ fn run(
             &mesh,
             &schema,
             &config,
-            "/tmp/pmsim/",
+            DIR,
             &name,
             ReferenceDataType::SPO,
             "data/spo/spo_754_footing_ref.json",

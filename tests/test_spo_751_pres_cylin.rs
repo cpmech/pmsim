@@ -34,6 +34,7 @@ use russell_lab::{approx_eq, read_data, Vector};
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
+const DIR: &str = "/tmp/pmsim/spo_751";
 const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual";
@@ -123,7 +124,7 @@ fn run(
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .out_files("/tmp/pmsim", &name)
+        .out_files(DIR, &name)
         .lagrange_mult_method(options.lmm)
         .update_model_settings(1)
         .set_save_strain(true);
@@ -136,8 +137,8 @@ fn run(
         nl_config.set_method(NlMethod::Natural);
     }
     nl_config
-        .set_verbose(false, true, true)
-        .set_log_file(&format!("/tmp/pmsim/spo_751/{}.log", name))
+        .set_verbose(true, true, true)
+        .set_log_file(&format!("{}/{}.txt", DIR, name))
         .set_tg_control_atol_and_rtol(0.05)
         .set_record_iterations_residuals(true);
 
@@ -192,7 +193,7 @@ fn run(
             &mesh,
             &schema,
             &config,
-            "/tmp/pmsim/",
+            DIR,
             &name,
             ReferenceDataType::SPO,
             &format!("data/spo/{}_ref.json", problem),
@@ -208,7 +209,7 @@ fn run(
     //
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
+    let (post, mut memo) = PostProc::new(DIR, &name)?;
     let mesh = post.mesh();
     let schema = post.schema();
 
@@ -373,7 +374,7 @@ fn run(
         params.set_y(0.92);
         plot.set_super_title(&title, Some(&params))
             .set_figure_size_points(600.0, 450.0)
-            .save(&format!("/tmp/pmsim/{}.svg", name))?;
+            .save(&format!("{}/{}.svg", DIR, name))?;
     }
 
     // done
@@ -398,15 +399,14 @@ fn generate_or_read_mesh(kind: GeoKind, generate: bool) -> Mesh {
         draw.show_point_ids(true)
             .show_cell_ids(true)
             .set_size(600.0, 600.0)
-            .all(&mesh, &format!("/tmp/pmsim/{}_{}.svg", NAME_MESH, k_str))
+            .all(&mesh, &format!("{}/{}_{}.svg", DIR, NAME_MESH, k_str))
             .unwrap();
 
         // write mesh
-        mesh.write(&format!("/tmp/pmsim/{}_{}.msh", NAME_MESH, k_str)).unwrap();
+        mesh.write(&format!("{}/{}_{}.msh", DIR, NAME_MESH, k_str)).unwrap();
 
         // write VTU
-        mesh.write_vtu(&format!("/tmp/pmsim/{}_{}.vtu", NAME_MESH, k_str))
-            .unwrap();
+        mesh.write_vtu(&format!("{}/{}_{}.vtu", DIR, NAME_MESH, k_str)).unwrap();
 
         // return mesh
         mesh

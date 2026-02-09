@@ -1,0 +1,85 @@
+────────────────────────────────────────────────────────────────────
+         λ         Δλ  iter       ‖G‖∞ ➖      ‖δu‖∞      Rel(δu) ➖
+────────────────────────────────────────────────────────────────────
+ 0.000E+00  1.500E-01
+         ·          ·     0   5.56E-12 ✅          ·            ·
+ 1.500E-01  1.300E-01
+         ·          ·     0   3.82E+02      6.76E-02     8.42E+06   
+         ·          ·     1   3.05E+02 🔹   1.87E-02     2.21E+06 🔹
+         ·          ·     2   8.58E+01 🔹   8.62E-03     1.19E+06 🔹
+         ·          ·     3   2.11E-01 🔹   5.66E-05     4.69E+03 🔹
+         ·          ·     4   9.61E-05 🔹   1.41E-08     1.42E+00 🔹
+         ·          ·     5   4.29E-12 ✅          ·            ·
+────────────────────────────────────────────────────────────────────
+
+Natural parameter continuation; solves G(u, λ) = 0 (fixed)
+Using numerical Jacobian         = false
+Number of function evaluations   = 7
+Number of Jacobian evaluations   = 6
+Number of factorizations         = 6
+Number of lin sys solutions      = 5
+Number of accepted steps         = 2
+Number of rejected steps         = 0
+Number of performed steps        = 2
+Number of iterations (total)     = 7
+Last accepted/suggested stepsize = 0.13000000000000003
+
+Distribution of the number of converged iterations across all steps:
+[ 0,  1) | 0 
+[ 1,  2) | 1 ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+[ 2,  3) | 0 
+[ 3,  4) | 0 
+[ 4,  5) | 0 
+[ 5,  6) | 1 ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+[ 6,  7) | 0 
+[ 7,  8) | 0 
+[ 8,  9) | 0 
+[ 9, 10) | 0 
+[10, 11) | 0 
+[11, 12) | 0 
+     sum = 2
+
+Max time spent on a step         = 15.045102ms
+Max time spent on the Jacobian   = 1.84236ms
+Max time spent on factorization  = 466.823µs
+Max time spent on lin solution   = 12.103µs
+Total time                       = 21.090739ms
+────────────────────────────────────────────────────────────────────
+         λ         Δλ  iter       ‖G‖∞ ➖      ‖δu‖∞      Rel(δu) ➖
+────────────────────────────────────────────────────────────────────
+ 2.800E-01  2.800E-01
+         ·          ·     0   7.70E-12 ✅          ·            ·
+────────────────────────────────────────────────────────────────────
+
+Natural parameter continuation; solves G(u, λ) = 0 (auto)
+Using numerical Jacobian         = false
+Number of function evaluations   = 1
+Number of Jacobian evaluations   = 1
+Number of factorizations         = 1
+Number of lin sys solutions      = 0
+Number of accepted steps         = 1
+Number of rejected steps         = 0
+Number of performed steps        = 1
+Number of iterations (total)     = 1
+Last accepted/suggested stepsize = 0.6118774000270288
+
+Distribution of the number of converged iterations across all steps:
+[ 0,  1) | 0 
+[ 1,  2) | 1 ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+[ 2,  3) | 0 
+[ 3,  4) | 0 
+[ 4,  5) | 0 
+[ 5,  6) | 0 
+[ 6,  7) | 0 
+[ 7,  8) | 0 
+[ 8,  9) | 0 
+[ 9, 10) | 0 
+[10, 11) | 0 
+[11, 12) | 0 
+     sum = 1
+
+Max time spent on a step         = 5.60399ms
+Max time spent on the Jacobian   = 1.621322ms
+Max time spent on factorization  = 429.007µs
+Max time spent on lin solution   = 0ns
+Total time                       = 31.806726ms

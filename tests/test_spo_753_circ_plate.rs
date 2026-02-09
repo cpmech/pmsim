@@ -7,6 +7,7 @@ use pmsim::StrError;
 use russell_lab::base::read_data;
 use russell_lab::{approx_eq, array_approx_eq, Vector};
 
+const DIR: &str = "/tmp/pmsim/spo_753";
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
 const SAVE_FIGURE: bool = false;
@@ -79,13 +80,13 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.axisymmetric().out_files("/tmp/pmsim", &name);
+    config.axisymmetric().out_files(DIR, &name);
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
     nl_config
         .set_verbose(true, true, true)
-        .set_log_file(&format!("/tmp/pmsim/spo_754/{}.txt", name));
+        .set_log_file(&format!("{}/{}.txt", DIR, name));
 
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
@@ -107,7 +108,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         &mesh,
         &schema,
         &config,
-        "/tmp/pmsim/",
+        DIR,
         &name,
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
@@ -122,7 +123,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     //
 
     // load summary and associated files
-    let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
+    let (post, _) = PostProc::new(DIR, &name)?;
 
     // boundaries
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
@@ -253,7 +254,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
             .set_title(&options.title())
             .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)")
             .set_figure_size_points(600.0, 250.0)
-            .save(&format!("/tmp/pmsim/{}.svg", name))?;
+            .save(&format!("{}/{}.svg", DIR, name))?;
     }
     Ok(())
 }
@@ -311,7 +312,7 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: Point
                 plot.add(&text1).add(&text2);
             }
         })
-        .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
+        .all(&mesh, &format!("{}/{}_mesh.svg", DIR, NAME))
 }
 
 struct Options {
