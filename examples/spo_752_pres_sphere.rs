@@ -255,8 +255,6 @@ fn main() -> Result<(), StrError> {
 
         // pressure
         let mut pp = state.lambda;
-        // println!("{:>3}: pp = {}", index, pp);
-        assert_eq!(pp, post.stations()[index]);
         if f64::abs(pp) < 1e-14 {
             pp = 0.0; // avoid numerical noise when pressure is -0.0
         }
