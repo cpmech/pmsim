@@ -424,7 +424,7 @@ impl Options {
         let mut buf = if self.arclength {
             "arc".to_string()
         } else {
-            "lam".to_string()
+            "nat".to_string()
         };
         if self.lmm {
             buf += "_lmm";

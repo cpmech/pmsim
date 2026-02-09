@@ -432,7 +432,7 @@ impl Options {
         if self.arclength {
             buf += "_arc";
         } else {
-            buf += "_lam";
+            buf += "_nat";
         }
         if self.lmm {
             buf += "_lmm";
