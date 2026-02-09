@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use plotpy::Curve;
+use plotpy::{Curve, SuperTitleParams};
 use pmsim::analytical::{cartesian_to_polar, PresSphereAxisymmetric};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
@@ -41,17 +41,14 @@ const NAME_MESH: &str = "spo_751_pres_cylin"; // same as 751
 const NAME_COLLAPSE: &str = "spo_752_pres_sphere_collapse";
 const NAME_RESIDUAL: &str = "spo_752_pres_sphere_residual";
 const SAVE_FIGURE: bool = false;
-const VERBOSE_LEVEL: usize = 0;
-
-const A: f64 = 100.0; // inner radius
-const B: f64 = 200.0; // outer radius
+const VERBOSE_LEVEL: usize = 0; // in the verification step
 
 const P_MAX_RES: f64 = 0.28; // maximum pressure achieved by the residual simulation before unloading completely to zero
 const LAMBDAS_COLLAPSE: [f64; 5] = [0.0, 0.15, 0.3, 0.33, 0.33269]; // load factors for the inner pressure
 const LAMBDAS_RESIDUAL: [f64; 3] = [0.0, 0.15, P_MAX_RES]; // must unload after the last value
-const SELECTED_P_COLLAPSE: [f64; 3] = [0.15, 0.3, 0.33]; // selected pressures for collapse plot
-const SELECTED_P_RESIDUAL: [f64; 1] = [0.0]; // selected pressures for residual plot
 
+const A: f64 = 100.0; // inner radius
+const B: f64 = 200.0; // outer radius
 const YOUNG: f64 = 210.0; // Young's modulus
 const POISSON: f64 = 0.3; // Poisson's coefficient
 const Y: f64 = 0.24; // uniaxial yield strength (= σy_spo due to axisymmetry)
@@ -94,61 +91,104 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
     let mut nbc = BcNatural::new();
     nbc.edges(&inner_circle, Nbc::Qn, -1.0);
 
-    // run the collapse test
-    run_test(false, &mesh, outer_point, &schema, &ebc, &nbc)?;
+    // run: collapse + natural + sps
+    let options = Options {
+        residual: false,
+        arclength: false,
+        lmm: false,
+    };
+    run(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
 
-    // run the residual stress test
-    run_test(true, &mesh, outer_point, &schema, &ebc, &nbc)?;
+    // run: residual + natural + sps
+    let options = Options {
+        residual: true,
+        arclength: false,
+        lmm: false,
+    };
+    run(options, &mesh, outer_point, &schema, &ebc, &nbc)?;
     Ok(())
 }
 
-fn run_test(
-    residual: bool,
+fn run(
+    options: Options,
     mesh: &Mesh,
     outer_point: usize,
     schema: &Schema,
     ebc: &BcEssential,
     nbc: &BcNatural,
 ) -> Result<(), StrError> {
+    // kind of problem
+    let problem = if options.residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
+
     // filename stem
-    let name = if residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
+    let mut name = problem.to_string() + "_";
+    name += &options.key();
 
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .out_files("/tmp/pmsim", name)
         .axisymmetric()
+        .out_files("/tmp/pmsim", &name)
+        .enable_symmetry_check(0.0)
+        .ignore_symmetry(false)
+        .alt_bb_matrix_method(false)
+        .lagrange_mult_method(options.lmm)
         .update_model_settings(1)
         .set_save_strain(true);
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
+    if options.arclength {
+        nl_config.set_method(NlMethod::Arclength);
+    } else {
+        nl_config.set_method(NlMethod::Natural);
+    }
+    nl_config
+        .set_verbose(true, true, true)
+        .set_log_file(&format!("/tmp/pmsim/spo_752/{}.log", name))
+        .set_tg_control_atol_and_rtol(0.05)
+        .set_record_iterations_residuals(true);
 
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
     // simulation
-    if residual {
-        // residual problem (with load reversal)
+    let line = "-".repeat(66);
+    if options.residual {
+        println!("\n{}\nRunning residual problem (with load reversal)", line);
 
         // loading
+        println!("Loading...");
         let idx = data.sys_index(outer_point, Dof::Ux)?;
-        let stop = Stop::MaxCompU(idx, 0.15);
-        let list = Vector::from(&LAMBDAS_RESIDUAL).get_differences();
-        let dll = DeltaLambda::list(list.as_data());
+        let stop = Stop::MaxCompU(idx, 0.14);
+        let dll = if options.arclength {
+            DeltaLambda::auto(0.05)
+        } else {
+            let list = Vector::from(&LAMBDAS_RESIDUAL).get_differences();
+            DeltaLambda::list(list.as_data())
+        };
         sim.steady(&mut data, IniDir::Pos, stop, dll)?;
 
         // unloading
+        println!("Unloading...");
         data.reset_algorithmic_variables(true);
         let stop = Stop::MinLambda(0.0);
-        let dll = DeltaLambda::constant(P_MAX_RES - 0.0);
+        let dll = DeltaLambda::auto(P_MAX_RES - 0.0); // for the arclength, this is difficult to reach
         sim.steady(&mut data, IniDir::Neg, stop, dll)?;
     } else {
-        // collapse problem (single direction of loading)
+        println!("\n{}\nRunning collapse problem (single direction of loading)", line);
         let idx = data.sys_index(outer_point, Dof::Ux)?;
-        let stop = Stop::MaxCompU(idx, 0.6);
-        let list = Vector::from(&LAMBDAS_COLLAPSE).get_differences();
-        let dll = DeltaLambda::list(list.as_data());
+        let stop = if options.lmm {
+            Stop::MaxCompU(idx, 0.14) // cannot get past this value. TODO: check this
+        } else {
+            Stop::MaxCompU(idx, 0.25)
+        };
+        let dll = if options.arclength {
+            DeltaLambda::auto(0.05)
+        } else {
+            let list = Vector::from(&LAMBDAS_COLLAPSE).get_differences();
+            DeltaLambda::list(list.as_data())
+        };
         sim.steady(&mut data, IniDir::Pos, stop, dll)?;
     }
 
@@ -157,37 +197,37 @@ fn run_test(
     //
 
     // compare the results with Ref #1
-    let tol_displacement = if residual { 1.78e-2 } else { 4.33e-2 };
-    let tol_stress = if residual { 2.41e-2 } else { 2.55e-2 };
-    let all_good = compare_results(
-        &mesh,
-        &schema,
-        &config,
-        "/tmp/pmsim/",
-        name,
-        ReferenceDataType::SPO,
-        &format!("data/spo/{}_ref.json", name),
-        tol_displacement,
-        tol_stress,
-        VERBOSE_LEVEL,
-    )?;
-    assert!(all_good);
+    if !options.arclength {
+        let tol_displacement = if options.residual { 1.78e-2 } else { 4.33e-2 };
+        let tol_stress = if options.residual { 2.41e-2 } else { 2.55e-2 };
+        let all_good = compare_results(
+            &mesh,
+            &schema,
+            &config,
+            "/tmp/pmsim/",
+            &name,
+            ReferenceDataType::SPO,
+            &format!("data/spo/{}_ref.json", problem),
+            tol_displacement,
+            tol_stress,
+            VERBOSE_LEVEL,
+        )?;
+        assert!(all_good);
+    }
 
     //
     // data analysis -------------------------------------------------------------
     //
 
-    // select constants
-    let selected_pp = if residual {
-        Vec::from(&SELECTED_P_RESIDUAL)
-    } else {
-        Vec::from(&SELECTED_P_COLLAPSE)
-    };
-
     // load summary and associated files
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", name)?;
+    let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
     let mesh = post.mesh();
     let schema = post.schema();
+
+    // check deterministic behavior
+    if options.residual && options.arclength {
+        assert_eq!(post.nfile(), 19);
+    }
 
     // boundaries
     let features = Features::new(mesh, false);
@@ -207,13 +247,26 @@ fn run_test(
     let mut pp_arr = Vec::new();
     let mut sh_arr = Vec::new();
     let mut sr_arr = Vec::new();
+    let mut is_unloading = false;
+    let mut pp_max = 0.0;
     for index in 1..post.nfile() {
         // load state
         let state = post.read_file(index)?;
 
         // pressure
-        let pp = state.lambda;
+        let mut pp = state.lambda;
+        if f64::abs(pp) < 1e-14 {
+            pp = 0.0; // avoid numerical noise when pressure is -0.0
+        }
         inner_pp[index] = pp;
+
+        // detect if we are unloading (for the residual problem)
+        if pp > pp_max {
+            pp_max = pp;
+        }
+        if !is_unloading && pp < pp_max {
+            is_unloading = true;
+        }
 
         // radial displacement
         let ub_num = state.uu[ix];
@@ -226,29 +279,62 @@ fn run_test(
         })?;
 
         // convert to polar coordinates and compare with analytical solution
-        if selected_pp.contains(&pp) {
-            pp_arr.push(pp);
-            sh_arr.push(Vec::new());
-            sr_arr.push(Vec::new());
-            for i in 0..res.xx.len() {
-                let (r, sr, sh, _) = cartesian_to_polar(res.xx[i], res.yy[i], res.txx[i], res.tyy[i], res.txy[i]);
-                if first_rr {
-                    rr.push(r);
+        pp_arr.push(pp);
+        sh_arr.push(Vec::new());
+        sr_arr.push(Vec::new());
+        for i in 0..res.xx.len() {
+            let (r, sr, sh, _) = cartesian_to_polar(res.xx[i], res.yy[i], res.txx[i], res.tyy[i], res.txy[i]);
+            if first_rr {
+                rr.push(r);
+            }
+            sh_arr.last_mut().unwrap().push(sh);
+            sr_arr.last_mut().unwrap().push(sr);
+
+            // check
+            if options.residual {
+                if is_unloading && pp > 0.0 {
+                    continue; // we don't have an analytical solution for this case
                 }
-                sh_arr.last_mut().unwrap().push(sh);
-                sr_arr.last_mut().unwrap().push(sr);
-                if residual {
-                    let (sr_ana, sh_ana) = ana.calc_sr_sh_residual(r, P_MAX_RES)?;
-                    approx_eq(sr, sr_ana, 0.00092);
-                    approx_eq(sh, sh_ana, 0.00085);
+                let (sr_ana, sh_ana) = if pp == 0.0 {
+                    ana.calc_sr_sh_residual(r, P_MAX_RES)?
                 } else {
-                    let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
+                    ana.calc_sr_sh(r, pp)?
+                };
+                if options.arclength {
+                    approx_eq(sr, sr_ana, 0.041);
+                    approx_eq(sh, sh_ana, 0.11);
+                } else {
+                    approx_eq(sr, sr_ana, 0.00092);
+                    approx_eq(sh, sh_ana, 0.00091);
+                }
+            } else {
+                let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
+                if options.arclength {
+                    approx_eq(sr, sr_ana, 0.0015);
+                    approx_eq(sh, sh_ana, 0.0053);
+                } else {
                     approx_eq(sr, sr_ana, 0.00096);
                     approx_eq(sh, sh_ana, 0.00231);
                 }
             }
-            first_rr = false;
         }
+        first_rr = false;
+    }
+
+    // remove some stations for better visualization
+    let del = 0.033;
+    let mut indices_to_remove = Vec::new();
+    for i in 0..pp_arr.len() {
+        if i > 0 && i < pp_arr.len() - 1 {
+            if (pp_arr[i] - pp_arr[i - 1]).abs() < del && (pp_arr[i + 1] - pp_arr[i]).abs() < del {
+                indices_to_remove.push(i);
+            }
+        }
+    }
+    for i in indices_to_remove.iter().rev() {
+        pp_arr.remove(*i);
+        sh_arr.remove(*i);
+        sr_arr.remove(*i);
     }
 
     // plot
@@ -264,8 +350,8 @@ fn run_test(
                 .set_marker_style("D")
                 .set_marker_void(true);
             // numerical curve
-            let mut curve = Curve::new();
-            curve
+            let mut curve_num = Curve::new();
+            curve_num
                 .set_label("numerical")
                 .set_line_style("None")
                 .set_line_color("black")
@@ -273,61 +359,101 @@ fn run_test(
                 .set_marker_style(".");
             if index == 0 {
                 // reference data
-                if !residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-752-fig-718.tsv", &["x", "Curve1"]).unwrap();
                     curve_ref.draw(&data["x"], &data["Curve1"]);
                     plot.add(&curve_ref);
                 }
                 // load-displacement curve
-                curve.set_line_style("--").draw(&outer_ur, &inner_pp);
-                plot.add(&curve);
-                curve.set_line_style("None");
+                curve_num.set_line_style("--").draw(&outer_ur, &inner_pp);
+                plot.add(&curve_num);
+                curve_num.set_line_style("None");
             } else if index == 1 {
                 // reference data
-                if !residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-752-fig-719a.tsv", &["x", "p15", "p30"]).unwrap();
                     curve_ref.draw(&data["x"], &data["p15"]);
                     curve_ref.draw(&data["x"], &data["p30"]);
                     plot.add(&curve_ref);
-                } else {
+                } else if !options.arclength {
                     let data = read_data("data/spo/spo-752-fig-720.tsv", &["x", "hoop", "radial"]).unwrap();
                     curve_ref.draw(&data["x"], &data["hoop"]);
                     plot.add(&curve_ref);
                 }
                 // hoop stress-strain curve
                 for i in 0..sh_arr.len() {
-                    curve.draw(&rr, &sh_arr[i]);
+                    curve_num.draw(&rr, &sh_arr[i]);
                 }
-                plot.add(&curve);
+                plot.add(&curve_num);
             } else if index == 2 {
                 // reference data
-                if !residual {
+                if !options.residual && !options.arclength {
                     let data = read_data("data/spo/spo-752-fig-719b.tsv", &["x", "p15", "p30"]).unwrap();
                     curve_ref.draw(&data["x"], &data["p15"]);
                     curve_ref.draw(&data["x"], &data["p30"]);
                     plot.add(&curve_ref);
-                } else {
+                } else if !options.arclength {
                     let data = read_data("data/spo/spo-752-fig-720.tsv", &["x", "hoop", "radial"]).unwrap();
                     curve_ref.draw(&data["x"], &data["radial"]);
                     plot.add(&curve_ref);
                 }
                 // radial stress-strain curve
                 for i in 0..sr_arr.len() {
-                    curve.draw(&rr, &sr_arr[i]);
+                    curve_num.draw(&rr, &sr_arr[i]);
                 }
-                plot.add(&curve);
+                plot.add(&curve_num);
             } else if index == 3 {
                 // legend
-                curve.draw(&[0], &[0]);
-                plot.add(&curve);
-                curve_ref.set_label("SPO");
-                curve_ref.draw(&[0], &[0]);
-                plot.add(&curve_ref);
+                curve_num.draw(&[0], &[0]);
+                plot.add(&curve_num);
+                if !options.arclength {
+                    curve_ref.set_label("SPO");
+                    curve_ref.draw(&[0], &[0]);
+                    plot.add(&curve_ref);
+                }
             }
         });
-        plot.set_figure_size_points(600.0, 450.0)
+        let title = options.title();
+        let mut params = SuperTitleParams::new();
+        params.set_y(0.92);
+        plot.set_super_title(&title, Some(&params))
+            .set_figure_size_points(600.0, 450.0)
             .save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
 
+    // done
+    println!("OK: {}", name);
+    println!("{}\n", line);
     Ok(())
+}
+
+struct Options {
+    residual: bool,
+    arclength: bool,
+    lmm: bool,
+}
+
+impl Options {
+    fn key(&self) -> String {
+        let mut buf = if self.residual {
+            "residual".to_string()
+        } else {
+            "collapse".to_string()
+        };
+        if self.arclength {
+            buf += "_arc";
+        } else {
+            buf += "_nat";
+        }
+        if self.lmm {
+            buf += "_lmm";
+        } else {
+            buf += "_sps";
+        }
+        buf
+    }
+
+    fn title(&self) -> String {
+        self.key().to_uppercase().replace("_", " | ")
+    }
 }
