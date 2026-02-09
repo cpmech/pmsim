@@ -247,6 +247,8 @@ fn main() -> Result<(), StrError> {
     let mut pp_arr = Vec::new();
     let mut sh_arr = Vec::new();
     let mut sr_arr = Vec::new();
+    let mut is_unloading = false;
+    let mut pp_max = 0.0;
     for index in 1..post.nfile() {
         // load state
         let state = post.read_file(index)?;
@@ -255,10 +257,18 @@ fn main() -> Result<(), StrError> {
         let mut pp = state.lambda;
         // println!("{:>3}: pp = {}", index, pp);
         assert_eq!(pp, post.stations()[index]);
-        if f64::abs(pp) < 1e-15 {
+        if f64::abs(pp) < 1e-14 {
             pp = 0.0; // avoid numerical noise when pressure is -0.0
         }
         inner_pp[index] = pp;
+
+        // detect if we are unloading (for the residual problem)
+        if pp > pp_max {
+            pp_max = pp;
+        }
+        if !is_unloading && pp < pp_max {
+            is_unloading = true;
+        }
 
         // radial displacement
         let ub_num = state.uu[ix];
@@ -284,14 +294,17 @@ fn main() -> Result<(), StrError> {
 
             // check
             if options.residual {
+                if is_unloading && pp > 0.0 {
+                    continue; // we don't have an analytical solution for this case
+                }
                 let (sr_ana, sh_ana) = if pp == 0.0 {
                     ana.calc_sr_sh_residual(r, P_MAX_RES)?
                 } else {
                     ana.calc_sr_sh(r, pp)?
                 };
                 if options.arclength {
-                    // approx_eq(sr, sr_ana, 0.08);
-                    // approx_eq(sh, sh_ana, 0.00091);
+                    approx_eq(sr, sr_ana, 0.041);
+                    approx_eq(sh, sh_ana, 0.11);
                 } else {
                     approx_eq(sr, sr_ana, 0.00092);
                     approx_eq(sh, sh_ana, 0.00091);
