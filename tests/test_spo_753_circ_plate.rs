@@ -67,15 +67,28 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let mut nbc = BcNatural::new();
     nbc.edges(&top, Nbc::Qn, -1.0);
 
+    // set options
+    let options = Options {
+        arclength: false,
+        lmm: false,
+    };
+
+    // filename stem
+    let mut name = NAME.to_string() + "_";
+    name += &options.key();
+
     // configuration
     let mut config = Config::new(&mesh);
-    config.out_files("/tmp/pmsim", NAME).axisymmetric();
+    config.axisymmetric().out_files("/tmp/pmsim", &name);
 
     // nonlinear solver configuration
-    let mut nlc = NlConfig::new();
+    let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(true, true, true)
+        .set_log_file(&format!("/tmp/pmsim/spo_754/{}.txt", name));
 
     // simulator and data
-    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
     // run simulation
     let stop = Stop::Steps(LAMBDAS.len() - 1);
@@ -95,7 +108,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         &schema,
         &config,
         "/tmp/pmsim/",
-        NAME,
+        &name,
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
@@ -109,12 +122,9 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     //
 
     // load summary and associated files
-    let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
-    let mesh = post.mesh();
-    let schema = post.schema();
+    let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
 
     // boundaries
-    let features = Features::new(mesh, false);
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
     let iy = schema.dof_number(center, Dof::Uy)?;
@@ -240,11 +250,11 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
             .add(&curve_w_l_p100)
             .add(&curve_w_l_p200)
             .add(&curve_w_l_p250)
+            .set_title(&options.title())
             .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)")
             .set_figure_size_points(600.0, 250.0)
-            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+            .save(&format!("/tmp/pmsim/{}.svg", name))?;
     }
-
     Ok(())
 }
 
@@ -302,4 +312,29 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: Point
             }
         })
         .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
+}
+
+struct Options {
+    arclength: bool,
+    lmm: bool,
+}
+
+impl Options {
+    fn key(&self) -> String {
+        let mut buf = if self.arclength {
+            "arc".to_string()
+        } else {
+            "nat".to_string()
+        };
+        if self.lmm {
+            buf += "_lmm";
+        } else {
+            buf += "_sps";
+        }
+        buf
+    }
+
+    fn title(&self) -> String {
+        self.key().to_uppercase().replace("_", " | ")
+    }
 }
