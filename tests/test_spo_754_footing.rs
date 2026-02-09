@@ -119,14 +119,13 @@ fn run(
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
     nl_config
-        .set_verbose(true, true, true)
-        .set_log_file(&format!("{}/{}.txt", DIR, name))
-        .set_record_iterations_residuals(true);
+        .set_verbose(false, true, true)
+        .set_record_iterations_residuals(false)
+        .set_tg_control_atol_and_rtol(0.5);
     if options.arclength {
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
-            .set_tg_control_atol_and_rtol(0.5)
             .set_tg_control_pid_vcc(true);
     } else {
         nl_config.set_method(NlMethod::Natural);
