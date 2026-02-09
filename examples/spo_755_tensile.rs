@@ -5,6 +5,8 @@ use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Norm, Vector};
+use russell_sparse::Genie;
+use structopt::StructOpt;
 
 const DIR: &str = "/tmp/pmsim/spo_755";
 const MESH_NAME: &str = "spo_755_tensile";
@@ -42,8 +44,27 @@ const LAMBDAS: [f64; 17] = [
     0.17,  // 15
 ];
 
-#[test]
-fn test_spo_755_tensile() -> Result<(), StrError> {
+/// Command line options
+#[derive(StructOpt)]
+struct Options {
+    /// Whether to use the arclength method or the natural method
+    #[structopt(long)]
+    arclength: bool,
+
+    /// Whether to use Lagrange multipliers or static condensation for the multi-point constraints
+    #[structopt(long)]
+    lmm: bool,
+
+    /// Genie for solving linear systems
+    #[structopt(long, short, default_value = "mumps")]
+    genie: String,
+}
+
+/// Main function
+fn main() -> Result<(), StrError> {
+    // parse options
+    let options = Options::from_args();
+
     // mesh
     let mesh = Mesh::read(&format!("data/spo/{}.msh", MESH_NAME))?;
 
@@ -89,25 +110,10 @@ fn test_spo_755_tensile() -> Result<(), StrError> {
     // natural boundary conditions
     let nbc = BcNatural::new();
 
-    // run: natural + sps
-    let options = Options {
-        arclength: false,
-        lmm: false,
-    };
-    run(options, &mesh, &features, &bottom, &schema, &mut ebc, &nbc)?;
-    Ok(())
-}
+    //
+    // simulation ----------------------------------------------------------------
+    //
 
-// simulation ----------------------------------------------------------------
-fn run(
-    options: Options,
-    mesh: &Mesh,
-    features: &Features,
-    bottom: &Edges,
-    schema: &Schema,
-    ebc: &mut BcEssential,
-    nbc: &BcNatural,
-) -> Result<(), StrError> {
     // define filename stem
     let mut name = NAME.to_string() + "_";
     name += &options.key();
@@ -120,7 +126,8 @@ fn run(
     let mut config = Config::new(&mesh);
     config
         .out_history_uu_comp(corner_id, Dof::Uy)
-        .lagrange_mult_method(options.lmm);
+        .lagrange_mult_method(options.lmm)
+        .lin_sol_genie(Genie::from(&options.genie));
 
     // output files if natural parameter continuation (for verification)
     if !options.arclength {
@@ -144,8 +151,6 @@ fn run(
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
             .set_tg_control_atol_and_rtol(2.0);
-    } else {
-        nl_config.set_method(NlMethod::Natural);
     }
 
     // simulator and data
@@ -397,11 +402,6 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], bottom: &[PointId], top: &[PointId])
             }
         })
         .all(&mesh, &format!("{}/{}_mesh.svg", DIR, NAME))
-}
-
-struct Options {
-    arclength: bool,
-    lmm: bool,
 }
 
 impl Options {

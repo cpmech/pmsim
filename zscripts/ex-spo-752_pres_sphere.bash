@@ -17,3 +17,8 @@ cargo run --release --example spo_752_pres_sphere -- -g mumps --residual --arcle
 cargo run --release --example spo_752_pres_sphere -- -g klu --residual --arclength
 cargo run --release --example spo_752_pres_sphere -- -g umfpack --residual --arclength
 cargo run --release --example spo_752_pres_sphere -- -g umfpack --residual --arclength --lmm
+
+echo
+echo
+echo "✨✨✨✨✨ All done! ✨✨✨✨✨"
+echo

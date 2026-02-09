@@ -39,6 +39,7 @@ use structopt::StructOpt;
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
+const DIR: &str = "/tmp/pmsim/spo_752";
 const NAME_MESH: &str = "spo_751_pres_cylin"; // same as 751
 const NAME_COLLAPSE: &str = "spo_752_pres_sphere_collapse";
 const NAME_RESIDUAL: &str = "spo_752_pres_sphere_residual";
@@ -116,6 +117,10 @@ fn main() -> Result<(), StrError> {
     let mut nbc = BcNatural::new();
     nbc.edges(&inner_circle, Nbc::Qn, -1.0);
 
+    //
+    // simulation ----------------------------------------------------------------
+    //
+
     // kind of problem
     let problem = if options.residual { NAME_RESIDUAL } else { NAME_COLLAPSE };
 
@@ -127,7 +132,7 @@ fn main() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .axisymmetric()
-        .out_files("/tmp/pmsim", &name)
+        .out_files(DIR, &name)
         .enable_symmetry_check(0.0)
         .ignore_symmetry(false)
         .alt_bb_matrix_method(false)
@@ -138,16 +143,14 @@ fn main() -> Result<(), StrError> {
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
-    if options.arclength {
-        nl_config.set_method(NlMethod::Arclength);
-    } else {
-        nl_config.set_method(NlMethod::Natural);
-    }
     nl_config
         .set_verbose(true, true, true)
-        .set_log_file(&format!("/tmp/pmsim/spo_752/{}.log", name))
+        .set_log_file(&format!("{}/{}.log", DIR, name))
         .set_tg_control_atol_and_rtol(0.05)
         .set_record_iterations_residuals(true);
+    if options.arclength {
+        nl_config.set_method(NlMethod::Arclength).set_bordering(true);
+    }
 
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
@@ -204,7 +207,7 @@ fn main() -> Result<(), StrError> {
             &mesh,
             &schema,
             &config,
-            "/tmp/pmsim/",
+            DIR,
             &name,
             ReferenceDataType::SPO,
             &format!("data/spo/{}_ref.json", problem),
@@ -220,7 +223,7 @@ fn main() -> Result<(), StrError> {
     //
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
+    let (post, mut memo) = PostProc::new(DIR, &name)?;
     let mesh = post.mesh();
     let schema = post.schema();
 
@@ -418,7 +421,7 @@ fn main() -> Result<(), StrError> {
         params.set_y(0.92);
         plot.set_super_title(&title, Some(&params))
             .set_figure_size_points(600.0, 450.0)
-            .save(&format!("/tmp/pmsim/{}.svg", name))?;
+            .save(&format!("{}/{}.svg", DIR, name))?;
     }
 
     // done

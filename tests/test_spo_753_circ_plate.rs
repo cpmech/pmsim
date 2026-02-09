@@ -68,12 +68,25 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let mut nbc = BcNatural::new();
     nbc.edges(&top, Nbc::Qn, -1.0);
 
-    // set options
+    // run: natural + sps
     let options = Options {
         arclength: false,
         lmm: false,
     };
+    run(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
 
+    Ok(())
+}
+
+// simulation ----------------------------------------------------------------
+fn run(
+    options: Options,
+    mesh: &Mesh,
+    features: &Features,
+    schema: &Schema,
+    ebc: &mut BcEssential,
+    nbc: &BcNatural,
+) -> Result<(), StrError> {
     // filename stem
     let mut name = NAME.to_string() + "_";
     name += &options.key();
@@ -86,7 +99,9 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     let mut nl_config = NlConfig::new();
     nl_config
         .set_verbose(true, true, true)
-        .set_log_file(&format!("{}/{}.txt", DIR, name));
+        .set_log_file(&format!("{}/{}.txt", DIR, name))
+        .set_tg_control_atol_and_rtol(0.05)
+        .set_record_iterations_residuals(true);
 
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
@@ -102,7 +117,7 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     //
 
     // compare the results with Ref #1
-    let tol_displacement = 3.39e-7;
+    let tol_displacement = 3.34e-7;
     let tol_stress = 1.40e-3;
     let all_good = compare_results(
         &mesh,

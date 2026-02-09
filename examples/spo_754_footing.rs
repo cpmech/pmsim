@@ -8,6 +8,7 @@ use russell_lab::{approx_eq, read_data, Vector};
 use russell_sparse::Genie;
 use structopt::StructOpt;
 
+const DIR: &str = "/tmp/pmsim/spo_754";
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
@@ -72,7 +73,7 @@ fn main() -> Result<(), StrError> {
             .set_size(800.0, 800.0)
             .zoom_2d(15.0, 69.0, 448.0, 502.0, 0.5, 0.5, 0.5, 0.5)
             .set_range_2d(-10.0, 600.0, -10.0, 600.0)
-            .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME));
+            .all(&mesh, &format!("{}/{}_mesh.svg", DIR, NAME));
     }
 
     // features
@@ -108,6 +109,10 @@ fn main() -> Result<(), StrError> {
     // natural boundary conditions
     let nbc = BcNatural::new();
 
+    //
+    // simulation ----------------------------------------------------------------
+    //
+
     // filename stem
     let mut name = NAME.to_string() + "_";
     name += &options.key();
@@ -115,7 +120,7 @@ fn main() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .out_files("/tmp/pmsim", &name)
+        .out_files(DIR, &name)
         .lagrange_mult_method(options.lmm)
         .lin_sol_genie(Genie::from(&options.genie));
 
@@ -129,12 +134,13 @@ fn main() -> Result<(), StrError> {
     let mut nl_config = NlConfig::new();
     nl_config
         .set_verbose(false, true, true)
+        .set_log_file(&format!("{}/{}.txt", DIR, name))
+        .set_tg_control_atol_and_rtol(0.5)
         .set_record_iterations_residuals(true);
     if options.arclength {
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
-            .set_tg_control_atol_and_rtol(0.5)
             // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
             // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
             // .set_tg_control_soderlind(SoderlindClass::H321) // not good
@@ -142,8 +148,6 @@ fn main() -> Result<(), StrError> {
             // .set_tg_control_soderlind(SoderlindClass::Ho321) // terrible
             // .set_tg_control_soderlind(SoderlindClass::Ho211) // terrible
             .set_tg_control_pid_vcc(true);
-    } else {
-        nl_config.set_method(NlMethod::Natural);
     }
 
     // find corner node and corresponding DOF number
@@ -177,7 +181,7 @@ fn main() -> Result<(), StrError> {
     //
 
     // check the results
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", &name)?;
+    let (post, mut memo) = PostProc::new(DIR, &name)?;
     let nstate = post.nfile();
 
     // calculate the reaction using the internal forces
@@ -270,7 +274,7 @@ fn main() -> Result<(), StrError> {
             .grid_and_labels("$-u_y/B$ (normalized settlement)", "$-P/c$ (normalized pressure)")
             .set_figure_size_points(500.0, 350.0)
             .set_title(&title)
-            .save(&format!("/tmp/pmsim/{}.svg", name))
+            .save(&format!("{}/{}.svg", DIR, name))
             .unwrap();
     }
 
@@ -286,7 +290,7 @@ fn main() -> Result<(), StrError> {
             &mesh,
             &schema,
             &config,
-            "/tmp/pmsim/",
+            DIR,
             &name,
             ReferenceDataType::SPO,
             "data/spo/spo_754_footing_ref.json",

@@ -9,6 +9,7 @@ use russell_lab::{approx_eq, array_approx_eq, Vector};
 use russell_sparse::Genie;
 use structopt::StructOpt;
 
+const DIR: &str = "/tmp/pmsim/spo_753";
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
 const SAVE_FIGURE: bool = true;
@@ -88,6 +89,10 @@ fn main() -> Result<(), StrError> {
     let mut nbc = BcNatural::new();
     nbc.edges(&top, Nbc::Qn, -1.0);
 
+    //
+    // simulation ----------------------------------------------------------------
+    //
+
     // filename stem
     let mut name = NAME.to_string() + "_";
     name += &options.key();
@@ -96,11 +101,19 @@ fn main() -> Result<(), StrError> {
     let mut config = Config::new(&mesh);
     config
         .axisymmetric()
-        .out_files("/tmp/pmsim", &name)
+        .out_files(DIR, &name)
         .lin_sol_genie(Genie::from(&options.genie));
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(true, true, true)
+        .set_log_file(&format!("{}/{}.log", DIR, name))
+        .set_tg_control_atol_and_rtol(0.05)
+        .set_record_iterations_residuals(true);
+    if options.arclength {
+        nl_config.set_method(NlMethod::Arclength).set_bordering(true);
+    }
 
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
@@ -122,7 +135,7 @@ fn main() -> Result<(), StrError> {
         &mesh,
         &schema,
         &config,
-        "/tmp/pmsim/",
+        DIR,
         &name,
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
@@ -137,7 +150,7 @@ fn main() -> Result<(), StrError> {
     //
 
     // load summary and associated files
-    let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
+    let (post, _) = PostProc::new(DIR, &name)?;
 
     // boundaries
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
@@ -268,7 +281,7 @@ fn main() -> Result<(), StrError> {
             .set_title(&options.title())
             .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)")
             .set_figure_size_points(600.0, 250.0)
-            .save(&format!("/tmp/pmsim/{}.svg", name))?;
+            .save(&format!("{}/{}.svg", DIR, name))?;
     }
     Ok(())
 }
@@ -326,7 +339,7 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: Point
                 plot.add(&text1).add(&text2);
             }
         })
-        .all(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
+        .all(&mesh, &format!("{}/{}_mesh.svg", DIR, NAME))
 }
 
 impl Options {

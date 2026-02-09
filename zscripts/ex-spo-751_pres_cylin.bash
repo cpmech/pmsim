@@ -18,3 +18,7 @@ cargo run --release --example spo_751_pres_cylin -- -g klu --residual --arclengt
 cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength
 cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength --lmm
 
+echo
+echo
+echo "✨✨✨✨✨ All done! ✨✨✨✨✨"
+echo

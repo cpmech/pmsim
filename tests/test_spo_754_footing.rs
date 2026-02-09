@@ -98,6 +98,7 @@ fn test_spo_754_footing() -> Result<(), StrError> {
     Ok(())
 }
 
+// simulation ----------------------------------------------------------------
 fn run(
     options: Options,
     mesh: &Mesh,

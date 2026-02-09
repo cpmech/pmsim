@@ -110,6 +110,7 @@ fn test_spo_752_pres_sphere() -> Result<(), StrError> {
     Ok(())
 }
 
+// simulation ----------------------------------------------------------------
 fn run(
     options: Options,
     mesh: &Mesh,
