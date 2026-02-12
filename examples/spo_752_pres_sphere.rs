@@ -235,11 +235,7 @@ fn main() -> Result<(), StrError> {
 
     // check deterministic behavior
     if options.residual && options.arclength {
-        if options.bordering {
-            assert_eq!(post.nfile(), 19);
-        } else {
-            assert_eq!(post.nfile(), 18);
-        }
+        assert_eq!(post.nfile(), 19);
     }
 
     // boundaries
