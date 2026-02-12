@@ -8,15 +8,21 @@ cargo run --release --example spo_751_pres_cylin -- -g mumps
 cargo run --release --example spo_751_pres_cylin -- -g mumps --lmm
 cargo run --release --example spo_751_pres_cylin -- -g mumps --arclength
 cargo run --release --example spo_751_pres_cylin -- -g mumps --arclength --lmm
+cargo run --release --example spo_751_pres_cylin -- -g mumps --arclength --bordering
+cargo run --release --example spo_751_pres_cylin -- -g mumps --arclength --lmm --bordering
 
 cargo run --release --example spo_751_pres_cylin -- -g mumps --residual  
 cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --lmm
 cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --arclength
 cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --arclength --lmm
+cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --arclength --bordering
+cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --arclength --lmm --bordering
 
 cargo run --release --example spo_751_pres_cylin -- -g klu --residual --arclength
 cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength
 cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength --lmm
+cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength --bordering
+cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength --lmm --bordering
 
 echo
 echo

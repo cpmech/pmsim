@@ -40,6 +40,10 @@ struct Options {
     /// Genie for solving linear systems
     #[structopt(long, short, default_value = "mumps")]
     genie: String,
+
+    /// Use bordering for the arclength method (only relevant if --arclength is set)
+    #[structopt(long)]
+    bordering: bool,
 }
 
 /// Main function
@@ -102,7 +106,9 @@ fn main() -> Result<(), StrError> {
     config
         .axisymmetric()
         .out_files(DIR, &name)
-        .lin_sol_genie(Genie::from(&options.genie));
+        .lagrange_mult_method(options.lmm)
+        .lin_sol_genie(Genie::from(&options.genie))
+        .ignore_symmetry(!options.bordering);
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
@@ -112,7 +118,9 @@ fn main() -> Result<(), StrError> {
         .set_tg_control_atol_and_rtol(0.05)
         .set_record_iterations_residuals(true);
     if options.arclength {
-        nl_config.set_method(NlMethod::Arclength).set_bordering(true);
+        nl_config
+            .set_method(NlMethod::Arclength)
+            .set_bordering(options.bordering);
     }
 
     // simulator and data
@@ -353,6 +361,11 @@ impl Options {
             buf += "_lmm";
         } else {
             buf += "_sps";
+        }
+        if self.bordering {
+            buf += "_bord";
+        } else {
+            buf += "_full";
         }
         buf += &format!("_{}", self.genie.to_string());
         buf

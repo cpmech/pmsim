@@ -58,6 +58,10 @@ struct Options {
     /// Genie for solving linear systems
     #[structopt(long, short, default_value = "mumps")]
     genie: String,
+
+    /// Use bordering for the arclength method (only relevant if --arclength is set)
+    #[structopt(long)]
+    bordering: bool,
 }
 
 /// Main function
@@ -127,7 +131,8 @@ fn main() -> Result<(), StrError> {
     config
         .out_history_uu_comp(corner_id, Dof::Uy)
         .lagrange_mult_method(options.lmm)
-        .lin_sol_genie(Genie::from(&options.genie));
+        .lin_sol_genie(Genie::from(&options.genie))
+        .ignore_symmetry(!options.bordering);
 
     // output files if natural parameter continuation (for verification)
     if !options.arclength {
@@ -149,7 +154,7 @@ fn main() -> Result<(), StrError> {
     if options.arclength {
         nl_config
             .set_method(NlMethod::Arclength)
-            .set_bordering(true)
+            .set_bordering(options.bordering)
             .set_tg_control_atol_and_rtol(2.0);
     }
 
@@ -415,6 +420,11 @@ impl Options {
             buf += "_lmm";
         } else {
             buf += "_sps";
+        }
+        if self.bordering {
+            buf += "_bord";
+        } else {
+            buf += "_full";
         }
         buf
     }

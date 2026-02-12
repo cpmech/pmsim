@@ -307,13 +307,14 @@ impl<'a> FemData<'a> {
         if self.config.verbose {
             let mut b = vec![vec![String::new(); 3]; 3];
             let handler = if self.config.lagrange_mult_method { "LMM" } else { "SPS" };
-            write!(&mut b[0][0], "neq  = {:?}", self.ndof).unwrap();
+            let genie = format!("{:?}", self.config.lin_sol_genie).to_ascii_uppercase();
+            write!(&mut b[0][0], "ndof = {:?}", self.ndof).unwrap();
             write!(&mut b[1][0], "np   = {:?}", self.np).unwrap();
-            write!(&mut b[2][0], "ndim = {:?}", self.nsys).unwrap();
-            write!(&mut b[0][1], "nnz(K)     = {:?}", self.nnz_mm).unwrap();
+            write!(&mut b[2][0], "nsys = {:?}", self.nsys).unwrap();
+            write!(&mut b[0][1], "nnz(M)     = {:?}", self.nnz_mm).unwrap();
             write!(&mut b[1][1], "nnz(K-bar) = {:?}", self.nnz_kk_bar).unwrap();
-            write!(&mut b[2][1], "sym(K)     = {:?}", self.sym).unwrap();
-            write!(&mut b[0][2], "genie        = {:?}", self.config.lin_sol_genie).unwrap();
+            write!(&mut b[2][1], "symmetry   = {:?}", self.sym).unwrap();
+            write!(&mut b[0][2], "genie        = {}", genie).unwrap();
             write!(&mut b[1][2], "continuation = {}", continuation).unwrap();
             write!(&mut b[2][2], "EBC handler  = {}", handler).unwrap();
             let mut w = vec![0; 3];

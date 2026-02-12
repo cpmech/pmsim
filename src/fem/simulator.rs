@@ -9,13 +9,13 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::Vector;
 use russell_nonlin::{Config as NlConfig, DeltaLambda, Solver as NlSolver, System as NlSystem};
-use russell_nonlin::{IniDir, Method as NlMethod, Output as NlOutput, Stop};
+use russell_nonlin::{IniDir, Output as NlOutput, Stop};
 use uuid::Uuid;
 
 /// Performs general (linear or nonlinear) finite element simulations
 pub struct Simulator<'a> {
     data_uuid: Uuid,
-    nl_method: NlMethod,
+    nl_config: &'a NlConfig,
     nl_solver: NlSolver<'a, FemData<'a>>,
     nl_output: NlOutput<'a, FemData<'a>>,
 }
@@ -61,7 +61,6 @@ impl<'a> Simulator<'a> {
         nl_config.set_show_header_footer(false).set_genie(config.lin_sol_genie);
 
         // Allocate the nonlinear solver
-        let nl_method = nl_config.get_method();
         let nl_solver = NlSolver::new(nl_config, nl_system)?;
 
         // Define a function to perform output at each successful step
@@ -71,7 +70,7 @@ impl<'a> Simulator<'a> {
         // Allocate the simulator
         let solver = Simulator {
             data_uuid: data.uuid,
-            nl_method,
+            nl_config,
             nl_solver,
             nl_output,
         };
@@ -107,7 +106,7 @@ impl<'a> Simulator<'a> {
 
         // Print information about the system and the header
         if data.config.verbose {
-            data.print_system_info(self.nl_method.name());
+            data.print_system_info(&self.nl_config.get_continuation());
             self.nl_solver.log_header();
         }
 

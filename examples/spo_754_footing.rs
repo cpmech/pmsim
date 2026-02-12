@@ -57,6 +57,10 @@ struct Options {
     /// Genie for solving linear systems
     #[structopt(long, short, default_value = "mumps")]
     genie: String,
+
+    /// Use bordering for the arclength method (only relevant if --arclength is set)
+    #[structopt(long)]
+    bordering: bool,
 }
 
 /// Main function
@@ -122,7 +126,8 @@ fn main() -> Result<(), StrError> {
     config
         .out_files(DIR, &name)
         .lagrange_mult_method(options.lmm)
-        .lin_sol_genie(Genie::from(&options.genie));
+        .lin_sol_genie(Genie::from(&options.genie))
+        .ignore_symmetry(!options.bordering);
 
     // output the vertical component of Y at the footing
     let ids_footing = features.get_points_via_2d_edges(&footing);
@@ -140,7 +145,7 @@ fn main() -> Result<(), StrError> {
     if options.arclength {
         nl_config
             .set_method(NlMethod::Arclength)
-            .set_bordering(true)
+            .set_bordering(options.bordering)
             // .set_tg_control_soderlind(SoderlindClass::H211PI) // bad
             // .set_tg_control_soderlind(SoderlindClass::H312PID) // reasonable
             // .set_tg_control_soderlind(SoderlindClass::H321) // not good
@@ -314,6 +319,11 @@ impl Options {
             buf += "_lmm";
         } else {
             buf += "_sps";
+        }
+        if self.bordering {
+            buf += "_bord";
+        } else {
+            buf += "_full";
         }
         buf += &format!("_{}", self.genie.to_string());
         buf
