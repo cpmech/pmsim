@@ -7,11 +7,11 @@ use pmsim::StrError;
 use russell_lab::math::SQRT_3;
 use russell_lab::read_data;
 
-const NAME: &str = "spo_754_footing";
+const NAME: &str = "spo_754_footing_nat_sps_bord_mumps";
 
 pub fn main() -> Result<(), StrError> {
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", NAME)?;
-    post.write_paraview(&mut memo, "/tmp/pmsim", NAME)?;
+    let (post, mut memo) = PostProc::new("/tmp/pmsim/spo_754", NAME)?;
+    post.write_paraview(&mut memo, "/tmp/pmsim/spo_754", NAME)?;
 
     let (min, max) = post.mesh().get_limits();
     let features = Features::new(post.mesh(), false);
