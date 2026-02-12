@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use plotpy::{Curve, Plot, Text};
+use plotpy::{Curve, Plot, SuperTitleParams, Text};
 use pmsim::analytical::PlastCircularPlateAxisym;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
@@ -59,6 +59,8 @@ fn main() -> Result<(), StrError> {
     let left = features.search_edges(At::X(0.0), any_x)?;
     let top = features.search_edges(At::Y(1.0), any_x)?;
     let right_corner = features.search_point_ids(At::XY(10.0, 0.0), any_x)?[0];
+    let bottom = features.search_edges(At::Y(0.0), any_x)?;
+    let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
 
     // draw mesh
     if DRAW_MESH_AND_EXIT {
@@ -115,7 +117,7 @@ fn main() -> Result<(), StrError> {
     nl_config
         .set_verbose(true, true, true)
         .set_log_file(&format!("{}/{}.log", DIR, name))
-        .set_tg_control_atol_and_rtol(0.05)
+        .set_tg_control_atol_and_rtol(0.01)
         .set_record_iterations_residuals(true);
     if options.arclength {
         nl_config
@@ -127,9 +129,18 @@ fn main() -> Result<(), StrError> {
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
     // run simulation
-    let stop = Stop::Steps(LAMBDAS.len() - 1);
-    let list = Vector::from(&LAMBDAS).get_differences();
-    let dll = DeltaLambda::list(list.as_data());
+    let stop = if options.arclength {
+        let idx = data.sys_index(center, Dof::Uy)?;
+        Stop::MinCompU(idx, -1.35)
+    } else {
+        Stop::Steps(LAMBDAS.len() - 1)
+    };
+    let dll = if options.arclength {
+        DeltaLambda::auto(0.01)
+    } else {
+        let list = Vector::from(&LAMBDAS).get_differences();
+        DeltaLambda::list(list.as_data())
+    };
     sim.steady(&mut data, IniDir::Pos, stop, dll)?;
 
     //
@@ -137,21 +148,23 @@ fn main() -> Result<(), StrError> {
     //
 
     // compare the results with Ref #1
-    let tol_displacement = 3.39e-7;
-    let tol_stress = 1.40e-3;
-    let all_good = compare_results(
-        &mesh,
-        &schema,
-        &config,
-        DIR,
-        &name,
-        ReferenceDataType::SPO,
-        &format!("data/spo/{}_ref.json", NAME),
-        tol_displacement,
-        tol_stress,
-        VERBOSE_LEVEL,
-    )?;
-    assert!(all_good);
+    if !options.arclength {
+        let tol_displacement = 3.39e-7;
+        let tol_stress = 1.40e-3;
+        let all_good = compare_results(
+            &mesh,
+            &schema,
+            &config,
+            DIR,
+            &name,
+            ReferenceDataType::SPO,
+            &format!("data/spo/{}_ref.json", NAME),
+            tol_displacement,
+            tol_stress,
+            VERBOSE_LEVEL,
+        )?;
+        assert!(all_good);
+    }
 
     //
     // data analysis -------------------------------------------------------------
@@ -161,27 +174,29 @@ fn main() -> Result<(), StrError> {
     let (post, _) = PostProc::new(DIR, &name)?;
 
     // boundaries
-    let bottom = features.search_edges(At::Y(0.0), any_x)?;
-    let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
     let iy = schema.dof_number(center, Dof::Uy)?;
 
     // analytical solution
     let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);
 
     // load results
-    let nlambda_max = 11; // 11 instead of 13 because SPO skips the results for the last two load steps
-    let mut load = vec![0.0; nlambda_max];
-    let mut deflection = vec![0.0; nlambda_max];
+    let nstation = if options.arclength {
+        post.nfile()
+    } else {
+        11 // SPO only provides 11 values for deflection in the figure
+    };
+    let mut load = vec![0.0; nstation];
+    let mut deflection = vec![0.0; nstation];
     let mut ll = Vec::new(); // normalized coordinate x/R
     let mut yy_p100 = Vec::new(); // normalized deflection w/h @ P = 100
     let mut yy_p200 = Vec::new(); // normalized deflection w/h @ P = 200
     let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
-    for index in 0..nlambda_max {
+    for index in 0..nstation {
         // load state
         let state = post.read_file(index)?;
 
         // load
-        let pp = LAMBDAS[index];
+        let pp = state.lambda;
         load[index] = pp;
 
         // deflection
@@ -207,12 +222,20 @@ fn main() -> Result<(), StrError> {
     let ref1 = read_data("data/spo/spo_753_plate_deflection_load.tsv", &["deflection", "load"])?;
     let ref2 = read_data("data/spo/spo_753_profiles.tsv", &["x", "p100", "p200", "p250"])?;
 
-    // compare the results with Ref #1
-    // (imprecision is due to the data bing scanned and digitized)
-    array_approx_eq(&deflection, &ref1["deflection"], 0.0045);
-    approx_eq(yy_p100[0], ref2["p100"][0], 0.0006);
-    approx_eq(yy_p200[0], ref2["p200"][0], 0.0009);
-    approx_eq(yy_p250[0], ref2["p250"][0], 0.006);
+    // validation
+    if options.arclength {
+        // compare ultimate load with analytical value
+        let pp_max = load.last().unwrap();
+        let pp_max_ref = ana.get_pp_lim();
+        approx_eq(*pp_max, pp_max_ref, 1.292);
+    } else {
+        // compare the results with Ref #1
+        // (imprecision is due to the data bing scanned and digitized)
+        array_approx_eq(&deflection, &ref1["deflection"], 0.0045);
+        approx_eq(yy_p100[0], ref2["p100"][0], 0.0006);
+        approx_eq(yy_p200[0], ref2["p200"][0], 0.0009);
+        approx_eq(yy_p250[0], ref2["p250"][0], 0.006);
+    }
 
     // plot
     if SAVE_FIGURE {
@@ -286,8 +309,11 @@ fn main() -> Result<(), StrError> {
             .add(&curve_w_l_p100)
             .add(&curve_w_l_p200)
             .add(&curve_w_l_p250)
-            .set_title(&options.title())
-            .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)")
+            .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)");
+        let title = options.title();
+        let mut params = SuperTitleParams::new();
+        params.set_y(0.95);
+        plot.set_super_title(&title, Some(&params))
             .set_figure_size_points(600.0, 250.0)
             .save(&format!("{}/{}.svg", DIR, name))?;
     }
