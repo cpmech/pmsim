@@ -1,5 +1,5 @@
 use gemlab::prelude::*;
-use plotpy::{Curve, DarkMode, Legend, Plot, Text};
+use plotpy::{Curve, Legend, Plot, Text};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
@@ -13,7 +13,7 @@ const MESH_NAME: &str = "spo_755_tensile";
 const NAME: &str = "spo_755_tensile_perf_plast";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
-const SAVE_FIGURE: bool = false;
+const SAVE_FIGURE: bool = true;
 
 const YOUNG: f64 = 206.9; // Young's modulus
 const POISSON: f64 = 0.29; // Poisson's coefficient
@@ -259,22 +259,18 @@ fn main() -> Result<(), StrError> {
             analytical_limit,
             "$(2 + \\pi)/\\sqrt{3}$",
         );
-        let mut dm = DarkMode::new();
         let mut leg = Legend::new();
-        dm.set_mocha();
         leg.set_location("lower right").draw();
-        plot.add(&dm)
-            .set_horiz_line(analytical_limit, "#51b4df", "--", 1.0)
+        plot.set_horiz_line(analytical_limit, "#51b4df", "--", 1.0)
             .add(&curve_ref)
             .add(&curve_num)
             .add(&leg)
             .add(&txt)
-            .set_rotation_ticks_x(90.0)
             .grid_and_labels(
                 "$2 u_y E / (\\sigma_y w)$ (normalized deflection)",
                 "$\\bar{\\sigma}/\\sigma_y$ (normalized stress)",
             )
-            .set_figure_size_points(600.0, 600.0)
+            // .set_figure_size_points(500.0, 350.0)
             .set_title(&title)
             .save(&format!("{}/{}.svg", DIR, &name))
             .unwrap();
