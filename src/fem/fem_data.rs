@@ -340,6 +340,11 @@ impl<'a> FemData<'a> {
         }
     }
 
+    /// Returns the number of Gauss points at elastoplastic state
+    pub fn count_elastoplastic_gauss_points(&self) -> usize {
+        self.elements.count_elastoplastic_gauss_points(&self.state)
+    }
+
     /// Initializes the nonlinear solver unknowns vector `u` from the state's `U`
     pub(crate) fn initialize_sys_u(&self, u: &mut Vector) -> Result<(), StrError> {
         if self.config.lagrange_mult_method {

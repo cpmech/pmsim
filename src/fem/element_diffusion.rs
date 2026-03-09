@@ -294,6 +294,11 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
+
+    /// Returns the number of Gauss points at elastoplastic state
+    fn count_elastoplastic_gauss_points(&self, _state: &FemState) -> usize {
+        0
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -222,6 +222,33 @@ impl SecondaryValues {
                 .ok_or("the recording of strains must be enabled first")?)
         }
     }
+
+    /// Returns the elastic flag at an integration point
+    ///
+    /// # Input
+    ///
+    /// * `p` -- index of the integration point
+    pub fn elastic_flag(&self, p: usize) -> Result<bool, StrError> {
+        if self.ngauss == 0 {
+            return Err("secondary values have not been allocated yet");
+        }
+        if p >= self.ngauss {
+            return Err("index of integration point is out of bounds");
+        }
+        if self.diffusion.len() == self.ngauss {
+            Err("elastic flag is not available for Diffusion")
+        } else if self.solid.len() == self.ngauss {
+            Ok(self.solid[p].elastic)
+        } else if self.porous_liq.len() == self.ngauss {
+            Err("elastic flag is not available for PorousLiq")
+        } else if self.porous_liq_gas.len() == self.ngauss {
+            Err("elastic flag is not available for PorousLiqGas")
+        } else if self.porous_sld_liq.len() == self.ngauss {
+            Ok(self.porous_sld_liq[p].elastic)
+        } else {
+            Ok(self.porous_sld_liq_gas[p].elastic)
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

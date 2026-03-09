@@ -253,6 +253,15 @@ impl<'a> ElementsInterior<'a> {
             .map(|e| e.actual.reset_algorithmic_variables(state))
             .collect()
     }
+
+    /// Returns the number of Gauss points at elastoplastic state
+    pub fn count_elastoplastic_gauss_points(&self, state: &FemState) -> usize {
+        let mut n_elastoplastic = 0;
+        self.elements.iter().for_each(|e| {
+            n_elastoplastic += e.actual.count_elastoplastic_gauss_points(state);
+        });
+        n_elastoplastic
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

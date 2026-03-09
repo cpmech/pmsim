@@ -2,7 +2,7 @@ use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
 use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_lab::Vector;
+use russell_lab::{vec_norm, Norm, Vector};
 use russell_tensor::deriv1_invariant_q;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
@@ -18,6 +18,9 @@ const I: &[f64; 9] = &IDENTITY2;
 
 /// Defines an alias to P_SYMDEV
 const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
+
+/// Tolerance to skip stress update when the strain increment is too small
+const DELTA_STRAIN_TOL: f64 = 1e-9;
 
 /// Tolerance to detect elastic regime
 const F_TOL: f64 = 1e-6;
@@ -177,6 +180,12 @@ impl StressStrainTrait for VonMises {
         cell_id: CellId,
         gauss_id: usize,
     ) -> Result<(), StrError> {
+        // skip case with very small strain increment
+        let nrm = vec_norm(&delta_strain.vector(), Norm::Euc);
+        if nrm < DELTA_STRAIN_TOL {
+            return Ok(());
+        }
+
         // reset flags
         state.elastic = true; // aka, unloading
         state.int_vars[I_LAMBDA] = 0.0; // algorithmic Lagrange multiplier
@@ -185,9 +194,9 @@ impl StressStrainTrait for VonMises {
         let dd = self.lin_elasticity.get_modulus();
         t4_ddot_t2_update(&mut state.stress, 1.0, dd, delta_strain, 1.0); // σ += D : Δε
 
-        // elastic update
+        // handle elastic update
         let f_trial = self.yield_function(state)?;
-        if f_trial / self.z_ini <= F_TOL {
+        if f_trial < F_TOL * self.z_ini {
             return Ok(());
         }
 

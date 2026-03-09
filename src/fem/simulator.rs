@@ -8,7 +8,7 @@ use crate::fem::callbacks::{calc_jac_lmm, calc_jac_sps};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::Vector;
-use russell_nonlin::{Config as NlConfig, DeltaLambda, Solver as NlSolver, System as NlSystem};
+use russell_nonlin::{Config as NlConfig, DeltaLambda, Solver as NlSolver, Stats, System as NlSystem};
 use russell_nonlin::{IniDir, Output as NlOutput, Stop};
 use uuid::Uuid;
 
@@ -142,5 +142,10 @@ impl<'a> Simulator<'a> {
             println!("\nelapsed computer time = {}\n", data.stopwatch);
         }
         Ok(())
+    }
+
+    /// Returns the Stats about the last nonlinear solution
+    pub fn get_stats(&self) -> &Stats {
+        self.nl_solver.get_stats()
     }
 }

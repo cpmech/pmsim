@@ -3,7 +3,7 @@ use pmsim::StrError;
 use structopt::StructOpt;
 
 /// Command line options
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt)]
 #[structopt(
     name = "pmsim_to_paraview",
     about = "Generates VTU and PVD files for visualization with Paraview"
@@ -12,6 +12,9 @@ struct Options {
     out_dir: String,
 
     fn_stem: String,
+
+    #[structopt(long)]
+    with_elastic_flags: bool,
 }
 
 fn main() -> Result<(), StrError> {
@@ -24,7 +27,14 @@ fn main() -> Result<(), StrError> {
     // write VTU files
     for index in 0..post.nfile() {
         let state = post.read_file(index)?;
-        post.write_vtu(&mut memo, &options.out_dir, &options.fn_stem, &state, index)?;
+        post.write_vtu(
+            &mut memo,
+            &options.out_dir,
+            &options.fn_stem,
+            &state,
+            index,
+            options.with_elastic_flags,
+        )?;
     }
 
     // write PVD file

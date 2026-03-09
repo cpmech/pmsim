@@ -1,7 +1,7 @@
-use super::{write_pvd, write_vtu, FemState, OutputFiles};
+use super::{FemState, OutputFiles};
 use crate::base::{Dof, Schema};
 use crate::material::LocalState;
-use crate::util::{SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
+use crate::util::{SpatialScalar, SpatialTensor, SpatialVector, TensorComponentsMap, VectorComponentsMap};
 use crate::StrError;
 use gemlab::integ::Gauss;
 use gemlab::mesh::{At, CellId, Edges, Features, Mesh, PointId};
@@ -21,13 +21,13 @@ pub struct PostProc {
     fn_stem: String,
 
     /// Holds the output files handler
-    files: OutputFiles,
+    pub(crate) files: OutputFiles,
 
     /// Holds the Mesh
-    mesh: Mesh,
+    pub(crate) mesh: Mesh,
 
     /// Holds the Schema
-    schema: Schema,
+    pub(crate) schema: Schema,
 }
 
 /// Holds the memoization data for post-processing
@@ -432,6 +432,26 @@ impl PostProc {
         Ok(res)
     }
 
+    /// Returns the elastic flag at all Gauss points of a cell
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The FEM state holding all results.
+    /// * `cell_id` - The ID of the cell.
+    ///
+    /// # Returns
+    ///
+    /// A vector `(ngauss)` containing the elastic flags components at each Gauss point.
+    pub fn gauss_elastic_flags(&self, state: &FemState, cell_id: CellId) -> Result<Vector, StrError> {
+        let second = &state.gauss[cell_id];
+        let mut res = Vector::new(second.ngauss);
+        for p in 0..second.ngauss {
+            let elastic = state.gauss[cell_id].elastic_flag(p)?;
+            res[p] = if elastic { 1.0 } else { 0.0 };
+        }
+        Ok(res)
+    }
+
     /// Returns all flux vector components at the Gauss points of a patch of cells
     ///
     /// Note: The recording of flux vectors must be enabled in [crate::base::Config] first.
@@ -630,6 +650,52 @@ impl PostProc {
                 res.zz.push(zz[*index]);
                 res.tyz.push(tt.get(p, 4));
                 res.tzx.push(tt.get(p, 5));
+            }
+        }
+        Ok(res)
+    }
+
+    /// Returns all elastic flags at the Gauss points of a patch of cells
+    ///
+    /// # Arguments
+    ///
+    /// * `cell_ids` - A slice of cell IDs representing the patch of cells.
+    /// * `state` - A reference to the `FemState` instance holding all results.
+    ///
+    /// # Returns
+    ///
+    /// A `SpatialScalar` instance containing the coordinates of Gauss points and flags at each point.
+    ///
+    /// **Note:** The arrays in `SpatialScalar` are listed such that the coordinates are sorted by `x → y → z`.
+    pub fn gauss_elastic_flags_patch<F>(
+        &self,
+        memo: &mut PostProcMemo,
+        state: &FemState,
+        cell_ids: &[CellId],
+        filter: F,
+    ) -> Result<SpatialScalar, StrError>
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
+        // collect the coordinates and sort Gauss points
+        let (xx, yy, zz, indices, accepted) = self.gauss_coords_patch(memo, cell_ids, filter)?;
+
+        // retrieve the vector components at Gauss points
+        let ndim = self.mesh.ndim;
+        let capacity = indices.len();
+        let mut res = SpatialScalar::new("elastic_flag", ndim, capacity);
+        for index in &indices {
+            let (cell_id, p) = accepted[*index];
+            let flags = self.gauss_elastic_flags(state, cell_id)?;
+            let id = res.id_to_k.len();
+            let k = res.k_to_id.len();
+            res.id_to_k.insert(id, k);
+            res.k_to_id.push(id);
+            res.values.push(flags.get(p));
+            res.xx.push(xx[*index]);
+            res.yy.push(yy[*index]);
+            if ndim == 3 {
+                res.zz.push(zz[*index]);
             }
         }
         Ok(res)
@@ -1194,60 +1260,6 @@ impl PostProc {
 
         // results
         Ok((point_ids, coords, vv))
-    }
-
-    /// Writes Paraview's VTK file
-    ///
-    /// Returns the path to the VTK file
-    pub fn write_vtu(
-        &self,
-        memo: &mut PostProcMemo,
-        dir: &str,
-        fn_stem: &str,
-        state: &FemState,
-        index: usize,
-    ) -> Result<String, StrError> {
-        // has phi flux vector?
-        let mut has_phi_flux = false;
-        for g in &state.gauss {
-            if g.diffusion.len() > 0 {
-                has_phi_flux = true;
-                break;
-            }
-        }
-
-        // extrapolate flux from Gauss points to points
-        let ww = if has_phi_flux {
-            let all_cell_ids = (0..self.mesh.cells.len()).collect::<Vec<usize>>();
-            Some(self.nodal_fluxes_patch(memo, state, &all_cell_ids, Dof::Phi, |_, _, _| true)?)
-        } else {
-            None
-        };
-
-        // write VTU file
-        write_vtu(&self.mesh, &self.schema, dir, fn_stem, state, index, ww)
-    }
-
-    /// Writes Paraview's PVD file
-    ///
-    /// Returns the path to the PVD file
-    pub fn write_pvd(&self, dir: &str, fn_stem: &str) -> Result<String, StrError> {
-        let indices: Vec<_> = (0..self.files.nfile()).into_iter().collect();
-        write_pvd(dir, fn_stem, &indices, &self.files.stations())
-    }
-
-    /// Loads all states and writes Paraview's VTU and PVD files
-    ///
-    /// Returns the path to the PVD file
-    pub fn write_paraview(&self, memo: &mut PostProcMemo, dir: &str, fn_stem: &str) -> Result<String, StrError> {
-        // write VTU files
-        for index in 0..self.nfile() {
-            let state = self.read_file(index)?;
-            self.write_vtu(memo, dir, fn_stem, &state, index)?;
-        }
-
-        // write PVD file
-        self.write_pvd(dir, fn_stem)
     }
 }
 
@@ -2986,20 +2998,12 @@ mod tests {
     }
 
     #[test]
-    fn post_proc_write_vtu_works_1() {
+    fn write_vtu_and_pvd_work_1() {
         generate_data_files();
 
         // load results
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let state = post.read_file(0).unwrap();
-
-        // let vv = post
-        //     .nodal_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |_, _, _| true)
-        //     .unwrap();
-        // for p in 0..post.mesh.points.len() {
-        //     let k = vv.id2k.get(&p).unwrap();
-        //     println!("point {:>2}: vx = {}, vy = {}", p, vv.vvx[*k], vv.vvy[*k]);
-        // }
 
         // create directory
         fs::create_dir_all("/tmp/pmsim")
@@ -3008,8 +3012,11 @@ mod tests {
 
         // write VTU file
         let index = 0;
-        let name = "post_proc_write_vtu_works_1";
-        let path = post.write_vtu(&mut memo, "/tmp/pmsim", name, &state, index).unwrap();
+        let name = "write_vtu_and_pvd_work_1";
+        let with_elastic_flags = true;
+        let path = post
+            .write_vtu(&mut memo, "/tmp/pmsim", name, &state, index, with_elastic_flags)
+            .unwrap();
 
         // check contents
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
@@ -3045,6 +3052,23 @@ mod tests {
 </PointData>
 </Piece>
 </UnstructuredGrid>
+</VTKFile>
+"#
+        );
+
+        // write PVD file
+        let name = "write_vtu_and_pvd_work_1";
+        let path = post.write_pvd("/tmp/pmsim", name).unwrap();
+
+        // check PVD
+        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
+        assert_eq!(
+            contents,
+            r#"<?xml version="1.0"?>
+<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
+<Collection>
+<DataSet timestep="0.0" file="/tmp/pmsim/write_vtu_and_pvd_work_1-0.vtu" />
+</Collection>
 </VTKFile>
 "#
         );

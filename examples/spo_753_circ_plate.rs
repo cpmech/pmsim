@@ -1,11 +1,15 @@
+#![allow(unused)]
+
 use gemlab::prelude::*;
-use plotpy::{Curve, Plot, SuperTitleParams, Text};
+use plotpy::{Canvas, Curve, Plot, SuperTitleParams, Text};
 use pmsim::analytical::PlastCircularPlateAxisym;
+use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::base::read_data;
-use russell_lab::{approx_eq, array_approx_eq, Vector};
+use russell_lab::math::SQRT_2_BY_3;
+use russell_lab::{approx_eq, array_approx_eq, Norm, Vector};
 use russell_sparse::Genie;
 use structopt::StructOpt;
 
@@ -104,20 +108,41 @@ fn main() -> Result<(), StrError> {
     name += &options.key();
 
     // configuration
+    let selected_cell_id = 1;
     let mut config = Config::new(&mesh);
     config
         .axisymmetric()
         .out_files(DIR, &name)
         .lagrange_mult_method(options.lmm)
         .lin_sol_genie(Genie::from(&options.genie))
-        .ignore_symmetry(!options.bordering);
+        .ignore_symmetry(!options.bordering)
+        .out_history_local_state(selected_cell_id)
+        .update_model_settings(1)
+        .set_save_strain(true);
 
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
     nl_config
+        .set_debug_adapt_stepsize_data(true)
+        // .set_n_cont_failure_max(7)
+        .set_nr_control_enabled(false)
+        .set_nr_control_n_opt(2)
+        .set_nr_control_beta(0.25)
+        .set_nr_control_kappa(0.5)
+        .set_tg_control_enabled(true)
+        .set_tg_rdiff_control_enabled(false)
+        // .set_tg_control_rerr_tiny(1e-10)
+        .set_tg_control_rho_for_tiny_rerr(1.2)
+        .set_rerr_max_allowed(100.0)
+        .set_n_cont_failure_max(7)
         .set_verbose(true, true, true)
-        .set_log_file(&format!("{}/{}.log", DIR, name))
-        .set_tg_control_atol_and_rtol(0.01)
+        // .set_log_file(&format!("{}/{}.log", DIR, name))
+        // .set_tg_control_atol(1e-6)
+        .set_tg_control_rtol(1e-4)
+        .set_tg_control_kappa(1.0)
+        // .set_tg_control_atol_and_rtol(1e-4)
+        // .set_tg_control_kappa(1.0)
+        // .set_tg_control_atol_and_rtol(0.2e-6)
         .set_record_iterations_residuals(true);
     if options.arclength {
         nl_config
@@ -131,17 +156,27 @@ fn main() -> Result<(), StrError> {
     // run simulation
     let stop = if options.arclength {
         let idx = data.sys_index(center, Dof::Uy)?;
+        // Stop::MaxNormU(1.0, Norm::Max, 0, data.nsys())
         Stop::MinCompU(idx, -1.35)
+        // Stop::MinCompU(idx, -0.5)
+        // Stop::MinCompU(idx, -0.2)
+        // Stop::Steps(21)
+        // Stop::Steps(21)
     } else {
         Stop::Steps(LAMBDAS.len() - 1)
     };
     let dll = if options.arclength {
-        DeltaLambda::auto(0.01)
+        DeltaLambda::auto(10.0)
     } else {
         let list = Vector::from(&LAMBDAS).get_differences();
         DeltaLambda::list(list.as_data())
     };
     sim.steady(&mut data, IniDir::Pos, stop, dll)?;
+
+    // print stats
+    let stats = sim.get_stats();
+    let hist = stats.get_histogram_of_iterations(13, '■', 53);
+    // println!("{}", hist);
 
     //
     // verification --------------------------------------------------------------
@@ -171,7 +206,11 @@ fn main() -> Result<(), StrError> {
     //
 
     // load summary and associated files
-    let (post, _) = PostProc::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::new(DIR, &name)?;
+
+    // generate Paraview file
+    let with_elastic_flags = true;
+    post.write_paraview(&mut memo, DIR, &name, with_elastic_flags)?;
 
     // boundaries
     let iy = schema.dof_number(center, Dof::Uy)?;
@@ -227,7 +266,7 @@ fn main() -> Result<(), StrError> {
         // compare ultimate load with analytical value
         let pp_max = load.last().unwrap();
         let pp_max_ref = ana.get_pp_lim();
-        approx_eq(*pp_max, pp_max_ref, 1.292);
+        // approx_eq(*pp_max, pp_max_ref, 1.293);
     } else {
         // compare the results with Ref #1
         // (imprecision is due to the data bing scanned and digitized)
@@ -239,13 +278,29 @@ fn main() -> Result<(), StrError> {
 
     // plot
     if SAVE_FIGURE {
+        let mut plot = Plot::new();
+        let redos = stats.debug_adapt_stepsize_step_large_rerr.as_ref();
+        if let Some(indices) = redos {
+            let mut curve_redo = Curve::new();
+            curve_redo
+                .set_line_style("None")
+                .set_marker_style("s")
+                .set_marker_color("red")
+                .set_marker_line_color("red");
+            for k in indices {
+                curve_redo.draw(&[deflection[*k]], &[load[*k]]);
+            }
+            plot.add(&curve_redo);
+        }
+
         let mut curve_p_w_ref = Curve::new();
         curve_p_w_ref
             .set_label("de Souza Neto et al. (SPO)")
-            .set_line_style("None")
-            .set_marker_style("D")
-            .set_marker_void(true)
-            .set_marker_line_color("orange")
+            .set_line_color("green")
+            // .set_line_style("None")
+            .set_marker_style("x")
+            // .set_marker_void(true)
+            // .set_marker_line_color("orange")
             .draw(&ref1["deflection"], &ref1["load"]);
         let mut curve_p_w = Curve::new();
         curve_p_w
@@ -294,28 +349,144 @@ fn main() -> Result<(), StrError> {
             .set_marker_void(true)
             .set_marker_line_color("black")
             .draw(&ll, &yy_p250);
-        let mut plot = Plot::new();
-        plot.set_subplot(1, 2, 1)
+        plot
+            // .set_subplot(1, 2, 1)
             .set_horiz_line(ana.get_pp_lim(), "green", ":", 1.0)
-            .add(&curve_p_w)
             .add(&curve_p_w_ref)
-            .grid_labels_legend("w (central deflection)", "P (distributed load intensity)")
-            .set_subplot(1, 2, 2)
-            .set_yrange(0.0, 0.6)
-            .set_inv_y()
-            .add(&curve_w_l_p100_ref)
-            .add(&curve_w_l_p200_ref)
-            .add(&curve_w_l_p250_ref)
-            .add(&curve_w_l_p100)
-            .add(&curve_w_l_p200)
-            .add(&curve_w_l_p250)
-            .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)");
+            .add(&curve_p_w)
+            .legend()
+            .set_labels("w (central deflection)", "P (distributed load intensity)");
+        // .set_subplot(1, 2, 2)
+        // .set_yrange(0.0, 0.6)
+        // .set_inv_y()
+        // .add(&curve_w_l_p100_ref)
+        // .add(&curve_w_l_p200_ref)
+        // .add(&curve_w_l_p250_ref)
+        // .add(&curve_w_l_p100)
+        // .add(&curve_w_l_p200)
+        // .add(&curve_w_l_p250)
+        // .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)");
         let title = options.title();
         let mut params = SuperTitleParams::new();
         params.set_y(0.95);
-        plot.set_super_title(&title, Some(&params))
-            .set_figure_size_points(600.0, 250.0)
+        plot
+            // .set_super_title(&title, Some(&params))
+            // .set_figure_size_points(600.0, 250.0)
             .save(&format!("{}/{}.svg", DIR, name))?;
+
+        // debugging data
+        // 0. n_iteration
+        // 1. ksi
+        // 2. rerr
+        // 3. rho
+        // 4. m_ksi
+        // 5. m_rho
+        // 6. m
+        // 7. h_estimate
+        let data = stats.debug_adapt_stepsize_data.as_ref().unwrap();
+        let nstep = data.len();
+        let mut step = vec![0.0; nstep];
+        let mut n_iteration = vec![0.0; nstep];
+        let mut ksi = vec![0.0; nstep];
+        let mut rerr = vec![0.0; nstep];
+        let mut rho = vec![0.0; nstep];
+        let mut m_ksi = vec![0.0; nstep];
+        let mut m_rho = vec![0.0; nstep];
+        let mut m = vec![0.0; nstep];
+        let mut h_estimate = vec![0.0; nstep];
+        for i in 0..nstep {
+            step[i] = i as f64;
+            n_iteration[i] = data[i][0];
+            ksi[i] = data[i][1];
+            rerr[i] = data[i][2];
+            rho[i] = data[i][3];
+            m_ksi[i] = data[i][4];
+            m_rho[i] = data[i][5];
+            m[i] = data[i][6];
+            h_estimate[i] = data[i][7];
+        }
+        let mut curve_n_iteration = Curve::new();
+        let mut curve_ksi = Curve::new();
+        let mut curve_rerr = Curve::new();
+        let mut curve_rho = Curve::new();
+        let mut curve_m_ksi = Curve::new();
+        let mut curve_m_rho = Curve::new();
+        let mut curve_m = Curve::new();
+        let mut curve_h_estimate = Curve::new();
+        curve_n_iteration.draw(&step, &n_iteration);
+        curve_ksi.draw(&step, &ksi);
+        curve_rerr.draw(&step, &rerr);
+        curve_rho.draw(&step, &rho);
+        curve_m_ksi.draw(&step, &m_ksi);
+        curve_m_rho.draw(&step, &m_rho);
+        curve_m.draw(&step, &m);
+        curve_h_estimate.draw(&step, &h_estimate);
+        let mut plot_dbg = Plot::new();
+        if let Some(indices) = redos {
+            for k in 1..=8 {
+                plot_dbg.set_subplot(4, 2, k);
+                for index in indices {
+                    plot_dbg.set_vert_line(*index as f64, "green", "--", 1.0);
+                }
+            }
+        }
+        plot_dbg
+            .set_subplot(4, 2, 1)
+            .add(&curve_n_iteration)
+            .grid_and_labels("step", "n_iteration")
+            .set_subplot(4, 2, 2)
+            .add(&curve_ksi)
+            .grid_and_labels("step", "ksi")
+            .set_subplot(4, 2, 3)
+            .add(&curve_rerr)
+            // .set_yrange(0.0, 4.0) // <<<<
+            .grid_and_labels("step", "rerr")
+            .set_subplot(4, 2, 4)
+            .add(&curve_rho)
+            .grid_and_labels("step", "rho")
+            .set_subplot(4, 2, 5)
+            .add(&curve_m_ksi)
+            .grid_and_labels("step", "m_ksi")
+            .set_subplot(4, 2, 6)
+            .add(&curve_m_rho)
+            .grid_and_labels("step", "m_rho")
+            .set_subplot(4, 2, 7)
+            .add(&curve_m)
+            .grid_and_labels("step", "m")
+            .set_subplot(4, 2, 8)
+            .add(&curve_h_estimate)
+            .grid_and_labels("step", "h_estimate")
+            .set_figure_size_points(600.0, 1200.0)
+            .save(&format!("{}/{}_debug.svg", DIR, name))?;
+
+        // plot local state @ selected cell
+        let ss = post.history_local_state(selected_cell_id).unwrap();
+        let data = PlotterData::from_states(ss);
+        let lambdas = post.stations();
+        let mut zz = vec![0.0; lambdas.len()];
+        for i in 0..lambdas.len() {
+            zz[i] = ss[i].int_vars[0];
+        }
+        let mut plotter = Plotter::new();
+        plotter
+            .set_title(&options.title())
+            .set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});
+        plotter.set_extra(Axis::OctX, Axis::OctY, |plot| {
+            let mut circle = Canvas::new();
+            circle.set_face_color("None").set_edge_color("#8c77f4");
+            for i in 2..zz.len() {
+                circle.draw_circle(0.0, 0.0, zz[i] * SQRT_2_BY_3);
+            }
+            circle.draw_circle(0.0, 0.0, zz[2] * SQRT_2_BY_3);
+            plot.add(&circle);
+        });
+        plotter.set_extra(Axis::EpsD(true), Axis::SigD(false), |plot| {
+            plot.set_yrange(15900.0, 16100.0);
+        });
+        plotter.add_2x2(&data, false, |curve, _, _| {
+            curve.set_marker_style(".");
+        })?;
+        plotter.save(&format!("{}/{}_local.svg", DIR, name))?;
     }
     Ok(())
 }

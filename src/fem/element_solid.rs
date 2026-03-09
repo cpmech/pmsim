@@ -279,6 +279,17 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             .iter_mut()
             .for_each(|s| self.model.actual.reset_algorithmic_variables(s, state.reverse));
     }
+
+    /// Returns the number of Gauss points at elastoplastic state
+    fn count_elastoplastic_gauss_points(&self, state: &FemState) -> usize {
+        let mut n_elastoplastic = 0;
+        state.gauss[self.cell_id].solid.iter().for_each(|s| {
+            if !s.elastic {
+                n_elastoplastic += 1;
+            }
+        });
+        n_elastoplastic
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

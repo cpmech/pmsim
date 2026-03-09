@@ -35,4 +35,7 @@ pub trait ElementTrait {
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, state: &mut FemState);
+
+    /// Returns the number of Gauss points at elastoplastic state
+    fn count_elastoplastic_gauss_points(&self, state: &FemState) -> usize;
 }
