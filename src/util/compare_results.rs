@@ -201,9 +201,9 @@ pub fn compare_results(
             println!("num elastic = {}", n_elastic);
         }
     }
-    let s_ok = if elastic_flags_ok { "YES" } else { "NO" };
+    let s_ok = if elastic_flags_ok { "yes" } else { "no" };
     println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
     println!("diff_stress_max       = {:9.2e}", diff_stress_max);
-    println!("elastic flags OK      = {}\n", s_ok);
+    println!("are elastic flags ok  ? {:>9}\n", s_ok);
     Ok(all_good)
 }
