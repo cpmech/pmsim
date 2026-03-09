@@ -118,6 +118,11 @@ impl ReferenceDataTrait for ReferenceDataSGM {
     fn stresses(&self, step: usize, e: usize, ip: usize, i: usize) -> f64 {
         self.all[step].stresses[e][ip][i]
     }
+
+    fn elastic(&self, _step: usize, _e: usize, _ip: usize) -> bool {
+        // WARNING: this information is not available in SGM tests
+        true
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -28,7 +28,6 @@ use elements_interior::*;
 pub use fem_data::*;
 pub use fem_state::*;
 use output_files::*;
-use paraview::*;
 pub use post_processing::*;
 pub use secondary_values::*;
 pub use simulator::*;

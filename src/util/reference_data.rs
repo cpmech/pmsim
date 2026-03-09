@@ -75,6 +75,19 @@ pub trait ReferenceDataTrait {
     ///
     /// The stress component value
     fn stresses(&self, step: usize, e: usize, ip: usize, i: usize) -> f64;
+
+    /// Returns the elastic flag a specific Gauss point
+    ///
+    /// # Arguments
+    ///
+    /// * `step` - Index of the load increment or timestep
+    /// * `e` - Cell/element index
+    /// * `ip` - Gauss point index
+    ///
+    /// # Returns
+    ///
+    /// The elastic flag
+    fn elastic(&self, step: usize, e: usize, ip: usize) -> bool;
 }
 
 /// Provides generic access to reference data from different sources

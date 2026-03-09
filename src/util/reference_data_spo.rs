@@ -148,6 +148,15 @@ impl ReferenceDataTrait for ReferenceDataSPO {
     fn stresses(&self, step: usize, e: usize, ip: usize, i: usize) -> f64 {
         self.all[step].stresses[e][ip][i]
     }
+
+    fn elastic(&self, step: usize, e: usize, ip: usize) -> bool {
+        let plast = self.all[step].plast_apex_epbar[e][ip][0];
+        if plast > 0.0 {
+            false
+        } else {
+            true
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,15 @@ use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
 
+/// Returns T or F for a boolean variable
+fn b2s(flag: bool) -> String {
+    if flag {
+        "T".to_string()
+    } else {
+        "F".to_string()
+    }
+}
+
 /// Queries whether A failed to compare with B or not
 ///
 /// Returns `(fail, diff)`
@@ -19,6 +28,18 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
         print!("{:9.2e} vs {:9.2e}({:9.2e}{}) ", a, b, diff, mrk);
     }
     (fail, diff)
+}
+
+/// Queries whether A equals B
+///
+/// Returns `fail`
+fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
+    let fail = a != b;
+    if verbose > 0 {
+        let mrk = if fail { "❌" } else { "➖" };
+        print!("{} vs {} {}    ", b2s(a), b2s(b), mrk);
+    }
+    fail
 }
 
 /// Compares the FEM results (displacement, stress, strain) against reference data
@@ -79,6 +100,7 @@ pub fn compare_results(
 
     // compare results
     let mut all_good = true;
+    let mut elastic_flags_ok = true;
     let (pp, _) = PostProc::new(dir, fn_stem)?;
     if pp.nfile() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
@@ -147,8 +169,41 @@ pub fn compare_results(
                 }
             }
         }
+
+        // check elastic flags
+        if verbose > 0 {
+            println!("ERROR ON ELASTIC FLAGS");
+        }
+        let mut n_elastic = 0;
+        for e in 0..ncell {
+            let ngauss = dat.actual.ngauss(step, e);
+            if ngauss < 1 {
+                return Err("there must be at least on integration point in reference data (plast_apex_epbar)");
+            }
+            let secondary_values = &fem_state.gauss[e];
+            for ip in 0..ngauss {
+                let local_state = &secondary_values.solid[ip];
+                let elastic = dat.actual.elastic(step, e, ip);
+                let fail = query_failed_bool(local_state.elastic, elastic, verbose);
+                if fail {
+                    all_good = false;
+                    elastic_flags_ok = false;
+                }
+                if elastic {
+                    n_elastic += 1;
+                }
+            }
+            if verbose > 0 {
+                println!();
+            }
+        }
+        if verbose > 0 {
+            println!("num elastic = {}", n_elastic);
+        }
     }
+    let s_ok = if elastic_flags_ok { "YES" } else { "NO" };
     println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
-    println!("diff_stress_max       = {:9.2e}\n", diff_stress_max);
+    println!("diff_stress_max       = {:9.2e}", diff_stress_max);
+    println!("elastic flags OK      = {}\n", s_ok);
     Ok(all_good)
 }
