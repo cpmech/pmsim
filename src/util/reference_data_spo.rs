@@ -11,7 +11,7 @@ use std::path::Path;
 /// This structure holds convergence data for each nonlinear iteration,
 /// including the iteration number, convergence ratio, and residual norm.
 #[derive(Serialize, Deserialize)]
-struct IterationInfo {
+pub struct IterationInfo {
     /// The iteration counter
     number: usize,
 
@@ -35,19 +35,19 @@ struct IterationInfo {
 /// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 ///    Theory and applications, Wiley, 791p
 #[derive(Serialize, Deserialize)]
-struct DataSPO {
+pub struct DataSPO {
     /// The load factor for this step
-    load_factor: f64,
+    pub load_factor: f64,
 
     /// Information about nonlinear iterations
-    iterations: Vec<IterationInfo>,
+    pub iterations: Vec<IterationInfo>,
 
     /// Nodal displacement components
     ///
     /// Data structure: `[npoint][ndim]`
     /// * `npoint` - Number of mesh points/nodes
     /// * `ndim` - Number of spatial dimensions (2 or 3)
-    displacement: Vec<Vec<f64>>,
+    pub displacement: Vec<Vec<f64>>,
 
     /// Stress components at Gauss points
     ///
@@ -57,7 +57,7 @@ struct DataSPO {
     /// * `ncomp` - Number of stress components in Voigt notation
     ///   * 2D: `[σxx, σyy, σzz, σxy]`
     ///   * 3D: `[σxx, σyy, σzz, σxy, σyz, σzx]`
-    stresses: Vec<Vec<Vec<f64>>>,
+    pub stresses: Vec<Vec<Vec<f64>>>,
 
     /// Elastic strain components at Gauss points
     ///
@@ -67,7 +67,7 @@ struct DataSPO {
     /// * `ncomp` - Number of strain components in Voigt notation (note that `γij = 2 εij`)
     ///   * 2D: `[εxx, εyy, εzz, γxy]`
     ///   * 3D: `[εxx, εyy, εzz, γxy, γyz, γzx]`
-    elastic_strains: Vec<Vec<Vec<f64>>>,
+    pub elastic_strains: Vec<Vec<Vec<f64>>>,
 
     /// Plasticity data at Gauss points
     ///
@@ -75,7 +75,7 @@ struct DataSPO {
     /// * Index 0: Plastic loading flag (1.0 = loading, 0.0 = not loading)
     /// * Index 1: Apex return flag (1.0 = apex return performed)
     /// * Index 2: Accumulated plastic strain
-    plast_apex_epbar: Vec<Vec<Vec<f64>>>,
+    pub plast_apex_epbar: Vec<Vec<Vec<f64>>>,
 }
 
 /// Implements reference data from de Souza Neto, Peric, and Owen (2008)
@@ -87,11 +87,11 @@ struct DataSPO {
 /// The data is typically used to validate finite element implementations by
 /// comparing numerical results with the published solutions.
 #[derive(Serialize, Deserialize)]
-pub(crate) struct ReferenceDataSPO {
+pub struct ReferenceDataSPO {
     /// Data from all loading steps
     ///
     /// The vector index corresponds to the load step number
-    all: Vec<DataSPO>,
+    pub all: Vec<DataSPO>,
 }
 
 impl ReferenceDataSPO {
@@ -110,7 +110,7 @@ impl ReferenceDataSPO {
     /// Returns an error if:
     /// * The file cannot be found
     /// * The JSON data cannot be deserialized
-    pub(crate) fn read_json<P>(full_path: &P) -> Result<Self, StrError>
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
     where
         P: AsRef<OsStr> + ?Sized,
     {
