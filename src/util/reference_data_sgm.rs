@@ -85,9 +85,9 @@ impl ReferenceDataSGM {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let file = File::open(&path).map_err(|_| "file not found")?;
+        let file = File::open(&path).map_err(|_| "ReferenceDataSGM: file not found")?;
         let reader = BufReader::new(file);
-        let data = serde_json::from_reader(reader).map_err(|_| "deserialize failed")?;
+        let data = serde_json::from_reader(reader).map_err(|_| "ReferenceDataSGM: deserialize failed")?;
         Ok(data)
     }
 }
