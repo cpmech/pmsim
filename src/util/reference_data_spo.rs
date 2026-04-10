@@ -115,15 +115,9 @@ impl ReferenceDataSPO {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let file = File::open(&path).map_err(|e| {
-            println!("{}", e);
-            "ReferenceDataSPO: file not found"
-        })?;
+        let file = File::open(&path).map_err(|e| "ReferenceDataSPO: file not found")?;
         let reader = BufReader::new(file);
-        let data = serde_json::from_reader(reader).map_err(|e| {
-            println!("{}", e);
-            "ReferenceDataSPO: deserialize failed"
-        })?;
+        let data = serde_json::from_reader(reader).map_err(|e| "ReferenceDataSPO: deserialize failed")?;
         Ok(data)
     }
 }
