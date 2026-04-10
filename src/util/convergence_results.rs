@@ -35,9 +35,9 @@ impl ConvergenceResults {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let file = File::open(&path).map_err(|_| "file not found")?;
+        let file = File::open(&path).map_err(|_| "ConvergenceResults: file not found")?;
         let reader = BufReader::new(file);
-        let cr = serde_json::from_reader(reader).map_err(|_| "deserialize failed")?;
+        let cr = serde_json::from_reader(reader).map_err(|_| "ConvergenceResults: deserialize failed")?;
         Ok(cr)
     }
 
