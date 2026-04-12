@@ -180,12 +180,6 @@ impl StressStrainTrait for VonMises {
         cell_id: CellId,
         gauss_id: usize,
     ) -> Result<(), StrError> {
-        // skip case with very small strain increment
-        let nrm = vec_norm(&delta_strain.vector(), Norm::Euc);
-        if nrm < DELTA_STRAIN_TOL {
-            return Ok(());
-        }
-
         // reset flags
         state.elastic = true; // aka, unloading
         state.int_vars[I_LAMBDA] = 0.0; // algorithmic Lagrange multiplier
