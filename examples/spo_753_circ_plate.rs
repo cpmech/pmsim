@@ -265,7 +265,7 @@ fn main() -> Result<(), StrError> {
         "P max = {}, analytical = {}, diff = {:.3}, rerr = {:.2}%",
         pp_max, pp_max_ref, diff, rerr_pct
     );
-    // assert!(rerr_pct < 0.5, "relative error (%) must be smaller than 0.5%");
+    assert!(rerr_pct < 0.4, "relative error (%) must be smaller than 0.4%");
 
     // plot
     if SAVE_FIGURE {
