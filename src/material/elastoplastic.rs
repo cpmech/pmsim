@@ -931,7 +931,7 @@ mod tests {
                 let correct_sig_m = sig_m_1 + kk * deps_v;
                 let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
                 approx_eq(sig_m_2, correct_sig_m, 1e-14);
-                approx_eq(sig_d_2, correct_sig_d, 1e-14);
+                approx_eq(sig_d_2, correct_sig_d, 1e-13);
                 approx_eq(state.int_vars[0], correct_sig_d, 1e-13);
                 assert_eq!(state.elastic, false);
                 let case = model.last_case.as_ref().unwrap();

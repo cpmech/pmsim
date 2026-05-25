@@ -155,7 +155,7 @@ fn main() -> Result<(), StrError> {
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(options.bordering)
-            .set_tg_control_atol_and_rtol(2.0);
+            .set_tg_control_tol(0.5);
     }
 
     // simulator and data

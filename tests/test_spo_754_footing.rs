@@ -121,7 +121,7 @@ fn run(
     nl_config
         .set_verbose(false, true, true)
         .set_record_iterations_residuals(false)
-        .set_tg_control_atol_and_rtol(0.5);
+        .set_tg_control_tol(0.5);
     if options.arclength {
         nl_config
             .set_method(NlMethod::Arclength)

@@ -117,7 +117,7 @@ impl<'a> Simulator<'a> {
 
         // Solve the system of nonlinear equations (continuation)
         let out = Some(&mut self.nl_output);
-        let status = match self.nl_solver.solve(data, &mut u, &mut l, ini_dir, stop, dll, out) {
+        let status = match self.nl_solver.solve(data, &mut u, &mut l, ini_dir, stop, &dll, out) {
             Ok(s) => s,
             Err(e) => {
                 println!("\n❌ SIMULATION FAILED ❌\n");

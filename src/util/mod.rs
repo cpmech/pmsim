@@ -11,6 +11,7 @@ mod spatial_scalar;
 mod spatial_tensor;
 mod spatial_vector;
 mod tensor_components_map;
+pub mod testing_spo_753_data;
 mod vector_components_map;
 
 pub use compare_results::*;

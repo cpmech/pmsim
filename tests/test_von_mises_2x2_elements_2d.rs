@@ -174,7 +174,7 @@ fn run_test(
         nl_config
             .set_method(NlMethod::Arclength)
             .set_bordering(true)
-            .set_tg_control_atol_and_rtol(5.0);
+            .set_tg_control_tol(0.5);
     } else {
         nl_config.set_method(NlMethod::Natural);
     }

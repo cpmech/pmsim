@@ -148,7 +148,7 @@ fn run(
     nl_config
         .set_verbose(false, true, true)
         .set_record_iterations_residuals(false)
-        .set_tg_control_atol_and_rtol(0.05);
+        .set_tg_control_tol(0.5);
 
     // simulator and data
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;

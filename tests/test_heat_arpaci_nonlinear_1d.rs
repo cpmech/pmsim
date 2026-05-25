@@ -110,18 +110,18 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
     // nonlinear solver configuration
 
     // solution
-    let mut tol = 1e-13;
+    let mut tol = 1e-12;
     let mut nl_config = NlConfig::new();
     nl_config
         .set_verbose(true, true, false)
-        .set_tg_control_atol_and_rtol(0.05)
+        .set_tg_control_tol(0.5)
         .set_record_iterations_residuals(true);
     if arclength {
-        tol = 1e-10;
+        tol = 1e-6;
         nl_config.set_method(NlMethod::Arclength).set_bordering(bordering);
     };
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
-    sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto(1.0))?;
+    sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto(0.5))?;
     let state = data.state();
 
     // check

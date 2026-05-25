@@ -2,7 +2,7 @@ use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
 use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_lab::{vec_norm, Norm, Vector};
+use russell_lab::Vector;
 use russell_tensor::deriv1_invariant_q;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
@@ -18,9 +18,6 @@ const I: &[f64; 9] = &IDENTITY2;
 
 /// Defines an alias to P_SYMDEV
 const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
-
-/// Tolerance to skip stress update when the strain increment is too small
-const DELTA_STRAIN_TOL: f64 = 1e-9;
 
 /// Tolerance to detect elastic regime
 const F_TOL: f64 = 1e-6;

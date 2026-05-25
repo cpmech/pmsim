@@ -144,7 +144,7 @@ fn main() -> Result<(), StrError> {
     nl_config
         .set_verbose(false, true, true)
         .set_log_file(&format!("{}/{}.log", DIR, name))
-        .set_tg_control_atol_and_rtol(0.05)
+        .set_tg_control_tol(0.5)
         .set_record_iterations_residuals(true);
     if options.arclength {
         nl_config
