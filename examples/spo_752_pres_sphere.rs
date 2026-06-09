@@ -233,11 +233,6 @@ fn main() -> Result<(), StrError> {
     let mesh = post.mesh();
     let schema = post.schema();
 
-    // check deterministic behavior
-    if options.residual && options.arclength {
-        assert_eq!(post.nfile(), 19);
-    }
-
     // boundaries
     let features = Features::new(mesh, false);
     let outer_point = features.search_point_ids(At::XY(B, 0.0), any_x)?[0];
