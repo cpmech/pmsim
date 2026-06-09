@@ -2,23 +2,39 @@
 
 set -e
 
-cargo build --release
+# define features
+FEAT="--features intel_mkl,local_sparse"
 
-cargo run --release --example spo_754_footing -- -g mumps
-cargo run --release --example spo_754_footing -- -g mumps --lmm
-cargo run --release --example spo_754_footing -- -g mumps --arclength
-cargo run --release --example spo_754_footing -- -g mumps --arclength --lmm
-cargo run --release --example spo_754_footing -- -g mumps --bordering
-cargo run --release --example spo_754_footing -- -g mumps --lmm --bordering
-cargo run --release --example spo_754_footing -- -g mumps --arclength --bordering
-cargo run --release --example spo_754_footing -- -g mumps --arclength --lmm --bordering
+# build the example
+cargo build --release $FEAT
 
-cargo run --release --example spo_754_footing -- -g klu --arclength
-cargo run --release --example spo_754_footing -- -g umfpack --arclength
-cargo run --release --example spo_754_footing -- -g umfpack --arclength --lmm
-cargo run --release --example spo_754_footing -- -g klu --arclength --bordering
-cargo run --release --example spo_754_footing -- -g umfpack --arclength --bordering
-cargo run --release --example spo_754_footing -- -g umfpack --arclength --lmm --bordering
+# run the examples with options
+run_example() {
+    echo
+    echo "cargo run --release $FEAT --example $*"
+    echo
+    cargo run --release $FEAT --example "$@"
+}
+
+# mumps
+run_example spo_754_footing -- -g mumps
+run_example spo_754_footing -- -g mumps --lmm
+run_example spo_754_footing -- -g mumps --arclength
+run_example spo_754_footing -- -g mumps --arclength --lmm
+run_example spo_754_footing -- -g mumps --bordering
+run_example spo_754_footing -- -g mumps --lmm --bordering
+run_example spo_754_footing -- -g mumps --arclength --bordering
+run_example spo_754_footing -- -g mumps --arclength --lmm --bordering
+
+# klu
+run_example spo_754_footing -- -g klu --arclength
+run_example spo_754_footing -- -g klu --arclength --bordering
+
+# umfpack
+run_example spo_754_footing -- -g umfpack --arclength
+run_example spo_754_footing -- -g umfpack --arclength --lmm
+run_example spo_754_footing -- -g umfpack --arclength --bordering
+run_example spo_754_footing -- -g umfpack --arclength --lmm --bordering
 
 echo
 echo

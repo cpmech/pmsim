@@ -18,7 +18,7 @@ run_example() {
 
 # mumps
 run_example spo_753_circ_plate -- -g mumps
-run_example spo_753_circ_plate -- -g mumps --lmm
+#run_example spo_753_circ_plate -- -g mumps --lmm
 run_example spo_753_circ_plate -- -g mumps --arclength
 run_example spo_753_circ_plate -- -g mumps --arclength --lmm
 run_example spo_753_circ_plate -- -g mumps --arclength --bordering
@@ -29,6 +29,7 @@ run_example spo_753_circ_plate -- -g klu --arclength
 
 # umfpack
 run_example spo_753_circ_plate -- -g umfpack
+run_example spo_753_circ_plate -- -g umfpack --lmm
 run_example spo_753_circ_plate -- -g umfpack --arclength
 run_example spo_753_circ_plate -- -g umfpack --arclength --bordering
 run_example spo_753_circ_plate -- -g umfpack --arclength --lmm

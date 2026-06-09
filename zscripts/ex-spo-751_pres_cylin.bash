@@ -2,27 +2,44 @@
 
 set -e
 
-cargo build --release
+# define features
+FEAT="--features intel_mkl,local_sparse"
 
-cargo run --release --example spo_751_pres_cylin -- -g mumps
-cargo run --release --example spo_751_pres_cylin -- -g mumps --lmm
-cargo run --release --example spo_751_pres_cylin -- -g mumps --arclength
-cargo run --release --example spo_751_pres_cylin -- -g mumps --arclength --lmm
-cargo run --release --example spo_751_pres_cylin -- -g mumps --arclength --bordering
-cargo run --release --example spo_751_pres_cylin -- -g mumps --arclength --lmm --bordering
+# build the example
+cargo build --release $FEAT
 
-cargo run --release --example spo_751_pres_cylin -- -g mumps --residual  
-cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --lmm
-cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --arclength
-cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --arclength --lmm
-cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --arclength --bordering
-cargo run --release --example spo_751_pres_cylin -- -g mumps --residual --arclength --lmm --bordering
+# run the examples with options
+run_example() {
+    echo
+    echo "cargo run --release $FEAT --example $*"
+    echo
+    cargo run --release $FEAT --example "$@"
+}
 
-cargo run --release --example spo_751_pres_cylin -- -g klu --residual --arclength
-cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength
-cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength --lmm
-cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength --bordering
-cargo run --release --example spo_751_pres_cylin -- -g umfpack --residual --arclength --lmm --bordering
+# mumps
+run_example spo_751_pres_cylin -- -g mumps
+run_example spo_751_pres_cylin -- -g mumps --lmm
+run_example spo_751_pres_cylin -- -g mumps --arclength
+run_example spo_751_pres_cylin -- -g mumps --arclength --lmm
+run_example spo_751_pres_cylin -- -g mumps --arclength --bordering
+run_example spo_751_pres_cylin -- -g mumps --arclength --lmm --bordering
+
+# mumps: residual
+run_example spo_751_pres_cylin -- -g mumps --residual  
+run_example spo_751_pres_cylin -- -g mumps --residual --lmm
+run_example spo_751_pres_cylin -- -g mumps --residual --arclength
+run_example spo_751_pres_cylin -- -g mumps --residual --arclength --lmm
+run_example spo_751_pres_cylin -- -g mumps --residual --arclength --bordering
+run_example spo_751_pres_cylin -- -g mumps --residual --arclength --lmm --bordering
+
+# klu: residual
+run_example spo_751_pres_cylin -- -g klu --residual --arclength
+
+# umfpack: residual
+run_example spo_751_pres_cylin -- -g umfpack --residual --arclength
+run_example spo_751_pres_cylin -- -g umfpack --residual --arclength --lmm
+run_example spo_751_pres_cylin -- -g umfpack --residual --arclength --bordering
+run_example spo_751_pres_cylin -- -g umfpack --residual --arclength --lmm --bordering
 
 echo
 echo
