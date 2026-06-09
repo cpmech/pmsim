@@ -2,4 +2,4 @@
 
 cargo test
 
-bash zscripts/ex-all-spo.bash
+bash zscripts/ex-spo-all.bash

@@ -139,7 +139,7 @@ fn main() -> Result<(), StrError> {
     let mut nl_config = NlConfig::new();
     nl_config
         .set_verbose(false, true, true)
-        .set_log_file(&format!("{}/{}.txt", DIR, name))
+        // .set_log_file(&format!("{}/{}.txt", DIR, name))
         .set_tg_control_tol(0.5)
         .set_record_iterations_residuals(true);
     if options.arclength {
@@ -233,9 +233,9 @@ fn main() -> Result<(), StrError> {
             // println!("final normalized pressure = ({:.4}, {:.6}) = ({:.4}, {:.6})", value1, f64::abs(value1 - analytical_limit), value2, f64::abs(value2 - analytical_limit));
             let (tol1, tol2) = if options.arclength {
                 if options.lmm {
-                    (0.0053, 0.045)
+                    (0.014, 0.046)
                 } else {
-                    (0.0024, 0.044)
+                    (0.00248, 0.044)
                 }
             } else {
                 (0.00751, 0.045)

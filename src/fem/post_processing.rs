@@ -2997,8 +2997,87 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "local_sparse")]
     #[test]
-    fn write_vtu_and_pvd_work_1() {
+    fn write_vtu_and_pvd_work_local_sparse() {
+        generate_data_files();
+
+        // load results
+        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
+        let state = post.read_file(0).unwrap();
+
+        // create directory
+        fs::create_dir_all("/tmp/pmsim")
+            .map_err(|_| "cannot create directory")
+            .unwrap();
+
+        // write VTU file
+        let index = 0;
+        let name = "write_vtu_and_pvd_work_1";
+        let with_elastic_flags = true;
+        let path = post
+            .write_vtu(&mut memo, "/tmp/pmsim", name, &state, index, with_elastic_flags)
+            .unwrap();
+
+        // check contents
+        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
+        assert_eq!(
+            contents,
+            r#"<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">
+<UnstructuredGrid>
+<Piece NumberOfPoints="5" NumberOfCells="3">
+<Points>
+<DataArray type="Float64" NumberOfComponents="3" format="ascii">
+0.0 0.2 0.0 1.2 0.0 0.0 2.2 0.1 0.0 1.8 1.0 0.0 0.5 1.2 0.0 
+</DataArray>
+</Points>
+<Cells>
+<DataArray type="Int32" Name="connectivity" format="ascii">
+0 1 4 1 3 4 1 2 3 
+</DataArray>
+<DataArray type="Int32" Name="offsets" format="ascii">
+3 6 9 
+</DataArray>
+<DataArray type="UInt8" Name="types" format="ascii">
+5 5 5 
+</DataArray>
+</Cells>
+<PointData Scalars="TheScalars">
+<DataArray type="Float64" Name="Phi" NumberOfComponents="1" format="ascii">
+1.0 3.5999999999999996 7.1000000000000005 10.4 7.5 
+</DataArray>
+<DataArray type="Float64" Name="w" NumberOfComponents="3" format="ascii">
+-6.0 -20.0 0.0 -6.0 -20.0 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.0 -20.0 0.0 
+</DataArray>
+</PointData>
+</Piece>
+</UnstructuredGrid>
+</VTKFile>
+"#
+        );
+
+        // write PVD file
+        let name = "write_vtu_and_pvd_work_1";
+        let path = post.write_pvd("/tmp/pmsim", name).unwrap();
+
+        // check PVD
+        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
+        assert_eq!(
+            contents,
+            r#"<?xml version="1.0"?>
+<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
+<Collection>
+<DataSet timestep="0.0" file="/tmp/pmsim/write_vtu_and_pvd_work_1-0.vtu" />
+</Collection>
+</VTKFile>
+"#
+        );
+    }
+
+    #[cfg(not(feature = "local_sparse"))]
+    #[test]
+    fn write_vtu_and_pvd_work_default_sparse() {
         generate_data_files();
 
         // load results

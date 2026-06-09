@@ -30,14 +30,14 @@ local_sparse = [
 
 [dependencies]
 plotpy = "1.23"
-gemlab = "2.1"
-russell_lab = "2.1"
-russell_nonlin = "2.1"
-russell_ode = "2.1"
-russell_pde = "2.1"
-russell_sparse = "2.1"
-russell_stat = "2.1"
-russell_tensor = "2.1"
+gemlab = "2.2"
+russell_lab = "2.2"
+russell_nonlin = "2.2"
+russell_ode = "2.2"
+russell_pde = "2.2"
+russell_sparse = "2.2"
+russell_stat = "2.2"
+russell_tensor = "2.2"
 tritet = "3.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

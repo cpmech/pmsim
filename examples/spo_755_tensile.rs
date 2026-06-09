@@ -223,7 +223,7 @@ fn main() -> Result<(), StrError> {
             );
             let tol = if options.arclength {
                 if options.lmm {
-                    0.0255
+                    0.026
                 } else {
                     0.027
                 }

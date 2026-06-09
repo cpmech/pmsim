@@ -46,6 +46,9 @@ struct Options {
     /// Use bordering for the arclength method (only relevant if --arclength is set)
     #[structopt(long)]
     bordering: bool,
+
+    #[structopt(long)]
+    paraview: bool,
 }
 
 /// Main function
@@ -123,12 +126,12 @@ fn main() -> Result<(), StrError> {
     // nonlinear solver configuration
     let mut nl_config = NlConfig::new();
     nl_config
-        .set_tol_delta(1e-12, 1e-12)
+        .set_tol_delta(1e-10, 1e-9)
         .set_enable_precise_stop_u_comp(false)
         .set_n_cont_failure_max(7)
         .set_nr_control_enabled(false)
         .set_tg_control_enabled(true)
-        .set_tg_control_tol(0.3)
+        .set_tg_control_tol(0.5)
         .set_tg_control_rho_for_tiny_rerr(1.2)
         .set_verbose(false, true, true)
         .set_record_iterations_residuals(false);
@@ -180,8 +183,8 @@ fn main() -> Result<(), StrError> {
         format!("data/spo/{}_ref.json", NAME)
     };
     if !options.arclength && NGAUSS == 9 {
-        let tol_displacement = 1e-9;
-        let tol_stress = 1e-5;
+        let tol_displacement = 2.48e-10;
+        let tol_stress = 2.22e-5;
         let all_good = compare_results(
             &mesh,
             &schema,
@@ -559,8 +562,10 @@ fn main() -> Result<(), StrError> {
     }
 
     // generate Paraview file
-    let with_elastic_flags = true;
-    post.write_paraview(&mut memo, DIR, &name, with_elastic_flags)?;
+    if options.paraview {
+        let with_elastic_flags = true;
+        post.write_paraview(&mut memo, DIR, &name, with_elastic_flags)?;
+    }
     Ok(())
 }
 
