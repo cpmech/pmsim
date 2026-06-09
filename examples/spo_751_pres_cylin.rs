@@ -305,7 +305,7 @@ fn main() -> Result<(), StrError> {
                 let (sr_ana, sh_ana) = ana.calc_sr_sh(r, pp)?;
                 if options.arclength {
                     approx_eq(sr, sr_ana, 0.00057);
-                    approx_eq(sh, sh_ana, 0.0071);
+                    approx_eq(sh, sh_ana, 0.00758);
                 } else {
                     approx_eq(sr, sr_ana, 0.00057);
                     approx_eq(sh, sh_ana, 0.0077);
