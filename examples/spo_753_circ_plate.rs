@@ -132,7 +132,7 @@ fn main() -> Result<(), StrError> {
         .set_nr_control_enabled(false)
         .set_tg_control_enabled(true)
         .set_tg_control_tol(0.5)
-        .set_tg_control_rho_for_tiny_rerr(1.2)
+        .set_tg_control_rho_for_tiny_rdiff(1.2)
         .set_verbose(false, true, true)
         .set_record_iterations_residuals(false);
     if options.arclength {

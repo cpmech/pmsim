@@ -58,7 +58,9 @@ impl<'a> Simulator<'a> {
             .set_prepare_to_iterate(prepare_to_iterate);
 
         // Update nonlinear solver configuration
-        nl_config.set_show_header_footer(false).set_genie(config.lin_sol_genie);
+        nl_config
+            .set_verbose_header_footer(false)
+            .set_genie(config.lin_sol_genie);
 
         // Allocate the nonlinear solver
         let nl_solver = NlSolver::new(nl_config, nl_system)?;

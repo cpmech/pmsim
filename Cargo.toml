@@ -27,17 +27,23 @@ local_sparse = [
     "russell_pde/local_sparse",
     "russell_sparse/local_sparse",
 ]
+cudss = [
+    "russell_nonlin/cudss",
+    "russell_ode/cudss",
+    "russell_pde/cudss",
+    "russell_sparse/cudss",
+]
 
 [dependencies]
 plotpy = "1.23"
-gemlab = "2.2"
-russell_lab = "2.2"
-russell_nonlin = "2.2"
-russell_ode = "2.2"
-russell_pde = "2.2"
-russell_sparse = "2.2"
-russell_stat = "2.2"
-russell_tensor = "2.2"
+gemlab = "2.3"
+russell_lab = "2.7"
+russell_nonlin = "2.7"
+russell_ode = "2.7"
+russell_pde = "2.7"
+russell_sparse = "2.7"
+russell_stat = "2.7"
+russell_tensor = "2.7"
 tritet = "3.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
