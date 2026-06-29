@@ -3,7 +3,7 @@
 set -e
 
 # define features
-FEAT="--features intel_mkl,local_sparse"
+FEAT="--all-features"
 
 # build the example
 cargo build --release $FEAT
@@ -26,9 +26,9 @@ run_example spo_754_footing -- -g mumps --lmm --bordering
 run_example spo_754_footing -- -g mumps --arclength --bordering
 run_example spo_754_footing -- -g mumps --arclength --lmm --bordering
 
-# klu
-run_example spo_754_footing -- -g klu --arclength
-run_example spo_754_footing -- -g klu --arclength --bordering
+# cudss
+run_example spo_754_footing -- -g cudss --arclength
+run_example spo_754_footing -- -g cudss --arclength --bordering
 
 # umfpack
 run_example spo_754_footing -- -g umfpack --arclength

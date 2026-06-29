@@ -3,7 +3,7 @@
 set -e
 
 # define features
-FEAT="--features intel_mkl,local_sparse"
+FEAT="--all-features"
 
 # build the example
 cargo build --release $FEAT
@@ -32,8 +32,8 @@ run_example spo_751_pres_cylin -- -g mumps --residual --arclength --lmm
 run_example spo_751_pres_cylin -- -g mumps --residual --arclength --bordering
 run_example spo_751_pres_cylin -- -g mumps --residual --arclength --lmm --bordering
 
-# klu: residual
-run_example spo_751_pres_cylin -- -g klu --residual --arclength
+# cudss residual
+run_example spo_751_pres_cylin -- -g cudss --residual --arclength
 
 # umfpack: residual
 run_example spo_751_pres_cylin -- -g umfpack --residual --arclength

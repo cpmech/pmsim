@@ -2,6 +2,8 @@
 
 set -e
 
+cargo clean
+
 echo
 echo "============================================="
 echo "  Running SPO 751: Pressurized Cylinder"

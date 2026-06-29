@@ -3,7 +3,7 @@
 set -e
 
 # define features
-FEAT="--features intel_mkl,local_sparse"
+FEAT="--all-features"
 
 # build the example
 cargo build --release $FEAT
@@ -22,8 +22,8 @@ run_example spo_755_tensile -- -g mumps --lmm
 run_example spo_755_tensile -- -g mumps --arclength
 run_example spo_755_tensile -- -g mumps --arclength --lmm
 
-# klu
-run_example spo_755_tensile -- -g klu --arclength
+# cudss
+run_example spo_755_tensile -- -g cudss --arclength
 
 # umfpack
 run_example spo_755_tensile -- -g umfpack --arclength
