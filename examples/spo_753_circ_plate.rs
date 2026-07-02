@@ -47,8 +47,13 @@ struct Options {
     #[structopt(long)]
     bordering: bool,
 
+    /// Generate Paraview files
     #[structopt(long)]
     paraview: bool,
+
+    /// Minimum relative difference for tangent stiffness control (tg_control_rdiff_min)
+    #[structopt(long, default_value = "1e-6")]
+    tol: f64,
 }
 
 /// Main function
@@ -133,6 +138,7 @@ fn main() -> Result<(), StrError> {
         .set_tg_control_enabled(true)
         .set_tg_control_tol(0.5)
         .set_tg_control_rho_for_tiny_rdiff(1.2)
+        .set_tg_control_rdiff_min(options.tol)
         .set_verbose(false, true, true)
         .set_record_iterations_residuals(false);
     if options.arclength {
