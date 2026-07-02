@@ -107,5 +107,6 @@
     "xaxis",
     "yaxis",
     "yrange"
-  ]
+  ],
+  "rust-analyzer.cargo.features": "all"
 }
