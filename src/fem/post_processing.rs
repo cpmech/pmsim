@@ -1283,8 +1283,7 @@ mod tests {
     use russell_lab::math::SQRT_3;
     use russell_lab::{approx_eq, array_approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
     use russell_tensor::Tensor2;
-    use std::collections::HashMap;
-    use std::fmt::Write;
+    use std::collections::{HashMap, HashSet};
     use std::fs;
     use std::sync::Once;
 
@@ -1943,32 +1942,79 @@ mod tests {
         vec_approx_eq(&res[7], &[b, b, b], 1e-15);
     }
 
+    /// Compares 2D coordinates using different data structures
+    ///
+    /// * All input arrays must have the same length
+    /// * Builds a HashSet to perform a search for truncated coordinates (five digits)
+    fn compare_coords_2d(xx: &[f64], yy: &[f64], expected: &[(f64, f64)]) {
+        // basic checks
+        assert_eq!(xx.len(), yy.len(), "xx and yy must have the same length");
+        assert_eq!(xx.len(), expected.len(), "xx and expected must have the same length");
+        // create map of truncated coordinates
+        let mut coords = HashSet::new();
+        for i in 0..xx.len() {
+            coords.insert(format!("{:.5},{:.5}", xx[i], yy[i]));
+        }
+        // compare coordinates
+        for (x, y) in expected {
+            let key = format!("{:.5},{:.5}", x, y);
+            assert!(
+                coords.contains(&key),
+                "expected coordinate ({}, {}) not found in the result",
+                x,
+                y
+            );
+        }
+    }
+
+    /// Compares 3D coordinates using different data structures
+    ///
+    /// * All input arrays must have the same length
+    /// * Builds a HashSet to perform a search for truncated coordinates (five digits)
+    fn compare_coords_3d(xx: &[f64], yy: &[f64], zz: &[f64], expected: &[(f64, f64, f64)]) {
+        // basic checks
+        assert_eq!(xx.len(), yy.len(), "xx and yy must have the same length");
+        assert_eq!(xx.len(), zz.len(), "xx and zz must have the same length");
+        assert_eq!(xx.len(), expected.len(), "xx and expected must have the same length");
+        // create map of truncated coordinates
+        let mut coords = HashSet::new();
+        for i in 0..xx.len() {
+            coords.insert(format!("{:.5},{:.5},{:.5}", xx[i], yy[i], zz[i]));
+        }
+        // compare coordinates
+        for (x, y, z) in expected {
+            let key = format!("{:.5},{:.5},{:.5}", x, y, z);
+            assert!(
+                coords.contains(&key),
+                "expected coordinate ({}, {}, {}) not found in the result",
+                x,
+                y,
+                z
+            );
+        }
+    }
+
     #[test]
     fn gauss_coords_patch_works_2d() {
         generate_data_files();
 
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
-        let (xx, yy, _, indices, accepted) = post
+        let (xx, yy, _, _, _) = post
             .gauss_coords_patch(&mut memo, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
-        let mut coords = String::new();
-        for index in &indices {
-            let (cell_id, p) = accepted[*index];
-            if cell_id == 0 {
-                assert!(p != 0); // filtered out
-            }
-            write!(&mut coords, "{:.5},{:.5}\n", xx[*index], yy[*index]).unwrap();
-        }
-        assert_eq!(
-            coords,
-            "1.46667,0.18333\n\
-             0.88333,0.23333\n\
-             1.96667,0.23333\n\
-             1.18333,0.36667\n\
-             1.76667,0.68333\n\
-             0.53333,0.83333\n\
-             1.48333,0.86667\n\
-             0.83333,0.96667\n"
+        compare_coords_2d(
+            &xx,
+            &yy,
+            &[
+                (1.46667, 0.18333),
+                (0.88333, 0.23333),
+                (1.96667, 0.23333),
+                (1.18333, 0.36667),
+                (1.76667, 0.68333),
+                (0.53333, 0.83333),
+                (1.48333, 0.86667),
+                (0.83333, 0.96667),
+            ],
         );
     }
 
@@ -1977,31 +2023,27 @@ mod tests {
         generate_data_files();
 
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
-        let (xx, yy, zz, indices, accepted) = post
+        let (xx, yy, zz, _, _) = post
             .gauss_coords_patch(&mut memo, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
-        let mut coords = String::new();
-        for index in &indices {
-            let (cell_id, p) = accepted[*index];
-            if cell_id == 0 {
-                assert!(p != 0); // filtered out
-            }
-            write!(&mut coords, "{:.5},{:.5},{:.5}\n", xx[*index], yy[*index], zz[*index]).unwrap();
-        }
-        assert_eq!(
-            coords,
-            "0.78868,0.21132,0.21132\n\
-             0.21132,0.78868,0.21132\n\
-             0.78868,0.78868,0.21132\n\
-             0.78868,0.21132,0.78868\n\
-             0.21132,0.78868,0.78868\n\
-             0.78868,0.78868,0.78868\n\
-             0.78868,0.21132,1.21132\n\
-             0.21132,0.78868,1.21132\n\
-             0.78868,0.78868,1.21132\n\
-             0.78868,0.21132,1.78868\n\
-             0.21132,0.78868,1.78868\n\
-             0.78868,0.78868,1.78868\n"
+        compare_coords_3d(
+            &xx,
+            &yy,
+            &zz,
+            &[
+                (0.78868, 0.21132, 0.21132),
+                (0.21132, 0.78868, 0.21132),
+                (0.78868, 0.78868, 0.21132),
+                (0.78868, 0.21132, 0.78868),
+                (0.21132, 0.78868, 0.78868),
+                (0.78868, 0.78868, 0.78868),
+                (0.78868, 0.21132, 1.21132),
+                (0.21132, 0.78868, 1.21132),
+                (0.78868, 0.78868, 1.21132),
+                (0.78868, 0.21132, 1.78868),
+                (0.21132, 0.78868, 1.78868),
+                (0.78868, 0.78868, 1.78868),
+            ],
         );
     }
 
@@ -2077,24 +2119,25 @@ mod tests {
         let ww = post
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
-        let mut coords = String::new();
         for k in 0..ww.k_to_id.len() {
             assert_eq!(*ww.id_to_k.get(&k).unwrap(), k);
             assert_eq!(ww.k_to_id[k], k);
             approx_eq(ww.vvx[k], w_correct[0], 1e-14);
             approx_eq(ww.vvy[k], w_correct[1], 1e-14);
-            write!(&mut coords, "{:.5},{:.5}\n", ww.xx[k], ww.yy[k]).unwrap();
         }
-        assert_eq!(
-            coords,
-            "1.46667,0.18333\n\
-             0.88333,0.23333\n\
-             1.96667,0.23333\n\
-             1.18333,0.36667\n\
-             1.76667,0.68333\n\
-             0.53333,0.83333\n\
-             1.48333,0.86667\n\
-             0.83333,0.96667\n"
+        compare_coords_2d(
+            &ww.xx,
+            &ww.yy,
+            &[
+                (1.46667, 0.18333),
+                (0.88333, 0.23333),
+                (1.96667, 0.23333),
+                (1.18333, 0.36667),
+                (1.76667, 0.68333),
+                (0.53333, 0.83333),
+                (1.48333, 0.86667),
+                (0.83333, 0.96667),
+            ],
         );
     }
 
@@ -2110,29 +2153,31 @@ mod tests {
         let ww = post
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
-        let mut coords = String::new();
         for k in 0..ww.k_to_id.len() {
             assert_eq!(*ww.id_to_k.get(&k).unwrap(), k);
             assert_eq!(ww.k_to_id[k], k);
             approx_eq(ww.vvx[k], w_correct[0], 1e-14);
             approx_eq(ww.vvy[k], w_correct[1], 1e-14);
             approx_eq(ww.vvz[k], w_correct[2], 1e-14);
-            write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.xx[k], ww.yy[k], ww.zz[k]).unwrap();
         }
-        assert_eq!(
-            coords,
-            "0.78868,0.21132,0.21132\n\
-             0.21132,0.78868,0.21132\n\
-             0.78868,0.78868,0.21132\n\
-             0.78868,0.21132,0.78868\n\
-             0.21132,0.78868,0.78868\n\
-             0.78868,0.78868,0.78868\n\
-             0.78868,0.21132,1.21132\n\
-             0.21132,0.78868,1.21132\n\
-             0.78868,0.78868,1.21132\n\
-             0.78868,0.21132,1.78868\n\
-             0.21132,0.78868,1.78868\n\
-             0.78868,0.78868,1.78868\n"
+        compare_coords_3d(
+            &ww.xx,
+            &ww.yy,
+            &ww.zz,
+            &[
+                (0.78868, 0.21132, 0.21132),
+                (0.21132, 0.78868, 0.21132),
+                (0.78868, 0.78868, 0.21132),
+                (0.78868, 0.21132, 0.78868),
+                (0.21132, 0.78868, 0.78868),
+                (0.78868, 0.78868, 0.78868),
+                (0.78868, 0.21132, 1.21132),
+                (0.21132, 0.78868, 1.21132),
+                (0.78868, 0.78868, 1.21132),
+                (0.78868, 0.21132, 1.78868),
+                (0.21132, 0.78868, 1.78868),
+                (0.78868, 0.78868, 1.78868),
+            ],
         );
     }
 
@@ -2235,8 +2280,10 @@ mod tests {
             text_eps.set_align_horizontal("right").set_align_vertical("top");
         }
         let mut first = true;
-        let mut coords_sig = String::new();
-        let mut coords_eps = String::new();
+        let mut sig_xx = Vec::new();
+        let mut sig_yy = Vec::new();
+        let mut eps_xx = Vec::new();
+        let mut eps_yy = Vec::new();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
@@ -2251,7 +2298,8 @@ mod tests {
                 approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
                 approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
                 if first {
-                    write!(&mut coords_sig, "{:.5},{:.5}\n", sig.xx[k], sig.yy[k]).unwrap();
+                    sig_xx.push(sig.xx[k]);
+                    sig_yy.push(sig.yy[k]);
                     if SAVE_FIGURE {
                         curve_sig.draw(&[sig.xx[k]], &[sig.yy[k]]);
                         text_sig.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", k));
@@ -2271,7 +2319,8 @@ mod tests {
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
                 approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
                 if first {
-                    write!(&mut coords_eps, "{:.5},{:.5}\n", eps.xx[k], eps.yy[k]).unwrap();
+                    eps_xx.push(eps.xx[k]);
+                    eps_yy.push(eps.yy[k]);
                     if SAVE_FIGURE {
                         curve_eps.draw(&[eps.xx[k]], &[eps.yy[k]]);
                         text_eps.draw(eps.xx[k] - 0.02, eps.yy[k], &format!("{}", k));
@@ -2291,28 +2340,34 @@ mod tests {
             .all(&post.mesh, "/tmp/pmsim/test_gauss_stresses_and_strains_work_2d.svg")
             .unwrap();
         }
-        assert_eq!(
-            coords_sig,
-            "1.46667,0.18333\n\
-             0.88333,0.23333\n\
-             1.96667,0.23333\n\
-             1.18333,0.36667\n\
-             1.76667,0.68333\n\
-             0.53333,0.83333\n\
-             1.48333,0.86667\n\
-             0.83333,0.96667\n"
+        compare_coords_2d(
+            &sig_xx,
+            &sig_yy,
+            &[
+                (1.46667, 0.18333),
+                (0.88333, 0.23333),
+                (1.96667, 0.23333),
+                (1.18333, 0.36667),
+                (1.76667, 0.68333),
+                (0.53333, 0.83333),
+                (1.48333, 0.86667),
+                (0.83333, 0.96667),
+            ],
         );
-        assert_eq!(
-            coords_eps,
-            "1.46667,0.18333\n\
-             0.88333,0.23333\n\
-             1.96667,0.23333\n\
-             0.28333,0.33333\n\
-             1.18333,0.36667\n\
-             1.76667,0.68333\n\
-             0.53333,0.83333\n\
-             1.48333,0.86667\n\
-             0.83333,0.96667\n"
+        compare_coords_2d(
+            &eps_xx,
+            &eps_yy,
+            &[
+                (1.46667, 0.18333),
+                (0.88333, 0.23333),
+                (1.96667, 0.23333),
+                (0.28333, 0.33333),
+                (1.18333, 0.36667),
+                (1.76667, 0.68333),
+                (0.53333, 0.83333),
+                (1.48333, 0.86667),
+                (0.83333, 0.96667),
+            ],
         );
     }
 
@@ -2335,8 +2390,12 @@ mod tests {
             text_eps.set_align_horizontal("right").set_align_vertical("top");
         }
         let mut first = true;
-        let mut coords_sig = String::new();
-        let mut coords_eps = String::new();
+        let mut sig_xx = Vec::new();
+        let mut sig_yy = Vec::new();
+        let mut sig_zz = Vec::new();
+        let mut eps_xx = Vec::new();
+        let mut eps_yy = Vec::new();
+        let mut eps_zz = Vec::new();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
@@ -2352,7 +2411,9 @@ mod tests {
                 approx_eq(sig.tyz[k], sig_ref.get(1, 2), 1e-14);
                 approx_eq(sig.tzx[k], sig_ref.get(2, 0), 1e-14);
                 if first {
-                    write!(&mut coords_sig, "{:.5},{:.5},{:.5}\n", sig.xx[k], sig.yy[k], sig.zz[k]).unwrap();
+                    sig_xx.push(sig.xx[k]);
+                    sig_yy.push(sig.yy[k]);
+                    sig_zz.push(sig.zz[k]);
                     if SAVE_FIGURE {
                         curve_sig.draw_3d(&[sig.xx[k]], &[sig.yy[k]], &[sig.zz[k]]);
                         text_sig.draw_3d(sig.xx[k] + 0.02, sig.yy[k], sig.zz[k], &format!("{}", k));
@@ -2373,7 +2434,9 @@ mod tests {
                 approx_eq(eps.tyz[k], eps_ref.get(1, 2), 1e-14);
                 approx_eq(eps.tzx[k], eps_ref.get(2, 0), 1e-14);
                 if first {
-                    write!(&mut coords_eps, "{:.5},{:.5},{:.5}\n", eps.xx[k], eps.yy[k], eps.zz[k]).unwrap();
+                    eps_xx.push(eps.xx[k]);
+                    eps_yy.push(eps.yy[k]);
+                    eps_zz.push(eps.zz[k]);
                     if SAVE_FIGURE {
                         curve_eps.draw_3d(&[eps.xx[k]], &[eps.yy[k]], &[eps.zz[k]]);
                         text_eps.draw_3d(eps.xx[k] - 0.02, eps.yy[k], eps.zz[k], &format!("{}", k));
@@ -2395,39 +2458,47 @@ mod tests {
             .unwrap();
         }
         // note that, due to imprecision, the sorting order for x values doesn't work well
-        assert_eq!(
-            coords_sig,
-            "0.78868,0.21132,0.21132\n\
-             0.21132,0.78868,0.21132\n\
-             0.78868,0.78868,0.21132\n\
-             0.78868,0.21132,0.78868\n\
-             0.21132,0.78868,0.78868\n\
-             0.78868,0.78868,0.78868\n\
-             0.78868,0.21132,1.21132\n\
-             0.21132,0.78868,1.21132\n\
-             0.78868,0.78868,1.21132\n\
-             0.78868,0.21132,1.78868\n\
-             0.21132,0.78868,1.78868\n\
-             0.78868,0.78868,1.78868\n"
+        compare_coords_3d(
+            &sig_xx,
+            &sig_yy,
+            &sig_zz,
+            &[
+                (0.78868, 0.21132, 0.21132),
+                (0.21132, 0.78868, 0.21132),
+                (0.78868, 0.78868, 0.21132),
+                (0.78868, 0.21132, 0.78868),
+                (0.21132, 0.78868, 0.78868),
+                (0.78868, 0.78868, 0.78868),
+                (0.78868, 0.21132, 1.21132),
+                (0.21132, 0.78868, 1.21132),
+                (0.78868, 0.78868, 1.21132),
+                (0.78868, 0.21132, 1.78868),
+                (0.21132, 0.78868, 1.78868),
+                (0.78868, 0.78868, 1.78868),
+            ],
         );
-        assert_eq!(
-            coords_eps,
-            "0.21132,0.21132,0.21132\n\
-             0.78868,0.21132,0.21132\n\
-             0.21132,0.78868,0.21132\n\
-             0.78868,0.78868,0.21132\n\
-             0.21132,0.21132,0.78868\n\
-             0.78868,0.21132,0.78868\n\
-             0.21132,0.78868,0.78868\n\
-             0.78868,0.78868,0.78868\n\
-             0.21132,0.21132,1.21132\n\
-             0.78868,0.21132,1.21132\n\
-             0.21132,0.78868,1.21132\n\
-             0.78868,0.78868,1.21132\n\
-             0.21132,0.21132,1.78868\n\
-             0.78868,0.21132,1.78868\n\
-             0.21132,0.78868,1.78868\n\
-             0.78868,0.78868,1.78868\n"
+        compare_coords_3d(
+            &eps_xx,
+            &eps_yy,
+            &eps_zz,
+            &[
+                (0.21132, 0.21132, 0.21132),
+                (0.78868, 0.21132, 0.21132),
+                (0.21132, 0.78868, 0.21132),
+                (0.78868, 0.78868, 0.21132),
+                (0.21132, 0.21132, 0.78868),
+                (0.78868, 0.21132, 0.78868),
+                (0.21132, 0.78868, 0.78868),
+                (0.78868, 0.78868, 0.78868),
+                (0.21132, 0.21132, 1.21132),
+                (0.78868, 0.21132, 1.21132),
+                (0.21132, 0.78868, 1.21132),
+                (0.78868, 0.78868, 1.21132),
+                (0.21132, 0.21132, 1.78868),
+                (0.78868, 0.21132, 1.78868),
+                (0.21132, 0.78868, 1.78868),
+                (0.78868, 0.78868, 1.78868),
+            ],
         );
     }
 
@@ -2483,23 +2554,24 @@ mod tests {
         let ww = post
             .nodal_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
-        let mut coords = String::new();
         for k in 0..ww.xx.len() {
             approx_eq(ww.vvx[k], w_correct[0], 1e-14);
             approx_eq(ww.vvy[k], w_correct[1], 1e-14);
-            write!(&mut coords, "{:.5},{:.5}\n", ww.xx[k], ww.yy[k]).unwrap();
         }
         assert_eq!(&ww.k_to_id, &[1, 2, 3, 4]);
         ww.k_to_id
             .iter()
             .map(|id| ww.id_to_k.get(id).unwrap())
             .for_each(|k| assert_eq!(k, k));
-        assert_eq!(
-            coords,
-            "1.20000,0.00000\n\
-             2.20000,0.10000\n\
-             1.80000,1.00000\n\
-             0.50000,1.20000\n"
+        compare_coords_2d(
+            &ww.xx,
+            &ww.yy,
+            &[
+                (1.20000, 0.00000),
+                (2.20000, 0.10000),
+                (1.80000, 1.00000),
+                (0.50000, 1.20000),
+            ],
         );
     }
 
@@ -2514,29 +2586,31 @@ mod tests {
         let ww = post
             .nodal_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
-        let mut coords = String::new();
         for k in 0..ww.xx.len() {
             approx_eq(ww.vvx[k], w_correct[0], 1e-13);
             approx_eq(ww.vvy[k], w_correct[1], 1e-13);
             approx_eq(ww.vvz[k], w_correct[2], 1e-13);
-            write!(&mut coords, "{:.5},{:.5},{:.5}\n", ww.xx[k], ww.yy[k], ww.zz[k]).unwrap();
         }
         assert_eq!(&ww.k_to_id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
         ww.k_to_id
             .iter()
             .map(|id| ww.id_to_k.get(id).unwrap())
             .for_each(|k| assert_eq!(k, k));
-        assert_eq!(
-            coords,
-            "1.00000,0.00000,0.00000\n\
-             0.00000,1.00000,0.00000\n\
-             1.00000,1.00000,0.00000\n\
-             1.00000,0.00000,1.00000\n\
-             0.00000,1.00000,1.00000\n\
-             1.00000,1.00000,1.00000\n\
-             1.00000,0.00000,2.00000\n\
-             0.00000,1.00000,2.00000\n\
-             1.00000,1.00000,2.00000\n"
+        compare_coords_3d(
+            &ww.xx,
+            &ww.yy,
+            &ww.zz,
+            &[
+                (1.00000, 0.00000, 0.00000),
+                (0.00000, 1.00000, 0.00000),
+                (1.00000, 1.00000, 0.00000),
+                (1.00000, 0.00000, 1.00000),
+                (0.00000, 1.00000, 1.00000),
+                (1.00000, 1.00000, 1.00000),
+                (1.00000, 0.00000, 2.00000),
+                (0.00000, 1.00000, 2.00000),
+                (1.00000, 1.00000, 2.00000),
+            ],
         );
     }
 
@@ -2611,8 +2685,10 @@ mod tests {
             text_eps.set_align_horizontal("right").set_align_vertical("top");
         }
         let mut first = true;
-        let mut coords_sig = String::new();
-        let mut coords_eps = String::new();
+        let mut sig_xx = Vec::new();
+        let mut sig_yy = Vec::new();
+        let mut eps_xx = Vec::new();
+        let mut eps_yy = Vec::new();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
@@ -2625,7 +2701,8 @@ mod tests {
                 approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
                 approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
                 if first {
-                    write!(&mut coords_sig, "{:.5},{:.5}\n", sig.xx[k], sig.yy[k]).unwrap();
+                    sig_xx.push(sig.xx[k]);
+                    sig_yy.push(sig.yy[k]);
                     if SAVE_FIGURE {
                         curve_sig.draw(&[sig.xx[k]], &[sig.yy[k]]);
                         text_sig.draw(sig.xx[k] + 0.02, sig.yy[k], &format!("{}", sig.k_to_id[k]));
@@ -2648,7 +2725,8 @@ mod tests {
                 approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
                 approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
                 if first {
-                    write!(&mut coords_eps, "{:.5},{:.5}\n", eps.xx[k], eps.yy[k]).unwrap();
+                    eps_xx.push(eps.xx[k]);
+                    eps_yy.push(eps.yy[k]);
                     if SAVE_FIGURE {
                         curve_eps.draw(&[eps.xx[k]], &[eps.yy[k]]);
                         text_eps.draw(eps.xx[k] - 0.02, eps.yy[k], &format!("{}", eps.k_to_id[k]));
@@ -2673,20 +2751,26 @@ mod tests {
             .all(&post.mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_2d.svg")
             .unwrap();
         }
-        assert_eq!(
-            coords_sig,
-            "1.20000,0.00000\n\
-             2.20000,0.10000\n\
-             1.80000,1.00000\n\
-             0.50000,1.20000\n"
+        compare_coords_2d(
+            &sig_xx,
+            &sig_yy,
+            &[
+                (1.20000, 0.00000),
+                (2.20000, 0.10000),
+                (1.80000, 1.00000),
+                (0.50000, 1.20000),
+            ],
         );
-        assert_eq!(
-            coords_eps,
-            "1.20000,0.00000\n\
-             2.20000,0.10000\n\
-             0.00000,0.20000\n\
-             1.80000,1.00000\n\
-             0.50000,1.20000\n"
+        compare_coords_2d(
+            &eps_xx,
+            &eps_yy,
+            &[
+                (1.20000, 0.00000),
+                (2.20000, 0.10000),
+                (0.00000, 0.20000),
+                (1.80000, 1.00000),
+                (0.50000, 1.20000),
+            ],
         );
     }
 
@@ -2709,8 +2793,12 @@ mod tests {
             text_eps.set_align_horizontal("right").set_align_vertical("top");
         }
         let mut first = true;
-        let mut coords_sig = String::new();
-        let mut coords_eps = String::new();
+        let mut sig_xx = Vec::new();
+        let mut sig_yy = Vec::new();
+        let mut sig_zz = Vec::new();
+        let mut eps_xx = Vec::new();
+        let mut eps_yy = Vec::new();
+        let mut eps_zz = Vec::new();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             // stress (filtered)
             let sig = post
@@ -2724,7 +2812,9 @@ mod tests {
                 approx_eq(sig.tyz[k], sig_ref.get(1, 2), 1e-13);
                 approx_eq(sig.tzx[k], sig_ref.get(2, 0), 1e-13);
                 if first {
-                    write!(&mut coords_sig, "{:.5},{:.5},{:.5}\n", sig.xx[k], sig.yy[k], sig.zz[k]).unwrap();
+                    sig_xx.push(sig.xx[k]);
+                    sig_yy.push(sig.yy[k]);
+                    sig_zz.push(sig.zz[k]);
                     if SAVE_FIGURE {
                         curve_sig.draw_3d(&[sig.xx[k]], &[sig.yy[k]], &[sig.zz[k]]);
                         text_sig.draw_3d(sig.xx[k] + 0.02, sig.yy[k], sig.zz[k], &format!("{}", sig.k_to_id[k]));
@@ -2748,7 +2838,9 @@ mod tests {
                 approx_eq(eps.tyz[k], eps_ref.get(1, 2), 1e-15);
                 approx_eq(eps.tzx[k], eps_ref.get(2, 0), 1e-15);
                 if first {
-                    write!(&mut coords_eps, "{:.5},{:.5},{:.5}\n", eps.xx[k], eps.yy[k], eps.zz[k]).unwrap();
+                    eps_xx.push(eps.xx[k]);
+                    eps_yy.push(eps.yy[k]);
+                    eps_zz.push(eps.zz[k]);
                     if SAVE_FIGURE {
                         curve_eps.draw_3d(&[eps.xx[k]], &[eps.yy[k]], &[eps.zz[k]]);
                         text_eps.draw_3d(eps.xx[k] - 0.02, eps.yy[k], eps.zz[k], &format!("{}", eps.k_to_id[k]));
@@ -2774,32 +2866,40 @@ mod tests {
             .all(&post.mesh, "/tmp/pmsim/test_nodal_stresses_and_strains_work_3d.svg")
             .unwrap();
         }
-        assert_eq!(
-            coords_sig,
-            "1.00000,0.00000,0.00000\n\
-             0.00000,1.00000,0.00000\n\
-             1.00000,1.00000,0.00000\n\
-             1.00000,0.00000,1.00000\n\
-             0.00000,1.00000,1.00000\n\
-             1.00000,1.00000,1.00000\n\
-             1.00000,0.00000,2.00000\n\
-             0.00000,1.00000,2.00000\n\
-             1.00000,1.00000,2.00000\n"
+        compare_coords_3d(
+            &sig_xx,
+            &sig_yy,
+            &sig_zz,
+            &[
+                (1.00000, 0.00000, 0.00000),
+                (0.00000, 1.00000, 0.00000),
+                (1.00000, 1.00000, 0.00000),
+                (1.00000, 0.00000, 1.00000),
+                (0.00000, 1.00000, 1.00000),
+                (1.00000, 1.00000, 1.00000),
+                (1.00000, 0.00000, 2.00000),
+                (0.00000, 1.00000, 2.00000),
+                (1.00000, 1.00000, 2.00000),
+            ],
         );
-        assert_eq!(
-            coords_eps,
-            "0.00000,0.00000,0.00000\n\
-             1.00000,0.00000,0.00000\n\
-             0.00000,1.00000,0.00000\n\
-             1.00000,1.00000,0.00000\n\
-             0.00000,0.00000,1.00000\n\
-             1.00000,0.00000,1.00000\n\
-             0.00000,1.00000,1.00000\n\
-             1.00000,1.00000,1.00000\n\
-             0.00000,0.00000,2.00000\n\
-             1.00000,0.00000,2.00000\n\
-             0.00000,1.00000,2.00000\n\
-             1.00000,1.00000,2.00000\n"
+        compare_coords_3d(
+            &eps_xx,
+            &eps_yy,
+            &eps_zz,
+            &[
+                (0.00000, 0.00000, 0.00000),
+                (1.00000, 0.00000, 0.00000),
+                (0.00000, 1.00000, 0.00000),
+                (1.00000, 1.00000, 0.00000),
+                (0.00000, 0.00000, 1.00000),
+                (1.00000, 0.00000, 1.00000),
+                (0.00000, 1.00000, 1.00000),
+                (1.00000, 1.00000, 1.00000),
+                (0.00000, 0.00000, 2.00000),
+                (1.00000, 0.00000, 2.00000),
+                (0.00000, 1.00000, 2.00000),
+                (1.00000, 1.00000, 2.00000),
+            ],
         );
     }
 
