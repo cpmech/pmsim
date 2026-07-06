@@ -4,7 +4,8 @@ use plotpy::Surface;
 use pmsim::analytical::ElastPlaneStrainPresCylin;
 use pmsim::prelude::*;
 use pmsim::util::ConvergenceResults;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::{array_approx_eq, format_nanoseconds, Stopwatch};
 use russell_sparse::Genie;
 use std::env;
 
@@ -70,7 +71,7 @@ fn main() -> Result<(), StrError> {
 
     // numerical solution arrays
     let n = sizes.len();
-    let mut results = ConvergenceResults::new(n);
+    let mut cr = ConvergenceResults::new(n);
 
     // print header
     println!(
@@ -141,10 +142,11 @@ fn main() -> Result<(), StrError> {
             },
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(param1))])?;
+        let mut schema = Schema::new();
+        schema.add_solid(1, param1).build(&mesh)?;
 
         // total number of DOF
-        let ndof = base.dofs.size();
+        let ndof = schema.ndof()?;
         let n_str = format!("{:0>5}", ndof);
 
         // println!("4. NDOF = {}", ndof);
@@ -175,12 +177,12 @@ fn main() -> Result<(), StrError> {
             cylin_out.draw_cylinder(&[0.0, 0.0, 0.0], &[0.0, 0.0, 1.0], R2, 5, 81)?;
 
             // figure settings
-            let mut fig = Figure::new();
-            fig.size(800.0, 800.0)
-                .canvas_points()
+            let mut draw = Draw::new();
+            draw.set_size(800.0, 800.0)
+                .get_canvas_points()
                 .set_marker_size(2.5)
                 .set_marker_line_color("black");
-            fig.show_point_dots(if ndof < 3100 { true } else { false })
+            draw.show_point_dots(if ndof < 3100 { true } else { false })
                 .extra(|plot, before| {
                     if !before {
                         plot.add(&cylin_in);
@@ -188,73 +190,64 @@ fn main() -> Result<(), StrError> {
                         plot.add(&curve);
                     }
                 })
-                .draw(&mesh, &path_mesh)?;
+                .all(&mesh, &path_mesh)?;
         }
 
         // essential boundary conditions
-        let mut essential = Essential::new();
-        essential
-            .faces(&faces_x_min, Dof::Ux, 0.0)
+        let mut ebc = BcEssential::new();
+        ebc.faces(&faces_x_min, Dof::Ux, 0.0)
             .faces(&faces_y_min, Dof::Uy, 0.0)
             .faces(&faces_z_min, Dof::Uz, 0.0)
             .faces(&faces_z_max, Dof::Uz, 0.0);
 
         // natural boundary conditions
-        let mut natural = Natural::new();
-        natural
-            .faces(&faces_inner, Nbc::Qn, -P1)
-            .faces(&faces_outer, Nbc::Qn, -P2);
+        let mut nbc = BcNatural::new();
+        nbc.faces(&faces_inner, Nbc::Qn, -P1).faces(&faces_outer, Nbc::Qn, -P2);
 
         // configuration
         let mut config = Config::new(&mesh);
         config
-            .set_linear_problem(true)
-            .set_verbose_timesteps(false)
-            .set_save_vismatrix_file(false)
-            .set_save_matrix_market_file(WRITE_K)
-            .set_lin_sol_genie(genie)
+            .verbose(false)
+            .save_vismatrix_file(false)
+            .save_matrix_market_file(WRITE_K)
+            .lin_sol_genie(genie)
             .access_lin_sol_params()
             .umfpack_enforce_unsymmetric_strategy = enforce_unsym_strategy;
-
-        // FEM state
-        let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-        // File IO
-        let mut file_io = FileIo::new();
 
         // println!("5. running simulation");
 
         // solution
-        let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
         let mut stopwatch = Stopwatch::new();
-        match solver.solve(&mut state, &mut file_io) {
+        let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+        match sim.steady(&mut data, false) {
             Err(e) => {
                 println!("{:?} failed with: {}", genie, e);
                 continue;
             }
-            Ok(..) => (),
+            Ok(()) => (),
         }
-        results.time[idx] = stopwatch.stop();
+        let state = data.state();
+        cr.time[idx] = stopwatch.stop();
 
         // println!("5. computing error");
 
         // compute error
         let r = mesh.points[ref_point_id].coords[0];
         assert_eq!(mesh.points[ref_point_id].coords[1], 0.0);
-        let eq = base.dofs.eq(ref_point_id, Dof::Ux).unwrap();
-        let numerical_ur = state.u[eq];
+        let i = schema.dof_number(ref_point_id, Dof::Ux)?;
+        let numerical_ur = state.uu[i];
         let error = f64::abs(numerical_ur - ana.ur(r));
 
         // study point error
-        let eq = base.dofs.eq(study_point, Dof::Uy).unwrap();
-        let numerical_ur = state.u[eq];
+        let j = schema.dof_number(study_point, Dof::Uy)?;
+        let numerical_ur = state.uu[j];
         let study_error = numerical_ur; // should be zero with R2 = 2*R1 and P1 = 2*P2
 
         // results
-        results.name = kind.to_string();
-        results.ndof[idx] = ndof;
-        results.error[idx] = error;
-        let ns = format_nanoseconds(results.time[idx]);
+        cr.name = kind.to_string();
+        cr.ndof[idx] = ndof;
+        cr.error[idx] = error;
+        let ns = format_nanoseconds(cr.time[idx]);
         let lx = f64::log10(ndof as f64);
         println!(
             "{:>15} {:>6} {:>11.2} {:>9.2e} {:>10.2e}",
@@ -266,6 +259,6 @@ fn main() -> Result<(), StrError> {
     }
 
     // save results
-    results.write_json(&path_json)?;
+    cr.write_json(&path_json)?;
     Ok(())
 }

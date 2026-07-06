@@ -1,6 +1,8 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*};
-use russell_lab::*;
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
+use pmsim::StrError;
+use russell_lab::vec_approx_eq;
 
 // Smith's Example 5.30 (Figure 5.30) on page 202
 //
@@ -51,33 +53,26 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
         },
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential
-        .faces(&faces_x_min, Dof::Ux, 0.0)
+    let mut ebc = BcEssential::new();
+    ebc.faces(&faces_x_min, Dof::Ux, 0.0)
         .faces(&faces_y_min, Dof::Uy, 0.0)
         .faces(&bottom, Dof::Uz, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural
-        .points(&[0, 5], Pbc::Fz, -0.1667)
-        .points(&[1, 4], Pbc::Fz, -0.3333);
+    let mut nbc = BcNatural::new();
+    nbc.points(&[0, 5], Pbc::Fz, -0.1667).points(&[1, 4], Pbc::Fz, -0.3333);
 
     // configuration
     let config = Config::new(&mesh);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
-
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]
@@ -91,6 +86,6 @@ fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
         0.000000000000000e+00,  3.000091440207385e-03,  0.000000000000000e+00,
         3.000108483339240e-03,  3.000132531607437e-03,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.u, uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
     Ok(())
 }

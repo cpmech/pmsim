@@ -1,6 +1,8 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*};
-use russell_lab::*;
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
+use pmsim::StrError;
+use russell_lab::vec_approx_eq;
 
 // Smith's Example 5.27 (Figure 5.27) on page 200
 //
@@ -67,32 +69,27 @@ fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
         },
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.edges(&top, Nbc::Qn, -1.0);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
     let config = Config::new(&mesh);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
-
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]
@@ -133,6 +130,6 @@ fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
          0.000000000000000e+00,  0.000000000000000e+00,
          0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.u, uu_correct, 3e-13);
+    vec_approx_eq(&state.uu, uu_correct, 3e-13);
     Ok(())
 }

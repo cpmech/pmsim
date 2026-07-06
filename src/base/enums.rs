@@ -2,33 +2,31 @@ use super::{ParamBeam, ParamDiffusion, ParamRod};
 use super::{ParamPorousLiq, ParamPorousLiqGas, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid};
 use serde::{Deserialize, Serialize};
 
-/// Defines degrees-of-freedom (DOF) types
+/// Defines degrees-of-freedom (DOF) variants
 ///
-/// Note: The fixed numbering scheme assists in sorting the DOFs.
+/// Important: The assigned numbers are essential to build the DOF numbering matrix.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Deserialize, Serialize)]
 pub enum Dof {
+    /// Primary scalar quantity for diffusion problems (e.g. temperature)
+    Phi = 0,
+
     /// Displacement along the first dimension
-    Ux = 0,
+    Ux = 1,
 
     /// Displacement along the second dimension
-    Uy = 1,
+    Uy = 2,
 
     /// Displacement along the third dimension
-    Uz = 2,
+    Uz = 3,
 
     /// Rotation around the first axis
-    Rx = 3,
+    Rx = 4,
 
     /// Rotation around the second axis
-    Ry = 4,
+    Ry = 5,
 
     /// Rotation around the third axis
-    Rz = 5,
-
-    /// Primary scalar quantity for diffusion problems (such as the temperature)
-    ///
-    /// Examples: Liquid pressure, temperature
-    Phi = 6,
+    Rz = 6,
 
     /// Liquid pressure
     Pl = 7,
@@ -38,6 +36,59 @@ pub enum Dof {
 
     /// Free-surface-output (fso) enrichment
     Fso = 9,
+}
+
+impl Dof {
+    /// Returns the number of DOF variants
+    pub fn n_variant() -> usize {
+        10
+    }
+
+    /// Returns a vector with all DOF variants
+    pub fn all() -> Vec<Dof> {
+        vec![
+            Dof::Phi,
+            Dof::Ux,
+            Dof::Uy,
+            Dof::Uz,
+            Dof::Rx,
+            Dof::Ry,
+            Dof::Rz,
+            Dof::Pl,
+            Dof::Pg,
+            Dof::Fso,
+        ]
+    }
+
+    /// Returns the index of the DOF variant
+    pub fn index(&self) -> usize {
+        *self as usize
+    }
+
+    /// Returns the DOF variant from its index
+    pub fn from_index(index: usize) -> Option<Dof> {
+        match index {
+            0 => Some(Dof::Phi),
+            1 => Some(Dof::Ux),
+            2 => Some(Dof::Uy),
+            3 => Some(Dof::Uz),
+            4 => Some(Dof::Rx),
+            5 => Some(Dof::Ry),
+            6 => Some(Dof::Rz),
+            7 => Some(Dof::Pl),
+            8 => Some(Dof::Pg),
+            9 => Some(Dof::Fso),
+            _ => None,
+        }
+    }
+
+    /// Indicates whether the DOF is a displacement DOF or not
+    pub fn is_displacement(&self) -> bool {
+        match self {
+            Dof::Ux | Dof::Uy | Dof::Uz => true,
+            _ => false,
+        }
+    }
 }
 
 /// Defines natural boundary conditions (NBC)
@@ -66,13 +117,13 @@ pub enum Nbc {
 
     /// Heat convection
     ///
-    /// The value in parenthesis is constant and corresponds to is the convection coefficient `cc`.
+    /// The value in parenthesis is constant and corresponds to is the convection coefficient `α`.
     /// The specified value is the environment temperature `T∞`.
     Cv(f64),
 }
 
 impl Nbc {
-    /// Returns the boundary cell DOF keys and local equation numbers
+    /// Returns the boundary cell DOF keys and local DOF numbers
     ///
     /// **Notes:** The outer array has length = nnode.
     /// The inner arrays have lengths = ndof at the node.
@@ -157,6 +208,37 @@ impl Pbc {
     }
 }
 
+/// Defines the kind of strain for geometrically non-linear analysis
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum GnlStrain {
+    /// Engineering strain
+    ///
+    /// ```text
+    ///      L - L₀
+    /// ε  = ——————
+    ///  ᴱ     L₀
+    /// ```
+    Eng,
+
+    /// Green-Lagrange strain
+    ///
+    /// ```text
+    ///      L² - L₀²
+    /// ε  = ————————
+    ///  ᴳ    2 L₀²
+    /// ```
+    Green,
+
+    /// Logarithmic strain
+    ///
+    /// ```text
+    ///         ⎛ L  ⎞
+    /// ε  = ln ⎜————⎟
+    ///  ᴸ      ⎝ L₀ ⎠
+    /// ```
+    Log,
+}
+
 /// Defines how stresses are initialized
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum Init {
@@ -178,9 +260,9 @@ pub enum Init {
     Zero,
 }
 
-/// Defines the element type
+/// Defines the element type and holds the parameters
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-pub enum Elem {
+pub(crate) enum ElemType {
     Diffusion(ParamDiffusion),
     Rod(ParamRod),
     Beam(ParamBeam),
@@ -191,32 +273,34 @@ pub enum Elem {
     PorousSldLiqGas(ParamPorousSldLiqGas),
 }
 
-impl Elem {
-    /// Returns the name of the Element
-    pub fn name(&self) -> String {
+impl ElemType {
+    /// Indicates whether the element is a frame element
+    pub fn is_frame(&self) -> bool {
         match self {
-            Elem::Diffusion(..) => "Diffusion".to_string(),
-            Elem::Rod(..) => "Rod".to_string(),
-            Elem::Beam(..) => "Beam".to_string(),
-            Elem::Solid(..) => "Solid".to_string(),
-            Elem::PorousLiq(..) => "PorousLiq".to_string(),
-            Elem::PorousLiqGas(..) => "PorousLiqGas".to_string(),
-            Elem::PorousSldLiq(..) => "PorousSldLiq".to_string(),
-            Elem::PorousSldLiqGas(..) => "PorousSldLiqGas".to_string(),
+            ElemType::Rod(..) | ElemType::Beam(..) => true,
+            _ => false,
+        }
+    }
+
+    /// Indicates whether the element must satisfy the LBB condition
+    pub fn must_satisfy_lbb(&self) -> bool {
+        match self {
+            ElemType::PorousSldLiq(..) | ElemType::PorousSldLiqGas(..) => true,
+            _ => false,
         }
     }
 
     /// Returns the number of integration (Gauss) points
     pub fn ngauss(&self) -> Option<usize> {
         match self {
-            Elem::Diffusion(param) => param.ngauss,
-            Elem::Rod(param) => param.ngauss,
-            Elem::Beam(param) => param.ngauss,
-            Elem::Solid(param) => param.ngauss,
-            Elem::PorousLiq(param) => param.ngauss,
-            Elem::PorousLiqGas(param) => param.ngauss,
-            Elem::PorousSldLiq(param) => param.ngauss,
-            Elem::PorousSldLiqGas(param) => param.ngauss,
+            ElemType::Diffusion(param) => param.ngauss,
+            ElemType::Rod(param) => param.ngauss,
+            ElemType::Beam(param) => param.ngauss,
+            ElemType::Solid(param) => param.ngauss,
+            ElemType::PorousLiq(param) => param.ngauss,
+            ElemType::PorousLiqGas(param) => param.ngauss,
+            ElemType::PorousSldLiq(param) => param.ngauss,
+            ElemType::PorousSldLiqGas(param) => param.ngauss,
         }
     }
 }
@@ -225,10 +309,79 @@ impl Elem {
 
 #[cfg(test)]
 mod tests {
-    use super::{Dof, Elem, Init, Nbc, Pbc};
+    use super::{Dof, ElemType, Init, Nbc, Pbc};
     use crate::base::{ParamBeam, ParamDiffusion, ParamPorousLiq, ParamPorousLiqGas};
     use crate::base::{ParamPorousSldLiq, ParamPorousSldLiqGas, ParamRod, ParamSolid};
     use std::{cmp::Ordering, collections::HashSet};
+
+    #[test]
+    fn dof_methods_work() {
+        // n_variant
+        assert_eq!(Dof::n_variant(), Dof::Fso as usize + 1);
+
+        // all
+        let all_dofs = Dof::all();
+        assert_eq!(all_dofs.len(), Dof::n_variant());
+        assert_eq!(
+            all_dofs,
+            vec![
+                Dof::Phi,
+                Dof::Ux,
+                Dof::Uy,
+                Dof::Uz,
+                Dof::Rx,
+                Dof::Ry,
+                Dof::Rz,
+                Dof::Pl,
+                Dof::Pg,
+                Dof::Fso,
+            ]
+        );
+
+        // index
+        assert_eq!(Dof::Phi.index(), 0);
+        assert_eq!(Dof::Ux.index(), 1);
+        assert_eq!(Dof::Uy.index(), 2);
+        assert_eq!(Dof::Uz.index(), 3);
+        assert_eq!(Dof::Rx.index(), 4);
+        assert_eq!(Dof::Ry.index(), 5);
+        assert_eq!(Dof::Rz.index(), 6);
+        assert_eq!(Dof::Pl.index(), 7);
+        assert_eq!(Dof::Pg.index(), 8);
+        assert_eq!(Dof::Fso.index(), 9);
+
+        // from_index
+        assert_eq!(Dof::from_index(0), Some(Dof::Phi));
+        assert_eq!(Dof::from_index(1), Some(Dof::Ux));
+        assert_eq!(Dof::from_index(2), Some(Dof::Uy));
+        assert_eq!(Dof::from_index(3), Some(Dof::Uz));
+        assert_eq!(Dof::from_index(4), Some(Dof::Rx));
+        assert_eq!(Dof::from_index(5), Some(Dof::Ry));
+        assert_eq!(Dof::from_index(6), Some(Dof::Rz));
+        assert_eq!(Dof::from_index(7), Some(Dof::Pl));
+        assert_eq!(Dof::from_index(8), Some(Dof::Pg));
+        assert_eq!(Dof::from_index(9), Some(Dof::Fso));
+        assert_eq!(Dof::from_index(10), None);
+        assert_eq!(Dof::from_index(100), None);
+
+        // index and from_index are consistent
+        for dof in Dof::all() {
+            let index = dof.index();
+            assert_eq!(Dof::from_index(index), Some(dof));
+        }
+
+        // is_displacement
+        assert_eq!(Dof::Phi.is_displacement(), false);
+        assert_eq!(Dof::Ux.is_displacement(), true);
+        assert_eq!(Dof::Uy.is_displacement(), true);
+        assert_eq!(Dof::Uz.is_displacement(), true);
+        assert_eq!(Dof::Rx.is_displacement(), false);
+        assert_eq!(Dof::Ry.is_displacement(), false);
+        assert_eq!(Dof::Rz.is_displacement(), false);
+        assert_eq!(Dof::Pl.is_displacement(), false);
+        assert_eq!(Dof::Pg.is_displacement(), false);
+        assert_eq!(Dof::Fso.is_displacement(), false);
+    }
 
     #[test]
     fn dof_ebc_nbc_pbc_derives_work() {
@@ -267,55 +420,39 @@ mod tests {
     #[test]
     fn element_derive_works() {
         let p = ParamDiffusion::sample();
-        let e = Elem::Diffusion(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "Diffusion");
+        let e = ElemType::Diffusion(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamRod::sample();
-        let e = Elem::Rod(p);
-        let e_clone = e.clone();
+        let e = ElemType::Rod(p);
         assert_eq!(
             format!("{:?}", e),
-            "Rod(ParamRod { gnl: false, density: 1.0, young: 1000.0, area: 1.0, ngauss: None })"
+            "Rod(ParamRod { gnl: None, density: 1.0, young: 1000.0, area: 1.0, ngauss: None })"
         );
-        assert_eq!(format!("{}", e_clone.name()), "Rod");
         assert_eq!(e.ngauss(), None);
 
         let p = ParamBeam::sample();
-        let e = Elem::Beam(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "Beam");
+        let e = ElemType::Beam(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamSolid::sample_linear_elastic();
-        let e = Elem::Solid(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "Solid");
+        let e = ElemType::Solid(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousLiq::sample_brooks_corey_constant();
-        let e = Elem::PorousLiq(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "PorousLiq");
+        let e = ElemType::PorousLiq(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousLiqGas::sample_brooks_corey_constant();
-        let e = Elem::PorousLiqGas(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "PorousLiqGas");
+        let e = ElemType::PorousLiqGas(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
-        let e = Elem::PorousSldLiq(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "PorousSldLiq");
+        let e = ElemType::PorousSldLiq(p);
         assert_eq!(e.ngauss(), None);
 
         let p = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
-        let e = Elem::PorousSldLiqGas(p);
-        let e_clone = e.clone();
-        assert_eq!(format!("{}", e_clone.name()), "PorousSldLiqGas");
+        let e = ElemType::PorousSldLiqGas(p);
         assert_eq!(e.ngauss(), None);
     }
 

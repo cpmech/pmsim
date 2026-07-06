@@ -1,5 +1,9 @@
 /target
 Cargo.lock
+Cargo.toml.local
 tarpaulin-report.html
 .aider*
 log*.txt
+
+# Blender backup files
+*.blend[0-9]

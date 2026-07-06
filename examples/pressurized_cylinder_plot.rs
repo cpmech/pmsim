@@ -10,7 +10,7 @@ fn main() -> Result<(), StrError> {
     let name = if args.len() > 1 {
         &args[1]
     } else {
-        "pressurized_cylinder3d_elast"
+        "pressurized_cylinder2d_elast"
     };
     let genie = if args.len() > 2 {
         Genie::from(&args[2])
@@ -54,20 +54,20 @@ fn main() -> Result<(), StrError> {
         }
 
         // load results
-        let results = ConvergenceResults::read_json(&path_json)?;
-        assert_eq!(results.name, *str_kind);
+        let cr = ConvergenceResults::read_json(&path_json)?;
+        assert_eq!(cr.name, *str_kind);
 
         // add error curve
         let mut curve_error = Curve::new();
         curve_error.set_label(&str_kind).set_marker_style(&marker);
-        let x: Vec<_> = results.ndof.iter().map(|n| *n as f64).collect();
-        curve_error.draw(&x, &results.error);
+        let x: Vec<_> = cr.ndof.iter().map(|n| *n as f64).collect();
+        curve_error.draw(&x, &cr.error);
         plot_error.add(&curve_error);
 
         // add time curve
         let mut curve_time = Curve::new();
         curve_time.set_label(&str_kind).set_marker_style(&marker);
-        let y: Vec<_> = results.time.iter().map(|t| *t as f64).collect();
+        let y: Vec<_> = cr.time.iter().map(|t| *t as f64).collect();
         curve_time.draw(&x, &y);
         plot_time.add(&curve_time);
     }

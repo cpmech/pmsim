@@ -1,7 +1,8 @@
 use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::vec_approx_eq;
 
 // Bhatti's Example 1.6 on page 32
 //
@@ -37,6 +38,12 @@ use russell_lab::*;
 
 #[test]
 fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
+    run_test(true)?;
+    run_test(false)?;
+    Ok(())
+}
+
+fn run_test(lmm: bool) -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d6_bracket();
     let features = Features::new(&mesh, false);
@@ -53,29 +60,25 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
         },
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.points(&[0, 1], Dof::Ux, 0.0).points(&[0, 1], Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.points(&[0, 1], Dof::Ux, 0.0).points(&[0, 1], Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.edges(&top, Nbc::Qn, -20.0);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&top, Nbc::Qn, -20.0);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_plane_stress(0.25);
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
+    config.lagrange_mult_method(lmm).plane_stress(0.25);
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, false)?;
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]
@@ -87,7 +90,6 @@ fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
         -1.313941349422282e-02, -5.549310752960183e-02,
          8.389015766816341e-05, -5.556637423271112e-02
     ];
-    println!("{}", state.u);
-    vec_approx_eq(&state.u, uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
     Ok(())
 }

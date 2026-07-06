@@ -1,6 +1,7 @@
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::vec_approx_eq;
 
 // Bhatti's Example 1.4 on page 25
 //
@@ -25,7 +26,7 @@ use russell_lab::*;
 //     |   /  [1]
 //     |  /
 //     | /    (#) indicates cell id
-//     0'     [#] indicates attribute id
+//     0'     [#] indicates marker
 //
 // BOUNDARY CONDITIONS
 //
@@ -45,33 +46,56 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
     let mesh = SampleMeshes::bhatti_example_1d4_truss();
 
     // parameters
-    #[rustfmt::skip]
-    let base = FemBase::new(&mesh, [
-        (1, Elem::Rod(ParamRod { area: 4_000.0, young: 200_000.0, density: 1.0, gnl: false, ngauss: None })),
-        (2, Elem::Rod(ParamRod { area: 3_000.0, young: 200_000.0, density: 1.0, gnl: false, ngauss: None })),
-        (3, Elem::Rod(ParamRod { area: 2_000.0, young:  70_000.0, density: 1.0, gnl: false, ngauss: None })),
-    ])?;
+    let mut schema = Schema::new();
+    schema
+        .add_rod(
+            1,
+            ParamRod {
+                area: 4_000.0,
+                young: 200_000.0,
+                density: 1.0,
+                gnl: None,
+                ngauss: None,
+            },
+        )
+        .add_rod(
+            2,
+            ParamRod {
+                area: 3_000.0,
+                young: 200_000.0,
+                density: 1.0,
+                gnl: None,
+                ngauss: None,
+            },
+        )
+        .add_rod(
+            3,
+            ParamRod {
+                area: 2_000.0,
+                young: 70_000.0,
+                density: 1.0,
+                gnl: None,
+                ngauss: None,
+            },
+        )
+        .build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.points(&[0, 3], Dof::Ux, 0.0).points(&[0, 3], Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.points(&[0, 3], Dof::Ux, 0.0).points(&[0, 3], Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.points(&[1], Pbc::Fy, -150000.0);
+    let mut nbc = BcNatural::new();
+    nbc.points(&[1], Pbc::Fy, -150000.0);
 
     // configuration
-    let config = Config::new(&mesh);
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
+    let mut config = Config::new(&mesh);
+    config.enable_symmetry_check(1e-15);
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]
@@ -81,6 +105,6 @@ fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
         2.647036149579491e-01, -2.647036149579491e-01, // 2: Ux,Uy
         0.000000000000000e+00,  0.000000000000000e+00, // 3: Ux,Uy
     ];
-    vec_approx_eq(&state.u, uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
     Ok(())
 }

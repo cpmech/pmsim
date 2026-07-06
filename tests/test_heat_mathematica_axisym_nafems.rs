@@ -5,7 +5,7 @@ use pmsim::{prelude::*, StrError};
 // From Mathematica Heat Transfer Model Verification Tests
 // (HeatTransfer-FEM-Stationary-2DAxisym-Single-HeatTransfer-0002)
 //
-// NAFEMS benchmark test
+// NAFEMS Axisymmetric benchmark test
 //
 // https://reference.wolfram.com/language/PDEModels/tutorial/HeatTransfer/HeatTransferVerificationTests.html
 //
@@ -35,7 +35,7 @@ use pmsim::{prelude::*, StrError};
 //
 // '+' indicates sides with T = 273.15
 // || means insulated
-// →→ means flux with Qt = 5e5
+// →→ means inward flux with Qt = -5e5
 // (#) indicates a reference point to check the results
 //
 // INITIAL CONDITIONS
@@ -45,7 +45,7 @@ use pmsim::{prelude::*, StrError};
 // BOUNDARY CONDITIONS
 //
 // Temperature T = 273.15 on the top, bottom, and right edges
-// Flux Qt = 5e5 on the middle-left edges from y=0.04 to y=0.10
+// Inward Flux Qt = -5e5 on the middle-left edges from y=0.04 to y=0.10
 //
 // CONFIGURATION AND PARAMETERS
 //
@@ -85,36 +85,32 @@ fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.edges(&edges_temp, Dof::Phi, 273.15);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&edges_temp, Dof::Phi, 273.15);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.edges(&edges_flux, Nbc::Qt, 5e5);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&edges_flux, Nbc::Qt, -5e5); // inward flux
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric().set_lagrange_mult_method(true);
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
+    config.axisymmetric();
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.state();
 
     // check
-    let eq = base.dofs.eq(ref_point, Dof::Phi).unwrap();
-    let rel_err = f64::abs(state.u[eq] - ref_temperature) / ref_temperature;
+    let i = schema.dof_number(ref_point, Dof::Phi)?;
+    let rel_err = f64::abs(state.uu[i] - ref_temperature) / ref_temperature;
     println!(
         "\nT = {:?}, reference = {:?}, rel_error = {:>.8} %",
-        state.u[eq],
+        state.uu[i],
         ref_temperature,
         rel_err * 100.0
     );
@@ -144,19 +140,19 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
         circle.draw_circle(rref, ya, 0.02 * (rout - rin));
 
         // configure plot
-        let mut fig = Figure::new();
-        fig.size(400.0, 600.0)
-            .canvas_points()
+        let mut draw = Draw::new();
+        draw.set_size(400.0, 600.0)
+            .get_canvas_points()
             .set_marker_size(3.0)
             .set_marker_line_color("None");
 
         // generate figure
-        fig.extra(|plot, before| {
+        draw.extra(|plot, before| {
             if !before {
                 plot.add(&circle);
             }
         })
-        .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+        .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
         .unwrap();
 
         // write mesh

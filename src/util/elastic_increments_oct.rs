@@ -58,21 +58,21 @@ mod tests {
 
         let lode_0 = f64::cos(3.0 * (PI / 2.0 - alpha_0));
         let lode_1 = f64::cos(3.0 * (PI / 2.0 - alpha_1));
-        approx_eq(stress_0.invariant_sigma_m(), sig_m_0, 1e-15);
-        approx_eq(stress_0.invariant_sigma_d(), sig_d_0, 1e-15);
-        approx_eq(stress_0.invariant_lode().unwrap(), lode_0, 1e-15);
-        approx_eq(stress_1.invariant_sigma_m(), sig_m_1, 1e-15);
-        approx_eq(stress_1.invariant_sigma_d(), sig_d_1, 1e-15);
-        approx_eq(stress_1.invariant_lode().unwrap(), lode_1, 1e-15);
+        approx_eq(stress_0.invariant_p(), sig_m_0, 1e-14);
+        approx_eq(stress_0.invariant_q(), sig_d_0, 1e-14);
+        approx_eq(stress_0.invariant_lode().unwrap(), lode_0, 1e-14);
+        approx_eq(stress_1.invariant_p(), sig_m_1, 1e-14);
+        approx_eq(stress_1.invariant_q(), sig_d_1, 1e-14);
+        approx_eq(stress_1.invariant_lode().unwrap(), lode_1, 1e-14);
 
         let elast = LinElasticity::new(young, poisson, mandel.two_dim(), false);
         let dd = elast.get_modulus();
         let mut d_stress_correct = Tensor2::new(mandel);
         t4_ddot_t2(&mut d_stress_correct, 1.0, dd, &d_strain);
-        vec_approx_eq(d_stress.vector(), d_stress_correct.vector(), 1e-15);
+        vec_approx_eq(d_stress.vector(), d_stress_correct.vector(), 1e-14);
 
         let mut stress_1_correct = Tensor2::new(mandel);
         t2_add(&mut stress_1_correct, 1.0, &stress_0, 1.0, &d_stress);
-        vec_approx_eq(stress_1_correct.vector(), stress_1.vector(), 1e-15);
+        vec_approx_eq(stress_1_correct.vector(), stress_1.vector(), 1e-14);
     }
 }

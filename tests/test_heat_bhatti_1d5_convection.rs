@@ -1,6 +1,8 @@
 use gemlab::prelude::*;
-use pmsim::{base::SampleMeshes, prelude::*};
-use russell_lab::*;
+use pmsim::base::SampleMeshes;
+use pmsim::prelude::*;
+use pmsim::StrError;
+use russell_lab::vec_approx_eq;
 
 // Bhatti's Example 1.5 on page 28
 //
@@ -55,29 +57,51 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.edges(&left, Dof::Phi, 300.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Phi, 300.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.edges(&right, Nbc::Cv(27.0), 20.0);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&right, Nbc::Cv(27.0), 20.0);
 
+    // run tests using linear simulator
+    run_test(true, false, &mesh, &schema, &ebc, &nbc)?;
+    run_test(false, false, &mesh, &schema, &ebc, &nbc)?;
+
+    // run tests using general simulator
+    run_test(true, true, &mesh, &schema, &ebc, &nbc)?;
+    run_test(false, true, &mesh, &schema, &ebc, &nbc)?;
+    Ok(())
+}
+
+fn run_test(
+    lmm: bool,
+    gen: bool,
+    mesh: &Mesh,
+    schema: &Schema,
+    ebc: &BcEssential,
+    nbc: &BcNatural,
+) -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(true);
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
+    config.lagrange_mult_method(lmm);
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let uu = if gen {
+        let mut nlc = NlConfig::new();
+        let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+        let dll = DeltaLambda::constant(1.0);
+        sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
+        data.state().uu.clone()
+    } else {
+        let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+        sim.steady(&mut data, true)?;
+        data.state().uu.clone()
+    };
 
     // check U vector
     let tt_bhatti = &[
@@ -87,6 +111,6 @@ fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
         3.000000000000000e+02,
         1.828327235474901e+02,
     ];
-    array_approx_eq(&state.u.as_data()[..5], tt_bhatti, 1e-13);
+    vec_approx_eq(&uu, tt_bhatti, 1e-13);
     Ok(())
 }

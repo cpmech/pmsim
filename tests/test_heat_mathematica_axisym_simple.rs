@@ -27,7 +27,7 @@ use pmsim::{prelude::*, StrError};
 // BOUNDARY CONDITIONS
 //
 // Temperature T = 10.0 on the right edge
-// Flux Qt = 100.0 on the left edge
+// Inward Flux Qt = -100.0 on the left edge
 //
 // CONFIGURATION AND PARAMETERS
 //
@@ -59,37 +59,32 @@ fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
         source: None,
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.edges(&right, Dof::Phi, 10.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&right, Dof::Phi, 10.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.edges(&left, Nbc::Qt, 100.0);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&left, Nbc::Qt, -100.0); // inward flux
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric().set_lagrange_mult_method(true);
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
+    config.axisymmetric();
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
-    // println!("{}", state.uu);
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.state();
 
     // check
     let analytical = |r: f64| 10.0 * (1.0 - f64::ln(r / 2.0));
     for point in &mesh.points {
         let x = point.coords[0];
-        let eq = base.dofs.eq(point.id, Dof::Phi).unwrap();
-        let tt = state.u[eq];
+        let i = schema.dof_number(point.id, Dof::Phi)?;
+        let tt = state.uu[i];
         let diff = f64::abs(tt - analytical(x));
         // println!("point = {}, x = {:.2}, T = {:.6}, diff = {:.4e}", point.id, x, tt, diff);
         assert!(diff < 1e-5);
@@ -106,12 +101,12 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua9).unwrap();
 
         // draw figure
-        let mut fig = Figure::new();
-        fig.show_point_ids(true)
+        let mut draw = Draw::new();
+        draw.show_point_ids(true)
             .show_cell_ids(true)
-            .range_2d(0.95, 2.05, -0.05, 0.15)
-            .size(600.0, 100.0)
-            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .set_range_2d(0.95, 2.05, -0.05, 0.15)
+            .set_size(600.0, 100.0)
+            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh

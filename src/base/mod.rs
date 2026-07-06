@@ -1,37 +1,31 @@
 //! Implements the base structures for a finite element simulation
 
-mod all_dofs;
 mod assembly;
-mod attributes;
+mod bc_essential;
+mod bc_natural;
+mod calculate_gradient;
 mod calculate_strain;
 mod config;
 mod constants;
-mod element_dofs;
-mod element_dofs_map;
 mod enums;
-mod essential;
 mod idealization;
-mod natural;
 mod parameters;
-mod parameters_new;
 mod sample_meshes;
+mod schema;
 mod testing;
 
-pub use all_dofs::*;
 pub use assembly::*;
-pub use attributes::*;
+pub use bc_essential::*;
+pub use bc_natural::*;
+pub(crate) use calculate_gradient::*;
 pub(crate) use calculate_strain::*;
 pub use config::*;
 pub use constants::*;
-pub use element_dofs::*;
-pub use element_dofs_map::*;
 pub use enums::*;
-pub use essential::*;
 pub use idealization::*;
-pub use natural::*;
 pub use parameters::*;
-pub use parameters_new::*;
 pub use sample_meshes::*;
+pub use schema::*;
 
 #[allow(unused_imports)]
 pub(crate) use testing::*;

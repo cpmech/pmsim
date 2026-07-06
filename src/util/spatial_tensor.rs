@@ -5,61 +5,82 @@ use std::collections::HashMap;
 /// Holds the tensor (stress/strain) components distributed in space (Gauss point or extrapolated from nodes)
 #[derive(Clone, Debug)]
 pub struct SpatialTensor {
+    /// The label of the spatial tensor
+    pub label: String,
+
     /// Maps the node ID to the index in the associated data arrays (xx, yy, txx, tyy, ...)
     ///
     /// In the case of Gauss data, the ID will be a randomly assigned number.
     ///
     /// (nnode or ngauss)
-    pub id2k: HashMap<PointId, usize>,
+    pub id_to_k: HashMap<PointId, usize>,
 
     /// Maps the index in the associated data arrays (xx, yy, txx, tyy, ...) to the node ID
     ///
     /// In the case of Gauss data, the ID will be a randomly assigned number.
     ///
     /// (nnode or ngauss)
-    pub k2id: Vec<PointId>,
+    pub k_to_id: Vec<PointId>,
 
     /// The x coordinates of nodes
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub xx: Vec<f64>,
 
     /// The y coordinates of nodes
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub yy: Vec<f64>,
 
     /// The z coordinates of nodes (3D only)
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub zz: Vec<f64>,
 
     /// The extrapolated σxx components @ each node
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub txx: Vec<f64>,
 
     /// The extrapolated σyy components @ each node
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub tyy: Vec<f64>,
 
     /// The extrapolated σzz components @ each node
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub tzz: Vec<f64>,
 
     /// The extrapolated σxy components @ each node
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub txy: Vec<f64>,
 
     /// The extrapolated σyx components @ each node (3D only)
     ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
+    ///
     /// (nnode or ngauss)
     pub tyz: Vec<f64>,
 
     /// The extrapolated σxz components @ each node (3D only)
+    ///
+    /// **Important:** Use `id_to_k` to find the index in this array associated with a given ID.
     ///
     /// (nnode or ngauss)
     pub tzx: Vec<f64>,
@@ -67,12 +88,13 @@ pub struct SpatialTensor {
 
 impl SpatialTensor {
     /// Allocates a new instance
-    pub(crate) fn new(ndim: usize, with_capacity: usize) -> Self {
+    pub(crate) fn new(label: &str, ndim: usize, with_capacity: usize) -> Self {
         assert!(ndim == 2 || ndim == 3);
         let n = with_capacity;
         SpatialTensor {
-            id2k: HashMap::with_capacity(n),
-            k2id: Vec::with_capacity(n),
+            label: label.to_string(),
+            id_to_k: HashMap::with_capacity(n),
+            k_to_id: Vec::with_capacity(n),
             xx: Vec::with_capacity(n),
             yy: Vec::with_capacity(n),
             zz: if ndim == 3 { Vec::with_capacity(n) } else { Vec::new() },
@@ -86,18 +108,18 @@ impl SpatialTensor {
     }
 
     /// Allocates a new instance from a TensorComponentsMap applying the average of coincident nodes
-    pub(crate) fn from_map(mesh: &Mesh, map: &TensorComponentsMap, point_ids: &[PointId]) -> Self {
+    pub(crate) fn from_map(label: &str, mesh: &Mesh, map: &TensorComponentsMap, point_ids: &[PointId]) -> Self {
         assert_eq!(mesh.ndim, map.ndim);
-        let mut res = SpatialTensor::new(map.ndim, point_ids.len());
+        let mut res = SpatialTensor::new(label, map.ndim, point_ids.len());
         for nid in point_ids {
-            let k = res.k2id.len();
+            let k = res.k_to_id.len();
             let count = *map.counter.get(&nid).unwrap() as f64;
             let txx = map.txx.get(nid).unwrap();
             let tyy = map.tyy.get(nid).unwrap();
             let tzz = map.tzz.get(nid).unwrap();
             let txy = map.txy.get(nid).unwrap();
-            res.id2k.insert(*nid, k);
-            res.k2id.push(*nid);
+            res.id_to_k.insert(*nid, k);
+            res.k_to_id.push(*nid);
             res.xx.push(mesh.points[*nid].coords[0]);
             res.yy.push(mesh.points[*nid].coords[1]);
             res.txx.push(*txx / count);
@@ -128,9 +150,9 @@ mod tests {
     fn test_spatial_tensor_new_2d() {
         let ndim = 2;
         let capacity = 10;
-        let tensor = SpatialTensor::new(ndim, capacity);
-        assert!(tensor.id2k.capacity() >= capacity);
-        assert_eq!(tensor.k2id.capacity(), capacity);
+        let tensor = SpatialTensor::new("", ndim, capacity);
+        assert!(tensor.id_to_k.capacity() >= capacity);
+        assert_eq!(tensor.k_to_id.capacity(), capacity);
         assert_eq!(tensor.xx.capacity(), capacity);
         assert_eq!(tensor.yy.capacity(), capacity);
         assert_eq!(tensor.zz.capacity(), 0);
@@ -146,9 +168,9 @@ mod tests {
     fn test_spatial_tensor_new_3d() {
         let ndim = 3;
         let capacity = 10;
-        let tensor = SpatialTensor::new(ndim, capacity);
-        assert!(tensor.id2k.capacity() >= capacity);
-        assert_eq!(tensor.k2id.capacity(), capacity);
+        let tensor = SpatialTensor::new("", ndim, capacity);
+        assert!(tensor.id_to_k.capacity() >= capacity);
+        assert_eq!(tensor.k_to_id.capacity(), capacity);
         assert_eq!(tensor.xx.capacity(), capacity);
         assert_eq!(tensor.yy.capacity(), capacity);
         assert_eq!(tensor.zz.capacity(), capacity);
@@ -172,7 +194,9 @@ mod tests {
         let mesh = Mesh {
             points,
             ndim: 2,
-            cells: vec![],
+            cells: Vec::new(),
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
 
         let mut map = TensorComponentsMap::new(mesh.ndim);
@@ -182,12 +206,25 @@ mod tests {
         map.add_tensor(0, 10.0, 20.0, 30.0, 40.0, None, None).unwrap();
 
         let point_ids = vec![2, 0, 3];
-        let tensor = SpatialTensor::from_map(&mesh, &map, &point_ids);
+        let tensor = SpatialTensor::from_map("T2D", &mesh, &map, &point_ids);
+        assert_eq!(tensor.label, "T2D");
 
-        assert_eq!(&tensor.k2id, &[2, 0, 3]);
-        assert_eq!(tensor.id2k.get(&0).unwrap(), &1);
-        assert_eq!(tensor.id2k.get(&2).unwrap(), &0);
-        assert_eq!(tensor.id2k.get(&3).unwrap(), &2);
+        assert_eq!(tensor.id_to_k.len(), 3);
+        assert_eq!(tensor.k_to_id.len(), 3);
+        assert_eq!(tensor.xx.len(), 3);
+        assert_eq!(tensor.yy.len(), 3);
+        assert_eq!(tensor.zz.len(), 0);
+        assert_eq!(tensor.txx.len(), 3);
+        assert_eq!(tensor.tyy.len(), 3);
+        assert_eq!(tensor.tzz.len(), 3);
+        assert_eq!(tensor.txy.len(), 3);
+        assert_eq!(tensor.tyz.len(), 0);
+        assert_eq!(tensor.tzx.len(), 0);
+
+        assert_eq!(&tensor.k_to_id, &[2, 0, 3]);
+        assert_eq!(tensor.id_to_k.get(&0).unwrap(), &1);
+        assert_eq!(tensor.id_to_k.get(&2).unwrap(), &0);
+        assert_eq!(tensor.id_to_k.get(&3).unwrap(), &2);
 
         assert_eq!(tensor.xx.as_slice(), &[0.0, 1.0, 2.0]);
         assert_eq!(tensor.yy.as_slice(), &[1.0, 2.0, 3.0]);
@@ -213,7 +250,9 @@ mod tests {
         let mesh = Mesh {
             points,
             ndim: 3,
-            cells: vec![],
+            cells: Vec::new(),
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
 
         let mut map = TensorComponentsMap::new(mesh.ndim);
@@ -223,11 +262,24 @@ mod tests {
             .unwrap();
 
         let point_ids = vec![3, 1];
-        let tensor = SpatialTensor::from_map(&mesh, &map, &point_ids);
+        let tensor = SpatialTensor::from_map("T3D", &mesh, &map, &point_ids);
+        assert_eq!(tensor.label, "T3D");
 
-        assert_eq!(&tensor.k2id, &[3, 1]);
-        assert_eq!(tensor.id2k.get(&1).unwrap(), &1);
-        assert_eq!(tensor.id2k.get(&3).unwrap(), &0);
+        assert_eq!(tensor.id_to_k.len(), 2);
+        assert_eq!(tensor.k_to_id.len(), 2);
+        assert_eq!(tensor.xx.len(), 2);
+        assert_eq!(tensor.yy.len(), 2);
+        assert_eq!(tensor.zz.len(), 2);
+        assert_eq!(tensor.txx.len(), 2);
+        assert_eq!(tensor.tyy.len(), 2);
+        assert_eq!(tensor.tzz.len(), 2);
+        assert_eq!(tensor.txy.len(), 2);
+        assert_eq!(tensor.tyz.len(), 2);
+        assert_eq!(tensor.tzx.len(), 2);
+
+        assert_eq!(&tensor.k_to_id, &[3, 1]);
+        assert_eq!(tensor.id_to_k.get(&1).unwrap(), &1);
+        assert_eq!(tensor.id_to_k.get(&3).unwrap(), &0);
 
         assert_eq!(tensor.xx, &[2.0, 3.0]);
         assert_eq!(tensor.yy, &[3.0, 4.0]);

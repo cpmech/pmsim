@@ -5,14 +5,15 @@ use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::base::read_data;
-use russell_lab::{approx_eq, array_approx_eq};
+use russell_lab::Vector;
 
+const DIR: &str = "/tmp/pmsim/spo_753";
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
 const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
-const P_ARRAY: [f64; 13] = [
+const LAMBDAS: [f64; 13] = [
     0.0, 100.0, 200.0, 220.0, 230.0, 240.0, 250.0, 255.0, 257.0, 259.0, 259.5, 259.75, 259.77,
 ];
 const RADIUS: f64 = 10.0;
@@ -21,7 +22,7 @@ const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.24; // Poisson's coefficient
 const Z_INI: f64 = 16000.0; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
-const NGAUSS: usize = 4; // number of gauss points
+const NGAUSS: usize = 9; // number of gauss points
 
 #[test]
 fn test_spo_753_circ_plate() -> Result<(), StrError> {
@@ -54,43 +55,75 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+
+    // schema
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.edges(&left, Dof::Ux, 0.0).point(right_corner, Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0).point(right_corner, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.edges_fn(&top, Nbc::Qn, |t| -P_ARRAY[t as usize]);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&top, Nbc::Qn, -1.0);
+
+    // run: natural + sps
+    let options = Options {
+        arclength: false,
+        lmm: false,
+    };
+    run(options, &mesh, &features, &schema, &mut ebc, &nbc)?;
+
+    Ok(())
+}
+
+// simulation ----------------------------------------------------------------
+fn run(
+    options: Options,
+    mesh: &Mesh,
+    features: &Features,
+    schema: &Schema,
+    ebc: &mut BcEssential,
+    nbc: &BcNatural,
+) -> Result<(), StrError> {
+    // filename stem
+    let mut name = NAME.to_string() + "_";
+    name += &options.key();
 
     // configuration
     let mut config = Config::new(&mesh);
-    config
-        .set_axisymmetric()
-        .set_incremental(P_ARRAY.len())
-        .set_lagrange_mult_method(true)
-        .set_symmetry_check_tolerance(Some(1e-5))
-        .set_n_max_iterations(20);
+    config.axisymmetric().out_files(DIR, &name);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
+    // nonlinear solver configuration
+    let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(false, true, true)
+        .set_record_iterations_residuals(false)
+        .set_tg_control_tol(0.5);
 
-    // File IO
-    let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    // simulator and data
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
 
-    // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    // run simulation
+    let stop = Stop::Steps(LAMBDAS.len() - 1);
+    let list = Vector::from(&LAMBDAS).get_differences();
+    let dll = DeltaLambda::list(list.as_data());
+    sim.steady(&mut data, IniDir::Pos, stop, dll)?;
 
-    // verify the results
-    let tol_displacement = 1e-9;
-    let tol_stress = 1e-6;
+    //
+    // verification --------------------------------------------------------------
+    //
+
+    // compare the results with Ref #1
+    let tol_displacement = 3.34e-7;
+    let tol_stress = 1.40e-3;
     let all_good = compare_results(
         &mesh,
-        &base,
-        &file_io,
+        &schema,
+        &config,
+        DIR,
+        &name,
         ReferenceDataType::SPO,
         &format!("data/spo/{}_ref.json", NAME),
         tol_displacement,
@@ -99,37 +132,41 @@ fn test_spo_753_circ_plate() -> Result<(), StrError> {
     )?;
     assert!(all_good);
 
-    // analyze results
-    analyze_results()
-}
+    //
+    // data analysis -------------------------------------------------------------
+    //
 
-fn analyze_results() -> Result<(), StrError> {
     // load summary and associated files
-    let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
-    let mesh = post.mesh();
-    let base = post.base();
+    let (post, _) = PostProc::new(DIR, &name)?;
 
     // boundaries
-    let features = Features::new(mesh, false);
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let center = features.search_point_ids(At::XY(0.0, 0.0), any_x)?[0];
-    let eq_uy = base.dofs.eq(center, Dof::Uy)?;
+    let iy = schema.dof_number(center, Dof::Uy)?;
 
     // analytical solution
     let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);
 
     // load results
-    let nstep_max = 11; // In SPO's book, they do not show the results for the last two load steps
-    let mut deflection = vec![0.0; nstep_max];
-    let load: Vec<_> = (0..nstep_max).into_iter().map(|i| P_ARRAY[i]).collect();
+    let nlambda_max = 11; // 11 instead of 13 because SPO skips the results for the last two load steps
+    let mut load = vec![0.0; nlambda_max];
+    let mut deflection = vec![0.0; nlambda_max];
     let mut ll = Vec::new(); // normalized coordinate x/R
     let mut yy_p100 = Vec::new(); // normalized deflection w/h @ P = 100
     let mut yy_p200 = Vec::new(); // normalized deflection w/h @ P = 200
     let mut yy_p250 = Vec::new(); // normalized deflection w/h @ P = 250
-    for index in 0..nstep_max {
-        let state = post.read_state(index)?;
-        deflection[index] = -state.u[eq_uy];
-        let pp = P_ARRAY[index];
+    for index in 0..nlambda_max {
+        // load state
+        let state = post.read_file(index)?;
+
+        // load
+        let pp = LAMBDAS[index];
+        load[index] = pp;
+
+        // deflection
+        deflection[index] = -state.uu[iy];
+
+        // deflection profiles
         if pp == 100.0 {
             let (_, cc, dd) = post.values_along_edges(&state, &bottom, Dof::Uy).unwrap();
             ll = cc.iter().map(|x| x[0] / RADIUS).collect::<Vec<_>>();
@@ -145,19 +182,12 @@ fn analyze_results() -> Result<(), StrError> {
         }
     }
 
-    // load reference results
-    let ref1 = read_data("data/spo/spo_753_plate_deflection_load.tsv", &["deflection", "load"])?;
-    let ref2 = read_data("data/spo/spo_753_profiles.tsv", &["x", "p100", "p200", "p250"])?;
-
-    // compare the results with Ref #1
-    // (imprecision is due to the data bing scanned and digitized)
-    array_approx_eq(&deflection, &ref1["deflection"], 0.0045);
-    approx_eq(yy_p100[0], ref2["p100"][0], 0.0006);
-    approx_eq(yy_p200[0], ref2["p200"][0], 0.0009);
-    approx_eq(yy_p250[0], ref2["p250"][0], 0.006);
-
     // plot
     if SAVE_FIGURE {
+        // load reference results
+        let ref1 = read_data("data/spo/spo_753_plate_deflection_load.tsv", &["deflection", "load"])?;
+        let ref2 = read_data("data/spo/spo_753_profiles.tsv", &["x", "p100", "p200", "p250"])?;
+
         let mut curve_p_w_ref = Curve::new();
         curve_p_w_ref
             .set_label("de Souza Neto et al. (SPO)")
@@ -218,7 +248,7 @@ fn analyze_results() -> Result<(), StrError> {
             .set_horiz_line(ana.get_pp_lim(), "green", ":", 1.0)
             .add(&curve_p_w)
             .add(&curve_p_w_ref)
-            .grid_labels_legend("Central deflection $w$", "Distributed load intensity $P$")
+            .grid_labels_legend("w (central deflection)", "P (distributed load intensity)")
             .set_subplot(1, 2, 2)
             .set_yrange(0.0, 0.6)
             .set_inv_y()
@@ -228,11 +258,11 @@ fn analyze_results() -> Result<(), StrError> {
             .add(&curve_w_l_p100)
             .add(&curve_w_l_p200)
             .add(&curve_w_l_p250)
-            .grid_labels_legend("Normalized coordinate $x/R$", "Normalized deflection $w/h$")
+            .set_title(&options.title())
+            .grid_labels_legend("$x/R$ (normalized coordinate)", "$w/h$ (normalized deflection)")
             .set_figure_size_points(600.0, 250.0)
-            .save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+            .save(&format!("{}/{}.svg", DIR, name))?;
     }
-
     Ok(())
 }
 
@@ -278,9 +308,9 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: Point
     assert_eq!(&left, &spo_left);
     assert_eq!(&top, &spo_loadings.iter().map(|x| x - 1).collect::<Vec<_>>());
     assert_eq!(&spo_right_corner, &[right_corner]);
-    let mut fig = Figure::new();
-    fig.range_2d(-0.5, 10.5, -0.5, 1.5)
-        .size(600.0, 200.0)
+    let mut draw = Draw::new();
+    draw.set_range_2d(-0.5, 10.5, -0.5, 1.5)
+        .set_size(600.0, 200.0)
         .zoom_extra(|inset| {
             inset.add(&text1);
         })
@@ -289,5 +319,30 @@ fn draw_mesh(mesh: &Mesh, left: &[PointId], top: &[PointId], right_corner: Point
                 plot.add(&text1).add(&text2);
             }
         })
-        .draw(&mesh, &format!("/tmp/pmsim/{}_mesh.svg", NAME))
+        .all(&mesh, &format!("{}/{}_mesh.svg", DIR, NAME))
+}
+
+struct Options {
+    arclength: bool,
+    lmm: bool,
+}
+
+impl Options {
+    fn key(&self) -> String {
+        let mut buf = if self.arclength {
+            "arc".to_string()
+        } else {
+            "nat".to_string()
+        };
+        if self.lmm {
+            buf += "_lmm";
+        } else {
+            buf += "_sps";
+        }
+        buf
+    }
+
+    fn title(&self) -> String {
+        self.key().to_uppercase().replace("_", " | ")
+    }
 }

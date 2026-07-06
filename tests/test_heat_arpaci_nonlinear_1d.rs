@@ -1,7 +1,8 @@
 use gemlab::prelude::*;
 use plotpy::{Curve, Plot};
 use pmsim::prelude::*;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::approx_eq;
 
 // Arpaci's Example 3-8 on page 130 (variable conductivity)
 //
@@ -65,6 +66,19 @@ fn analytical(x: f64) -> f64 {
 
 #[test]
 fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
+    println!("\n##################################### NATURAL ####################################\n");
+    run_test(false, false)?; // Natural continuation
+
+    println!("\n################################ ARCLENGTH FULL ##################################\n");
+    run_test(true, false)?; // Pseudo-arclength continuation without bordering
+
+    println!("\n############################# ARCLENGTH BORDERING ################################\n");
+    run_test(true, true)?; // Pseudo-arclength continuation with bordering
+
+    Ok(())
+}
+
+fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
     // mesh
     let mesh = generate_or_read_mesh(L, GENERATE_MESH);
 
@@ -79,36 +93,46 @@ fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
         source: Some(SOURCE),
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_diffusion(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.edges(&right, Dof::Phi, 0.0); // must be zero to match analytical solution
+    let mut ebc = BcEssential::new();
+    ebc.edges(&right, Dof::Phi, 0.0); // must be zero to match analytical solution
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let nbc = BcNatural::new();
 
     // configuration
-    let config = Config::new(&mesh);
+    let mut config = Config::new(&mesh);
+    config.lagrange_mult_method(false).out_files("/tmp/pmsim", NAME);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+    // nonlinear solver configuration
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let mut tol = 1e-12;
+    let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(true, true, false)
+        .set_tg_control_tol(0.5)
+        .set_record_iterations_residuals(true);
+    if arclength {
+        tol = 1e-6;
+        nl_config.set_method(NlMethod::Arclength).set_bordering(bordering);
+    };
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+    sim.steady(&mut data, IniDir::Pos, Stop::MaxLambda(1.0), DeltaLambda::auto(0.5))?;
+    let state = data.state();
 
     // check
     let ref_id = 0;
     let ref_x = mesh.points[ref_id].coords[0];
-    let ref_eq = base.dofs.eq(ref_id, Dof::Phi)?;
-    let ref_tt = state.u[ref_eq];
+    let ref_d = schema.dof_number(ref_id, Dof::Phi)?;
+    let ref_tt = state.uu[ref_d];
     println!("\nT({}) = {}  ({})", ref_x, ref_tt, analytical(ref_x));
-    approx_eq(ref_tt, analytical(ref_x), 1e-13);
+    let err = f64::abs(ref_tt - analytical(ref_x));
+    println!("error = {:.5e}", err);
+    approx_eq(ref_tt, analytical(ref_x), tol);
 
     // plot the results
     if SAVE_FIGURE {
@@ -122,7 +146,7 @@ fn do_plot() -> Result<(), StrError> {
     // get temperature values along x
     let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
     let features = Features::new(post.mesh(), false);
-    let state = post.read_state(post.n_state() - 1)?;
+    let state = post.read_file(post.nfile() - 1)?;
     let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;
 
     // compute plot data
@@ -157,10 +181,10 @@ fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
         let mesh = block.subdivide(GeoKind::Qua4).unwrap();
 
         // draw figure
-        let mut fig = Figure::new();
-        fig.show_point_ids(true)
+        let mut draw = Draw::new();
+        draw.show_point_ids(true)
             .show_cell_ids(true)
-            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh

@@ -62,29 +62,25 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
         },
         ngauss: Some(4), // reduced integration => better results
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.edges(&bottom, Dof::Uy, 0.0).edges(&top, Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&bottom, Dof::Uy, 0.0).edges(&top, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.edges(&left, Nbc::Qn, -PRESSURE);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&left, Nbc::Qn, -PRESSURE);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_axisymmetric();
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
+    config.axisymmetric();
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.state();
 
     // Felippa's Equation 14.2 on page 14-4
     let analytical_ur = |r: f64| {
@@ -97,8 +93,8 @@ fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     let selection = features.search_point_ids(At::Y(0.0), any_x)?;
     for p in &selection {
         let r = mesh.points[*p].coords[0];
-        let eq = base.dofs.eq(*p, Dof::Ux).unwrap();
-        let ux = state.u[eq];
+        let i = schema.dof_number(*p, Dof::Ux)?;
+        let ux = state.uu[i];
         let diff = f64::abs(ux - analytical_ur(r));
         println!("point = {}, r = {:?}, Ux = {:?}, diff = {:?}", p, r, ux, diff);
         assert!(diff < 1e-15);
@@ -115,10 +111,10 @@ fn generate_or_read_mesh(rin: f64, rout: f64, thickness: f64, generate: bool) ->
         let mesh = block.subdivide(GeoKind::Qua8).unwrap();
 
         // draw figure
-        let mut fig = Figure::new();
-        fig.show_point_ids(true)
+        let mut draw = Draw::new();
+        draw.show_point_ids(true)
             .show_cell_ids(true)
-            .draw(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh

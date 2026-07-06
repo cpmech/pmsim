@@ -1,0 +1,63 @@
+────────────────────────────────────────────────────────────────────
+         λ         Δλ  iter       ‖G‖∞ ➖      ‖δu‖∞      Rel(δu) ➖
+────────────────────────────────────────────────────────────────────
+ 0.000E+00  1.500E-01
+         ·          ·     0   5.56E-12 ✅          ·            ·
+ 1.500E-01  1.500E-01
+         ·          ·     0   4.55E+02      8.32E-02     1.04E+07   
+         ·          ·     1   4.92E+02 🎈   5.82E-02     7.88E+06 🔹
+         ·          ·     2   3.68E-01 🔹   1.31E-03     4.21E+04 🔹
+         ·          ·     3   1.45E-03 🔹   4.26E-06     1.52E+02 🔹
+         ·          ·     4   1.58E-08 🔹   6.95E-11     2.20E-03 ✅
+ 3.000E-01  3.000E-02
+         ·          ·     0   4.87E+02      6.01E-02     2.18E+06   
+         ·          ·     1   2.50E+02 🔹   7.90E-02     3.03E+06 🎈
+         ·          ·     2   2.45E+00 🔹   9.25E-04     2.61E+04 🔹
+         ·          ·     3   9.05E-03 🔹   3.91E-06     1.16E+02 🔹
+         ·          ·     4   3.19E-08 🔹   1.12E-11     3.51E-04 ✅
+ 3.300E-01  2.690E-03
+         ·          ·     0   3.85E+00      2.36E-03     5.07E+04   
+         ·          ·     1   1.56E+00 🔹   1.70E-03     2.77E+04 🔹
+         ·          ·     2   3.99E-01 🔹   1.93E-04     3.57E+03 🔹
+         ·          ·     3   1.35E-01 🔹   9.69E-05     1.78E+03 🔹
+         ·          ·     4   1.41E-02 🔹   1.25E-02     2.62E+05 🎈
+         ·          ·     5   8.06E-03 🔹   7.13E-04     1.51E+04 🔹
+         ·          ·     6   5.72E-05 🔹   5.82E-06     1.23E+02 🔹
+         ·          ·     7   3.67E-09 🔹   3.66E-10     7.73E-03 ✅
+────────────────────────────────────────────────────────────────────
+
+Natural parameter continuation; solves G(u, λ) = 0 (fixed)
+Using numerical Jacobian         = false
+Number of function evaluations   = 19
+Number of Jacobian evaluations   = 19
+Number of factorizations         = 19
+Number of lin sys solutions      = 18
+Number of accepted steps         = 4
+Number of rejected steps         = 0
+Number of performed steps        = 4
+Number of iterations (total)     = 19
+Last accepted/suggested stepsize = 0.00268999999999997
+
+Convergence rates: (min, max) = (1.951, 2.062)
+(0.9 ≤ cr ≤ 2.1)       (μ, σ) = (2.007, 0.079)
+
+Distribution of the number of converged iterations across all steps:
+[ 0,  1) | 0 
+[ 1,  2) | 1 ■■■■■■■■■■■■■■■■■■■■■■■■■■
+[ 2,  3) | 0 
+[ 3,  4) | 0 
+[ 4,  5) | 2 ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+[ 5,  6) | 0 
+[ 6,  7) | 0 
+[ 7,  8) | 1 ■■■■■■■■■■■■■■■■■■■■■■■■■■
+[ 8,  9) | 0 
+[ 9, 10) | 0 
+[10, 11) | 0 
+[11, 12) | 0 
+     sum = 4
+
+Max time spent on a step         = 28.478893ms
+Max time spent on the Jacobian   = 8.389729ms
+Max time spent on factorization  = 985.156µs
+Max time spent on lin solution   = 30.669µs
+Total time                       = 98.312929ms

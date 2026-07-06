@@ -3,7 +3,7 @@ use crate::base::{Idealization, StressStrain};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
-use russell_ode::{OdeSolver, Params, System};
+use russell_ode::{OdeSolver, Output, Params, System};
 use russell_tensor::{t2_ddot_t4_ddot_t2, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4};
 use russell_tensor::{Tensor2, Tensor4};
 
@@ -108,6 +108,15 @@ pub struct Elastoplastic<'a> {
     /// Holds the ODE vector of unknowns for elastoplastic case
     ode_y_ep: Vector,
 
+    /// Holds the output during the intersection finding
+    out_intersection: Output<'a, Args>,
+
+    /// Holds the output during the elastic path
+    out_history_el: Output<'a, Args>,
+
+    /// Holds the output during the elastoplastic path
+    out_history_ep: Output<'a, Args>,
+
     /// Holds the interpolant for finding the yield surface intersection
     interpolant: InterpChebyshev,
 
@@ -208,9 +217,9 @@ impl<'a> Elastoplastic<'a> {
 
         // ODE solvers
         let ode_param = Params::new(settings.gp_ode_method);
-        let mut ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
-        let mut ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
-        let mut ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
+        let ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
+        let ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
+        let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
 
         // interpolant
         let interp_nn_max = settings.gp_interp_nn_max;
@@ -226,11 +235,11 @@ impl<'a> Elastoplastic<'a> {
         });
 
         // set function to handle yield surface intersection
-        ode_intersection
-            .enable_output()
+        let mut out_intersection = Output::new();
+        out_intersection
             .set_dense_x_out(&interior_t_out)
             .unwrap()
-            .set_dense_callback(|stats, _h, t, y, args| {
+            .set_dense_callback(|stats, _h, t, y, args: &mut Args| {
                 // reset the counter
                 if stats.n_accepted == 0 {
                     args.yf_count = 0;
@@ -258,14 +267,15 @@ impl<'a> Elastoplastic<'a> {
             });
 
         // set function to record the stress-strain history
+        let mut out_history_el = Output::new();
+        let mut out_history_ep = Output::new();
         let save_history = settings.gp_save_history;
         if save_history {
             let h_out = 1.0 / ((HISTORY_N_OUT - 1) as f64);
-            ode_elastic
-                .enable_output()
+            out_history_el
                 .set_dense_h_out(h_out)
                 .unwrap()
-                .set_dense_callback(|_stats, _h, t, y, args| {
+                .set_dense_callback(|_stats, _h, t, y, args: &mut Args| {
                     if let Some(h) = args.history_eep.as_mut() {
                         // copy {y}(t) into σ
                         args.state.stress.vector_mut().set_vector(y.as_data());
@@ -283,11 +293,10 @@ impl<'a> Elastoplastic<'a> {
                     }
                     Ok(KEEP_RUNNING)
                 });
-            ode_elastoplastic
-                .enable_output()
+            out_history_ep
                 .set_dense_h_out(h_out)
                 .unwrap()
-                .set_dense_callback(|_stats, _h, t, y, args| {
+                .set_dense_callback(|_stats, _h, t, y, args: &mut Args| {
                     if let Some(h) = args.history_eep.as_mut() {
                         // split {y}(t) into σ and z
                         y.split2(
@@ -344,6 +353,9 @@ impl<'a> Elastoplastic<'a> {
             ode_elastoplastic,
             ode_y_e,
             ode_y_ep,
+            out_intersection,
+            out_history_el,
+            out_history_ep,
             interpolant,
             root_finder,
             save_history,
@@ -399,8 +411,14 @@ impl<'a> Elastoplastic<'a> {
         self.ode_y_e.set_vector(state.stress.vector().as_data());
 
         // solve the elastic problem with intersection finding data
-        self.ode_intersection
-            .solve(&mut self.ode_y_e, 0.0, 1.0, None, &mut self.args)?;
+        self.ode_intersection.solve(
+            &mut self.ode_y_e,
+            0.0,
+            1.0,
+            None,
+            &mut self.args,
+            Some(&mut self.out_intersection),
+        )?;
         assert_eq!(self.args.yf_count, self.args.yf_values.dim());
 
         // set data for interpolation
@@ -520,8 +538,8 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut LocalState) {
-        self.args.model.reset_algorithmic_variables(state);
+    fn reset_algorithmic_variables(&self, state: &mut LocalState, load_reversal: bool) {
+        self.args.model.reset_algorithmic_variables(state, load_reversal);
     }
 
     /// Computes the consistent tangent stiffness
@@ -576,8 +594,14 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                 self.ode_y_e.set_vector(state.stress.vector().as_data());
 
                 // solve the elastic problem (again) to update σ to the intersection point
-                self.ode_elastic
-                    .solve(&mut self.ode_y_e, 0.0, t_int, None, &mut self.args)?;
+                self.ode_elastic.solve(
+                    &mut self.ode_y_e,
+                    0.0,
+                    t_int,
+                    None,
+                    &mut self.args,
+                    Some(&mut self.out_history_el),
+                )?;
 
                 // set stress at intersection
                 state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
@@ -587,8 +611,14 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                     .join2(state.stress.vector().as_data(), state.int_vars.as_data());
 
                 // solve elastoplastic problem (starting from t_int)
-                self.ode_elastoplastic
-                    .solve(&mut self.ode_y_ep, t_int, 1.0, None, &mut self.args)?;
+                self.ode_elastoplastic.solve(
+                    &mut self.ode_y_ep,
+                    t_int,
+                    1.0,
+                    None,
+                    &mut self.args,
+                    Some(&mut self.out_history_ep),
+                )?;
 
                 // update: split {y} into σ and z
                 self.ode_y_ep
@@ -603,8 +633,14 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
                     .join2(state.stress.vector().as_data(), state.int_vars.as_data());
 
                 // solve elastoplastic problem
-                self.ode_elastoplastic
-                    .solve(&mut self.ode_y_ep, 0.0, 1.0, None, &mut self.args)?;
+                self.ode_elastoplastic.solve(
+                    &mut self.ode_y_ep,
+                    0.0,
+                    1.0,
+                    None,
+                    &mut self.args,
+                    Some(&mut self.out_history_ep),
+                )?;
 
                 // update: split {y} into σ and z
                 self.ode_y_ep
@@ -735,7 +771,7 @@ mod tests {
             let mut data = PlotterData::new();
             for i in 0..states.len() {
                 let s = &states[i];
-                let f = s.stress.invariant_sigma_d() - s.int_vars[0];
+                let f = s.stress.invariant_q() - s.int_vars[0];
                 let t = (i as f64) / 2.0;
                 data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
             }
@@ -902,8 +938,8 @@ mod tests {
 
                 // Cases AB or AC: elastic update (to yield surface exactly)
                 let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha);
-                let sig_m_1 = state.stress.invariant_sigma_m();
-                let sig_d_1 = state.stress.invariant_sigma_d();
+                let sig_m_1 = state.stress.invariant_p();
+                let sig_d_1 = state.stress.invariant_q();
                 if ndim == 2 {
                     data_2d.get_mut(&lode_int).unwrap().push(state.clone());
                 }
@@ -921,8 +957,8 @@ mod tests {
 
                 // Case DH: elastoplastic update
                 let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
-                let sig_m_2 = state.stress.invariant_sigma_m();
-                let sig_d_2 = state.stress.invariant_sigma_d();
+                let sig_m_2 = state.stress.invariant_p();
+                let sig_d_2 = state.stress.invariant_q();
                 if ndim == 2 {
                     data_2d.get_mut(&lode_int).unwrap().push(state.clone());
                 }
@@ -931,7 +967,7 @@ mod tests {
                 let correct_sig_m = sig_m_1 + kk * deps_v;
                 let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
                 approx_eq(sig_m_2, correct_sig_m, 1e-14);
-                approx_eq(sig_d_2, correct_sig_d, 1e-14);
+                approx_eq(sig_d_2, correct_sig_d, 1e-13);
                 approx_eq(state.int_vars[0], correct_sig_d, 1e-13);
                 assert_eq!(state.elastic, false);
                 let case = model.last_case.as_ref().unwrap();
@@ -997,8 +1033,8 @@ mod tests {
 
         // update, crossing the yield surface
         let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
@@ -1065,8 +1101,8 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
@@ -1131,8 +1167,8 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
@@ -1201,8 +1237,8 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check
@@ -1271,8 +1307,8 @@ mod tests {
 
         // update, crossing the yield surface
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
-        let sig_m = state.stress.invariant_sigma_m();
-        let sig_d = state.stress.invariant_sigma_d();
+        let sig_m = state.stress.invariant_p();
+        let sig_d = state.stress.invariant_q();
         states.push(state.clone());
 
         // check

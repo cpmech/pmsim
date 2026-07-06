@@ -1,4 +1,4 @@
-use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES};
+use super::{GnlStrain, NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES};
 use serde::{Deserialize, Serialize};
 
 /// Holds parameters for stress-strain relations (total or effective stress)
@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 pub enum StressStrain {
     /// Linear elastic model
     LinearElastic {
-        /// Young's modulus
+        /// Young's modulus (or an analogous parameter for large deformation)
+        ///
+        /// Note: This parameter may have a different meaning if another stress-strain
+        /// pair is used, e.g., PK2-GL (2nd Piola-Kirchhoff / Green-Lagrange).
         young: f64,
 
         /// Poisson's coefficient
@@ -228,7 +231,9 @@ pub struct ParamDiffusion {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ParamRod {
     /// Use geometrically non-linear (GNL) formulation
-    pub gnl: bool,
+    ///
+    /// None means linear formulation
+    pub gnl: Option<GnlStrain>,
 
     /// Intrinsic (real) density
     pub density: f64,
@@ -516,7 +521,7 @@ impl ParamRod {
     /// Returns sample parameters
     pub fn sample() -> Self {
         ParamRod {
-            gnl: false,
+            gnl: None,
             density: 1.0,
             young: 1000.0,
             area: 1.0,
@@ -721,7 +726,7 @@ mod tests {
     fn param_rod_works() {
         let p = ParamRod::sample();
         let q = p.clone();
-        let correct = "ParamRod { gnl: false, density: 1.0, young: 1000.0, area: 1.0, ngauss: None }";
+        let correct = "ParamRod { gnl: None, density: 1.0, young: 1000.0, area: 1.0, ngauss: None }";
         assert_eq!(format!("{:?}", q), correct);
     }
 

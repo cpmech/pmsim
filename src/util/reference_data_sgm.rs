@@ -18,24 +18,24 @@ use std::path::Path;
 /// 1. Smith IM, Griffiths DV, and Margetts L (2014) Programming the Finite
 ///    Element Method, Wiley, Fifth Edition, 664p
 #[derive(Serialize, Deserialize)]
-struct DataSGM {
+pub struct DataSGM {
     /// Status message
-    status: String,
+    pub status: String,
 
     /// Stiffness matrices
     ///
     /// Data structure: `[ncell][ncomp][ncomp]`
-    stiffness: Vec<Vec<Vec<f64>>>,
+    pub stiffness: Vec<Vec<Vec<f64>>>,
 
     /// Nodal displacement components
     ///
     /// Data structure: `[npoint][ndim]`
     /// * `npoint` - Number of mesh points/nodes
     /// * `ndim` - Number of spatial dimensions (2 or 3)
-    displacement: Vec<Vec<f64>>,
+    pub displacement: Vec<Vec<f64>>,
 
     /// Note message
-    note: String,
+    pub note: String,
 
     /// Stress components at Gauss points
     ///
@@ -45,7 +45,7 @@ struct DataSGM {
     /// * `ncomp` - Number of stress components in Voigt notation
     ///   * 2D: `[σxx, σyy, σzz, σxy]`
     ///   * 3D: `[σxx, σyy, σzz, σxy, σyz, σzx]`
-    stresses: Vec<Vec<Vec<f64>>>,
+    pub stresses: Vec<Vec<Vec<f64>>>,
 }
 
 /// Implements reference data from de Souza Neto, Peric, and Owen (2008)
@@ -57,11 +57,11 @@ struct DataSGM {
 /// The data is typically used to validate finite element implementations by
 /// comparing numerical results with the published solutions.
 #[derive(Serialize, Deserialize)]
-pub(crate) struct ReferenceDataSGM {
+pub struct ReferenceDataSGM {
     /// Data from all loading steps
     ///
     /// The vector index corresponds to the load step number
-    all: Vec<DataSGM>,
+    pub all: Vec<DataSGM>,
 }
 
 impl ReferenceDataSGM {
@@ -80,14 +80,14 @@ impl ReferenceDataSGM {
     /// Returns an error if:
     /// * The file cannot be found
     /// * The JSON data cannot be deserialized
-    pub(crate) fn read_json<P>(full_path: &P) -> Result<Self, StrError>
+    pub fn read_json<P>(full_path: &P) -> Result<Self, StrError>
     where
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let file = File::open(&path).map_err(|_| "file not found")?;
+        let file = File::open(&path).map_err(|_| "ReferenceDataSGM: file not found")?;
         let reader = BufReader::new(file);
-        let data = serde_json::from_reader(reader).map_err(|_| "deserialize failed")?;
+        let data = serde_json::from_reader(reader).map_err(|_| "ReferenceDataSGM: deserialize failed")?;
         Ok(data)
     }
 }
@@ -117,6 +117,11 @@ impl ReferenceDataTrait for ReferenceDataSGM {
 
     fn stresses(&self, step: usize, e: usize, ip: usize, i: usize) -> f64 {
         self.all[step].stresses[e][ip][i]
+    }
+
+    fn elastic(&self, _step: usize, _e: usize, _ip: usize) -> bool {
+        // WARNING: this information is not available in SGM tests
+        true
     }
 }
 

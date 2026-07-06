@@ -7,10 +7,11 @@ use pmsim::StrError;
 use russell_lab::math::SQRT_3;
 use russell_lab::read_data;
 
-const NAME: &str = "spo_754_footing";
+const NAME: &str = "spo_754_footing_nat_sps_bord_mumps";
 
 pub fn main() -> Result<(), StrError> {
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", NAME)?;
+    let (post, mut memo) = PostProc::new("/tmp/pmsim/spo_754", NAME)?;
+    post.write_paraview(&mut memo, "/tmp/pmsim/spo_754", NAME, false)?;
 
     let (min, max) = post.mesh().get_limits();
     let features = Features::new(post.mesh(), false);
@@ -26,13 +27,13 @@ pub fn main() -> Result<(), StrError> {
     let mut normalized_pressure = Vec::new();
     let mut x_coords = Vec::new();
     let mut selected_syy = Vec::<Vec<f64>>::new();
-    let selected_indices = &[1, 2, 4, 6, post.n_state() - 1];
-    let eq_corner = post.base().dofs.eq(corner_id, Dof::Uy)?;
-    for index in 0..post.n_state() {
-        let state = post.read_state(index)?;
-        let uy = state.u[eq_corner];
+    let selected_indices = &[1, 2, 4, 6, post.nfile() - 1];
+    let i_corner = post.schema().dof_number(corner_id, Dof::Uy)?;
+    for index in 0..post.nfile() {
+        let state = post.read_file(index)?;
+        let uy = state.uu[i_corner];
         normalized_settlement.push(-uy / width);
-        let res = post.nodal_stresses(&mut memo, &state, &footing_cells, |_, y, _| y == max[1])?;
+        let res = post.nodal_stresses_patch(&mut memo, &state, &footing_cells, |_, y, _| y == max[1])?;
         let mut area = 0.0;
         if index == 0 {
             x_coords = res.xx.clone();

@@ -11,19 +11,44 @@ readme = "README.md"
 categories = ["mathematics", "science", "simulation"]
 keywords = ["mechanics", "fem"]
 
+[features]
+intel_mkl = [
+    "russell_lab/intel_mkl",
+    "russell_nonlin/intel_mkl",
+    "russell_ode/intel_mkl",
+    "russell_pde/intel_mkl",
+    "russell_sparse/intel_mkl",
+    "russell_stat/intel_mkl",
+    "russell_tensor/intel_mkl",
+]
+local_sparse = [
+    "russell_nonlin/local_sparse",
+    "russell_ode/local_sparse",
+    "russell_pde/local_sparse",
+    "russell_sparse/local_sparse",
+]
+cudss = [
+    "russell_nonlin/cudss",
+    "russell_ode/cudss",
+    "russell_pde/cudss",
+    "russell_sparse/cudss",
+]
+
 [dependencies]
-plotpy = { path = "../plotpy" }
-gemlab = { path = "../gemlab" }
-russell_lab = { path = "../russell/russell_lab", features = ["intel_mkl"] }
-russell_ode = { path = "../russell/russell_ode", features = ["intel_mkl"] }
-russell_sparse = { path = "../russell/russell_sparse", features = [
-  "local_suitesparse",
-  "with_mumps",
-  "intel_mkl",
-] }
-russell_tensor = { path = "../russell/russell_tensor", features = [
-  "intel_mkl",
-] }
+plotpy = "1.23"
+gemlab = "2.3"
+russell_lab = "2.7"
+russell_nonlin = "2.7"
+russell_ode = "2.7"
+russell_pde = "2.7"
+russell_sparse = "2.7"
+russell_stat = "2.7"
+russell_tensor = "2.7"
+tritet = "3.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 structopt = "0.3"
+uuid = { version = "1.23", features = ["v4"] }
+
+[dev-dependencies]
+serial_test = "3.5"

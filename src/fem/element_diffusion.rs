@@ -1,5 +1,5 @@
-use super::{ElementTrait, FemBase, FemState};
-use crate::base::{compute_local_to_global, Config, ParamDiffusion};
+use super::{ElementTrait, FemState};
+use crate::base::{calculate_gradient, Config, ParamDiffusion, Schema};
 use crate::material::ModelConductivity;
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -9,45 +9,51 @@ use russell_lab::{Matrix, Vector};
 use russell_tensor::{t2_dot_vec, Tensor2};
 
 /// Implements the local Diffusion Element equations
-pub struct ElementDiffusion<'a> {
+pub(crate) struct ElementDiffusion<'a> {
+    /// Holds the ID of the associated cell in the Mesh
+    cell_id: CellId,
+
     /// Global configuration
-    pub config: &'a Config<'a>,
+    config: &'a Config<'a>,
 
     /// Material parameters
-    pub param: &'a ParamDiffusion,
+    param: &'a ParamDiffusion,
 
     /// Local-to-global mapping
-    pub local_to_global: Vec<usize>,
+    local_to_global: &'a Vec<usize>,
 
     /// Temporary variables for numerical integration
-    pub pad: Scratchpad,
+    pad: Scratchpad,
 
     /// Integration point coordinates and weights
-    pub gauss: Gauss,
+    gauss: Gauss,
 
     /// Conductivity model
-    pub model: ModelConductivity,
+    model: ModelConductivity,
 
     /// (temporary) Conductivity tensor at a single integration point
-    pub conductivity: Tensor2,
+    conductivity: Tensor2,
 
     /// (temporary) Gradient of temperature at a single integration point
     ///
     /// ∇ϕ @ ip
-    pub grad_phi: Vector,
+    grad_phi: Vector,
+
+    /// Indicates that the calculation of flux vectors is performed (for post-processing)
+    save_flux: bool,
 }
 
 impl<'a> ElementDiffusion<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &FemBase,
+        schema: &'a Schema,
         config: &'a Config,
         param: &'a ParamDiffusion,
         cell_id: CellId,
     ) -> Result<Self, StrError> {
         // local-to-global mapping
-        let local_to_global = compute_local_to_global(&base.emap, &base.dofs, &mesh.cells[cell_id])?;
+        let local_to_global = schema.local_to_global(cell_id)?;
 
         // pad for numerical integration
         let ndim = mesh.ndim;
@@ -62,11 +68,16 @@ impl<'a> ElementDiffusion<'a> {
         // auxiliary conductivity tensor
         let conductivity = Tensor2::new_sym_ndim(ndim);
 
+        // set a flag to output flux vectors (for post-processing)
+        let settings = config.model_settings(mesh.cells[cell_id].marker);
+        let save_flux = settings.save_flux;
+
         // auxiliary gradient tensor
         let grad_phi = Vector::new(ndim);
 
         // allocate new instance
         Ok(ElementDiffusion {
+            cell_id,
             config,
             param,
             local_to_global,
@@ -75,6 +86,7 @@ impl<'a> ElementDiffusion<'a> {
             model,
             conductivity,
             grad_phi,
+            save_flux,
         })
     }
 }
@@ -95,8 +107,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         Ok(())
     }
 
-    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
-    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
         // constants
         let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
@@ -108,22 +120,26 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         args.axisymmetric = self.config.ideal.axisymmetric;
 
         // the conductivity term is always present, so we calculate it first with clear=true
-        integ::vec_03_vb(f_int, &mut args, |w, _, nn, bb| {
+        //       ⌠ →      →
+        // Yeₘ = │ Bₘ · (-w) dΩ
+        //       ⌡
+        //       Ωₑ
+        integ::vec_03_bv(yye, &mut args, |w, _, nn, bb| {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
             for m in 0..nnode {
-                phi += nn[m] * state.u[l2g[m]];
+                phi += nn[m] * state.uu[l2g[m]];
             }
             // interpolate ∇ϕ at integration point
             for i in 0..ndim {
                 self.grad_phi[i] = 0.0;
                 for m in 0..nnode {
-                    self.grad_phi[i] += bb.get(m, i) * state.u[l2g[m]];
+                    self.grad_phi[i] += bb.get(m, i) * state.uu[l2g[m]];
                 }
             }
             // compute conductivity tensor at integration point
             self.model.calc_k(&mut self.conductivity, phi)?;
-            // f_int must get -w; however w = -k·∇ϕ, thus -w = -(-k·∇ϕ) = k·∇ϕ
+            // we need -w; however w = -k·∇ϕ, thus -w = -(-k·∇ϕ) = k·∇ϕ
             t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_phi);
             Ok(())
         })
@@ -134,12 +150,16 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // transient term
         if self.config.transient {
-            integ::vec_01_ns(f_int, &mut args, |_, nn| {
+            //        ⌠      .
+            // Yeₘ += │ Nₘ ρ ϕ dΩ
+            //        ⌡
+            //        Ωₑ
+            integ::vec_01_ns(yye, &mut args, |_, nn| {
                 // interpolate ϕ and ϕ★ to integration point
                 let (mut phi, mut phi_star) = (0.0, 0.0);
                 for m in 0..nnode {
-                    phi += nn[m] * state.u[l2g[m]];
-                    phi_star += nn[m] * state.u_star[l2g[m]];
+                    phi += nn[m] * state.uu[l2g[m]];
+                    phi_star += nn[m] * state.uu_star[l2g[m]];
                 }
                 Ok(self.param.rho * (state.beta1 * phi - phi_star))
             })?;
@@ -147,25 +167,24 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         Ok(())
     }
 
-    /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, f_ext: &mut Vector, _time: f64) -> Result<(), StrError> {
+    /// Calculates the elemental vector of external forces Fe
+    fn calc_ffe(&mut self, ffe: &mut Vector, _time: f64) -> Result<(), StrError> {
         if let Some(s) = self.param.source {
             // arguments for the integrator
             let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
             args.alpha = self.config.ideal.thickness;
             args.axisymmetric = self.config.ideal.axisymmetric;
-
-            // →        ⌠
-            // fᵐ_ext = │ Nᵐ s dΩ
-            //          ⌡
-            //          Ωₑ
-            integ::vec_01_ns(f_ext, &mut args, |_, _| Ok(s))?;
+            //       ⌠
+            // Feₘ = │ Nₘ s dΩ
+            //       ⌡
+            //       Ωₑ
+            integ::vec_01_ns(ffe, &mut args, |_, _| Ok(s))?;
         }
         Ok(())
     }
 
-    /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental Jacobian matrix Ke
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         // arguments for the integrator
         let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
@@ -175,11 +194,15 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
         args.axisymmetric = self.config.ideal.axisymmetric;
 
         // conductivity term (always present, so we calculate it first with clear=true)
-        integ::mat_03_btb(jacobian, &mut args, |k, _, nn, _| {
+        //        ⌠ →        →
+        // Keₘₙ = │ Bₘ ⋅ k ⋅ Bₙ dΩ
+        //        ⌡      ▔
+        //        Ωₑ
+        integ::mat_03_btb(kke, &mut args, |k, _, nn, _| {
             // interpolate ϕ at integration point
             let mut phi = 0.0;
             for m in 0..nnode {
-                phi += nn[m] * state.u[l2g[m]];
+                phi += nn[m] * state.uu[l2g[m]];
             }
             // compute conductivity tensor at integration point
             self.model.calc_k(k, phi)
@@ -191,17 +214,21 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // variable k tensor
         if self.model.has_variable_k() {
-            integ::mat_02_bvn(jacobian, &mut args, |hk, _, nn, bb| {
+            //        ⌠ →    →
+            // Keₘₙ = │ Bₘ ⋅ h Nₙ α dΩ
+            //        ⌡
+            //        Ωₑ
+            integ::mat_02_bvn(kke, &mut args, |hk, _, nn, bb| {
                 // interpolate ϕ at integration point
                 let mut phi = 0.0;
                 for m in 0..nnode {
-                    phi += nn[m] * state.u[l2g[m]];
+                    phi += nn[m] * state.uu[l2g[m]];
                 }
                 // interpolate ∇ϕ at integration point
                 for i in 0..ndim {
                     self.grad_phi[i] = 0.0;
                     for m in 0..nnode {
-                        self.grad_phi[i] += bb.get(m, i) * state.u[l2g[m]];
+                        self.grad_phi[i] += bb.get(m, i) * state.uu[l2g[m]];
                     }
                 }
                 // conductivity ← ∂k/∂ϕ
@@ -215,7 +242,22 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 
         // diffusion (mass) matrix
         if self.config.transient {
-            integ::mat_01_nsn(jacobian, &mut args, |_, _, _| Ok(state.beta1 * self.param.rho)).unwrap();
+            //         ⌠
+            // Keₘₙ += │ Nₘ (β₁ ρ) Nₙ dΩ
+            //         ⌡
+            //         Ωₑ
+            integ::mat_01_nsn(kke, &mut args, |_, _, _| Ok(state.beta1 * self.param.rho)).unwrap();
+        }
+
+        // enforce symmetry
+        if self.config.enforce_symmetry && self.symmetric_jacobian() {
+            for i in 0..kke.nrow() {
+                for j in (i + 1)..kke.ncol() {
+                    let avg = 0.5 * (kke[(i, j)] + kke[(j, i)]);
+                    kke[(i, j)] = avg;
+                    kke[(j, i)] = avg;
+                }
+            }
         }
         Ok(())
     }
@@ -223,18 +265,40 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.u, state.v, and state.a have been updated already
-    fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
+        // save the flow vector for post-processing, if requested
+        if self.save_flux {
+            for p in 0..self.gauss.npoint() {
+                // calculate the gradient at integration point (from global vector)
+                let phi = calculate_gradient(
+                    &mut self.grad_phi,
+                    &state.uu,
+                    &self.local_to_global,
+                    self.gauss.coords(p),
+                    &mut self.pad,
+                )?;
+                // conductivity and flow vector
+                self.model.calc_k(&mut self.conductivity, phi)?;
+                let w = &mut state.gauss[self.cell_id].diffusion[p];
+                t2_dot_vec(w, -1.0, &self.conductivity, &self.grad_phi); // w  = -k  · ∇φ
+            }
+        }
         Ok(())
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, _state: &FemState) {}
+    fn backup_secondary_values(&mut self, _state: &FemState, _alternative: bool) {}
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, _state: &mut FemState) {}
+    fn restore_secondary_values(&self, _state: &mut FemState, _alternative: bool) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
+
+    /// Returns the number of Gauss points at elastoplastic state
+    fn count_elastoplastic_gauss_points(&self, _state: &FemState) -> usize {
+        0
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -242,8 +306,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementDiffusion;
-    use crate::base::{Conductivity, Config, Elem, Essential, ParamDiffusion};
-    use crate::fem::{ElementTrait, FemBase, FemState};
+    use crate::base::{Conductivity, Config, ParamDiffusion, Schema};
+    use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix, Vector};
@@ -270,22 +334,22 @@ mod tests {
         } else {
             ParamDiffusion::sample()
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
-        let essential = Essential::new();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
-        state.u[0] = tt_field(mesh.points[0].coords[0]);
-        state.u[1] = tt_field(mesh.points[1].coords[0]);
-        state.u[2] = tt_field(mesh.points[2].coords[0]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0]);
 
         // calc Jacobian
         let neq = 3;
         let mut jacobian = Matrix::new(neq, neq);
-        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        elem.calc_kke(&mut jacobian, &state).unwrap();
         // if nonlinear {
         //     println!("J (nonlinear)= \n{}", jacobian);
         // } else {
@@ -325,10 +389,11 @@ mod tests {
         let mesh = Samples::one_tri3();
         let mut p1 = ParamDiffusion::sample();
         p1.ngauss = Some(123); // wrong
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            ElementDiffusion::new(&mesh, &base, &config, &p1, 0).err(),
+            ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).err(),
             Some("requested number of integration points is not available for Tri class")
         );
     }
@@ -346,36 +411,46 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
-        let essential = Essential::new();
-        let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
+        let mut config = Config::new(&mesh);
+        config.update_model_settings(1).save_flux = true;
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x| 100.0 + 5.0 * x;
-        state.u[0] = tt_field(mesh.points[0].coords[0]);
-        state.u[1] = tt_field(mesh.points[1].coords[0]);
-        state.u[2] = tt_field(mesh.points[2].coords[0]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0]);
 
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
-        // check f_int vector
+        // check Ye vector
         let neq = 3;
-        let mut f_int = Vector::new(neq);
-        elem.calc_f_int(&mut f_int, &state).unwrap();
+        let mut yye = Vector::new(neq);
+        elem.calc_yye(&mut yye, &state).unwrap();
         let dtt_dx = 5.0;
         let w0 = -KX * dtt_dx;
         let w1 = 0.0;
-        let correct_f_int = Vector::from(&ana.vec_03_vb(-w0, -w1));
-        vec_approx_eq(&f_int, &correct_f_int, 1e-15);
+        let correct_yye = Vector::from(&ana.vec_03_bv(-w0, -w1));
+        vec_approx_eq(&yye, &correct_yye, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
-        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        elem.calc_kke(&mut jacobian, &state).unwrap();
         let correct_kk = ana.mat_03_btb(KX, KY, false);
         mat_approx_eq(&jacobian, &correct_kk, 1e-15);
+
+        // check flux vector at gauss points
+        elem.update_secondary_values(&mut state).unwrap();
+        let ngauss = elem.gauss.npoint();
+        for p in 0..ngauss {
+            let w = &state.gauss[0].diffusion[p];
+            assert_eq!(w[0], w0);
+            assert_eq!(w[1], w1);
+        }
 
         // with source term -------------------------------------------------
 
@@ -383,15 +458,16 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1_new).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1_new, 0).unwrap();
 
-        // check f_ext vector
-        let mut f_ext = Vector::new(neq);
-        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
-        let correct_f_ext = ana.vec_01_ns(source, false);
-        vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
+        // check Fe vector
+        let mut ffe = Vector::new(neq);
+        elem.calc_ffe(&mut ffe, state.time).unwrap();
+        let correct_ffe = ana.vec_01_ns(source, false);
+        vec_approx_eq(&ffe, &correct_ffe, 1e-15);
     }
 
     #[test]
@@ -407,36 +483,36 @@ mod tests {
             source: None,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1))]).unwrap();
-        let essential = Essential::new();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the top to bottom and right to left
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let tt_field = |x, z| 100.0 + 7.0 * x + 3.0 * z;
-        state.u[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
-        state.u[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
-        state.u[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[2]);
-        state.u[3] = tt_field(mesh.points[3].coords[0], mesh.points[3].coords[2]);
+        state.uu[0] = tt_field(mesh.points[0].coords[0], mesh.points[0].coords[2]);
+        state.uu[1] = tt_field(mesh.points[1].coords[0], mesh.points[1].coords[2]);
+        state.uu[2] = tt_field(mesh.points[2].coords[0], mesh.points[2].coords[2]);
+        state.uu[3] = tt_field(mesh.points[3].coords[0], mesh.points[3].coords[2]);
 
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);
 
-        // check f_int vector
+        // check Ye vector
         let neq = 4;
-        let mut f_int = Vector::new(neq);
-        elem.calc_f_int(&mut f_int, &state).unwrap();
+        let mut yye = Vector::new(neq);
+        elem.calc_yye(&mut yye, &state).unwrap();
         let (dtt_dx, dtt_dz) = (7.0, 3.0);
         let w0 = -KX * dtt_dx;
         let w1 = 0.0;
         let w2 = -KZ * dtt_dz;
-        let correct_f_int = Vector::from(&ana.vec_03_vb(-w0, -w1, -w2));
-        vec_approx_eq(&f_int, &correct_f_int, 1e-15);
+        let correct_yye = Vector::from(&ana.vec_03_bv(-w0, -w1, -w2));
+        vec_approx_eq(&yye, &correct_yye, 1e-15);
 
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
-        elem.calc_jacobian(&mut jacobian, &state).unwrap();
+        elem.calc_kke(&mut jacobian, &state).unwrap();
         let conductivity =
             Tensor2::from_matrix(&[[KX, 0.0, 0.0], [0.0, KY, 0.0], [0.0, 0.0, KZ]], Mandel::Symmetric).unwrap();
         let correct_kk = ana.mat_03_btb(&conductivity);
@@ -448,14 +524,15 @@ mod tests {
         let source = 4.0;
         let mut p1_new = p1.clone();
         p1_new.source = Some(source);
-        let base = FemBase::new(&mesh, [(1, Elem::Diffusion(p1_new))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_diffusion(1, p1_new).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let mut elem = ElementDiffusion::new(&mesh, &base, &config, &p1_new, 0).unwrap();
+        let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1_new, 0).unwrap();
 
-        // check f_ext vector
-        let mut f_ext = Vector::new(neq);
-        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
-        let correct_f_ext = Vector::from(&ana.vec_01_ns(source));
-        vec_approx_eq(&f_ext, &correct_f_ext, 1e-15);
+        // check Fe vector
+        let mut ffe = Vector::new(neq);
+        elem.calc_ffe(&mut ffe, state.time).unwrap();
+        let correct_ffe = Vector::from(&ana.vec_01_ns(source));
+        vec_approx_eq(&ffe, &correct_ffe, 1e-15);
     }
 }

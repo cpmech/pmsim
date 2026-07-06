@@ -1,5 +1,5 @@
-use super::{ElementTrait, FemBase, FemState};
-use crate::base::{calculate_strain, compute_local_to_global, Config, ParamSolid};
+use super::{ElementTrait, FemState};
+use crate::base::{calculate_strain, Config, ParamSolid, Schema};
 use crate::material::{LocalState, ModelStressStrain};
 use crate::StrError;
 use gemlab::integ::{self, Gauss};
@@ -9,27 +9,27 @@ use russell_lab::{Matrix, Vector};
 use russell_tensor::Tensor2;
 
 /// Implements the local Solid Element equations
-pub struct ElementSolid<'a> {
+pub(crate) struct ElementSolid<'a> {
     /// Holds the ID of the associated cell in the Mesh
     cell_id: CellId,
 
     /// Global configuration
-    pub config: &'a Config<'a>,
+    config: &'a Config<'a>,
 
     /// Material parameters
-    pub param: &'a ParamSolid,
+    param: &'a ParamSolid,
 
     /// Local-to-global mapping
-    pub local_to_global: Vec<usize>,
+    local_to_global: &'a Vec<usize>,
 
     /// Temporary variables for numerical integration
-    pub pad: Scratchpad,
+    pad: Scratchpad,
 
     /// Integration point coordinates and weights
-    pub gauss: Gauss,
+    gauss: Gauss,
 
     /// Stress-strain model
-    pub model: ModelStressStrain,
+    model: ModelStressStrain,
 
     /// (temporary) Strain increment at integration point
     ///
@@ -41,19 +41,22 @@ pub struct ElementSolid<'a> {
 
     /// Holds a backup of the local state at all integration points
     backup: Vec<LocalState>,
+
+    /// Alternative backup of the local state at all integration points
+    backup_alt: Option<Vec<LocalState>>,
 }
 
 impl<'a> ElementSolid<'a> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
-        base: &FemBase,
+        schema: &'a Schema,
         config: &'a Config,
         param: &'a ParamSolid,
         cell_id: CellId,
     ) -> Result<Self, StrError> {
         // local-to-global mapping
-        let local_to_global = compute_local_to_global(&base.emap, &base.dofs, &mesh.cells[cell_id])?;
+        let local_to_global = schema.local_to_global(cell_id)?;
 
         // pad for numerical integration
         let pad = mesh.get_pad(cell_id);
@@ -62,7 +65,7 @@ impl<'a> ElementSolid<'a> {
         let gauss = Gauss::new_or_sized(pad.kind, param.ngauss)?;
 
         // material model
-        let settings = config.model_settings(mesh.cells[cell_id].attribute);
+        let settings = config.model_settings(mesh.cells[cell_id].marker);
         let model = ModelStressStrain::new(&config.ideal, &param.stress_strain, &settings)?;
 
         // auxiliary strain increment tensor
@@ -91,6 +94,7 @@ impl<'a> ElementSolid<'a> {
             delta_strain,
             save_strain,
             backup,
+            backup_alt: None,
         })
     }
 }
@@ -120,25 +124,25 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             .collect()
     }
 
-    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
-    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
         // arguments for the integrator
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
 
-        // →        ⌠     →
-        // fᵐ_int = │ σ · Bᵐ dΩ
-        //          ⌡ ▔
-        //          Ωₑ
-        integ::vec_04_tb(f_int, &mut args, |sig, p, _, _| {
+        // →     ⌠ →            ⌠     →
+        // Yeₘ = │ Bₘ · σᵀ dΩ = │ σ · Bₘ dΩ
+        //       ⌡      ▔       ⌡ ▔
+        //       Ωₑ             Ωₑ
+        integ::vec_04_bt(yye, &mut args, |sig, p, _, _| {
             sig.set_tensor(1.0, &state.gauss[self.cell_id].solid[p].stress);
             Ok(())
         })
     }
 
-    /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, f_ext: &mut Vector, time: f64) -> Result<(), StrError> {
+    /// Calculates the elemental vector of external forces Fe
+    fn calc_ffe(&mut self, ffe: &mut Vector, time: f64) -> Result<(), StrError> {
         if let Some(gravity) = self.config.gravity.as_ref() {
             // constants
             let ndim = self.config.ndim;
@@ -151,11 +155,11 @@ impl<'a> ElementTrait for ElementSolid<'a> {
 
             // note that the gravity acceleration component is negative: bᵢ = -gravity
             //
-            // →        ⌠      →
-            // fᵐ_ext = │ Nᵐ ρ b dΩ
-            //          ⌡
-            //          Ωₑ
-            integ::vec_02_nv(f_ext, &mut args, |b, _, _| {
+            // →     ⌠      →
+            // Feₘ = │ Nₘ ρ b dΩ
+            //       ⌡
+            //       Ωₑ
+            integ::vec_02_nv(ffe, &mut args, |b, _, _| {
                 b.fill(0.0);
                 b[ndim - 1] = rho * (-gravity(time)); // ρ·(-g)
                 Ok(())
@@ -164,24 +168,35 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         Ok(())
     }
 
-    /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, jacobian: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental Jacobian matrix Ke
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
         args.alpha = self.config.ideal.thickness;
         args.axisymmetric = self.config.ideal.axisymmetric;
         if self.config.alt_bb_matrix_method {
-            integ::mat_10_bdb_alt(jacobian, &mut args, |dd, p, _, _| {
+            integ::mat_10_bdb_alt(kke, &mut args, |dd, p, _, _| {
                 self.model
                     .actual
                     .stiffness(dd, &state.gauss[self.cell_id].solid[p], self.cell_id, p)
-            })
+            })?;
         } else {
-            integ::mat_10_bdb(jacobian, &mut args, |dd, p, _, _| {
+            integ::mat_10_bdb(kke, &mut args, |dd, p, _, _| {
                 self.model
                     .actual
                     .stiffness(dd, &state.gauss[self.cell_id].solid[p], self.cell_id, p)
-            })
+            })?;
         }
+        // enforce symmetry
+        if self.config.enforce_symmetry && self.symmetric_jacobian() {
+            for i in 0..kke.nrow() {
+                for j in (i + 1)..kke.ncol() {
+                    let avg = 0.5 * (kke[(i, j)] + kke[(j, i)]);
+                    kke[(i, j)] = avg;
+                    kke[(j, i)] = avg;
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Updates secondary values such as stresses and internal variables
@@ -192,7 +207,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
             // calculate increment of strains Δε at integration point (from global increment of displacements)
             calculate_strain(
                 &mut self.delta_strain,
-                &state.ddu,
+                &state.dduu,
                 &self.config.ideal,
                 &self.local_to_global,
                 self.gauss.coords(p),
@@ -212,7 +227,7 @@ impl<'a> ElementTrait for ElementSolid<'a> {
                 let strain = state.gauss[self.cell_id].solid[p].strain.as_mut().unwrap();
                 calculate_strain(
                     strain,
-                    &state.u,
+                    &state.uu,
                     &self.config.ideal,
                     &self.local_to_global,
                     self.gauss.coords(p),
@@ -224,16 +239,36 @@ impl<'a> ElementTrait for ElementSolid<'a> {
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, state: &FemState) {
-        for p in 0..self.gauss.npoint() {
-            self.backup[p].mirror(&state.gauss[self.cell_id].solid[p]);
+    fn backup_secondary_values(&mut self, state: &FemState, alternative: bool) {
+        if alternative {
+            match self.backup_alt.as_mut() {
+                Some(backup) => {
+                    for p in 0..self.gauss.npoint() {
+                        backup[p].mirror(&state.gauss[self.cell_id].solid[p]);
+                    }
+                }
+                None => {
+                    self.backup_alt = Some(state.gauss[self.cell_id].solid.clone());
+                }
+            }
+        } else {
+            for p in 0..self.gauss.npoint() {
+                self.backup[p].mirror(&state.gauss[self.cell_id].solid[p]);
+            }
         }
     }
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, state: &mut FemState) {
-        for p in 0..self.gauss.npoint() {
-            state.gauss[self.cell_id].solid[p].mirror(&self.backup[p]);
+    fn restore_secondary_values(&self, state: &mut FemState, alternative: bool) {
+        if alternative {
+            assert!(self.backup_alt.is_some());
+            for p in 0..self.gauss.npoint() {
+                state.gauss[self.cell_id].solid[p].mirror(&self.backup_alt.as_ref().unwrap()[p]);
+            }
+        } else {
+            for p in 0..self.gauss.npoint() {
+                state.gauss[self.cell_id].solid[p].mirror(&self.backup[p]);
+            }
         }
     }
 
@@ -242,7 +277,18 @@ impl<'a> ElementTrait for ElementSolid<'a> {
         state.gauss[self.cell_id]
             .solid
             .iter_mut()
-            .for_each(|s| self.model.actual.reset_algorithmic_variables(s));
+            .for_each(|s| self.model.actual.reset_algorithmic_variables(s, state.reverse));
+    }
+
+    /// Returns the number of Gauss points at elastoplastic state
+    fn count_elastoplastic_gauss_points(&self, state: &FemState) -> usize {
+        let mut n_elastoplastic = 0;
+        state.gauss[self.cell_id].solid.iter().for_each(|s| {
+            if !s.elastic {
+                n_elastoplastic += 1;
+            }
+        });
+        n_elastoplastic
     }
 }
 
@@ -256,8 +302,8 @@ mod tests {
         elastic_solution_vertical_displacement_field, generate_horizontal_displacement_field,
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
-    use crate::base::{Config, Elem, Essential, ParamSolid, StressStrain};
-    use crate::fem::{ElementTrait, FemBase, FemState};
+    use crate::base::{Config, ParamSolid, Schema, StressStrain};
+    use crate::fem::{ElementTrait, FemState};
     use gemlab::integ;
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point, Samples};
     use russell_lab::math::SQRT_2;
@@ -268,7 +314,7 @@ mod tests {
         young: f64,
         poisson: f64,
         alt_bb_matrix: bool,
-    ) -> (Mesh, ParamSolid, FemBase, Config<'a>, FemState) {
+    ) -> (Mesh, ParamSolid, Schema, Config<'a>, FemState) {
         // mesh and parameters
         let mesh = if d3 { Samples::one_tet4() } else { Samples::one_tri3() };
         let p1 = ParamSolid {
@@ -278,11 +324,11 @@ mod tests {
         };
 
         // base, essential, config, and state
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let essential = Essential::new();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
-        config.set_alt_bb_matrix_method(alt_bb_matrix);
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        config.alt_bb_matrix_method(alt_bb_matrix);
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
 
         // set stress state
         for state in &mut state.gauss[0].solid {
@@ -295,7 +341,7 @@ mod tests {
                 state.stress.sym_set(2, 0, 6.0);
             }
         }
-        (mesh, p1, base, config, state)
+        (mesh, p1, schema, config, state)
     }
 
     #[test]
@@ -303,35 +349,36 @@ mod tests {
         let mesh = Samples::one_tri3();
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
         let config = Config::new(&mesh);
         assert_eq!(
-            ElementSolid::new(&mesh, &base, &config, &p1, 0).err(),
+            ElementSolid::new(&mesh, &schema, &config, &p1, 0).err(),
             Some("requested number of integration points is not available for Tri class")
         );
     }
 
     #[test]
-    fn calc_f_int_works_2d() {
+    fn calc_yye_works_2d() {
         // allocate element
         let young = 10_000.0;
         let poisson = 0.2;
         let (mesh, p1, base, config, state) = get_sample(false, young, poisson, false);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
 
-        // allocate local f_int vector
+        // allocate local Ye vector
         let nnode = mesh.cells[0].kind.nnode();
         let neq = nnode * mesh.ndim;
-        let mut f_int = Vector::new(neq);
+        let mut yye = Vector::new(neq);
 
         // analytical solver
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
-        // check f_int vector
-        elem.calc_f_int(&mut f_int, &state).unwrap();
+        // check Ye vector
+        elem.calc_yye(&mut yye, &state).unwrap();
         let sigma = &state.gauss[0].solid[0].stress;
-        let correct = ana.vec_04_tb(sigma, false);
-        vec_approx_eq(&f_int, &correct, 1e-15);
+        let correct = ana.vec_04_bt(sigma, false);
+        vec_approx_eq(&yye, &correct, 1e-15);
     }
 
     #[test]
@@ -351,7 +398,7 @@ mod tests {
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
         // check Jacobian matrix
-        elem.calc_jacobian(&mut kk, &state).unwrap();
+        elem.calc_kke(&mut kk, &state).unwrap();
         let correct = ana
             .mat_10_bdb(young, poisson, config.ideal.plane_stress, config.ideal.thickness)
             .unwrap();
@@ -375,7 +422,7 @@ mod tests {
         let ana = integ::AnalyticalTri3::new(&elem.pad);
 
         // check Jacobian matrix
-        elem.calc_jacobian(&mut kk, &state).unwrap();
+        elem.calc_kke(&mut kk, &state).unwrap();
         let correct = ana
             .mat_10_bdb(young, poisson, config.ideal.plane_stress, config.ideal.thickness)
             .unwrap();
@@ -383,26 +430,26 @@ mod tests {
     }
 
     #[test]
-    fn calc_f_int_works_3d() {
+    fn calc_yye_works_3d() {
         // allocate element
         let young = 10_000.0;
         let poisson = 0.2;
         let (mesh, p1, base, config, state) = get_sample(true, young, poisson, false);
         let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
 
-        // allocate local f_int vector
+        // allocate local Ye vector
         let nnode = mesh.cells[0].kind.nnode();
         let neq = nnode * mesh.ndim;
-        let mut f_int = Vector::new(neq);
+        let mut yye = Vector::new(neq);
 
         // analytical solver
         let ana = integ::AnalyticalTet4::new(&elem.pad);
 
-        // check f_int vector
-        elem.calc_f_int(&mut f_int, &state).unwrap();
+        // check Ye vector
+        elem.calc_yye(&mut yye, &state).unwrap();
         let sigma = &state.gauss[0].solid[0].stress;
-        let correct = ana.vec_04_tb(sigma);
-        vec_approx_eq(&f_int, &correct, 1e-15);
+        let correct = ana.vec_04_bt(sigma);
+        vec_approx_eq(&yye, &correct, 1e-15);
     }
 
     #[test]
@@ -422,7 +469,7 @@ mod tests {
         let mut ana = integ::AnalyticalTet4::new(&elem.pad);
 
         // check Jacobian matrix
-        elem.calc_jacobian(&mut kk, &state).unwrap();
+        elem.calc_kke(&mut kk, &state).unwrap();
         let correct = ana.mat_10_bdb(young, poisson).unwrap();
         mat_approx_eq(&kk, &correct, 1e-12);
     }
@@ -444,7 +491,7 @@ mod tests {
         let mut ana = integ::AnalyticalTet4::new(&elem.pad);
 
         // check Jacobian matrix
-        elem.calc_jacobian(&mut kk, &state).unwrap();
+        elem.calc_kke(&mut kk, &state).unwrap();
         let correct = ana.mat_10_bdb(young, poisson).unwrap();
         mat_approx_eq(&kk, &correct, 1e-12);
     }
@@ -486,20 +533,20 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-            let essential = Essential::new();
+            let mut schema = Schema::new();
+            schema.add_solid(1, p1).build(&mesh).unwrap();
 
             // configuration
             let mut config = Config::new(&mesh);
 
             // enable saving strains
-            config.update_model_settings(cell.attribute).set_save_strain(true);
+            config.update_model_settings(cell.marker).set_save_strain(true);
 
             // check stress update (horizontal displacement field)
-            let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.ddu, &duu_h).unwrap();
-            vec_update(&mut state.u, 1.0, &duu_h).unwrap();
+            let mut element = ElementSolid::new(&mesh, &schema, &config, &p1, cell.id).unwrap();
+            let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+            vec_copy(&mut state.dduu, &duu_h).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -512,10 +559,10 @@ mod tests {
             }
 
             // check stress update (vertical displacement field)
-            let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.ddu, &duu_v).unwrap();
-            vec_update(&mut state.u, 1.0, &duu_v).unwrap();
+            let mut element = ElementSolid::new(&mesh, &schema, &config, &p1, cell.id).unwrap();
+            let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+            vec_copy(&mut state.dduu, &duu_v).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -528,10 +575,10 @@ mod tests {
             }
 
             // check stress update (shear displacement field)
-            let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.ddu, &duu_s).unwrap();
-            vec_update(&mut state.u, 1.0, &duu_s).unwrap();
+            let mut element = ElementSolid::new(&mesh, &schema, &config, &p1, cell.id).unwrap();
+            let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+            vec_copy(&mut state.dduu, &duu_s).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -583,18 +630,18 @@ mod tests {
             // check the first cell/element only
             let id = 0;
             let cell = &mesh.cells[id];
-            let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-            let essential = Essential::new();
+            let mut schema = Schema::new();
+            schema.add_solid(1, p1).build(&mesh).unwrap();
 
             // configuration
             let mut config = Config::new(&mesh);
             config.ideal.plane_stress = true;
 
             // check stress update (horizontal displacement field)
-            let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.ddu, &duu_h).unwrap();
-            vec_update(&mut state.u, 1.0, &duu_h).unwrap();
+            let mut element = ElementSolid::new(&mesh, &schema, &config, &p1, cell.id).unwrap();
+            let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+            vec_copy(&mut state.dduu, &duu_h).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_h).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -602,10 +649,10 @@ mod tests {
             }
 
             // check stress update (vertical displacement field)
-            let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.ddu, &duu_v).unwrap();
-            vec_update(&mut state.u, 1.0, &duu_v).unwrap();
+            let mut element = ElementSolid::new(&mesh, &schema, &config, &p1, cell.id).unwrap();
+            let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+            vec_copy(&mut state.dduu, &duu_v).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_v).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -613,10 +660,10 @@ mod tests {
             }
 
             // check stress update (shear displacement field)
-            let mut element = ElementSolid::new(&mesh, &base, &config, &p1, cell.id).unwrap();
-            let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-            vec_copy(&mut state.ddu, &duu_s).unwrap();
-            vec_update(&mut state.u, 1.0, &duu_s).unwrap();
+            let mut element = ElementSolid::new(&mesh, &schema, &config, &p1, cell.id).unwrap();
+            let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+            vec_copy(&mut state.dduu, &duu_s).unwrap();
+            vec_update(&mut state.uu, 1.0, &duu_s).unwrap();
             element.initialize_internal_values(&mut state).unwrap();
             element.update_secondary_values(&mut state).unwrap();
             for p in 0..element.gauss.npoint() {
@@ -640,8 +687,10 @@ mod tests {
                 Point { id: 3, marker: 0, coords: vec![rin + 0.0,   b] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Qua4, points: vec![0, 1, 2, 3] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         };
 
         // number of integration points
@@ -655,37 +704,37 @@ mod tests {
             stress_strain: StressStrain::LinearElastic { young, poisson },
             ngauss: Some(ngauss),
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))]).unwrap();
-        let essential = Essential::new();
+        let mut schema = Schema::new();
+        schema.add_solid(1, p1).build(&mesh).unwrap();
 
         // configuration
         let mut config = Config::new(&mesh);
         config.ideal.axisymmetric = true;
 
         // vertical acceleration (must be positive)
-        config.set_gravity(|_| 0.5); // 1/2 because rho = 2
+        config.gravity(|_| 0.5); // 1/2 because rho = 2
 
         // element
-        let mut elem = ElementSolid::new(&mesh, &base, &config, &p1, 0).unwrap();
+        let mut elem = ElementSolid::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // NOTE: since the stress is zero, the residual is due to the body force only
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         let neq = 4 * 2;
-        let mut f_int = Vector::new(neq);
-        let mut f_ext = Vector::new(neq);
-        let mut f_int_minus_f_ext = Vector::new(neq);
+        let mut yye = Vector::new(neq);
+        let mut ffe = Vector::new(neq);
+        let mut yye_minus_ffe = Vector::new(neq);
         elem.initialize_internal_values(&mut state).unwrap();
-        elem.calc_f_int(&mut f_int, &state).unwrap();
-        elem.calc_f_ext(&mut f_ext, state.t).unwrap();
-        vec_add(&mut f_int_minus_f_ext, 1.0, &f_int, -1.0, &f_ext).unwrap();
+        elem.calc_yye(&mut yye, &state).unwrap();
+        elem.calc_ffe(&mut ffe, state.time).unwrap();
+        vec_add(&mut yye_minus_ffe, 1.0, &yye, -1.0, &ffe).unwrap();
 
         // check residual vector
         if reduced_integration {
             let felippa_neg_rr_1ip = &[0.0, 12.0, 0.0, 12.0, 0.0, 12.0, 0.0, 12.0];
-            vec_approx_eq(&f_int_minus_f_ext, felippa_neg_rr_1ip, 1e-15);
+            vec_approx_eq(&yye_minus_ffe, felippa_neg_rr_1ip, 1e-15);
         } else {
             let felippa_neg_rr_4ip = &[0.0, 9.0, 0.0, 15.0, 0.0, 15.0, 0.0, 9.0];
-            vec_approx_eq(&f_int_minus_f_ext, felippa_neg_rr_4ip, 1e-14);
+            vec_approx_eq(&yye_minus_ffe, felippa_neg_rr_4ip, 1e-14);
         }
     }
 

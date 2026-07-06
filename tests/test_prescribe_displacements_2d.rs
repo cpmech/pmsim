@@ -1,7 +1,8 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
 use pmsim::prelude::*;
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::vec_approx_eq;
 
 // Plane-strain linear elasticity with a single-element
 //
@@ -33,6 +34,11 @@ use russell_lab::*;
 // * Static non-linear plane-strain simulation
 // * Young: E = 1500, Poisson: ν = 0.25
 
+// constants
+const YOUNG: f64 = 1500.0;
+const POISSON: f64 = 0.25;
+const DY: f64 = 0.1;
+
 #[test]
 fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     // mesh
@@ -44,11 +50,6 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let top = features.search_edges(At::Y(1.0), any_x)?;
 
-    // constants
-    const YOUNG: f64 = 1500.0;
-    const POISSON: f64 = 0.25;
-    const DY: f64 = 0.1;
-
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
@@ -58,37 +59,41 @@ fn test_prescribe_displacements_2d() -> Result<(), StrError> {
         },
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0)
         .edges(&top, Dof::Uy, -DY);
-    println!("{}", essential);
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let nbc = BcNatural::new();
 
+    // run tests
+    run_test(true, &mesh, &schema, &ebc, &nbc)?;
+    run_test(false, &mesh, &schema, &ebc, &nbc)?;
+    Ok(())
+}
+
+fn run_test(lmm: bool, mesh: &Mesh, schema: &Schema, ebc: &BcEssential, nbc: &BcNatural) -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_lagrange_mult_method(true);
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
+    config.lagrange_mult_method(lmm);
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+
+    // check U vector
+    let state = data.state();
     let eps_x = -DY * POISSON / (POISSON - 1.0);
+    println!("LMM = {}", lmm);
     println!("eps_x = {}", eps_x);
-    println!("u =\n{}", state.u);
-    array_approx_eq(
-        &state.u.as_data()[..8],
+    println!("u =\n{}", state.uu);
+    vec_approx_eq(
+        &state.uu,
         &[
             0.0, 0.0, //   node 0
             eps_x, 0.0, // node 1

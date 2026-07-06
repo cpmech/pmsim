@@ -1,18 +1,22 @@
 use gemlab::mesh::Samples;
 use gemlab::prelude::*;
+use plotpy::{Canvas, Curve, DarkMode, Plot};
+use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::approx_eq;
+use russell_lab::math::SQRT_2_BY_3;
 
 // von Mises plasticity with a single-element
 //
 // This test runs a plane-strain compression of a single element represented
-// by the von Mises model. The results are compared with the code HYPLAS
-// discussed in Ref #1.
+// by the von Mises model.
 //
 // TEST GOAL
 //
-// Verifies the plane-strain implementation of the von Mises model.
+// Verifies the plane-strain implementation of the von Mises model,
+// on a displacement controlled test.
 //
 // MESH
 //
@@ -41,32 +45,39 @@ use russell_lab::*;
 // * Young: E = 1500, Poisson: ν = 0.25
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 //
+// The results are compared with the code HYPLAS discussed in Ref #1.
+//
 // # Reference
 //
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
 const NAME: &str = "test_von_mises_single_element_2d";
+const SAVE_FIGURE: bool = false;
 
 // constants
+const L0: f64 = 1.0; // initial length of the domain
 const YOUNG: f64 = 1500.0;
 const POISSON: f64 = 0.25;
+const C1: f64 = YOUNG / ((1.0 + POISSON) * (1.0 - 2.0 * POISSON));
 const Z_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
 const NGAUSS: usize = 1;
-const N_STEPS: usize = 5;
+const NSTAGE: usize = 5;
 
 #[test]
 fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
+    let (_, max) = mesh.get_limits();
 
     // features
     let features = Features::new(&mesh, false);
     let left = features.search_edges(At::X(0.0), any_x)?;
     let bottom = features.search_edges(At::Y(0.0), any_x)?;
     let top = features.search_edges(At::Y(1.0), any_x)?;
+    let corner = features.search_point_ids(At::XY(max[0], max[1]), any_x)?[0];
 
     // parameters
     let p1 = ParamSolid {
@@ -79,52 +90,212 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
         },
         ngauss: Some(NGAUSS),
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let delta_y = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-    let mut essential = Essential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
-        .edges(&bottom, Dof::Uy, 0.0)
-        .edges_fn(&top, Dof::Uy, 1.0, |t| -delta_y * t);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let natural = Natural::new();
+    let nbc = BcNatural::new();
 
+    // run: natural + lmm
+    let options = Options {
+        arclength: false,
+        lmm: true,
+    };
+    run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
+
+    // run: natural + sps
+    let options = Options {
+        arclength: false,
+        lmm: false,
+    };
+    run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
+
+    // run: arclength + sps
+    let options = Options {
+        arclength: true,
+        lmm: false,
+    };
+    run_test(options, &mesh, &top, corner, &schema, &mut ebc, &nbc)?;
+    Ok(())
+}
+
+fn run_test(
+    options: Options,
+    mesh: &Mesh,
+    top: &Edges,
+    corner: usize,
+    schema: &Schema,
+    ebc: &mut BcEssential,
+    nbc: &BcNatural,
+) -> Result<(), StrError> {
+    // define filename stem
+    let mut name = NAME.to_string() + "_";
+    name += &options.key();
+
+    // essential boundary conditions
+    let dy = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+    ebc.edges(&top, Dof::Uy, -dy);
+
+    // update configuration
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_lagrange_mult_method(true)
-        .set_dt(|_| 1.0)
-        .set_dt_out(|_| 1.0)
-        .set_t_fin(N_STEPS as f64)
-        .set_n_max_iterations(20);
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, "/tmp/pmsim", NAME)?;
+        .out_history_uu_comp(corner, Dof::Uy)
+        .out_history_yy_comp(corner, Dof::Uy)
+        .out_files("/tmp/pmsim", &name)
+        .lagrange_mult_method(options.lmm)
+        .enable_symmetry_check(1e-13)
+        .out_history_local_state(0)
+        .update_model_settings(1)
+        .set_save_strain(true);
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let mut nl_config = NlConfig::new();
+    nl_config
+        .set_verbose(true, true, true)
+        .set_record_iterations_residuals(true);
+    if options.arclength {
+        nl_config
+            .set_method(NlMethod::Arclength)
+            .set_bordering(true)
+            .set_tg_control_tol(0.5);
+    } else {
+        nl_config.set_method(NlMethod::Natural);
+    }
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
+    let idx = data.sys_index(corner, Dof::Ux)?;
+    if options.arclength {
+        let ddl = DeltaLambda::auto(0.05);
+        sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.01921), ddl)?;
+    } else {
+        let ddl = DeltaLambda::list(&vec![1.0; NSTAGE]);
+        sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.1), ddl)?;
+    }
 
-    // compare the results with Ref #1
-    let tol_displacement = 1e-13;
-    let tol_stress = 1e-10;
-    let all_good = compare_results(
-        &mesh,
-        &base,
-        &file_io,
-        ReferenceDataType::SPO,
-        &format!("data/spo/{}_ref.json", NAME),
-        tol_displacement,
-        tol_stress,
-        0,
-    )?;
-    assert!(all_good);
+    // check the results
+    let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
+    let lambdas = post.stations();
+    let ss = post.history_local_state(0).unwrap();
+    if !options.arclength {
+        for i in 0..lambdas.len() {
+            let ey_ref = -lambdas[i] * dy / L0;
+            let ex = ss[i].strain.as_ref().unwrap().get(0, 0);
+            let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
+            let ez = ss[i].strain.as_ref().unwrap().get(2, 2);
+            let exy = ss[i].strain.as_ref().unwrap().get(0, 1);
+            let sx = ss[i].stress.get(0, 0);
+            let sy = ss[i].stress.get(1, 1);
+            let sz = ss[i].stress.get(2, 2);
+            let sxy = ss[i].stress.get(0, 1);
+            // println!("lambda = {:.5}, ey_ref = {:.5}, ey = {:.5}", lambda, ey_ref, ey);
+            approx_eq(ey, ey_ref, 1e-15); // imposed
+            approx_eq(ez, 0.0, 1e-15); // plane strain
+            approx_eq(exy, 0.0, 1e-15); // shear-free
+            approx_eq(sx, 0.0, 1e-5); // x-free
+            approx_eq(sxy, 0.0, 1e-15); // shear-free
+            if lambdas[i] < 2.0 {
+                // elastic stages
+                assert_eq!(ss[i].elastic, true);
+                let ex_ref = ey_ref * NU / (NU - 1.0);
+                approx_eq(ex, ex_ref, 1e-15);
+                approx_eq(sx, C1 * (ex_ref * (1.0 - NU) + ey_ref * NU), 1e-15); // zero
+                approx_eq(sy, C1 * (ey_ref * (1.0 - NU) + ex_ref * NU), 1e-14);
+                approx_eq(sz, C1 * (ex_ref * NU + ey_ref * NU), 1e-15);
+            } else {
+                // elastoplastic stage
+                assert_eq!(ss[i].elastic, false);
+            }
+        }
+
+        // compare the results with Ref #1
+        let tol_displacement = 8.24e-10;
+        let tol_stress = 1.13e-6;
+        let all_good = compare_results(
+            &mesh,
+            &schema,
+            &config,
+            "/tmp/pmsim/",
+            &name,
+            ReferenceDataType::SPO,
+            "data/spo/spo_von_mises_single_element.json",
+            tol_displacement,
+            tol_stress,
+            0,
+        )?;
+        assert!(all_good);
+    }
+
+    // figure
+    if SAVE_FIGURE {
+        // displacement-force data
+        let uy = post.history_uu_comp(corner, Dof::Uy).unwrap();
+        let fy = post.history_yy_comp(corner, Dof::Uy).unwrap();
+        let mut curve = Curve::new();
+        let mut plot = Plot::new();
+        let mut dm = DarkMode::new();
+        dm.set_mocha();
+        curve.set_marker_style(".").draw(uy, fy);
+        plot.add(&dm)
+            .add(&curve)
+            .set_title(&options.title())
+            .grid_and_labels("uy", "fy")
+            .set_range(-0.035, 0.0, -13.5, 0.0)
+            .save(&format!("/tmp/pmsim/{}_disp.svg", name))?;
+
+        // stress-strain data
+        let ss = post.history_local_state(0).unwrap();
+        let data = PlotterData::from_states(ss);
+        let mut zz = vec![0.0; lambdas.len()];
+        for i in 0..lambdas.len() {
+            zz[i] = ss[i].int_vars[0];
+        }
+        let mut plotter = Plotter::new();
+        plotter
+            .set_title(&options.title())
+            .set_dark_mode()
+            .set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});
+        plotter.set_extra(Axis::OctX, Axis::OctY, |plot| {
+            let mut circle = Canvas::new();
+            circle.set_face_color("None").set_edge_color("#8c77f4");
+            for i in 2..zz.len() {
+                circle.draw_circle(0.0, 0.0, zz[i] * SQRT_2_BY_3);
+            }
+            circle.draw_circle(0.0, 0.0, zz[2] * SQRT_2_BY_3);
+            plot.add(&circle);
+        });
+        plotter.add_2x2(&data, false, |curve, _, _| {
+            curve.set_marker_style(".");
+        })?;
+        plotter.save(&format!("/tmp/pmsim/{}.svg", name))?;
+    }
     Ok(())
+}
+
+struct Options {
+    arclength: bool,
+    lmm: bool,
+}
+
+impl Options {
+    fn key(&self) -> String {
+        let mut buf = if self.arclength {
+            "arc".to_string()
+        } else {
+            "nat".to_string()
+        };
+        if self.lmm {
+            buf += "_lmm";
+        } else {
+            buf += "_sps";
+        }
+        buf
+    }
+
+    fn title(&self) -> String {
+        self.key().to_uppercase().replace("_", " | ")
+    }
 }

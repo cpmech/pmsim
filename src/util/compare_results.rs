@@ -1,9 +1,18 @@
 use super::{ReferenceData, ReferenceDataType};
-use crate::base::Dof;
-use crate::fem::{FemBase, FemState, FileIo};
+use crate::base::{Config, Dof, Schema};
+use crate::fem::{FemState, PostProc};
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_tensor::SQRT_2;
+
+/// Returns T or F for a boolean variable
+fn b2s(flag: bool) -> String {
+    if flag {
+        "T".to_string()
+    } else {
+        "F".to_string()
+    }
+}
 
 /// Queries whether A failed to compare with B or not
 ///
@@ -21,12 +30,24 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
     (fail, diff)
 }
 
+/// Queries whether A equals B
+///
+/// Returns `fail`
+fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
+    let fail = a != b;
+    if verbose > 0 {
+        let mrk = if fail { "❌" } else { "➖" };
+        print!("{} vs {} {}    ", b2s(a), b2s(b), mrk);
+    }
+    fail
+}
+
 /// Compares the FEM results (displacement, stress, strain) against reference data
 ///
 /// # Input
 ///
 /// * `mesh` -- The mesh
-/// * `file_io` -- The file output struct
+/// * `res_path` -- The full path to the results files; e.g., "/tmp/pmsim/simulation.json"
 /// * `ref_type` -- The type (origin) of the reference data
 /// * `ref_path` -- The full path of the file with the reference results
 /// * `tol_displacement` -- A tolerance to compare displacements
@@ -41,8 +62,10 @@ fn query_failed(a: f64, b: f64, tol: f64, verbose: usize) -> (bool, f64) {
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
 pub fn compare_results(
     mesh: &Mesh,
-    base: &FemBase,
-    file_io: &FileIo,
+    schema: &Schema,
+    config: &Config,
+    dir: &str,
+    fn_stem: &str,
     ref_type: ReferenceDataType,
     ref_path: &str,
     tol_displacement: f64,
@@ -77,16 +100,17 @@ pub fn compare_results(
 
     // compare results
     let mut all_good = true;
-    let summary = FileIo::read_json(&file_io.path_summary())?;
-    if summary.indices.len() != dat.actual.nstep() + 1 {
+    let mut elastic_flags_ok = true;
+    let (pp, _) = PostProc::new(dir, fn_stem)?;
+    if pp.nfile() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
-    for index in 1..summary.indices.len() {
+    for index in 1..pp.nfile() {
         // set the number of steps in the reference data (where the initial state is absent)
         let step = index - 1;
 
         // load state
-        let fem_state = FemState::read_json(&file_io.path_state(index))?;
+        let fem_state = FemState::read_json(&format!("{}/{}-{}.json", config.out_dir, config.out_fn_stem, index))?;
 
         if verbose > 0 {
             println!(
@@ -101,8 +125,8 @@ pub fn compare_results(
         }
         for p in 0..npoint {
             for i in 0..ndim {
-                let eq = base.dofs.eq(p, dofs[i]).unwrap();
-                let a = fem_state.u[eq];
+                let d = schema.dof_number(p, dofs[i])?;
+                let a = fem_state.uu[d];
                 let b = dat.actual.displacement(step, p, i);
                 let (fail, diff) = query_failed(a, b, tol_displacement, verbose);
                 diff_displacement_max = f64::max(diff_displacement_max, diff);
@@ -145,11 +169,41 @@ pub fn compare_results(
                 }
             }
         }
+
+        // check elastic flags
+        if verbose > 0 {
+            println!("ERROR ON ELASTIC FLAGS");
+        }
+        let mut n_elastic = 0;
+        for e in 0..ncell {
+            let ngauss = dat.actual.ngauss(step, e);
+            if ngauss < 1 {
+                return Err("there must be at least on integration point in reference data (plast_apex_epbar)");
+            }
+            let secondary_values = &fem_state.gauss[e];
+            for ip in 0..ngauss {
+                let local_state = &secondary_values.solid[ip];
+                let elastic = dat.actual.elastic(step, e, ip);
+                let fail = query_failed_bool(local_state.elastic, elastic, verbose);
+                if fail {
+                    all_good = false;
+                    elastic_flags_ok = false;
+                }
+                if elastic {
+                    n_elastic += 1;
+                }
+            }
+            if verbose > 0 {
+                println!();
+            }
+        }
+        if verbose > 0 {
+            println!("num elastic = {}", n_elastic);
+        }
     }
-    if verbose > 0 {
-        println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
-        println!("diff_stress_max       = {:9.2e}", diff_stress_max);
-        println!();
-    }
+    let s_ok = if elastic_flags_ok { "yes" } else { "no" };
+    println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
+    println!("diff_stress_max       = {:9.2e}", diff_stress_max);
+    println!("are elastic flags ok  ? {:>9}\n", s_ok);
     Ok(all_good)
 }

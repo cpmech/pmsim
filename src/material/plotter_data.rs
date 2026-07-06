@@ -59,8 +59,8 @@ impl PlotterData {
         spectral.decompose(stress).unwrap();
         let (oct_y, _, oct_x) = spectral.octahedral_basis();
         self.all.push(PlotterEntry {
-            sig_m: stress.invariant_sigma_m(),
-            sig_d: stress.invariant_sigma_d(),
+            sig_m: stress.invariant_p(),
+            sig_d: stress.invariant_q(),
             lode: match stress.invariant_lode() {
                 Some(l) => l,
                 None => f64::NAN,
@@ -99,8 +99,8 @@ impl PlotterData {
                     spectral.decompose(&s.stress).unwrap();
                     let (oct_y, _, oct_x) = spectral.octahedral_basis();
                     PlotterEntry {
-                        sig_m: s.stress.invariant_sigma_m(),
-                        sig_d: s.stress.invariant_sigma_d(),
+                        sig_m: s.stress.invariant_p(),
+                        sig_d: s.stress.invariant_q(),
                         lode: match s.stress.invariant_lode() {
                             Some(l) => l,
                             None => f64::NAN,

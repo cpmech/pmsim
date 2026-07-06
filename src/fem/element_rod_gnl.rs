@@ -1,5 +1,5 @@
-use super::{ElementTrait, FemBase, FemState};
-use crate::base::{compute_local_to_global, ParamRod};
+use super::{ElementTrait, FemState};
+use crate::base::{GnlStrain, ParamRod, Schema};
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_add, vec_outer, Matrix, Vector};
@@ -8,15 +8,17 @@ use russell_lab::{mat_add, vec_outer, Matrix, Vector};
 ///
 /// # References
 ///
-/// * Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
-///   issues in the arc-length method for nonlinear structural mechanics,
-///   Engineering Structures, 234:111755
-pub struct ElementRodGnl<'a> {
+/// 1. Kadapa C (2021) A simple extrapolated predictor for overcoming the starting and tracking
+///    issues in the arc-length method for nonlinear structural mechanics,
+///    Engineering Structures, 234:111755
+/// 2. Bonet J, Wood RD (2008) Nonlinear Continuum Mechanics for Finite Element Analysis,
+///    2nd Edition, Cambridge University Press
+pub(crate) struct ElementRodGnl<'a> {
     /// Material parameters
-    pub param: &'a ParamRod,
+    param: &'a ParamRod,
 
     /// Local-to-global mapping
-    pub local_to_global: Vec<usize>,
+    local_to_global: &'a Vec<usize>,
 
     ndim: usize,
 
@@ -37,12 +39,15 @@ pub struct ElementRodGnl<'a> {
 
 impl<'a> ElementRodGnl<'a> {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &FemBase, param: &'a ParamRod, cell_id: CellId) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &'a Schema, param: &'a ParamRod, cell_id: CellId) -> Result<Self, StrError> {
         let ndim = mesh.ndim;
         let cell = &mesh.cells[cell_id];
         let pp = &cell.points;
         if pp.len() != 2 {
             return Err("number of nodes for Rod must be 2");
+        }
+        if param.gnl.is_none() {
+            return Err("strain type must be specified for the geometrically-nonlinear Rod");
         }
         let xxa = mesh.points[pp[0]].coords[0];
         let yya = mesh.points[pp[0]].coords[1];
@@ -80,7 +85,7 @@ impl<'a> ElementRodGnl<'a> {
         };
         Ok(ElementRodGnl {
             param,
-            local_to_global: compute_local_to_global(&base.emap, &base.dofs, cell)?,
+            local_to_global: schema.local_to_global(cell_id)?,
             ndim,
             xxa,
             yya,
@@ -100,10 +105,10 @@ impl<'a> ElementRodGnl<'a> {
     /// Returns the current length of the rod L
     fn update_bb(&mut self, state: &FemState) -> f64 {
         if self.ndim == 2 {
-            let uxa = state.u[self.local_to_global[0]];
-            let uya = state.u[self.local_to_global[1]];
-            let uxb = state.u[self.local_to_global[2]];
-            let uyb = state.u[self.local_to_global[3]];
+            let uxa = state.uu[self.local_to_global[0]];
+            let uya = state.uu[self.local_to_global[1]];
+            let uxb = state.uu[self.local_to_global[2]];
+            let uyb = state.uu[self.local_to_global[3]];
             let xa = self.xxa + uxa;
             let ya = self.yya + uya;
             let xb = self.xxb + uxb;
@@ -116,12 +121,12 @@ impl<'a> ElementRodGnl<'a> {
             self.bb[3] = dy;
             f64::sqrt(dx * dx + dy * dy)
         } else {
-            let uxa = state.u[self.local_to_global[0]];
-            let uya = state.u[self.local_to_global[1]];
-            let uza = state.u[self.local_to_global[2]];
-            let uxb = state.u[self.local_to_global[3]];
-            let uyb = state.u[self.local_to_global[4]];
-            let uzb = state.u[self.local_to_global[5]];
+            let uxa = state.uu[self.local_to_global[0]];
+            let uya = state.uu[self.local_to_global[1]];
+            let uza = state.uu[self.local_to_global[2]];
+            let uxb = state.uu[self.local_to_global[3]];
+            let uyb = state.uu[self.local_to_global[4]];
+            let uzb = state.uu[self.local_to_global[5]];
             let xa = self.xxa + uxa;
             let ya = self.yya + uya;
             let za = self.zza + uza;
@@ -138,6 +143,19 @@ impl<'a> ElementRodGnl<'a> {
             self.bb[4] = dy;
             self.bb[5] = dz;
             f64::sqrt(dx * dx + dy * dy + dz * dz)
+        }
+    }
+
+    /// Calculates the strain and the denominator used in Ye
+    ///
+    /// Returns `(axial_strain, den)`
+    ///
+    /// `den` is either L or L0 depending on the strain type
+    fn calc_strain(&self, ll: f64) -> (f64, f64) {
+        match self.param.gnl.unwrap() {
+            GnlStrain::Eng => ((ll - self.ll0) / self.ll0, ll),
+            GnlStrain::Green => ((ll * ll - self.ll0 * self.ll0) / (2.0 * self.ll0 * self.ll0), self.ll0),
+            GnlStrain::Log => (f64::ln(ll / self.ll0), self.ll0), // TODO: verify this
         }
     }
 }
@@ -158,29 +176,29 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
         Ok(())
     }
 
-    /// Calculates the vector of internal forces f_int (including dynamical/transient terms)
-    fn calc_f_int(&mut self, f_int: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
         let ll = self.update_bb(state);
-        let axial_strain = ll / self.ll0 - 1.0;
+        let (axial_strain, den) = self.calc_strain(ll);
         let axial_force = self.param.young * self.param.area * axial_strain;
         for i in 0..(2 * self.ndim) {
-            f_int[i] = axial_force * self.bb[i] / ll;
+            yye[i] = axial_force * self.bb[i] / den;
         }
         Ok(())
     }
 
-    /// Calculates the vector of external forces f_ext
-    fn calc_f_ext(&mut self, _f_ext: &mut Vector, _time: f64) -> Result<(), StrError> {
+    /// Calculates the elemental vector of external forces Fe
+    fn calc_ffe(&mut self, _ffe: &mut Vector, _time: f64) -> Result<(), StrError> {
         Ok(())
     }
 
-    /// Calculates the Jacobian matrix
-    fn calc_jacobian(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    /// Calculates the elemental Jacobian matrix Ke
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
         let ll = self.update_bb(state);
-        let axial_strain = ll / self.ll0 - 1.0;
-        let eal = self.param.young * self.param.area / ll;
+        let (axial_strain, den) = self.calc_strain(ll);
+        let ead = self.param.young * self.param.area / den;
         vec_outer(&mut self.btb, 1.0, &self.bb, &self.bb).unwrap();
-        mat_add(kke, eal / (ll * ll), &self.btb, eal * axial_strain, &self.hh).unwrap();
+        mat_add(kke, ead / (den * den), &self.btb, ead * axial_strain, &self.hh).unwrap();
         Ok(())
     }
 
@@ -192,13 +210,18 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, _state: &FemState) {}
+    fn backup_secondary_values(&mut self, _state: &FemState, _alternative: bool) {}
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, _state: &mut FemState) {}
+    fn restore_secondary_values(&self, _state: &mut FemState, _alternative: bool) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
     fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
+
+    /// Returns the number of Gauss points at elastoplastic state
+    fn count_elastoplastic_gauss_points(&self, _state: &FemState) -> usize {
+        0
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -206,9 +229,9 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
 #[cfg(test)]
 mod tests {
     use super::ElementRodGnl;
-    use crate::base::{Config, Elem, Essential, ParamRod};
-    use crate::fem::{ElementTrait, FemBase, FemState};
-    use gemlab::mesh::{Cell, Figure, GeoKind, Mesh, Point};
+    use crate::base::{Config, GnlStrain, ParamRod, Schema};
+    use crate::fem::{ElementTrait, FemState};
+    use gemlab::mesh::{Cell, Draw, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};
 
     const SAVE_FIGURE: bool = false;
@@ -224,10 +247,12 @@ mod tests {
                 Point { id: 3, marker: 0, coords: vec![ 0.0, 1.86603] },
             ],
             cells: vec![
-                Cell { id: 0, attribute: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
-                Cell { id: 1, attribute: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
-                Cell { id: 2, attribute: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
+                Cell { id: 0, marker: 1, kind: GeoKind::Lin2, points: vec![0, 1] },
+                Cell { id: 1, marker: 1, kind: GeoKind::Lin2, points: vec![1, 2] },
+                Cell { id: 2, marker: 2, kind: GeoKind::Lin2, points: vec![1, 3] },
             ],
+            marked_edges: Vec::new(),
+            marked_faces: Vec::new(),
         }
     }
 
@@ -236,30 +261,32 @@ mod tests {
         // mesh
         let mesh = small_truss_2d();
         if SAVE_FIGURE {
-            let mut fig = Figure::new();
-            fig.show_point_ids(true).show_cell_ids(true);
-            fig.draw(&mesh, "/tmp/pmsim/test_element_rod_gnl_works_1.svg").unwrap();
+            let mut draw = Draw::new();
+            draw.show_point_ids(true)
+                .show_cell_ids(true)
+                .all(&mesh, "/tmp/pmsim/test_element_rod_gnl_works_1.svg")
+                .unwrap();
         }
 
         // parameters and first element
         let p1 = ParamRod {
-            gnl: true,
+            gnl: Some(GnlStrain::Eng),
             density: 1.0,
             young: 1.0,
             area: 1.0,
             ngauss: None,
         };
         let p2 = ParamRod {
-            gnl: true,
+            gnl: Some(GnlStrain::Eng),
             density: 1.0,
             young: 0.5,
             area: 1.0,
             ngauss: None,
         };
-        let base = FemBase::new(&mesh, [(1, Elem::Rod(p1)), (2, Elem::Rod(p2))]).unwrap();
-        let essential = Essential::new();
+        let mut schema = Schema::new();
+        schema.add_rod(1, p1).add_rod(2, p2).build(&mesh).unwrap();
         let config = Config::new(&mesh);
-        let mut element = ElementRodGnl::new(&mesh, &base, &p1, 0).unwrap();
+        let mut element = ElementRodGnl::new(&mesh, &schema, &p1, 0).unwrap();
 
         // set initial coordinates
         assert_eq!(element.ndim, 2);
@@ -270,9 +297,9 @@ mod tests {
         approx_eq(element.ll0, 1.000003980442078, 1e-15);
 
         // set state
-        let mut state = FemState::new(&mesh, &base, &essential, &config).unwrap();
-        state.u[3] = -0.033333377560878;
-        state.u[7] = -0.133333377560878;
+        let mut state = FemState::new(&mesh, &schema, &config).unwrap();
+        state.uu[3] = -0.033333377560878;
+        state.uu[7] = -0.133333377560878;
 
         // check B
         element.update_bb(&state);
@@ -284,20 +311,20 @@ mod tests {
         ];
         vec_approx_eq(&element.bb, bb_correct, 1e-15);
 
-        // check f_int
-        let mut f_int = Vector::new(4);
-        element.calc_f_int(&mut f_int, &state).unwrap();
-        let f_int_correct = &[
+        // check Ye
+        let mut yye = Vector::new(4);
+        element.calc_yye(&mut yye, &state).unwrap();
+        let yye_correct = &[
             0.014786924474443,
             0.024626044132262,
             -0.014786924474443,
             -0.024626044132262,
         ];
-        vec_approx_eq(&f_int, f_int_correct, 1e-15);
+        vec_approx_eq(&yye, yye_correct, 1e-15);
 
         // check Ke
         let mut kke = Matrix::new(4, 4);
-        element.calc_jacobian(&mut kke, &state).unwrap();
+        element.calc_kke(&mut kke, &state).unwrap();
         #[rustfmt::skip]
         let kke_correct = &[
             [ 0.243265799090590,   0.454385306779901, -0.243265799090590, -0.454385306779901],

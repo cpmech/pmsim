@@ -1,6 +1,6 @@
 # header
-# ndim npoint ncell
-2 446 135
+# ndim npoint ncell nmarked_edge nmarked_face
+2 446 135 0 0
 
 # points
 # id marker x y {z}
@@ -452,7 +452,7 @@
 445 0 55.208333333 500.0
 
 # cells
-# id attribute kind points
+# id marker kind points
 0 1 qua8 0 29 106 80 156 157 158 159
 1 1 qua8 29 1 45 106 160 161 162 157
 2 1 qua8 80 106 107 81 158 163 164 165

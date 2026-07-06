@@ -1,6 +1,23 @@
+use crate::StrError;
 use gemlab::mesh::Mesh;
-use russell_lab::Vector;
+use russell_lab::{Matrix, Vector};
 use russell_tensor::{Mandel, Tensor2};
+
+/// Checks the symmetry of a square matrix
+pub(crate) fn check_symmetry(mat: &Matrix, tol: f64) -> Result<(), StrError> {
+    let (nrow, ncol) = mat.dims();
+    assert_eq!(nrow, ncol, "matrix is not square");
+    for l in 0..nrow {
+        for ll in (l + 1)..nrow {
+            let diff = f64::abs(mat.get(l, ll) - mat.get(ll, l));
+            if diff > tol {
+                println!("asymmetry detected. diff > tol: {:.6e} > {:.6e}", diff, tol);
+                return Err("matrix is not symmetric");
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Returns a new empty 2D mesh
 #[allow(dead_code)]
@@ -9,6 +26,8 @@ pub(crate) fn new_empty_mesh_2d() -> Mesh {
         ndim: 2,
         points: Vec::new(),
         cells: Vec::new(),
+        marked_edges: Vec::new(),
+        marked_faces: Vec::new(),
     }
 }
 
@@ -19,7 +38,30 @@ pub(crate) fn new_empty_mesh_3d() -> Mesh {
         ndim: 3,
         points: Vec::new(),
         cells: Vec::new(),
+        marked_edges: Vec::new(),
+        marked_faces: Vec::new(),
     }
+}
+
+/// Generates a 2D scalar field such that φ = a x + b y
+///
+/// Thus, the gradient is: ∇φ = [a, b]ᵀ in 2D and ∇φ = [a, b, 0]ᵀ in 3D
+///
+/// Note: This function only works for a homogeneous mesh; with same element kinds.
+///
+/// # Input
+///
+/// * `mesh` -- the mesh
+#[allow(dead_code)]
+pub(crate) fn generate_scalar_field_ax_plus_by(mesh: &Mesh, a: f64, b: f64) -> Vector {
+    let npoint = mesh.points.len();
+    let mut uu = Vector::new(npoint);
+    for p in 0..npoint {
+        let x = mesh.points[p].coords[0];
+        let y = mesh.points[p].coords[1];
+        uu[p] = a * x + b * y;
+    }
+    uu
 }
 
 /// Generates a displacement field corresponding to a horizontal stretching
@@ -78,6 +120,20 @@ pub(crate) fn generate_shear_displacement_field(mesh: &Mesh, eps_xy: f64) -> Vec
         uu[0 + mesh.ndim * p] = gamma_xy * y;
     }
     uu
+}
+
+/// Returns the flux vector solution for a constant gradient field
+///
+/// The temperature field is given by φ = a x + b y.
+/// Thus, the gradient is: ∇φ = [a, b]ᵀ in 2D and ∇φ = [a, b, 0]ᵀ in 3D.
+/// The flux is given by: q = -[[kx, 0, 0], [0, ky, 0], [0, 0, kz]] ∇φ = [-kx a, -ky b, 0]ᵀ in 3D.
+#[allow(dead_code)]
+pub(crate) fn flux_vector_solution_scalar_field_ax_plus_by(a: f64, b: f64, kx: f64, ky: f64, ndim: usize) -> Vector {
+    if ndim == 2 {
+        Vector::from(&[-kx * a, -ky * b])
+    } else {
+        Vector::from(&[-kx * a, -ky * b, 0.0])
+    }
 }
 
 /// Returns the elastic solution (plane-strain or 3D) corresponding to a horizontal stretching

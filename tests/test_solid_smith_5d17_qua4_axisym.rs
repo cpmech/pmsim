@@ -2,7 +2,8 @@ use gemlab::prelude::*;
 use pmsim::base::SampleMeshes;
 use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
-use russell_lab::*;
+use pmsim::StrError;
+use russell_lab::{vec_approx_eq, Matrix};
 
 // Smith's Example 5.17 (Figure 5.17) on page 187
 //
@@ -44,6 +45,7 @@ use russell_lab::*;
 // Plane-strain
 // NOTE: using 9 integration points
 
+const NAME: &str = "test_solid_smith_5d17_qua4_axisym";
 const VERBOSE_LEVEL: usize = 0;
 
 #[test]
@@ -74,37 +76,33 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         },
         ngauss: Some(9),
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1)), (2, Elem::Solid(p2))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).add_solid(2, p2).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential
-        .edges(&left, Dof::Ux, 0.0)
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0)
         .edges(&right, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Ux, 0.0)
         .edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural
-        .points(&[0], Pbc::Fy, -2.6667)
+    let mut nbc = BcNatural::new();
+    nbc.points(&[0], Pbc::Fy, -2.6667)
         .points(&[3], Pbc::Fy, -23.3333)
         .points(&[6], Pbc::Fy, -24.0);
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.set_alt_bb_matrix_method(true).set_axisymmetric();
-
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
-    file_io.activate(&mesh, &base, "/tmp/pmsim/", "test_solid_smith_5d17_qua4_axisym")?;
+    config
+        .out_files("/tmp/pmsim", NAME)
+        .alt_bb_matrix_method(true)
+        .axisymmetric();
 
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]
@@ -122,7 +120,7 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
         0.000000000000000e+00,  3.090608328409013e-04,
         0.000000000000000e+00,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.u, uu_correct, 1e-9);
+    vec_approx_eq(&state.uu, uu_correct, 1e-9);
 
     #[rustfmt::skip]
     let _kk_e0_ref = Matrix::from(&[
@@ -144,8 +142,10 @@ fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
     let tol_stress = 8e-8;
     let all_good = compare_results(
         &mesh,
-        &base,
-        &file_io,
+        &schema,
+        &config,
+        "/tmp/pmsim",
+        NAME,
         ReferenceDataType::SGM,
         "data/sgm/sgm_5d17_ref.json",
         tol_displacement,

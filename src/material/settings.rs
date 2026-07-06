@@ -5,7 +5,10 @@ use russell_ode::Method;
 /// **Note:** These options only work with the general Plasticity formulation
 #[derive(Clone, Copy, Debug)]
 pub struct Settings {
-    /// Enables the recording of the strain tensor
+    /// Enables the recording of the flux vector (for post-processing only)
+    pub(crate) save_flux: bool,
+
+    /// Enables the recording of the strain tensor (for post-processing only)
     pub(crate) save_strain: bool,
 
     /// Nonlinear elasticity (NLE): indicates that the non-linear elastic approach is enabled
@@ -37,6 +40,7 @@ impl Settings {
     /// Allocates a new instance
     pub fn new() -> Self {
         Settings {
+            save_flux: false,
             save_strain: false,
             nle_enabled: false,
             nle_beta: 0.0,
@@ -65,7 +69,13 @@ impl Settings {
         None // all good
     }
 
-    /// Enables the recording of the strain tensor
+    /// Enables the recording of the flux vector (for post-processing only)
+    pub fn set_save_flux(&mut self, flag: bool) -> &mut Self {
+        self.save_flux = flag;
+        self
+    }
+
+    /// Enables the recording of the strain tensor (for post-processing only)
     pub fn set_save_strain(&mut self, flag: bool) -> &mut Self {
         self.save_strain = flag;
         self

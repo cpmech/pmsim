@@ -1,71 +1,69 @@
-use super::{Idealization, Init, ParamFluids};
+use super::{Dof, Idealization, Init, ParamFluids};
 use crate::material::Settings;
-use gemlab::mesh::{CellAttribute, Mesh};
+use gemlab::mesh::{CellId, CellMarker, Mesh, PointId};
 use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
-use std::collections::HashMap;
-use std::fmt;
+use std::collections::{HashMap, HashSet};
 
-/// Defines the smallest allowed dt_min (Control)
-pub const CONTROL_MIN_DT_MIN: f64 = 1e-10;
+/// Defines the smallest allowed Δt
+pub const CONFIG_DT_MIN: f64 = 1e-7;
 
-/// Defines the smallest allowed tolerance (Control)
-pub const CONTROL_MIN_TOL: f64 = 1e-12;
+/// Defines the smallest allowed tolerance
+pub const CONFIG_MIN_TOL: f64 = 1e-12;
 
-/// Defines the smallest allowed theta{1,2} (Control)
-pub const CONTROL_MIN_THETA: f64 = 0.0001;
+/// Defines the smallest allowed theta{1,2}
+pub const CONFIG_MIN_THETA: f64 = 0.0001;
 
 /// Holds configuration parameters
+///
+/// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
 pub struct Config<'a> {
-    /// Holds the space dimension
+    // Essential constants --------------------------------------------------------------------
+    //
+    /// Space dimension
     pub(crate) ndim: usize,
 
-    /// Holds the geometry idealization
+    /// Geometry idealization
     pub(crate) ideal: Idealization,
 
-    // problem configuration ------------------------------------------------------
-    //
-    /// Holds a flag indicating Linear problem
-    pub(crate) linear_problem: bool,
+    /// Shows generic messages
+    pub(crate) verbose: bool,
 
-    /// Holds a flag indicating Transient analysis (with first time derivative of primary variables)
+    // Problem definition ---------------------------------------------------------------------
+    //
+    /// Indicates transient analysis
+    ///
+    /// In this case, the first time derivative of primary variables is included.
     pub(crate) transient: bool,
 
-    /// Holds a flag indicating Dynamics analysis (with second time derivative of primary variables)
+    /// Indicates dynamics analysis
+    ///
+    /// In this case, the second time derivative of primary variables is included.
+    ///
+    /// Note: dynamics sets transient to true.
     pub(crate) dynamics: bool,
 
-    /// Holds a flag indicating Pseudo-Newton method with constant-tangent operator
-    pub(crate) constant_tangent: bool,
-
-    /// Holds a flag indicating the use the arc-length method
-    pub(crate) arc_length_method: bool,
-
-    /// Holds the parameter to select the arc-length method
-    ///
-    /// `0 ≤ ψ ≤ 1`
-    ///
-    /// * ψ = 0.0: (hyper) cylindrical arc-length control
-    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
-    pub(crate) arc_length_psi: f64,
-
-    /// Holds the first trial loading factor ℓ₀ used by the arc-length method
-    ///
-    /// Only for the arc-length method
-    pub(crate) first_trial_loading_factor: f64,
-
-    /// Holds the number of allowed (time)steps that fail to converge
-    pub(crate) allowed_step_n_failure: usize,
-
-    /// Holds a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
+    /// Enables the method of Lagrange multipliers (LMM) to handle prescribed essential values
     pub(crate) lagrange_mult_method: bool,
 
-    /// Uses the alternative method to calculate the B matrix (the alternative method is the "standard" method)
+    /// Uses the alternative method to calculate the B matrix
+    ///
+    /// This alternative method is the "standard" method found in the literature.
     pub(crate) alt_bb_matrix_method: bool,
 
-    /// Holds a tolerance to check the symmetry of local Jacobian matrices
-    pub(crate) symmetry_check_tolerance: Option<f64>,
+    /// Enforces the symmetry of all local Ke matrices, if they are supposed to be symmetric according to the formulation
+    pub(crate) enforce_symmetry: bool,
 
-    /// Holds the gravity acceleration (a positive value)
+    /// Enables the symmetry check of all local Ke matrices
+    ///
+    /// A value of `None` means that the check is disabled.
+    pub(crate) enable_symmetry_check: Option<f64>,
+
+    // Initialization -------------------------------------------------------------------------
+    //
+    /// Gravity acceleration (a positive value)
+    ///
+    /// The function is `(step, time) -> gravity`.
     ///
     /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
     ///
@@ -82,158 +80,136 @@ pub struct Config<'a> {
     /// ```
     pub(crate) gravity: Option<Box<dyn Fn(f64) -> f64 + 'a>>,
 
-    /// Holds option to initialize all stress states
+    /// Option to initialize all stress states
     pub(crate) initialization: Init,
 
-    /// Holds the parameters for fluids
+    /// Parameters for fluids used in the initialization
     pub(crate) param_fluids: Option<ParamFluids>,
 
-    /// Holds a flag to ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
-    pub(crate) ignore_jacobian_symmetry: bool,
+    /// Allows an initial yield surface drift in (stress-strain) material models
+    pub(crate) model_allow_initial_drift: bool,
 
+    /// Extra configuration parameters for the material models
+    ///
+    /// Maps the cell marker to the material model settings.
+    pub(crate) model_settings: HashMap<CellMarker, Settings>,
+
+    // Nonlinear problem solver ---------------------------------------------------------------
+    //
     /// Holds the linear solver type
     pub(crate) lin_sol_genie: Genie,
 
-    /// Holds the parameters for the linear (sparse) solver
+    /// Parameters for the linear (sparse) solver
     pub(crate) lin_sol_params: LinSolParams,
 
-    /// Holds a flag allowing an initial yield surface drift in (stress-strain) material models
-    pub(crate) model_allow_initial_drift: bool,
+    /// Ignores the symmetry of the global stiffness matrix K even if the formulation yields a symmetric K
+    pub(crate) ignore_symmetry: bool,
 
-    /// Holds extra configuration parameters for the material models
-    pub(crate) model_settings: HashMap<CellAttribute, Settings>,
+    /// Saves the global coefficient matrix K as a MatrixMarket file (for debugging)
+    pub(crate) save_matrix_market_file: bool,
 
-    // control ------------------------------------------------------------------
+    /// Saves the global coefficient matrix K as a Vismatrix file (for debugging)
+    pub(crate) save_vismatrix_file: bool,
+
+    /// Prints detailed information during the linear system solution
+    pub(crate) verbose_lin_sys_solve: bool,
+
+    // Transient/dynamics parameters ----------------------------------------------------------
     //
-    /// Holds the initial time
-    pub(crate) t_ini: f64,
-
-    /// Holds the final time
-    pub(crate) t_fin: f64,
-
-    /// Holds the time increments as function of time Δt(t)
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-    pub(crate) ddt: Box<dyn Fn(f64) -> f64 + 'a>,
-
-    /// Holds the time increment for the output of results Δt_out(t)
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-    pub(crate) ddt_out: Box<dyn Fn(f64) -> f64 + 'a>,
-
-    /// Holds the minimum allowed time increment min(Δt)
-    ///
-    /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-    pub(crate) ddt_min: f64,
-
-    /// Holds the maximum number of time steps
-    pub(crate) n_max_time_steps: usize,
-
-    /// Holds the divergence control flag
-    pub(crate) divergence_control: bool,
-
-    /// Holds the maximum number of steps diverging allowed
-    pub(crate) div_ctrl_max_steps: usize,
-
-    /// Holds the maximum number of iterations
-    pub(crate) n_max_iterations: usize,
-
-    /// Holds the absolute tolerance for the global residual vector
-    ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
-    pub(crate) tol_rr_abs: f64,
-
-    /// Holds the relative tolerance for the corrective (augmented) displacement vector (mdu)
-    ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
-    pub(crate) tol_mdu_rel: f64,
-
-    /// Holds the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
+    /// Coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
     pub(crate) theta: f64,
 
-    /// Holds the coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
+    /// Coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
     pub(crate) theta1: f64,
 
-    /// Holds the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
+    /// Coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
     pub(crate) theta2: f64,
 
     /// Activates the use of Hilber-Hughes-Taylor method (instead of Newmark's method)
     pub(crate) hht_method: bool,
 
-    /// Hilber-Hughes-Taylor parameter with `-1/3 ≤ α ≤ 0`
+    /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
     pub(crate) hht_alpha: f64,
 
-    /// Holds the verbose flag for timesteps
-    pub(crate) verbose_timesteps: bool,
+    // Output of results ----------------------------------------------------------------------
+    //
+    /// Flag indicating that the file generation is enabled
+    pub(crate) out_files: bool,
 
-    /// Holds the verbose flag for iterations
-    pub(crate) verbose_iterations: bool,
+    /// Directory with the results
+    pub(crate) out_dir: String,
 
-    /// Holds the verbose flag for linear system solution
-    pub(crate) verbose_lin_sys_solve: bool,
+    /// Filename stem
+    pub(crate) out_fn_stem: String,
 
-    /// Holds a flag to activate saving a MatrixMarket file (for debugging)
-    pub(crate) save_matrix_market_file: bool,
+    /// Outputs the history (time or lambda) of U components at selected points
+    pub(crate) out_history_uu_comp: HashSet<(PointId, Dof)>,
 
-    /// Holds a flag to activate saving a vismatrix file (for debugging)
-    pub(crate) save_vismatrix_file: bool,
+    /// Outputs the history (time or lambda) of Y (internal forces) components at selected points
+    pub(crate) out_history_yy_comp: HashSet<(PointId, Dof)>,
+
+    /// Outputs the history (time or lambda) of flux vectors at selected integration points
+    pub(crate) out_history_local_flux: HashSet<CellId>,
+
+    /// Outputs the history (time or lambda) of LocalState at selected integration points
+    pub(crate) out_history_local_state: HashSet<CellId>,
+
+    /// Indicates that history output is enabled
+    pub(crate) out_history: bool,
 }
 
 impl<'a> Config<'a> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh) -> Self {
         Config {
+            // Essential constants
             ndim: mesh.ndim,
             ideal: Idealization::new(mesh.ndim),
-            // problem configuration
-            linear_problem: false,
+            verbose: true,
+            // Problem definition
             transient: false,
             dynamics: false,
-            constant_tangent: false,
-            arc_length_method: false,
-            arc_length_psi: 1.0,
-            first_trial_loading_factor: 1.0,
-            allowed_step_n_failure: 100,
             lagrange_mult_method: false,
             alt_bb_matrix_method: false,
-            symmetry_check_tolerance: Some(1e-10),
+            enforce_symmetry: true,
+            enable_symmetry_check: None,
+            // Initialization
             gravity: None,
             initialization: Init::Zero,
             param_fluids: None,
-            ignore_jacobian_symmetry: false,
-            lin_sol_genie: Genie::Umfpack,
-            lin_sol_params: LinSolParams::new(),
             model_allow_initial_drift: false,
             model_settings: HashMap::new(),
-            // control
-            t_ini: 0.0,
-            t_fin: 1.0,
-            ddt: Box::new(|_| 1.0),
-            ddt_out: Box::new(|_| 1.0),
-            ddt_min: CONTROL_MIN_DT_MIN,
-            n_max_time_steps: 1_000,
-            divergence_control: false,
-            div_ctrl_max_steps: 10,
-            n_max_iterations: 10,
-            tol_rr_abs: 1e-10,
-            tol_mdu_rel: 1e-8,
+            // Nonlinear problem solver
+            lin_sol_genie: Genie::Umfpack,
+            lin_sol_params: LinSolParams::new(),
+            ignore_symmetry: false,
+            save_matrix_market_file: false,
+            save_vismatrix_file: false,
+            verbose_lin_sys_solve: false,
+            // Transient/dynamics parameters
             theta: 0.5,
             theta1: 0.5,
             theta2: 0.5,
             hht_method: false,
             hht_alpha: 0.0,
-            verbose_timesteps: true,
-            verbose_iterations: true,
-            verbose_lin_sys_solve: false,
-            save_matrix_market_file: false,
-            save_vismatrix_file: false,
+            // Output of results
+            out_files: false,
+            out_dir: String::new(),
+            out_fn_stem: String::new(),
+            out_history_uu_comp: HashSet::new(),
+            out_history_yy_comp: HashSet::new(),
+            out_history_local_flux: HashSet::new(),
+            out_history_local_state: HashSet::new(),
+            out_history: false,
         }
     }
 
-    /// Validates all data
+    /// Validates all configuration parameters
     ///
     /// Returns a message with the inconsistent data, or returns None if everything is all right.
     pub(crate) fn validate(&self) -> Option<String> {
+        // Essential constants
+
         if self.ideal.thickness <= 0.0 {
             return Some(format!(
                 "thickness = {:?} is incorrect; it must be > 0.0",
@@ -252,18 +228,9 @@ impl<'a> Config<'a> {
                 self.ideal.thickness
             ));
         }
-        if self.arc_length_psi < 0.0 || self.arc_length_psi > 1.0 {
-            return Some(format!(
-                "arc_length_psi = {:?} is incorrect; it must be 0.0 ≤ ψ ≤ 1.0",
-                self.arc_length_psi
-            ));
-        }
-        if f64::abs(self.first_trial_loading_factor) < 1e-12 {
-            return Some(format!(
-                "absolute first trial loading factor |ℓ₀| = {:?} is incorrect; it must be ≥ 1e-12",
-                self.first_trial_loading_factor
-            ));
-        }
+
+        // Initialization
+
         match self.initialization {
             Init::Geostatic(overburden) => {
                 if overburden > 0.0 {
@@ -283,53 +250,25 @@ impl<'a> Config<'a> {
             }
             _ => (),
         }
-        // control
-        if self.t_ini < 0.0 {
-            return Some(format!("t_ini = {:?} is incorrect; it must be ≥ 0.0", self.t_ini));
-        }
-        if self.t_fin < 0.0 {
-            return Some(format!("t_fin = {:?} is incorrect; it must be ≥ 0.0", self.t_fin));
-        }
-        if self.t_fin < self.t_ini {
-            return Some(format!(
-                "t_fin = {:?} is incorrect; it must be > t_ini = {:?}",
-                self.t_fin, self.t_ini
-            ));
-        }
-        if self.ddt_min < CONTROL_MIN_DT_MIN {
-            return Some(format!(
-                "dt_min = {:?} is incorrect; it must be ≥ {:e}",
-                self.ddt_min, CONTROL_MIN_DT_MIN
-            ));
-        }
-        if self.tol_rr_abs < CONTROL_MIN_TOL {
-            return Some(format!(
-                "tol_rr_abs = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_rr_abs, CONTROL_MIN_TOL
-            ));
-        }
-        if self.tol_mdu_rel < CONTROL_MIN_TOL {
-            return Some(format!(
-                "tol_mdu_rel = {:?} is incorrect; it must be ≥ {:e}",
-                self.tol_mdu_rel, CONTROL_MIN_TOL
-            ));
-        }
-        if self.theta < CONTROL_MIN_THETA || self.theta > 1.0 {
+
+        // Transient/dynamics parameters
+
+        if self.theta < CONFIG_MIN_THETA || self.theta > 1.0 {
             return Some(format!(
                 "theta = {:?} is incorrect; it must be {:?} ≤ θ ≤ 1.0",
-                self.theta, CONTROL_MIN_THETA
+                self.theta, CONFIG_MIN_THETA
             ));
         }
-        if self.theta1 < CONTROL_MIN_THETA || self.theta1 > 1.0 {
+        if self.theta1 < CONFIG_MIN_THETA || self.theta1 > 1.0 {
             return Some(format!(
                 "theta1 = {:?} is incorrect; it must be {:?} ≤ θ₁ ≤ 1.0",
-                self.theta1, CONTROL_MIN_THETA
+                self.theta1, CONFIG_MIN_THETA
             ));
         }
-        if self.theta2 < CONTROL_MIN_THETA || self.theta2 > 1.0 {
+        if self.theta2 < CONFIG_MIN_THETA || self.theta2 > 1.0 {
             return Some(format!(
                 "theta2 = {:?} is incorrect; it must be {:?} ≤ θ₂ ≤ 1.0",
-                self.theta2, CONTROL_MIN_THETA
+                self.theta2, CONFIG_MIN_THETA
             ));
         }
         if self.hht_alpha < -ONE_BY_3 || self.hht_alpha > 0.0 {
@@ -338,10 +277,11 @@ impl<'a> Config<'a> {
                 self.hht_alpha,
             ));
         }
+
         None // all good
     }
 
-    // getters -----------------------------------------------------------------------------------
+    // Getters ====================================================================================
 
     /// Returns the initial overburden stress (negative means compression)
     #[allow(dead_code)]
@@ -353,94 +293,91 @@ impl<'a> Config<'a> {
     }
 
     /// Returns the extra model settings
-    pub(crate) fn model_settings(&self, cell_attribute: CellAttribute) -> Settings {
-        match self.model_settings.get(&cell_attribute) {
+    pub(crate) fn model_settings(&self, cell_marker: CellMarker) -> Settings {
+        match self.model_settings.get(&cell_marker) {
             Some(s) => s.clone(),
             None => Settings::new(),
         }
     }
 
-    // setters -----------------------------------------------------------------------------------
+    // Setters ====================================================================================
 
-    /// Returns and access to the linear solver parameters
-    pub fn access_lin_sol_params(&mut self) -> &mut LinSolParams {
-        &mut self.lin_sol_params
-    }
+    // Essential constants --------------------------------------------------------------------
 
-    /// Sets a flag indicating Linear problem
-    pub fn set_linear_problem(&mut self, enable: bool) -> &mut Self {
-        self.linear_problem = enable;
+    /// Enables axisymmetric idealization in 2D (instead of plane-strain)
+    pub fn axisymmetric(&mut self) -> &mut Self {
+        self.ideal.axisymmetric = true;
         self
     }
 
-    /// Sets a flag indicating Transient analysis (with first time derivative of primary variables)
-    pub fn set_transient(&mut self, enable: bool) -> &mut Self {
-        self.transient = enable;
-        self
-    }
-
-    /// Sets a flag indicating Dynamics analysis (with second time derivative of primary variables)
-    pub fn set_dynamics(&mut self, enable: bool) -> &mut Self {
-        self.dynamics = enable;
-        self
-    }
-
-    /// Sets a flag indicating Pseudo-Newton method with constant-tangent operator
-    pub fn set_constant_tangent(&mut self, enable: bool) -> &mut Self {
-        self.constant_tangent = enable;
-        self
-    }
-
-    /// Sets a flag indicating the use of the arc-length method
-    pub fn set_arc_length_method(&mut self, enable: bool) -> &mut Self {
-        self.arc_length_method = enable;
-        self
-    }
-
-    /// Sets the parameter to select the arc-length method
+    /// Enables plane-stress idealization in 2D (instead of plane-strain)
     ///
-    /// `0 ≤ ψ ≤ 1`
+    /// This function also sets the thickness for the plane-stress analysis.
+    pub fn plane_stress(&mut self, thickness: f64) -> &mut Self {
+        self.ideal.plane_stress = true;
+        self.ideal.thickness = thickness;
+        self
+    }
+
+    /// Sets the flag to show generic messages
+    pub fn verbose(&mut self, enable: bool) -> &mut Self {
+        self.verbose = enable;
+        self
+    }
+
+    // Problem definition ---------------------------------------------------------------------
+
+    /// Indicates transient analysis
     ///
-    /// * ψ = 0.0: (hyper) cylindrical arc-length control
-    /// * ψ = 1.0: (hyper) spherical arc-length control (default)
-    pub fn set_arc_length_psi(&mut self, psi: f64) -> &mut Self {
-        self.arc_length_psi = psi;
+    /// In this case, the first time derivative of primary variables is included.
+    pub fn transient(&mut self) -> &mut Self {
+        self.transient = true;
+        self.dynamics = false;
         self
     }
 
-    /// Sets the initial trial loading factor ℓ₀ used by the arc-length method
+    /// Indicates dynamics analysis
     ///
-    /// Only for the arc-length method
-    pub fn set_ini_trial_load_factor(&mut self, ell0: f64) -> &mut Self {
-        self.first_trial_loading_factor = ell0;
+    /// In this case, the second time derivative of primary variables is included.
+    pub fn dynamics(&mut self) -> &mut Self {
+        self.transient = false;
+        self.dynamics = true;
         self
     }
 
-    /// Sets the number of allowed (time)steps that fail to converge
-    pub fn set_allowed_step_n_failure(&mut self, n_allowed: usize) -> &mut Self {
-        self.allowed_step_n_failure = n_allowed;
-        self
-    }
-
-    /// Sets a flag indicating the use of the method of Lagrange multipliers to handle prescribed essential values
-    pub fn set_lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
+    /// Enables the method of Lagrange multipliers (LMM) to handle prescribed essential values
+    pub fn lagrange_mult_method(&mut self, enable: bool) -> &mut Self {
         self.lagrange_mult_method = enable;
         self
     }
 
-    /// Uses the alternative method to calculate the B matrix (the alternative method is the "standard" method)
-    pub fn set_alt_bb_matrix_method(&mut self, enable: bool) -> &mut Self {
+    /// Uses the alternative method to calculate the B matrix
+    pub fn alt_bb_matrix_method(&mut self, enable: bool) -> &mut Self {
         self.alt_bb_matrix_method = enable;
         self
     }
 
-    /// Sets the tolerance to check the symmetry of local Jacobian matrices
-    pub fn set_symmetry_check_tolerance(&mut self, tol: Option<f64>) -> &mut Self {
-        self.symmetry_check_tolerance = tol;
+    /// Enforces the symmetry of all local Ke matrices, if they are supposed to be symmetric according to the formulation
+    ///
+    /// Default = true.
+    pub fn enforce_symmetry(&mut self, enable: bool) -> &mut Self {
+        self.enforce_symmetry = enable;
         self
     }
 
+    /// Enables the symmetry check of all local Ke matrices
+    ///
+    /// Default = None (disabled).
+    pub fn enable_symmetry_check(&mut self, tol: f64) -> &mut Self {
+        self.enable_symmetry_check = Some(tol);
+        self
+    }
+
+    // Initialization -------------------------------------------------------------------------
+
     /// Sets the gravity acceleration (a positive value)
+    ///
+    /// The function is `(step, time) -> gravity`.
     ///
     /// The acceleration vector is directed against y in 2D or z in 3D. Thus:
     ///
@@ -455,225 +392,143 @@ impl<'a> Config<'a> {
     /// const GRAVITY: f64 = 10.0;
     /// config.set_gravity(GRAVITY);
     /// ```
-    pub fn set_gravity(&mut self, gravity_function: impl Fn(f64) -> f64 + 'a) -> &mut Self {
+    pub fn gravity(&mut self, gravity_function: impl Fn(f64) -> f64 + 'a) -> &mut Self {
         self.gravity = Some(Box::new(gravity_function));
         self
     }
 
-    /// Enables axisymmetric idealization in 2D (instead of plane-strain)
-    pub fn set_axisymmetric(&mut self) -> &mut Self {
-        self.ideal.axisymmetric = true;
-        self
-    }
-
-    /// Enables plane-stress idealization in 2D (instead of plane-strain)
-    ///
-    /// This function also sets the thickness for the plane-stress analysis.
-    pub fn set_plane_stress(&mut self, thickness: f64) -> &mut Self {
-        self.ideal.plane_stress = true;
-        self.ideal.thickness = thickness;
-        self
-    }
-
     /// Sets options to initialize all stress states
-    pub fn set_initialization(&mut self, initialization: Init) -> &mut Self {
+    pub fn initialization(&mut self, initialization: Init) -> &mut Self {
         self.initialization = initialization;
         self
     }
 
     /// Sets the parameters for fluids
-    pub fn set_param_fluids(&mut self, params: ParamFluids) -> &mut Self {
+    pub fn param_fluids(&mut self, params: ParamFluids) -> &mut Self {
         self.param_fluids = Some(params);
         self
     }
 
-    /// Sets a flag to ignore the symmetry if the Jacobian (stiffness matrix) matrix is symmetric
-    pub fn set_ignore_jacobian_symmetry(&mut self, ignore_symmetry: bool) -> &mut Self {
-        self.ignore_jacobian_symmetry = ignore_symmetry;
-        self
-    }
-
-    /// Sets the linear solver type
-    pub fn set_lin_sol_genie(&mut self, genie: Genie) -> &mut Self {
-        self.lin_sol_genie = genie;
-        self
-    }
-
-    /// Sets the parameters for the linear (sparse) solver
-    pub fn set_lin_sol_params(&mut self, params: LinSolParams) -> &mut Self {
-        self.lin_sol_params = params;
-        self
-    }
-
-    /// Sets a flag allowing an initial yield surface drift in (stress-strain) material models
-    pub fn set_model_allow_initial_drift(&mut self, model_allow_initial_drift: bool) -> &mut Self {
+    /// Allows an initial yield surface drift in (stress-strain) material models
+    pub fn model_allow_initial_drift(&mut self, model_allow_initial_drift: bool) -> &mut Self {
         self.model_allow_initial_drift = model_allow_initial_drift;
         self
     }
 
-    /// Updates the default settings for the material model used by a group of cells
-    pub fn update_model_settings(&mut self, cell_attribute: CellAttribute) -> &mut Settings {
-        self.model_settings.entry(cell_attribute).or_insert(Settings::new())
+    /// Returns an access to the model parameters associated with a group of cells via their marker
+    pub fn update_model_settings(&mut self, cell_marker: CellMarker) -> &mut Settings {
+        self.model_settings.entry(cell_marker).or_insert(Settings::new())
     }
 
-    /// Sets t, dt, and dt_out to simulate an incremental loading
-    ///
-    /// This function corresponds to:
-    ///
-    /// ```text
-    /// self.set_t_ini(0.0)
-    ///     .set_t_fin((n_station - 1) as f64)
-    ///     .set_dt(|_| 1.0)
-    ///     .set_dt_out(|_| 1.0)
-    /// ```
-    ///
-    /// # Input
-    ///
-    /// * `n_station` -- is the number of (pseudo) time stations. For example, with a
-    ///   displacement control such as `uy = [0.0, -0.1, -0.2]`, the number of stations
-    ///   is `n_station = 3`, corresponding to `time = [0.0, 1.0, 2.0]`.
-    ///
-    /// **Note:** `n_station` must be ≥ 2, otherwise `t_ini` and `t_fin` will be set to zero,
-    /// and the simulation will not be run.
-    pub fn set_incremental(&mut self, n_station: usize) -> &mut Self {
-        self.set_t_ini(0.0).set_dt(|_| 1.0).set_dt_out(|_| 1.0);
-        if n_station > 1 {
-            self.set_t_fin((n_station - 1) as f64)
-        } else {
-            self.set_t_fin(0.0)
-        }
-    }
+    // Nonlinear problem solver ---------------------------------------------------------------
 
-    /// Sets the initial time
-    pub fn set_t_ini(&mut self, t_ini: f64) -> &mut Self {
-        self.t_ini = t_ini;
+    /// Sets the linear solver type (aka Genie)
+    pub fn lin_sol_genie(&mut self, genie: Genie) -> &mut Self {
+        self.lin_sol_genie = genie;
         self
     }
 
-    /// Sets the final time
-    pub fn set_t_fin(&mut self, t_fin: f64) -> &mut Self {
-        self.t_fin = t_fin;
+    /// Returns an access to the linear solver parameters
+    pub fn access_lin_sol_params(&mut self) -> &mut LinSolParams {
+        &mut self.lin_sol_params
+    }
+
+    /// Ignores the symmetry of the global stiffness matrix K even if the formulation yields a symmetric K
+    pub fn ignore_symmetry(&mut self, flag: bool) -> &mut Self {
+        self.ignore_symmetry = flag;
         self
     }
 
-    /// Sets the time increments
-    pub fn set_dt(&mut self, dt: impl Fn(f64) -> f64 + 'a) -> &mut Self {
-        self.ddt = Box::new(dt);
+    /// Saves the global coefficient matrix K as a MatrixMarket file (for debugging)
+    pub fn save_matrix_market_file(&mut self, enable: bool) -> &mut Self {
+        self.save_matrix_market_file = enable;
         self
     }
 
-    /// Sets the time increment for the output of results
-    pub fn set_dt_out(&mut self, dt_out: impl Fn(f64) -> f64 + 'a) -> &mut Self {
-        self.ddt_out = Box::new(dt_out);
+    /// Saves the global coefficient matrix K as a Vismatrix file (for debugging)
+    pub fn save_vismatrix_file(&mut self, enable: bool) -> &mut Self {
+        self.save_vismatrix_file = enable;
         self
     }
 
-    /// Sets the minimum allowed time increment min(Δt)
-    pub fn set_dt_min(&mut self, dt_min: f64) -> &mut Self {
-        self.ddt_min = dt_min;
+    /// Prints detailed information during the linear system solution
+    pub fn verbose_lin_sys_solve(&mut self, enable: bool) -> &mut Self {
+        self.verbose_lin_sys_solve = enable;
         self
     }
 
-    /// Sets the maximum number of time steps
-    pub fn set_n_max_time_steps(&mut self, n_max_time_steps: usize) -> &mut Self {
-        self.n_max_time_steps = n_max_time_steps;
-        self
-    }
-
-    /// Sets the divergence control flag
-    pub fn set_divergence_control(&mut self, enable: bool) -> &mut Self {
-        self.divergence_control = enable;
-        self
-    }
-
-    /// Sets the maximum number of steps diverging allowed
-    pub fn set_div_ctrl_max_steps(&mut self, div_ctrl_max_steps: usize) -> &mut Self {
-        self.div_ctrl_max_steps = div_ctrl_max_steps;
-        self
-    }
-
-    /// Sets the maximum number of iterations
-    pub fn set_n_max_iterations(&mut self, n_max_iterations: usize) -> &mut Self {
-        self.n_max_iterations = n_max_iterations;
-        self
-    }
-
-    /// Sets the absolute tolerance for the global residual vector
-    ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
-    pub fn set_tol_rr_abs(&mut self, tol_absolute: f64) -> &mut Self {
-        self.tol_rr_abs = tol_absolute;
-        self
-    }
-
-    /// Sets the relative tolerance for the corrective (augmented) displacement vector (mdu)
-    ///
-    /// The minimum allowed value is [CONTROL_MIN_TOL]
-    pub fn set_tol_mdu_rel(&mut self, tol_relative: f64) -> &mut Self {
-        self.tol_mdu_rel = tol_relative;
-        self
-    }
+    // Transient/dynamics parameters ----------------------------------------------------------
 
     /// Sets the coefficient θ for the θ-method; 0.0001 ≤ θ ≤ 1.0
-    pub fn set_theta(&mut self, theta: f64) -> &mut Self {
+    pub fn theta(&mut self, theta: f64) -> &mut Self {
         self.theta = theta;
         self
     }
 
     /// Sets the coefficient θ1 = γ for the Newmark method; 0.0001 ≤ θ1 ≤ 1.0
-    pub fn set_theta1(&mut self, theta1: f64) -> &mut Self {
+    pub fn theta1(&mut self, theta1: f64) -> &mut Self {
         self.theta1 = theta1;
         self
     }
 
     /// Sets the coefficient θ2 = 2·β for the Newmark method; 0.0001 ≤ θ2 ≤ 1.0
-    pub fn set_theta2(&mut self, theta2: f64) -> &mut Self {
+    pub fn theta2(&mut self, theta2: f64) -> &mut Self {
         self.theta2 = theta2;
         self
     }
 
-    /// Sets the verbose flag for timesteps
-    pub fn set_verbose_timesteps(&mut self, enable: bool) -> &mut Self {
-        self.verbose_timesteps = enable;
+    /// Activates the use of Hilber-Hughes-Taylor method (instead of Newmark's method)
+    pub fn hht_method(&mut self, enable: bool) -> &mut Self {
+        self.hht_method = enable;
         self
     }
 
-    /// Sets the verbose flag for iterations
-    pub fn set_verbose_iterations(&mut self, enable: bool) -> &mut Self {
-        self.verbose_iterations = enable;
+    /// Hilber-Hughes-Taylor parameter -1/3 ≤ α ≤ 0
+    pub fn hht_alpha(&mut self, alpha: f64) -> &mut Self {
+        self.hht_alpha = alpha;
         self
     }
 
-    /// Sets the verbose flag for linear system solution
-    pub fn set_verbose_lin_sys_solve(&mut self, enable: bool) -> &mut Self {
-        self.verbose_lin_sys_solve = enable;
+    // Output of results ----------------------------------------------------------------------
+
+    /// Enables the generation of output files
+    pub fn out_files(&mut self, dir: &str, fn_stem: &str) -> &mut Self {
+        self.out_dir = dir.to_string();
+        self.out_fn_stem = fn_stem.to_string();
+        self.out_files = true;
         self
     }
 
-    /// Sets a flag to activate saving a MatrixMarket file (for debugging)
-    pub fn set_save_matrix_market_file(&mut self, enable: bool) -> &mut Self {
-        self.save_matrix_market_file = enable;
+    /// Sets the output of history (time or lambda) of U components at selected points
+    pub fn out_history_uu_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+        self.out_history_uu_comp.insert((point_id, dof));
+        self.out_history = true;
         self
     }
 
-    /// Sets a flag to activate saving a vismatrix file (for debugging)
-    pub fn set_save_vismatrix_file(&mut self, enable: bool) -> &mut Self {
-        self.save_vismatrix_file = enable;
+    /// Sets the output of history (time or lambda) of Y (internal forces) components at selected points
+    pub fn out_history_yy_comp(&mut self, point_id: PointId, dof: Dof) -> &mut Self {
+        self.out_history_yy_comp.insert((point_id, dof));
+        self.out_history = true;
         self
     }
-}
 
-impl<'a> fmt::Display for Config<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Configuration data\n").unwrap();
-        write!(f, "==================\n").unwrap();
-        write!(f, "thickness = {:?}\n", self.ideal.thickness).unwrap();
-        write!(f, "plane_stress = {:?}\n", self.ideal.plane_stress).unwrap();
-        write!(f, "initialization = {:?}\n", self.initialization).unwrap();
-        write!(f, "\nParameters for fluids\n").unwrap();
-        write!(f, "=====================\n").unwrap();
-        write!(f, "{:?}\n", self.param_fluids).unwrap();
-        Ok(())
+    /// Sets the output of history (time or lambda) of flux vectors at selected integration points
+    ///
+    /// Note: only the first integration point is considered.
+    pub fn out_history_local_flux(&mut self, cell_id: CellId) -> &mut Self {
+        self.out_history_local_flux.insert(cell_id);
+        self.out_history = true;
+        self
+    }
+
+    /// Sets the output local state at selected integration points
+    ///
+    /// Note: only the first integration point is considered.
+    pub fn out_history_local_state(&mut self, cell_id: CellId) -> &mut Self {
+        self.out_history_local_state.insert(cell_id);
+        self.out_history = true;
+        self
     }
 }
 
@@ -689,10 +544,8 @@ mod tests {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
 
         let config = Config::new(&mesh);
-        assert_eq!(config.linear_problem, false);
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
-        assert_eq!(config.constant_tangent, false);
         assert_eq!(config.lagrange_mult_method, false);
         assert_eq!(config.ideal.thickness, 1.0);
         assert_eq!(config.ideal.plane_stress, false);
@@ -715,25 +568,14 @@ mod tests {
         config.initialization = Init::Geostatic(-123.0);
 
         assert_eq!(config.initial_overburden_stress(), -123.0);
-
-        assert_eq!(
-            format!("{}", config),
-            "Configuration data\n\
-             ==================\n\
-             thickness = 1.0\n\
-             plane_stress = true\n\
-             initialization = Geostatic(-123.0)\n\
-             \n\
-             Parameters for fluids\n\
-             =====================\n\
-             Some(ParamFluids { density_liquid: ParamRealDensity { cc: 4.53e-7, p_ref: 0.0, rho_ref: 1.0, tt_ref: 25.0 }, density_gas: None })\n"
-        );
     }
 
     #[test]
     fn validate_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
+
+        // Essential constants
 
         config.ideal.thickness = 0.0;
         assert_eq!(
@@ -766,19 +608,7 @@ mod tests {
         );
         config.ideal.thickness = 1.0;
 
-        config.arc_length_psi = -0.1;
-        assert_eq!(
-            config.validate(),
-            Some("arc_length_psi = -0.1 is incorrect; it must be 0.0 ≤ ψ ≤ 1.0".to_string())
-        );
-        config.arc_length_psi = 1.0;
-
-        config.first_trial_loading_factor = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("absolute first trial loading factor |ℓ₀| = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
-        );
-        config.first_trial_loading_factor = 1.0;
+        // Initialization
 
         config.initialization = Init::Geostatic(123.0);
         assert_eq!(
@@ -804,46 +634,7 @@ mod tests {
         );
         config.ideal.plane_stress = false;
 
-        config.t_ini = -0.1;
-        assert_eq!(
-            config.validate(),
-            Some("t_ini = -0.1 is incorrect; it must be ≥ 0.0".to_string())
-        );
-        config.t_ini = 0.1;
-
-        config.t_fin = -0.1;
-        assert_eq!(
-            config.validate(),
-            Some("t_fin = -0.1 is incorrect; it must be ≥ 0.0".to_string())
-        );
-
-        config.t_fin = 0.05;
-        assert_eq!(
-            config.validate(),
-            Some("t_fin = 0.05 is incorrect; it must be > t_ini = 0.1".to_string())
-        );
-        config.t_fin = 1.0;
-
-        config.ddt_min = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("dt_min = 0.0 is incorrect; it must be ≥ 1e-10".to_string())
-        );
-        config.ddt_min = 1e-3;
-
-        config.tol_rr_abs = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("tol_rr_abs = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
-        );
-        config.tol_rr_abs = 1e-8;
-
-        config.tol_mdu_rel = 0.0;
-        assert_eq!(
-            config.validate(),
-            Some("tol_mdu_rel = 0.0 is incorrect; it must be ≥ 1e-12".to_string())
-        );
-        config.tol_mdu_rel = 1e-8;
+        // Transient/dynamics parameters
 
         config.theta = 0.0;
         assert_eq!(
@@ -888,6 +679,8 @@ mod tests {
         );
         config.hht_alpha = 0.0;
 
+        // All good
+
         config.ideal.plane_stress = false;
         assert_eq!(config.validate(), None);
 
@@ -896,36 +689,30 @@ mod tests {
     }
 
     #[test]
-    fn set_methods_work() {
+    fn update_model_settings_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let att = mesh.cells[0].attribute;
+        let marker = mesh.cells[0].marker;
         let mut config = Config::new(&mesh);
         config
-            .update_model_settings(att)
+            .update_model_settings(marker)
             .set_general_plasticity(true)
             .set_gp_interp_nn_max(20);
-        assert_eq!(config.model_settings(att).general_plasticity, true);
+        assert_eq!(config.model_settings(marker).general_plasticity, true);
     }
 
     #[test]
-    fn set_incremental_works() {
+    fn set_transient_and_dynamics_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let mut config = Config::new(&mesh);
-        const UY: [f64; 4] = [0.0, -0.7, -0.9, -1.0];
-        config.set_incremental(UY.len());
-        assert_eq!(config.t_ini, 0.0);
-        assert_eq!(config.t_fin, 3.0);
-        assert_eq!((config.ddt)(0.0), 1.0);
-        assert_eq!((config.ddt)(3.0), 1.0);
-        assert_eq!((config.ddt_out)(0.0), 1.0);
-        assert_eq!((config.ddt_out)(3.0), 1.0);
+        assert_eq!(config.transient, false);
+        assert_eq!(config.dynamics, false);
 
-        config.set_incremental(0);
-        assert_eq!(config.t_ini, 0.0);
-        assert_eq!(config.t_fin, 0.0);
+        config.transient();
+        assert_eq!(config.transient, true);
+        assert_eq!(config.dynamics, false);
 
-        config.set_incremental(1);
-        assert_eq!(config.t_ini, 0.0);
-        assert_eq!(config.t_fin, 0.0);
+        config.dynamics();
+        assert_eq!(config.transient, false);
+        assert_eq!(config.dynamics, true);
     }
 }

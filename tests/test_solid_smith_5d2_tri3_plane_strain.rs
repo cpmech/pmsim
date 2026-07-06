@@ -1,6 +1,7 @@
 use gemlab::prelude::*;
+use pmsim::StrError;
 use pmsim::{base::SampleMeshes, prelude::*};
-use russell_lab::*;
+use russell_lab::vec_approx_eq;
 
 // Smith's Example 5.2 (Figure 5.2) on page 173
 //
@@ -63,29 +64,24 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
         },
         ngauss: None,
     };
-    let base = FemBase::new(&mesh, [(1, Elem::Solid(p1))])?;
+    let mut schema = Schema::new();
+    schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
-    let mut essential = Essential::new();
-    essential.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
+    let mut ebc = BcEssential::new();
+    ebc.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
 
     // natural boundary conditions
-    let mut natural = Natural::new();
-    natural.edges(&top, Nbc::Qn, -1.0);
+    let mut nbc = BcNatural::new();
+    nbc.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
     let config = Config::new(&mesh);
 
-    // FEM state
-    let mut state = FemState::new(&mesh, &base, &essential, &config)?;
-
-    // File IO
-    let mut file_io = FileIo::new();
-
     // solution
-    let mut solver = SolverImplicit::new(&mesh, &base, &config, &essential, &natural)?;
-    solver.solve(&mut state, &mut file_io)?;
-    println!("{}", state.u);
+    let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
+    sim.steady(&mut data, true)?;
+    let state = data.state();
 
     // check displacements
     #[rustfmt::skip]
@@ -100,6 +96,14 @@ fn test_solid_smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
         1.950000000000004e-07,  0.000000000000000e+00,
         3.900000000000004e-07,  0.000000000000000e+00,
     ];
-    vec_approx_eq(&state.u, uu_correct, 1e-15);
+    vec_approx_eq(&state.uu, uu_correct, 1e-15);
+
+    // using new solver
+    let mut nlc = NlConfig::new();
+    nlc.set_verbose(true, true, true).set_euler_predictor(true);
+    let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nlc)?;
+    let dll = DeltaLambda::constant(1.0);
+    sim.steady(&mut data, IniDir::Pos, Stop::Steps(1), dll)?;
+    vec_approx_eq(&data.state().uu, uu_correct, 1e-15);
     Ok(())
 }

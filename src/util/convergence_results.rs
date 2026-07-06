@@ -35,10 +35,10 @@ impl ConvergenceResults {
         P: AsRef<OsStr> + ?Sized,
     {
         let path = Path::new(full_path).to_path_buf();
-        let file = File::open(&path).map_err(|_| "file not found")?;
+        let file = File::open(&path).map_err(|_| "ConvergenceResults: file not found")?;
         let reader = BufReader::new(file);
-        let results = serde_json::from_reader(reader).map_err(|_| "deserialize failed")?;
-        Ok(results)
+        let cr = serde_json::from_reader(reader).map_err(|_| "ConvergenceResults: deserialize failed")?;
+        Ok(cr)
     }
 
     /// Writes a JSON file with the results
@@ -71,26 +71,26 @@ mod tests {
     #[test]
     fn convergence_results_read_works() {
         let filename = "data/tests/convergence_results.json";
-        let results = ConvergenceResults::read_json(filename).unwrap();
-        assert_eq!(results.time, &[1, 2, 3]);
-        assert_eq!(results.ndof, &[10, 20, 30]);
-        array_approx_eq(&results.error, &[100.0, 50.0, 0.1], 1e-15);
+        let cr = ConvergenceResults::read_json(filename).unwrap();
+        assert_eq!(cr.time, &[1, 2, 3]);
+        assert_eq!(cr.ndof, &[10, 20, 30]);
+        array_approx_eq(&cr.error, &[100.0, 50.0, 0.1], 1e-15);
     }
 
     #[test]
     fn convergence_results_write_works() {
-        let mut results = ConvergenceResults::new(3);
-        results.time[0] = 1;
-        results.time[1] = 2;
-        results.time[2] = 3;
-        results.ndof[0] = 10;
-        results.ndof[1] = 20;
-        results.ndof[2] = 30;
-        results.error[0] = 100.0;
-        results.error[1] = 50.0;
-        results.error[2] = 0.1;
+        let mut cr = ConvergenceResults::new(3);
+        cr.time[0] = 1;
+        cr.time[1] = 2;
+        cr.time[2] = 3;
+        cr.ndof[0] = 10;
+        cr.ndof[1] = 20;
+        cr.ndof[2] = 30;
+        cr.error[0] = 100.0;
+        cr.error[1] = 50.0;
+        cr.error[2] = 0.1;
         let filename = "/tmp/pmsim/test_convergence_results_write.json";
-        results.write_json(&filename).unwrap();
+        cr.write_json(&filename).unwrap();
         let contents = fs::read_to_string(&filename).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
             contents,
