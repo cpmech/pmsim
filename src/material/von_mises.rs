@@ -2,8 +2,8 @@ use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
 use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_lab::Vector;
-use russell_tensor::deriv1_invariant_q;
+use russell_lab::{Matrix, Vector};
+use russell_tensor::{deriv1_invariant_q, deriv2_invariant_q, AuxDeriv2InvariantSigmaT};
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
 
@@ -107,7 +107,7 @@ impl StressStrainTrait for VonMises {
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
         state.int_vars[I_Z] = self.z_ini;
         if !self.settings.gp_allow_initial_drift {
-            let f = self.yield_function(state)?;
+            let f = self.calc_f(state)?;
             if f > 0.0 {
                 return Err("stress is outside the yield surface");
             }
@@ -186,7 +186,7 @@ impl StressStrainTrait for VonMises {
         t4_ddot_t2_update(&mut state.stress, 1.0, dd, delta_strain, 1.0); // σ += D : Δε
 
         // handle elastic update
-        let f_trial = self.yield_function(state)?;
+        let f_trial = self.calc_f(state)?;
         if f_trial < F_TOL * self.z_ini {
             return Ok(());
         }
@@ -236,50 +236,127 @@ impl PlasticityTrait for VonMises {
     }
 
     /// Calculates the yield function f
-    fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
-        let sigma_d = state.stress.invariant_q();
+    fn calc_f(&self, state: &LocalState) -> Result<f64, StrError> {
+        let q = state.stress.invariant_q();
         let z = state.int_vars[I_Z];
-        Ok(sigma_d - z)
+        Ok(q - z)
     }
 
-    /// Calculates the plastic potential function g
-    fn plastic_potential(&self, _state: &LocalState) -> Result<(), StrError> {
-        Err("plastic potential is not available")
-    }
-
-    /// Calculates the hardening coefficients H_i corresponding to the incremental hardening model
-    fn hardening(&self, hh: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        hh[I_Z] = self.hh;
+    /// Calculates the hardening coefficients h
+    fn calc_h(&self, h: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
+        h[I_Z] = self.hh;
         Ok(())
     }
 
-    /// Calculates the derivative of the yield function w.r.t stress
-    fn df_dsigma(&self, df_dsigma: &mut Tensor2, state: &LocalState) -> Result<(), StrError> {
-        // df/dσ = dσd/dσ
+    /// Calculates the derivative of the yield function with respect to stress
+    ///
+    /// ```text
+    ///       ∂f
+    /// fs := ──
+    ///       ∂σ
+    /// ```
+    fn calc_fs(&self, df_dsigma: &mut Tensor2, state: &LocalState) -> Result<(), StrError> {
+        // fs = ∂f/∂σ = ∂q/∂σ
         match deriv1_invariant_q(df_dsigma, &state.stress) {
             Some(_) => Ok(()),
-            None => Err("cannot compute df/dσ due to singularity"),
+            None => Err("cannot compute the derivative of the yield function due to singularity"),
         }
     }
 
-    /// Calculates the derivative of the plastic potential w.r.t stress
-    fn dg_dsigma(&self, _dg_dsigma: &mut Tensor2, _state: &LocalState) -> Result<(), StrError> {
-        Err("dg/dσ is not available")
+    /// Calculates the derivative of the plastic potential function with respect to stress
+    ///
+    /// ```text
+    ///       ∂g
+    /// gs := ──
+    ///       ∂σ
+    /// ```
+    fn calc_gs(&self, dg_dsigma: &mut Tensor2, state: &LocalState) -> Result<(), StrError> {
+        self.calc_fs(dg_dsigma, state) // associated flow rule
     }
 
-    /// Calculates the derivative of the yield function w.r.t internal variables
-    fn df_dz(&self, df_dz: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
+    /// Calculates the derivative of the yield function with respect to internal variables
+    ///
+    /// ```text
+    ///        ∂f
+    /// fzₖ := ───
+    ///        ∂zₖ
+    /// ```
+    fn calc_fz(&self, df_dz: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
         df_dz[I_Z] = -1.0;
         Ok(())
     }
 
-    /// Calculates the elastic rigidity modulus
+    /// Calculates the elastic stiffness modulus
+    ///
+    /// ```text
+    ///             ∂σ
+    /// dde := De = ──
+    ///             ∂ε
+    /// ```
     fn calc_dde(&self, dde: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
         if self.settings.nle_enabled {
             return Err("TODO: nonlinear elasticity");
         } else {
             dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
         }
+        Ok(())
+    }
+
+    // --- For implicit stress update ---
+
+    /// Calculates the second derivative of the plastic potential function with respect to stress
+    ///
+    /// ```text
+    ///             ∂(gs)     ∂²g
+    /// ggs := Gσ = ───── = ───────
+    ///              ∂σ     ∂σ ⊗ ∂σ
+    /// ```
+    fn calc_ggs(&self, ggs: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
+        let mut aux = AuxDeriv2InvariantSigmaT::new();
+        match deriv2_invariant_q(ggs, &mut aux, &state.stress) {
+            Some(_) => Ok(()),
+            None => Err("cannot compute the second derivative of the plastic potential due to singularity"),
+        }
+    }
+
+    /// Calculates the second derivatives of the plastic potential function with respect to stress and internal variables
+    ///
+    /// ```text
+    ///        ∂(gs)
+    /// Gz|k = ─────
+    ///         ∂zₖ
+    /// ```
+    fn calc_ggz(&self, ggz: &mut [&mut Tensor2], _state: &LocalState) -> Result<(), StrError> {
+        // g = f
+        // gs = fs = ∂f/∂σ = ∂q/∂σ
+        // ∂(gs)/∂zₖ = 0
+        ggz[I_Z].clear();
+        Ok(())
+    }
+
+    /// Calculates the second derivatives of the hardening function with respect to stress
+    ///
+    /// ```text
+    ///        ∂hₖ
+    /// Hσ|k = ───
+    ///        ∂σ
+    /// ```
+    fn calc_hhs(&self, hhs: &mut [&mut Tensor2], _state: &LocalState) -> Result<(), StrError> {
+        // h0 = constant
+        hhs[I_Z].clear();
+        Ok(())
+    }
+
+    /// Calculates the second derivatives of the hardening function with respect to internal variables
+    ///
+    /// ```text
+    ///         ∂hᵢ
+    /// Hz|ij = ───
+    ///         ∂zⱼ
+    /// ```
+    fn calc_hhz(&self, hhz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
+        // h0 = constant
+        hhz.fill(0.0);
         Ok(())
     }
 }

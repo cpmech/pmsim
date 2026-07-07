@@ -41,10 +41,10 @@ struct Args {
     model: Box<dyn PlasticityTrait>,
 
     /// Holds the increment of strain given to the stress-update algorithm
-    depsilon: Tensor2,
+    del_eps: Tensor2,
 
     /// Holds the rate of stress
-    dsigma_dt: Tensor2,
+    ds_dt: Tensor2,
 
     /// Holds the rate of internal variables
     ///
@@ -52,20 +52,36 @@ struct Args {
     dz_dt: Vector,
 
     /// Holds the gradient of the yield function
-    df_dsigma: Tensor2,
+    ///
+    /// ```text
+    ///       ∂f
+    /// fs := ──
+    ///       ∂σ
+    /// ```
+    fs: Tensor2,
 
     /// Holds the gradient of the plastic potential function
-    dg_dsigma: Tensor2,
+    ///
+    /// ```text
+    ///       ∂g
+    /// gs := ──
+    ///       ∂σ
+    /// ```
+    gs: Tensor2,
 
     /// Holds the derivative of the yield function w.r.t internal variables
     ///
     /// (n_int_val_yf) where yf means yield function
-    df_dz: Vector,
-
-    /// Holds the hardening coefficients affecting the yield function directly
     ///
-    /// (n_int_val_yf) where yf means yield function
-    hh_yf: Vector,
+    /// ```text
+    ///        ∂f
+    /// fzₖ := ───
+    ///        ∂zₖ
+    /// ```
+    fz: Vector,
+
+    /// Holds the hardening coefficients
+    h: Vector,
 
     /// Holds the elastic modulus
     dde: Tensor4,
@@ -158,10 +174,10 @@ impl<'a> Elastoplastic<'a> {
             args.model.calc_dde(&mut args.dde, &args.state)?;
 
             // calculate: {dσ/dt} = [Dₑ]{Δε}
-            mat_vec_mul(dydt, 1.0, &args.dde.matrix(), &args.depsilon.vector())
+            mat_vec_mul(dydt, 1.0, &args.dde.matrix(), &args.del_eps.vector())
         });
 
-        // ODE system: dσ/dt = Dₑₚ : Δε and dz/dt = Λd H
+        // ODE system: dσ/dt = Dₑₚ : Δε and dz/dt = λ h(σ,z)
         let ode_system_ep = System::new(ndim_ep, |dydt, _t, y, args: &mut Args| {
             // split {y}(t) into σ and z
             y.split2(
@@ -170,48 +186,48 @@ impl<'a> Elastoplastic<'a> {
             );
 
             // gradients of the yield function
-            args.model.df_dsigma(&mut args.df_dsigma, &args.state)?;
-            args.model.df_dz(&mut args.df_dz, &args.state)?;
-            let df_dsigma = &args.df_dsigma;
-            let dg_dsigma = if args.model.associated() {
-                &args.df_dsigma
+            args.model.calc_fs(&mut args.fs, &args.state)?;
+            args.model.calc_fz(&mut args.fz, &args.state)?;
+            let fs = &args.fs;
+            let gs = if args.model.associated() {
+                &args.fs
             } else {
-                args.model.dg_dsigma(&mut args.dg_dsigma, &args.state)?;
-                &args.dg_dsigma
+                args.model.calc_gs(&mut args.gs, &args.state)?;
+                &args.gs
             };
 
-            // Mₚ = - (df/dz) · H_yf
-            args.model.hardening(&mut args.hh_yf, &args.state)?;
-            let mmp = -vec_inner(&args.df_dz, &args.hh_yf);
+            // Mₚ = - (df/dz) · h
+            args.model.calc_h(&mut args.h, &args.state)?;
+            let mmp = -vec_inner(&args.fz, &args.h);
 
             // calculate: Dₑ(t)
             args.model.calc_dde(&mut args.dde, &args.state)?;
 
             // Nₚ = Mₚ + (df/dσ) : Dₑ : (dg/dσ)
-            let nnp = mmp + t2_ddot_t4_ddot_t2(df_dsigma, &args.dde, dg_dsigma);
+            let nnp = mmp + t2_ddot_t4_ddot_t2(fs, &args.dde, gs);
 
             // Dₑₚ = α Dₑ + β (Dₑ : a) ⊗ (b : Dₑ)
-            t4_ddot_t2_dyad_t2_ddot_t4(&mut args.ddep, 1.0, &args.dde, -1.0 / nnp, dg_dsigma, df_dsigma);
+            t4_ddot_t2_dyad_t2_ddot_t4(&mut args.ddep, 1.0, &args.dde, -1.0 / nnp, gs, fs);
 
             // dσ/dt = Dₑₚ : Δε
-            t4_ddot_t2(&mut args.dsigma_dt, 1.0, &args.ddep, &args.depsilon);
+            t4_ddot_t2(&mut args.ds_dt, 1.0, &args.ddep, &args.del_eps);
 
             // numerator = (df/dσ) : Dₑ : Δε
-            let numerator = t2_ddot_t4_ddot_t2(df_dsigma, &args.dde, &args.depsilon);
+            let numerator = t2_ddot_t4_ddot_t2(fs, &args.dde, &args.del_eps);
             if numerator < -NUMERATOR_TOL {
-                return Err("plastic numerator (df/dσ : Dₑ : Δε) is overly negative");
+                return Err("plastic numerator is excessively negative");
             }
             let num = f64::max(0.0, numerator);
 
-            // Λd = ((df/dσ) : Dₑ : Δε) / Nₚ
-            let llambda_d = num / nnp;
+            // λ = ((df/dσ) : Dₑ : Δε) / Nₚ
+            let lambda = num / nnp;
 
-            // dz/dt = Λd H
-            args.model.hardening(&mut args.dz_dt, &args.state)?; // dz/dt ← H
-            args.dz_dt.scale(llambda_d); // dz/dt = Λd H
+            // dz/dt = λ h
+            args.model.calc_h(&mut args.dz_dt, &args.state)?; // dz/dt ← h
+            args.dz_dt.scale(lambda); // dz/dt = λ h
 
             // join dσ/dt and dz/dt into {dy/dt}
-            dydt.join2(args.dsigma_dt.vector().as_data(), args.dz_dt.as_data());
+            dydt.join2(args.ds_dt.vector().as_data(), args.dz_dt.as_data());
             Ok(())
         });
 
@@ -249,7 +265,7 @@ impl<'a> Elastoplastic<'a> {
                 args.state.stress.vector_mut().set_vector(y.as_data());
 
                 // yield function value: f(σ, z)
-                let f = args.model.yield_function(&args.state)?;
+                let f = args.model.calc_f(&args.state)?;
                 args.yf_values[args.yf_count] = f;
                 args.yf_count += 1;
 
@@ -258,7 +274,7 @@ impl<'a> Elastoplastic<'a> {
                     // ε(t) = ε₀ + t Δε
                     let epsilon_0 = args.state.strain.as_ref().unwrap();
                     let mut epsilon_t = epsilon_0.clone();
-                    epsilon_t.update(t, &args.depsilon);
+                    epsilon_t.update(t, &args.del_eps);
 
                     // update history array
                     h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
@@ -281,12 +297,12 @@ impl<'a> Elastoplastic<'a> {
                         args.state.stress.vector_mut().set_vector(y.as_data());
 
                         // yield function value: f(σ, z)
-                        let f = args.model.yield_function(&args.state)?;
+                        let f = args.model.calc_f(&args.state)?;
 
                         // ε(t) = ε₀ + t Δε
                         let epsilon_0 = args.state.strain.as_ref().unwrap();
                         let mut epsilon_t = epsilon_0.clone();
-                        epsilon_t.update(t, &args.depsilon);
+                        epsilon_t.update(t, &args.del_eps);
 
                         // update history array
                         h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
@@ -305,12 +321,12 @@ impl<'a> Elastoplastic<'a> {
                         );
 
                         // yield function value: f(σ, z)
-                        let f = args.model.yield_function(&args.state)?;
+                        let f = args.model.calc_f(&args.state)?;
 
                         // ε(t) = ε₀ + t Δε
                         let epsilon_0 = args.state.strain.as_ref().unwrap();
                         let mut epsilon_t = epsilon_0.clone();
-                        epsilon_t.update(t, &args.depsilon);
+                        epsilon_t.update(t, &args.del_eps);
 
                         // update history array
                         h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
@@ -323,13 +339,13 @@ impl<'a> Elastoplastic<'a> {
         let args = Args {
             state: LocalState::new(mandel, n_int_val),
             model,
-            depsilon: Tensor2::new(mandel),
-            dsigma_dt: Tensor2::new(mandel),
+            del_eps: Tensor2::new(mandel),
+            ds_dt: Tensor2::new(mandel),
             dz_dt: Vector::new(n_int_val),
-            df_dsigma: Tensor2::new(mandel),
-            dg_dsigma: Tensor2::new(mandel),
-            df_dz: Vector::new(n_int_val_yf),
-            hh_yf: Vector::new(n_int_val_yf),
+            fs: Tensor2::new(mandel),
+            gs: Tensor2::new(mandel),
+            fz: Vector::new(n_int_val_yf),
+            h: Vector::new(n_int_val_yf),
             dde: Tensor4::new(mandel),
             ddep: Tensor4::new(mandel),
             yf_count: 0,
@@ -366,7 +382,7 @@ impl<'a> Elastoplastic<'a> {
 
     /// Calculates the yield function f
     pub fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
-        self.args.model.yield_function(state)
+        self.args.model.calc_f(state)
     }
 
     /// Returns the stress-strain history during the intersection finding (e.g., for debugging)
@@ -390,13 +406,13 @@ impl<'a> Elastoplastic<'a> {
     /// Warning: this function must only be called if the stress point is on (or near) the yield surface.
     fn going_inside(&mut self, state: &LocalState, delta_strain: &Tensor2) -> Result<bool, StrError> {
         // gradients of the yield function
-        self.args.model.df_dsigma(&mut self.args.df_dsigma, state)?;
+        self.args.model.calc_fs(&mut self.args.fs, state)?;
 
         // Dₑ
         self.args.model.calc_dde(&mut self.args.dde, state)?;
 
         // (df/dσ) : Dₑ : Δε
-        let indicator = t2_ddot_t4_ddot_t2(&self.args.df_dsigma, &self.args.dde, delta_strain);
+        let indicator = t2_ddot_t4_ddot_t2(&self.args.fs, &self.args.dde, delta_strain);
         Ok(indicator < 0.0)
     }
 
@@ -454,7 +470,7 @@ impl<'a> Elastoplastic<'a> {
     /// Selects the yield surface crossing case
     fn select_case(&mut self, state: &LocalState, delta_strain: &Tensor2) -> Result<Case, StrError> {
         // current yield function value: f(σ, z)
-        let yf_initial = self.args.model.yield_function(state)?;
+        let yf_initial = self.args.model.calc_f(state)?;
 
         // run analysis
         if yf_initial < 0.0 {
@@ -562,7 +578,7 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         _gauss_id: usize,
     ) -> Result<(), StrError> {
         // set Δε in arguments struct
-        self.args.depsilon.set_tensor(1.0, delta_strain);
+        self.args.del_eps.set_tensor(1.0, delta_strain);
 
         // enable history
         if self.save_history {
@@ -854,7 +870,7 @@ mod tests {
         let mut data = PlotterData::new();
         for i in 0..states.len() {
             let s = &states[i];
-            let f = model.args.model.yield_function(s).unwrap();
+            let f = model.args.model.calc_f(s).unwrap();
             let t = i as f64;
             data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
         }
