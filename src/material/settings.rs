@@ -1,8 +1,6 @@
 use russell_ode::Method;
 
 /// Holds further settings for the stress-strain model
-///
-/// **Note:** These options only work with the general Plasticity formulation
 #[derive(Clone, Copy, Debug)]
 pub struct Settings {
     /// Enables the recording of the flux vector (for post-processing only)
