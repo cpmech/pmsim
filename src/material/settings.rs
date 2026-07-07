@@ -1,6 +1,6 @@
 use russell_ode::Method;
 
-/// Holds parameters to convert a linear elastic model into a non-linear elastic model
+/// Holds further settings for the stress-strain model
 ///
 /// **Note:** These options only work with the general Plasticity formulation
 #[derive(Clone, Copy, Debug)]
