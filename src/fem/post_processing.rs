@@ -3097,99 +3097,36 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "local_sparse")]
-    #[test]
-    fn write_vtu_and_pvd_work_local_sparse() {
-        generate_data_files();
-
-        // load results
-        let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
-        let state = post.read_file(0).unwrap();
-
-        // create directory
-        fs::create_dir_all("/tmp/pmsim")
-            .map_err(|_| "cannot create directory")
-            .unwrap();
-
-        // write VTU file
-        let index = 0;
-        let name = "write_vtu_and_pvd_work_1";
-        let with_elastic_flags = true;
-        let path = post
-            .write_vtu(&mut memo, "/tmp/pmsim", name, &state, index, with_elastic_flags)
-            .unwrap();
-
-        // check contents
-        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
-        assert_eq!(
-            contents,
-            r#"<?xml version="1.0"?>
-<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">
-<UnstructuredGrid>
-<Piece NumberOfPoints="5" NumberOfCells="3">
-<Points>
-<DataArray type="Float64" NumberOfComponents="3" format="ascii">
-0.0 0.2 0.0 1.2 0.0 0.0 2.2 0.1 0.0 1.8 1.0 0.0 0.5 1.2 0.0 
-</DataArray>
-</Points>
-<Cells>
-<DataArray type="Int32" Name="connectivity" format="ascii">
-0 1 4 1 3 4 1 2 3 
-</DataArray>
-<DataArray type="Int32" Name="offsets" format="ascii">
-3 6 9 
-</DataArray>
-<DataArray type="UInt8" Name="types" format="ascii">
-5 5 5 
-</DataArray>
-</Cells>
-<PointData Scalars="TheScalars">
-<DataArray type="Float64" Name="Phi" NumberOfComponents="1" format="ascii">
-1.0 3.5999999999999996 7.1000000000000005 10.4 7.5 
-</DataArray>
-<DataArray type="Float64" Name="w" NumberOfComponents="3" format="ascii">
--6.0 -20.0 0.0 -6.0 -20.0 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.000000000000002 -20.000000000000007 0.0 -6.0 -20.0 0.0 
-</DataArray>
-</PointData>
-</Piece>
-</UnstructuredGrid>
-</VTKFile>
-"#
-        );
-
-        // write PVD file
-        let name = "write_vtu_and_pvd_work_1";
-        let path = post.write_pvd("/tmp/pmsim", name).unwrap();
-
-        // check PVD
-        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
-        assert_eq!(
-            contents,
-            r#"<?xml version="1.0"?>
-<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
-<Collection>
-<DataSet timestep="0.0" file="/tmp/pmsim/write_vtu_and_pvd_work_1-0.vtu" />
-</Collection>
-</VTKFile>
-"#
-        );
+    /// Extracts all Float64 DataArray numeric values from a VTU file
+    ///
+    /// Returns a vector of float arrays in the order they appear.
+    fn extract_vtu_float_arrays(contents: &str) -> Vec<Vec<f64>> {
+        let mut result = Vec::new();
+        let mut pos = 0;
+        let needle = "<DataArray type=\"Float64\"";
+        while let Some(start) = contents[pos..].find(needle) {
+            let after = &contents[pos + start..];
+            let data_start = after.find(">\n").unwrap() + 2;
+            let data_end = after.find("</DataArray>").unwrap();
+            let numbers = after[data_start..data_end].trim_end();
+            let floats: Vec<f64> = numbers.split_whitespace().map(|s| s.parse::<f64>().unwrap()).collect();
+            result.push(floats);
+            pos += start + data_end + 13; // 13 = len("</DataArray>")
+        }
+        result
     }
 
-    #[cfg(not(feature = "local_sparse"))]
     #[test]
-    fn write_vtu_and_pvd_work_default_sparse() {
+    fn write_vtu_and_pvd_work() {
         generate_data_files();
 
-        // load results
         let (post, mut memo) = PostProc::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let state = post.read_file(0).unwrap();
 
-        // create directory
         fs::create_dir_all("/tmp/pmsim")
             .map_err(|_| "cannot create directory")
             .unwrap();
 
-        // write VTU file
         let index = 0;
         let name = "write_vtu_and_pvd_work_1";
         let with_elastic_flags = true;
@@ -3197,52 +3134,56 @@ mod tests {
             .write_vtu(&mut memo, "/tmp/pmsim", name, &state, index, with_elastic_flags)
             .unwrap();
 
-        // check contents
         let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
-        assert_eq!(
-            contents,
-            r#"<?xml version="1.0"?>
-<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">
-<UnstructuredGrid>
-<Piece NumberOfPoints="5" NumberOfCells="3">
-<Points>
-<DataArray type="Float64" NumberOfComponents="3" format="ascii">
-0.0 0.2 0.0 1.2 0.0 0.0 2.2 0.1 0.0 1.8 1.0 0.0 0.5 1.2 0.0 
-</DataArray>
-</Points>
-<Cells>
-<DataArray type="Int32" Name="connectivity" format="ascii">
-0 1 4 1 3 4 1 2 3 
-</DataArray>
-<DataArray type="Int32" Name="offsets" format="ascii">
-3 6 9 
-</DataArray>
-<DataArray type="UInt8" Name="types" format="ascii">
-5 5 5 
-</DataArray>
-</Cells>
-<PointData Scalars="TheScalars">
-<DataArray type="Float64" Name="Phi" NumberOfComponents="1" format="ascii">
-1.0 3.5999999999999996 7.1000000000000005 10.4 7.5 
-</DataArray>
-<DataArray type="Float64" Name="w" NumberOfComponents="3" format="ascii">
--6.0 -19.999999999999993 0.0 -6.0 -20.0 0.0 -6.000000000000001 -20.000000000000004 0.0 -6.0 -20.000000000000004 0.0 -6.000000000000001 -20.0 0.0 
-</DataArray>
-</PointData>
-</Piece>
-</UnstructuredGrid>
-</VTKFile>
-"#
-        );
 
-        // write PVD file
-        let name = "write_vtu_and_pvd_work_1";
-        let path = post.write_pvd("/tmp/pmsim", name).unwrap();
+        assert!(contents.starts_with("<?xml version=\"1.0\"?>"));
+        assert!(contents.contains("NumberOfPoints=\"5\""));
+        assert!(contents.contains("NumberOfCells=\"3\""));
 
-        // check PVD
-        let contents = fs::read_to_string(&path).map_err(|_| "cannot open file").unwrap();
+        let float_arrays = extract_vtu_float_arrays(&contents);
+        assert_eq!(float_arrays.len(), 3, "expected 3 Float64 DataArrays (Points, Phi, w)");
+
+        let coords = &float_arrays[0];
+        let expected_coords = &[0.0, 0.2, 0.0, 1.2, 0.0, 0.0, 2.2, 0.1, 0.0, 1.8, 1.0, 0.0, 0.5, 1.2, 0.0];
+        assert_eq!(coords.len(), expected_coords.len());
+        array_approx_eq(coords, expected_coords, 1e-15);
+
+        let phi = &float_arrays[1];
+        let expected_phi = &[1.0, 3.6, 7.1, 10.4, 7.5];
+        assert_eq!(phi.len(), expected_phi.len());
+        array_approx_eq(phi, expected_phi, 1e-14);
+
+        let w = &float_arrays[2];
+        let expected_w = &[-6.0, -20.0, 0.0, -6.0, -20.0, 0.0, -6.0, -20.0, 0.0, -6.0, -20.0, 0.0, -6.0, -20.0, 0.0];
+        assert_eq!(w.len(), expected_w.len());
+        array_approx_eq(w, expected_w, 1e-13);
+
+        let connectivity = contents
+            .lines()
+            .skip_while(|l| !l.contains("connectivity"))
+            .nth(1)
+            .unwrap();
+        assert!(connectivity.contains("0 1 4 1 3 4 1 2 3"));
+
+        let offsets = contents
+            .lines()
+            .skip_while(|l| !l.contains("offsets"))
+            .nth(1)
+            .unwrap();
+        assert!(offsets.contains("3 6 9"));
+
+        let types = contents
+            .lines()
+            .skip_while(|l| !l.contains("types"))
+            .nth(1)
+            .unwrap();
+        assert!(types.contains("5 5 5"));
+
+        let name2 = "write_vtu_and_pvd_work_1";
+        let pvd_path = post.write_pvd("/tmp/pmsim", name2).unwrap();
+        let pvd_contents = fs::read_to_string(&pvd_path).map_err(|_| "cannot open file").unwrap();
         assert_eq!(
-            contents,
+            pvd_contents,
             r#"<?xml version="1.0"?>
 <VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
 <Collection>
