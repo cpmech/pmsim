@@ -154,8 +154,8 @@ impl PresSphereAxisymmetric {
             return Err("c can only be calculated with P0 < P < P_lim");
         }
         let args = &mut 0;
-        let solver = RootFinder::new();
-        let (c_root, _) = solver.brent(self.a, self.b, args, |c, _| {
+        let mut solver = RootFinder::new();
+        let c_root = solver.brent(self.a, self.b, args, |c, _| {
             let l = 2.0 * self.yy * f64::ln(c / self.a);
             let m = TWO_BY_3 * self.yy * (1.0 - c * c * c / (self.b * self.b * self.b));
             Ok(l + m - pp)
