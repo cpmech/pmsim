@@ -2,7 +2,7 @@ use super::{LocalState, PlasticityTrait, PlotterData, Settings, StressStrainTrai
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, RootFinder, Vector};
+use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, NewtonSolver, RootFinder, Vector};
 use russell_ode::{OdeSolver, Output, Params, System};
 use russell_tensor::{t2_ddot_t4_ddot_t2, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4};
 use russell_tensor::{Tensor2, Tensor4};
@@ -108,6 +108,9 @@ struct Args {
 pub struct Elastoplastic<'a> {
     /// Holds the arguments for the ODE solvers
     args: Args,
+
+    /// Enables the explicit stress-update
+    explicit_update: bool,
 
     /// Holds the solver for finding the yield surface intersection
     ode_intersection: OdeSolver<'a, Args>,
@@ -364,6 +367,7 @@ impl<'a> Elastoplastic<'a> {
         // done
         Ok(Elastoplastic {
             args,
+            explicit_update: settings.gp_explicit_update,
             ode_intersection,
             ode_elastic,
             ode_elastoplastic,
@@ -530,53 +534,8 @@ impl<'a> Elastoplastic<'a> {
             }
         }
     }
-}
 
-impl<'a> StressStrainTrait for Elastoplastic<'a> {
-    /// Indicates that the stiffness matrix is symmetric
-    fn symmetric_stiffness(&self) -> bool {
-        self.args.model.symmetric_stiffness()
-    }
-
-    /// Returns the number of internal variables
-    fn n_int_vars(&self) -> usize {
-        self.args.model.n_int_vars()
-    }
-
-    /// Returns the number of internal variables directly affecting the yield function
-    fn n_int_vars_yield_function(&self) -> usize {
-        self.args.model.n_int_vars_yield_function()
-    }
-
-    /// Initializes the internal variables for the initial stress state
-    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
-        self.args.model.initialize_int_vars(state)
-    }
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut LocalState, load_reversal: bool) {
-        self.args.model.reset_algorithmic_variables(state, load_reversal);
-    }
-
-    /// Computes the consistent tangent stiffness
-    fn stiffness(
-        &mut self,
-        _dd: &mut Tensor4,
-        _state: &LocalState,
-        _cell_id: CellId,
-        _gauss_id: usize,
-    ) -> Result<(), StrError> {
-        Err("TODO")
-    }
-
-    /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(
-        &mut self,
-        state: &mut LocalState,
-        delta_strain: &Tensor2,
-        _cell_id: CellId,
-        _gauss_id: usize,
-    ) -> Result<(), StrError> {
+    fn explicit_update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
         // set Δε in arguments struct
         self.args.del_eps.set_tensor(1.0, delta_strain);
 
@@ -673,6 +632,113 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         // record last_case for debugging
         self.last_case = Some(case);
         Ok(())
+    }
+
+    fn explicit_stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+        Err("stiffness is not available for explicit update")
+    }
+
+    fn implicit_update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+        /*
+        // Build vector of unknowns: x := [σ, z, λ]
+        let mandel = state.stress.mandel();
+        let ncp = mandel.dim(); // number of stress components
+        let niv = state.int_vars.dim(); // number of internal variables
+        let ndim = ncp + niv + 1;
+        let mut x = Vector::new(ndim);
+        for i in 0..ncp {
+            x[i] = state.stress.vector()[i];
+        }
+        for i in 0..niv {
+            x[ncp + i] = state.int_vars[i];
+        }
+        x[ncp + niv] = 0.0; // initial guess for λ
+
+        // Arguments for the Newton solver (not used in this example)
+        let nw_args = &mut 0;
+
+        // Nonlinear problem: y(x) = 0 = [re, rz, rf]
+        let y_fn = |x: &Vector, out: &mut Vector, _: &mut i32| {
+            out[0] = x[0] * x[0] + x[1] * x[1] - 4.0;
+            out[1] = x[0] - x[1];
+            Ok(())
+        };
+
+        // Analytical Jacobian
+        let jacobian = |j: &mut Matrix, x: &Vector, _: &mut i32| {
+            j.set(0, 0, 2.0 * x[0]);
+            j.set(0, 1, 2.0 * x[1]);
+            j.set(1, 0, 1.0);
+            j.set(1, 1, -1.0);
+            Ok(())
+        };
+
+        let solver = NewtonSolver::new();
+        let (x, stats) = solver.solve(&mut x0, nw_args, f, jacobian)?;
+        */
+
+        Ok(())
+    }
+
+    fn implicit_stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
+        self.args.model.stiffness(dd, state, 0, 0)
+    }
+}
+
+impl<'a> StressStrainTrait for Elastoplastic<'a> {
+    /// Indicates that the stiffness matrix is symmetric
+    fn symmetric_stiffness(&self) -> bool {
+        self.args.model.symmetric_stiffness()
+    }
+
+    /// Returns the number of internal variables
+    fn n_int_vars(&self) -> usize {
+        self.args.model.n_int_vars()
+    }
+
+    /// Returns the number of internal variables directly affecting the yield function
+    fn n_int_vars_yield_function(&self) -> usize {
+        self.args.model.n_int_vars_yield_function()
+    }
+
+    /// Initializes the internal variables for the initial stress state
+    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
+        self.args.model.initialize_int_vars(state)
+    }
+
+    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
+    fn reset_algorithmic_variables(&self, state: &mut LocalState, load_reversal: bool) {
+        self.args.model.reset_algorithmic_variables(state, load_reversal);
+    }
+
+    /// Computes the consistent tangent stiffness
+    fn stiffness(
+        &mut self,
+        dd: &mut Tensor4,
+        state: &LocalState,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
+        if self.explicit_update {
+            self.explicit_stiffness(dd, state)
+        } else {
+            self.implicit_stiffness(dd, state)
+        }
+    }
+
+    /// Updates the stress tensor given the strain increment tensor
+    fn update_stress(
+        &mut self,
+        state: &mut LocalState,
+        delta_strain: &Tensor2,
+        _cell_id: CellId,
+        _gauss_id: usize,
+    ) -> Result<(), StrError> {
+        if self.explicit_update {
+            self.explicit_update_stress(state, delta_strain)
+        } else {
+            self.implicit_update_stress(state, delta_strain)
+        }
     }
 }
 
@@ -920,7 +986,8 @@ mod tests {
 
         // parameters
         let param = StressStrain::sample_von_mises();
-        let settings = Settings::new();
+        let mut settings = Settings::new();
+        settings.set_gp_explicit_update(true);
         let (kk, gg, hh, z_ini) = extract_von_mises_params_kg(&param);
 
         // constants
@@ -1033,7 +1100,7 @@ mod tests {
 
         // settings
         let mut settings = Settings::new();
-        settings.set_gp_save_history(true);
+        settings.set_gp_explicit_update(true).set_gp_save_history(true);
 
         // model
         let ndim = 2;
@@ -1101,7 +1168,10 @@ mod tests {
 
         // settings
         let mut settings = Settings::new();
-        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+        settings
+            .set_gp_explicit_update(true)
+            .set_gp_save_history(true)
+            .set_gp_allow_initial_drift(true);
 
         // model
         let ndim = 2;
@@ -1167,7 +1237,10 @@ mod tests {
 
         // settings
         let mut settings = Settings::new();
-        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+        settings
+            .set_gp_explicit_update(true)
+            .set_gp_save_history(true)
+            .set_gp_allow_initial_drift(true);
 
         // model
         let ndim = 2;
@@ -1237,7 +1310,10 @@ mod tests {
 
         // settings
         let mut settings = Settings::new();
-        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+        settings
+            .set_gp_explicit_update(true)
+            .set_gp_save_history(true)
+            .set_gp_allow_initial_drift(true);
 
         // model
         let ndim = 2;
@@ -1307,7 +1383,10 @@ mod tests {
 
         // settings
         let mut settings = Settings::new();
-        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+        settings
+            .set_gp_explicit_update(true)
+            .set_gp_save_history(true)
+            .set_gp_allow_initial_drift(true);
 
         // model
         let ndim = 2;
@@ -1370,7 +1449,10 @@ mod tests {
 
         // settings
         let mut settings = Settings::new();
-        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+        settings
+            .set_gp_explicit_update(true)
+            .set_gp_save_history(true)
+            .set_gp_allow_initial_drift(true);
 
         // model
         let ndim = 2;
@@ -1434,7 +1516,10 @@ mod tests {
 
         // settings
         let mut settings = Settings::new();
-        settings.set_gp_save_history(true).set_gp_allow_initial_drift(true);
+        settings
+            .set_gp_explicit_update(true)
+            .set_gp_save_history(true)
+            .set_gp_allow_initial_drift(true);
 
         // model
         let ndim = 2;

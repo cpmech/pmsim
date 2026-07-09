@@ -21,6 +21,9 @@ pub struct Settings {
     /// General plasticity (GP): enables the general plasticity formulation instead of the specialized formulation
     pub(crate) general_plasticity: bool,
 
+    /// General plasticity (GP): enables the explicit stress-update with general plasticity
+    pub(crate) gp_explicit_update: bool,
+
     /// General plasticity (GP): defines the ODE method for stress-update with general plasticity
     pub(crate) gp_ode_method: Method,
 
@@ -44,6 +47,7 @@ impl Settings {
             nle_beta: 0.0,
             nle_isotropic: false,
             general_plasticity: false,
+            gp_explicit_update: false,
             gp_ode_method: Method::DoPri8,
             gp_interp_nn_max: 30,
             gp_allow_initial_drift: false,
@@ -100,6 +104,12 @@ impl Settings {
     /// Enables general plasticity formulation
     pub fn set_general_plasticity(&mut self, flag: bool) -> &mut Self {
         self.general_plasticity = flag;
+        self
+    }
+
+    /// Enables the explicit stress-update with general plasticity
+    pub fn set_gp_explicit_update(&mut self, flag: bool) -> &mut Self {
+        self.gp_explicit_update = flag;
         self
     }
 

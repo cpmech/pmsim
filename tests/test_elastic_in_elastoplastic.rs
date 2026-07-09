@@ -37,7 +37,7 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
     let ndim = 2;
     let ideal = Idealization::new(ndim);
     let mut settings = Settings::new();
-    settings.set_gp_save_history(true);
+    settings.set_gp_explicit_update(true).set_gp_save_history(true);
     let elast = LinearElastic::new(&ideal, &param_el, &settings)?;
     let direct = VonMises::new(&ideal, &param_vm, &settings)?;
     let general = Elastoplastic::new(&ideal, &param_vm, &settings)?;
