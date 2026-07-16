@@ -42,7 +42,7 @@ const LAMBDAS: [f64; 16] = [
 ];
 
 #[test]
-fn test_spo_754_footing() -> Result<(), StrError> {
+fn spo_754_footing() -> Result<(), StrError> {
     // mesh
     let mesh = Mesh::read(&format!("data/spo/{}.msh", NAME))?;
     if DRAW_MESH_AND_EXIT {

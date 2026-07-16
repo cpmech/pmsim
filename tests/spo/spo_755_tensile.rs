@@ -43,7 +43,7 @@ const LAMBDAS: [f64; 17] = [
 ];
 
 #[test]
-fn test_spo_755_tensile() -> Result<(), StrError> {
+fn spo_755_tensile() -> Result<(), StrError> {
     // mesh
     let mesh = Mesh::read(&format!("data/spo/{}.msh", MESH_NAME))?;
 

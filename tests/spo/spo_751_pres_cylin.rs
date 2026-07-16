@@ -54,7 +54,7 @@ const Y: f64 = 2.0 * 0.24 / SQRT_3; // uniaxial yield strength (2 σy_spo / sq3)
 const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
-fn test_spo_751_pres_cylin() -> Result<(), StrError> {
+fn spo_751_pres_cylin() -> Result<(), StrError> {
     // generate or read the mesh
     let mesh = generate_or_read_mesh(GeoKind::Qua4, GENERATE_MESH);
 

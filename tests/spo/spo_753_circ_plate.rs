@@ -25,7 +25,7 @@ const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 9; // number of gauss points
 
 #[test]
-fn test_spo_753_circ_plate() -> Result<(), StrError> {
+fn spo_753_circ_plate() -> Result<(), StrError> {
     // mesh
     let mesh = Mesh::read(&format!("data/spo/{}.msh", NAME))?;
 

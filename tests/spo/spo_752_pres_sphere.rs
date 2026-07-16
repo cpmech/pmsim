@@ -56,7 +56,7 @@ const Y: f64 = 0.24; // uniaxial yield strength (= σy_spo due to axisymmetry)
 const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
-fn test_spo_752_pres_sphere() -> Result<(), StrError> {
+fn spo_752_pres_sphere() -> Result<(), StrError> {
     // mesh
     let kind = GeoKind::Qua4;
     let mesh = Mesh::read(&format!("data/spo/{}_{}.msh", NAME_MESH, kind.to_string())).unwrap();
