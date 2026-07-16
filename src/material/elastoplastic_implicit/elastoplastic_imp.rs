@@ -156,6 +156,7 @@ mod tests {
 
     #[test]
     fn implicit_consistent_modulus_matches_von_mises() {
+        // Idealization, parameters, and settings
         let ideal = Idealization::new(2);
         let param = StressStrain::VonMises {
             young: YOUNG,
@@ -164,25 +165,32 @@ mod tests {
             z_ini: Z_INI,
         };
         let settings = Settings::new();
+
+        // Allocate the von Mises model (directly)
         let mut vm = VonMises::new(&ideal, &param, &settings).unwrap();
+
+        // Allocate the initial state
         let mandel = ideal.mandel();
         let n_int_vars = vm.n_int_vars();
         let mut state0 = LocalState::new(mandel, n_int_vars);
         state0.enable_strain();
+
+        // Initialize the internal variables
         vm.initialize_int_vars(&mut state0).unwrap();
         assert_eq!(state0.int_vars[0], Z_INI);
 
+        // Allocate the von Mises model via the general implicit elastoplasticity model
         let mut ep = ElastoplasticImp::new(&ideal, &param, &settings).unwrap();
 
+        // Compare the consistent tangent stiffness at the initial state
         let mut dd_vm = Tensor4::new(mandel);
         vm.stiffness(&mut dd_vm, &state0, 0, 0).unwrap();
-
         let mut dd_ep = Tensor4::new(mandel);
         ep.stiffness(&mut dd_ep, &state0, 0, 0).unwrap();
-
         mat_approx_eq(dd_vm.matrix(), dd_ep.matrix(), 1e-15);
         mat_approx_eq(dd_vm.matrix(), ep.args.dde.matrix(), 1e-15);
 
+        // Calculate the strain increment that will cause yielding
         let ee = YOUNG;
         let nu = POISSON;
         let nu2 = POISSON * POISSON;
@@ -194,30 +202,31 @@ mod tests {
         delta_strain.vector_mut()[0] = deps_x;
         delta_strain.vector_mut()[1] = deps_y;
 
+        // Update the state using the von Mises model
         let mut states_vm = vec![state0.clone()];
-        let mut states_ep = vec![state0.clone()];
-
         let mut state_vm = state0.clone();
         vm.update_stress(&mut state_vm, &delta_strain, 0, 0).unwrap();
         state_vm.strain.as_mut().unwrap().set_tensor(1.0, &delta_strain);
         states_vm.push(state_vm.clone());
 
+        // Update the state using the general implicit elastoplasticity model
+        let mut states_ep = vec![state0.clone()];
         let mut state_ep = state0.clone();
         ep.update_stress(&mut state_ep, &delta_strain, 0, 0).unwrap();
         state_ep.strain.as_mut().unwrap().set_tensor(1.0, &delta_strain);
         states_ep.push(state_ep.clone());
 
+        // Compare the states
         vec_approx_eq(state_vm.stress.vector(), state_ep.stress.vector(), 1e-14);
         approx_eq(state_vm.int_vars[0], state_ep.int_vars[0], 1e-14);
         approx_eq(state_vm.lambda_alg, state_ep.lambda_alg, 1e-14);
         assert!(state_vm.lambda_alg > 0.0);
 
+        // Compare the consistent tangent stiffness at the updated state
         let mut dd_vm = Tensor4::new(mandel);
-        vm.stiffness(&mut dd_vm, &state_vm, 0, 0).unwrap();
-
         let mut dd_ep = Tensor4::new(mandel);
+        vm.stiffness(&mut dd_vm, &state_vm, 0, 0).unwrap();
         ep.stiffness(&mut dd_ep, &state_ep, 0, 0).unwrap();
-
         mat_approx_eq(dd_vm.matrix(), dd_ep.matrix(), 1e-12);
     }
 }
