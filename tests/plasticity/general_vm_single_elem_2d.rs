@@ -8,7 +8,7 @@ use pmsim::StrError;
 use russell_lab::approx_eq;
 use russell_lab::math::SQRT_2_BY_3;
 
-// von Mises plasticity with a single-element (Using the general Elastoplastic model)
+// von Mises plasticity with a single-element (Using the general ElastoplasticExp model)
 //
 // This test runs a plane-strain compression of a single element represented
 // by the von Mises model.
@@ -67,7 +67,7 @@ const NGAUSS: usize = 1;
 const NSTAGE: usize = 5;
 
 #[test]
-fn test_von_mises_ep_single_element_2d() -> Result<(), StrError> {
+fn general_vm_single_elem_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
     let (_, max) = mesh.get_limits();
