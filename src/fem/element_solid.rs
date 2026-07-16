@@ -73,7 +73,7 @@ impl<'a> ElementSolid<'a> {
         let delta_strain = Tensor2::new(mandel);
 
         // enable the calculation of strains (not just the increment of strains)
-        let save_strain = settings.save_strain;
+        let save_strain = settings.save_strain();
 
         // local state backup
         let n_int_var = param.n_int_var();

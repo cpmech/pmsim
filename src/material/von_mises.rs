@@ -92,7 +92,7 @@ impl StressStrainTrait for VonMises {
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
         state.int_vars[0] = self.z_ini;
-        if !self.settings.gp_allow_initial_drift {
+        if !self.settings.gp_allow_initial_drift() {
             let f = self.calc_f(state)?;
             if f > 0.0 {
                 return Err("stress is outside the yield surface");
@@ -277,7 +277,7 @@ impl PlasticityTrait for VonMises {
     ///             ∂ε
     /// ```
     fn calc_dde(&self, dde: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
-        if self.settings.nle_enabled {
+        if self.settings.nle_enabled() {
             return Err("TODO: nonlinear elasticity");
         } else {
             dde.set_tensor(1.0, self.lin_elasticity.get_modulus());

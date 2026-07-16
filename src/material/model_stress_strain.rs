@@ -55,7 +55,7 @@ impl ModelStressStrain {
             StressStrain::CamClay { .. } => panic!("TODO: CamClay"),
             StressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
             StressStrain::VonMises { .. } => {
-                if settings.general_plasticity {
+                if settings.general_plasticity() {
                     Box::new(Elastoplastic::new(ideal, param, settings)?)
                 } else {
                     Box::new(VonMises::new(ideal, param, settings)?)

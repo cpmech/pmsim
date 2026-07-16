@@ -129,7 +129,7 @@ impl FemState {
             match elem_type {
                 ElemType::Diffusion(..) => {
                     has_diffusion = true;
-                    if config.model_settings(cell.marker).save_flux {
+                    if config.model_settings(cell.marker).save_flux() {
                         gauss[cell.id].allocate_diffusion(ngauss, mesh.ndim);
                     }
                 }

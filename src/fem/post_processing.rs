@@ -1419,7 +1419,7 @@ mod tests {
         config
             .out_files(ARTIFICIAL_DATA_FILES_DIR, name)
             .update_model_settings(1)
-            .save_flux = true;
+            .set_save_flux(true);
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config
@@ -1473,8 +1473,8 @@ mod tests {
         schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
         config.out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d");
-        config.update_model_settings(1).save_flux = true;
-        config.update_model_settings(2).save_flux = true;
+        config.update_model_settings(1).set_save_flux(true);
+        config.update_model_settings(2).set_save_flux(true);
 
         let (point_id, cell_id) = (10, 1);
         config
@@ -1544,7 +1544,7 @@ mod tests {
         config
             .out_files(ARTIFICIAL_DATA_FILES_DIR, name)
             .update_model_settings(1)
-            .save_strain = true;
+            .set_save_strain(true);
 
         let (point_id, cell_id) = if qua8 { (18, 2) } else { (3, 1) };
         config
@@ -1611,8 +1611,8 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_solid(1, p1).add_solid(2, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
-        config.update_model_settings(1).save_strain = true;
-        config.update_model_settings(2).save_strain = true;
+        config.update_model_settings(1).set_save_strain(true);
+        config.update_model_settings(2).set_save_strain(true);
 
         let (point_id, cell_id) = (10, 1);
         config

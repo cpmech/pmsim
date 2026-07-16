@@ -70,7 +70,7 @@ impl<'a> ElementDiffusion<'a> {
 
         // set a flag to output flux vectors (for post-processing)
         let settings = config.model_settings(mesh.cells[cell_id].marker);
-        let save_flux = settings.save_flux;
+        let save_flux = settings.save_flux();
 
         // auxiliary gradient tensor
         let grad_phi = Vector::new(ndim);
@@ -414,7 +414,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
         let mut config = Config::new(&mesh);
-        config.update_model_settings(1).save_flux = true;
+        config.update_model_settings(1).set_save_flux(true);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left

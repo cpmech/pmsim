@@ -697,7 +697,7 @@ mod tests {
             .update_model_settings(marker)
             .set_general_plasticity(true)
             .set_gp_interp_nn_max(20);
-        assert_eq!(config.model_settings(marker).general_plasticity, true);
+        assert_eq!(config.model_settings(marker).general_plasticity(), true);
     }
 
     #[test]

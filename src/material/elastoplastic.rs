@@ -67,7 +67,7 @@ impl<'a> DataExp<'a> {
     /// Allocate a new instance
     fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // Allocate the interpolant for the explicit update
-        let interp_nn_max = settings.gp_interp_nn_max;
+        let interp_nn_max = settings.gp_interp_nn_max();
         let interpolant = InterpChebyshev::new(interp_nn_max, 0.0, 1.0).unwrap();
 
         // Allocate interior stations for dense output (intersection finding)
@@ -89,7 +89,7 @@ impl<'a> DataExp<'a> {
         let ode_system_ep = System::new(args.ndim_ep, callback_ode_ep);
 
         // ODE solvers
-        let ode_param = Params::new(settings.gp_ode_method);
+        let ode_param = Params::new(settings.gp_ode_method());
         let ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
         let ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
         let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
@@ -104,7 +104,7 @@ impl<'a> DataExp<'a> {
         // Set function to record the stress-strain history
         let mut out_history_el = Output::new();
         let mut out_history_ep = Output::new();
-        let save_history = settings.gp_save_history;
+        let save_history = settings.gp_save_history();
         if save_history {
             let h_out = 1.0 / ((HISTORY_N_OUT - 1) as f64);
             out_history_el
@@ -209,7 +209,7 @@ impl<'a> Elastoplastic<'a> {
     
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
-        let (data_exp, data_imp) = if settings.gp_explicit_update {
+        let (data_exp, data_imp) = if settings.gp_explicit_update() {
             (Some(DataExp::new(ideal, param, settings)?), None)
         } else {
             (None, Some(DataImp::new(ideal, param, settings)?))
@@ -218,7 +218,7 @@ impl<'a> Elastoplastic<'a> {
         Ok(Elastoplastic {
             data_exp,
             data_imp,
-            explicit_update: settings.gp_explicit_update,
+            explicit_update: settings.gp_explicit_update(),
             verbose: false,
         })
     }
