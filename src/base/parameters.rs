@@ -1,4 +1,5 @@
-use super::{GnlStrain, NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES};
+use super::GnlStrain;
+use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_SOFT};
 use serde::{Deserialize, Serialize};
 
 /// Holds parameters for stress-strain relations (total or effective stress)
@@ -18,6 +19,27 @@ pub enum StressStrain {
 
     /// von Mises plasticity model
     VonMises {
+        /// Young's modulus
+        young: f64,
+
+        /// Poisson's coefficient
+        poisson: f64,
+
+        /// Hardening coefficient
+        hh: f64,
+
+        /// Initial size of the yield surface
+        ///
+        /// This value corresponds to the von Mises stress:
+        ///
+        /// ```text
+        /// f = σd - z
+        /// ```
+        z_ini: f64,
+    },
+
+    /// von Mises plasticity model with softening
+    VonMisesSoft {
         /// Young's modulus
         young: f64,
 
@@ -387,6 +409,7 @@ impl StressStrain {
         match self {
             Self::LinearElastic { .. } => NZ_LINEAR_ELASTIC,
             Self::VonMises { .. } => NZ_VON_MISES,
+            Self::VonMisesSoft { .. } => NZ_VON_MISES_SOFT,
             Self::DruckerPrager { .. } => NZ_DRUCKER_PRAGER,
             Self::CamClay { .. } => NZ_CAM_CLAY,
         }

@@ -67,6 +67,14 @@ impl ModelStressStrain {
                     Box::new(VonMises::new(ideal, param, settings)?)
                 }
             }
+            StressStrain::VonMisesSoft { .. } => {
+                // Only general plasticity available
+                if settings.gp_explicit_update() {
+                    Box::new(ElastoplasticExp::new(ideal, param, settings)?)
+                } else {
+                    Box::new(ElastoplasticImp::new(ideal, param, settings)?)
+                }
+            }
         };
         Ok(ModelStressStrain { actual })
     }

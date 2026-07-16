@@ -16,6 +16,7 @@ mod plotter_data;
 mod settings;
 mod testing;
 mod von_mises;
+mod von_mises_soft;
 
 pub use axis::*;
 pub use elastoplastic_explicit::ElastoplasticExp;
@@ -32,3 +33,4 @@ pub use plotter::*;
 pub use plotter_data::*;
 pub use settings::*;
 pub use von_mises::*;
+pub use von_mises_soft::*;
