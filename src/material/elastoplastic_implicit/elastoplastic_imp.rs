@@ -16,13 +16,13 @@ pub struct ElastoplasticImp {
     /// Vector of unknowns for the local Newton-Raphson solver
     ///
     /// x := [σ, z, λ]
-    x_newton: Vector,
+    x: Vector,
 
     /// Jacobian matrix for the local Newton-Raphson solver
-    jac_newton: Matrix,
+    jac: Matrix,
 
     /// Inverse Jacobian matrix for the consistent tangent stiffness
-    inv_jac_newton: Matrix,
+    inv_jac: Matrix,
 }
 
 impl ElastoplasticImp {
@@ -32,9 +32,9 @@ impl ElastoplasticImp {
         let ndim_nw = args.ncp + args.niv + 1;
         Ok(ElastoplasticImp {
             args,
-            x_newton: Vector::new(ndim_nw),
-            jac_newton: Matrix::new(ndim_nw, ndim_nw),
-            inv_jac_newton: Matrix::new(ndim_nw, ndim_nw),
+            x: Vector::new(ndim_nw),
+            jac: Matrix::new(ndim_nw, ndim_nw),
+            inv_jac: Matrix::new(ndim_nw, ndim_nw),
         })
     }
 }
@@ -72,17 +72,17 @@ impl StressStrainTrait for ElastoplasticImp {
         let nz = self.args.niv;
         let nsz = ns + nz;
         for i in 0..ns {
-            self.x_newton[i] = state.stress.vector()[i];
+            self.x[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            self.x_newton[ns + i] = state.int_vars[i];
+            self.x[ns + i] = state.int_vars[i];
         }
-        self.x_newton[nsz] = state.lambda_alg;
-        callback_jacobian(&mut self.jac_newton, &self.x_newton, &mut self.args)?;
-        mat_inverse(&mut self.inv_jac_newton, &self.jac_newton)?;
+        self.x[nsz] = state.lambda_alg;
+        callback_jacobian(&mut self.jac, &self.x, &mut self.args)?;
+        mat_inverse(&mut self.inv_jac, &self.jac)?;
         for i in 0..ns {
             for j in 0..ns {
-                dd.matrix_mut().set(i, j, self.inv_jac_newton.get(i, j));
+                dd.matrix_mut().set(i, j, self.inv_jac.get(i, j));
             }
         }
         Ok(())
@@ -118,22 +118,22 @@ impl StressStrainTrait for ElastoplasticImp {
         let nz = self.args.niv;
         let nsz = ns + nz;
         for i in 0..ns {
-            self.x_newton[i] = state.stress.vector()[i];
+            self.x[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            self.x_newton[ns + i] = state.int_vars[i];
+            self.x[ns + i] = state.int_vars[i];
         }
-        self.x_newton[nsz] = state.lambda_alg;
+        self.x[nsz] = state.lambda_alg;
         let ndim = ns + nz + 1;
         let mut newton = NewtonSolver::new(ndim)?;
-        newton.solve(&mut self.x_newton, &mut self.args, callback_residual, callback_jacobian)?;
+        newton.solve(&mut self.x, &mut self.args, callback_residual, callback_jacobian)?;
         for i in 0..ns {
-            state.stress.vector_mut()[i] = self.x_newton[i];
+            state.stress.vector_mut()[i] = self.x[i];
         }
         for i in 0..nz {
-            state.int_vars[i] = self.x_newton[ns + i];
+            state.int_vars[i] = self.x[ns + i];
         }
-        state.lambda_alg = self.x_newton[nsz];
+        state.lambda_alg = self.x[nsz];
         state.elastic = false;
         Ok(())
     }
