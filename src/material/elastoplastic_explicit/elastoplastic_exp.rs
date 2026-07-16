@@ -1,5 +1,5 @@
 use super::{callback_history_e, callback_history_ep, callback_intersect, callback_ode_e, callback_ode_ep};
-use super::{ArgsExp, Case};
+use super::{Args, Case};
 use super::{CHEBYSHEV_TOL, HISTORY_N_OUT, PSEUDO_TIME_TOL};
 use crate::base::{Idealization, StressStrain};
 use crate::material::{LocalState, PlotterData, Settings, StressStrainTrait};
@@ -12,16 +12,16 @@ use russell_tensor::{t2_ddot_t4_ddot_t2, Tensor2, Tensor4};
 /// Implements general elastoplasticity models using explicit stress update
 pub struct ElastoplasticExp<'a> {
     /// Holds the arguments for the explicit stress update algorithm
-    args: ArgsExp,
+    args: Args,
 
     /// Holds the solver for finding the yield surface intersection
-    ode_intersection: OdeSolver<'a, ArgsExp>,
+    ode_intersection: OdeSolver<'a, Args>,
 
     /// Holds the solver for the elastic update
-    ode_elastic: OdeSolver<'a, ArgsExp>,
+    ode_elastic: OdeSolver<'a, Args>,
 
     /// Holds the solver for the elastoplastic update
-    ode_elastoplastic: OdeSolver<'a, ArgsExp>,
+    ode_elastoplastic: OdeSolver<'a, Args>,
 
     /// Holds the ODE vector of unknowns for elastic case
     ode_y_e: Vector,
@@ -30,13 +30,13 @@ pub struct ElastoplasticExp<'a> {
     ode_y_ep: Vector,
 
     /// Holds the output during the intersection finding
-    out_intersection: Output<'a, ArgsExp>,
+    out_intersection: Output<'a, Args>,
 
     /// Holds the output during the elastic path
-    out_history_el: Output<'a, ArgsExp>,
+    out_history_el: Output<'a, Args>,
 
     /// Holds the output during the elastoplastic path
-    out_history_ep: Output<'a, ArgsExp>,
+    out_history_ep: Output<'a, Args>,
 
     /// Holds the interpolant for finding the yield surface intersection
     interpolant: InterpChebyshev,
@@ -71,7 +71,7 @@ impl<'a> ElastoplasticExp<'a> {
         });
 
         // Allocate the arguments for the explicit stress update algorithm
-        let args = ArgsExp::new(ideal, param, settings, interp_npoint)?;
+        let args = Args::new(ideal, param, settings, interp_npoint)?;
 
         // Allocate the ODE systems
         let ode_system_e = System::new(args.ndim_e, callback_ode_e);

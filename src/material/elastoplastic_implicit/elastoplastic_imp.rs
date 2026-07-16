@@ -1,4 +1,4 @@
-use super::ArgsImp;
+use super::Args;
 use super::{callback_jacobian, callback_residual};
 use crate::base::{Idealization, StressStrain};
 use crate::material::von_mises::F_TOL;
@@ -11,7 +11,7 @@ use russell_tensor::{t4_ddot_t2_update, Tensor2, Tensor4};
 /// Implements general elastoplasticity models using implicit stress update
 pub struct ElastoplasticImp {
     /// Holds the arguments for the implicit stress update algorithm
-    args: ArgsImp,
+    args: Args,
 
     /// Vector of unknowns for the local Newton-Raphson solver
     ///
@@ -28,7 +28,7 @@ pub struct ElastoplasticImp {
 impl ElastoplasticImp {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
-        let args = ArgsImp::new(ideal, param, settings)?;
+        let args = Args::new(ideal, param, settings)?;
         let ndim_nw = args.ncp + args.niv + 1;
         Ok(ElastoplasticImp {
             args,

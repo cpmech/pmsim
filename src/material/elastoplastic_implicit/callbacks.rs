@@ -1,11 +1,11 @@
-use super::ArgsImp;
+use super::Args;
 use crate::StrError;
 use russell_lab::{Matrix, Vector};
 
 /// Calculates the residual of the local nonlinear problem for the implicit elastoplastic model.
 ///
 /// Nonlinear problem: y(x) = {re, rz, rf} = 0 with x = {σ, z, λ}
-pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut ArgsImp) -> Result<(), StrError> {
+pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut Args) -> Result<(), StrError> {
     // Set some constants
     let ns = a.ncp; // number of stress components
     let nz = a.niv; // number of internal variables
@@ -52,7 +52,7 @@ pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut ArgsImp) -> 
 }
 
 /// Calculates the Jacobian of the local nonlinear problem for the implicit elastoplastic model.
-pub(super) fn callback_jacobian(jac: &mut Matrix, x: &Vector, a: &mut ArgsImp) -> Result<(), StrError> {
+pub(super) fn callback_jacobian(jac: &mut Matrix, x: &Vector, a: &mut Args) -> Result<(), StrError> {
     // Set some constants
     let ns = a.ncp; // number of stress components
     let nz = a.niv; // number of internal variables
@@ -137,7 +137,7 @@ pub(super) fn callback_jacobian(jac: &mut Matrix, x: &Vector, a: &mut ArgsImp) -
 
 #[cfg(test)]
 mod tests {
-    use super::{callback_jacobian, callback_residual, ArgsImp};
+    use super::{callback_jacobian, callback_residual, Args};
     use crate::base::{Idealization, StressStrain};
     use crate::material::{LocalState, Settings};
     use russell_lab::math::{SQRT_2_BY_3, SQRT_3};
@@ -179,7 +179,7 @@ mod tests {
             z_ini: Z_INI,
         };
         let settings = Settings::new();
-        let mut args = ArgsImp::new(&ideal, &param, &settings).unwrap();
+        let mut args = Args::new(&ideal, &param, &settings).unwrap();
 
         // Check the initial yield function value
         let f = args.model.calc_f(&state).unwrap();

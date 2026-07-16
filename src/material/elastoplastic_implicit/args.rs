@@ -5,7 +5,7 @@ use russell_lab::{Matrix, Vector};
 use russell_tensor::{Mandel, Tensor2, Tensor4};
 
 /// Collects arguments for functions dealing with the implicit elastoplastic stress update
-pub(super) struct ArgsImp {
+pub(super) struct Args {
     /// Holds the number of stress components
     pub(super) ncp: usize,
 
@@ -109,7 +109,7 @@ pub(super) struct ArgsImp {
     pub(super) hhz: Matrix,
 }
 
-impl ArgsImp {
+impl Args {
     /// Allocates a new instance
     pub(super) fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // Allocate the plasticity model
@@ -128,7 +128,7 @@ impl ArgsImp {
         let ncp = mandel.dim(); // number of stress components
         let niv = model.n_int_vars(); // total number of internal variables
 
-        Ok(ArgsImp {
+        Ok(Args {
             ncp,
             niv,
             state: LocalState::new(mandel, niv),
@@ -154,7 +154,7 @@ impl ArgsImp {
 
 #[cfg(test)]
 mod tests {
-    use super::ArgsImp;
+    use super::Args;
     use crate::base::{Idealization, StressStrain};
     use crate::material::{von_mises::F_TOL, Settings};
     use russell_tensor::Mandel;
@@ -164,7 +164,7 @@ mod tests {
         let ideal = Idealization::new(2);
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
-        let args = ArgsImp::new(&ideal, &param, &settings).unwrap();
+        let args = Args::new(&ideal, &param, &settings).unwrap();
         assert_eq!(args.ncp, 4);
         assert_eq!(args.niv, 1);
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric2D);
@@ -191,7 +191,7 @@ mod tests {
         let ideal = Idealization::new(3);
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
-        let args = ArgsImp::new(&ideal, &param, &settings).unwrap();
+        let args = Args::new(&ideal, &param, &settings).unwrap();
         assert_eq!(args.ncp, 6);
         assert_eq!(args.niv, 1);
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric);
@@ -222,7 +222,7 @@ mod tests {
             young: 1500.0,
             poisson: 0.25,
         };
-        assert!(ArgsImp::new(&ideal, &param, &settings).is_err());
+        assert!(Args::new(&ideal, &param, &settings).is_err());
 
         let param = StressStrain::DruckerPrager {
             young: 1500.0,
@@ -231,14 +231,14 @@ mod tests {
             phi: 0.5,
             hh: 800.0,
         };
-        assert!(ArgsImp::new(&ideal, &param, &settings).is_err());
+        assert!(Args::new(&ideal, &param, &settings).is_err());
 
         let param = StressStrain::CamClay {
             mm: 0.5,
             lambda: 0.1,
             kappa: 0.01,
         };
-        assert!(ArgsImp::new(&ideal, &param, &settings).is_err());
+        assert!(Args::new(&ideal, &param, &settings).is_err());
     }
 
     #[test]
@@ -251,7 +251,7 @@ mod tests {
             z_ini: F_TOL,
         };
         let settings = Settings::new();
-        assert!(ArgsImp::new(&ideal, &param, &settings).is_err());
+        assert!(Args::new(&ideal, &param, &settings).is_err());
     }
 
     #[test]
@@ -259,7 +259,7 @@ mod tests {
         let ideal = Idealization::new(2);
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
-        let mut args = ArgsImp::new(&ideal, &param, &settings).unwrap();
+        let mut args = Args::new(&ideal, &param, &settings).unwrap();
 
         assert_eq!(args.fz[0], 0.0);
         assert_eq!(args.h[0], 0.0);

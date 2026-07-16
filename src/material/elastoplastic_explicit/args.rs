@@ -5,7 +5,7 @@ use russell_lab::Vector;
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Collects arguments for functions dealing with the explicit elastoplastic stress update
-pub(super) struct ArgsExp {
+pub(super) struct Args {
     /// Holds the dimension of the elastic ODE system
     pub(super) ndim_e: usize,
 
@@ -82,7 +82,7 @@ pub(super) struct ArgsExp {
     pub(super) history_eep: Option<PlotterData>,
 }
 
-impl ArgsExp {
+impl Args {
     /// Allocates a new instance
     pub(super) fn new(
         ideal: &Idealization,
@@ -103,7 +103,7 @@ impl ArgsExp {
         let ndim_e = ncp; // dimension of the elastic ODE system
         let ndim_ep = ndim_e + niv; // dimension of the elastoplastic ODE system
 
-        Ok(ArgsExp {
+        Ok(Args {
             ndim_e,
             ndim_ep,
             state: LocalState::new(mandel, niv),
@@ -129,7 +129,7 @@ impl ArgsExp {
 
 #[cfg(test)]
 mod tests {
-    use super::ArgsExp;
+    use super::Args;
     use crate::base::{Idealization, StressStrain};
     use crate::material::{von_mises::F_TOL, Settings};
     use russell_tensor::Mandel;
@@ -140,7 +140,7 @@ mod tests {
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let interp_npoint = 3;
-        let args = ArgsExp::new(&ideal, &param, &settings, interp_npoint).unwrap();
+        let args = Args::new(&ideal, &param, &settings, interp_npoint).unwrap();
         assert_eq!(args.ndim_e, 4);
         assert_eq!(args.ndim_ep, 5);
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric2D);
@@ -165,7 +165,7 @@ mod tests {
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let interp_npoint = 5;
-        let args = ArgsExp::new(&ideal, &param, &settings, interp_npoint).unwrap();
+        let args = Args::new(&ideal, &param, &settings, interp_npoint).unwrap();
         assert_eq!(args.ndim_e, 6);
         assert_eq!(args.ndim_ep, 7);
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric);
@@ -193,7 +193,7 @@ mod tests {
             young: 1500.0,
             poisson: 0.25,
         };
-        assert!(ArgsExp::new(&ideal, &param, &settings, 3).is_err());
+        assert!(Args::new(&ideal, &param, &settings, 3).is_err());
 
         let param = StressStrain::DruckerPrager {
             young: 1500.0,
@@ -202,14 +202,14 @@ mod tests {
             phi: 0.5,
             hh: 800.0,
         };
-        assert!(ArgsExp::new(&ideal, &param, &settings, 3).is_err());
+        assert!(Args::new(&ideal, &param, &settings, 3).is_err());
 
         let param = StressStrain::CamClay {
             mm: 0.5,
             lambda: 0.1,
             kappa: 0.01,
         };
-        assert!(ArgsExp::new(&ideal, &param, &settings, 3).is_err());
+        assert!(Args::new(&ideal, &param, &settings, 3).is_err());
     }
 
     #[test]
@@ -222,7 +222,7 @@ mod tests {
             z_ini: F_TOL,
         };
         let settings = Settings::new();
-        assert!(ArgsExp::new(&ideal, &param, &settings, 3).is_err());
+        assert!(Args::new(&ideal, &param, &settings, 3).is_err());
     }
 
     #[test]
@@ -231,7 +231,7 @@ mod tests {
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         for interp_npoint in [0, 1, 5] {
-            let args = ArgsExp::new(&ideal, &param, &settings, interp_npoint).unwrap();
+            let args = Args::new(&ideal, &param, &settings, interp_npoint).unwrap();
             assert_eq!(args.yf_values.dim(), interp_npoint);
         }
     }
@@ -241,7 +241,7 @@ mod tests {
         let ideal = Idealization::new(2);
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
-        let mut args = ArgsExp::new(&ideal, &param, &settings, 3).unwrap();
+        let mut args = Args::new(&ideal, &param, &settings, 3).unwrap();
 
         // all internal-var vectors start with zero entries
         assert_eq!(args.dz_dt[0], 0.0);
