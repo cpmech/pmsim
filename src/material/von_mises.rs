@@ -1,4 +1,4 @@
-use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait, F_TOL};
+use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
 use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use gemlab::mesh::CellId;
@@ -6,6 +6,9 @@ use russell_lab::{Matrix, Vector};
 use russell_tensor::{deriv1_invariant_q, deriv2_invariant_q, AuxDeriv2InvariantSigmaT};
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
+
+/// Tolerance to detect elastic regime
+pub(crate) const F_TOL: f64 = 1e-6;
 
 /// Defines an alias to IDENTITY2
 const I: &[f64; 9] = &IDENTITY2;

@@ -1,6 +1,6 @@
 use pmsim::base::{Idealization, StressStrain};
 use pmsim::material::{Axis, Plotter, PlotterData, Settings, StressStrainTrait, VonMises};
-use pmsim::material::{Elastoplastic, LinearElastic, LocalState};
+use pmsim::material::{ElastoplasticExp, LinearElastic, LocalState};
 use pmsim::util::elastic_increments_oct;
 use pmsim::StrError;
 use russell_lab::math::PI;
@@ -40,8 +40,8 @@ fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
     settings.set_gp_explicit_update(true).set_gp_save_history(true);
     let elast = LinearElastic::new(&ideal, &param_el, &settings)?;
     let direct = VonMises::new(&ideal, &param_vm, &settings)?;
-    let general = Elastoplastic::new(&ideal, &param_vm, &settings)?;
-    let mut general_full = Elastoplastic::new(&ideal, &param_vm, &settings)?;
+    let general = ElastoplasticExp::new(&ideal, &param_vm, &settings)?;
+    let mut general_full = ElastoplasticExp::new(&ideal, &param_vm, &settings)?;
     let mut box_elast: Box<dyn StressStrainTrait> = Box::new(elast);
     let mut box_direct: Box<dyn StressStrainTrait> = Box::new(direct);
     let mut box_general: Box<dyn StressStrainTrait> = Box::new(general);
@@ -136,7 +136,7 @@ fn do_plot(
     states_elast: &Vec<LocalState>,
     states_direct: &Vec<LocalState>,
     states_general: &Vec<LocalState>,
-    general_full: &Elastoplastic,
+    general_full: &ElastoplasticExp,
 ) -> Result<(), StrError> {
     // constants
     let n = states_elast.len();

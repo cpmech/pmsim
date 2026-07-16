@@ -1,4 +1,4 @@
-use super::{Elastoplastic, LinearElastic, LocalState, Settings, VonMises};
+use super::{ElastoplasticExp, ElastoplasticImp, LinearElastic, LocalState, Settings, VonMises};
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
 use gemlab::mesh::CellId;
@@ -56,7 +56,11 @@ impl ModelStressStrain {
             StressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
             StressStrain::VonMises { .. } => {
                 if settings.general_plasticity() {
-                    Box::new(Elastoplastic::new(ideal, param, settings)?)
+                    if settings.gp_explicit_update() {
+                        Box::new(ElastoplasticExp::new(ideal, param, settings)?)
+                    } else {
+                        Box::new(ElastoplasticImp::new(ideal, param, settings)?)
+                    }
                 } else {
                     Box::new(VonMises::new(ideal, param, settings)?)
                 }

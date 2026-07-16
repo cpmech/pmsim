@@ -1,10 +1,8 @@
 //! Implements material models
 
 mod axis;
-mod constants;
-mod elastoplastic;
-mod elastoplastic_explicit;
-mod elastoplastic_implicit;
+pub mod elastoplastic_explicit;
+pub mod elastoplastic_implicit;
 mod linear_elastic;
 mod loading_path;
 mod local_state;
@@ -20,10 +18,8 @@ mod testing;
 mod von_mises;
 
 pub use axis::*;
-pub(super) use constants::*;
-pub use elastoplastic::*;
-pub(super) use elastoplastic_explicit::*;
-pub(super) use elastoplastic_implicit::*;
+pub use elastoplastic_explicit::ElastoplasticExp;
+pub use elastoplastic_implicit::ElastoplasticImp;
 pub use linear_elastic::*;
 pub use loading_path::*;
 pub use local_state::*;

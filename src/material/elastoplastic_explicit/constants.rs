@@ -1,6 +1,3 @@
-/// Tolerance to detect elastic regime
-pub(super) const F_TOL: f64 = 1e-6;
-
 /// Indicates that the simulation should not stop
 pub(super) const KEEP_RUNNING: bool = false;
 
