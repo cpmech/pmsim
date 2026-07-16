@@ -36,7 +36,7 @@ use russell_lab::Vector;
 // Constant conductivity kx = ky = 1
 // Coefficient ρ = 1
 
-const NAME: &str = "test_heat_lewis_transient_1d";
+const NAME: &str = "lewis_transient_1d";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 
@@ -81,7 +81,7 @@ fn lewis_transient_1d() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .set_out_files("/tmp/pmsim", NAME, 1.0)
+        .set_out_files("/tmp/pmsim/heat", NAME, 1.0)
         .set_transient()
         .set_ddt(0.1)
         .set_t_fin(T_FIN);
@@ -120,7 +120,7 @@ fn do_plot() -> Result<(), StrError> {
     let tt_ana = xx_ana.get_mapped(|x| analytical(T_FIN, x));
 
     // get temperature values along x
-    let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
+    let (post, _) = PostProc::new("/tmp/pmsim/heat", NAME)?;
     let features = Features::new(post.mesh(), false);
     let state = post.read_state(post.nstate() - 1)?;
     let (_, xx_num, tt_num) = post.values_along_x(&features, &state, Dof::Phi, 0.0, |x| x[0] <= 2.0)?;
@@ -140,7 +140,7 @@ fn do_plot() -> Result<(), StrError> {
     plot.grid_and_labels("x", "T")
         .set_yrange(0.0, 1.2)
         .legend()
-        .save(&format!("/tmp/pmsim/{}.svg", NAME))
+        .save(&format!("/tmp/pmsim/heat/{}.svg", NAME))
 }
 
 /// Generate or read mesh
@@ -158,11 +158,11 @@ fn generate_or_read_mesh(generate: bool) -> Mesh {
             .show_cell_marker(false)
             .set_range_2d(-1.0, 21.0, -0.5, 1.5)
             .set_size(600.0, 100.0)
-            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .all(&mesh, &format!("/tmp/pmsim/heat/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh
-        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
+        mesh.write(&format!("/tmp/pmsim/heat/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh

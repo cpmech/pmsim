@@ -40,7 +40,7 @@ use russell_lab::approx_eq;
 // The temperature at the right T = 0 (T_inf) must be zero in order to
 // result in k(T_inf) = kᵣ as required by the analytical solution.
 
-const NAME: &str = "test_heat_arpaci_nonlinear_1d";
+const NAME: &str = "arpaci_nonlinear_1d";
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
 
@@ -105,7 +105,7 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
 
     // configuration
     let mut config = Config::new(&mesh);
-    config.lagrange_mult_method(false).out_files("/tmp/pmsim", NAME);
+    config.lagrange_mult_method(false).out_files("/tmp/pmsim/heat", NAME);
 
     // nonlinear solver configuration
 
@@ -144,7 +144,7 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
 
 fn do_plot() -> Result<(), StrError> {
     // get temperature values along x
-    let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
+    let (post, _) = PostProc::new("/tmp/pmsim/heat", NAME)?;
     let features = Features::new(post.mesh(), false);
     let state = post.read_file(post.nfile() - 1)?;
     let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;
@@ -169,7 +169,7 @@ fn do_plot() -> Result<(), StrError> {
     plot.set_title(format!("$\\beta\\;s\\;L^2\\;/\\;(2\\;k_r)$ = {:.2}", COEF).as_str())
         .grid_and_labels("$x\\;/\\;L$", "$2\\,k_r\\,T\\;/\\;(s\\,L^2)$")
         .legend()
-        .save(&format!("/tmp/pmsim/{}.svg", NAME))
+        .save(&format!("/tmp/pmsim/heat/{}.svg", NAME))
 }
 
 /// Generate or read mesh
@@ -184,11 +184,11 @@ fn generate_or_read_mesh(ll: f64, generate: bool) -> Mesh {
         let mut draw = Draw::new();
         draw.show_point_ids(true)
             .show_cell_ids(true)
-            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .all(&mesh, &format!("/tmp/pmsim/heat/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh
-        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
+        mesh.write(&format!("/tmp/pmsim/heat/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh

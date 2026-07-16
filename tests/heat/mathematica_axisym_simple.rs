@@ -35,7 +35,7 @@ use pmsim::{prelude::*, StrError};
 // No source
 // Constant conductivity kx = ky = 10.0
 
-const NAME: &str = "test_heat_mathematica_axisym_simple";
+const NAME: &str = "mathematica_axisym_simple";
 const GENERATE_MESH: bool = false;
 
 #[test]
@@ -106,11 +106,11 @@ fn generate_or_read_mesh(rin: f64, rout: f64, h: f64, generate: bool) -> Mesh {
             .show_cell_ids(true)
             .set_range_2d(0.95, 2.05, -0.05, 0.15)
             .set_size(600.0, 100.0)
-            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .all(&mesh, &format!("/tmp/pmsim/heat/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh
-        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
+        mesh.write(&format!("/tmp/pmsim/heat/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh

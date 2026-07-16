@@ -6,9 +6,9 @@ use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Norm, Vector};
 
-const DIR: &str = "/tmp/pmsim/spo_755";
+const DIR: &str = "/tmp/pmsim/spo/spo_755";
 const MESH_NAME: &str = "spo_755_tensile";
-const NAME: &str = "spo_755_tensile_perf_plast";
+const NAME: &str = "spo_755_tensile";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 const SAVE_FIGURE: bool = false;

@@ -33,7 +33,7 @@ use pmsim::StrError;
 // Axisymmetric
 // NOTE: using 4 integration points because it gives better results with Qua8
 
-const NAME: &str = "test_solid_felippa_thick_cylinder_axisym";
+const NAME: &str = "felippa_thick_cylinder_axisym";
 const GENERATE_MESH: bool = false;
 
 #[test]
@@ -114,11 +114,11 @@ fn generate_or_read_mesh(rin: f64, rout: f64, thickness: f64, generate: bool) ->
         let mut draw = Draw::new();
         draw.show_point_ids(true)
             .show_cell_ids(true)
-            .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+            .all(&mesh, &format!("/tmp/pmsim/elasticity/mesh_{}.svg", NAME))
             .unwrap();
 
         // write mesh
-        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
+        mesh.write(&format!("/tmp/pmsim/elasticity/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh

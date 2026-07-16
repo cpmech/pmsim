@@ -4,8 +4,8 @@ use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::{approx_eq, vec_inner, Vector};
 
-const OUT_DIR: &str = "/tmp/pmsim";
-const NAME: &str = "test_seep_simple_confined_flow_2d";
+const OUT_DIR: &str = "/tmp/pmsim/seepage";
+const NAME: &str = "simple_confined_flow";
 const SAVE_FIGURE: bool = false;
 
 #[test]

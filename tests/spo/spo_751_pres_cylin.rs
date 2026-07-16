@@ -34,7 +34,7 @@ use russell_lab::{approx_eq, read_data, Vector};
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const DIR: &str = "/tmp/pmsim/spo_751";
+const DIR: &str = "/tmp/pmsim/spo/spo_751";
 const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual";

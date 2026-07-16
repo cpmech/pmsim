@@ -52,7 +52,7 @@ use russell_lab::math::SQRT_2_BY_3;
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const NAME: &str = "test_von_mises_ep_single_element_2d";
+const NAME: &str = "general_vm_single_elem_2d";
 const SAVE_FIGURE: bool = true;
 
 // constants
@@ -110,7 +110,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
     config
         .out_history_uu_comp(corner, Dof::Uy)
         .out_history_yy_comp(corner, Dof::Uy)
-        .out_files("/tmp/pmsim", NAME)
+        .out_files("/tmp/pmsim/plasticity", NAME)
         .enable_symmetry_check(1e-13)
         .out_history_local_state(0)
         .update_model_settings(1)
@@ -130,7 +130,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
     sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.1), ddl)?;
 
     // check the results
-    let (post, _) = PostProc::new("/tmp/pmsim", NAME)?;
+    let (post, _) = PostProc::new("/tmp/pmsim/plasticity", NAME)?;
     let lambdas = post.stations();
     let ss = post.history_local_state(0).unwrap();
     for i in 0..lambdas.len() {
@@ -170,7 +170,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         &mesh,
         &schema,
         &config,
-        "/tmp/pmsim/",
+        "/tmp/pmsim/plasticity/",
         NAME,
         ReferenceDataType::SPO,
         "data/spo/spo_von_mises_single_element.json",
@@ -194,7 +194,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
             .add(&curve)
             .grid_and_labels("uy", "fy")
             .set_range(-0.035, 0.0, -13.5, 0.0)
-            .save(&format!("/tmp/pmsim/{}_disp.svg", NAME))?;
+            .save(&format!("/tmp/pmsim/plasticity/{}_disp.svg", NAME))?;
 
         // stress-strain data
         let ss = post.history_local_state(0).unwrap();
@@ -217,7 +217,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         plotter.add_2x2(&data, false, |curve, _, _| {
             curve.set_marker_style(".");
         })?;
-        plotter.save(&format!("/tmp/pmsim/{}.svg", NAME))?;
+        plotter.save(&format!("/tmp/pmsim/plasticity/{}.svg", NAME))?;
     }
     Ok(())
 }

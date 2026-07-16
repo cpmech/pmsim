@@ -6,7 +6,7 @@ use pmsim::StrError;
 use russell_lab::approx_eq;
 use std::fmt::Write;
 
-const NAME: &str = "test_durand_farias_example4";
+const NAME: &str = "durand_farias_example4";
 const KIND: GeoKind = GeoKind::Qua4;
 const GENERATE_MESH: bool = false;
 const SAVE_FIGURE: bool = false;
@@ -61,7 +61,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     let key = if lmm { "_lmm" } else { "_sps" };
     let name = &format!("{}{}", NAME, key);
     let mut config = Config::new(&mesh);
-    config.lagrange_mult_method(lmm).out_files("/tmp/pmsim", name);
+    config.lagrange_mult_method(lmm).out_files("/tmp/pmsim/extrapolation", name);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
@@ -72,7 +72,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     //
 
     // results
-    let (post, mut memo) = PostProc::new("/tmp/pmsim", name)?;
+    let (post, mut memo) = PostProc::new("/tmp/pmsim/extrapolation", name)?;
 
     // features
     let left = features.search_edges(At::X(0.0), any_x)?;
@@ -167,7 +167,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
             .add(&curve_nodal)
             .grid_labels_legend("Normalized stress: $-\\sigma_v/q_n$", "Normalized length: $y/B$");
 
-        plot.save(&format!("/tmp/pmsim/{}_{}.svg", name, KIND.to_string()))?;
+        plot.save(&format!("/tmp/pmsim/extrapolation/{}_{}.svg", name, KIND.to_string()))?;
     }
     Ok(())
 }
@@ -200,11 +200,11 @@ fn generate_or_read_mesh(att: i32, generate: bool) -> Mesh {
         draw.show_point_ids(true)
             .show_cell_ids(true)
             .set_size(1000.0, 1000.0)
-            .all(&mesh, &format!("/tmp/pmsim/mesh_{}_{}.svg", NAME, k_str))
+            .all(&mesh, &format!("/tmp/pmsim/extrapolation/mesh_{}_{}.svg", NAME, k_str))
             .unwrap();
 
         // write mesh
-        mesh.write(&format!("/tmp/pmsim/{}_{}.msh", NAME, k_str)).unwrap();
+        mesh.write(&format!("/tmp/pmsim/extrapolation/{}_{}.msh", NAME, k_str)).unwrap();
 
         // return mesh
         mesh

@@ -45,7 +45,7 @@ use russell_lab::{vec_approx_eq, Matrix};
 // Plane-strain
 // NOTE: using 9 integration points
 
-const NAME: &str = "test_solid_smith_5d17_qua4_axisym";
+const NAME: &str = "smith_5d17_qua4_axisym";
 const VERBOSE_LEVEL: usize = 0;
 
 #[test]
@@ -95,7 +95,7 @@ fn smith_5d17_qua4_axisym() -> Result<(), StrError> {
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .out_files("/tmp/pmsim", NAME)
+        .out_files("/tmp/pmsim/elasticity", NAME)
         .alt_bb_matrix_method(true)
         .axisymmetric();
 
@@ -144,7 +144,7 @@ fn smith_5d17_qua4_axisym() -> Result<(), StrError> {
         &mesh,
         &schema,
         &config,
-        "/tmp/pmsim",
+        "/tmp/pmsim/elasticity",
         NAME,
         ReferenceDataType::SGM,
         "data/sgm/sgm_5d17_ref.json",

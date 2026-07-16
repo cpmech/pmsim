@@ -6,7 +6,7 @@ use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Vector};
 
-const DIR: &str = "/tmp/pmsim/spo_754";
+const DIR: &str = "/tmp/pmsim/spo/spo_754";
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;

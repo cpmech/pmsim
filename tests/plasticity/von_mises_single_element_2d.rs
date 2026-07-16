@@ -52,7 +52,7 @@ use russell_lab::math::SQRT_2_BY_3;
 // 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
 //    Theory and applications, Wiley, 791p
 
-const NAME: &str = "test_von_mises_single_element_2d";
+const NAME: &str = "von_mises_single_element_2d";
 const SAVE_FIGURE: bool = false;
 
 // constants
@@ -146,7 +146,7 @@ fn run_test(
     config
         .out_history_uu_comp(corner, Dof::Uy)
         .out_history_yy_comp(corner, Dof::Uy)
-        .out_files("/tmp/pmsim", &name)
+        .out_files("/tmp/pmsim/plasticity", &name)
         .lagrange_mult_method(options.lmm)
         .enable_symmetry_check(1e-13)
         .out_history_local_state(0)
@@ -177,7 +177,7 @@ fn run_test(
     }
 
     // check the results
-    let (post, _) = PostProc::new("/tmp/pmsim", &name)?;
+    let (post, _) = PostProc::new("/tmp/pmsim/plasticity", &name)?;
     let lambdas = post.stations();
     let ss = post.history_local_state(0).unwrap();
     if !options.arclength {
@@ -218,7 +218,7 @@ fn run_test(
             &mesh,
             &schema,
             &config,
-            "/tmp/pmsim/",
+            "/tmp/pmsim/plasticity/",
             &name,
             ReferenceDataType::SPO,
             "data/spo/spo_von_mises_single_element.json",
@@ -244,7 +244,7 @@ fn run_test(
             .set_title(&options.title())
             .grid_and_labels("uy", "fy")
             .set_range(-0.035, 0.0, -13.5, 0.0)
-            .save(&format!("/tmp/pmsim/{}_disp.svg", name))?;
+            .save(&format!("/tmp/pmsim/plasticity/{}_disp.svg", name))?;
 
         // stress-strain data
         let ss = post.history_local_state(0).unwrap();
@@ -270,7 +270,7 @@ fn run_test(
         plotter.add_2x2(&data, false, |curve, _, _| {
             curve.set_marker_style(".");
         })?;
-        plotter.save(&format!("/tmp/pmsim/{}.svg", name))?;
+        plotter.save(&format!("/tmp/pmsim/plasticity/{}.svg", name))?;
     }
     Ok(())
 }

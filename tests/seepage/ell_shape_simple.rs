@@ -9,8 +9,8 @@ use russell_lab::vec_inner;
 use russell_lab::Vector;
 use tritet::Trigen;
 
-const OUT_DIR: &str = "/tmp/pmsim";
-const NAME: &str = "test_seep_ell_shape_simple";
+const OUT_DIR: &str = "/tmp/pmsim/seepage";
+const NAME: &str = "ell_shape_simple";
 const RENUMBER_POINTS: bool = false;
 const DRAW_TRIANGLES: bool = false;
 const DRAW_MESH: bool = false;

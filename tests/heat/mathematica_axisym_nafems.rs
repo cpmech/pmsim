@@ -53,7 +53,7 @@ use pmsim::{prelude::*, StrError};
 // No source
 // Constant conductivity kx = ky = 52
 
-const NAME: &str = "test_heat_mathematica_axisym_nafems";
+const NAME: &str = "mathematica_axisym_nafems";
 const GENERATE_MESH: bool = false;
 const REF_POINT_MARKER: PointMarker = -1;
 
@@ -152,11 +152,11 @@ fn generate_or_read_mesh(rin: f64, rref: f64, rout: f64, ya: f64, yb: f64, h: f6
                 plot.add(&circle);
             }
         })
-        .all(&mesh, &format!("/tmp/pmsim/mesh_{}.svg", NAME))
+        .all(&mesh, &format!("/tmp/pmsim/heat/mesh_{}.svg", NAME))
         .unwrap();
 
         // write mesh
-        mesh.write(&format!("/tmp/pmsim/{}.msh", NAME)).unwrap();
+        mesh.write(&format!("/tmp/pmsim/heat/{}.msh", NAME)).unwrap();
         mesh
     } else {
         // read mesh

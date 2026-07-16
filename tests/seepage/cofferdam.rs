@@ -5,8 +5,8 @@ use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::{approx_eq, vec_inner, Vector};
 
-const OUT_DIR: &str = "/tmp/pmsim";
-const NAME: &str = "test_seep_cofferdam";
+const OUT_DIR: &str = "/tmp/pmsim/seepage";
+const NAME: &str = "cofferdam";
 const SAVE_FIGURE: bool = false;
 
 fn draw_mesh(mesh: &Mesh, input: bool, tri: bool) -> Result<(), StrError> {

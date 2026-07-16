@@ -7,7 +7,7 @@ use pmsim::StrError;
 use russell_lab::base::read_data;
 use russell_lab::Vector;
 
-const DIR: &str = "/tmp/pmsim/spo_753";
+const DIR: &str = "/tmp/pmsim/spo/spo_753";
 const NAME: &str = "spo_753_circ_plate";
 const DRAW_MESH_AND_EXIT: bool = false;
 const SAVE_FIGURE: bool = false;
