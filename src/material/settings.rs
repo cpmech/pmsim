@@ -192,3 +192,155 @@ impl Settings {
         self.gp_save_history
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::Settings;
+    use russell_ode::Method;
+
+    #[test]
+    fn new_returns_defaults() {
+        let s = Settings::new();
+        assert!(!s.save_flux());
+        assert!(!s.save_strain());
+        assert!(!s.nle_enabled());
+        assert_eq!(s.nle_beta(), 0.0);
+        assert!(!s.nle_isotropic());
+        assert!(!s.general_plasticity());
+        assert!(!s.gp_explicit_update());
+        assert_eq!(s.gp_ode_method(), Method::DoPri8);
+        assert_eq!(s.gp_interp_nn_max(), 30);
+        assert!(!s.gp_allow_initial_drift());
+        assert!(!s.gp_save_history());
+        assert!(s.validate().is_none());
+    }
+
+    #[test]
+    fn setter_and_getter_bools_work() {
+        let mut s = Settings::new();
+
+        s.set_save_flux(true);
+        assert!(s.save_flux());
+        s.set_save_flux(false);
+        assert!(!s.save_flux());
+
+        s.set_save_strain(true);
+        assert!(s.save_strain());
+
+        s.set_nle_enabled(true);
+        assert!(s.nle_enabled());
+
+        s.set_nle_isotropic(true);
+        assert!(s.nle_isotropic());
+
+        s.set_general_plasticity(true);
+        assert!(s.general_plasticity());
+
+        s.set_gp_explicit_update(true);
+        assert!(s.gp_explicit_update());
+
+        s.set_gp_allow_initial_drift(true);
+        assert!(s.gp_allow_initial_drift());
+
+        s.set_gp_save_history(true);
+        assert!(s.gp_save_history());
+    }
+
+    #[test]
+    fn setter_and_getter_nle_beta_works() {
+        let mut s = Settings::new();
+        s.set_nle_beta(1.5);
+        assert_eq!(s.nle_beta(), 1.5);
+        s.set_nle_beta(0.0);
+        assert_eq!(s.nle_beta(), 0.0);
+    }
+
+    #[test]
+    fn setter_and_getter_gp_ode_method_works() {
+        let mut s = Settings::new();
+        s.set_gp_ode_method(Method::Rk4);
+        assert_eq!(s.gp_ode_method(), Method::Rk4);
+    }
+
+    #[test]
+    fn setter_and_getter_gp_interp_nn_max_works() {
+        let mut s = Settings::new();
+        s.set_gp_interp_nn_max(10);
+        assert_eq!(s.gp_interp_nn_max(), 10);
+        s.set_gp_interp_nn_max(1);
+        assert_eq!(s.gp_interp_nn_max(), 1);
+    }
+
+    #[test]
+    fn builder_pattern_chaining_works() {
+        let mut s = Settings::new();
+        s.set_save_flux(true)
+            .set_save_strain(true)
+            .set_nle_enabled(true)
+            .set_nle_beta(2.5)
+            .set_nle_isotropic(true)
+            .set_general_plasticity(true)
+            .set_gp_explicit_update(true)
+            .set_gp_ode_method(Method::Rk4)
+            .set_gp_interp_nn_max(20)
+            .set_gp_allow_initial_drift(true)
+            .set_gp_save_history(true);
+        assert!(s.save_flux());
+        assert_eq!(s.nle_beta(), 2.5);
+        assert_eq!(s.gp_ode_method(), Method::Rk4);
+        assert_eq!(s.gp_interp_nn_max(), 20);
+        assert!(s.gp_save_history());
+    }
+
+    #[test]
+    fn validate_rejects_negative_nle_beta() {
+        let mut s = Settings::new();
+        s.set_nle_beta(-0.1);
+        let err = s.validate().unwrap();
+        assert!(err.contains("nle_beta"));
+        assert!(err.contains("-0.1"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_gp_interp_nn_max() {
+        let mut s = Settings::new();
+        s.set_gp_interp_nn_max(0);
+        let err = s.validate().unwrap();
+        assert!(err.contains("gp_interp_nn_max"));
+        assert!(err.contains("0"));
+    }
+
+    #[test]
+    fn validate_passes_with_valid_values() {
+        let mut s = Settings::new();
+        s.set_nle_beta(5.0);
+        s.set_gp_interp_nn_max(50);
+        assert!(s.validate().is_none());
+        s.set_nle_beta(0.0);
+        s.set_gp_interp_nn_max(1);
+        assert!(s.validate().is_none());
+    }
+
+    #[test]
+    fn clone_works() {
+        let mut s = Settings::new();
+        s.set_save_flux(true).set_nle_beta(3.0).set_gp_interp_nn_max(10);
+        let c = s.clone();
+        assert!(c.save_flux());
+        assert_eq!(c.nle_beta(), 3.0);
+        assert_eq!(c.gp_interp_nn_max(), 10);
+    }
+
+    #[test]
+    fn copy_and_debug() {
+        let mut s = Settings::new();
+        s.set_save_strain(true);
+        let c = s; // Copy
+        assert!(c.save_strain());
+        assert!(s.save_strain()); // original still accessible (Copy)
+        let debug = format!("{:?}", s);
+        assert!(debug.contains("Settings"));
+    }
+}
