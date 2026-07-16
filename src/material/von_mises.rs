@@ -1,4 +1,4 @@
-use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
+use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait, F_TOL};
 use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use gemlab::mesh::CellId;
@@ -7,20 +7,11 @@ use russell_tensor::{deriv1_invariant_q, deriv2_invariant_q, AuxDeriv2InvariantS
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
 use russell_tensor::{IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
 
-/// Holds the index of the z internal value (size of the yield surface)
-const I_Z: usize = 0;
-
-/// Holds the index of the lambda internal value (algorithmic Lagrange multiplier)
-const I_LAMBDA: usize = 1;
-
 /// Defines an alias to IDENTITY2
 const I: &[f64; 9] = &IDENTITY2;
 
 /// Defines an alias to P_SYMDEV
 const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
-
-/// Tolerance to detect elastic regime
-const F_TOL: f64 = 1e-6;
 
 /// Implements the von Mises plasticity model
 ///
@@ -95,17 +86,12 @@ impl StressStrainTrait for VonMises {
 
     /// Returns the number of internal variables
     fn n_int_vars(&self) -> usize {
-        NZ_VON_MISES // [z, lambda]
-    }
-
-    /// Returns the number of internal variables directly affecting the yield function
-    fn n_int_vars_yield_function(&self) -> usize {
-        1 // z
+        NZ_VON_MISES
     }
 
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
-        state.int_vars[I_Z] = self.z_ini;
+        state.int_vars[0] = self.z_ini;
         if !self.settings.gp_allow_initial_drift {
             let f = self.calc_f(state)?;
             if f > 0.0 {
@@ -113,14 +99,6 @@ impl StressStrainTrait for VonMises {
             }
         }
         Ok(())
-    }
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut LocalState, load_reversal: bool) {
-        if load_reversal {
-            state.elastic = true;
-        }
-        state.int_vars[I_LAMBDA] = 0.0;
     }
 
     /// Computes the consistent tangent stiffness
@@ -139,7 +117,7 @@ impl StressStrainTrait for VonMises {
 
         // extract current state variables
         let sigma = &state.stress;
-        let lambda = state.int_vars[I_LAMBDA]; // algorithmic Lagrange multiplier
+        let lambda = state.lambda_alg;
         sigma.deviator(&mut self.s); // s = dev(σ)
 
         // coefficients
@@ -179,7 +157,7 @@ impl StressStrainTrait for VonMises {
     ) -> Result<(), StrError> {
         // reset flags
         state.elastic = true; // aka, unloading
-        state.int_vars[I_LAMBDA] = 0.0; // algorithmic Lagrange multiplier
+        state.lambda_alg = 0.0; // algorithmic Lagrange multiplier
 
         // trial stress: σ ← σ_trial
         let dd = self.lin_elasticity.get_modulus();
@@ -219,12 +197,12 @@ impl StressStrainTrait for VonMises {
         }
 
         // update internal variable
-        let z = &mut state.int_vars[I_Z];
+        let z = &mut state.int_vars[0];
         *z += self.hh * lambda;
 
         // elastoplastic update
         state.elastic = false;
-        state.int_vars[I_LAMBDA] = lambda;
+        state.lambda_alg = lambda;
         Ok(())
     }
 }
@@ -235,16 +213,21 @@ impl PlasticityTrait for VonMises {
         true
     }
 
+    /// Calculates the reference yield function value to use as normalization factor
+    fn calc_f_ref(&self) -> f64 {
+        self.z_ini
+    }
+
     /// Calculates the yield function f
     fn calc_f(&self, state: &LocalState) -> Result<f64, StrError> {
         let q = state.stress.invariant_q();
-        let z = state.int_vars[I_Z];
+        let z = state.int_vars[0];
         Ok(q - z)
     }
 
     /// Calculates the hardening coefficients h
     fn calc_h(&self, h: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        h[I_Z] = self.hh;
+        h[0] = self.hh;
         Ok(())
     }
 
@@ -282,7 +265,7 @@ impl PlasticityTrait for VonMises {
     ///        ∂zₖ
     /// ```
     fn calc_fz(&self, df_dz: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        df_dz[I_Z] = -1.0;
+        df_dz[0] = -1.0;
         Ok(())
     }
 
@@ -326,11 +309,11 @@ impl PlasticityTrait for VonMises {
     /// Gz|k = ─────
     ///         ∂zₖ
     /// ```
-    fn calc_ggz(&self, ggz: &mut [&mut Tensor2], _state: &LocalState) -> Result<(), StrError> {
+    fn calc_ggz(&self, ggz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // g = f
         // gs = fs = ∂f/∂σ = ∂q/∂σ
         // ∂(gs)/∂zₖ = 0
-        ggz[I_Z].clear();
+        ggz.fill(0.0);
         Ok(())
     }
 
@@ -341,9 +324,9 @@ impl PlasticityTrait for VonMises {
     /// Hσ|k = ───
     ///        ∂σ
     /// ```
-    fn calc_hhs(&self, hhs: &mut [&mut Tensor2], _state: &LocalState) -> Result<(), StrError> {
+    fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // h0 = constant
-        hhs[I_Z].clear();
+        hhs.fill(0.0);
         Ok(())
     }
 
@@ -413,7 +396,7 @@ mod tests {
         let model = VonMises::new(&ideal, &param, &settings).unwrap();
         let mut state = LocalState::new(ideal.mandel(), model.n_int_vars());
         model.initialize_int_vars(&mut state).unwrap();
-        assert_eq!(state.int_vars.as_data(), &[Z_INI, 0.0]);
+        assert_eq!(state.int_vars.as_data(), &[Z_INI]);
     }
 
     #[test]
@@ -435,7 +418,7 @@ mod tests {
                 approx_eq(sigma_m, 1.0, 1e-14);
                 approx_eq(sigma_d, Z_INI, 1e-14);
                 assert_eq!(state.elastic, true);
-                assert_eq!(state.int_vars.as_data(), &[Z_INI, 0.0]);
+                assert_eq!(state.int_vars.as_data(), &[Z_INI]);
             }
         }
     }
@@ -480,7 +463,6 @@ mod tests {
             approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
             assert_eq!(state.elastic, false);
             approx_eq(state.int_vars[0], correct_sigma_d, 1e-14);
-            assert!(state.int_vars[1] > 0.0);
         }
     }
 
@@ -538,7 +520,7 @@ mod tests {
         ];
         compare_spo_results(&dd, &dd_spo, 1e-16);
         assert_eq!(state.elastic, true);
-        assert_eq!(state.int_vars.as_data(), &[z, 0.0]);
+        assert_eq!(state.int_vars.as_data(), &[z]);
 
         // second update: elastoplastic behavior
         delta_strain.vector_mut()[0] = (2.0 - 0.9999) * eps_x;
@@ -556,6 +538,6 @@ mod tests {
         let sigma_d = state.stress.invariant_q();
         assert_eq!(state.elastic, false);
         assert_eq!(state.int_vars[0], sigma_d);
-        approx_eq(state.int_vars[1], 3.461538461538463E-03, 1e-15);
+        approx_eq(state.lambda_alg, 3.461538461538463E-03, 1e-15);
     }
 }

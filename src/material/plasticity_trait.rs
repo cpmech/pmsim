@@ -7,6 +7,9 @@ pub trait PlasticityTrait: StressStrainTrait {
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool;
 
+    /// Calculates the reference yield function value to use as normalization factor
+    fn calc_f_ref(&self) -> f64;
+
     /// Calculates the yield function f
     fn calc_f(&self, state: &LocalState) -> Result<f64, StrError>;
 
@@ -63,27 +66,33 @@ pub trait PlasticityTrait: StressStrainTrait {
     /// Calculates the second derivatives of the plastic potential function with respect to stress and internal variables
     ///
     /// ```text
-    ///        ∂(gs)
-    /// Gz|k = ─────
-    ///         ∂zₖ
+    ///               ∂(gs)
+    /// ggz := Gz|k = ─────
+    ///                ∂zₖ
+    ///
+    /// ggz is (ncp x niv)
     /// ```
-    fn calc_ggz(&self, ggz: &mut [&mut Tensor2], state: &LocalState) -> Result<(), StrError>;
+    fn calc_ggz(&self, ggz: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the second derivatives of the hardening function with respect to stress
     ///
     /// ```text
-    ///        ∂hₖ
-    /// Hσ|k = ───
-    ///        ∂σ
+    ///               ∂hₖ
+    /// hhs := Hσ|k = ───
+    ///               ∂σ
+    ///
+    /// hhs is (niv x ncp)
     /// ```
-    fn calc_hhs(&self, hhs: &mut [&mut Tensor2], state: &LocalState) -> Result<(), StrError>;
+    fn calc_hhs(&self, hhs: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
 
     /// Calculates the second derivatives of the hardening function with respect to internal variables
     ///
     /// ```text
-    ///         ∂hᵢ
-    /// Hz|ij = ───
-    ///         ∂zⱼ
+    ///                ∂hᵢ
+    /// hhz := Hz|ij = ───
+    ///                ∂zⱼ
+    ///
+    /// hhz is (niv x niv)
     /// ```
     fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
 }

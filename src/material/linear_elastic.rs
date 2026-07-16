@@ -32,18 +32,10 @@ impl StressStrainTrait for LinearElastic {
         NZ_LINEAR_ELASTIC
     }
 
-    /// Returns the number of internal variables directly affecting the yield function
-    fn n_int_vars_yield_function(&self) -> usize {
-        0
-    }
-
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, _state: &mut LocalState) -> Result<(), StrError> {
         Ok(())
     }
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, _state: &mut LocalState, _load_reversal: bool) {}
 
     /// Computes the consistent tangent stiffness
     fn stiffness(

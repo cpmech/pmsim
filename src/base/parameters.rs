@@ -658,7 +658,7 @@ mod tests {
         let p = StressStrain::sample_von_mises();
         let correct = "VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z_ini: 9.0 }";
         assert_eq!(format!("{:?}", p), correct);
-        assert_eq!(p.n_int_var(), 2);
+        assert_eq!(p.n_int_var(), 1);
     }
 
     #[test]

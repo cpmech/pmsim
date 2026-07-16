@@ -12,16 +12,8 @@ pub trait StressStrainTrait: Send {
     /// Returns the number of internal variables
     fn n_int_vars(&self) -> usize;
 
-    /// Returns the number of internal variables directly affecting the yield function
-    ///
-    /// Note: The first `n_int_vars_yield_function` affect the yield function
-    fn n_int_vars_yield_function(&self) -> usize;
-
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError>;
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut LocalState, load_reversal: bool);
 
     /// Computes the consistent tangent stiffness
     fn stiffness(

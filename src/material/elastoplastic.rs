@@ -1,26 +1,15 @@
-use super::{LocalState, PlasticityTrait, PlotterData, Settings, StressStrainTrait, VonMises};
+use super::{callback_history_e, callback_history_ep, callback_intersect, callback_ode_e, callback_ode_ep};
+use super::{ep_jacobian, ep_residual};
+use super::{Args, LocalState, PlotterData, Settings, StressStrainTrait};
+use super::{CHEBYSHEV_TOL, F_TOL, HISTORY_N_OUT, PSEUDO_TIME_TOL};
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_lab::{mat_vec_mul, vec_inner, InterpChebyshev, NewtonSolver, RootFinder, Vector};
+use russell_lab::{mat_inverse, mat_vec_mul};
+use russell_lab::{InterpChebyshev, Matrix, NewtonSolver, RootFinder, Vector};
 use russell_ode::{OdeSolver, Output, Params, System};
-use russell_tensor::{t2_ddot_t4_ddot_t2, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4};
+use russell_tensor::{t2_ddot_t4_ddot_t2, t4_ddot_t2_update};
 use russell_tensor::{Tensor2, Tensor4};
-
-/// Indicates that the simulation should not stop
-const KEEP_RUNNING: bool = false;
-
-/// Number of divisions for dense output during stress-strain history recording
-const HISTORY_N_OUT: usize = 20;
-
-/// Tolerance to avoid negative plastic numerator (df/dσ : Dₑ : Δε)
-const NUMERATOR_TOL: f64 = 1e-8;
-
-/// Holds the tolerance to truncate the Chebyshev series used in root-finding
-const CHEBYSHEV_TOL: f64 = 1e-8;
-
-/// Holds the pseudo-time tolerance
-const PSEUDO_TIME_TOL: f64 = 1e-7;
 
 /// Indicates the yield surface crossing case
 #[derive(Clone, Copy, Debug)]
@@ -30,78 +19,6 @@ enum Case {
     BE,       // elastic; going inside (with eventual crossing)
     BXP(f64), // elastic-elastoplastic; going inside then outside with two crossings; holds t_intersection
     BP,       // elastoplastic
-}
-
-/// Defines the arguments for the ODE solvers
-struct Args {
-    /// Holds the current stress-strain state
-    state: LocalState,
-
-    /// Holds the plasticity model
-    model: Box<dyn PlasticityTrait>,
-
-    /// Holds the increment of strain given to the stress-update algorithm
-    del_eps: Tensor2,
-
-    /// Holds the rate of stress
-    ds_dt: Tensor2,
-
-    /// Holds the rate of internal variables
-    ///
-    /// (n_int_val)
-    dz_dt: Vector,
-
-    /// Holds the gradient of the yield function
-    ///
-    /// ```text
-    ///       ∂f
-    /// fs := ──
-    ///       ∂σ
-    /// ```
-    fs: Tensor2,
-
-    /// Holds the gradient of the plastic potential function
-    ///
-    /// ```text
-    ///       ∂g
-    /// gs := ──
-    ///       ∂σ
-    /// ```
-    gs: Tensor2,
-
-    /// Holds the derivative of the yield function w.r.t internal variables
-    ///
-    /// (n_int_val_yf) where yf means yield function
-    ///
-    /// ```text
-    ///        ∂f
-    /// fzₖ := ───
-    ///        ∂zₖ
-    /// ```
-    fz: Vector,
-
-    /// Holds the hardening coefficients
-    h: Vector,
-
-    /// Holds the elastic modulus
-    dde: Tensor4,
-
-    /// Holds the elastoplastic modulus
-    ddep: Tensor4,
-
-    /// Holds the number of calls to the dense call back function for the intersection finding
-    yf_count: usize,
-
-    /// Holds the yield function evaluations at the dense call back function
-    ///
-    /// (yf_count)
-    yf_values: Vector,
-
-    /// Holds the stress-strain history during the intersection finding (e.g., for debugging)
-    history_int: Option<PlotterData>,
-
-    /// Holds the stress-strain history during the elastic and elastoplastic update (e.g., for debugging)
-    history_eep: Option<PlotterData>,
 }
 
 /// Implements general elastoplasticity models using ODE solvers for the stress-update
@@ -150,101 +67,27 @@ pub struct Elastoplastic<'a> {
 
     /// Holds the last Case analyzed by update_stress (for debugging)
     last_case: Option<Case>,
+
+    /// Vector of unknowns for the local Newton-Raphson solver (implicit integration)
+    ///
+    /// x := [σ, z, λ]
+    x_newton: Vector,
+
+    /// Jacobian matrix for the local Newton-Raphson solver (implicit integration)
+    jac_newton: Matrix,
+
+    /// Inverse Jacobian matrix for the consistent tangent stiffness (implicit integration)
+    inv_jac_newton: Matrix,
 }
 
 impl<'a> Elastoplastic<'a> {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
-        // plasticity model
-        let model: Box<dyn PlasticityTrait> = match param {
-            StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
-            _ => return Err("model cannot be used with Elastoplastic"),
-        };
-
-        // constants
-        let mandel = ideal.mandel();
-        let n_int_val = model.n_int_vars();
-        let n_int_val_yf = model.n_int_vars_yield_function();
-        let ndim_e = mandel.dim();
-        let ndim_ep = ndim_e + n_int_val;
-
-        // ODE system: dσ/dt = Dₑ : Δε
-        let ode_system_e = System::new(ndim_e, |dydt, _t, y, args: &mut Args| {
-            // copy {y}(t) into σ
-            args.state.stress.vector_mut().set_vector(y.as_data());
-
-            // calculate: Dₑ(t)
-            args.model.calc_dde(&mut args.dde, &args.state)?;
-
-            // calculate: {dσ/dt} = [Dₑ]{Δε}
-            mat_vec_mul(dydt, 1.0, &args.dde.matrix(), &args.del_eps.vector())
-        });
-
-        // ODE system: dσ/dt = Dₑₚ : Δε and dz/dt = λ h(σ,z)
-        let ode_system_ep = System::new(ndim_ep, |dydt, _t, y, args: &mut Args| {
-            // split {y}(t) into σ and z
-            y.split2(
-                args.state.stress.vector_mut().as_mut_data(),
-                args.state.int_vars.as_mut_data(),
-            );
-
-            // gradients of the yield function
-            args.model.calc_fs(&mut args.fs, &args.state)?;
-            args.model.calc_fz(&mut args.fz, &args.state)?;
-            let fs = &args.fs;
-            let gs = if args.model.associated() {
-                &args.fs
-            } else {
-                args.model.calc_gs(&mut args.gs, &args.state)?;
-                &args.gs
-            };
-
-            // Mₚ = - (df/dz) · h
-            args.model.calc_h(&mut args.h, &args.state)?;
-            let mmp = -vec_inner(&args.fz, &args.h);
-
-            // calculate: Dₑ(t)
-            args.model.calc_dde(&mut args.dde, &args.state)?;
-
-            // Nₚ = Mₚ + (df/dσ) : Dₑ : (dg/dσ)
-            let nnp = mmp + t2_ddot_t4_ddot_t2(fs, &args.dde, gs);
-
-            // Dₑₚ = α Dₑ + β (Dₑ : a) ⊗ (b : Dₑ)
-            t4_ddot_t2_dyad_t2_ddot_t4(&mut args.ddep, 1.0, &args.dde, -1.0 / nnp, gs, fs);
-
-            // dσ/dt = Dₑₚ : Δε
-            t4_ddot_t2(&mut args.ds_dt, 1.0, &args.ddep, &args.del_eps);
-
-            // numerator = (df/dσ) : Dₑ : Δε
-            let numerator = t2_ddot_t4_ddot_t2(fs, &args.dde, &args.del_eps);
-            if numerator < -NUMERATOR_TOL {
-                return Err("plastic numerator is excessively negative");
-            }
-            let num = f64::max(0.0, numerator);
-
-            // λ = ((df/dσ) : Dₑ : Δε) / Nₚ
-            let lambda = num / nnp;
-
-            // dz/dt = λ h
-            args.model.calc_h(&mut args.dz_dt, &args.state)?; // dz/dt ← h
-            args.dz_dt.scale(lambda); // dz/dt = λ h
-
-            // join dσ/dt and dz/dt into {dy/dt}
-            dydt.join2(args.ds_dt.vector().as_data(), args.dz_dt.as_data());
-            Ok(())
-        });
-
-        // ODE solvers
-        let ode_param = Params::new(settings.gp_ode_method);
-        let ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
-        let ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
-        let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
-
-        // interpolant
+        // Allocate the interpolant for the explicit update
         let interp_nn_max = settings.gp_interp_nn_max;
         let interpolant = InterpChebyshev::new(interp_nn_max, 0.0, 1.0).unwrap();
 
-        // interior stations for dense output (intersection finding)
+        // Allocate interior stations for dense output (intersection finding)
         let chebyshev_points = InterpChebyshev::points(interp_nn_max);
         let interp_npoint = chebyshev_points.dim();
         let mut interior_t_out = vec![0.0; interp_npoint - 2];
@@ -253,39 +96,29 @@ impl<'a> Elastoplastic<'a> {
             interior_t_out[i] = (1.0 + x) / 2.0;
         });
 
-        // set function to handle yield surface intersection
+        // Allocate the auxiliary arguments structure
+        let args = Args::new(ideal, param, settings, interp_npoint)?;
+
+        // ODE system: dσ/dt = Dₑ : Δε
+        let ode_system_e = System::new(args.ndim_e, callback_ode_e);
+
+        // ODE system: dσ/dt = Dₑₚ : Δε and dz/dt = λ h(σ,z)
+        let ode_system_ep = System::new(args.ndim_ep, callback_ode_ep);
+
+        // ODE solvers
+        let ode_param = Params::new(settings.gp_ode_method);
+        let ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
+        let ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
+        let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
+
+        // Set function to handle yield surface intersection
         let mut out_intersection = Output::new();
         out_intersection
             .set_dense_x_out(&interior_t_out)
             .unwrap()
-            .set_dense_callback(|stats, _h, t, y, args: &mut Args| {
-                // reset the counter
-                if stats.n_accepted == 0 {
-                    args.yf_count = 0;
-                }
+            .set_dense_callback(callback_intersect);
 
-                // copy {y}(t) into σ
-                args.state.stress.vector_mut().set_vector(y.as_data());
-
-                // yield function value: f(σ, z)
-                let f = args.model.calc_f(&args.state)?;
-                args.yf_values[args.yf_count] = f;
-                args.yf_count += 1;
-
-                // history
-                if let Some(h) = args.history_int.as_mut() {
-                    // ε(t) = ε₀ + t Δε
-                    let epsilon_0 = args.state.strain.as_ref().unwrap();
-                    let mut epsilon_t = epsilon_0.clone();
-                    epsilon_t.update(t, &args.del_eps);
-
-                    // update history array
-                    h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
-                }
-                Ok(KEEP_RUNNING)
-            });
-
-        // set function to record the stress-strain history
+        // Set function to record the stress-strain history
         let mut out_history_el = Output::new();
         let mut out_history_ep = Output::new();
         let save_history = settings.gp_save_history;
@@ -294,75 +127,25 @@ impl<'a> Elastoplastic<'a> {
             out_history_el
                 .set_dense_h_out(h_out)
                 .unwrap()
-                .set_dense_callback(|_stats, _h, t, y, args: &mut Args| {
-                    if let Some(h) = args.history_eep.as_mut() {
-                        // copy {y}(t) into σ
-                        args.state.stress.vector_mut().set_vector(y.as_data());
-
-                        // yield function value: f(σ, z)
-                        let f = args.model.calc_f(&args.state)?;
-
-                        // ε(t) = ε₀ + t Δε
-                        let epsilon_0 = args.state.strain.as_ref().unwrap();
-                        let mut epsilon_t = epsilon_0.clone();
-                        epsilon_t.update(t, &args.del_eps);
-
-                        // update history array
-                        h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
-                    }
-                    Ok(KEEP_RUNNING)
-                });
+                .set_dense_callback(callback_history_e);
             out_history_ep
                 .set_dense_h_out(h_out)
                 .unwrap()
-                .set_dense_callback(|_stats, _h, t, y, args: &mut Args| {
-                    if let Some(h) = args.history_eep.as_mut() {
-                        // split {y}(t) into σ and z
-                        y.split2(
-                            args.state.stress.vector_mut().as_mut_data(),
-                            args.state.int_vars.as_mut_data(),
-                        );
-
-                        // yield function value: f(σ, z)
-                        let f = args.model.calc_f(&args.state)?;
-
-                        // ε(t) = ε₀ + t Δε
-                        let epsilon_0 = args.state.strain.as_ref().unwrap();
-                        let mut epsilon_t = epsilon_0.clone();
-                        epsilon_t.update(t, &args.del_eps);
-
-                        // update history array
-                        h.push(&args.state.stress, Some(&epsilon_t), Some(f), Some(t));
-                    }
-                    Ok(KEEP_RUNNING)
-                });
+                .set_dense_callback(callback_history_ep);
         }
 
-        // arguments for the ODE solvers
-        let args = Args {
-            state: LocalState::new(mandel, n_int_val),
-            model,
-            del_eps: Tensor2::new(mandel),
-            ds_dt: Tensor2::new(mandel),
-            dz_dt: Vector::new(n_int_val),
-            fs: Tensor2::new(mandel),
-            gs: Tensor2::new(mandel),
-            fz: Vector::new(n_int_val_yf),
-            h: Vector::new(n_int_val_yf),
-            dde: Tensor4::new(mandel),
-            ddep: Tensor4::new(mandel),
-            yf_count: 0,
-            yf_values: Vector::new(interp_npoint),
-            history_int: None,
-            history_eep: None,
-        };
+        // Allocate ODE vectors
+        let ode_y_e = Vector::new(args.ndim_e);
+        let ode_y_ep = Vector::new(args.ndim_ep);
 
-        // ODE vectors
-        let ode_y_e = Vector::new(ndim_e);
-        let ode_y_ep = Vector::new(ndim_ep);
-
-        // root finder
+        // Allocate root finder
         let root_finder = RootFinder::new();
+
+        // Allocate vector and matrix for the local Newton-Raphson solver (implicit integration)
+        let ndim_nw = args.ncp + args.niv + 1; // dimension of the local nonlinear problem r = [rσ, rz, rλ] = 0
+        let x_newton = Vector::new(ndim_nw);
+        let jac_newton = Matrix::new(ndim_nw, ndim_nw);
+        let inv_jac_newton = Matrix::new(ndim_nw, ndim_nw);
 
         // done
         Ok(Elastoplastic {
@@ -381,6 +164,9 @@ impl<'a> Elastoplastic<'a> {
             save_history,
             verbose: false,
             last_case: None,
+            x_newton,
+            jac_newton,
+            inv_jac_newton,
         })
     }
 
@@ -535,6 +321,12 @@ impl<'a> Elastoplastic<'a> {
         }
     }
 
+    /// Calculates the consistent tangent stiffness for the explicit method (not available)
+    fn explicit_stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+        Err("stiffness is not available for explicit update")
+    }
+
+    /// Updates the stress tensor given the strain increment tensor using the explicit method
     fn explicit_update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
         // set Δε in arguments struct
         self.args.del_eps.set_tensor(1.0, delta_strain);
@@ -634,54 +426,137 @@ impl<'a> Elastoplastic<'a> {
         Ok(())
     }
 
-    fn explicit_stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
-        Err("stiffness is not available for explicit update")
-    }
+    /// Calculates the consistent tangent stiffness for the implicit method
+    fn implicit_stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
+        // Calculate the elastic moduli if they have not been calculated yet
+        if !self.args.elastic_moduli_calculated {
+            // Calculate Dₑ
+            self.args.model.calc_dde(&mut self.args.dde, state)?;
 
-    fn implicit_update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
-        /*
-        // Build vector of unknowns: x := [σ, z, λ]
-        let mandel = state.stress.mandel();
-        let ncp = mandel.dim(); // number of stress components
-        let niv = state.int_vars.dim(); // number of internal variables
-        let ndim = ncp + niv + 1;
-        let mut x = Vector::new(ndim);
-        for i in 0..ncp {
-            x[i] = state.stress.vector()[i];
+            // Calculate Cₑ
+            mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
+
+            // Set flag
+            self.args.elastic_moduli_calculated = true;
         }
-        for i in 0..niv {
-            x[ncp + i] = state.int_vars[i];
+
+        // Handle elastic case
+        if state.elastic {
+            dd.set_tensor(1.0, &self.args.dde); // D ← Dₑ
+            return Ok(());
         }
-        x[ncp + niv] = 0.0; // initial guess for λ
 
-        // Arguments for the Newton solver (not used in this example)
-        let nw_args = &mut 0;
+        // --- Elastoplastic stiffness ---
 
-        // Nonlinear problem: y(x) = 0 = [re, rz, rf]
-        let y_fn = |x: &Vector, out: &mut Vector, _: &mut i32| {
-            out[0] = x[0] * x[0] + x[1] * x[1] - 4.0;
-            out[1] = x[0] - x[1];
-            Ok(())
-        };
+        // Set some auxiliary constants
+        let ns = self.args.ncp; // number of stress components
+        let nz = self.args.niv; // number of internal variables
+        let nsz = ns + nz; // index of λ in x
 
-        // Analytical Jacobian
-        let jacobian = |j: &mut Matrix, x: &Vector, _: &mut i32| {
-            j.set(0, 0, 2.0 * x[0]);
-            j.set(0, 1, 2.0 * x[1]);
-            j.set(1, 0, 1.0);
-            j.set(1, 1, -1.0);
-            Ok(())
-        };
+        // Build vector of unknowns x := [σ, z, λ]
+        for i in 0..ns {
+            self.x_newton[i] = state.stress.vector()[i];
+        }
+        for i in 0..nz {
+            self.x_newton[ns + i] = state.int_vars[i];
+        }
+        self.x_newton[nsz] = state.lambda_alg;
 
-        let solver = NewtonSolver::new();
-        let (x, stats) = solver.solve(&mut x0, nw_args, f, jacobian)?;
-        */
+        // Calculate the Jacobian matrix
+        ep_jacobian(&mut self.jac_newton, &self.x_newton, &mut self.args)?;
 
+        // Invert the Jacobian matrix to get the consistent tangent stiffness
+        mat_inverse(&mut self.inv_jac_newton, &self.jac_newton)?;
+
+        // Set the consistent tangent stiffness: D ← = inv(Jacobian)ₛₛ
+        for i in 0..ns {
+            for j in 0..ns {
+                dd.matrix_mut().set(i, j, self.inv_jac_newton.get(i, j));
+            }
+        }
         Ok(())
     }
 
-    fn implicit_stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
-        self.args.model.stiffness(dd, state, 0, 0)
+    /// Updates the stress tensor given the strain increment tensor using the implicit method
+    fn implicit_update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+        // Calculate the elastic moduli if they have not been calculated yet
+        if !self.args.elastic_moduli_calculated {
+            // Calculate Dₑ
+            self.args.model.calc_dde(&mut self.args.dde, state)?;
+
+            // Calculate Cₑ
+            mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
+
+            // Set flag
+            self.args.elastic_moduli_calculated = true;
+        }
+
+        // Reset data to elastic state
+        state.elastic = true; // aka, unloading
+        state.lambda_alg = 0.0; // algorithmic Lagrange multiplier
+
+        // Note that, at this stage:
+        // 1. σ_old = σ_current = state.stress
+        // 2. z_old = z_current = state.int_vars
+
+        // Trial update: σ_trial = σ_old + Dₑ : Δε thus σ += Dₑ : Δε
+        t4_ddot_t2_update(&mut state.stress, 1.0, &self.args.dde, delta_strain, 1.0);
+
+        // Trial yield function value: f(σ_trial, z_old)
+        let f_trial = self.args.model.calc_f(state)?;
+
+        // Exit on elastic update
+        if f_trial < F_TOL * self.args.model.calc_f_ref() {
+            // Elastic update: σ = σ_trial, z = z_old, λ_alg = 0.0
+            return Ok(());
+        }
+
+        // --- Elastoplastic update ---
+
+        // Calculate ε_trial = Cₑ : σ_trial
+        mat_vec_mul(
+            &mut self.args.eps_trial,
+            1.0,
+            self.args.cce.matrix(),
+            state.stress.vector(),
+        )?;
+
+        // Set z_old in arguments struct
+        self.args.z_old.set_vector(state.int_vars.as_data());
+
+        // Set some auxiliary constants
+        let ns = self.args.ncp; // number of stress components
+        let nz = self.args.niv; // number of internal variables
+        let nsz = ns + nz; // index of λ in x
+
+        // Build vector of unknowns x := [σ, z, λ]
+        for i in 0..ns {
+            self.x_newton[i] = state.stress.vector()[i];
+        }
+        for i in 0..nz {
+            self.x_newton[ns + i] = state.int_vars[i];
+        }
+        self.x_newton[nsz] = state.lambda_alg; // initial guess
+
+        // Solve the nonlinear system of equations
+        let ndim = ns + nz + 1; // dimension of the local nonlinear problem r = 0
+        let mut newton = NewtonSolver::new(ndim)?;
+        newton.solve(&mut self.x_newton, &mut self.args, ep_residual, ep_jacobian)?;
+
+        // Copy the results back into the state
+        for i in 0..ns {
+            state.stress.vector_mut()[i] = self.x_newton[i];
+        }
+        for i in 0..nz {
+            state.int_vars[i] = self.x_newton[ns + i];
+        }
+        state.lambda_alg = self.x_newton[nsz];
+
+        // Set the elastic flag to false (elastoplastic update)
+        state.elastic = false;
+
+        // Done
+        Ok(())
     }
 }
 
@@ -696,19 +571,9 @@ impl<'a> StressStrainTrait for Elastoplastic<'a> {
         self.args.model.n_int_vars()
     }
 
-    /// Returns the number of internal variables directly affecting the yield function
-    fn n_int_vars_yield_function(&self) -> usize {
-        self.args.model.n_int_vars_yield_function()
-    }
-
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
         self.args.model.initialize_int_vars(state)
-    }
-
-    /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, state: &mut LocalState, load_reversal: bool) {
-        self.args.model.reset_algorithmic_variables(state, load_reversal);
     }
 
     /// Computes the consistent tangent stiffness
@@ -749,9 +614,10 @@ mod tests {
     use super::{Case, Elastoplastic};
     use crate::base::{Idealization, StressStrain};
     use crate::material::testing::{extract_von_mises_params, extract_von_mises_params_kg};
-    use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, StressStrainTrait};
+    use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, StressStrainTrait, VonMises};
     use plotpy::Text;
     use russell_lab::{approx_eq, math::PI};
+    use russell_lab::{mat_approx_eq, vec_approx_eq};
     use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Tensor2, Tensor4, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
     use std::collections::HashMap;
 
@@ -773,12 +639,12 @@ mod tests {
     fn gen_ini_state_von_mises(
         ideal: &Idealization,  // geometry idealization
         model: &Elastoplastic, // model
-        sig_m: f64,            // initial mean invariant
-        sig_d: f64,            // initial deviatoric invariant (only if yf_error is None)
+        p: f64,                // initial mean invariant
+        q: f64,                // initial deviatoric invariant (only if yf_error is None)
         alpha: f64,            // initial octahedral angle related to the Lode invariant
     ) -> LocalState {
-        let distance = sig_m * SQRT_3;
-        let radius = sig_d * SQRT_2_BY_3;
+        let distance = p * SQRT_3;
+        let radius = q * SQRT_2_BY_3;
         let n_int_vars = model.n_int_vars();
         let mut state = LocalState::new(ideal.mandel(), n_int_vars);
         state.stress = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, ideal.two_dim).unwrap();
@@ -794,13 +660,13 @@ mod tests {
         param: &StressStrain,      // parameters
         model: &mut Elastoplastic, // model
         state: &mut LocalState,    // the state to be updated
-        sig_m_el: f64,             // next mean stress corresponding to a linear elastic path
-        sig_d_el: f64,             // next deviatoric stress corresponding to a linear elastic path
+        p_el: f64,                 // next mean stress corresponding to a linear elastic path
+        q_el: f64,                 // next deviatoric stress corresponding to a linear elastic path
         alpha_el: f64,             // next octahedral angle corresponding to a linear elastic path
     ) -> (f64, f64) {
         // calculate stress increment
-        let distance = sig_m_el * SQRT_3;
-        let radius = sig_d_el * SQRT_2_BY_3;
+        let distance = p_el * SQRT_3;
+        let radius = q_el * SQRT_2_BY_3;
         let mandel = state.stress.mandel();
         let two_dim = mandel.two_dim();
         let stress_fin = Tensor2::new_from_octahedral_alpha(distance, radius, alpha_el, two_dim).unwrap();
@@ -1556,6 +1422,127 @@ mod tests {
                 Some(9.5),
                 Some((-2.0, 2.0)),
             );
+        }
+    }
+
+    const YOUNG: f64 = 1500.0;
+    const POISSON: f64 = 0.45;
+    const HH: f64 = 800.0;
+    const Z_INI: f64 = 9.0;
+
+    #[test]
+    fn implicit_consistent_modulus_matches_von_mises() {
+        // Allocate von Mises model directly
+        let ideal = Idealization::new(2);
+        let param = StressStrain::VonMises {
+            young: YOUNG,
+            poisson: POISSON,
+            hh: HH,
+            z_ini: Z_INI,
+        };
+        let settings = Settings::new();
+        let mut vm = VonMises::new(&ideal, &param, &settings).unwrap();
+
+        // Set the initial state (zero stress; inside yield surface)
+        let mandel = ideal.mandel();
+        let n_int_vars = vm.n_int_vars();
+        let mut state0 = LocalState::new(mandel, n_int_vars);
+        state0.enable_strain();
+        vm.initialize_int_vars(&mut state0).unwrap();
+        assert_eq!(state0.int_vars[0], Z_INI);
+
+        // Allocate the Elastoplastic wrapper to von Mises model
+        let mut ep = Elastoplastic::new(&ideal, &param, &settings).unwrap();
+
+        // Calculate the consistent tangent modulus at the initial state using the von Mises model
+        let mut dd_vm = Tensor4::new(mandel);
+        vm.stiffness(&mut dd_vm, &state0, 0, 0).unwrap();
+        // println!("dd_vm =\n{}", dd_vm.as_matrix());
+
+        // Calculate the consistent tangent modulus at the initial state using the Elastoplastic wrapper
+        let mut dd_ep = Tensor4::new(mandel);
+        ep.stiffness(&mut dd_ep, &state0, 0, 0).unwrap();
+        // println!("dd_ep =\n{}", dd_ep.as_matrix());
+
+        // Compare the two tangent moduli (they should also equal the elastic stiffness)
+        mat_approx_eq(dd_vm.matrix(), dd_ep.matrix(), 1e-15);
+        mat_approx_eq(dd_vm.matrix(), ep.args.dde.matrix(), 1e-15);
+
+        // Set plane-strain strain increments such that the trial stress goes outside the yield surface
+        let ee = YOUNG;
+        let nu = POISSON;
+        let nu2 = POISSON * POISSON;
+        let z = 2.0 * Z_INI; // 2x the initial yield size so that the trial stress is outside the yield surface (it doesn't mean that we get twice the yield surface in the end because of plastic behavior)
+        let dy = z * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
+        let deps_x = dy * nu / (1.0 - nu);
+        let deps_y = -dy;
+        let mut delta_strain = Tensor2::new(mandel);
+        delta_strain.vector_mut()[0] = deps_x;
+        delta_strain.vector_mut()[1] = deps_y;
+
+        // Array of states for plotting
+        let mut states_vm = vec![state0.clone()];
+        let mut states_ep = vec![state0.clone()];
+
+        // Update the state using the von Mises model directly
+        let mut state_vm = state0.clone();
+        vm.update_stress(&mut state_vm, &delta_strain, 0, 0).unwrap();
+        state_vm.strain.as_mut().unwrap().set_tensor(1.0, &delta_strain); // eps += delta_eps
+        states_vm.push(state_vm.clone());
+
+        // Update the state using the Elastoplastic wrapper
+        let mut state_ep = state0.clone();
+        ep.update_stress(&mut state_ep, &delta_strain, 0, 0).unwrap();
+        state_ep.strain.as_mut().unwrap().set_tensor(1.0, &delta_strain); // eps += delta_eps
+        states_ep.push(state_ep.clone());
+
+        // Compare the two updated states (they should be equal)
+        vec_approx_eq(state_vm.stress.vector(), state_ep.stress.vector(), 1e-14);
+        approx_eq(state_vm.int_vars[0], state_ep.int_vars[0], 1e-14);
+        approx_eq(state_vm.lambda_alg, state_ep.lambda_alg, 1e-14);
+        assert!(state_vm.lambda_alg > 0.0);
+
+        // Calcualte the consistent tangent modulus at the updated state using the von Mises model
+        let mut dd_vm = Tensor4::new(mandel);
+        vm.stiffness(&mut dd_vm, &state_vm, 0, 0).unwrap();
+        // println!("dd_vm =\n{}", dd_vm.as_matrix());
+
+        // Calcualte the consistent tangent modulus at the updated state using the Elastoplastic wrapper
+        let mut dd_ep = Tensor4::new(mandel);
+        ep.stiffness(&mut dd_ep, &state_ep, 0, 0).unwrap();
+        // println!("dd_ep =\n{}", dd_ep.as_matrix());
+
+        // Compare the two tangent moduli
+        mat_approx_eq(dd_vm.matrix(), dd_ep.matrix(), 1e-12);
+
+        // plot
+        if SAVE_FIGURE {
+            let data_vm = PlotterData::from_states(&states_vm);
+            let data_ep = PlotterData::from_states(&states_ep);
+            let mut plotter = Plotter::new();
+            plotter
+                .add_2x2(&data_vm, false, |curve, _, _| {
+                    curve.set_label("von Mises").set_marker_style("s").set_marker_void(true);
+                })
+                .unwrap();
+            plotter
+                .add_2x2(&data_ep, false, |curve, _, _| {
+                    curve
+                        .set_label("Elastoplastic")
+                        .set_line_style(":")
+                        .set_marker_style("o")
+                        .set_marker_void(true);
+                })
+                .unwrap();
+            let r0 = states_vm[0].int_vars[0] * SQRT_2_BY_3;
+            let r1 = states_vm[1].int_vars[0] * SQRT_2_BY_3;
+            plotter.set_oct_circle(r0, |_| {});
+            plotter.set_oct_circle(r1, |canvas| {
+                canvas.set_line_style("-");
+            });
+            plotter
+                .save("/tmp/pmsim/material/test_implicit_consistent_modulus_matches_von_mises.svg")
+                .unwrap();
         }
     }
 }
