@@ -31,7 +31,7 @@ pub enum Axis {
 
 impl Axis {
     /// Generates labels for the axis
-    pub(crate) fn label(&self) -> String {
+    pub(super) fn label(&self) -> String {
         match self {
             Self::SigM(negative) => {
                 let n = if *negative { "-" } else { "" };

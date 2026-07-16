@@ -3,7 +3,6 @@
 mod axis;
 mod constants;
 mod elastoplastic;
-mod elastoplastic_args;
 mod elastoplastic_explicit;
 mod elastoplastic_implicit;
 mod linear_elastic;
@@ -21,11 +20,10 @@ mod testing;
 mod von_mises;
 
 pub use axis::*;
-pub(crate) use constants::*;
+pub(super) use constants::*;
 pub use elastoplastic::*;
-pub(crate) use elastoplastic_args::*;
-pub(crate) use elastoplastic_explicit::*;
-pub(crate) use elastoplastic_implicit::*;
+pub(super) use elastoplastic_explicit::*;
+pub(super) use elastoplastic_implicit::*;
 pub use linear_elastic::*;
 pub use loading_path::*;
 pub use local_state::*;

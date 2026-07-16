@@ -1,6 +1,6 @@
 use super::{callback_history_e, callback_history_ep, callback_intersect, callback_ode_e, callback_ode_ep};
 use super::{ep_jacobian, ep_residual};
-use super::{Args, LocalState, PlotterData, Settings, StressStrainTrait};
+use super::{ArgsExp, ArgsImp, LocalState, PlasticityTrait, PlotterData, Settings, StressStrainTrait};
 use super::{CHEBYSHEV_TOL, F_TOL, HISTORY_N_OUT, PSEUDO_TIME_TOL};
 use crate::base::{Idealization, StressStrain};
 use crate::StrError;
@@ -21,22 +21,19 @@ enum Case {
     BP,       // elastoplastic
 }
 
-/// Implements general elastoplasticity models using ODE solvers for the stress-update
-pub struct Elastoplastic<'a> {
-    /// Holds the arguments for the ODE solvers
-    args: Args,
-
-    /// Enables the explicit stress-update
-    explicit_update: bool,
+//// Holds the data for the explicit stress update algorithm
+struct DataExp<'a> {
+    /// Holds the arguments for the explicit stress update algorithm
+    args: ArgsExp,
 
     /// Holds the solver for finding the yield surface intersection
-    ode_intersection: OdeSolver<'a, Args>,
+    ode_intersection: OdeSolver<'a, ArgsExp>,
 
     /// Holds the solver for the elastic update
-    ode_elastic: OdeSolver<'a, Args>,
+    ode_elastic: OdeSolver<'a, ArgsExp>,
 
     /// Holds the solver for the elastoplastic update
-    ode_elastoplastic: OdeSolver<'a, Args>,
+    ode_elastoplastic: OdeSolver<'a, ArgsExp>,
 
     /// Holds the ODE vector of unknowns for elastic case
     ode_y_e: Vector,
@@ -45,13 +42,13 @@ pub struct Elastoplastic<'a> {
     ode_y_ep: Vector,
 
     /// Holds the output during the intersection finding
-    out_intersection: Output<'a, Args>,
+    out_intersection: Output<'a, ArgsExp>,
 
     /// Holds the output during the elastic path
-    out_history_el: Output<'a, Args>,
+    out_history_el: Output<'a, ArgsExp>,
 
     /// Holds the output during the elastoplastic path
-    out_history_ep: Output<'a, Args>,
+    out_history_ep: Output<'a, ArgsExp>,
 
     /// Holds the interpolant for finding the yield surface intersection
     interpolant: InterpChebyshev,
@@ -62,27 +59,13 @@ pub struct Elastoplastic<'a> {
     /// Enables recording stress-strain history
     save_history: bool,
 
-    /// Enables verbose mode
-    verbose: bool,
-
     /// Holds the last Case analyzed by update_stress (for debugging)
     last_case: Option<Case>,
-
-    /// Vector of unknowns for the local Newton-Raphson solver (implicit integration)
-    ///
-    /// x := [σ, z, λ]
-    x_newton: Vector,
-
-    /// Jacobian matrix for the local Newton-Raphson solver (implicit integration)
-    jac_newton: Matrix,
-
-    /// Inverse Jacobian matrix for the consistent tangent stiffness (implicit integration)
-    inv_jac_newton: Matrix,
 }
 
-impl<'a> Elastoplastic<'a> {
-    /// Allocates a new instance
-    pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+impl<'a> DataExp<'a> {
+    /// Allocate a new instance
+    fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // Allocate the interpolant for the explicit update
         let interp_nn_max = settings.gp_interp_nn_max;
         let interpolant = InterpChebyshev::new(interp_nn_max, 0.0, 1.0).unwrap();
@@ -96,8 +79,8 @@ impl<'a> Elastoplastic<'a> {
             interior_t_out[i] = (1.0 + x) / 2.0;
         });
 
-        // Allocate the auxiliary arguments structure
-        let args = Args::new(ideal, param, settings, interp_npoint)?;
+        // Allocate arguments for the callback functions
+        let args = ArgsExp::new(ideal, param, settings, interp_npoint)?;
 
         // ODE system: dσ/dt = Dₑ : Δε
         let ode_system_e = System::new(args.ndim_e, callback_ode_e);
@@ -141,16 +124,9 @@ impl<'a> Elastoplastic<'a> {
         // Allocate root finder
         let root_finder = RootFinder::new();
 
-        // Allocate vector and matrix for the local Newton-Raphson solver (implicit integration)
-        let ndim_nw = args.ncp + args.niv + 1; // dimension of the local nonlinear problem r = [rσ, rz, rλ] = 0
-        let x_newton = Vector::new(ndim_nw);
-        let jac_newton = Matrix::new(ndim_nw, ndim_nw);
-        let inv_jac_newton = Matrix::new(ndim_nw, ndim_nw);
-
-        // done
-        Ok(Elastoplastic {
+        // Done
+        Ok(DataExp {
             args,
-            explicit_update: settings.gp_explicit_update,
             ode_intersection,
             ode_elastic,
             ode_elastoplastic,
@@ -162,32 +138,120 @@ impl<'a> Elastoplastic<'a> {
             interpolant,
             root_finder,
             save_history,
-            verbose: false,
             last_case: None,
+        })
+    }
+}
+
+/// Holds the data for the implicit stress update algorithm
+struct DataImp {
+    /// Holds the arguments for the implicit stress update algorithm
+    args: ArgsImp,
+
+    /// Vector of unknowns for the local Newton-Raphson solver
+    ///
+    /// x := [σ, z, λ]
+    x_newton: Vector,
+
+    /// Jacobian matrix for the local Newton-Raphson solver
+    jac_newton: Matrix,
+
+    /// Inverse Jacobian matrix for the consistent tangent stiffness
+    inv_jac_newton: Matrix,
+}
+
+impl<'a> DataImp {
+    /// Allocate a new instance
+    fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+        // Allocate arguments for the callback functions
+        let args = ArgsImp::new(ideal, param, settings)?;
+
+        // Allocate vector and matrix for the local Newton-Raphson solver (implicit integration)
+        let ndim_nw = args.ncp + args.niv + 1; // dimension of the local nonlinear problem r = [rσ, rz, rλ] = 0
+        let x_newton = Vector::new(ndim_nw);
+        let jac_newton = Matrix::new(ndim_nw, ndim_nw);
+        let inv_jac_newton = Matrix::new(ndim_nw, ndim_nw);
+
+        // Done
+        Ok(DataImp {
+            args,
             x_newton,
             jac_newton,
             inv_jac_newton,
         })
     }
+}
+
+/// Implements general elastoplasticity models
+pub struct Elastoplastic<'a> {
+    /// Holds the data for the explicit stress update algorithm
+    data_exp: Option<DataExp<'a>>,
+
+    /// Holds the data for the implicit stress update algorithm
+    data_imp: Option<DataImp>,
+
+    /// Enables the explicit stress-update
+    explicit_update: bool,
+
+    /// Enables verbose mode
+    verbose: bool,
+}
+
+impl<'a> Elastoplastic<'a> {
+    /// Returns a reference to the model
+    fn model_ref(&self) -> &dyn PlasticityTrait {
+        if self.explicit_update {
+            self.data_exp.as_ref().unwrap().args.model.as_ref()
+        } else {
+            self.data_imp.as_ref().unwrap().args.model.as_ref()
+        }
+    }
+    
+    /// Allocates a new instance
+    pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+        let (data_exp, data_imp) = if settings.gp_explicit_update {
+            (Some(DataExp::new(ideal, param, settings)?), None)
+        } else {
+            (None, Some(DataImp::new(ideal, param, settings)?))
+        };
+        // done
+        Ok(Elastoplastic {
+            data_exp,
+            data_imp,
+            explicit_update: settings.gp_explicit_update,
+            verbose: false,
+        })
+    }
 
     /// Calculates the yield function f
     pub fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
-        self.args.model.calc_f(state)
+        if let Some(data) = self.data_exp.as_ref() {
+            data.args.model.calc_f(state)
+        } else {
+            let data = self.data_imp.as_ref().unwrap();
+            data.args.model.calc_f(state)
+        }
     }
 
     /// Returns the stress-strain history during the intersection finding (e.g., for debugging)
     pub fn get_history_int(&self) -> Result<PlotterData, StrError> {
-        match self.args.history_int.as_ref() {
+        if !self.explicit_update {
+            return Err("history is only available for explicit update");
+        }
+        match self.data_exp.as_ref().unwrap().args.history_int.as_ref() {
             Some(h) => Ok(h.clone()),
-            None => Err("history needs to be enabled"),
+            None => Err("history needs to be enabled (explicit update only)"),
         }
     }
 
     /// Returns the stress-strain history during the elastic and elastoplastic update (e.g., for debugging)
     pub fn get_history_eep(&self) -> Result<PlotterData, StrError> {
-        match self.args.history_eep.as_ref() {
+        if !self.explicit_update {
+            return Err("history is only available for explicit update");
+        }
+        match self.data_exp.as_ref().unwrap().args.history_eep.as_ref() {
             Some(h) => Ok(h.clone()),
-            None => Err("history needs to be enabled"),
+            None => Err("history needs to be enabled (explicit update only)"),
         }
     }
 
@@ -195,14 +259,20 @@ impl<'a> Elastoplastic<'a> {
     ///
     /// Warning: this function must only be called if the stress point is on (or near) the yield surface.
     fn going_inside(&mut self, state: &LocalState, delta_strain: &Tensor2) -> Result<bool, StrError> {
+        // check that the explicit update is enabled
+        if !self.explicit_update {
+            return Err("going_inside is only available for explicit update");
+        }
+
         // gradients of the yield function
-        self.args.model.calc_fs(&mut self.args.fs, state)?;
+        let data = self.data_exp.as_mut().unwrap();
+        data.args.model.calc_fs(&mut data.args.fs, state)?;
 
         // Dₑ
-        self.args.model.calc_dde(&mut self.args.dde, state)?;
+        data.args.model.calc_dde(&mut data.args.dde, state)?;
 
         // (df/dσ) : Dₑ : Δε
-        let indicator = t2_ddot_t4_ddot_t2(&self.args.fs, &self.args.dde, delta_strain);
+        let indicator = t2_ddot_t4_ddot_t2(&data.args.fs, &data.args.dde, delta_strain);
         Ok(indicator < 0.0)
     }
 
@@ -210,29 +280,35 @@ impl<'a> Elastoplastic<'a> {
     ///
     /// Returns `(t_int, yf_trial)`
     fn intersection_finding(&mut self, state: &LocalState, inside: bool) -> Result<(Option<f64>, f64), StrError> {
+        // check that the explicit update is enabled
+        if !self.explicit_update {
+            return Err("intersection_finding is only available for explicit update");
+        }
+
         // copy z into arguments (z is frozen)
-        self.args.state.int_vars.set_vector(state.int_vars.as_data());
+        let data = self.data_exp.as_mut().unwrap();
+        data.args.state.int_vars.set_vector(state.int_vars.as_data());
 
         // copy σ into {y}
-        self.ode_y_e.set_vector(state.stress.vector().as_data());
+        data.ode_y_e.set_vector(state.stress.vector().as_data());
 
         // solve the elastic problem with intersection finding data
-        self.ode_intersection.solve(
-            &mut self.ode_y_e,
+        data.ode_intersection.solve(
+            &mut data.ode_y_e,
             0.0,
             1.0,
             None,
-            &mut self.args,
-            Some(&mut self.out_intersection),
+            &mut data.args,
+            Some(&mut data.out_intersection),
         )?;
-        assert_eq!(self.args.yf_count, self.args.yf_values.dim());
+        assert_eq!(data.args.yf_count, data.args.yf_values.dim());
 
         // set data for interpolation
-        self.interpolant
-            .adapt_data(CHEBYSHEV_TOL, self.args.yf_values.as_data())?;
+        data.interpolant
+            .adapt_data(CHEBYSHEV_TOL, data.args.yf_values.as_data())?;
 
         // find roots == intersections
-        let roots = self.root_finder.chebyshev(&self.interpolant)?;
+        let roots = data.root_finder.chebyshev(&data.interpolant)?;
 
         // extract last root (ignore first root if crossing twice)
         let t_int = if inside {
@@ -251,7 +327,7 @@ impl<'a> Elastoplastic<'a> {
         };
 
         // trial yield function value
-        let yf_trial = self.args.yf_values[self.args.yf_count - 1];
+        let yf_trial = data.args.yf_values[data.args.yf_count - 1];
 
         // results
         Ok((t_int, yf_trial))
@@ -259,8 +335,13 @@ impl<'a> Elastoplastic<'a> {
 
     /// Selects the yield surface crossing case
     fn select_case(&mut self, state: &LocalState, delta_strain: &Tensor2) -> Result<Case, StrError> {
+        // check that the explicit update is enabled
+        if !self.explicit_update {
+            return Err("select_case is only available for explicit update");
+        }
+
         // current yield function value: f(σ, z)
-        let yf_initial = self.args.model.calc_f(state)?;
+        let yf_initial = self.data_exp.as_ref().unwrap().args.model.calc_f(state)?;
 
         // run analysis
         if yf_initial < 0.0 {
@@ -328,67 +409,74 @@ impl<'a> Elastoplastic<'a> {
 
     /// Updates the stress tensor given the strain increment tensor using the explicit method
     fn explicit_update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
-        // set Δε in arguments struct
-        self.args.del_eps.set_tensor(1.0, delta_strain);
+        {
+            let data = self.data_exp.as_mut().unwrap();
 
-        // enable history
-        if self.save_history {
-            match state.strain.as_ref() {
-                Some(strain) => self.args.state.strain = Some(strain.clone()),
-                None => {
-                    return Err("state must have strain enabled");
+            // set Δε in arguments struct
+            data.args.del_eps.set_tensor(1.0, delta_strain);
+
+            // enable history
+            if data.save_history {
+                match state.strain.as_ref() {
+                    Some(strain) => data.args.state.strain = Some(strain.clone()),
+                    None => {
+                        return Err("state must have strain enabled");
+                    }
                 }
+                data.args.history_int = Some(PlotterData::new());
+                data.args.history_eep = Some(PlotterData::new());
             }
-            self.args.history_int = Some(PlotterData::new());
-            self.args.history_eep = Some(PlotterData::new());
         }
 
         // select case regarding yield surface crossing
         let case = self.select_case(state, delta_strain)?;
+
+        // get mutable reference to data
+        let data = self.data_exp.as_mut().unwrap();
 
         // perform the update
         match case {
             // purely elastic => done
             Case::AE | Case::BE => {
                 // update (note that select_case already calculated this path)
-                state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
+                state.stress.vector_mut().set_vector(data.ode_y_e.as_data());
                 state.elastic = true;
             }
 
             // elastic-elastoplastic with crossing
             Case::AXB(t_int) | Case::BXP(t_int) => {
                 // copy σ into {y} (again; to start from scratch; because select_case modified ode_y_e)
-                self.ode_y_e.set_vector(state.stress.vector().as_data());
+                data.ode_y_e.set_vector(state.stress.vector().as_data());
 
                 // solve the elastic problem (again) to update σ to the intersection point
-                self.ode_elastic.solve(
-                    &mut self.ode_y_e,
+                data.ode_elastic.solve(
+                    &mut data.ode_y_e,
                     0.0,
                     t_int,
                     None,
-                    &mut self.args,
-                    Some(&mut self.out_history_el),
+                    &mut data.args,
+                    Some(&mut data.out_history_el),
                 )?;
 
                 // set stress at intersection
-                state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
+                state.stress.vector_mut().set_vector(data.ode_y_e.as_data());
 
                 // elastoplastic run: join σ and z into {y} (now z plays a role)
-                self.ode_y_ep
+                data.ode_y_ep
                     .join2(state.stress.vector().as_data(), state.int_vars.as_data());
 
                 // solve elastoplastic problem (starting from t_int)
-                self.ode_elastoplastic.solve(
-                    &mut self.ode_y_ep,
+                data.ode_elastoplastic.solve(
+                    &mut data.ode_y_ep,
                     t_int,
                     1.0,
                     None,
-                    &mut self.args,
-                    Some(&mut self.out_history_ep),
+                    &mut data.args,
+                    Some(&mut data.out_history_ep),
                 )?;
 
                 // update: split {y} into σ and z
-                self.ode_y_ep
+                data.ode_y_ep
                     .split2(state.stress.vector_mut().as_mut_data(), state.int_vars.as_mut_data());
                 state.elastic = false;
             }
@@ -396,21 +484,21 @@ impl<'a> Elastoplastic<'a> {
             // elastoplastic
             Case::BP => {
                 // join σ and z into {y} (now z plays a role)
-                self.ode_y_ep
+                data.ode_y_ep
                     .join2(state.stress.vector().as_data(), state.int_vars.as_data());
 
                 // solve elastoplastic problem
-                self.ode_elastoplastic.solve(
-                    &mut self.ode_y_ep,
+                data.ode_elastoplastic.solve(
+                    &mut data.ode_y_ep,
                     0.0,
                     1.0,
                     None,
-                    &mut self.args,
-                    Some(&mut self.out_history_ep),
+                    &mut data.args,
+                    Some(&mut data.out_history_ep),
                 )?;
 
                 // update: split {y} into σ and z
-                self.ode_y_ep
+                data.ode_y_ep
                     .split2(state.stress.vector_mut().as_mut_data(), state.int_vars.as_mut_data());
                 state.elastic = false;
             }
@@ -422,56 +510,58 @@ impl<'a> Elastoplastic<'a> {
         }
 
         // record last_case for debugging
-        self.last_case = Some(case);
+        data.last_case = Some(case);
         Ok(())
     }
 
     /// Calculates the consistent tangent stiffness for the implicit method
     fn implicit_stiffness(&mut self, dd: &mut Tensor4, state: &LocalState) -> Result<(), StrError> {
+        let data = self.data_imp.as_mut().unwrap();
+
         // Calculate the elastic moduli if they have not been calculated yet
-        if !self.args.elastic_moduli_calculated {
+        if !data.args.elastic_moduli_calculated {
             // Calculate Dₑ
-            self.args.model.calc_dde(&mut self.args.dde, state)?;
+            data.args.model.calc_dde(&mut data.args.dde, state)?;
 
             // Calculate Cₑ
-            mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
+            mat_inverse(data.args.cce.matrix_mut(), data.args.dde.matrix())?;
 
             // Set flag
-            self.args.elastic_moduli_calculated = true;
+            data.args.elastic_moduli_calculated = true;
         }
 
         // Handle elastic case
         if state.elastic {
-            dd.set_tensor(1.0, &self.args.dde); // D ← Dₑ
+            dd.set_tensor(1.0, &data.args.dde); // D ← Dₑ
             return Ok(());
         }
 
         // --- Elastoplastic stiffness ---
 
         // Set some auxiliary constants
-        let ns = self.args.ncp; // number of stress components
-        let nz = self.args.niv; // number of internal variables
+        let ns = data.args.ncp; // number of stress components
+        let nz = data.args.niv; // number of internal variables
         let nsz = ns + nz; // index of λ in x
 
         // Build vector of unknowns x := [σ, z, λ]
         for i in 0..ns {
-            self.x_newton[i] = state.stress.vector()[i];
+            data.x_newton[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            self.x_newton[ns + i] = state.int_vars[i];
+            data.x_newton[ns + i] = state.int_vars[i];
         }
-        self.x_newton[nsz] = state.lambda_alg;
+        data.x_newton[nsz] = state.lambda_alg;
 
         // Calculate the Jacobian matrix
-        ep_jacobian(&mut self.jac_newton, &self.x_newton, &mut self.args)?;
+        ep_jacobian(&mut data.jac_newton, &data.x_newton, &mut data.args)?;
 
         // Invert the Jacobian matrix to get the consistent tangent stiffness
-        mat_inverse(&mut self.inv_jac_newton, &self.jac_newton)?;
+        mat_inverse(&mut data.inv_jac_newton, &data.jac_newton)?;
 
         // Set the consistent tangent stiffness: D ← = inv(Jacobian)ₛₛ
         for i in 0..ns {
             for j in 0..ns {
-                dd.matrix_mut().set(i, j, self.inv_jac_newton.get(i, j));
+                dd.matrix_mut().set(i, j, data.inv_jac_newton.get(i, j));
             }
         }
         Ok(())
@@ -479,16 +569,18 @@ impl<'a> Elastoplastic<'a> {
 
     /// Updates the stress tensor given the strain increment tensor using the implicit method
     fn implicit_update_stress(&mut self, state: &mut LocalState, delta_strain: &Tensor2) -> Result<(), StrError> {
+        let data = self.data_imp.as_mut().unwrap();
+
         // Calculate the elastic moduli if they have not been calculated yet
-        if !self.args.elastic_moduli_calculated {
+        if !data.args.elastic_moduli_calculated {
             // Calculate Dₑ
-            self.args.model.calc_dde(&mut self.args.dde, state)?;
+            data.args.model.calc_dde(&mut data.args.dde, state)?;
 
             // Calculate Cₑ
-            mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
+            mat_inverse(data.args.cce.matrix_mut(), data.args.dde.matrix())?;
 
             // Set flag
-            self.args.elastic_moduli_calculated = true;
+            data.args.elastic_moduli_calculated = true;
         }
 
         // Reset data to elastic state
@@ -500,13 +592,13 @@ impl<'a> Elastoplastic<'a> {
         // 2. z_old = z_current = state.int_vars
 
         // Trial update: σ_trial = σ_old + Dₑ : Δε thus σ += Dₑ : Δε
-        t4_ddot_t2_update(&mut state.stress, 1.0, &self.args.dde, delta_strain, 1.0);
+        t4_ddot_t2_update(&mut state.stress, 1.0, &data.args.dde, delta_strain, 1.0);
 
         // Trial yield function value: f(σ_trial, z_old)
-        let f_trial = self.args.model.calc_f(state)?;
+        let f_trial = data.args.model.calc_f(state)?;
 
         // Exit on elastic update
-        if f_trial < F_TOL * self.args.model.calc_f_ref() {
+        if f_trial < F_TOL * data.args.model.calc_f_ref() {
             // Elastic update: σ = σ_trial, z = z_old, λ_alg = 0.0
             return Ok(());
         }
@@ -515,42 +607,42 @@ impl<'a> Elastoplastic<'a> {
 
         // Calculate ε_trial = Cₑ : σ_trial
         mat_vec_mul(
-            &mut self.args.eps_trial,
+            &mut data.args.eps_trial,
             1.0,
-            self.args.cce.matrix(),
+            data.args.cce.matrix(),
             state.stress.vector(),
         )?;
 
         // Set z_old in arguments struct
-        self.args.z_old.set_vector(state.int_vars.as_data());
+        data.args.z_old.set_vector(state.int_vars.as_data());
 
         // Set some auxiliary constants
-        let ns = self.args.ncp; // number of stress components
-        let nz = self.args.niv; // number of internal variables
+        let ns = data.args.ncp; // number of stress components
+        let nz = data.args.niv; // number of internal variables
         let nsz = ns + nz; // index of λ in x
 
         // Build vector of unknowns x := [σ, z, λ]
         for i in 0..ns {
-            self.x_newton[i] = state.stress.vector()[i];
+            data.x_newton[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            self.x_newton[ns + i] = state.int_vars[i];
+            data.x_newton[ns + i] = state.int_vars[i];
         }
-        self.x_newton[nsz] = state.lambda_alg; // initial guess
+        data.x_newton[nsz] = state.lambda_alg; // initial guess
 
         // Solve the nonlinear system of equations
         let ndim = ns + nz + 1; // dimension of the local nonlinear problem r = 0
         let mut newton = NewtonSolver::new(ndim)?;
-        newton.solve(&mut self.x_newton, &mut self.args, ep_residual, ep_jacobian)?;
+        newton.solve(&mut data.x_newton, &mut data.args, ep_residual, ep_jacobian)?;
 
         // Copy the results back into the state
         for i in 0..ns {
-            state.stress.vector_mut()[i] = self.x_newton[i];
+            state.stress.vector_mut()[i] = data.x_newton[i];
         }
         for i in 0..nz {
-            state.int_vars[i] = self.x_newton[ns + i];
+            state.int_vars[i] = data.x_newton[ns + i];
         }
-        state.lambda_alg = self.x_newton[nsz];
+        state.lambda_alg = data.x_newton[nsz];
 
         // Set the elastic flag to false (elastoplastic update)
         state.elastic = false;
@@ -563,17 +655,17 @@ impl<'a> Elastoplastic<'a> {
 impl<'a> StressStrainTrait for Elastoplastic<'a> {
     /// Indicates that the stiffness matrix is symmetric
     fn symmetric_stiffness(&self) -> bool {
-        self.args.model.symmetric_stiffness()
+        self.model_ref().symmetric_stiffness()
     }
 
     /// Returns the number of internal variables
     fn n_int_vars(&self) -> usize {
-        self.args.model.n_int_vars()
+        self.model_ref().n_int_vars()
     }
 
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
-        self.args.model.initialize_int_vars(state)
+        self.model_ref().initialize_int_vars(state)
     }
 
     /// Computes the consistent tangent stiffness
@@ -802,7 +894,7 @@ mod tests {
         let mut data = PlotterData::new();
         for i in 0..states.len() {
             let s = &states[i];
-            let f = model.args.model.calc_f(s).unwrap();
+            let f = model.yield_function(s).unwrap();
             let t = i as f64;
             data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
         }
@@ -900,7 +992,7 @@ mod tests {
                 approx_eq(sig_d_1, correct_sig_d, 1e-13);
                 approx_eq(state.int_vars[0], z_ini, 1e-15);
                 assert_eq!(state.elastic, true);
-                let case = model.last_case.as_ref().unwrap();
+                let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
                 let keys = case_to_keys(case);
                 assert_eq!(keys, ["A", "E"]);
 
@@ -919,7 +1011,7 @@ mod tests {
                 approx_eq(sig_d_2, correct_sig_d, 1e-13);
                 approx_eq(state.int_vars[0], correct_sig_d, 1e-13);
                 assert_eq!(state.elastic, false);
-                let case = model.last_case.as_ref().unwrap();
+                let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
                 let keys = case_to_keys(case);
                 assert_eq!(keys, &["B", "P"]);
             }
@@ -995,7 +1087,7 @@ mod tests {
         approx_eq(sig_d, correct_sig_d, 1e-13);
         approx_eq(state.int_vars[0], correct_sig_d, 1e-13);
         assert_eq!(state.elastic, false);
-        let case = model.last_case.as_ref().unwrap();
+        let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
         assert_eq!(keys, &["A", "X", "B"]);
 
@@ -1062,7 +1154,7 @@ mod tests {
         approx_eq(sig_d, sig_d_1, 1e-13);
         approx_eq(state.int_vars[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
-        let case = model.last_case.as_ref().unwrap();
+        let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
         assert_eq!(keys, &["B", "E"]);
 
@@ -1131,7 +1223,7 @@ mod tests {
         approx_eq(sig_d, sig_d_1, 1e-13);
         approx_eq(state.int_vars[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
-        let case = model.last_case.as_ref().unwrap();
+        let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
         assert_eq!(keys, &["B", "E"]);
 
@@ -1204,7 +1296,7 @@ mod tests {
         approx_eq(sig_d, sig_d_1, 1e-13);
         approx_eq(state.int_vars[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
-        let case = model.last_case.as_ref().unwrap();
+        let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
         assert_eq!(keys, &["B", "E"]);
 
@@ -1277,7 +1369,7 @@ mod tests {
         approx_eq(sig_d, sig_d_1, 1e-13);
         approx_eq(state.int_vars[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
-        let case = model.last_case.as_ref().unwrap();
+        let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
         assert_eq!(keys, &["B", "E"]);
 
@@ -1338,7 +1430,7 @@ mod tests {
 
         // check
         assert_eq!(state.elastic, false);
-        let case = model.last_case.as_ref().unwrap();
+        let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
         assert_eq!(keys, &["B", "X", "P"]);
 
@@ -1405,7 +1497,7 @@ mod tests {
 
         // check
         assert_eq!(state.elastic, false);
-        let case = model.last_case.as_ref().unwrap();
+        let case = model.data_exp.as_ref().unwrap().last_case.as_ref().unwrap();
         let keys = case_to_keys(case);
         assert_eq!(keys, &["B", "P"]);
 
@@ -1466,7 +1558,7 @@ mod tests {
 
         // Compare the two tangent moduli (they should also equal the elastic stiffness)
         mat_approx_eq(dd_vm.matrix(), dd_ep.matrix(), 1e-15);
-        mat_approx_eq(dd_vm.matrix(), ep.args.dde.matrix(), 1e-15);
+        mat_approx_eq(dd_vm.matrix(), ep.data_imp.as_ref().unwrap().args.dde.matrix(), 1e-15);
 
         // Set plane-strain strain increments such that the trial stress goes outside the yield surface
         let ee = YOUNG;

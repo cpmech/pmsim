@@ -10,31 +10,31 @@ pub struct Settings {
     pub(crate) save_strain: bool,
 
     /// Nonlinear elasticity (NLE): indicates that the non-linear elastic approach is enabled
-    pub(crate) nle_enabled: bool,
+    pub(super) nle_enabled: bool,
 
     /// Nonlinear elasticity (NLE): coefficient for nonlinear elasticity (zero renders linear elasticity)
-    pub(crate) nle_beta: f64,
+    nle_beta: f64,
 
     /// Nonlinear elasticity (NLE): makes the Young modulus vary with σm instead of σd
-    pub(crate) nle_isotropic: bool,
+    nle_isotropic: bool,
 
     /// General plasticity (GP): enables the general plasticity formulation instead of the specialized formulation
     pub(crate) general_plasticity: bool,
 
     /// General plasticity (GP): enables the explicit stress-update with general plasticity
-    pub(crate) gp_explicit_update: bool,
+    pub(super) gp_explicit_update: bool,
 
     /// General plasticity (GP): defines the ODE method for stress-update with general plasticity
-    pub(crate) gp_ode_method: Method,
+    pub(super) gp_ode_method: Method,
 
     /// General plasticity (GP): maximum degree of the interpolant for the yield function intersection
-    pub(crate) gp_interp_nn_max: usize,
+    pub(super) gp_interp_nn_max: usize,
 
     /// General plasticity (GP): allows an initial yield surface drift (e.g., for debugging)
-    pub(crate) gp_allow_initial_drift: bool,
+    pub(super) gp_allow_initial_drift: bool,
 
     /// General plasticity (GP): enables the recording of the stress-strain history (general plasticity only)
-    pub(crate) gp_save_history: bool,
+    pub(super) gp_save_history: bool,
 }
 
 impl Settings {

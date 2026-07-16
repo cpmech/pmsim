@@ -214,7 +214,7 @@ impl PlotterData {
     }
 
     /// Calculates the maximum radius of data on the octahedral plane
-    pub(crate) fn calc_oct_radius_max(&self) -> f64 {
+    pub(super) fn calc_oct_radius_max(&self) -> f64 {
         let mut r_max = 0.0;
         self.all.iter().for_each(|s| {
             r_max = f64::max(r_max, f64::sqrt(s.oct_x * s.oct_x + s.oct_y * s.oct_y));

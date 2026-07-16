@@ -4,7 +4,7 @@ use russell_lab::Vector;
 
 /// Generates an array of LocalState according to a linear elastic model for the VonMises model
 #[allow(dead_code)]
-pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lode: f64) -> Vec<LocalState> {
+pub(super) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lode: f64) -> Vec<LocalState> {
     let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
     let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
     let z = 9.0; // size of the von Mises yield surface
@@ -43,7 +43,7 @@ pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
 
 /// Returns (E, ν, H, z_ini) for the von Mises model
 #[allow(dead_code)]
-pub(crate) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, f64) {
+pub(super) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, f64) {
     match *param {
         StressStrain::VonMises {
             young,
@@ -62,7 +62,7 @@ pub(crate) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, 
 
 /// Returns (K, G, H, z_ini) for the von Mises model
 #[allow(dead_code)]
-pub(crate) fn extract_von_mises_params_kg(param: &StressStrain) -> (f64, f64, f64, f64) {
+pub(super) fn extract_von_mises_params_kg(param: &StressStrain) -> (f64, f64, f64, f64) {
     match *param {
         StressStrain::VonMises {
             young,
