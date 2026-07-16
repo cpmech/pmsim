@@ -40,7 +40,7 @@ const POISSON: f64 = 0.25;
 const DY: f64 = 0.1;
 
 #[test]
-fn test_prescribe_displacements_2d() -> Result<(), StrError> {
+fn prescribe_displacements_2d() -> Result<(), StrError> {
     // mesh
     let mesh = Samples::one_qua4();
 
