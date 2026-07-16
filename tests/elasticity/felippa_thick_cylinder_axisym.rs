@@ -37,7 +37,7 @@ const NAME: &str = "test_solid_felippa_thick_cylinder_axisym";
 const GENERATE_MESH: bool = false;
 
 #[test]
-fn test_solid_felippa_thick_cylinder_axisym() -> Result<(), StrError> {
+fn felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     // Example from Felippa's A-FEM page 14-3
     const PRESSURE: f64 = 10.0;
 

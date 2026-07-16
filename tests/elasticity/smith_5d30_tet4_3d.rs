@@ -31,7 +31,7 @@ use russell_lab::vec_approx_eq;
 // Young = 100, Poisson = 0.3
 
 #[test]
-fn test_solid_smith_5d30_tet4_3d() -> Result<(), StrError> {
+fn smith_5d30_tet4_3d() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d30_tet4();
 

@@ -37,7 +37,7 @@ use russell_lab::vec_approx_eq;
 // Plane-stress with thickness = 0.25
 
 #[test]
-fn test_solid_bhatti_1d6_plane_stress() -> Result<(), StrError> {
+fn bhatti_1d6_plane_stress() -> Result<(), StrError> {
     run_test(true)?;
     run_test(false)?;
     Ok(())

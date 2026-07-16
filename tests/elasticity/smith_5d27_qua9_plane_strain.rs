@@ -49,7 +49,7 @@ use russell_lab::vec_approx_eq;
 // Plane-strain
 
 #[test]
-fn test_solid_smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
+fn smith_5d27_qua9_plane_strain() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d27_qua9();
 

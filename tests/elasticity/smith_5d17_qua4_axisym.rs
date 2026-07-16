@@ -49,7 +49,7 @@ const NAME: &str = "test_solid_smith_5d17_qua4_axisym";
 const VERBOSE_LEVEL: usize = 0;
 
 #[test]
-fn test_solid_smith_5d17_qua4_axisym() -> Result<(), StrError> {
+fn smith_5d17_qua4_axisym() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d17_qua4();
 

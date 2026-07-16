@@ -49,7 +49,7 @@ use russell_lab::vec_approx_eq;
 // NOTE: using reduced integration with 4 points
 
 #[test]
-fn test_solid_smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
+fn smith_5d15_qua8_plane_strain() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d15_qua8();
 

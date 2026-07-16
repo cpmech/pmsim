@@ -32,7 +32,7 @@ use russell_lab::vec_approx_eq;
 // Using reduced integration with 8 points
 
 #[test]
-fn test_solid_smith_5d24_hex20_3d() -> Result<(), StrError> {
+fn smith_5d24_hex20_3d() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d24_hex20();
 

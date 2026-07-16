@@ -41,7 +41,7 @@ use russell_lab::vec_approx_eq;
 // Attribute 3: Area = 2,000; Young =  70,000
 
 #[test]
-fn test_rod_bhatti_1d4_truss() -> Result<(), StrError> {
+fn bhatti_1d4_truss() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_1d4_truss();
 

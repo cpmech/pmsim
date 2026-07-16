@@ -49,7 +49,7 @@ use russell_lab::vec_approx_eq;
 // to the code's coefficient (Poisson = 0.2)
 
 #[test]
-fn test_solid_smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
+fn smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::smith_example_5d7_tri15();
 
