@@ -1,29 +1,33 @@
-use crate::material::{LocalState, PlasticityTrait, PlotterData, Settings, VonMises};
 use crate::base::{Idealization, StressStrain};
+use crate::material::{LocalState, PlasticityTrait, PlotterData, Settings, VonMises};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Collects arguments for functions dealing with the explicit elastoplastic stress update
-pub(in crate::material) struct ArgsExp {
+pub(super) struct ArgsExp {
     /// Holds the dimension of the elastic ODE system
-    pub(in crate::material) ndim_e: usize,
+    pub(super) ndim_e: usize,
 
     /// Holds the dimension of the elastoplastic ODE system
-    pub(in crate::material) ndim_ep: usize,
-    pub(in crate::material) state: LocalState,
-    pub(in crate::material) model: Box<dyn PlasticityTrait>,
+    pub(super) ndim_ep: usize,
+
+    /// Holds the current state of the material
+    pub(super) state: LocalState,
+
+    /// Holds the plasticity model
+    pub(super) model: Box<dyn PlasticityTrait>,
 
     /// Holds the increment of strain given to the stress-update algorithm
-    pub(in crate::material) del_eps: Tensor2,
+    pub(super) del_eps: Tensor2,
 
     /// Holds the rate of stress
-    pub(in crate::material) ds_dt: Tensor2,
+    pub(super) ds_dt: Tensor2,
 
     /// Holds the rate of internal variables
     ///
     /// (n_int_val)
-    pub(in crate::material) dz_dt: Vector,
+    pub(super) dz_dt: Vector,
 
     /// Holds the gradient of the yield function
     ///
@@ -32,7 +36,7 @@ pub(in crate::material) struct ArgsExp {
     /// fs := ──
     ///       ∂σ
     /// ```
-    pub(in crate::material) fs: Tensor2,
+    pub(super) fs: Tensor2,
 
     /// Holds the gradient of the plastic potential function
     ///
@@ -41,7 +45,7 @@ pub(in crate::material) struct ArgsExp {
     /// gs := ──
     ///       ∂σ
     /// ```
-    pub(in crate::material) gs: Tensor2,
+    pub(super) gs: Tensor2,
 
     /// Holds the derivative of the yield function w.r.t internal variables
     ///
@@ -52,35 +56,35 @@ pub(in crate::material) struct ArgsExp {
     /// fzₖ := ───
     ///        ∂zₖ
     /// ```
-    pub(in crate::material) fz: Vector,
+    pub(super) fz: Vector,
 
     /// Holds the hardening coefficients
-    pub(in crate::material) h: Vector,
+    pub(super) h: Vector,
 
     /// Holds the elastic stiffness tensor: Dₑ
-    pub(in crate::material) dde: Tensor4,
+    pub(super) dde: Tensor4,
 
     /// Holds the elastoplastic modulus
-    pub(in crate::material) ddep: Tensor4,
+    pub(super) ddep: Tensor4,
 
     /// Holds the number of calls to the dense call back function for the intersection finding
-    pub(in crate::material) yf_count: usize,
+    pub(super) yf_count: usize,
 
     /// Holds the yield function evaluations at the dense call back function
     ///
     /// (yf_count)
-    pub(in crate::material) yf_values: Vector,
+    pub(super) yf_values: Vector,
 
     /// Holds the stress-strain history during the intersection finding (e.g., for debugging)
-    pub(in crate::material) history_int: Option<PlotterData>,
+    pub(super) history_int: Option<PlotterData>,
 
     /// Holds the stress-strain history during the elastic and elastoplastic update (e.g., for debugging)
-    pub(in crate::material) history_eep: Option<PlotterData>,
+    pub(super) history_eep: Option<PlotterData>,
 }
 
 impl ArgsExp {
     /// Allocates a new instance
-    pub(in crate::material) fn new(
+    pub(super) fn new(
         ideal: &Idealization,
         param: &StressStrain,
         settings: &Settings,
@@ -127,7 +131,7 @@ impl ArgsExp {
 mod tests {
     use super::ArgsExp;
     use crate::base::{Idealization, StressStrain};
-    use crate::material::{Settings, von_mises::F_TOL};
+    use crate::material::{von_mises::F_TOL, Settings};
     use russell_tensor::Mandel;
 
     #[test]

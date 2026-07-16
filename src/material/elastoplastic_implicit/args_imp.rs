@@ -1,22 +1,22 @@
-use crate::material::{LocalState, PlasticityTrait, Settings, VonMises};
 use crate::base::{Idealization, StressStrain};
+use crate::material::{LocalState, PlasticityTrait, Settings, VonMises};
 use crate::StrError;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::{Mandel, Tensor2, Tensor4};
 
 /// Collects arguments for functions dealing with the implicit elastoplastic stress update
-pub(in crate::material) struct ArgsImp {
+pub(super) struct ArgsImp {
     /// Holds the number of stress components
-    pub(in crate::material) ncp: usize,
+    pub(super) ncp: usize,
 
     /// Holds the number of internal variables
-    pub(in crate::material) niv: usize,
+    pub(super) niv: usize,
 
     /// Holds the current stress-strain state
-    pub(in crate::material) state: LocalState,
+    pub(super) state: LocalState,
 
     /// Holds the plasticity model
-    pub(in crate::material) model: Box<dyn PlasticityTrait>,
+    pub(super) model: Box<dyn PlasticityTrait>,
 
     /// Holds the gradient of the yield function
     ///
@@ -25,7 +25,7 @@ pub(in crate::material) struct ArgsImp {
     /// fs := ──
     ///       ∂σ
     /// ```
-    pub(in crate::material) fs: Tensor2,
+    pub(super) fs: Tensor2,
 
     /// Holds the gradient of the plastic potential function
     ///
@@ -34,7 +34,7 @@ pub(in crate::material) struct ArgsImp {
     /// gs := ──
     ///       ∂σ
     /// ```
-    pub(in crate::material) gs: Tensor2,
+    pub(super) gs: Tensor2,
 
     /// Holds the derivative of the yield function w.r.t internal variables
     ///
@@ -43,25 +43,25 @@ pub(in crate::material) struct ArgsImp {
     /// fzₖ := ───
     ///        ∂zₖ
     /// ```
-    pub(in crate::material) fz: Vector,
+    pub(super) fz: Vector,
 
     /// Holds the hardening coefficients
-    pub(in crate::material) h: Vector,
+    pub(super) h: Vector,
 
     /// Holds the elastic compliance tensor: Cₑ (inverse of the elastic stiffness)
-    pub(in crate::material) cce: Tensor4,
+    pub(super) cce: Tensor4,
 
     /// Holds the elastic stiffness tensor: Dₑ
-    pub(in crate::material) dde: Tensor4,
+    pub(super) dde: Tensor4,
 
     /// Indicates whether the elastic moduli (Dₑ and Cₑ) have been calculated
-    pub(in crate::material) elastic_moduli_calculated: bool,
+    pub(super) elastic_moduli_calculated: bool,
 
     /// Holds the trial strain ε_trial = Cₑ : σ_trial
-    pub(in crate::material) eps_trial: Vector,
+    pub(super) eps_trial: Vector,
 
     /// Holds the previous internal variables z_old
-    pub(in crate::material) z_old: Vector,
+    pub(super) z_old: Vector,
 
     /// Holds the second derivative of the plastic potential function with respect to stress
     ///
@@ -73,7 +73,7 @@ pub(in crate::material) struct ArgsImp {
     ///
     /// **Important:** `ggs` must be a Symmetric Tensor4, **not** Symmetric2D even if the problem is 2D. The reason for
     /// this requirement is that the second derivatives of some invariants cannot be expressed as a 4x4 matrix.
-    pub(in crate::material) ggs: Tensor4,
+    pub(super) ggs: Tensor4,
 
     /// Holds the second derivatives of the plastic potential function with respect to stress and internal variables
     ///
@@ -84,7 +84,7 @@ pub(in crate::material) struct ArgsImp {
     ///
     /// ggz is (ncp x niv)
     /// ```
-    pub(in crate::material) ggz: Matrix,
+    pub(super) ggz: Matrix,
 
     /// Holds the second derivatives of the hardening function with respect to stress
     ///
@@ -95,7 +95,7 @@ pub(in crate::material) struct ArgsImp {
     ///
     /// hhs is (niv x ncp)
     /// ```
-    pub(in crate::material) hhs: Matrix,
+    pub(super) hhs: Matrix,
 
     /// Holds the second derivatives of the hardening function with respect to internal variables
     ///
@@ -106,12 +106,12 @@ pub(in crate::material) struct ArgsImp {
     ///
     /// hhz is (niv x niv)
     /// ```
-    pub(in crate::material) hhz: Matrix,
+    pub(super) hhz: Matrix,
 }
 
 impl ArgsImp {
     /// Allocates a new instance
-    pub(in crate::material) fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+    pub(super) fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // Allocate the plasticity model
         let model: Box<dyn PlasticityTrait> = match param {
             StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
@@ -156,7 +156,7 @@ impl ArgsImp {
 mod tests {
     use super::ArgsImp;
     use crate::base::{Idealization, StressStrain};
-    use crate::material::{Settings, von_mises::F_TOL};
+    use crate::material::{von_mises::F_TOL, Settings};
     use russell_tensor::Mandel;
 
     #[test]

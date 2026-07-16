@@ -1,5 +1,7 @@
-use super::{ElastoplasticExp, ElastoplasticImp, LinearElastic, LocalState, Settings, VonMises};
+use super::{LinearElastic, LocalState, Settings, VonMises};
 use crate::base::{Idealization, StressStrain};
+use crate::material::ElastoplasticExp;
+use crate::material::ElastoplasticImp;
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_tensor::{Tensor2, Tensor4};

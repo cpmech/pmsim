@@ -1,27 +1,17 @@
-use super::constants::{CHEBYSHEV_TOL, HISTORY_N_OUT, PSEUDO_TIME_TOL};
-use crate::material::{LocalState, PlotterData, Settings};
 use super::{callback_history_e, callback_history_ep, callback_intersect, callback_ode_e, callback_ode_ep};
-use super::ArgsExp;
+use super::{ArgsExp, Case};
+use super::{CHEBYSHEV_TOL, HISTORY_N_OUT, PSEUDO_TIME_TOL};
 use crate::base::{Idealization, StressStrain};
+use crate::material::{LocalState, PlotterData, Settings};
 use crate::StrError;
 use russell_lab::{InterpChebyshev, RootFinder, Vector};
 use russell_ode::{OdeSolver, Output, Params, System};
 use russell_tensor::{t2_ddot_t4_ddot_t2, Tensor2, Tensor4};
 
-/// Indicates the yield surface crossing case
-#[derive(Clone, Copy, Debug)]
-pub enum Case {
-    AE,       // elastic
-    AXB(f64), // elastic-elastoplastic; holds t_intersection
-    BE,       // elastic; going inside (with eventual crossing)
-    BXP(f64), // elastic-elastoplastic; going inside then outside with two crossings; holds t_intersection
-    BP,       // elastoplastic
-}
-
 /// Holds the data for the explicit stress update algorithm
 pub(super) struct DataExp<'a> {
     /// Holds the arguments for the explicit stress update algorithm
-    pub(super) args: ArgsExp,
+    pub args: ArgsExp,
 
     /// Holds the solver for finding the yield surface intersection
     ode_intersection: OdeSolver<'a, ArgsExp>,
@@ -54,10 +44,10 @@ pub(super) struct DataExp<'a> {
     root_finder: RootFinder,
 
     /// Enables recording stress-strain history
-    pub(super) save_history: bool,
+    pub save_history: bool,
 
     /// Holds the last Case analyzed by update_stress (for debugging)
-    pub(super) last_case: Option<Case>,
+    pub last_case: Option<Case>,
 }
 
 impl<'a> DataExp<'a> {
@@ -213,12 +203,12 @@ impl<'a> DataExp<'a> {
     }
 
     /// Calculates the consistent tangent stiffness for the explicit method (not available)
-    pub(super) fn explicit_stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
+    pub fn explicit_stiffness(&mut self, _dd: &mut Tensor4, _state: &LocalState) -> Result<(), StrError> {
         Err("stiffness is not available for explicit update")
     }
 
     /// Updates the stress tensor given the strain increment tensor using the explicit method
-    pub(super) fn explicit_update_stress(
+    pub fn explicit_update_stress(
         &mut self,
         state: &mut LocalState,
         delta_strain: &Tensor2,

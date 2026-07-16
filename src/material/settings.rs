@@ -35,6 +35,9 @@ pub struct Settings {
 
     /// General plasticity (GP): enables the recording of the stress-strain history (general plasticity only)
     gp_save_history: bool,
+
+    /// Enables verbose mode for the general plasticity formulation (e.g., for debugging)
+    gp_verbose: bool,
 }
 
 impl Settings {
@@ -52,6 +55,7 @@ impl Settings {
             gp_interp_nn_max: 30,
             gp_allow_initial_drift: false,
             gp_save_history: false,
+            gp_verbose: false,
         }
     }
 
@@ -70,6 +74,8 @@ impl Settings {
         }
         None // all good
     }
+
+    // --- Setters ---
 
     /// Enables the recording of the flux vector (for post-processing only)
     pub fn set_save_flux(&mut self, flag: bool) -> &mut Self {
@@ -137,6 +143,14 @@ impl Settings {
         self
     }
 
+    /// Enables verbose mode for the general plasticity formulation (e.g., for debugging)
+    pub fn set_gp_verbose(&mut self, flag: bool) -> &mut Self {
+        self.gp_verbose = flag;
+        self
+    }
+
+    // --- Getters ---
+
     /// Returns whether the flux vector is recorded (for post-processing only)
     pub fn save_flux(&self) -> bool {
         self.save_flux
@@ -191,6 +205,11 @@ impl Settings {
     pub fn gp_save_history(&self) -> bool {
         self.gp_save_history
     }
+
+    /// Returns whether the verbose mode is enabled for the general plasticity formulation
+    pub fn gp_verbose(&self) -> bool {
+        self.gp_verbose
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -214,6 +233,7 @@ mod tests {
         assert_eq!(s.gp_interp_nn_max(), 30);
         assert!(!s.gp_allow_initial_drift());
         assert!(!s.gp_save_history());
+        assert!(!s.gp_verbose());
         assert!(s.validate().is_none());
     }
 

@@ -1,8 +1,8 @@
 //! Implements material models
 
 mod axis;
-pub mod elastoplastic_explicit;
-pub mod elastoplastic_implicit;
+mod elastoplastic_explicit;
+mod elastoplastic_implicit;
 mod linear_elastic;
 mod loading_path;
 mod local_state;

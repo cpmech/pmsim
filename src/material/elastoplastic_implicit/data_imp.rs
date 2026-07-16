@@ -1,8 +1,8 @@
+use super::ArgsImp;
+use super::{callback_jacobian, callback_residual};
+use crate::base::{Idealization, StressStrain};
 use crate::material::von_mises::F_TOL;
 use crate::material::{LocalState, Settings};
-use super::{ep_jacobian, ep_residual};
-use super::ArgsImp;
-use crate::base::{Idealization, StressStrain};
 use crate::StrError;
 use russell_lab::{mat_inverse, mat_vec_mul, Matrix, NewtonSolver, Vector};
 use russell_tensor::{t4_ddot_t2_update, Tensor2, Tensor4};
@@ -58,7 +58,7 @@ impl DataImp {
             self.x_newton[ns + i] = state.int_vars[i];
         }
         self.x_newton[nsz] = state.lambda_alg;
-        ep_jacobian(&mut self.jac_newton, &self.x_newton, &mut self.args)?;
+        callback_jacobian(&mut self.jac_newton, &self.x_newton, &mut self.args)?;
         mat_inverse(&mut self.inv_jac_newton, &self.jac_newton)?;
         for i in 0..ns {
             for j in 0..ns {
@@ -105,7 +105,7 @@ impl DataImp {
         self.x_newton[nsz] = state.lambda_alg;
         let ndim = ns + nz + 1;
         let mut newton = NewtonSolver::new(ndim)?;
-        newton.solve(&mut self.x_newton, &mut self.args, ep_residual, ep_jacobian)?;
+        newton.solve(&mut self.x_newton, &mut self.args, callback_residual, callback_jacobian)?;
         for i in 0..ns {
             state.stress.vector_mut()[i] = self.x_newton[i];
         }

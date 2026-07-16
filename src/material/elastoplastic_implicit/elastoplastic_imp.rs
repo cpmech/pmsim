@@ -1,6 +1,6 @@
-use crate::material::{LocalState, Settings, StressStrainTrait};
-use super::data_imp::DataImp;
+use super::DataImp;
 use crate::base::{Idealization, StressStrain};
+use crate::material::{LocalState, Settings, StressStrainTrait};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_tensor::{Tensor2, Tensor4};
@@ -9,9 +9,6 @@ use russell_tensor::{Tensor2, Tensor4};
 pub struct ElastoplasticImp {
     /// Holds the data for the implicit stress update algorithm
     data: DataImp,
-
-    /// Enables verbose mode
-    pub verbose: bool,
 }
 
 impl ElastoplasticImp {
@@ -19,13 +16,7 @@ impl ElastoplasticImp {
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         Ok(ElastoplasticImp {
             data: DataImp::new(ideal, param, settings)?,
-            verbose: false,
         })
-    }
-
-    /// Calculates the yield function f
-    pub fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
-        self.data.args.model.calc_f(state)
     }
 }
 

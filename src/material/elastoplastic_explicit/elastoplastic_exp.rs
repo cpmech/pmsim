@@ -1,6 +1,6 @@
-use crate::material::{LocalState, PlotterData, Settings, StressStrainTrait};
-use super::data_exp::{Case, DataExp};
+use super::{Case, DataExp};
 use crate::base::{Idealization, StressStrain};
+use crate::material::{LocalState, PlotterData, Settings, StressStrainTrait};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_tensor::{Tensor2, Tensor4};
@@ -11,7 +11,7 @@ pub struct ElastoplasticExp<'a> {
     data: DataExp<'a>,
 
     /// Enables verbose mode
-    pub verbose: bool,
+    verbose: bool,
 }
 
 impl<'a> ElastoplasticExp<'a> {
@@ -19,7 +19,7 @@ impl<'a> ElastoplasticExp<'a> {
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         Ok(ElastoplasticExp {
             data: DataExp::new(ideal, param, settings)?,
-            verbose: false,
+            verbose: settings.gp_verbose(),
         })
     }
 
