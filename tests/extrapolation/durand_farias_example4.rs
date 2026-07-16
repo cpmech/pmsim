@@ -21,7 +21,7 @@ const NU: f64 = 0.0; // Poisson's coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
 #[test]
-fn test_durand_farias_example4() -> Result<(), StrError> {
+fn durand_farias_example4() -> Result<(), StrError> {
     run_test(true)?;
     run_test(false)?;
     Ok(())
