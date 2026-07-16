@@ -1,36 +1,55 @@
-use super::DataImp;
+use super::ArgsImp;
+use super::{callback_jacobian, callback_residual};
 use crate::base::{Idealization, StressStrain};
+use crate::material::von_mises::F_TOL;
 use crate::material::{LocalState, Settings, StressStrainTrait};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_tensor::{Tensor2, Tensor4};
+use russell_lab::{mat_inverse, mat_vec_mul, Matrix, NewtonSolver, Vector};
+use russell_tensor::{t4_ddot_t2_update, Tensor2, Tensor4};
 
 /// Implements general elastoplasticity models using implicit stress update
 pub struct ElastoplasticImp {
-    /// Holds the data for the implicit stress update algorithm
-    data: DataImp,
+    /// Holds the arguments for the implicit stress update algorithm
+    args: ArgsImp,
+
+    /// Vector of unknowns for the local Newton-Raphson solver
+    ///
+    /// x := [σ, z, λ]
+    x_newton: Vector,
+
+    /// Jacobian matrix for the local Newton-Raphson solver
+    jac_newton: Matrix,
+
+    /// Inverse Jacobian matrix for the consistent tangent stiffness
+    inv_jac_newton: Matrix,
 }
 
 impl ElastoplasticImp {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+        let args = ArgsImp::new(ideal, param, settings)?;
+        let ndim_nw = args.ncp + args.niv + 1;
         Ok(ElastoplasticImp {
-            data: DataImp::new(ideal, param, settings)?,
+            args,
+            x_newton: Vector::new(ndim_nw),
+            jac_newton: Matrix::new(ndim_nw, ndim_nw),
+            inv_jac_newton: Matrix::new(ndim_nw, ndim_nw),
         })
     }
 }
 
 impl StressStrainTrait for ElastoplasticImp {
     fn symmetric_stiffness(&self) -> bool {
-        self.data.args.model.symmetric_stiffness()
+        self.args.model.symmetric_stiffness()
     }
 
     fn n_int_vars(&self) -> usize {
-        self.data.args.model.n_int_vars()
+        self.args.model.n_int_vars()
     }
 
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
-        self.data.args.model.initialize_int_vars(state)
+        self.args.model.initialize_int_vars(state)
     }
 
     fn stiffness(
@@ -40,7 +59,33 @@ impl StressStrainTrait for ElastoplasticImp {
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
-        self.data.implicit_stiffness(dd, state)
+        if !self.args.elastic_moduli_calculated {
+            self.args.model.calc_dde(&mut self.args.dde, state)?;
+            mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
+            self.args.elastic_moduli_calculated = true;
+        }
+        if state.elastic {
+            dd.set_tensor(1.0, &self.args.dde);
+            return Ok(());
+        }
+        let ns = self.args.ncp;
+        let nz = self.args.niv;
+        let nsz = ns + nz;
+        for i in 0..ns {
+            self.x_newton[i] = state.stress.vector()[i];
+        }
+        for i in 0..nz {
+            self.x_newton[ns + i] = state.int_vars[i];
+        }
+        self.x_newton[nsz] = state.lambda_alg;
+        callback_jacobian(&mut self.jac_newton, &self.x_newton, &mut self.args)?;
+        mat_inverse(&mut self.inv_jac_newton, &self.jac_newton)?;
+        for i in 0..ns {
+            for j in 0..ns {
+                dd.matrix_mut().set(i, j, self.inv_jac_newton.get(i, j));
+            }
+        }
+        Ok(())
     }
 
     fn update_stress(
@@ -50,7 +95,47 @@ impl StressStrainTrait for ElastoplasticImp {
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
-        self.data.implicit_update_stress(state, delta_strain)
+        if !self.args.elastic_moduli_calculated {
+            self.args.model.calc_dde(&mut self.args.dde, state)?;
+            mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
+            self.args.elastic_moduli_calculated = true;
+        }
+        state.elastic = true;
+        state.lambda_alg = 0.0;
+        t4_ddot_t2_update(&mut state.stress, 1.0, &self.args.dde, delta_strain, 1.0);
+        let f_trial = self.args.model.calc_f(state)?;
+        if f_trial < F_TOL * self.args.model.calc_f_ref() {
+            return Ok(());
+        }
+        mat_vec_mul(
+            &mut self.args.eps_trial,
+            1.0,
+            self.args.cce.matrix(),
+            state.stress.vector(),
+        )?;
+        self.args.z_old.set_vector(state.int_vars.as_data());
+        let ns = self.args.ncp;
+        let nz = self.args.niv;
+        let nsz = ns + nz;
+        for i in 0..ns {
+            self.x_newton[i] = state.stress.vector()[i];
+        }
+        for i in 0..nz {
+            self.x_newton[ns + i] = state.int_vars[i];
+        }
+        self.x_newton[nsz] = state.lambda_alg;
+        let ndim = ns + nz + 1;
+        let mut newton = NewtonSolver::new(ndim)?;
+        newton.solve(&mut self.x_newton, &mut self.args, callback_residual, callback_jacobian)?;
+        for i in 0..ns {
+            state.stress.vector_mut()[i] = self.x_newton[i];
+        }
+        for i in 0..nz {
+            state.int_vars[i] = self.x_newton[ns + i];
+        }
+        state.lambda_alg = self.x_newton[nsz];
+        state.elastic = false;
+        Ok(())
     }
 }
 
@@ -96,7 +181,7 @@ mod tests {
         ep.stiffness(&mut dd_ep, &state0, 0, 0).unwrap();
 
         mat_approx_eq(dd_vm.matrix(), dd_ep.matrix(), 1e-15);
-        mat_approx_eq(dd_vm.matrix(), ep.data.args.dde.matrix(), 1e-15);
+        mat_approx_eq(dd_vm.matrix(), ep.args.dde.matrix(), 1e-15);
 
         let ee = YOUNG;
         let nu = POISSON;

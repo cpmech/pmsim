@@ -1,14 +1,54 @@
-use super::{Case, DataExp};
+use super::{callback_history_e, callback_history_ep, callback_intersect, callback_ode_e, callback_ode_ep};
+use super::{ArgsExp, Case};
+use super::{CHEBYSHEV_TOL, HISTORY_N_OUT, PSEUDO_TIME_TOL};
 use crate::base::{Idealization, StressStrain};
 use crate::material::{LocalState, PlotterData, Settings, StressStrainTrait};
 use crate::StrError;
 use gemlab::mesh::CellId;
-use russell_tensor::{Tensor2, Tensor4};
+use russell_lab::{InterpChebyshev, RootFinder, Vector};
+use russell_ode::{OdeSolver, Output, Params, System};
+use russell_tensor::{t2_ddot_t4_ddot_t2, Tensor2, Tensor4};
 
 /// Implements general elastoplasticity models using explicit stress update
 pub struct ElastoplasticExp<'a> {
-    /// Holds the data for the explicit stress update algorithm
-    data: DataExp<'a>,
+    /// Holds the arguments for the explicit stress update algorithm
+    args: ArgsExp,
+
+    /// Holds the solver for finding the yield surface intersection
+    ode_intersection: OdeSolver<'a, ArgsExp>,
+
+    /// Holds the solver for the elastic update
+    ode_elastic: OdeSolver<'a, ArgsExp>,
+
+    /// Holds the solver for the elastoplastic update
+    ode_elastoplastic: OdeSolver<'a, ArgsExp>,
+
+    /// Holds the ODE vector of unknowns for elastic case
+    ode_y_e: Vector,
+
+    /// Holds the ODE vector of unknowns for elastoplastic case
+    ode_y_ep: Vector,
+
+    /// Holds the output during the intersection finding
+    out_intersection: Output<'a, ArgsExp>,
+
+    /// Holds the output during the elastic path
+    out_history_el: Output<'a, ArgsExp>,
+
+    /// Holds the output during the elastoplastic path
+    out_history_ep: Output<'a, ArgsExp>,
+
+    /// Holds the interpolant for finding the yield surface intersection
+    interpolant: InterpChebyshev,
+
+    /// Solver for the intersection finding algorithm
+    root_finder: RootFinder,
+
+    /// Enables recording stress-strain history
+    save_history: bool,
+
+    /// Holds the last Case analyzed by update_stress (for debugging)
+    last_case: Option<Case>,
 
     /// Enables verbose mode
     verbose: bool,
@@ -17,20 +57,87 @@ pub struct ElastoplasticExp<'a> {
 impl<'a> ElastoplasticExp<'a> {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+        // Allocate the interpolant
+        let interp_nn_max = settings.gp_interp_nn_max();
+        let interpolant = InterpChebyshev::new(interp_nn_max, 0.0, 1.0).unwrap();
+
+        // Allocate the Chebyshev points and the interior t_out values
+        let chebyshev_points = InterpChebyshev::points(interp_nn_max);
+        let interp_npoint = chebyshev_points.dim();
+        let mut interior_t_out = vec![0.0; interp_npoint - 2];
+        let xx_interior = &chebyshev_points.as_data()[1..(interp_npoint - 1)];
+        xx_interior.into_iter().enumerate().for_each(|(i, x)| {
+            interior_t_out[i] = (1.0 + x) / 2.0;
+        });
+
+        // Allocate the arguments for the explicit stress update algorithm
+        let args = ArgsExp::new(ideal, param, settings, interp_npoint)?;
+
+        // Allocate the ODE systems
+        let ode_system_e = System::new(args.ndim_e, callback_ode_e);
+        let ode_system_ep = System::new(args.ndim_ep, callback_ode_ep);
+
+        // Allocate the ODE solvers
+        let ode_param = Params::new(settings.gp_ode_method());
+        let ode_intersection = OdeSolver::new(ode_param, ode_system_e.clone()).unwrap();
+        let ode_elastic = OdeSolver::new(ode_param, ode_system_e).unwrap();
+        let ode_elastoplastic = OdeSolver::new(ode_param, ode_system_ep).unwrap();
+
+        // Allocate the output for the intersection finding
+        let mut out_intersection = Output::new();
+        out_intersection
+            .set_dense_x_out(&interior_t_out)
+            .unwrap()
+            .set_dense_callback(callback_intersect);
+
+        // Allocate the output for the elastic and elastoplastic paths
+        let mut out_history_el = Output::new();
+        let mut out_history_ep = Output::new();
+        let save_history = settings.gp_save_history();
+        if save_history {
+            let h_out = 1.0 / ((HISTORY_N_OUT - 1) as f64);
+            out_history_el
+                .set_dense_h_out(h_out)
+                .unwrap()
+                .set_dense_callback(callback_history_e);
+            out_history_ep
+                .set_dense_h_out(h_out)
+                .unwrap()
+                .set_dense_callback(callback_history_ep);
+        }
+
+        // Allocate the ODE vectors of unknowns
+        let ode_y_e = Vector::new(args.ndim_e);
+        let ode_y_ep = Vector::new(args.ndim_ep);
+        let root_finder = RootFinder::new();
+
+        // Allocate the instance
         Ok(ElastoplasticExp {
-            data: DataExp::new(ideal, param, settings)?,
+            args,
+            ode_intersection,
+            ode_elastic,
+            ode_elastoplastic,
+            ode_y_e,
+            ode_y_ep,
+            out_intersection,
+            out_history_el,
+            out_history_ep,
+            interpolant,
+            root_finder,
+            save_history,
+            last_case: None,
             verbose: settings.gp_verbose(),
         })
     }
 
     /// Calculates the yield function f
     pub fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
-        self.data.args.model.calc_f(state)
+        self.args.model.calc_f(state)
     }
 
     /// Returns the stress-strain history during the intersection finding (e.g., for debugging)
     pub fn get_history_int(&self) -> Result<PlotterData, StrError> {
-        match self.data.args.history_int.as_ref() {
+        match self.args.history_int.as_ref() {
             Some(h) => Ok(h.clone()),
             None => Err("history needs to be enabled (explicit update only)"),
         }
@@ -38,7 +145,7 @@ impl<'a> ElastoplasticExp<'a> {
 
     /// Returns the stress-strain history during the elastic and elastoplastic update (e.g., for debugging)
     pub fn get_history_eep(&self) -> Result<PlotterData, StrError> {
-        match self.data.args.history_eep.as_ref() {
+        match self.args.history_eep.as_ref() {
             Some(h) => Ok(h.clone()),
             None => Err("history needs to be enabled (explicit update only)"),
         }
@@ -46,31 +153,117 @@ impl<'a> ElastoplasticExp<'a> {
 
     /// Returns the last Case analyzed by update_stress (for debugging)
     pub fn last_case(&self) -> Option<Case> {
-        self.data.last_case
+        self.last_case
+    }
+
+    /// Returns true if the trial stress path leads to the inside of the yield surface
+    fn going_inside(&mut self, state: &LocalState, delta_strain: &Tensor2) -> Result<bool, StrError> {
+        self.args.model.calc_fs(&mut self.args.fs, state)?;
+        self.args.model.calc_dde(&mut self.args.dde, state)?;
+        let indicator = t2_ddot_t4_ddot_t2(&self.args.fs, &self.args.dde, delta_strain);
+        Ok(indicator < 0.0)
+    }
+
+    /// Performs the intersection finding algorithm
+    fn intersection_finding(&mut self, state: &LocalState, inside: bool) -> Result<(Option<f64>, f64), StrError> {
+        self.args.state.int_vars.set_vector(state.int_vars.as_data());
+        self.ode_y_e.set_vector(state.stress.vector().as_data());
+        self.ode_intersection.solve(
+            &mut self.ode_y_e,
+            0.0,
+            1.0,
+            None,
+            &mut self.args,
+            Some(&mut self.out_intersection),
+        )?;
+        assert_eq!(self.args.yf_count, self.args.yf_values.dim());
+        self.interpolant
+            .adapt_data(CHEBYSHEV_TOL, self.args.yf_values.as_data())?;
+        let roots = self.root_finder.chebyshev(&self.interpolant)?;
+        let t_int = if inside {
+            match roots.len() {
+                0 => None,
+                1 => Some(roots[0]),
+                _ => return Err("inside: cannot handle more than one intersection"),
+            }
+        } else {
+            match roots.len() {
+                0 => None,
+                1 => None,
+                2 => Some(roots[1]),
+                _ => return Err("not inside: cannot handle more than two intersections"),
+            }
+        };
+        let yf_trial = self.args.yf_values[self.args.yf_count - 1];
+        Ok((t_int, yf_trial))
+    }
+
+    /// Selects the yield surface crossing case
+    fn select_case(&mut self, state: &LocalState, delta_strain: &Tensor2) -> Result<Case, StrError> {
+        let yf_initial = self.args.model.calc_f(state)?;
+        if yf_initial < 0.0 {
+            let (t_intersection, yf_trial) = self.intersection_finding(state, true)?;
+            match t_intersection {
+                Some(t_int) => {
+                    if t_int <= PSEUDO_TIME_TOL {
+                        Ok(Case::BP)
+                    } else if t_int >= 1.0 - PSEUDO_TIME_TOL {
+                        Ok(Case::AE)
+                    } else {
+                        Ok(Case::AXB(t_int))
+                    }
+                }
+                None => {
+                    assert!(yf_trial <= 0.0);
+                    Ok(Case::AE)
+                }
+            }
+        } else {
+            if self.going_inside(state, delta_strain)? {
+                let (t_intersection, yf_trial) = self.intersection_finding(state, false)?;
+                match t_intersection {
+                    Some(t_int) => {
+                        if t_int <= PSEUDO_TIME_TOL {
+                            Ok(Case::BP)
+                        } else if t_int >= 1.0 - PSEUDO_TIME_TOL {
+                            Ok(Case::BE)
+                        } else {
+                            Ok(Case::BXP(t_int))
+                        }
+                    }
+                    None => {
+                        assert!(yf_trial <= 0.0);
+                        Ok(Case::BE)
+                    }
+                }
+            } else {
+                Ok(Case::BP)
+            }
+        }
     }
 }
 
 impl<'a> StressStrainTrait for ElastoplasticExp<'a> {
     fn symmetric_stiffness(&self) -> bool {
-        self.data.args.model.symmetric_stiffness()
+        self.args.model.symmetric_stiffness()
     }
 
     fn n_int_vars(&self) -> usize {
-        self.data.args.model.n_int_vars()
+        self.args.model.n_int_vars()
     }
 
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
-        self.data.args.model.initialize_int_vars(state)
+        self.args.model.initialize_int_vars(state)
     }
 
     fn stiffness(
         &mut self,
-        dd: &mut Tensor4,
-        state: &LocalState,
+        _dd: &mut Tensor4,
+        _state: &LocalState,
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
-        self.data.explicit_stiffness(dd, state)
+        Err("stiffness is not available for explicit update")
     }
 
     fn update_stress(
@@ -80,7 +273,75 @@ impl<'a> StressStrainTrait for ElastoplasticExp<'a> {
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
-        self.data.explicit_update_stress(state, delta_strain, self.verbose)
+        {
+            self.args.del_eps.set_tensor(1.0, delta_strain);
+            if self.save_history {
+                match state.strain.as_ref() {
+                    Some(strain) => self.args.state.strain = Some(strain.clone()),
+                    None => {
+                        return Err("state must have strain enabled");
+                    }
+                }
+                self.args.history_int = Some(PlotterData::new());
+                self.args.history_eep = Some(PlotterData::new());
+            }
+        }
+
+        let case = self.select_case(state, delta_strain)?;
+
+        match case {
+            Case::AE | Case::BE => {
+                state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
+                state.elastic = true;
+            }
+            Case::AXB(t_int) | Case::BXP(t_int) => {
+                self.ode_y_e.set_vector(state.stress.vector().as_data());
+                self.ode_elastic.solve(
+                    &mut self.ode_y_e,
+                    0.0,
+                    t_int,
+                    None,
+                    &mut self.args,
+                    Some(&mut self.out_history_el),
+                )?;
+                state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
+                self.ode_y_ep
+                    .join2(state.stress.vector().as_data(), state.int_vars.as_data());
+                self.ode_elastoplastic.solve(
+                    &mut self.ode_y_ep,
+                    t_int,
+                    1.0,
+                    None,
+                    &mut self.args,
+                    Some(&mut self.out_history_ep),
+                )?;
+                self.ode_y_ep
+                    .split2(state.stress.vector_mut().as_mut_data(), state.int_vars.as_mut_data());
+                state.elastic = false;
+            }
+            Case::BP => {
+                self.ode_y_ep
+                    .join2(state.stress.vector().as_data(), state.int_vars.as_data());
+                self.ode_elastoplastic.solve(
+                    &mut self.ode_y_ep,
+                    0.0,
+                    1.0,
+                    None,
+                    &mut self.args,
+                    Some(&mut self.out_history_ep),
+                )?;
+                self.ode_y_ep
+                    .split2(state.stress.vector_mut().as_mut_data(), state.int_vars.as_mut_data());
+                state.elastic = false;
+            }
+        }
+
+        if self.verbose {
+            println!("👉 {:?}", case);
+        }
+
+        self.last_case = Some(case);
+        Ok(())
     }
 }
 
