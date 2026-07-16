@@ -58,7 +58,7 @@ const GENERATE_MESH: bool = false;
 const REF_POINT_MARKER: PointMarker = -1;
 
 #[test]
-fn test_heat_mathematica_axisym_nafems() -> Result<(), StrError> {
+fn mathematica_axisym_nafems() -> Result<(), StrError> {
     // geometry
     let (rin, rref, rout) = (0.02, 0.04, 0.1);
     let (ya, yb, h) = (0.04, 0.1, 0.14);

@@ -65,7 +65,7 @@ fn analytical(x: f64) -> f64 {
 }
 
 #[test]
-fn test_heat_arpaci_nonlinear_1d() -> Result<(), StrError> {
+fn arpaci_nonlinear_1d() -> Result<(), StrError> {
     println!("\n##################################### NATURAL ####################################\n");
     run_test(false, false)?; // Natural continuation
 

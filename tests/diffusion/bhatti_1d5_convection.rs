@@ -40,7 +40,7 @@ use russell_lab::vec_approx_eq;
 // Constant conductivity kx = ky = 1.4
 
 #[test]
-fn test_heat_bhatti_1d5_convection() -> Result<(), StrError> {
+fn bhatti_1d5_convection() -> Result<(), StrError> {
     // mesh
     let mesh = SampleMeshes::bhatti_example_1d5_heat();
 

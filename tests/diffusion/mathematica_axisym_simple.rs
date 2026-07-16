@@ -39,7 +39,7 @@ const NAME: &str = "test_heat_mathematica_axisym_simple";
 const GENERATE_MESH: bool = false;
 
 #[test]
-fn test_heat_mathematica_axisym_simple() -> Result<(), StrError> {
+fn mathematica_axisym_simple() -> Result<(), StrError> {
     // geometry
     let (rin, rout, h) = (1.0, 2.0, 0.1);
 

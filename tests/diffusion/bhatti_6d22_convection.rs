@@ -40,7 +40,7 @@ use russell_lab::vec_approx_eq;
 // Constant conductivity kx = ky = 45
 
 #[test]
-fn test_heat_bhatti_6d22_convection_sim() -> Result<(), StrError> {
+fn bhatti_6d22_convection() -> Result<(), StrError> {
     // mesh and boundary features
     let mesh = SampleMeshes::bhatti_example_6d22_heat();
     let features = Features::new(&mesh, false); // boundary only

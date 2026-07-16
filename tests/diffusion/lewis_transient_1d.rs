@@ -49,7 +49,7 @@ fn analytical(t: f64, x: f64) -> f64 {
 }
 
 #[test]
-fn test_heat_lewis_transient_1d() -> Result<(), StrError> {
+fn lewis_transient_1d() -> Result<(), StrError> {
     // mesh
     let mesh = generate_or_read_mesh(GENERATE_MESH);
 

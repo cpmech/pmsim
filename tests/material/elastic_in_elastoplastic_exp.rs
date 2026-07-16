@@ -19,7 +19,7 @@ const SAVE_FIGURE: bool = false;
 const N_STEP: usize = 4;
 
 #[test]
-fn test_elastic_in_elastoplastic() -> Result<(), StrError> {
+fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     // parameters
     let young = 1500.0;
     let poisson = 0.25;
