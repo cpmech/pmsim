@@ -36,28 +36,19 @@ cudss = [
 
 [dependencies]
 plotpy = "1.23"
-gemlab = "2.3"
-russell_lab = "2.7"
-russell_nonlin = "2.7"
-russell_ode = "2.7"
-russell_pde = "2.7"
-russell_sparse = "2.7"
-russell_stat = "2.7"
-russell_tensor = "2.7"
+gemlab = "2.4"
+russell_lab = "2.8"
+russell_nonlin = "2.8"
+russell_ode = "2.8"
+russell_pde = "2.8"
+russell_sparse = "2.8"
+russell_stat = "2.8"
+russell_tensor = "2.8"
 tritet = "3.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 structopt = "0.3"
-uuid = { version = "1.23", features = ["v4"] }
-
-[patch.crates-io]
-russell_lab = { path = "../russell/russell_lab" }
-russell_nonlin = { path = "../russell/russell_nonlin" }
-russell_ode = { path = "../russell/russell_ode" }
-russell_pde = { path = "../russell/russell_pde" }
-russell_sparse = { path = "../russell/russell_sparse" }
-russell_stat = { path = "../russell/russell_stat" }
-russell_tensor = { path = "../russell/russell_tensor" }
+uuid = { version = "1.24", features = ["v4"] }
 
 [dev-dependencies]
 serial_test = "3.5"
