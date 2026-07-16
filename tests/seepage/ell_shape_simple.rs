@@ -16,7 +16,7 @@ const DRAW_TRIANGLES: bool = false;
 const DRAW_MESH: bool = false;
 
 #[test]
-fn test_seep_ell_shape() -> Result<(), StrError> {
+fn ell_shape_simple() -> Result<(), StrError> {
     // mesh
     let generate = false;
     let triangle = true;

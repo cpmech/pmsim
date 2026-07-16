@@ -38,7 +38,7 @@ fn draw_mesh(mesh: &Mesh, input: bool, tri: bool) -> Result<(), StrError> {
 }
 
 #[test]
-fn test_seep_cofferdam() -> Result<(), StrError> {
+fn cofferdam() -> Result<(), StrError> {
     let use_input_mesh = false;
     let triangles = false;
     let o2_triangles = true;

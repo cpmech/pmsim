@@ -9,7 +9,7 @@ const NAME: &str = "test_seep_simple_confined_flow_2d";
 const SAVE_FIGURE: bool = false;
 
 #[test]
-fn test_seep_simple_confined_flow() -> Result<(), StrError> {
+fn simple_confined_flow() -> Result<(), StrError> {
     // mesh
     let mesh = Mesh::read("data/meshes/simple-confined-flow-2d.msh")?;
     // let mesh = Mesh::read("data/meshes/simple-confined-flow-2d_fine.msh")?;
